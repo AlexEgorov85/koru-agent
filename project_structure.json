@@ -1,0 +1,3095 @@
+{
+  "root_dir": ".",
+  "total_files": 336,
+  "total_code_units": 755,
+  "directory_structure": {
+    "name": ".",
+    "type": "directory",
+    "children": [
+      {
+        "name": ".git",
+        "type": "file",
+        "path": ".git",
+        "size": 0,
+        "last_modified": 1769356158.6823242
+      },
+      {
+        "name": ".ipynb_checkpoints",
+        "type": "file",
+        "path": ".ipynb_checkpoints",
+        "size": 0,
+        "last_modified": 1766404397.4435828
+      },
+      {
+        "name": ".pytest_cache",
+        "type": "file",
+        "path": ".pytest_cache",
+        "size": 0,
+        "last_modified": 1765994397.1267023
+      },
+      {
+        "name": ".vscode",
+        "type": "file",
+        "path": ".vscode",
+        "size": 0,
+        "last_modified": 1766166808.3563654
+      },
+      {
+        "name": "analyze_file.py",
+        "type": "file",
+        "path": "analyze_file.py",
+        "size": 3227,
+        "last_modified": 1769361636.701387
+      },
+      {
+        "name": "core",
+        "type": "file",
+        "path": "core",
+        "size": 0,
+        "last_modified": 1766470285.8208628
+      },
+      {
+        "name": "logs",
+        "type": "file",
+        "path": "logs",
+        "size": 0,
+        "last_modified": 1766396619.4567432
+      },
+      {
+        "name": "main.py",
+        "type": "file",
+        "path": "main.py",
+        "size": 15839,
+        "last_modified": 1766399875.5855489
+      },
+      {
+        "name": "models",
+        "type": "file",
+        "path": "models",
+        "size": 0,
+        "last_modified": 1766260353.0314705
+      },
+      {
+        "name": "tests",
+        "type": "file",
+        "path": "tests",
+        "size": 0,
+        "last_modified": 1766231810.882141
+      },
+      {
+        "name": "test_main.py",
+        "type": "file",
+        "path": "test_main.py",
+        "size": 3525,
+        "last_modified": 1769369056.4319735
+      },
+      {
+        "name": ".git\\hooks",
+        "type": "file",
+        "path": ".git\\hooks",
+        "size": 0,
+        "last_modified": 1769356147.2419436
+      },
+      {
+        "name": ".git\\info",
+        "type": "file",
+        "path": ".git\\info",
+        "size": 0,
+        "last_modified": 1769356147.2419436
+      },
+      {
+        "name": ".git\\logs",
+        "type": "file",
+        "path": ".git\\logs",
+        "size": 0,
+        "last_modified": 1769356151.2287998
+      },
+      {
+        "name": ".git\\objects",
+        "type": "file",
+        "path": ".git\\objects",
+        "size": 0,
+        "last_modified": 1769369190.3593223
+      },
+      {
+        "name": ".git\\refs",
+        "type": "file",
+        "path": ".git\\refs",
+        "size": 0,
+        "last_modified": 1769356158.6823242
+      },
+      {
+        "name": ".git\\logs\\refs",
+        "type": "file",
+        "path": ".git\\logs\\refs",
+        "size": 0,
+        "last_modified": 1769356158.6873856
+      },
+      {
+        "name": ".git\\logs\\refs\\heads",
+        "type": "file",
+        "path": ".git\\logs\\refs\\heads",
+        "size": 0,
+        "last_modified": 1769356151.2287998
+      },
+      {
+        "name": ".git\\logs\\refs\\remotes",
+        "type": "file",
+        "path": ".git\\logs\\refs\\remotes",
+        "size": 0,
+        "last_modified": 1769356158.6883936
+      },
+      {
+        "name": ".git\\logs\\refs\\remotes\\origin",
+        "type": "file",
+        "path": ".git\\logs\\refs\\remotes\\origin",
+        "size": 0,
+        "last_modified": 1769357446.3763635
+      },
+      {
+        "name": ".git\\objects\\01",
+        "type": "file",
+        "path": ".git\\objects\\01",
+        "size": 0,
+        "last_modified": 1769356149.128626
+      },
+      {
+        "name": ".git\\objects\\02",
+        "type": "file",
+        "path": ".git\\objects\\02",
+        "size": 0,
+        "last_modified": 1769356149.3945627
+      },
+      {
+        "name": ".git\\objects\\03",
+        "type": "file",
+        "path": ".git\\objects\\03",
+        "size": 0,
+        "last_modified": 1769356150.890256
+      },
+      {
+        "name": ".git\\objects\\05",
+        "type": "file",
+        "path": ".git\\objects\\05",
+        "size": 0,
+        "last_modified": 1769356149.3945627
+      },
+      {
+        "name": ".git\\objects\\06",
+        "type": "file",
+        "path": ".git\\objects\\06",
+        "size": 0,
+        "last_modified": 1769356150.09568
+      },
+      {
+        "name": ".git\\objects\\08",
+        "type": "file",
+        "path": ".git\\objects\\08",
+        "size": 0,
+        "last_modified": 1769356151.0642574
+      },
+      {
+        "name": ".git\\objects\\0a",
+        "type": "file",
+        "path": ".git\\objects\\0a",
+        "size": 0,
+        "last_modified": 1769356150.985978
+      },
+      {
+        "name": ".git\\objects\\0b",
+        "type": "file",
+        "path": ".git\\objects\\0b",
+        "size": 0,
+        "last_modified": 1769356148.93919
+      },
+      {
+        "name": ".git\\objects\\0c",
+        "type": "file",
+        "path": ".git\\objects\\0c",
+        "size": 0,
+        "last_modified": 1769356151.176317
+      },
+      {
+        "name": ".git\\objects\\0d",
+        "type": "file",
+        "path": ".git\\objects\\0d",
+        "size": 0,
+        "last_modified": 1769356148.546191
+      },
+      {
+        "name": ".git\\objects\\0e",
+        "type": "file",
+        "path": ".git\\objects\\0e",
+        "size": 0,
+        "last_modified": 1769356150.3777585
+      },
+      {
+        "name": ".git\\objects\\0f",
+        "type": "file",
+        "path": ".git\\objects\\0f",
+        "size": 0,
+        "last_modified": 1769356151.1296277
+      },
+      {
+        "name": ".git\\objects\\10",
+        "type": "file",
+        "path": ".git\\objects\\10",
+        "size": 0,
+        "last_modified": 1769356149.078879
+      },
+      {
+        "name": ".git\\objects\\11",
+        "type": "file",
+        "path": ".git\\objects\\11",
+        "size": 0,
+        "last_modified": 1769356150.3956678
+      },
+      {
+        "name": ".git\\objects\\12",
+        "type": "file",
+        "path": ".git\\objects\\12",
+        "size": 0,
+        "last_modified": 1769356148.6639607
+      },
+      {
+        "name": ".git\\objects\\14",
+        "type": "file",
+        "path": ".git\\objects\\14",
+        "size": 0,
+        "last_modified": 1769356149.476581
+      },
+      {
+        "name": ".git\\objects\\15",
+        "type": "file",
+        "path": ".git\\objects\\15",
+        "size": 0,
+        "last_modified": 1769356149.610384
+      },
+      {
+        "name": ".git\\objects\\16",
+        "type": "file",
+        "path": ".git\\objects\\16",
+        "size": 0,
+        "last_modified": 1769356149.6765141
+      },
+      {
+        "name": ".git\\objects\\17",
+        "type": "file",
+        "path": ".git\\objects\\17",
+        "size": 0,
+        "last_modified": 1769356150.3566158
+      },
+      {
+        "name": ".git\\objects\\18",
+        "type": "file",
+        "path": ".git\\objects\\18",
+        "size": 0,
+        "last_modified": 1769356149.95121
+      },
+      {
+        "name": ".git\\objects\\1a",
+        "type": "file",
+        "path": ".git\\objects\\1a",
+        "size": 0,
+        "last_modified": 1769356149.6765141
+      },
+      {
+        "name": ".git\\objects\\1c",
+        "type": "file",
+        "path": ".git\\objects\\1c",
+        "size": 0,
+        "last_modified": 1769356149.2932422
+      },
+      {
+        "name": ".git\\objects\\1e",
+        "type": "file",
+        "path": ".git\\objects\\1e",
+        "size": 0,
+        "last_modified": 1769356150.0107713
+      },
+      {
+        "name": ".git\\objects\\1f",
+        "type": "file",
+        "path": ".git\\objects\\1f",
+        "size": 0,
+        "last_modified": 1769356147.9939098
+      },
+      {
+        "name": ".git\\objects\\21",
+        "type": "file",
+        "path": ".git\\objects\\21",
+        "size": 0,
+        "last_modified": 1769356149.2427182
+      },
+      {
+        "name": ".git\\objects\\23",
+        "type": "file",
+        "path": ".git\\objects\\23",
+        "size": 0,
+        "last_modified": 1769356149.2099137
+      },
+      {
+        "name": ".git\\objects\\24",
+        "type": "file",
+        "path": ".git\\objects\\24",
+        "size": 0,
+        "last_modified": 1769356150.8275142
+      },
+      {
+        "name": ".git\\objects\\26",
+        "type": "file",
+        "path": ".git\\objects\\26",
+        "size": 0,
+        "last_modified": 1769356151.1949472
+      },
+      {
+        "name": ".git\\objects\\27",
+        "type": "file",
+        "path": ".git\\objects\\27",
+        "size": 0,
+        "last_modified": 1769356150.8743067
+      },
+      {
+        "name": ".git\\objects\\2b",
+        "type": "file",
+        "path": ".git\\objects\\2b",
+        "size": 0,
+        "last_modified": 1769356150.3566158
+      },
+      {
+        "name": ".git\\objects\\2c",
+        "type": "file",
+        "path": ".git\\objects\\2c",
+        "size": 0,
+        "last_modified": 1769356151.09777
+      },
+      {
+        "name": ".git\\objects\\2d",
+        "type": "file",
+        "path": ".git\\objects\\2d",
+        "size": 0,
+        "last_modified": 1769356149.9380014
+      },
+      {
+        "name": ".git\\objects\\2e",
+        "type": "file",
+        "path": ".git\\objects\\2e",
+        "size": 0,
+        "last_modified": 1769356150.6116211
+      },
+      {
+        "name": ".git\\objects\\2f",
+        "type": "file",
+        "path": ".git\\objects\\2f",
+        "size": 0,
+        "last_modified": 1769356149.9194973
+      },
+      {
+        "name": ".git\\objects\\30",
+        "type": "file",
+        "path": ".git\\objects\\30",
+        "size": 0,
+        "last_modified": 1769356148.1621156
+      },
+      {
+        "name": ".git\\objects\\31",
+        "type": "file",
+        "path": ".git\\objects\\31",
+        "size": 0,
+        "last_modified": 1769356150.9701955
+      },
+      {
+        "name": ".git\\objects\\32",
+        "type": "file",
+        "path": ".git\\objects\\32",
+        "size": 0,
+        "last_modified": 1769356150.9222558
+      },
+      {
+        "name": ".git\\objects\\35",
+        "type": "file",
+        "path": ".git\\objects\\35",
+        "size": 0,
+        "last_modified": 1769356149.6925218
+      },
+      {
+        "name": ".git\\objects\\36",
+        "type": "file",
+        "path": ".git\\objects\\36",
+        "size": 0,
+        "last_modified": 1769356148.0942814
+      },
+      {
+        "name": ".git\\objects\\38",
+        "type": "file",
+        "path": ".git\\objects\\38",
+        "size": 0,
+        "last_modified": 1769356148.760887
+      },
+      {
+        "name": ".git\\objects\\39",
+        "type": "file",
+        "path": ".git\\objects\\39",
+        "size": 0,
+        "last_modified": 1769356149.4453988
+      },
+      {
+        "name": ".git\\objects\\3b",
+        "type": "file",
+        "path": ".git\\objects\\3b",
+        "size": 0,
+        "last_modified": 1769356149.3945627
+      },
+      {
+        "name": ".git\\objects\\3c",
+        "type": "file",
+        "path": ".git\\objects\\3c",
+        "size": 0,
+        "last_modified": 1769356151.002097
+      },
+      {
+        "name": ".git\\objects\\3d",
+        "type": "file",
+        "path": ".git\\objects\\3d",
+        "size": 0,
+        "last_modified": 1769356149.2427182
+      },
+      {
+        "name": ".git\\objects\\3e",
+        "type": "file",
+        "path": ".git\\objects\\3e",
+        "size": 0,
+        "last_modified": 1769356149.3255632
+      },
+      {
+        "name": ".git\\objects\\40",
+        "type": "file",
+        "path": ".git\\objects\\40",
+        "size": 0,
+        "last_modified": 1769356150.5074222
+      },
+      {
+        "name": ".git\\objects\\41",
+        "type": "file",
+        "path": ".git\\objects\\41",
+        "size": 0,
+        "last_modified": 1769356149.776572
+      },
+      {
+        "name": ".git\\objects\\42",
+        "type": "file",
+        "path": ".git\\objects\\42",
+        "size": 0,
+        "last_modified": 1769356150.858322
+      },
+      {
+        "name": ".git\\objects\\43",
+        "type": "file",
+        "path": ".git\\objects\\43",
+        "size": 0,
+        "last_modified": 1769356149.9769497
+      },
+      {
+        "name": ".git\\objects\\44",
+        "type": "file",
+        "path": ".git\\objects\\44",
+        "size": 0,
+        "last_modified": 1769356149.724161
+      },
+      {
+        "name": ".git\\objects\\47",
+        "type": "file",
+        "path": ".git\\objects\\47",
+        "size": 0,
+        "last_modified": 1769356151.1296277
+      },
+      {
+        "name": ".git\\objects\\48",
+        "type": "file",
+        "path": ".git\\objects\\48",
+        "size": 0,
+        "last_modified": 1769356149.2602398
+      },
+      {
+        "name": ".git\\objects\\49",
+        "type": "file",
+        "path": ".git\\objects\\49",
+        "size": 0,
+        "last_modified": 1769356149.5295
+      },
+      {
+        "name": ".git\\objects\\4a",
+        "type": "file",
+        "path": ".git\\objects\\4a",
+        "size": 0,
+        "last_modified": 1769356149.8878355
+      },
+      {
+        "name": ".git\\objects\\4b",
+        "type": "file",
+        "path": ".git\\objects\\4b",
+        "size": 0,
+        "last_modified": 1769356149.0632844
+      },
+      {
+        "name": ".git\\objects\\4c",
+        "type": "file",
+        "path": ".git\\objects\\4c",
+        "size": 0,
+        "last_modified": 1769356148.5088823
+      },
+      {
+        "name": ".git\\objects\\4d",
+        "type": "file",
+        "path": ".git\\objects\\4d",
+        "size": 0,
+        "last_modified": 1769356150.491605
+      },
+      {
+        "name": ".git\\objects\\4e",
+        "type": "file",
+        "path": ".git\\objects\\4e",
+        "size": 0,
+        "last_modified": 1769356150.2543106
+      },
+      {
+        "name": ".git\\objects\\4f",
+        "type": "file",
+        "path": ".git\\objects\\4f",
+        "size": 0,
+        "last_modified": 1769356151.2276335
+      },
+      {
+        "name": ".git\\objects\\51",
+        "type": "file",
+        "path": ".git\\objects\\51",
+        "size": 0,
+        "last_modified": 1769356148.436742
+      },
+      {
+        "name": ".git\\objects\\52",
+        "type": "file",
+        "path": ".git\\objects\\52",
+        "size": 0,
+        "last_modified": 1769356150.0519557
+      },
+      {
+        "name": ".git\\objects\\53",
+        "type": "file",
+        "path": ".git\\objects\\53",
+        "size": 0,
+        "last_modified": 1769356149.0664873
+      },
+      {
+        "name": ".git\\objects\\56",
+        "type": "file",
+        "path": ".git\\objects\\56",
+        "size": 0,
+        "last_modified": 1769356151.09777
+      },
+      {
+        "name": ".git\\objects\\57",
+        "type": "file",
+        "path": ".git\\objects\\57",
+        "size": 0,
+        "last_modified": 1769356150.9222558
+      },
+      {
+        "name": ".git\\objects\\58",
+        "type": "file",
+        "path": ".git\\objects\\58",
+        "size": 0,
+        "last_modified": 1769356150.2224317
+      },
+      {
+        "name": ".git\\objects\\59",
+        "type": "file",
+        "path": ".git\\objects\\59",
+        "size": 0,
+        "last_modified": 1769356149.1611414
+      },
+      {
+        "name": ".git\\objects\\5c",
+        "type": "file",
+        "path": ".git\\objects\\5c",
+        "size": 0,
+        "last_modified": 1769356150.2942
+      },
+      {
+        "name": ".git\\objects\\5d",
+        "type": "file",
+        "path": ".git\\objects\\5d",
+        "size": 0,
+        "last_modified": 1769356149.3097982
+      },
+      {
+        "name": ".git\\objects\\5e",
+        "type": "file",
+        "path": ".git\\objects\\5e",
+        "size": 0,
+        "last_modified": 1769356148.6639607
+      },
+      {
+        "name": ".git\\objects\\5f",
+        "type": "file",
+        "path": ".git\\objects\\5f",
+        "size": 0,
+        "last_modified": 1769356150.8422883
+      },
+      {
+        "name": ".git\\objects\\60",
+        "type": "file",
+        "path": ".git\\objects\\60",
+        "size": 0,
+        "last_modified": 1769356149.7083466
+      },
+      {
+        "name": ".git\\objects\\61",
+        "type": "file",
+        "path": ".git\\objects\\61",
+        "size": 0,
+        "last_modified": 1769356149.436519
+      },
+      {
+        "name": ".git\\objects\\63",
+        "type": "file",
+        "path": ".git\\objects\\63",
+        "size": 0,
+        "last_modified": 1769356149.8720853
+      },
+      {
+        "name": ".git\\objects\\64",
+        "type": "file",
+        "path": ".git\\objects\\64",
+        "size": 0,
+        "last_modified": 1769356149.7607448
+      },
+      {
+        "name": ".git\\objects\\65",
+        "type": "file",
+        "path": ".git\\objects\\65",
+        "size": 0,
+        "last_modified": 1769356149.7399557
+      },
+      {
+        "name": ".git\\objects\\66",
+        "type": "file",
+        "path": ".git\\objects\\66",
+        "size": 0,
+        "last_modified": 1769356148.086446
+      },
+      {
+        "name": ".git\\objects\\67",
+        "type": "file",
+        "path": ".git\\objects\\67",
+        "size": 0,
+        "last_modified": 1769356148.0609853
+      },
+      {
+        "name": ".git\\objects\\68",
+        "type": "file",
+        "path": ".git\\objects\\68",
+        "size": 0,
+        "last_modified": 1769356151.1628895
+      },
+      {
+        "name": ".git\\objects\\69",
+        "type": "file",
+        "path": ".git\\objects\\69",
+        "size": 0,
+        "last_modified": 1769356150.8422883
+      },
+      {
+        "name": ".git\\objects\\6a",
+        "type": "file",
+        "path": ".git\\objects\\6a",
+        "size": 0,
+        "last_modified": 1769356149.4269686
+      },
+      {
+        "name": ".git\\objects\\6b",
+        "type": "file",
+        "path": ".git\\objects\\6b",
+        "size": 0,
+        "last_modified": 1769356150.1427565
+      },
+      {
+        "name": ".git\\objects\\6c",
+        "type": "file",
+        "path": ".git\\objects\\6c",
+        "size": 0,
+        "last_modified": 1769356148.2756484
+      },
+      {
+        "name": ".git\\objects\\6e",
+        "type": "file",
+        "path": ".git\\objects\\6e",
+        "size": 0,
+        "last_modified": 1769356149.0457826
+      },
+      {
+        "name": ".git\\objects\\6f",
+        "type": "file",
+        "path": ".git\\objects\\6f",
+        "size": 0,
+        "last_modified": 1769356148.3606505
+      },
+      {
+        "name": ".git\\objects\\70",
+        "type": "file",
+        "path": ".git\\objects\\70",
+        "size": 0,
+        "last_modified": 1769356150.940214
+      },
+      {
+        "name": ".git\\objects\\71",
+        "type": "file",
+        "path": ".git\\objects\\71",
+        "size": 0,
+        "last_modified": 1769356149.0457826
+      },
+      {
+        "name": ".git\\objects\\72",
+        "type": "file",
+        "path": ".git\\objects\\72",
+        "size": 0,
+        "last_modified": 1769356150.3409338
+      },
+      {
+        "name": ".git\\objects\\73",
+        "type": "file",
+        "path": ".git\\objects\\73",
+        "size": 0,
+        "last_modified": 1769356150.5397134
+      },
+      {
+        "name": ".git\\objects\\76",
+        "type": "file",
+        "path": ".git\\objects\\76",
+        "size": 0,
+        "last_modified": 1769356148.307174
+      },
+      {
+        "name": ".git\\objects\\77",
+        "type": "file",
+        "path": ".git\\objects\\77",
+        "size": 0,
+        "last_modified": 1769356149.903711
+      },
+      {
+        "name": ".git\\objects\\78",
+        "type": "file",
+        "path": ".git\\objects\\78",
+        "size": 0,
+        "last_modified": 1769356150.644268
+      },
+      {
+        "name": ".git\\objects\\79",
+        "type": "file",
+        "path": ".git\\objects\\79",
+        "size": 0,
+        "last_modified": 1769356150.1113327
+      },
+      {
+        "name": ".git\\objects\\7c",
+        "type": "file",
+        "path": ".git\\objects\\7c",
+        "size": 0,
+        "last_modified": 1769356149.8878355
+      },
+      {
+        "name": ".git\\objects\\7f",
+        "type": "file",
+        "path": ".git\\objects\\7f",
+        "size": 0,
+        "last_modified": 1769356150.4284213
+      },
+      {
+        "name": ".git\\objects\\84",
+        "type": "file",
+        "path": ".git\\objects\\84",
+        "size": 0,
+        "last_modified": 1769356150.8104148
+      },
+      {
+        "name": ".git\\objects\\86",
+        "type": "file",
+        "path": ".git\\objects\\86",
+        "size": 0,
+        "last_modified": 1769356149.4956226
+      },
+      {
+        "name": ".git\\objects\\87",
+        "type": "file",
+        "path": ".git\\objects\\87",
+        "size": 0,
+        "last_modified": 1769356150.858322
+      },
+      {
+        "name": ".git\\objects\\88",
+        "type": "file",
+        "path": ".git\\objects\\88",
+        "size": 0,
+        "last_modified": 1769356151.1137197
+      },
+      {
+        "name": ".git\\objects\\89",
+        "type": "file",
+        "path": ".git\\objects\\89",
+        "size": 0,
+        "last_modified": 1769356151.1788306
+      },
+      {
+        "name": ".git\\objects\\8a",
+        "type": "file",
+        "path": ".git\\objects\\8a",
+        "size": 0,
+        "last_modified": 1769356150.9063475
+      },
+      {
+        "name": ".git\\objects\\8b",
+        "type": "file",
+        "path": ".git\\objects\\8b",
+        "size": 0,
+        "last_modified": 1769356148.965569
+      },
+      {
+        "name": ".git\\objects\\8e",
+        "type": "file",
+        "path": ".git\\objects\\8e",
+        "size": 0,
+        "last_modified": 1769356151.0342257
+      },
+      {
+        "name": ".git\\objects\\90",
+        "type": "file",
+        "path": ".git\\objects\\90",
+        "size": 0,
+        "last_modified": 1769356150.8743067
+      },
+      {
+        "name": ".git\\objects\\91",
+        "type": "file",
+        "path": ".git\\objects\\91",
+        "size": 0,
+        "last_modified": 1769356149.3255632
+      },
+      {
+        "name": ".git\\objects\\92",
+        "type": "file",
+        "path": ".git\\objects\\92",
+        "size": 0,
+        "last_modified": 1769356148.678801
+      },
+      {
+        "name": ".git\\objects\\93",
+        "type": "file",
+        "path": ".git\\objects\\93",
+        "size": 0,
+        "last_modified": 1769356150.985978
+      },
+      {
+        "name": ".git\\objects\\95",
+        "type": "file",
+        "path": ".git\\objects\\95",
+        "size": 0,
+        "last_modified": 1769356148.3773725
+      },
+      {
+        "name": ".git\\objects\\96",
+        "type": "file",
+        "path": ".git\\objects\\96",
+        "size": 0,
+        "last_modified": 1769356149.9949868
+      },
+      {
+        "name": ".git\\objects\\97",
+        "type": "file",
+        "path": ".git\\objects\\97",
+        "size": 0,
+        "last_modified": 1769356151.1971486
+      },
+      {
+        "name": ".git\\objects\\9c",
+        "type": "file",
+        "path": ".git\\objects\\9c",
+        "size": 0,
+        "last_modified": 1769356150.5961144
+      },
+      {
+        "name": ".git\\objects\\9d",
+        "type": "file",
+        "path": ".git\\objects\\9d",
+        "size": 0,
+        "last_modified": 1769356148.24365
+      },
+      {
+        "name": ".git\\objects\\9e",
+        "type": "file",
+        "path": ".git\\objects\\9e",
+        "size": 0,
+        "last_modified": 1769356148.5791333
+      },
+      {
+        "name": ".git\\objects\\9f",
+        "type": "file",
+        "path": ".git\\objects\\9f",
+        "size": 0,
+        "last_modified": 1769356148.2269075
+      },
+      {
+        "name": ".git\\objects\\a0",
+        "type": "file",
+        "path": ".git\\objects\\a0",
+        "size": 0,
+        "last_modified": 1769356150.3258295
+      },
+      {
+        "name": ".git\\objects\\a1",
+        "type": "file",
+        "path": ".git\\objects\\a1",
+        "size": 0,
+        "last_modified": 1769356151.002097
+      },
+      {
+        "name": ".git\\objects\\a2",
+        "type": "file",
+        "path": ".git\\objects\\a2",
+        "size": 0,
+        "last_modified": 1769356149.6598132
+      },
+      {
+        "name": ".git\\objects\\a4",
+        "type": "file",
+        "path": ".git\\objects\\a4",
+        "size": 0,
+        "last_modified": 1769356148.1937425
+      },
+      {
+        "name": ".git\\objects\\a5",
+        "type": "file",
+        "path": ".git\\objects\\a5",
+        "size": 0,
+        "last_modified": 1769356150.174451
+      },
+      {
+        "name": ".git\\objects\\a6",
+        "type": "file",
+        "path": ".git\\objects\\a6",
+        "size": 0,
+        "last_modified": 1769356149.8243685
+      },
+      {
+        "name": ".git\\objects\\a7",
+        "type": "file",
+        "path": ".git\\objects\\a7",
+        "size": 0,
+        "last_modified": 1769356151.01814
+      },
+      {
+        "name": ".git\\objects\\a8",
+        "type": "file",
+        "path": ".git\\objects\\a8",
+        "size": 0,
+        "last_modified": 1769356148.8266878
+      },
+      {
+        "name": ".git\\objects\\a9",
+        "type": "file",
+        "path": ".git\\objects\\a9",
+        "size": 0,
+        "last_modified": 1769356150.412167
+      },
+      {
+        "name": ".git\\objects\\aa",
+        "type": "file",
+        "path": ".git\\objects\\aa",
+        "size": 0,
+        "last_modified": 1769356147.7973175
+      },
+      {
+        "name": ".git\\objects\\ab",
+        "type": "file",
+        "path": ".git\\objects\\ab",
+        "size": 0,
+        "last_modified": 1769356149.9769497
+      },
+      {
+        "name": ".git\\objects\\ac",
+        "type": "file",
+        "path": ".git\\objects\\ac",
+        "size": 0,
+        "last_modified": 1769356150.4436095
+      },
+      {
+        "name": ".git\\objects\\ad",
+        "type": "file",
+        "path": ".git\\objects\\ad",
+        "size": 0,
+        "last_modified": 1769356150.6116211
+      },
+      {
+        "name": ".git\\objects\\af",
+        "type": "file",
+        "path": ".git\\objects\\af",
+        "size": 0,
+        "last_modified": 1769356149.3729675
+      },
+      {
+        "name": ".git\\objects\\b0",
+        "type": "file",
+        "path": ".git\\objects\\b0",
+        "size": 0,
+        "last_modified": 1769356151.0656722
+      },
+      {
+        "name": ".git\\objects\\b1",
+        "type": "file",
+        "path": ".git\\objects\\b1",
+        "size": 0,
+        "last_modified": 1769356149.179979
+      },
+      {
+        "name": ".git\\objects\\b2",
+        "type": "file",
+        "path": ".git\\objects\\b2",
+        "size": 0,
+        "last_modified": 1769356150.940214
+      },
+      {
+        "name": ".git\\objects\\b3",
+        "type": "file",
+        "path": ".git\\objects\\b3",
+        "size": 0,
+        "last_modified": 1769356150.6276739
+      },
+      {
+        "name": ".git\\objects\\b5",
+        "type": "file",
+        "path": ".git\\objects\\b5",
+        "size": 0,
+        "last_modified": 1769356149.5116034
+      },
+      {
+        "name": ".git\\objects\\b6",
+        "type": "file",
+        "path": ".git\\objects\\b6",
+        "size": 0,
+        "last_modified": 1769356150.6618514
+      },
+      {
+        "name": ".git\\objects\\b7",
+        "type": "file",
+        "path": ".git\\objects\\b7",
+        "size": 0,
+        "last_modified": 1769356150.1906133
+      },
+      {
+        "name": ".git\\objects\\b8",
+        "type": "file",
+        "path": ".git\\objects\\b8",
+        "size": 0,
+        "last_modified": 1769356149.476581
+      },
+      {
+        "name": ".git\\objects\\b9",
+        "type": "file",
+        "path": ".git\\objects\\b9",
+        "size": 0,
+        "last_modified": 1769356150.4754856
+      },
+      {
+        "name": ".git\\objects\\ba",
+        "type": "file",
+        "path": ".git\\objects\\ba",
+        "size": 0,
+        "last_modified": 1769356150.5961144
+      },
+      {
+        "name": ".git\\objects\\bb",
+        "type": "file",
+        "path": ".git\\objects\\bb",
+        "size": 0,
+        "last_modified": 1769356148.2603762
+      },
+      {
+        "name": ".git\\objects\\bc",
+        "type": "file",
+        "path": ".git\\objects\\bc",
+        "size": 0,
+        "last_modified": 1769356149.3572457
+      },
+      {
+        "name": ".git\\objects\\bd",
+        "type": "file",
+        "path": ".git\\objects\\bd",
+        "size": 0,
+        "last_modified": 1769356150.2703624
+      },
+      {
+        "name": ".git\\objects\\bf",
+        "type": "file",
+        "path": ".git\\objects\\bf",
+        "size": 0,
+        "last_modified": 1769356150.3777585
+      },
+      {
+        "name": ".git\\objects\\c0",
+        "type": "file",
+        "path": ".git\\objects\\c0",
+        "size": 0,
+        "last_modified": 1769356150.5798848
+      },
+      {
+        "name": ".git\\objects\\c1",
+        "type": "file",
+        "path": ".git\\objects\\c1",
+        "size": 0,
+        "last_modified": 1769356148.4821112
+      },
+      {
+        "name": ".git\\objects\\c2",
+        "type": "file",
+        "path": ".git\\objects\\c2",
+        "size": 0,
+        "last_modified": 1769356151.0818236
+      },
+      {
+        "name": ".git\\objects\\c4",
+        "type": "file",
+        "path": ".git\\objects\\c4",
+        "size": 0,
+        "last_modified": 1769356148.7116416
+      },
+      {
+        "name": ".git\\objects\\c6",
+        "type": "file",
+        "path": ".git\\objects\\c6",
+        "size": 0,
+        "last_modified": 1769356149.5945072
+      },
+      {
+        "name": ".git\\objects\\ca",
+        "type": "file",
+        "path": ".git\\objects\\ca",
+        "size": 0,
+        "last_modified": 1769356148.41116
+      },
+      {
+        "name": ".git\\objects\\cd",
+        "type": "file",
+        "path": ".git\\objects\\cd",
+        "size": 0,
+        "last_modified": 1769356150.9063475
+      },
+      {
+        "name": ".git\\objects\\ce",
+        "type": "file",
+        "path": ".git\\objects\\ce",
+        "size": 0,
+        "last_modified": 1769356151.0342257
+      },
+      {
+        "name": ".git\\objects\\cf",
+        "type": "file",
+        "path": ".git\\objects\\cf",
+        "size": 0,
+        "last_modified": 1769356149.6261046
+      },
+      {
+        "name": ".git\\objects\\d1",
+        "type": "file",
+        "path": ".git\\objects\\d1",
+        "size": 0,
+        "last_modified": 1769356149.1110184
+      },
+      {
+        "name": ".git\\objects\\d3",
+        "type": "file",
+        "path": ".git\\objects\\d3",
+        "size": 0,
+        "last_modified": 1769356147.8971758
+      },
+      {
+        "name": ".git\\objects\\d4",
+        "type": "file",
+        "path": ".git\\objects\\d4",
+        "size": 0,
+        "last_modified": 1769356150.954131
+      },
+      {
+        "name": ".git\\objects\\d6",
+        "type": "file",
+        "path": ".git\\objects\\d6",
+        "size": 0,
+        "last_modified": 1769356149.179979
+      },
+      {
+        "name": ".git\\objects\\d7",
+        "type": "file",
+        "path": ".git\\objects\\d7",
+        "size": 0,
+        "last_modified": 1769356147.8102872
+      },
+      {
+        "name": ".git\\objects\\d8",
+        "type": "file",
+        "path": ".git\\objects\\d8",
+        "size": 0,
+        "last_modified": 1769356148.4936736
+      },
+      {
+        "name": ".git\\objects\\d9",
+        "type": "file",
+        "path": ".git\\objects\\d9",
+        "size": 0,
+        "last_modified": 1769356150.4594972
+      },
+      {
+        "name": ".git\\objects\\da",
+        "type": "file",
+        "path": ".git\\objects\\da",
+        "size": 0,
+        "last_modified": 1769356150.2382698
+      },
+      {
+        "name": ".git\\objects\\dc",
+        "type": "file",
+        "path": ".git\\objects\\dc",
+        "size": 0,
+        "last_modified": 1769356148.1256595
+      },
+      {
+        "name": ".git\\objects\\de",
+        "type": "file",
+        "path": ".git\\objects\\de",
+        "size": 0,
+        "last_modified": 1769356148.2108614
+      },
+      {
+        "name": ".git\\objects\\df",
+        "type": "file",
+        "path": ".git\\objects\\df",
+        "size": 0,
+        "last_modified": 1769356151.1628895
+      },
+      {
+        "name": ".git\\objects\\e0",
+        "type": "file",
+        "path": ".git\\objects\\e0",
+        "size": 0,
+        "last_modified": 1769356149.428747
+      },
+      {
+        "name": ".git\\objects\\e1",
+        "type": "file",
+        "path": ".git\\objects\\e1",
+        "size": 0,
+        "last_modified": 1769356150.0265508
+      },
+      {
+        "name": ".git\\objects\\e2",
+        "type": "file",
+        "path": ".git\\objects\\e2",
+        "size": 0,
+        "last_modified": 1769356149.410385
+      },
+      {
+        "name": ".git\\objects\\e3",
+        "type": "file",
+        "path": ".git\\objects\\e3",
+        "size": 0,
+        "last_modified": 1769356150.6618514
+      },
+      {
+        "name": ".git\\objects\\e4",
+        "type": "file",
+        "path": ".git\\objects\\e4",
+        "size": 0,
+        "last_modified": 1769356151.050177
+      },
+      {
+        "name": ".git\\objects\\e5",
+        "type": "file",
+        "path": ".git\\objects\\e5",
+        "size": 0,
+        "last_modified": 1769356149.2602398
+      },
+      {
+        "name": ".git\\objects\\e7",
+        "type": "file",
+        "path": ".git\\objects\\e7",
+        "size": 0,
+        "last_modified": 1769356148.6445441
+      },
+      {
+        "name": ".git\\objects\\e8",
+        "type": "file",
+        "path": ".git\\objects\\e8",
+        "size": 0,
+        "last_modified": 1769356149.8243685
+      },
+      {
+        "name": ".git\\objects\\e9",
+        "type": "file",
+        "path": ".git\\objects\\e9",
+        "size": 0,
+        "last_modified": 1769356151.144966
+      },
+      {
+        "name": ".git\\objects\\ea",
+        "type": "file",
+        "path": ".git\\objects\\ea",
+        "size": 0,
+        "last_modified": 1769356148.4441228
+      },
+      {
+        "name": ".git\\objects\\eb",
+        "type": "file",
+        "path": ".git\\objects\\eb",
+        "size": 0,
+        "last_modified": 1769356149.7557037
+      },
+      {
+        "name": ".git\\objects\\ee",
+        "type": "file",
+        "path": ".git\\objects\\ee",
+        "size": 0,
+        "last_modified": 1769356150.5482147
+      },
+      {
+        "name": ".git\\objects\\ef",
+        "type": "file",
+        "path": ".git\\objects\\ef",
+        "size": 0,
+        "last_modified": 1769356150.4284213
+      },
+      {
+        "name": ".git\\objects\\f0",
+        "type": "file",
+        "path": ".git\\objects\\f0",
+        "size": 0,
+        "last_modified": 1769356148.2603762
+      },
+      {
+        "name": ".git\\objects\\f1",
+        "type": "file",
+        "path": ".git\\objects\\f1",
+        "size": 0,
+        "last_modified": 1769356150.1427565
+      },
+      {
+        "name": ".git\\objects\\f2",
+        "type": "file",
+        "path": ".git\\objects\\f2",
+        "size": 0,
+        "last_modified": 1769356147.963527
+      },
+      {
+        "name": ".git\\objects\\f4",
+        "type": "file",
+        "path": ".git\\objects\\f4",
+        "size": 0,
+        "last_modified": 1769356149.2760434
+      },
+      {
+        "name": ".git\\objects\\f5",
+        "type": "file",
+        "path": ".git\\objects\\f5",
+        "size": 0,
+        "last_modified": 1769356150.3100052
+      },
+      {
+        "name": ".git\\objects\\f7",
+        "type": "file",
+        "path": ".git\\objects\\f7",
+        "size": 0,
+        "last_modified": 1769356149.6418808
+      },
+      {
+        "name": ".git\\objects\\f8",
+        "type": "file",
+        "path": ".git\\objects\\f8",
+        "size": 0,
+        "last_modified": 1769356149.7083466
+      },
+      {
+        "name": ".git\\objects\\fa",
+        "type": "file",
+        "path": ".git\\objects\\fa",
+        "size": 0,
+        "last_modified": 1769356148.9272156
+      },
+      {
+        "name": ".git\\objects\\fc",
+        "type": "file",
+        "path": ".git\\objects\\fc",
+        "size": 0,
+        "last_modified": 1769356148.0103543
+      },
+      {
+        "name": ".git\\objects\\ff",
+        "type": "file",
+        "path": ".git\\objects\\ff",
+        "size": 0,
+        "last_modified": 1769356149.7083466
+      },
+      {
+        "name": ".git\\objects\\info",
+        "type": "file",
+        "path": ".git\\objects\\info",
+        "size": 0,
+        "last_modified": 1769356147.2904787
+      },
+      {
+        "name": ".git\\objects\\pack",
+        "type": "file",
+        "path": ".git\\objects\\pack",
+        "size": 0,
+        "last_modified": 1769356147.2904787
+      },
+      {
+        "name": ".git\\refs\\heads",
+        "type": "file",
+        "path": ".git\\refs\\heads",
+        "size": 0,
+        "last_modified": 1769356151.2457094
+      },
+      {
+        "name": ".git\\refs\\remotes",
+        "type": "file",
+        "path": ".git\\refs\\remotes",
+        "size": 0,
+        "last_modified": 1769356158.6843283
+      },
+      {
+        "name": ".git\\refs\\tags",
+        "type": "file",
+        "path": ".git\\refs\\tags",
+        "size": 0,
+        "last_modified": 1769356147.2904787
+      },
+      {
+        "name": ".git\\refs\\remotes\\origin",
+        "type": "file",
+        "path": ".git\\refs\\remotes\\origin",
+        "size": 0,
+        "last_modified": 1769369190.289543
+      },
+      {
+        "name": ".pytest_cache\\v",
+        "type": "file",
+        "path": ".pytest_cache\\v",
+        "size": 0,
+        "last_modified": 1765994397.127684
+      },
+      {
+        "name": ".pytest_cache\\v\\cache",
+        "type": "file",
+        "path": ".pytest_cache\\v\\cache",
+        "size": 0,
+        "last_modified": 1765994434.4737844
+      },
+      {
+        "name": "core\\agent_runtime",
+        "type": "file",
+        "path": "core\\agent_runtime",
+        "size": 0,
+        "last_modified": 1766489168.30527
+      },
+      {
+        "name": "core\\config",
+        "type": "file",
+        "path": "core\\config",
+        "size": 0,
+        "last_modified": 1766263842.6286707
+      },
+      {
+        "name": "core\\infrastructure",
+        "type": "file",
+        "path": "core\\infrastructure",
+        "size": 0,
+        "last_modified": 1766470273.685828
+      },
+      {
+        "name": "core\\retry_policy",
+        "type": "file",
+        "path": "core\\retry_policy",
+        "size": 0,
+        "last_modified": 1766167768.5590093
+      },
+      {
+        "name": "core\\session_context",
+        "type": "file",
+        "path": "core\\session_context",
+        "size": 0,
+        "last_modified": 1766468605.7085707
+      },
+      {
+        "name": "core\\skills",
+        "type": "file",
+        "path": "core\\skills",
+        "size": 0,
+        "last_modified": 1769358045.9667468
+      },
+      {
+        "name": "core\\system_context",
+        "type": "file",
+        "path": "core\\system_context",
+        "size": 0,
+        "last_modified": 1766468239.5537596
+      },
+      {
+        "name": "core\\__pycache__",
+        "type": "file",
+        "path": "core\\__pycache__",
+        "size": 0,
+        "last_modified": 1766158003.399674
+      },
+      {
+        "name": "core\\agent_runtime\\strategies",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies",
+        "size": 0,
+        "last_modified": 1766990183.120977
+      },
+      {
+        "name": "core\\agent_runtime\\__pycache__",
+        "type": "file",
+        "path": "core\\agent_runtime\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.294706
+      },
+      {
+        "name": "core\\agent_runtime\\executor.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\executor.py",
+        "size": 1023,
+        "last_modified": 1767010069.640346
+      },
+      {
+        "name": "core\\agent_runtime\\interfaces.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\interfaces.py",
+        "size": 946,
+        "last_modified": 1766990401.07754
+      },
+      {
+        "name": "core\\agent_runtime\\model.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\model.py",
+        "size": 1717,
+        "last_modified": 1766729495.8714335
+      },
+      {
+        "name": "core\\agent_runtime\\policy.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\policy.py",
+        "size": 534,
+        "last_modified": 1766257552.8590975
+      },
+      {
+        "name": "core\\agent_runtime\\progress.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\progress.py",
+        "size": 463,
+        "last_modified": 1766298664.2042546
+      },
+      {
+        "name": "core\\agent_runtime\\runtime.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\runtime.py",
+        "size": 13550,
+        "last_modified": 1767014048.7108412
+      },
+      {
+        "name": "core\\agent_runtime\\state.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\state.py",
+        "size": 641,
+        "last_modified": 1766257411.760496
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react",
+        "size": 0,
+        "last_modified": 1767006850.4616811
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\__pycache__",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\__pycache__",
+        "size": 0,
+        "last_modified": 1766994407.9842138
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\base.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\base.py",
+        "size": 697,
+        "last_modified": 1766257669.480122
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\evaluation.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\evaluation.py",
+        "size": 969,
+        "last_modified": 1766298645.829555
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\fallback.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\fallback.py",
+        "size": 536,
+        "last_modified": 1766257748.867438
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\__init__.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\__init__.py",
+        "size": 555,
+        "last_modified": 1766990794.5926633
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\__pycache__",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.238751
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\models.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\models.py",
+        "size": 4581,
+        "last_modified": 1767018127.7570884
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\prompts.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\prompts.py",
+        "size": 10268,
+        "last_modified": 1767018296.9904265
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+        "size": 25595,
+        "last_modified": 1767015645.4944375
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\strategy.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\strategy.py",
+        "size": 22715,
+        "last_modified": 1767014886.591531
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\utils.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\utils.py",
+        "size": 4830,
+        "last_modified": 1767005244.916977
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\validation.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\validation.py",
+        "size": 15184,
+        "last_modified": 1767013815.5974157
+      },
+      {
+        "name": "core\\agent_runtime\\strategies\\react\\__init__.py",
+        "type": "file",
+        "path": "core\\agent_runtime\\strategies\\react\\__init__.py",
+        "size": 590,
+        "last_modified": 1766493021.6259696
+      },
+      {
+        "name": "core\\config\\defaults",
+        "type": "file",
+        "path": "core\\config\\defaults",
+        "size": 0,
+        "last_modified": 1766382381.798671
+      },
+      {
+        "name": "core\\config\\__pycache__",
+        "type": "file",
+        "path": "core\\config\\__pycache__",
+        "size": 0,
+        "last_modified": 1766738842.9744022
+      },
+      {
+        "name": "core\\config\\config_loader.py",
+        "type": "file",
+        "path": "core\\config\\config_loader.py",
+        "size": 8802,
+        "last_modified": 1766581630.3860104
+      },
+      {
+        "name": "core\\config\\models.py",
+        "type": "file",
+        "path": "core\\config\\models.py",
+        "size": 8119,
+        "last_modified": 1766493854.6127226
+      },
+      {
+        "name": "core\\config\\__init__.py",
+        "type": "file",
+        "path": "core\\config\\__init__.py",
+        "size": 1879,
+        "last_modified": 1766382196.888756
+      },
+      {
+        "name": "core\\infrastructure\\providers",
+        "type": "file",
+        "path": "core\\infrastructure\\providers",
+        "size": 0,
+        "last_modified": 1766259517.4491153
+      },
+      {
+        "name": "core\\infrastructure\\tools",
+        "type": "file",
+        "path": "core\\infrastructure\\tools",
+        "size": 0,
+        "last_modified": 1769349880.869004
+      },
+      {
+        "name": "core\\infrastructure\\providers\\database",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\database",
+        "size": 0,
+        "last_modified": 1766261130.28003
+      },
+      {
+        "name": "core\\infrastructure\\providers\\llm",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\llm",
+        "size": 0,
+        "last_modified": 1766259403.4547405
+      },
+      {
+        "name": "core\\infrastructure\\providers\\__pycache__",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\__pycache__",
+        "size": 0,
+        "last_modified": 1766490323.3058596
+      },
+      {
+        "name": "core\\infrastructure\\providers\\factory.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\factory.py",
+        "size": 23492,
+        "last_modified": 1766470111.3682778
+      },
+      {
+        "name": "core\\infrastructure\\providers\\database\\__pycache__",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\database\\__pycache__",
+        "size": 0,
+        "last_modified": 1766738843.327027
+      },
+      {
+        "name": "core\\infrastructure\\providers\\database\\base_db.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\database\\base_db.py",
+        "size": 5652,
+        "last_modified": 1766402574.7286716
+      },
+      {
+        "name": "core\\infrastructure\\providers\\database\\postgres_provider.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\database\\postgres_provider.py",
+        "size": 9242,
+        "last_modified": 1766648816.698212
+      },
+      {
+        "name": "core\\infrastructure\\providers\\llm\\__pycache__",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\llm\\__pycache__",
+        "size": 0,
+        "last_modified": 1766495587.2123537
+      },
+      {
+        "name": "core\\infrastructure\\providers\\llm\\base_llm.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\llm\\base_llm.py",
+        "size": 5540,
+        "last_modified": 1766402516.108212
+      },
+      {
+        "name": "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+        "size": 40969,
+        "last_modified": 1766492082.413198
+      },
+      {
+        "name": "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+        "type": "file",
+        "path": "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+        "size": 50393,
+        "last_modified": 1766472239.6229641
+      },
+      {
+        "name": "core\\infrastructure\\tools\\__pycache__",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\__pycache__",
+        "size": 0,
+        "last_modified": 1769368316.442572
+      },
+      {
+        "name": "core\\infrastructure\\tools\\ast_parser_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\ast_parser_tool.py",
+        "size": 5069,
+        "last_modified": 1769356103.5270207
+      },
+      {
+        "name": "core\\infrastructure\\tools\\base_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\base_tool.py",
+        "size": 1402,
+        "last_modified": 1766470248.385807
+      },
+      {
+        "name": "core\\infrastructure\\tools\\file_lister_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\file_lister_tool.py",
+        "size": 11067,
+        "last_modified": 1769355766.908012
+      },
+      {
+        "name": "core\\infrastructure\\tools\\file_reader_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\file_reader_tool.py",
+        "size": 7618,
+        "last_modified": 1769355695.1919425
+      },
+      {
+        "name": "core\\infrastructure\\tools\\file_writer_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\file_writer_tool.py",
+        "size": 6923,
+        "last_modified": 1769355788.491202
+      },
+      {
+        "name": "core\\infrastructure\\tools\\sql_tool.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\sql_tool.py",
+        "size": 2206,
+        "last_modified": 1766470248.385807
+      },
+      {
+        "name": "core\\infrastructure\\tools\\__init__.py",
+        "type": "file",
+        "path": "core\\infrastructure\\tools\\__init__.py",
+        "size": 488,
+        "last_modified": 1769355837.9365444
+      },
+      {
+        "name": "core\\retry_policy\\__pycache__",
+        "type": "file",
+        "path": "core\\retry_policy\\__pycache__",
+        "size": 0,
+        "last_modified": 1766265783.0602026
+      },
+      {
+        "name": "core\\retry_policy\\retry_and_error_policy.py",
+        "type": "file",
+        "path": "core\\retry_policy\\retry_and_error_policy.py",
+        "size": 10514,
+        "last_modified": 1766236803.8452587
+      },
+      {
+        "name": "core\\retry_policy\\utils.py",
+        "type": "file",
+        "path": "core\\retry_policy\\utils.py",
+        "size": 1819,
+        "last_modified": 1766165733.2320278
+      },
+      {
+        "name": "core\\session_context\\__pycache__",
+        "type": "file",
+        "path": "core\\session_context\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.1114497
+      },
+      {
+        "name": "core\\session_context\\base_session_context.py",
+        "type": "file",
+        "path": "core\\session_context\\base_session_context.py",
+        "size": 3570,
+        "last_modified": 1766999591.8432078
+      },
+      {
+        "name": "core\\session_context\\data_context.py",
+        "type": "file",
+        "path": "core\\session_context\\data_context.py",
+        "size": 5324,
+        "last_modified": 1767010752.6924434
+      },
+      {
+        "name": "core\\session_context\\model.py",
+        "type": "file",
+        "path": "core\\session_context\\model.py",
+        "size": 7593,
+        "last_modified": 1767013815.590217
+      },
+      {
+        "name": "core\\session_context\\session_context.py",
+        "type": "file",
+        "path": "core\\session_context\\session_context.py",
+        "size": 12614,
+        "last_modified": 1767013815.590217
+      },
+      {
+        "name": "core\\session_context\\step_context.py",
+        "type": "file",
+        "path": "core\\session_context\\step_context.py",
+        "size": 6008,
+        "last_modified": 1766240817.2742207
+      },
+      {
+        "name": "core\\session_context\\__init__.py",
+        "type": "file",
+        "path": "core\\session_context\\__init__.py",
+        "size": 458,
+        "last_modified": 1766242431.6009445
+      },
+      {
+        "name": "core\\skills\\planning",
+        "type": "file",
+        "path": "core\\skills\\planning",
+        "size": 0,
+        "last_modified": 1766138718.753517
+      },
+      {
+        "name": "core\\skills\\project_map",
+        "type": "file",
+        "path": "core\\skills\\project_map",
+        "size": 0,
+        "last_modified": 1769360059.2827158
+      },
+      {
+        "name": "core\\skills\\table_description",
+        "type": "file",
+        "path": "core\\skills\\table_description",
+        "size": 0,
+        "last_modified": 1766395889.1882434
+      },
+      {
+        "name": "core\\skills\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.3117983
+      },
+      {
+        "name": "core\\skills\\base_skill.py",
+        "type": "file",
+        "path": "core\\skills\\base_skill.py",
+        "size": 5246,
+        "last_modified": 1766563964.0965824
+      },
+      {
+        "name": "core\\skills\\__init__.py",
+        "type": "file",
+        "path": "core\\skills\\__init__.py",
+        "size": 229,
+        "last_modified": 1769343217.8291895
+      },
+      {
+        "name": "core\\skills\\planning\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\planning\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.3812935
+      },
+      {
+        "name": "core\\skills\\planning\\prompt.py",
+        "type": "file",
+        "path": "core\\skills\\planning\\prompt.py",
+        "size": 10065,
+        "last_modified": 1767005763.3692622
+      },
+      {
+        "name": "core\\skills\\planning\\schema.py",
+        "type": "file",
+        "path": "core\\skills\\planning\\schema.py",
+        "size": 23052,
+        "last_modified": 1767005052.6725
+      },
+      {
+        "name": "core\\skills\\planning\\skill.py",
+        "type": "file",
+        "path": "core\\skills\\planning\\skill.py",
+        "size": 34383,
+        "last_modified": 1767072891.6742601
+      },
+      {
+        "name": "core\\skills\\project_map\\components",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components",
+        "size": 0,
+        "last_modified": 1769359782.2500224
+      },
+      {
+        "name": "core\\skills\\project_map\\models",
+        "type": "file",
+        "path": "core\\skills\\project_map\\models",
+        "size": 0,
+        "last_modified": 1769359782.2640276
+      },
+      {
+        "name": "core\\skills\\project_map\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\project_map\\__pycache__",
+        "size": 0,
+        "last_modified": 1769368981.2287917
+      },
+      {
+        "name": "core\\skills\\project_map\\schema.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\schema.py",
+        "size": 4468,
+        "last_modified": 1769368515.287889
+      },
+      {
+        "name": "core\\skills\\project_map\\skill.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\skill.py",
+        "size": 33674,
+        "last_modified": 1769368976.975003
+      },
+      {
+        "name": "core\\skills\\project_map\\__init__.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\__init__.py",
+        "size": 2565,
+        "last_modified": 1769359049.56601
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\__pycache__",
+        "size": 0,
+        "last_modified": 1769368327.7908988
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\ast_processor.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\ast_processor.py",
+        "size": 33482,
+        "last_modified": 1769365956.4881487
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\code_unit_builder.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\code_unit_builder.py",
+        "size": 28321,
+        "last_modified": 1769359519.6968567
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\dependency_analyzer.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\dependency_analyzer.py",
+        "size": 20601,
+        "last_modified": 1769359575.7523363
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\project_structure_builder.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\project_structure_builder.py",
+        "size": 12409,
+        "last_modified": 1769359695.9855201
+      },
+      {
+        "name": "core\\skills\\project_map\\components\\__init__.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\components\\__init__.py",
+        "size": 2118,
+        "last_modified": 1769358889.1338396
+      },
+      {
+        "name": "core\\skills\\project_map\\models\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\project_map\\models\\__pycache__",
+        "size": 0,
+        "last_modified": 1769368327.775897
+      },
+      {
+        "name": "core\\skills\\project_map\\models\\code_unit.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\models\\code_unit.py",
+        "size": 13704,
+        "last_modified": 1769358472.968066
+      },
+      {
+        "name": "core\\skills\\project_map\\models\\project_map.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\models\\project_map.py",
+        "size": 15841,
+        "last_modified": 1769358755.6226094
+      },
+      {
+        "name": "core\\skills\\project_map\\models\\__init__.py",
+        "type": "file",
+        "path": "core\\skills\\project_map\\models\\__init__.py",
+        "size": 1657,
+        "last_modified": 1769358135.3588252
+      },
+      {
+        "name": "core\\skills\\table_description\\__pycache__",
+        "type": "file",
+        "path": "core\\skills\\table_description\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354030.6815991
+      },
+      {
+        "name": "core\\skills\\table_description\\schema.py",
+        "type": "file",
+        "path": "core\\skills\\table_description\\schema.py",
+        "size": 674,
+        "last_modified": 1766994512.187803
+      },
+      {
+        "name": "core\\skills\\table_description\\skill.py",
+        "type": "file",
+        "path": "core\\skills\\table_description\\skill.py",
+        "size": 27182,
+        "last_modified": 1767013365.0502825
+      },
+      {
+        "name": "core\\system_context\\__pycache__",
+        "type": "file",
+        "path": "core\\system_context\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.4388382
+      },
+      {
+        "name": "core\\system_context\\base_system_contex.py",
+        "type": "file",
+        "path": "core\\system_context\\base_system_contex.py",
+        "size": 3534,
+        "last_modified": 1766468537.4235451
+      },
+      {
+        "name": "core\\system_context\\capability_registry.py",
+        "type": "file",
+        "path": "core\\system_context\\capability_registry.py",
+        "size": 5137,
+        "last_modified": 1766399263.3387694
+      },
+      {
+        "name": "core\\system_context\\execution_gateway.py",
+        "type": "file",
+        "path": "core\\system_context\\execution_gateway.py",
+        "size": 3842,
+        "last_modified": 1766990421.835312
+      },
+      {
+        "name": "core\\system_context\\lifecycle_manager.py",
+        "type": "file",
+        "path": "core\\system_context\\lifecycle_manager.py",
+        "size": 12963,
+        "last_modified": 1767013815.590217
+      },
+      {
+        "name": "core\\system_context\\resource_registry.py",
+        "type": "file",
+        "path": "core\\system_context\\resource_registry.py",
+        "size": 7801,
+        "last_modified": 1767013811.3093429
+      },
+      {
+        "name": "core\\system_context\\system_context.py",
+        "type": "file",
+        "path": "core\\system_context\\system_context.py",
+        "size": 25758,
+        "last_modified": 1766990471.0226786
+      },
+      {
+        "name": "logs\\dev",
+        "type": "file",
+        "path": "logs\\dev",
+        "size": 0,
+        "last_modified": 1769369206.3574433
+      },
+      {
+        "name": "models\\__pycache__",
+        "type": "file",
+        "path": "models\\__pycache__",
+        "size": 0,
+        "last_modified": 1769354021.1593585
+      },
+      {
+        "name": "models\\capability.py",
+        "type": "file",
+        "path": "models\\capability.py",
+        "size": 1629,
+        "last_modified": 1767009666.7431748
+      },
+      {
+        "name": "models\\db_types.py",
+        "type": "file",
+        "path": "models\\db_types.py",
+        "size": 6014,
+        "last_modified": 1766648682.9713914
+      },
+      {
+        "name": "models\\execution.py",
+        "type": "file",
+        "path": "models\\execution.py",
+        "size": 2100,
+        "last_modified": 1766575018.3076365
+      },
+      {
+        "name": "models\\llm_types.py",
+        "type": "file",
+        "path": "models\\llm_types.py",
+        "size": 5669,
+        "last_modified": 1766256184.5796216
+      },
+      {
+        "name": "models\\resource.py",
+        "type": "file",
+        "path": "models\\resource.py",
+        "size": 2547,
+        "last_modified": 1766296567.365544
+      },
+      {
+        "name": "models\\retry_policy.py",
+        "type": "file",
+        "path": "models\\retry_policy.py",
+        "size": 6069,
+        "last_modified": 1766160809.4296355
+      },
+      {
+        "name": "models\\structured_actions.py",
+        "type": "file",
+        "path": "models\\structured_actions.py",
+        "size": 3658,
+        "last_modified": 1766161084.3226416
+      },
+      {
+        "name": "tests\\providers",
+        "type": "file",
+        "path": "tests\\providers",
+        "size": 0,
+        "last_modified": 1766132165.6644588
+      },
+      {
+        "name": "tests\\__pycache__",
+        "type": "file",
+        "path": "tests\\__pycache__",
+        "size": 0,
+        "last_modified": 1766232121.3090985
+      },
+      {
+        "name": "tests\\test_execution_gateway.py",
+        "type": "file",
+        "path": "tests\\test_execution_gateway.py",
+        "size": 29192,
+        "last_modified": 1766744500.0941114
+      },
+      {
+        "name": "tests\\test_session_context.py",
+        "type": "file",
+        "path": "tests\\test_session_context.py",
+        "size": 5667,
+        "last_modified": 1766231827.731429
+      },
+      {
+        "name": "tests\\providers\\__pycache__",
+        "type": "file",
+        "path": "tests\\providers\\__pycache__",
+        "size": 0,
+        "last_modified": 1766132166.2779636
+      },
+      {
+        "name": "tests\\providers\\conftest.py",
+        "type": "file",
+        "path": "tests\\providers\\conftest.py",
+        "size": 5474,
+        "last_modified": 1766131485.870781
+      },
+      {
+        "name": "tests\\providers\\test_base_db.py",
+        "type": "file",
+        "path": "tests\\providers\\test_base_db.py",
+        "size": 6346,
+        "last_modified": 1766131545.7145696
+      },
+      {
+        "name": "tests\\providers\\test_base_llm.py",
+        "type": "file",
+        "path": "tests\\providers\\test_base_llm.py",
+        "size": 7010,
+        "last_modified": 1766165733.2390838
+      },
+      {
+        "name": "tests\\providers\\test_factory.py",
+        "type": "file",
+        "path": "tests\\providers\\test_factory.py",
+        "size": 7430,
+        "last_modified": 1766131832.4008496
+      },
+      {
+        "name": "tests\\providers\\test_llama_cpp_provider.py",
+        "type": "file",
+        "path": "tests\\providers\\test_llama_cpp_provider.py",
+        "size": 19591,
+        "last_modified": 1766256329.5350862
+      },
+      {
+        "name": "tests\\providers\\test_postgres_provider.py",
+        "type": "file",
+        "path": "tests\\providers\\test_postgres_provider.py",
+        "size": 35299,
+        "last_modified": 1766242788.2805154
+      },
+      {
+        "name": "tests\\providers\\test_vllm_provider.py",
+        "type": "file",
+        "path": "tests\\providers\\test_vllm_provider.py",
+        "size": 7167,
+        "last_modified": 1766131961.2263854
+      }
+    ]
+  },
+  "dependencies": {
+    "analyze_file.py": [],
+    "main.py": [
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "test_main.py": [],
+    "core\\agent_runtime\\executor.py": [],
+    "core\\agent_runtime\\interfaces.py": [],
+    "core\\agent_runtime\\model.py": [],
+    "core\\agent_runtime\\policy.py": [],
+    "core\\agent_runtime\\progress.py": [],
+    "core\\agent_runtime\\runtime.py": [],
+    "core\\agent_runtime\\state.py": [],
+    "core\\agent_runtime\\strategies\\base.py": [],
+    "core\\agent_runtime\\strategies\\evaluation.py": [],
+    "core\\agent_runtime\\strategies\\fallback.py": [],
+    "core\\agent_runtime\\strategies\\__init__.py": [],
+    "core\\agent_runtime\\strategies\\react\\models.py": [],
+    "core\\agent_runtime\\strategies\\react\\prompts.py": [],
+    "core\\agent_runtime\\strategies\\react\\schema_validator.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py",
+      "core\\config\\config_loader.py",
+      "core\\config\\models.py",
+      "core\\config\\__init__.py",
+      "core\\infrastructure\\providers\\factory.py",
+      "core\\infrastructure\\providers\\database\\base_db.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "core\\infrastructure\\providers\\llm\\base_llm.py",
+      "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+      "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+      "core\\infrastructure\\tools\\ast_parser_tool.py",
+      "core\\infrastructure\\tools\\base_tool.py",
+      "core\\infrastructure\\tools\\file_lister_tool.py",
+      "core\\infrastructure\\tools\\file_reader_tool.py",
+      "core\\infrastructure\\tools\\file_writer_tool.py",
+      "core\\infrastructure\\tools\\sql_tool.py",
+      "core\\infrastructure\\tools\\__init__.py",
+      "core\\retry_policy\\retry_and_error_policy.py",
+      "core\\retry_policy\\utils.py",
+      "core\\session_context\\base_session_context.py",
+      "core\\session_context\\data_context.py",
+      "core\\session_context\\model.py",
+      "core\\session_context\\session_context.py",
+      "core\\session_context\\step_context.py",
+      "core\\session_context\\__init__.py",
+      "core\\skills\\base_skill.py",
+      "core\\skills\\__init__.py",
+      "core\\skills\\planning\\prompt.py",
+      "core\\skills\\planning\\schema.py",
+      "core\\skills\\planning\\skill.py",
+      "core\\skills\\project_map\\schema.py",
+      "core\\skills\\project_map\\skill.py",
+      "core\\skills\\project_map\\__init__.py",
+      "core\\skills\\project_map\\components\\ast_processor.py",
+      "core\\skills\\project_map\\components\\code_unit_builder.py",
+      "core\\skills\\project_map\\components\\dependency_analyzer.py",
+      "core\\skills\\project_map\\components\\project_structure_builder.py",
+      "core\\skills\\project_map\\components\\__init__.py",
+      "core\\skills\\project_map\\models\\code_unit.py",
+      "core\\skills\\project_map\\models\\project_map.py",
+      "core\\skills\\project_map\\models\\__init__.py",
+      "core\\skills\\table_description\\schema.py",
+      "core\\skills\\table_description\\skill.py",
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "models\\resource.py",
+      "models\\retry_policy.py",
+      "models\\structured_actions.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\agent_runtime\\strategies\\react\\strategy.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py",
+      "core\\config\\config_loader.py",
+      "core\\config\\models.py",
+      "core\\config\\__init__.py",
+      "core\\infrastructure\\providers\\factory.py",
+      "core\\infrastructure\\providers\\database\\base_db.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "core\\infrastructure\\providers\\llm\\base_llm.py",
+      "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+      "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+      "core\\infrastructure\\tools\\ast_parser_tool.py",
+      "core\\infrastructure\\tools\\base_tool.py",
+      "core\\infrastructure\\tools\\file_lister_tool.py",
+      "core\\infrastructure\\tools\\file_reader_tool.py",
+      "core\\infrastructure\\tools\\file_writer_tool.py",
+      "core\\infrastructure\\tools\\sql_tool.py",
+      "core\\infrastructure\\tools\\__init__.py",
+      "core\\retry_policy\\retry_and_error_policy.py",
+      "core\\retry_policy\\utils.py",
+      "core\\session_context\\base_session_context.py",
+      "core\\session_context\\data_context.py",
+      "core\\session_context\\model.py",
+      "core\\session_context\\session_context.py",
+      "core\\session_context\\step_context.py",
+      "core\\session_context\\__init__.py",
+      "core\\skills\\base_skill.py",
+      "core\\skills\\__init__.py",
+      "core\\skills\\planning\\prompt.py",
+      "core\\skills\\planning\\schema.py",
+      "core\\skills\\planning\\skill.py",
+      "core\\skills\\project_map\\schema.py",
+      "core\\skills\\project_map\\skill.py",
+      "core\\skills\\project_map\\__init__.py",
+      "core\\skills\\project_map\\components\\ast_processor.py",
+      "core\\skills\\project_map\\components\\code_unit_builder.py",
+      "core\\skills\\project_map\\components\\dependency_analyzer.py",
+      "core\\skills\\project_map\\components\\project_structure_builder.py",
+      "core\\skills\\project_map\\components\\__init__.py",
+      "core\\skills\\project_map\\models\\code_unit.py",
+      "core\\skills\\project_map\\models\\project_map.py",
+      "core\\skills\\project_map\\models\\__init__.py",
+      "core\\skills\\table_description\\schema.py",
+      "core\\skills\\table_description\\skill.py",
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "models\\resource.py",
+      "models\\retry_policy.py",
+      "models\\structured_actions.py",
+      "tests\\providers\\test_postgres_provider.py",
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\agent_runtime\\strategies\\react\\utils.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py",
+      "core\\config\\config_loader.py",
+      "core\\config\\models.py",
+      "core\\config\\__init__.py",
+      "core\\infrastructure\\providers\\factory.py",
+      "core\\infrastructure\\providers\\database\\base_db.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "core\\infrastructure\\providers\\llm\\base_llm.py",
+      "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+      "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+      "core\\infrastructure\\tools\\ast_parser_tool.py",
+      "core\\infrastructure\\tools\\base_tool.py",
+      "core\\infrastructure\\tools\\file_lister_tool.py",
+      "core\\infrastructure\\tools\\file_reader_tool.py",
+      "core\\infrastructure\\tools\\file_writer_tool.py",
+      "core\\infrastructure\\tools\\sql_tool.py",
+      "core\\infrastructure\\tools\\__init__.py",
+      "core\\retry_policy\\retry_and_error_policy.py",
+      "core\\retry_policy\\utils.py",
+      "core\\session_context\\base_session_context.py",
+      "core\\session_context\\data_context.py",
+      "core\\session_context\\model.py",
+      "core\\session_context\\session_context.py",
+      "core\\session_context\\step_context.py",
+      "core\\session_context\\__init__.py",
+      "core\\skills\\base_skill.py",
+      "core\\skills\\__init__.py",
+      "core\\skills\\planning\\prompt.py",
+      "core\\skills\\planning\\schema.py",
+      "core\\skills\\planning\\skill.py",
+      "core\\skills\\project_map\\schema.py",
+      "core\\skills\\project_map\\skill.py",
+      "core\\skills\\project_map\\__init__.py",
+      "core\\skills\\project_map\\components\\ast_processor.py",
+      "core\\skills\\project_map\\components\\code_unit_builder.py",
+      "core\\skills\\project_map\\components\\dependency_analyzer.py",
+      "core\\skills\\project_map\\components\\project_structure_builder.py",
+      "core\\skills\\project_map\\components\\__init__.py",
+      "core\\skills\\project_map\\models\\code_unit.py",
+      "core\\skills\\project_map\\models\\project_map.py",
+      "core\\skills\\project_map\\models\\__init__.py",
+      "core\\skills\\table_description\\schema.py",
+      "core\\skills\\table_description\\skill.py",
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "models\\resource.py",
+      "models\\retry_policy.py",
+      "models\\structured_actions.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\agent_runtime\\strategies\\react\\validation.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py",
+      "core\\config\\config_loader.py",
+      "core\\config\\models.py",
+      "core\\config\\__init__.py",
+      "core\\infrastructure\\providers\\factory.py",
+      "core\\infrastructure\\providers\\database\\base_db.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "core\\infrastructure\\providers\\llm\\base_llm.py",
+      "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+      "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+      "core\\infrastructure\\tools\\ast_parser_tool.py",
+      "core\\infrastructure\\tools\\base_tool.py",
+      "core\\infrastructure\\tools\\file_lister_tool.py",
+      "core\\infrastructure\\tools\\file_reader_tool.py",
+      "core\\infrastructure\\tools\\file_writer_tool.py",
+      "core\\infrastructure\\tools\\sql_tool.py",
+      "core\\infrastructure\\tools\\__init__.py",
+      "core\\retry_policy\\retry_and_error_policy.py",
+      "core\\retry_policy\\utils.py",
+      "core\\session_context\\base_session_context.py",
+      "core\\session_context\\data_context.py",
+      "core\\session_context\\model.py",
+      "core\\session_context\\session_context.py",
+      "core\\session_context\\step_context.py",
+      "core\\session_context\\__init__.py",
+      "core\\skills\\base_skill.py",
+      "core\\skills\\__init__.py",
+      "core\\skills\\planning\\prompt.py",
+      "core\\skills\\planning\\schema.py",
+      "core\\skills\\planning\\skill.py",
+      "core\\skills\\project_map\\schema.py",
+      "core\\skills\\project_map\\skill.py",
+      "core\\skills\\project_map\\__init__.py",
+      "core\\skills\\project_map\\components\\ast_processor.py",
+      "core\\skills\\project_map\\components\\code_unit_builder.py",
+      "core\\skills\\project_map\\components\\dependency_analyzer.py",
+      "core\\skills\\project_map\\components\\project_structure_builder.py",
+      "core\\skills\\project_map\\components\\__init__.py",
+      "core\\skills\\project_map\\models\\code_unit.py",
+      "core\\skills\\project_map\\models\\project_map.py",
+      "core\\skills\\project_map\\models\\__init__.py",
+      "core\\skills\\table_description\\schema.py",
+      "core\\skills\\table_description\\skill.py",
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "models\\resource.py",
+      "models\\retry_policy.py",
+      "models\\structured_actions.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\agent_runtime\\strategies\\react\\__init__.py": [],
+    "core\\config\\config_loader.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\config\\models.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\config\\__init__.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\infrastructure\\providers\\factory.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\infrastructure\\providers\\database\\base_db.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\providers\\database\\postgres_provider.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\providers\\llm\\base_llm.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\providers\\llm\\vllm_provider.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\tools\\ast_parser_tool.py": [],
+    "core\\infrastructure\\tools\\base_tool.py": [],
+    "core\\infrastructure\\tools\\file_lister_tool.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\infrastructure\\tools\\file_reader_tool.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\infrastructure\\tools\\file_writer_tool.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\infrastructure\\tools\\sql_tool.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "core\\infrastructure\\tools\\__init__.py": [],
+    "core\\retry_policy\\retry_and_error_policy.py": [],
+    "core\\retry_policy\\utils.py": [],
+    "core\\session_context\\base_session_context.py": [],
+    "core\\session_context\\data_context.py": [],
+    "core\\session_context\\model.py": [],
+    "core\\session_context\\session_context.py": [],
+    "core\\session_context\\step_context.py": [],
+    "core\\session_context\\__init__.py": [],
+    "core\\skills\\base_skill.py": [],
+    "core\\skills\\__init__.py": [],
+    "core\\skills\\planning\\prompt.py": [],
+    "core\\skills\\planning\\schema.py": [],
+    "core\\skills\\planning\\skill.py": [],
+    "core\\skills\\project_map\\schema.py": [],
+    "core\\skills\\project_map\\skill.py": [],
+    "core\\skills\\project_map\\__init__.py": [],
+    "core\\skills\\project_map\\components\\ast_processor.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py",
+      "core\\config\\config_loader.py",
+      "core\\config\\models.py",
+      "core\\config\\__init__.py",
+      "core\\infrastructure\\providers\\factory.py",
+      "core\\infrastructure\\providers\\database\\base_db.py",
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "core\\infrastructure\\providers\\llm\\base_llm.py",
+      "core\\infrastructure\\providers\\llm\\llama_cpp_provider.py",
+      "core\\infrastructure\\providers\\llm\\vllm_provider.py",
+      "core\\infrastructure\\tools\\ast_parser_tool.py",
+      "core\\infrastructure\\tools\\base_tool.py",
+      "core\\infrastructure\\tools\\file_lister_tool.py",
+      "core\\infrastructure\\tools\\file_reader_tool.py",
+      "core\\infrastructure\\tools\\file_writer_tool.py",
+      "core\\infrastructure\\tools\\sql_tool.py",
+      "core\\infrastructure\\tools\\__init__.py",
+      "core\\retry_policy\\retry_and_error_policy.py",
+      "core\\retry_policy\\utils.py",
+      "core\\session_context\\base_session_context.py",
+      "core\\session_context\\data_context.py",
+      "core\\session_context\\model.py",
+      "core\\session_context\\session_context.py",
+      "core\\session_context\\step_context.py",
+      "core\\session_context\\__init__.py",
+      "core\\skills\\base_skill.py",
+      "core\\skills\\__init__.py",
+      "core\\skills\\planning\\prompt.py",
+      "core\\skills\\planning\\schema.py",
+      "core\\skills\\planning\\skill.py",
+      "core\\skills\\project_map\\schema.py",
+      "core\\skills\\project_map\\skill.py",
+      "core\\skills\\project_map\\__init__.py",
+      "core\\skills\\project_map\\components\\ast_processor.py",
+      "core\\skills\\project_map\\components\\code_unit_builder.py",
+      "core\\skills\\project_map\\components\\dependency_analyzer.py",
+      "core\\skills\\project_map\\components\\project_structure_builder.py",
+      "core\\skills\\project_map\\components\\__init__.py",
+      "core\\skills\\project_map\\models\\code_unit.py",
+      "core\\skills\\project_map\\models\\project_map.py",
+      "core\\skills\\project_map\\models\\__init__.py",
+      "core\\skills\\table_description\\schema.py",
+      "core\\skills\\table_description\\skill.py",
+      "core\\system_context\\base_system_contex.py",
+      "core\\system_context\\capability_registry.py",
+      "core\\system_context\\execution_gateway.py",
+      "core\\system_context\\lifecycle_manager.py",
+      "core\\system_context\\resource_registry.py",
+      "core\\system_context\\system_context.py",
+      "models\\resource.py",
+      "models\\retry_policy.py",
+      "models\\structured_actions.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\skills\\project_map\\components\\code_unit_builder.py": [],
+    "core\\skills\\project_map\\components\\dependency_analyzer.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\skills\\project_map\\components\\project_structure_builder.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "core\\skills\\project_map\\components\\__init__.py": [],
+    "core\\skills\\project_map\\models\\code_unit.py": [],
+    "core\\skills\\project_map\\models\\project_map.py": [],
+    "core\\skills\\project_map\\models\\__init__.py": [],
+    "core\\skills\\table_description\\schema.py": [],
+    "core\\skills\\table_description\\skill.py": [],
+    "core\\system_context\\base_system_contex.py": [],
+    "core\\system_context\\capability_registry.py": [],
+    "core\\system_context\\execution_gateway.py": [],
+    "core\\system_context\\lifecycle_manager.py": [],
+    "core\\system_context\\resource_registry.py": [],
+    "core\\system_context\\system_context.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "models\\capability.py": [],
+    "models\\db_types.py": [],
+    "models\\execution.py": [],
+    "models\\llm_types.py": [],
+    "models\\resource.py": [],
+    "models\\retry_policy.py": [],
+    "models\\structured_actions.py": [],
+    "tests\\test_execution_gateway.py": [],
+    "tests\\test_session_context.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "tests\\providers\\conftest.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py"
+    ],
+    "tests\\providers\\test_base_db.py": [],
+    "tests\\providers\\test_base_llm.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "tests\\providers\\test_factory.py": [],
+    "tests\\providers\\test_llama_cpp_provider.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py",
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "tests\\providers\\test_postgres_provider.py": [
+      "core\\infrastructure\\providers\\database\\postgres_provider.py",
+      "tests\\providers\\test_postgres_provider.py",
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ],
+    "tests\\providers\\test_vllm_provider.py": [
+      "core\\agent_runtime\\executor.py",
+      "core\\agent_runtime\\interfaces.py",
+      "core\\agent_runtime\\model.py",
+      "core\\agent_runtime\\policy.py",
+      "core\\agent_runtime\\progress.py",
+      "core\\agent_runtime\\runtime.py",
+      "core\\agent_runtime\\state.py",
+      "core\\agent_runtime\\strategies\\base.py",
+      "core\\agent_runtime\\strategies\\evaluation.py",
+      "core\\agent_runtime\\strategies\\fallback.py",
+      "core\\agent_runtime\\strategies\\__init__.py",
+      "core\\agent_runtime\\strategies\\react\\models.py",
+      "core\\agent_runtime\\strategies\\react\\prompts.py",
+      "core\\agent_runtime\\strategies\\react\\schema_validator.py",
+      "core\\agent_runtime\\strategies\\react\\strategy.py",
+      "core\\agent_runtime\\strategies\\react\\utils.py",
+      "core\\agent_runtime\\strategies\\react\\validation.py",
+      "core\\agent_runtime\\strategies\\react\\__init__.py"
+    ]
+  },
+  "entry_points": [
+    {
+      "name": "Application",
+      "file_path": "main.py",
+      "line": 82,
+      "type": "class"
+    },
+    {
+      "name": "main",
+      "file_path": "main.py",
+      "line": 334,
+      "type": "main"
+    }
+  ],
+  "file_summary": {
+    "py": 85
+  }
+}

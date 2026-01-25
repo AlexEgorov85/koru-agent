@@ -1,0 +1,619 @@
+"""
+Компонент для корректной обработки AST деревьев с tree_sitter.
+
+КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ:
+1. Работа с байтами вместо строк при парсинге
+2. Корректное извлечение текста узлов через байтовые координаты
+3. Обработка BOM (Byte Order Mark) в начале файла
+4. Правильная работа с кодировками
+5. Валидация координат перед извлечением текста
+
+Пример корректной работы:
+```python
+ast_processor = ASTProcessor(project_map_skill)
+code_units = ast_processor.process_file_ast(
+    tree=ast_tree,
+    file_path="core/skills/project_map/skill.py",
+    source_code=file_content,
+    source_bytes=source_bytes  # Важно: байтовое представление
+)
+# Теперь имена будут корректными: "ProjectMapSkill", "_analyze_project" и т.д.
+```
+"""
+
+from typing import List, Dict, Any, Optional, Tuple
+from tree_sitter import Tree, Node
+from core.skills.project_map.components.code_unit_builder import CodeUnitBuilder
+from core.skills.project_map.models.code_unit import CodeUnit, Location, CodeSpan, CodeUnitType
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+class ASTProcessor:
+    """Компонент для корректной обработки AST деревьев."""
+    
+    def __init__(self, skill_context):
+        self.skill_context = skill_context
+        self._builder = CodeUnitBuilder(skill_context)
+    
+    def process_file_ast(self, tree: Tree, file_path: str, source_code: str, 
+                        source_bytes: bytes, max_depth: int = 10) -> List[CodeUnit]:
+        """
+        Обработка AST дерева файла с корректным извлечением данных.
+        
+        ИСПРАВЛЕНИЯ:
+        1. Использование source_bytes для корректного извлечения текста
+        2. Обработка BOM в начале файла
+        3. Валидация координат узлов
+        4. Корректное извлечение имен из AST
+        
+        Args:
+            tree: AST дерево, полученное от ASTParserTool
+            file_path: путь к файлу
+            source_code: исходный код в виде строки (для удобства)
+            source_bytes: исходный код в виде байтов (для корректной работы с координатами)
+            max_depth: максимальная глубина анализа (не используется в текущей реализации)
+        
+        Returns:
+            List[CodeUnit]: список всех найденных единиц кода в файле
+        """
+        logger.debug(f"Начало обработки AST для файла: {file_path}")
+        
+        root_node = tree.root_node
+        code_units = []
+        
+        try:
+            # 1. Проверка и обработка BOM
+            source_bytes, source_code = self._handle_bom(source_bytes, source_code)
+            
+            # 2. Извлечение модуля (файла)
+            module_unit = self._extract_module(root_node, file_path, source_code, source_bytes)
+            if module_unit:
+                code_units.append(module_unit)
+                logger.debug(f"Найден модуль: {module_unit.name}")
+            
+            # 3. Извлечение импортов
+            imports = self._extract_imports(root_node, file_path, source_code, source_bytes, module_unit.id if module_unit else None)
+            code_units.extend(imports)
+            logger.debug(f"Найдено импортов: {len(imports)}")
+            
+            # 4. Извлечение классов и функций верхнего уровня
+            for i, node in enumerate(root_node.children):
+                logger.debug(f"Обработка узла {i}: type={node.type}, start_point={node.start_point}")
+                
+                if node.type == 'class_definition':
+                    class_unit = self._extract_class_definition(node, file_path, source_code, source_bytes, module_unit.id if module_unit else None)
+                    if class_unit:
+                        code_units.append(class_unit)
+                        logger.debug(f"Найден класс: {class_unit.name} at line {class_unit.location.start_line}")
+                        # Извлечение методов класса
+                        methods = self._extract_class_methods(node, file_path, source_code, source_bytes, class_unit.id)
+                        code_units.extend(methods)
+                        logger.debug(f"Найдено методов у класса {class_unit.name}: {len(methods)}")
+                
+                elif node.type in ['function_definition', 'async_function_definition']:
+                    func_unit = self._extract_function_definition(node, file_path, source_code, source_bytes, module_unit.id if module_unit else None)
+                    if func_unit:
+                        code_units.append(func_unit)
+                        logger.debug(f"Найдена функция: {func_unit.name} at line {func_unit.location.start_line}")
+            
+            # 5. Извлечение глобальных переменных
+            variables = self._extract_global_variables(root_node, file_path, source_code, source_bytes, module_unit.id if module_unit else None)
+            code_units.extend(variables)
+            logger.debug(f"Найдено глобальных переменных: {len(variables)}")
+            
+            logger.info(f"Успешно проанализирован файл {file_path}: найдено {len(code_units)} единиц кода")
+            return code_units
+            
+        except Exception as e:
+            logger.error(f"Ошибка обработки AST для файла {file_path}: {str(e)}", exc_info=True)
+            return []
+    
+    def _handle_bom(self, source_bytes: bytes, source_code: str) -> Tuple[bytes, str]:
+        """Обработка BOM (Byte Order Mark) в начале файла."""
+        # Проверка на наличие BOM (UTF-8 BOM: EF BB BF)
+        if source_bytes.startswith(b'\xef\xbb\xbf'):
+            logger.debug("Обнаружен BOM (UTF-8) в начале файла")
+            # Удаляем BOM из байтового представления
+            source_bytes = source_bytes[3:]
+            # Обновляем строковое представление
+            source_code = source_code[1:] if source_code.startswith('\ufeff') else source_code
+        return source_bytes, source_code
+    
+    def _get_node_text(self, node: Node, source_bytes: bytes, source_code: str) -> str:
+        """
+        Безопасное получение текста узла с правильной обработкой байтовых координат.
+        
+        Args:
+            node: узел AST
+            source_bytes: исходный код в байтовом представлении
+            source_code: исходный код в строковом представлении
+        
+        Returns:
+            str: текст узла
+        """
+        try:
+            # Валидация координат
+            if node.start_byte < 0 or node.end_byte > len(source_bytes) or node.start_byte > node.end_byte:
+                logger.warning(f"Некорректные координаты узла: start_byte={node.start_byte}, end_byte={node.end_byte}, "
+                              f"длина source_bytes={len(source_bytes)}, type={node.type}")
+                return ""
+            
+            # Извлечение текста из байтового представления
+            node_bytes = source_bytes[node.start_byte:node.end_byte]
+            
+            try:
+                # Декодирование с обработкой ошибок
+                node_text = node_bytes.decode('utf-8', errors='replace')
+                # Очистка от лишних пробелов и символов
+                node_text = node_text.strip()
+                return node_text
+            except UnicodeDecodeError as e:
+                logger.warning(f"Ошибка декодирования текста узла: {str(e)}")
+                # Попытка альтернативной кодировки
+                try:
+                    node_text = node_bytes.decode('latin-1', errors='replace').strip()
+                    return node_text
+                except Exception as inner_e:
+                    logger.error(f"Ошибка при альтернативном декодировании: {str(inner_e)}")
+                    return ""
+                    
+        except Exception as e:
+            logger.error(f"Ошибка получения текста узла: {str(e)}, type={node.type}", exc_info=True)
+            return ""
+    
+    def _extract_module(self, node: Node, file_path: str, source_code: str, source_bytes: bytes) -> Optional[CodeUnit]:
+        """Извлечение модуля (файла) с корректной обработкой имен."""
+        try:
+            # Получение имени модуля из пути к файлу
+            file_name = file_path.split('/')[-1].replace('.py', '')
+            if not file_name:
+                file_name = "__init__"
+            
+            # Получение полного текста модуля
+            module_text = self._get_node_text(node, source_bytes, source_code)
+            
+            location = Location(
+                file_path=file_path,
+                start_line=node.start_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                start_column=node.start_point[1] + 1,
+                end_column=node.end_point[1] + 1
+            )
+            
+            code_span = CodeSpan(source_code=module_text)
+            
+            # Генерация уникального ID
+            module_id = f"module_{file_name}_{hash(module_text) % 10000}"
+            
+            # Извлечение docstring модуля
+            docstring = self._extract_module_docstring(node, source_code, source_bytes)
+            
+            return CodeUnit(
+                id=module_id,
+                name=file_name,
+                type=CodeUnitType.MODULE,
+                location=location,
+                code_span=code_span,
+                metadata={
+                    'docstring': docstring,
+                    'file_path': file_path,
+                    'is_package': '__init__.py' in file_path.lower()
+                },
+                language="python"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка построения модуля {file_path}: {str(e)}", exc_info=True)
+            return None
+    
+    def _extract_class_definition(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: str) -> Optional[CodeUnit]:
+        """Извлечение определения класса с корректной обработкой имен."""
+        try:
+            # 1. Извлечение имени класса
+            name_node = node.child_by_field_name('name')
+            if not name_node:
+                logger.warning(f"Не найден узел имени для класса в {file_path} at line {node.start_point[0] + 1}")
+                return None
+            
+            class_name = self._get_node_text(name_node, source_bytes, source_code)
+            if not class_name or len(class_name) > 100:  # Защита от очень длинных имен
+                logger.warning(f"Некорректное имя класса: '{class_name}' в {file_path}")
+                return None
+            
+            # 2. Получение текста всего класса
+            class_text = self._get_node_text(node, source_bytes, source_code)
+            
+            # 3. Извлечение дополнительной информации
+            bases = self._extract_class_bases(node, source_code, source_bytes)
+            docstring = self._extract_docstring(node, source_code, source_bytes)
+            decorators = self._extract_decorators(node, source_code, source_bytes)
+            
+            # 4. Создание location с валидацией
+            start_line = max(1, node.start_point[0] + 1)
+            end_line = max(start_line, node.end_point[0] + 1)
+            
+            location = Location(
+                file_path=file_path,
+                start_line=start_line,
+                end_line=end_line,
+                start_column=max(1, node.start_point[1] + 1),
+                end_column=max(1, node.end_point[1] + 1)
+            )
+            
+            code_span = CodeSpan(source_code=class_text)
+            
+            # 5. Генерация уникального ID
+            class_id = f"class_{class_name}_{hash(class_text) % 10000}"
+            
+            return CodeUnit(
+                id=class_id,
+                name=class_name,
+                type=CodeUnitType.CLASS,
+                location=location,
+                code_span=code_span,
+                parent_id=parent_id,
+                metadata={
+                    'bases': bases,
+                    'docstring': docstring,
+                    'decorators': decorators,
+                    'methods_count': len([c for c in node.children if c.type in ['function_definition', 'async_function_definition']])
+                },
+                language="python"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка построения класса в {file_path}: {str(e)}", exc_info=True)
+            return None
+    
+    def _extract_function_definition(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: str) -> Optional[CodeUnit]:
+        """Извлечение определения функции с корректной обработкой имен."""
+        try:
+            # 1. Извлечение имени функции
+            name_node = node.child_by_field_name('name')
+            if not name_node:
+                logger.warning(f"Не найден узел имени для функции в {file_path} at line {node.start_point[0] + 1}")
+                return None
+            
+            func_name = self._get_node_text(name_node, source_bytes, source_code)
+            if not func_name or len(func_name) > 100:
+                logger.warning(f"Некорректное имя функции: '{func_name}' в {file_path}")
+                return None
+            
+            # 2. Определение является ли функция методом класса
+            is_method = parent_id and parent_id.startswith('class_')
+            
+            # 3. Получение текста всей функции
+            func_text = self._get_node_text(node, source_bytes, source_code)
+            
+            # 4. Извлечение дополнительной информации
+            parameters = self._extract_parameters(node, source_code, source_bytes)
+            return_type = self._extract_return_type(node, source_code, source_bytes)
+            docstring = self._extract_docstring(node, source_code, source_bytes)
+            decorators = self._extract_decorators(node, source_code, source_bytes)
+            is_async = node.type == 'async_function_definition' or 'async' in func_text[:50].lower()
+            
+            # 5. Создание location с валидацией
+            start_line = max(1, node.start_point[0] + 1)
+            end_line = max(start_line, node.end_point[0] + 1)
+            
+            location = Location(
+                file_path=file_path,
+                start_line=start_line,
+                end_line=end_line,
+                start_column=max(1, node.start_point[1] + 1),
+                end_column=max(1, node.end_point[1] + 1)
+            )
+            
+            code_span = CodeSpan(source_code=func_text)
+            
+            # 6. Генерация уникального ID
+            func_type = CodeUnitType.METHOD if is_method else CodeUnitType.FUNCTION
+            func_id = f"{'method' if is_method else 'func'}_{func_name}_{hash(func_text) % 10000}"
+            
+            return CodeUnit(
+                id=func_id,
+                name=func_name,
+                type=func_type,
+                location=location,
+                code_span=code_span,
+                parent_id=parent_id,
+                metadata={
+                    'parameters': parameters,
+                    'return_type': return_type,
+                    'docstring': docstring,
+                    'is_async': is_async,
+                    'decorators': decorators,
+                    'is_method': is_method,
+                    'is_constructor': is_method and func_name == '__init__'
+                },
+                language="python"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка построения функции {func_name} в {file_path}: {str(e)}", exc_info=True)
+            return None
+    
+    def _extract_imports(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: Optional[str]) -> List[CodeUnit]:
+        """Извлечение всех импортов из AST с корректной обработкой."""
+        imports = []
+        
+        def walk_imports(current_node: Node):
+            if current_node.type in ['import_statement', 'import_from_statement']:
+                # Получение полного текста импорта
+                import_text = self._get_node_text(current_node, source_bytes, source_code)
+                
+                # Извлечение имен импортируемых модулей/символов
+                imported_names = self._extract_imported_names(current_node, source_code, source_bytes)
+                
+                for name_info in imported_names:
+                    name = name_info.get('name', '').strip()
+                    if not name:
+                        continue
+                    
+                    location = Location(
+                        file_path=file_path,
+                        start_line=max(1, current_node.start_point[0] + 1),
+                        end_line=max(1, current_node.end_point[0] + 1),
+                        start_column=max(1, current_node.start_point[1] + 1),
+                        end_column=max(1, current_node.end_point[1] + 1)
+                    )
+                    
+                    import_text = self._get_node_text(current_node, source_bytes, source_code)
+                    import_id = f"import_{name}_{hash(import_text) % 10000}"
+                    
+                    import_unit = CodeUnit(
+                        id=import_id,
+                        name=name,
+                        type=CodeUnitType.IMPORT,
+                        location=location,
+                        code_span=CodeSpan(source_code=import_text),
+                        parent_id=parent_id,
+                        metadata={
+                            'import_type': 'from_import' if current_node.type == 'import_from_statement' else 'import',
+                            'original_text': import_text,
+                            'module': name_info.get('module'),
+                            'alias': name_info.get('alias'),
+                            'is_relative': name_info.get('is_relative', False)
+                        },
+                        language="python"
+                    )
+                    imports.append(import_unit)
+            
+            for child in current_node.children:
+                walk_imports(child)
+        
+        walk_imports(node)
+        return imports
+    
+    def _extract_imported_names(self, node: Node, source_code: str, source_bytes: bytes) -> List[Dict[str, Any]]:
+        """Извлечение имен из узла импорта."""
+        result = []
+        
+        if node.type == 'import_statement':
+            # Обработка "import module" и "import module as alias"
+            for child in node.children:
+                if child.type == 'dotted_name':
+                    module_name = self._get_node_text(child, source_bytes, source_code)
+                    result.append({
+                        'name': module_name.split('.')[-1],
+                        'module': module_name,
+                        'is_relative': False
+                    })
+                elif child.type == 'aliased_import':
+                    # Обработка "import module as alias"
+                    name_node = child.child_by_field_name('name')
+                    alias_node = child.child_by_field_name('alias')
+                    if name_node and alias_node:
+                        module_name = self._get_node_text(name_node, source_bytes, source_code)
+                        alias_name = self._get_node_text(alias_node, source_bytes, source_code)
+                        result.append({
+                            'name': alias_name,
+                            'module': module_name,
+                            'alias': alias_name,
+                            'is_relative': False
+                        })
+        
+        elif node.type == 'import_from_statement':
+            # Обработка "from module import name"
+            module_node = node.child_by_field_name('module_name')
+            if module_node:
+                module_name = self._get_node_text(module_node, source_bytes, source_code)
+                is_relative = module_name.startswith('.')
+                
+                # Извлечение импортируемых имен
+                imports_node = node.child_by_field_name('imports')
+                if imports_node:
+                    for import_child in imports_node.children:
+                        if import_child.type == 'dotted_name':
+                            name = self._get_node_text(import_child, source_bytes, source_code)
+                            result.append({
+                                'name': name.split('.')[-1],
+                                'module': module_name,
+                                'is_relative': is_relative
+                            })
+                        elif import_child.type == 'aliased_import':
+                            name_node = import_child.child_by_field_name('name')
+                            alias_node = import_child.child_by_field_name('alias')
+                            if name_node and alias_node:
+                                name = self._get_node_text(name_node, source_bytes, source_code)
+                                alias = self._get_node_text(alias_node, source_bytes, source_code)
+                                result.append({
+                                    'name': alias,
+                                    'module': module_name,
+                                    'alias': alias,
+                                    'is_relative': is_relative
+                                })
+        
+        return result
+    
+    def _extract_module_docstring(self, node: Node, source_code: str, source_bytes: bytes) -> Optional[str]:
+        """Извлечение docstring модуля."""
+        # Поиск первого выражения в модуле
+        for child in node.children:
+            if child.type == 'expression_statement':
+                for grandchild in child.children:
+                    if grandchild.type == 'string':
+                        string_content = self._get_node_text(grandchild, source_bytes, source_code)
+                        # Очистка от кавычек
+                        return string_content.strip('"\'')
+        return None
+    
+    def _extract_docstring(self, node: Node, source_code: str, source_bytes: bytes) -> Optional[str]:
+        """Извлечение docstring из узла."""
+        # Поиск тела узла
+        body_node = node.child_by_field_name('body')
+        if not body_node:
+            return None
+        
+        # Поиск первого выражения в теле
+        for child in body_node.children:
+            if child.type == 'expression_statement':
+                for grandchild in child.children:
+                    if grandchild.type == 'string':
+                        string_content = self._get_node_text(grandchild, source_bytes, source_code)
+                        # Очистка от кавычек и экранирования
+                        docstring = re.sub(r'^[\'"]+|[\'"]+$', '', string_content)
+                        docstring = re.sub(r'\\(["\'])', r'\1', docstring)
+                        docstring = docstring.strip()
+                        return docstring if docstring else None
+        return None
+    
+    def _extract_decorators(self, node: Node, source_code: str, source_bytes: bytes) -> List[str]:
+        """Извлечение декораторов из узла."""
+        decorators = []
+        
+        # Поиск декораторов над определением
+        for child in node.children:
+            if child.type == 'decorator':
+                decorator_text = self._get_node_text(child, source_bytes, source_code)
+                decorators.append(decorator_text)
+        
+        return decorators
+    
+    def _extract_class_bases(self, node: Node, source_code: str, source_bytes: bytes) -> List[str]:
+        """Извлечение базовых классов для класса."""
+        bases = []
+        superclass_node = node.child_by_field_name('superclasses')
+        
+        if superclass_node:
+            for base in superclass_node.children:
+                if base.type != ',' and base.type != '(' and base.type != ')':  # Пропускаем разделители
+                    base_name = self._get_node_text(base, source_bytes, source_code)
+                    bases.append(base_name)
+        
+        return bases
+    
+    def _extract_parameters(self, node: Node, source_code: str, source_bytes: bytes) -> List[Dict[str, Any]]:
+        """Извлечение параметров функции."""
+        params = []
+        parameters_node = node.child_by_field_name('parameters')
+        
+        if not parameters_node:
+            return params
+        
+        for param_node in parameters_node.children:
+            if param_node.type == 'identifier':
+                param_name = self._get_node_text(param_node, source_bytes, source_code)
+                if param_name:
+                    params.append({
+                        'name': param_name,
+                        'line': param_node.start_point[0] + 1
+                    })
+            elif param_node.type == 'typed_parameter':
+                name_node = param_node.child_by_field_name('name')
+                type_node = param_node.child_by_field_name('type')
+                if name_node:
+                    param_name = self._get_node_text(name_node, source_bytes, source_code)
+                    param_type = self._get_node_text(type_node, source_bytes, source_code) if type_node else None
+                    params.append({
+                        'name': param_name,
+                        'type_annotation': param_type,
+                        'line': param_node.start_point[0] + 1
+                    })
+            elif param_node.type == 'default_parameter':
+                name_node = param_node.child_by_field_name('name')
+                value_node = param_node.child_by_field_name('value')
+                if name_node:
+                    param_name = self._get_node_text(name_node, source_bytes, source_code)
+                    default_value = self._get_node_text(value_node, source_bytes, source_code) if value_node else None
+                    params.append({
+                        'name': param_name,
+                        'default_value': default_value,
+                        'line': param_node.start_point[0] + 1
+                    })
+        
+        return params
+    
+    def _extract_return_type(self, node: Node, source_code: str, source_bytes: bytes) -> Optional[str]:
+        """Извлечение возвращаемого типа функции."""
+        return_type_node = node.child_by_field_name('return_type')
+        if return_type_node:
+            return self._get_node_text(return_type_node, source_bytes, source_code)
+        return None
+    
+    def _extract_global_variables(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: Optional[str]) -> List[CodeUnit]:
+        """Извлечение глобальных переменных уровня модуля с корректной обработкой."""
+        variables = []
+        
+        def walk_globals(current_node: Node):
+            # Поиск присваиваний на уровне модуля
+            if current_node.type == 'assignment':
+                # Проверка на простое присваивание переменной
+                if len(current_node.children) >= 2 and current_node.children[0].type == 'identifier':
+                    left = current_node.children[0]
+                    right = current_node.children[1]
+                    
+                    var_name = self._get_node_text(left, source_bytes, source_code).strip()
+                    if var_name and var_name.isidentifier():
+                        var_value = self._get_node_text(right, source_bytes, source_code)[:100] + "..." if len(self._get_node_text(right, source_bytes, source_code)) > 100 else self._get_node_text(right, source_bytes, source_code)
+                        
+                        location = Location(
+                            file_path=file_path,
+                            start_line=max(1, current_node.start_point[0] + 1),
+                            end_line=max(1, current_node.end_point[0] + 1),
+                            start_column=max(1, current_node.start_point[1] + 1),
+                            end_column=max(1, current_node.end_point[1] + 1)
+                        )
+                        
+                        var_text = self._get_node_text(current_node, source_bytes, source_code)
+                        var_id = f"var_{var_name}_{hash(var_text) % 10000}"
+                        
+                        var_unit = CodeUnit(
+                            id=var_id,
+                            name=var_name,
+                            type=CodeUnitType.VARIABLE,
+                            location=location,
+                            code_span=CodeSpan(source_code=var_text),
+                            parent_id=parent_id,
+                            metadata={
+                                'value': var_value,
+                                'is_constant': var_name.isupper(),
+                                'line': location.start_line
+                            },
+                            language="python"
+                        )
+                        variables.append(var_unit)
+            
+            # Рекурсивный обход, но пропускаем функции и классы
+            for child in current_node.children:
+                if child.type not in ['class_definition', 'function_definition', 'block', 'decorated_definition']:
+                    walk_globals(child)
+        
+        walk_globals(node)
+        return variables
+    
+    def _extract_class_methods(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: str) -> List[CodeUnit]:
+        """Извлечение методов класса."""
+        methods = []
+        
+        # Поиск тела класса
+        body_node = node.child_by_field_name('body')
+        if not body_node:
+            return methods
+        
+        for child in body_node.children:
+            if child.type in ['function_definition', 'async_function_definition']:
+                method_unit = self._extract_function_definition(child, file_path, source_code, source_bytes, parent_id)
+                if method_unit:
+                    methods.append(method_unit)
+        
+        return methods

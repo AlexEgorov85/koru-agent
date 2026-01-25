@@ -1,0 +1,743 @@
+[
+  {
+    "id": "module_skill_6373",
+    "name": "skill",
+    "type": "module",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 1,
+      "end_line": 696,
+      "start_column": 1,
+      "end_column": 14
+    },
+    "parent_id": null,
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "docstring": "ProjectMapSkill - навык для создания карты проекта.\n\nОСНОВНЫЕ ИСПРАВЛЕНИЯ:\n1. Корректная обработка параметров (словарь -> Pydantic модель)\n2. Правильная работа с контекстом через record_observation()\n3. Безопасное извлечение текста из AST узлов\n4. Соответствие архитектуре проекта\n\nПример использования:\n```python\n# В другом навыке\nproject_map_skill = system_context.get_resource(\"ProjectMapSkill\")\nif project_map_skill:\n    result = await project_map_skill.execute(\n        capability=system_context.get_capability(\"project_map.analyze_project\"),\n        parameters={\n            \"root_dir\": \".\",\n            \"max_depth\": 3,\n            \"include_tests\": False,\n            \"file_extensions\": [\".py\"]\n        },\n        context=session_context\n    )\n```\n",
+      "file_path": "core/skills/project_map/skill.py",
+      "is_package": false
+    },
+    "signature": "skill",
+    "documentation": "ProjectMapSkill - навык для создания карты проекта.\n\nОСНОВНЫЕ ИСПРАВЛЕНИЯ:\n1. Корректная обработка параметров (словарь -> Pydantic модель)\n2. Правильная работа с контекстом через record_observation()\n3. Безопасное извлечение текста из AST узлов\n4. Соответствие архитектуре проекта\n\nПример использования:\n```python\n# В другом навыке\nproject_map_skill = system_context.get_resource(\"ProjectMapSkill\")\nif project_map_skill:\n    result = await project_map_skill.execute(\n        capability=system_context.get_capability(\"project_map.analyze_project\"),\n        parameters={\n            \"root_dir\": \".\",\n            \"max_depth\": 3,\n            \"include_tests\": False,\n            \"file_extensions\": [\".py\"]\n        },\n        context=session_context\n    )\n```\n",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.446334",
+    "version": 1
+  },
+  {
+    "id": "import_logging_4741",
+    "name": "logging",
+    "type": "import",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 27,
+      "end_line": 27,
+      "start_column": 1,
+      "end_column": 15
+    },
+    "parent_id": "module_skill_6373",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "import_type": "import",
+      "original_text": "import logging",
+      "module": "logging",
+      "alias": null,
+      "is_relative": false
+    },
+    "signature": "logging",
+    "documentation": null,
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.446334",
+    "version": 1
+  },
+  {
+    "id": "class_ProjectMapSkill_6862",
+    "name": "ProjectMapSkill",
+    "type": "class",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 46,
+      "end_line": 696,
+      "start_column": 1,
+      "end_column": 14
+    },
+    "parent_id": "module_skill_6373",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "bases": [
+        "BaseSkill"
+      ],
+      "docstring": "Навык для создания карты проекта и анализа структуры кода.",
+      "decorators": [],
+      "methods_count": 0
+    },
+    "signature": "ProjectMapSkill",
+    "documentation": "Навык для создания карты проекта и анализа структуры кода.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method___init___8802",
+    "name": "__init__",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 51,
+      "end_line": 69,
+      "start_column": 5,
+      "end_column": 32
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 51
+        }
+      ],
+      "return_type": null,
+      "docstring": null,
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": true
+    },
+    "signature": "__init__",
+    "documentation": null,
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method_initialize_7338",
+    "name": "initialize",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 71,
+      "end_line": 86,
+      "start_column": 5,
+      "end_column": 25
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 71
+        }
+      ],
+      "return_type": "bool",
+      "docstring": "Инициализация навыка.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "initialize",
+    "documentation": "Инициализация навыка.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method_get_capabilities_853",
+    "name": "get_capabilities",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 88,
+      "end_line": 105,
+      "start_column": 5,
+      "end_column": 10
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 88
+        }
+      ],
+      "return_type": "List[Capability]",
+      "docstring": "Получение списка capability навыка.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "get_capabilities",
+    "documentation": "Получение списка capability навыка.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method_execute_251",
+    "name": "execute",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 107,
+      "end_line": 158,
+      "start_column": 5,
+      "end_column": 14
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 107
+        }
+      ],
+      "return_type": "ExecutionResult",
+      "docstring": "Выполнение capability навыка.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "execute",
+    "documentation": "Выполнение capability навыка.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__analyze_project_2579",
+    "name": "_analyze_project",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 160,
+      "end_line": 278,
+      "start_column": 5,
+      "end_column": 14
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 160
+        }
+      ],
+      "return_type": "ExecutionResult",
+      "docstring": "Анализ структуры проекта.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_analyze_project",
+    "documentation": "Анализ структуры проекта.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__analyze_file_9926",
+    "name": "_analyze_file",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 281,
+      "end_line": 325,
+      "start_column": 5,
+      "end_column": 22
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 281
+        }
+      ],
+      "return_type": "List[CodeUnit]",
+      "docstring": "Анализ отдельного файла с корректной обработкой AST.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_analyze_file",
+    "documentation": "Анализ отдельного файла с корректной обработкой AST.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_class_definition_4581",
+    "name": "_extract_class_definition",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 327,
+      "end_line": 370,
+      "start_column": 5,
+      "end_column": 24
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 327
+        },
+        {
+          "name": "node",
+          "line": 327
+        }
+      ],
+      "return_type": "Optional[Dict[str, Any]]",
+      "docstring": "Извлечение определения класса с корректной обработкой имен.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_class_definition",
+    "documentation": "Извлечение определения класса с корректной обработкой имен.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_function_definition_7567",
+    "name": "_extract_function_definition",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 372,
+      "end_line": 414,
+      "start_column": 5,
+      "end_column": 24
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 372
+        },
+        {
+          "name": "node",
+          "line": 372
+        }
+      ],
+      "return_type": "Optional[Dict[str, Any]]",
+      "docstring": "Извлечение определения функции с корректной обработкой имен.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_function_definition",
+    "documentation": "Извлечение определения функции с корректной обработкой имен.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_imports_6726",
+    "name": "_extract_imports",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 416,
+      "end_line": 451,
+      "start_column": 5,
+      "end_column": 23
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 416
+        },
+        {
+          "name": "node",
+          "line": 416
+        }
+      ],
+      "return_type": "List[Dict[str, Any]]",
+      "docstring": "Извлечение всех импортов из AST с корректной обработкой.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_imports",
+    "documentation": "Извлечение всех импортов из AST с корректной обработкой.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_import_names_9292",
+    "name": "_extract_import_names",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 453,
+      "end_line": 471,
+      "start_column": 5,
+      "end_column": 21
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 453
+        },
+        {
+          "name": "node",
+          "line": 453
+        }
+      ],
+      "return_type": "List[str]",
+      "docstring": "Извлечение имен из узла импорта.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_import_names",
+    "documentation": "Извлечение имен из узла импорта.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_docstring_5725",
+    "name": "_extract_docstring",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 473,
+      "end_line": 493,
+      "start_column": 5,
+      "end_column": 24
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 473
+        },
+        {
+          "name": "node",
+          "line": 473
+        }
+      ],
+      "return_type": "Optional[str]",
+      "docstring": "Извлечение docstring из узла.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_docstring",
+    "documentation": "Извлечение docstring из узла.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__extract_class_methods_5008",
+    "name": "_extract_class_methods",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 495,
+      "end_line": 511,
+      "start_column": 5,
+      "end_column": 23
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 495
+        },
+        {
+          "name": "node",
+          "line": 495
+        }
+      ],
+      "return_type": "List[Dict[str, Any]]",
+      "docstring": "Извлечение методов класса.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_extract_class_methods",
+    "documentation": "Извлечение методов класса.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__build_project_structure_3456",
+    "name": "_build_project_structure",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 513,
+      "end_line": 541,
+      "start_column": 5,
+      "end_column": 14
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 513
+        }
+      ],
+      "return_type": "Dict[str, Any]",
+      "docstring": "Построение структуры проекта.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_build_project_structure",
+    "documentation": "Построение структуры проекта.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__build_directory_structure_9923",
+    "name": "_build_directory_structure",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 543,
+      "end_line": 575,
+      "start_column": 5,
+      "end_column": 25
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 543
+        }
+      ],
+      "return_type": "Dict[str, Any]",
+      "docstring": "Построение иерархической структуры директорий.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_build_directory_structure",
+    "documentation": "Построение иерархической структуры директорий.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__analyze_dependencies_9907",
+    "name": "_analyze_dependencies",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 577,
+      "end_line": 592,
+      "start_column": 5,
+      "end_column": 28
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 577
+        }
+      ],
+      "return_type": "Dict[str, List[str]]",
+      "docstring": "Анализ зависимостей между файлами.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_analyze_dependencies",
+    "documentation": "Анализ зависимостей между файлами.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__find_entry_points_6211",
+    "name": "_find_entry_points",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 594,
+      "end_line": 621,
+      "start_column": 5,
+      "end_column": 28
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 594
+        }
+      ],
+      "return_type": "List[Dict[str, Any]]",
+      "docstring": "Поиск точек входа в проекте.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_find_entry_points",
+    "documentation": "Поиск точек входа в проекте.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__get_file_summary_7739",
+    "name": "_get_file_summary",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 623,
+      "end_line": 630,
+      "start_column": 5,
+      "end_column": 23
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 623
+        }
+      ],
+      "return_type": "Dict[str, int]",
+      "docstring": "Получение сводки по типам файлов.",
+      "is_async": false,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_get_file_summary",
+    "documentation": "Получение сводки по типам файлов.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "method__get_file_code_units_8072",
+    "name": "_get_file_code_units",
+    "type": "method",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 632,
+      "end_line": 696,
+      "start_column": 5,
+      "end_column": 14
+    },
+    "parent_id": "class_ProjectMapSkill_6862",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "parameters": [
+        {
+          "name": "self",
+          "line": 632
+        }
+      ],
+      "return_type": "ExecutionResult",
+      "docstring": "Получение единиц кода из файла.",
+      "is_async": true,
+      "decorators": [],
+      "is_method": true,
+      "is_constructor": false
+    },
+    "signature": "_get_file_code_units",
+    "documentation": "Получение единиц кода из файла.",
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  },
+  {
+    "id": "var_logger_3910",
+    "name": "logger",
+    "type": "variable",
+    "location": {
+      "file_path": "core/skills/project_map/skill.py",
+      "start_line": 44,
+      "end_line": 44,
+      "start_column": 1,
+      "end_column": 37
+    },
+    "parent_id": "module_skill_6373",
+    "child_count": 0,
+    "child_ids": [],
+    "metadata": {
+      "value": "=",
+      "is_constant": false,
+      "line": 44
+    },
+    "signature": "logger",
+    "documentation": null,
+    "language": "python",
+    "created_at": "2026-01-25T19:05:11.453647",
+    "version": 1
+  }
+]
