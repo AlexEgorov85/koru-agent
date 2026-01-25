@@ -1,0 +1,3 @@
+# Основные зависимости для AST парсинга
+tree-sitter==0.21.0
+tree-sitter-languages==1.9.0

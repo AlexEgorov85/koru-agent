@@ -1,0 +1,1621 @@
+2025-12-26 13:26:11,569 - core.system_context.system_context - INFO - SystemContext создан (ID: 0db4084b-7c70-4420-91da-679e6512b184)
+2025-12-26 13:26:11,569 - core.system_context.system_context - INFO - Инициализация системы (ID: 0db4084b-7c70-4420-91da-679e6512b184) с профилем: dev
+2025-12-26 13:26:11,570 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2025-12-26 13:26:11,570 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2025-12-26 13:26:11,571 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2025-12-26 13:26:11,571 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2025-12-26 13:26:11,862 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2025-12-26 13:26:25,837 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 14.26 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2025-12-26 13:26:25,842 - core.infrastructure.providers.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2025-12-26 13:26:25,844 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2025-12-26 13:26:25,845 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2025-12-26 13:26:25,846 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2025-12-26 13:26:25,846 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2025-12-26 13:26:26,065 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2025-12-26 13:26:26,070 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.22 секунд
+2025-12-26 13:26:26,070 - core.infrastructure.providers.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2025-12-26 13:26:26,071 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2025-12-26 13:26:26,072 - core.infrastructure.providers.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2025-12-26 13:26:26,075 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'SQLTool'
+2025-12-26 13:26:26,087 - core.infrastructure.providers.factory - INFO - Найдено классов инструментов: 1
+2025-12-26 13:26:26,111 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'SQLTool' из класса SQLTool
+2025-12-26 13:26:26,111 - core.infrastructure.providers.factory - INFO - Инструмент 'SQLTool' успешно создан
+2025-12-26 13:26:26,112 - core.infrastructure.providers.factory - INFO - Инструмент 'SQLTool' успешно зарегистрирован в реестре
+2025-12-26 13:26:26,112 - core.infrastructure.providers.factory - INFO - Успешно создано и зарегистрировано инструментов: 1
+2025-12-26 13:26:26,113 - core.infrastructure.providers.factory - INFO - Сканирование директории навыков: core\skills
+2025-12-26 13:26:26,124 - core.infrastructure.providers.factory - DEBUG - Найден класс навыка 'BookLibrarySkill'
+2025-12-26 13:26:26,128 - core.infrastructure.providers.factory - DEBUG - Найден класс навыка 'PlanningSkill'
+2025-12-26 13:26:26,213 - core.infrastructure.providers.factory - DEBUG - Найден класс навыка 'TableDescriptionSkill'
+2025-12-26 13:26:26,216 - core.infrastructure.providers.factory - INFO - Найдено классов навыков: 3
+2025-12-26 13:26:26,216 - core.infrastructure.providers.factory - DEBUG - Создание навыка 'BookLibrarySkill' из класса BookLibrarySkill
+2025-12-26 13:26:26,217 - core.skills.book_library.skill - INFO - Инициализирован навык работы с библиотекой книг: BookLibrarySkill
+2025-12-26 13:26:26,218 - core.infrastructure.providers.factory - INFO - Навык 'BookLibrarySkill' успешно создан
+2025-12-26 13:26:26,226 - core.infrastructure.providers.factory - DEBUG - Создание навыка 'PlanningSkill' из класса PlanningSkill
+2025-12-26 13:26:26,227 - core.skills.planning.skill - INFO - Инициализирован навык планирования: PlanningSkill
+2025-12-26 13:26:26,228 - core.infrastructure.providers.factory - INFO - Навык 'PlanningSkill' успешно создан
+2025-12-26 13:26:26,229 - core.infrastructure.providers.factory - DEBUG - Создание навыка 'TableDescriptionSkill' из класса TableDescriptionSkill
+2025-12-26 13:26:26,231 - asyncio - INFO - Инициализирован навык получения описания: TableDescriptionSkill
+2025-12-26 13:26:26,232 - core.infrastructure.providers.factory - INFO - Навык 'TableDescriptionSkill' успешно создан
+2025-12-26 13:26:26,234 - core.infrastructure.providers.factory - INFO - Навык 'BookLibrarySkill' успешно зарегистрирован в реестре
+2025-12-26 13:26:26,234 - core.infrastructure.providers.factory - INFO - Навык 'PlanningSkill' успешно зарегистрирован в реестре
+2025-12-26 13:26:26,235 - core.infrastructure.providers.factory - INFO - Навык 'TableDescriptionSkill' успешно зарегистрирован в реестре
+2025-12-26 13:26:26,240 - core.infrastructure.providers.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2025-12-26 13:26:26,241 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2025-12-26 13:26:26,242 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2025-12-26 13:26:26,243 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2025-12-26 13:26:26,244 - core.system_context.lifecycle_manager - INFO - Ресурс 'SQLTool' успешно инициализирован
+2025-12-26 13:26:26,282 - core.system_context.lifecycle_manager - INFO - Ресурс 'BookLibrarySkill' успешно инициализирован
+2025-12-26 13:26:26,293 - core.system_context.lifecycle_manager - INFO - Ресурс 'PlanningSkill' успешно инициализирован
+2025-12-26 13:26:26,298 - core.system_context.lifecycle_manager - INFO - Ресурс 'TableDescriptionSkill' успешно инициализирован
+2025-12-26 13:26:26,298 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2025-12-26 13:26:26,369 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2025-12-26 13:26:26,371 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.07 секунд
+2025-12-26 13:26:26,371 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2025-12-26 13:26:26,371 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2025-12-26 13:26:29,393 - core.system_context.system_context - INFO - Система успешно инициализирована
+2025-12-26 13:26:29,400 - core.system_context.system_context - DEBUG - Тип LLM провайдера: LlamaCppProvider
+2025-12-26 13:26:29,401 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Генерация структурированных данных в формате JSON:
+2025-12-26 13:26:29,402 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:26:29,402 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Системный промпт: 
+Ты — эксперт по анализу и принятию решений. Твоя задача — проанализировать контекст и предложить оптимальное действие в строгом JSON формате.
+
+ТЫ — ГЕНЕРАТОР JSON ДАННЫХ. Твоя задача — создать валидный JSON объект в строгом соответствии с указанной схемой.
+
+JSON СХЕМА:
+{
+  "$defs": {
+    "AnalysisResult": {
+      "description": "Модель для анализа текущей ситуации.",
+      "properties": {
+        "current_situation": {
+          "description": "Анализ текущей ситуации, контекста и выполненных шагов",
+          "maxLength": 1000,
+          "minLength": 10,
+          "title": "Current Situation",
+          "type": "string"
+        },
+        "progress_assessment": {
+          "description": "Оценка прогресса в достижении цели",
+          "maxLength": 500,
+          "minLength": 5,
+          "title": "Progress Assessment",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "Уровень уверенности в текущем подходе (0.0 - нет уверенности, 1.0 - полная уверенность)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "errors_detected": {
+          "description": "Обнаружены ли ошибки в последних шагах",
+          "title": "Errors Detected",
+          "type": "boolean"
+        },
+        "consecutive_errors": {
+          "description": "Количество последовательных ошибок",
+          "minimum": 0,
+          "title": "Consecutive Errors",
+          "type": "integer"
+        },
+        "has_plan": {
+          "description": "Существует ли текущий план действий",
+          "title": "Has Plan",
+          "type": "boolean"
+        },
+        "plan_status": {
+          "description": "Статус текущего плана (active/completed/failed)",
+          "title": "Plan Status",
+          "type": "string"
+        },
+        "execution_time": {
+          "description": "Время выполнения сессии в секундах",
+          "minimum": 0.0,
+          "title": "Execution Time",
+          "type": "number"
+        },
+        "no_progress_steps": {
+          "description": "Количество шагов без значимого прогресса",
+          "minimum": 0,
+          "title": "No Progress Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "current_situation",
+        "progress_assessment",
+        "confidence",
+        "errors_detected",
+        "consecutive_errors",
+        "has_plan",
+        "plan_status",
+        "execution_time",
+        "no_progress_steps"
+      ],
+      "title": "AnalysisResult",
+      "type": "object"
+    },
+    "RecommendedAction": {
+      "description": "Модель для рекомендуемого действия агента.",
+      "properties": {
+        "action_type": {
+          "description": "Тип рекомендуемого действия",
+          "enum": [
+            "execute_capability",
+            "create_plan",
+            "update_plan",
+            "rollback",
+            "stop"
+          ],
+          "title": "Action Type",
+          "type": "string"
+        },
+        "capability_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Имя capability для выполнения (только для action_type=execute_capability)",
+          "title": "Capability Name"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Параметры для capability (только для action_type=execute_capability)",
+          "title": "Parameters"
+        },
+        "reasoning": {
+          "description": "Обоснование выбора действия",
+          "minLength": 10,
+          "title": "Reasoning",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "reasoning"
+      ],
+      "title": "RecommendedAction",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "analysis": {
+      "$ref": "#/$defs/AnalysisResult",
+      "description": "Детальный анализ текущей ситуации"
+    },
+    "needs_rollback": {
+      "description": "Требуется ли откат на предыдущие шаги",
+      "title": "Needs Rollback",
+      "type": "boolean"
+    },
+    "rollback_steps": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Количество шагов для отката (только если needs_rollback=true)",
+      "title": "Rollback Steps"
+    },
+    "recommended_action": {
+      "$ref": "#/$defs/RecommendedAction",
+      "description": "Детали рекомендуемого действия"
+    },
+    "alternative_approaches": {
+      "description": "Список альтернативных подходов",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Alternative Approaches",
+      "type": "array"
+    }
+  },
+  "required": [
+    "analysis",
+    "needs_rollback",
+    "recommended_action"
+  ],
+  "type": "object"
+}
+
+СТРОГИЕ ПРАВИЛА:
+1. ВЫВОДИ ТОЛЬКО ВАЛИДНЫЙ JSON БЕЗ ДОПОЛНИТЕЛЬНОГО ТЕКСТА ИЛИ КОММЕНТАРИЕВ
+2. Используй ТОЛЬКО двойные кавычки для всех строк
+3. Соблюдай все указанные типы данных (string, number, boolean, array, object)
+4. Включи ВСЕ обязательные поля из раздела "required"
+5. Не добавляй полей, которых нет в схеме
+6. Для массивов используй квадратные скобки []
+7. Для объектов используй фигурные скобки {}
+8. Не используй комментарии внутри JSON
+
+ПРИМЕР КОРРЕКТНОГО ФОРМАТА ДЛЯ ЭТОЙ СХЕМЫ:
+{
+    "field1": "значение",
+    "field2": 123,
+    "field3": true,
+    "field4": ["элемент1", "элемент2"],
+    "field5": {
+        "nested_field": "вложенное значение"
+    }
+}
+
+ВАЖНО: Если ты не можешь создать валидный JSON, верни ПУСТОЙ ОБЪЕКТ {} вместо некорректных данных.
+
+2025-12-26 13:26:29,404 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:26:29,404 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Промпт для генерации: 
+ТВОЯ ЗАДАЧА: Проанализируй текущую ситуацию и предоставь структурированную рекомендацию по следующему действию.
+КОНТЕКСТ ЗАДАЧИ:
+Цель: Какие книги написал Пушкин?
+Общее количество шагов: 0
+Время выполнения: 10800.0 секунд
+Текущий план: Нет (статус: none)
+
+АНАЛИЗ ПРОГРЕССА:
+- Последовательные ошибки: 0
+- Шаги без прогресса: 0
+- Уровень уверенности: высокий
+
+ПОСЛЕДНИЕ ШАГИ:
+Нет выполненных шагов
+
+ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+1. book_library.get_books_by_author
+            - Описание: Получение информации о книгах по автору
+            - Схема валидации параметров для поиска книг по автору.: {'first_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Имя автора', 'title': 'First Name'}, 'last_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Фамилия автора', 'title': 'Last Name'}, 'author_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID автора', 'title': 'Author Id'}}
+2. book_library.get_full_text
+            - Описание: Получение полного текста книги
+            - Схема валидации параметров для получения полного текста книги.: {'book_title': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Название книги', 'title': 'Book Title'}, 'book_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID книги', 'title': 'Book Id'}, 'include_metadata': {'default': True, 'description': 'Включать ли метаданные книги', 'title': 'Include Metadata', 'type': 'boolean'}, 'max_chapters': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'Максимальное количество частей для извлечения', 'title': 'Max Chapters'}}
+3. book_library.dynamic_sql_query
+            - Описание: Генерация и выполнение SQL запроса для сложных вопросов
+            - Схема валидации параметров для динамического SQL запроса.: {'user_question': {'description': 'Вопрос пользователя для генерации SQL', 'title': 'User Question', 'type': 'string'}, 'context_tables': {'default': ['authors', 'books', 'chapters', 'genres'], 'description': 'Таблицы для использования в запросе', 'items': {'type': 'string'}, 'title': 'Context Tables', 'type': 'array'}, 'max_rows': {'default': 50, 'description': 'Максимальное количество строк в результате', 'maximum': 100, 'minimum': 1, 'title': 'Max Rows', 'type': 'integer'}, 'include_reasoning': {'default': False, 'description': 'Включать ли объяснение для запроса', 'title': 'Include Reasoning', 'type': 'boolean'}}
+4. planning.create_plan
+            - Описание: Создание первичного плана действий из цели
+            - Параметры для создания плана.: {'goal': {'description': 'Основная цель, для которой создается план', 'maxLength': 1000, 'minLength': 10, 'title': 'Goal', 'type': 'string'}, 'max_steps': {'default': 5, 'description': 'Максимальное количество шагов в плане', 'maximum': 20, 'minimum': 2, 'title': 'Max Steps', 'type': 'integer'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для создания плана', 'title': 'Context'}, 'strategy': {'default': 'iterative', 'description': 'Стратегия планирования', 'enum': ['iterative', 'hierarchical', 'goal_oriented'], 'title': 'Strategy', 'type': 'string'}}
+5. planning.update_plan
+            - Описание: Обновление существующего плана на основе прогресса или ошибок
+            - Параметры для обновления плана.: {'plan_id': {'description': 'ID обновляемого плана', 'title': 'Plan Id', 'type': 'string'}, 'updates': {'description': 'Изменения для шагов плана', 'items': {'additionalProperties': True, 'type': 'object'}, 'minItems': 1, 'title': 'Updates', 'type': 'array'}, 'context': {'description': 'Контекст обновления', 'maxLength': 2000, 'minLength': 5, 'title': 'Context', 'type': 'string'}}
+6. planning.decompose_task
+            - Описание: Декомпозиция сложной задачи на подзадачи
+            - Параметры для декомпозиции задачи.: {'task_id': {'description': 'ID задачи для декомпозиции', 'title': 'Task Id', 'type': 'string'}, 'task_description': {'description': 'Описание задачи', 'maxLength': 1000, 'minLength': 10, 'title': 'Task Description', 'type': 'string'}, 'max_subtasks': {'default': 5, 'description': 'Максимальное количество подзадач', 'maximum': 10, 'minimum': 2, 'title': 'Max Subtasks', 'type': 'integer'}, 'decomposition_strategy': {'default': 'by_functions', 'description': 'Стратегия декомпозиции', 'enum': ['by_time', 'by_functions', 'by_data', 'mixed'], 'title': 'Decomposition Strategy', 'type': 'string'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для декомпозиции', 'title': 'Context'}}
+7. planning.mark_task_completed
+            - Описание: Отметка задачи как выполненной
+            - Параметры для отметки задачи как выполненной.: {'task_id': {'description': 'ID задачи для отметки', 'title': 'Task Id', 'type': 'string'}, 'result_summary': {'description': 'Краткое описание результата', 'maxLength': 1000, 'minLength': 10, 'title': 'Result Summary', 'type': 'string'}, 'quality_score': {'default': 0.7, 'description': 'Оценка качества выполнения (0.0-1.0)', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Quality Score', 'type': 'number'}, 'time_spent_minutes': {'default': 15, 'description': 'Фактическое время выполнения в минутах', 'maximum': 240, 'minimum': 1, 'title': 'Time Spent Minutes', 'type': 'integer'}, 'next_actions': {'anyOf': [{'items': {'additionalProperties': {'type': 'string'}, 'type': 'object'}, 'maxItems': 10, 'type': 'array'}, {'type': 'null'}], 'default': None, 'description': 'Рекомендуемые следующие действия', 'title': 'Next Actions'}, 'plan_adjustment_needed': {'default': False, 'description': 'Требуется ли корректировка плана', 'title': 'Plan Adjustment Needed', 'type': 'boolean'}}
+8. table_description.get_description
+            - Описание: Получение описания таблицы в формате, оптимальном для LLM
+            - Параметры для получения описания таблицы.
+
+СООТВЕТСТВИЕ АРХИТЕКТУРЕ:
+- Это класс параметров, а не схема
+- Используется напрямую в capability
+- Соответствует формату ожидаемых параметров: {'schema_name': {'default': 'Lib', 'description': 'Имя схемы БД', 'title': 'Schema Name', 'type': 'string'}, 'table_name': {'description': 'Название таблицы', 'title': 'Table Name', 'type': 'string'}, 'format': {'default': 'text', 'description': 'Формат вывода', 'enum': ['text', 'json', 'markdown'], 'title': 'Format', 'type': 'string'}, 'include_examples': {'default': True, 'description': 'Включать примеры данных', 'title': 'Include Examples', 'type': 'boolean'}, 'max_examples': {'default': 3, 'description': 'Максимальное количество примеров', 'maximum': 10, 'minimum': 1, 'title': 'Max Examples', 'type': 'integer'}}
+
+ИНСТРУКЦИИ:
+1. ВНИМАТЕЛЬНО проанализируй контекст и прогресс
+2. ДАЙ подробную оценку текущей ситуации
+3. ОЦЕНИ, требуется ли откат на предыдущие шаги из-за ошибок или отсутствия прогресса
+4. ПРЕДЛОЖИ конкретное действие с обоснованием
+5. УКАЖИ альтернативные подходы для рассмотрения
+
+СТРУКТУРА АНАЛИЗА:
+1. Текущая ситуация: кратко опиши, где мы сейчас
+2. Прогресс: насколько мы приблизились к цели
+3. Уверенность: оцени от 0.0 до 1.0
+4. Ошибки: есть ли последовательные ошибки
+5. План: есть ли план, каков его статус
+6. Прогресс шагов: есть ли шаги без прогресса
+
+ФОРМАТ ВЫВОДА:
+Строго следуй JSON Schema, предоставленной в параметрах вызова. Не добавляй дополнительных полей или текста вне JSON.
+
+КРИТЕРИИ КАЧЕСТВЕННОГО ОТВЕТА:
+- Конкретные оценки прогресса
+- Четкие критерии для отката
+- Практичные рекомендации по действиям
+- Реалистичные альтернативные подходы
+- Логичные обоснования решений
+
+2025-12-26 13:26:29,406 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:26:29,406 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # max_tokens: 1500
+2025-12-26 13:26:29,406 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,528 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,528 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Получен ответ от LLM: {
+  "analysis": {
+    "current_situation": "Цель — определить, какие книги написал Пушкин. На данный момент не выполнены ни один шаг, отсутствует план действий, и система не имеет контекста для поиска информации о книгах по автору. Всё начинается с нуля, что позволяет начать с создания первичного плана для последовательного выполнения задач.",
+    "progress_assessment": "Прогресс отсутствует из-за отсутствия выполненных шагов и плана. Однако цель четко сформулирована, и доступны соответствующие capabilities для поиска книг по автору. Начальный этап — создание плана — является критически важным для структурированного подхода к решению задачи.",
+    "confidence": 0.95,
+    "errors_detected": false,
+    "consecutive_errors": 0,
+    "has_plan": false,
+    "plan_status": "none",
+    "execution_time": 10800.0,
+    "no_progress_steps": 0
+  },
+  "needs_rollback": false,
+  "rollback_steps": null,
+  "recommended_action": {
+    "action_type": "create_plan",
+    "capability_name": null,
+    "parameters": {
+      "goal": "Какие книги написал Пушкин?",
+      "max_steps": 3,
+      "context": "Цель — определить список книг, написанных Александром Сергеевичем Пушкиным. Требуется использовать capability для поиска книг по автору.",
+      "strategy": "iterative"
+    },
+    "reasoning": "Текущий план отсутствует, что затрудняет систематическое выполнение задачи. Создание первичного плана позволит структурировать последовательность действий: сначала получить список книг Пушкина, затем, при необходимости, изучить их содержание. Использование стратегии 'iterative' обеспечит пошаговый подход с возможностью корректировки на основе прогресса."
+  },
+  "alternative_approaches": [
+    "Прямое использование capability book_library.get_books_by_author с указанием имени и фамилии Пушкина для получения списка книг.",
+    "Использование динамического SQL запроса для поиска книг по автору из таблицы authors и books.",
+    "Декомпозиция задачи на подзадачи: сначала найти автора, затем найти книги, затем получить детали."
+  ]
+}
+2025-12-26 13:39:01,529 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,954 - core.agent_runtime.strategies.react.strategy - DEBUG - Структурированное рассуждение выполнено за 752.55 секунд
+2025-12-26 13:39:01,956 - core.system_context.execution_gateway - DEBUG - Выполнение capability 'planning.create_plan' через навык 'PlanningSkill'
+2025-12-26 13:39:01,957 - core.skills.planning.skill - DEBUG - Создание плана для цели: Какие книги написал Пушкин?
+2025-12-26 13:39:01,967 - core.system_context.system_context - DEBUG - Тип LLM провайдера: LlamaCppProvider
+2025-12-26 13:39:01,968 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Генерация структурированных данных в формате JSON:
+2025-12-26 13:39:01,968 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,969 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Системный промпт: 
+Ты — эксперт по планированию. Создай детальный пошаговый план для достижения цели.
+
+ТЫ — ГЕНЕРАТОР JSON ДАННЫХ. Твоя задача — создать валидный JSON объект в строгом соответствии с указанной схемой.
+
+JSON СХЕМА:
+{
+  "$defs": {
+    "PlanMetadata": {
+      "description": "Метаданные плана.\nПОЛЯ:\n- created_at: Время создания плана\n- updated_at: Время последнего обновления\n- max_steps: Максимальное количество шагов\n- strategy: Стратегия планирования\n- confidence: Уверенность в плане (0.0-1.0)\n- version: Версия плана",
+      "properties": {
+        "created_at": {
+          "description": "Время создания",
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "updated_at": {
+          "description": "Время обновления",
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "max_steps": {
+          "default": 10,
+          "description": "Максимальное количество шагов",
+          "maximum": 50,
+          "minimum": 2,
+          "title": "Max Steps",
+          "type": "integer"
+        },
+        "strategy": {
+          "default": "iterative",
+          "description": "Стратегия планирования",
+          "maxLength": 50,
+          "title": "Strategy",
+          "type": "string"
+        },
+        "confidence": {
+          "default": 0.7,
+          "description": "Уверенность в плане",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "version": {
+          "default": 1,
+          "description": "Версия плана",
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "title": "PlanMetadata",
+      "type": "object"
+    },
+    "PlanStep": {
+      "description": "Схема одного шага в плане.\nПОЛЯ:\n- step_id: Уникальный идентификатор шага\n- description: Описание действия\n- status: Текущий статус выполнения\n- estimated_time: Оценка времени выполнения в минутах\n- required_capabilities: Список необходимых capability\n- dependencies: Зависимости от других шагов\n- priority: Приоритет выполнения\n- metadata: Дополнительные метаданные",
+      "properties": {
+        "step_id": {
+          "description": "Уникальный ID шага (формат: step_1)",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "description": {
+          "description": "Описание действия",
+          "maxLength": 500,
+          "minLength": 10,
+          "title": "Description",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus",
+          "default": "pending",
+          "description": "Текущий статус выполнения"
+        },
+        "estimated_time": {
+          "description": "Оценка времени в минутах (1-120)",
+          "maximum": 120,
+          "minimum": 1,
+          "title": "Estimated Time",
+          "type": "integer"
+        },
+        "required_capabilities": {
+          "description": "Список необходимых capability",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Required Capabilities",
+          "type": "array"
+        },
+        "dependencies": {
+          "description": "Зависимости от других шагов",
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "priority": {
+          "$ref": "#/$defs/TaskPriority",
+          "default": "medium",
+          "description": "Приоритет выполнения"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "description": "Дополнительные метаданные",
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "step_id",
+        "description",
+        "estimated_time"
+      ],
+      "title": "PlanStep",
+      "type": "object"
+    },
+    "TaskPriority": {
+      "description": "Приоритеты задач.",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "TaskPriority",
+      "type": "string"
+    },
+    "TaskStatus": {
+      "description": "Статусы выполнения задачи.",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    }
+  },
+  "description": "Схема выходных данных для создания плана.\nПОЛЯ:\n- plan_id: Уникальный идентификатор плана\n- goal: Исходная цель\n- steps: Список шагов плана\n- metadata: Метаданные плана",
+  "properties": {
+    "plan_id": {
+      "description": "Уникальный ID плана",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "goal": {
+      "title": "Goal",
+      "type": "string"
+    },
+    "steps": {
+      "description": "Список шагов плана",
+      "items": {
+        "$ref": "#/$defs/PlanStep"
+      },
+      "maxItems": 50,
+      "minItems": 2,
+      "title": "Steps",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/PlanMetadata"
+    }
+  },
+  "required": [
+    "plan_id",
+    "goal",
+    "steps",
+    "metadata"
+  ],
+  "title": "CreatePlanOutput",
+  "type": "object"
+}
+
+СТРОГИЕ ПРАВИЛА:
+1. ВЫВОДИ ТОЛЬКО ВАЛИДНЫЙ JSON БЕЗ ДОПОЛНИТЕЛЬНОГО ТЕКСТА ИЛИ КОММЕНТАРИЕВ
+2. Используй ТОЛЬКО двойные кавычки для всех строк
+3. Соблюдай все указанные типы данных (string, number, boolean, array, object)
+4. Включи ВСЕ обязательные поля из раздела "required"
+5. Не добавляй полей, которых нет в схеме
+6. Для массивов используй квадратные скобки []
+7. Для объектов используй фигурные скобки {}
+8. Не используй комментарии внутри JSON
+
+ПРИМЕР КОРРЕКТНОГО ФОРМАТА ДЛЯ ЭТОЙ СХЕМЫ:
+{
+    "field1": "значение",
+    "field2": 123,
+    "field3": true,
+    "field4": ["элемент1", "элемент2"],
+    "field5": {
+        "nested_field": "вложенное значение"
+    }
+}
+
+ВАЖНО: Если ты не можешь создать валидный JSON, верни ПУСТОЙ ОБЪЕКТ {} вместо некорректных данных.
+
+2025-12-26 13:39:01,973 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,973 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Промпт для генерации: 
+Ты — модуль планирования агентной системы.
+Твоя задача — создать ПЕРВИЧНЫЙ план действий для достижения цели.
+
+ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+- book_library.get_books_by_author: Получение информации о книгах по автору
+- book_library.get_full_text: Получение полного текста книги
+- book_library.dynamic_sql_query: Генерация и выполнение SQL запроса для сложных вопросов
+- planning.create_plan: Создание первичного плана действий из цели
+- planning.update_plan: Обновление существующего плана на основе прогресса или ошибок
+- planning.decompose_task: Декомпозиция сложной задачи на подзадачи
+- planning.mark_task_completed: Отметка задачи как выполненной
+- table_description.get_description: Получение описания таблицы в формате, оптимальном для LLM
+
+ИНСТРУКЦИИ:
+1. СТРОЙ план с нуля на основе цели
+2. ДЕЛИ план на конкретные, выполнимые шаги
+3. УЧИТЫВАЙ доступные возможности системы при выборе действий
+4. ДЕЛАЙ шаги последовательными и логичными
+5. УКАЖИ реалистичные оценки времени для каждого шага
+6. УЧИТЫВАЙ ограничения системы (максимум 5 шагов)
+
+ЦЕЛЬ:
+Какие книги написал Пушкин?
+
+ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ:
+Текущий план отсутствует, что затрудняет систематическое выполнение задачи. Создание первичного плана позволит структурировать последовательность действий: сначала получить список книг Пушкина, затем, при необходимости, изучить их содержание. Использование стратегии 'iterative' обеспечит пошаговый подход с возможностью корректировки на основе прогресса.
+
+2025-12-26 13:39:01,973 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:39:01,974 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # max_tokens: 2048
+2025-12-26 13:39:01,975 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,014 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,015 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Получен ответ от LLM: {
+  "plan_id": "plan_001",
+  "goal": "Какие книги написал Пушкин?",
+  "steps": [
+    {
+      "step_id": "step_1",
+      "description": "Получить список книг, написанных Пушкиным, с помощью запроса к базе данных о книгах по автору",
+      "status": "pending",
+      "estimated_time": 5,
+      "required_capabilities": [
+        "book_library.get_books_by_author"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "metadata": {}
+    },
+    {
+      "step_id": "step_2",
+      "description": "Проверить, есть ли в полученных данных книги, которые можно изучить полностью, и определить, какие из них требуют анализа содержания",
+      "status": "pending",
+      "estimated_time": 10,
+      "required_capabilities": [
+        "book_library.get_full_text"
+      ],
+      "dependencies": [
+        "step_1"
+      ],
+      "priority": "medium",
+      "metadata": {}
+    },
+    {
+      "step_id": "step_3",
+      "description": "Получить полный текст выбранных книг Пушкина для более глубокого анализа содержания",
+      "status": "pending",
+      "estimated_time": 30,
+      "required_capabilities": [
+        "book_library.get_full_text"
+      ],
+      "dependencies": [
+        "step_2"
+      ],
+      "priority": "high",
+      "metadata": {}
+    },
+    {
+      "step_id": "step_4",
+      "description": "Создать отчет с перечнем книг Пушкина и кратким описанием их содержания",
+      "status": "pending",
+      "estimated_time": 15,
+      "required_capabilities": [],
+      "dependencies": [
+        "step_3"
+      ],
+      "priority": "medium",
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "created_at": "2023-10-05T08:00:00Z",
+    "updated_at": "2023-10-05T08:00:00Z",
+    "max_steps": 5,
+    "strategy": "iterative",
+    "confidence": 0.9,
+    "version": 1
+  }
+}
+2025-12-26 13:43:40,016 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,032 - core.skills.planning.skill - INFO - Создан план с 4 шагами для цели: Какие книги написал Пушкин?
+2025-12-26 13:43:40,033 - core.system_context.system_context - DEBUG - Тип LLM провайдера: LlamaCppProvider
+2025-12-26 13:43:40,034 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Генерация структурированных данных в формате JSON:
+2025-12-26 13:43:40,034 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,035 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Системный промпт: 
+Ты — эксперт по анализу и принятию решений. Твоя задача — проанализировать контекст и предложить оптимальное действие в строгом JSON формате.
+
+ТЫ — ГЕНЕРАТОР JSON ДАННЫХ. Твоя задача — создать валидный JSON объект в строгом соответствии с указанной схемой.
+
+JSON СХЕМА:
+{
+  "$defs": {
+    "AnalysisResult": {
+      "description": "Модель для анализа текущей ситуации.",
+      "properties": {
+        "current_situation": {
+          "description": "Анализ текущей ситуации, контекста и выполненных шагов",
+          "maxLength": 1000,
+          "minLength": 10,
+          "title": "Current Situation",
+          "type": "string"
+        },
+        "progress_assessment": {
+          "description": "Оценка прогресса в достижении цели",
+          "maxLength": 500,
+          "minLength": 5,
+          "title": "Progress Assessment",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "Уровень уверенности в текущем подходе (0.0 - нет уверенности, 1.0 - полная уверенность)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "errors_detected": {
+          "description": "Обнаружены ли ошибки в последних шагах",
+          "title": "Errors Detected",
+          "type": "boolean"
+        },
+        "consecutive_errors": {
+          "description": "Количество последовательных ошибок",
+          "minimum": 0,
+          "title": "Consecutive Errors",
+          "type": "integer"
+        },
+        "has_plan": {
+          "description": "Существует ли текущий план действий",
+          "title": "Has Plan",
+          "type": "boolean"
+        },
+        "plan_status": {
+          "description": "Статус текущего плана (active/completed/failed)",
+          "title": "Plan Status",
+          "type": "string"
+        },
+        "execution_time": {
+          "description": "Время выполнения сессии в секундах",
+          "minimum": 0.0,
+          "title": "Execution Time",
+          "type": "number"
+        },
+        "no_progress_steps": {
+          "description": "Количество шагов без значимого прогресса",
+          "minimum": 0,
+          "title": "No Progress Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "current_situation",
+        "progress_assessment",
+        "confidence",
+        "errors_detected",
+        "consecutive_errors",
+        "has_plan",
+        "plan_status",
+        "execution_time",
+        "no_progress_steps"
+      ],
+      "title": "AnalysisResult",
+      "type": "object"
+    },
+    "RecommendedAction": {
+      "description": "Модель для рекомендуемого действия агента.",
+      "properties": {
+        "action_type": {
+          "description": "Тип рекомендуемого действия",
+          "enum": [
+            "execute_capability",
+            "create_plan",
+            "update_plan",
+            "rollback",
+            "stop"
+          ],
+          "title": "Action Type",
+          "type": "string"
+        },
+        "capability_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Имя capability для выполнения (только для action_type=execute_capability)",
+          "title": "Capability Name"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Параметры для capability (только для action_type=execute_capability)",
+          "title": "Parameters"
+        },
+        "reasoning": {
+          "description": "Обоснование выбора действия",
+          "minLength": 10,
+          "title": "Reasoning",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "reasoning"
+      ],
+      "title": "RecommendedAction",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "analysis": {
+      "$ref": "#/$defs/AnalysisResult",
+      "description": "Детальный анализ текущей ситуации"
+    },
+    "needs_rollback": {
+      "description": "Требуется ли откат на предыдущие шаги",
+      "title": "Needs Rollback",
+      "type": "boolean"
+    },
+    "rollback_steps": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Количество шагов для отката (только если needs_rollback=true)",
+      "title": "Rollback Steps"
+    },
+    "recommended_action": {
+      "$ref": "#/$defs/RecommendedAction",
+      "description": "Детали рекомендуемого действия"
+    },
+    "alternative_approaches": {
+      "description": "Список альтернативных подходов",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Alternative Approaches",
+      "type": "array"
+    }
+  },
+  "required": [
+    "analysis",
+    "needs_rollback",
+    "recommended_action"
+  ],
+  "type": "object"
+}
+
+СТРОГИЕ ПРАВИЛА:
+1. ВЫВОДИ ТОЛЬКО ВАЛИДНЫЙ JSON БЕЗ ДОПОЛНИТЕЛЬНОГО ТЕКСТА ИЛИ КОММЕНТАРИЕВ
+2. Используй ТОЛЬКО двойные кавычки для всех строк
+3. Соблюдай все указанные типы данных (string, number, boolean, array, object)
+4. Включи ВСЕ обязательные поля из раздела "required"
+5. Не добавляй полей, которых нет в схеме
+6. Для массивов используй квадратные скобки []
+7. Для объектов используй фигурные скобки {}
+8. Не используй комментарии внутри JSON
+
+ПРИМЕР КОРРЕКТНОГО ФОРМАТА ДЛЯ ЭТОЙ СХЕМЫ:
+{
+    "field1": "значение",
+    "field2": 123,
+    "field3": true,
+    "field4": ["элемент1", "элемент2"],
+    "field5": {
+        "nested_field": "вложенное значение"
+    }
+}
+
+ВАЖНО: Если ты не можешь создать валидный JSON, верни ПУСТОЙ ОБЪЕКТ {} вместо некорректных данных.
+
+2025-12-26 13:43:40,037 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,038 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Промпт для генерации: 
+ТВОЯ ЗАДАЧА: Проанализируй текущую ситуацию и предоставь структурированную рекомендацию по следующему действию.
+КОНТЕКСТ ЗАДАЧИ:
+Цель: Какие книги написал Пушкин?
+Общее количество шагов: 0
+Время выполнения: 11830.6 секунд
+Текущий план: Да (статус: unknown)
+
+АНАЛИЗ ПРОГРЕССА:
+- Последовательные ошибки: 0
+- Шаги без прогресса: 0
+- Уровень уверенности: высокий
+
+ПОСЛЕДНИЕ ШАГИ:
+Нет выполненных шагов
+
+ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+1. book_library.get_books_by_author
+            - Описание: Получение информации о книгах по автору
+            - Схема валидации параметров для поиска книг по автору.: {'first_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Имя автора', 'title': 'First Name'}, 'last_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Фамилия автора', 'title': 'Last Name'}, 'author_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID автора', 'title': 'Author Id'}}
+2. book_library.get_full_text
+            - Описание: Получение полного текста книги
+            - Схема валидации параметров для получения полного текста книги.: {'book_title': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Название книги', 'title': 'Book Title'}, 'book_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID книги', 'title': 'Book Id'}, 'include_metadata': {'default': True, 'description': 'Включать ли метаданные книги', 'title': 'Include Metadata', 'type': 'boolean'}, 'max_chapters': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'Максимальное количество частей для извлечения', 'title': 'Max Chapters'}}
+3. book_library.dynamic_sql_query
+            - Описание: Генерация и выполнение SQL запроса для сложных вопросов
+            - Схема валидации параметров для динамического SQL запроса.: {'user_question': {'description': 'Вопрос пользователя для генерации SQL', 'title': 'User Question', 'type': 'string'}, 'context_tables': {'default': ['authors', 'books', 'chapters', 'genres'], 'description': 'Таблицы для использования в запросе', 'items': {'type': 'string'}, 'title': 'Context Tables', 'type': 'array'}, 'max_rows': {'default': 50, 'description': 'Максимальное количество строк в результате', 'maximum': 100, 'minimum': 1, 'title': 'Max Rows', 'type': 'integer'}, 'include_reasoning': {'default': False, 'description': 'Включать ли объяснение для запроса', 'title': 'Include Reasoning', 'type': 'boolean'}}
+4. planning.create_plan
+            - Описание: Создание первичного плана действий из цели
+            - Параметры для создания плана.: {'goal': {'description': 'Основная цель, для которой создается план', 'maxLength': 1000, 'minLength': 10, 'title': 'Goal', 'type': 'string'}, 'max_steps': {'default': 5, 'description': 'Максимальное количество шагов в плане', 'maximum': 20, 'minimum': 2, 'title': 'Max Steps', 'type': 'integer'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для создания плана', 'title': 'Context'}, 'strategy': {'default': 'iterative', 'description': 'Стратегия планирования', 'enum': ['iterative', 'hierarchical', 'goal_oriented'], 'title': 'Strategy', 'type': 'string'}}
+5. planning.update_plan
+            - Описание: Обновление существующего плана на основе прогресса или ошибок
+            - Параметры для обновления плана.: {'plan_id': {'description': 'ID обновляемого плана', 'title': 'Plan Id', 'type': 'string'}, 'updates': {'description': 'Изменения для шагов плана', 'items': {'additionalProperties': True, 'type': 'object'}, 'minItems': 1, 'title': 'Updates', 'type': 'array'}, 'context': {'description': 'Контекст обновления', 'maxLength': 2000, 'minLength': 5, 'title': 'Context', 'type': 'string'}}
+6. planning.decompose_task
+            - Описание: Декомпозиция сложной задачи на подзадачи
+            - Параметры для декомпозиции задачи.: {'task_id': {'description': 'ID задачи для декомпозиции', 'title': 'Task Id', 'type': 'string'}, 'task_description': {'description': 'Описание задачи', 'maxLength': 1000, 'minLength': 10, 'title': 'Task Description', 'type': 'string'}, 'max_subtasks': {'default': 5, 'description': 'Максимальное количество подзадач', 'maximum': 10, 'minimum': 2, 'title': 'Max Subtasks', 'type': 'integer'}, 'decomposition_strategy': {'default': 'by_functions', 'description': 'Стратегия декомпозиции', 'enum': ['by_time', 'by_functions', 'by_data', 'mixed'], 'title': 'Decomposition Strategy', 'type': 'string'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для декомпозиции', 'title': 'Context'}}
+7. planning.mark_task_completed
+            - Описание: Отметка задачи как выполненной
+            - Параметры для отметки задачи как выполненной.: {'task_id': {'description': 'ID задачи для отметки', 'title': 'Task Id', 'type': 'string'}, 'result_summary': {'description': 'Краткое описание результата', 'maxLength': 1000, 'minLength': 10, 'title': 'Result Summary', 'type': 'string'}, 'quality_score': {'default': 0.7, 'description': 'Оценка качества выполнения (0.0-1.0)', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Quality Score', 'type': 'number'}, 'time_spent_minutes': {'default': 15, 'description': 'Фактическое время выполнения в минутах', 'maximum': 240, 'minimum': 1, 'title': 'Time Spent Minutes', 'type': 'integer'}, 'next_actions': {'anyOf': [{'items': {'additionalProperties': {'type': 'string'}, 'type': 'object'}, 'maxItems': 10, 'type': 'array'}, {'type': 'null'}], 'default': None, 'description': 'Рекомендуемые следующие действия', 'title': 'Next Actions'}, 'plan_adjustment_needed': {'default': False, 'description': 'Требуется ли корректировка плана', 'title': 'Plan Adjustment Needed', 'type': 'boolean'}}
+8. table_description.get_description
+            - Описание: Получение описания таблицы в формате, оптимальном для LLM
+            - Параметры для получения описания таблицы.
+
+СООТВЕТСТВИЕ АРХИТЕКТУРЕ:
+- Это класс параметров, а не схема
+- Используется напрямую в capability
+- Соответствует формату ожидаемых параметров: {'schema_name': {'default': 'Lib', 'description': 'Имя схемы БД', 'title': 'Schema Name', 'type': 'string'}, 'table_name': {'description': 'Название таблицы', 'title': 'Table Name', 'type': 'string'}, 'format': {'default': 'text', 'description': 'Формат вывода', 'enum': ['text', 'json', 'markdown'], 'title': 'Format', 'type': 'string'}, 'include_examples': {'default': True, 'description': 'Включать примеры данных', 'title': 'Include Examples', 'type': 'boolean'}, 'max_examples': {'default': 3, 'description': 'Максимальное количество примеров', 'maximum': 10, 'minimum': 1, 'title': 'Max Examples', 'type': 'integer'}}
+
+ИНСТРУКЦИИ:
+1. ВНИМАТЕЛЬНО проанализируй контекст и прогресс
+2. ДАЙ подробную оценку текущей ситуации
+3. ОЦЕНИ, требуется ли откат на предыдущие шаги из-за ошибок или отсутствия прогресса
+4. ПРЕДЛОЖИ конкретное действие с обоснованием
+5. УКАЖИ альтернативные подходы для рассмотрения
+
+СТРУКТУРА АНАЛИЗА:
+1. Текущая ситуация: кратко опиши, где мы сейчас
+2. Прогресс: насколько мы приблизились к цели
+3. Уверенность: оцени от 0.0 до 1.0
+4. Ошибки: есть ли последовательные ошибки
+5. План: есть ли план, каков его статус
+6. Прогресс шагов: есть ли шаги без прогресса
+
+ФОРМАТ ВЫВОДА:
+Строго следуй JSON Schema, предоставленной в параметрах вызова. Не добавляй дополнительных полей или текста вне JSON.
+
+КРИТЕРИИ КАЧЕСТВЕННОГО ОТВЕТА:
+- Конкретные оценки прогресса
+- Четкие критерии для отката
+- Практичные рекомендации по действиям
+- Реалистичные альтернативные подходы
+- Логичные обоснования решений
+
+2025-12-26 13:43:40,040 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:43:40,040 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # max_tokens: 1500
+2025-12-26 13:43:40,040 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,806 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,806 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Получен ответ от LLM: {
+  "analysis": {
+    "current_situation": "Цель — определить, какие книги написал Пушкин. На данный момент не выполнены ни один шаг, план действий существует, но его статус неизвестен. Система имеет доступ к capability для поиска книг по автору, что является прямым решением для текущей задачи.",
+    "progress_assessment": "На начальном этапе прогресса отсутствует, так как не выполнены ни один шаг. Однако цель четко сформулирована, и доступен прямой способ получения ответа через capability book_library.get_books_by_author. Отсутствие шагов не является критическим, поскольку задача может быть решена одним прямым запросом.",
+    "confidence": 0.95,
+    "errors_detected": false,
+    "consecutive_errors": 0,
+    "has_plan": true,
+    "plan_status": "unknown",
+    "execution_time": 11830.6,
+    "no_progress_steps": 0
+  },
+  "needs_rollback": false,
+  "rollback_steps": null,
+  "recommended_action": {
+    "action_type": "execute_capability",
+    "capability_name": "book_library.get_books_by_author",
+    "parameters": {
+      "first_name": "Пушкин",
+      "last_name": "Александр"
+    },
+    "reasoning": "Цель — определить книги Пушкина. Наиболее прямой и эффективный способ — использовать capability book_library.get_books_by_author с указанием имени и фамилии автора. Это действие обеспечит быстрый и точный ответ без необходимости в сложных шагах или декомпозиции. Уровень уверенности в этом подходе высок, так как он напрямую соответствует поставленной цели и доступен в системе."
+  },
+  "alternative_approaches": [
+    "Использование dynamic_sql_query для поиска книг по автору через SQL-запрос",
+    "Создание плана действий с декомпозицией на подзадачи (например, поиск автора, затем его книг)",
+    "Получение описания таблицы и анализ структуры для понимания возможных полей"
+  ]
+}
+2025-12-26 13:50:02,807 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,817 - core.agent_runtime.strategies.react.strategy - DEBUG - Структурированное рассуждение выполнено за 382.78 секунд
+2025-12-26 13:50:02,830 - core.system_context.execution_gateway - DEBUG - Выполнение capability 'book_library.get_books_by_author' через навык 'BookLibrarySkill'
+2025-12-26 13:50:02,832 - core.skills.book_library.skill - DEBUG - Выполнение capability 'book_library.get_books_by_author' на шаге 1
+2025-12-26 13:50:02,835 - core.skills.book_library.skill - DEBUG - Выполнение SQL запроса: 
+                SELECT 
+                    b.id as book_id,
+                    b.title as book_ti...
+2025-12-26 13:50:02,836 - core.skills.book_library.skill - ERROR - Ошибка получения книг по автору: 'SessionContext' object has no attribute 'system_context'
+2025-12-26 13:50:02,836 - core.skills.book_library.skill - ERROR - Построение результата с ошибкой на шаге 1: AUTHOR_SEARCH_ERROR - 'SessionContext' object has no attribute 'system_context'
+2025-12-26 13:50:02,837 - core.system_context.system_context - DEBUG - Тип LLM провайдера: LlamaCppProvider
+2025-12-26 13:50:02,838 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Генерация структурированных данных в формате JSON:
+2025-12-26 13:50:02,838 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,839 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Системный промпт: 
+Ты — эксперт по анализу и принятию решений. Твоя задача — проанализировать контекст и предложить оптимальное действие в строгом JSON формате.
+
+ТЫ — ГЕНЕРАТОР JSON ДАННЫХ. Твоя задача — создать валидный JSON объект в строгом соответствии с указанной схемой.
+
+JSON СХЕМА:
+{
+  "$defs": {
+    "AnalysisResult": {
+      "description": "Модель для анализа текущей ситуации.",
+      "properties": {
+        "current_situation": {
+          "description": "Анализ текущей ситуации, контекста и выполненных шагов",
+          "maxLength": 1000,
+          "minLength": 10,
+          "title": "Current Situation",
+          "type": "string"
+        },
+        "progress_assessment": {
+          "description": "Оценка прогресса в достижении цели",
+          "maxLength": 500,
+          "minLength": 5,
+          "title": "Progress Assessment",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "Уровень уверенности в текущем подходе (0.0 - нет уверенности, 1.0 - полная уверенность)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "errors_detected": {
+          "description": "Обнаружены ли ошибки в последних шагах",
+          "title": "Errors Detected",
+          "type": "boolean"
+        },
+        "consecutive_errors": {
+          "description": "Количество последовательных ошибок",
+          "minimum": 0,
+          "title": "Consecutive Errors",
+          "type": "integer"
+        },
+        "has_plan": {
+          "description": "Существует ли текущий план действий",
+          "title": "Has Plan",
+          "type": "boolean"
+        },
+        "plan_status": {
+          "description": "Статус текущего плана (active/completed/failed)",
+          "title": "Plan Status",
+          "type": "string"
+        },
+        "execution_time": {
+          "description": "Время выполнения сессии в секундах",
+          "minimum": 0.0,
+          "title": "Execution Time",
+          "type": "number"
+        },
+        "no_progress_steps": {
+          "description": "Количество шагов без значимого прогресса",
+          "minimum": 0,
+          "title": "No Progress Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "current_situation",
+        "progress_assessment",
+        "confidence",
+        "errors_detected",
+        "consecutive_errors",
+        "has_plan",
+        "plan_status",
+        "execution_time",
+        "no_progress_steps"
+      ],
+      "title": "AnalysisResult",
+      "type": "object"
+    },
+    "RecommendedAction": {
+      "description": "Модель для рекомендуемого действия агента.",
+      "properties": {
+        "action_type": {
+          "description": "Тип рекомендуемого действия",
+          "enum": [
+            "execute_capability",
+            "create_plan",
+            "update_plan",
+            "rollback",
+            "stop"
+          ],
+          "title": "Action Type",
+          "type": "string"
+        },
+        "capability_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Имя capability для выполнения (только для action_type=execute_capability)",
+          "title": "Capability Name"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Параметры для capability (только для action_type=execute_capability)",
+          "title": "Parameters"
+        },
+        "reasoning": {
+          "description": "Обоснование выбора действия",
+          "minLength": 10,
+          "title": "Reasoning",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "reasoning"
+      ],
+      "title": "RecommendedAction",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "analysis": {
+      "$ref": "#/$defs/AnalysisResult",
+      "description": "Детальный анализ текущей ситуации"
+    },
+    "needs_rollback": {
+      "description": "Требуется ли откат на предыдущие шаги",
+      "title": "Needs Rollback",
+      "type": "boolean"
+    },
+    "rollback_steps": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Количество шагов для отката (только если needs_rollback=true)",
+      "title": "Rollback Steps"
+    },
+    "recommended_action": {
+      "$ref": "#/$defs/RecommendedAction",
+      "description": "Детали рекомендуемого действия"
+    },
+    "alternative_approaches": {
+      "description": "Список альтернативных подходов",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Alternative Approaches",
+      "type": "array"
+    }
+  },
+  "required": [
+    "analysis",
+    "needs_rollback",
+    "recommended_action"
+  ],
+  "type": "object"
+}
+
+СТРОГИЕ ПРАВИЛА:
+1. ВЫВОДИ ТОЛЬКО ВАЛИДНЫЙ JSON БЕЗ ДОПОЛНИТЕЛЬНОГО ТЕКСТА ИЛИ КОММЕНТАРИЕВ
+2. Используй ТОЛЬКО двойные кавычки для всех строк
+3. Соблюдай все указанные типы данных (string, number, boolean, array, object)
+4. Включи ВСЕ обязательные поля из раздела "required"
+5. Не добавляй полей, которых нет в схеме
+6. Для массивов используй квадратные скобки []
+7. Для объектов используй фигурные скобки {}
+8. Не используй комментарии внутри JSON
+
+ПРИМЕР КОРРЕКТНОГО ФОРМАТА ДЛЯ ЭТОЙ СХЕМЫ:
+{
+    "field1": "значение",
+    "field2": 123,
+    "field3": true,
+    "field4": ["элемент1", "элемент2"],
+    "field5": {
+        "nested_field": "вложенное значение"
+    }
+}
+
+ВАЖНО: Если ты не можешь создать валидный JSON, верни ПУСТОЙ ОБЪЕКТ {} вместо некорректных данных.
+
+2025-12-26 13:50:02,841 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,842 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Промпт для генерации: 
+ТВОЯ ЗАДАЧА: Проанализируй текущую ситуацию и предоставь структурированную рекомендацию по следующему действию.
+КОНТЕКСТ ЗАДАЧИ:
+Цель: Какие книги написал Пушкин?
+Общее количество шагов: 0
+Время выполнения: 12213.4 секунд
+Текущий план: Да (статус: unknown)
+
+АНАЛИЗ ПРОГРЕССА:
+- Последовательные ошибки: 0
+- Шаги без прогресса: 0
+- Уровень уверенности: высокий
+
+ПОСЛЕДНИЕ ШАГИ:
+Нет выполненных шагов
+
+ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+1. book_library.get_books_by_author
+            - Описание: Получение информации о книгах по автору
+            - Схема валидации параметров для поиска книг по автору.: {'first_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Имя автора', 'title': 'First Name'}, 'last_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Фамилия автора', 'title': 'Last Name'}, 'author_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID автора', 'title': 'Author Id'}}
+2. book_library.get_full_text
+            - Описание: Получение полного текста книги
+            - Схема валидации параметров для получения полного текста книги.: {'book_title': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Название книги', 'title': 'Book Title'}, 'book_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID книги', 'title': 'Book Id'}, 'include_metadata': {'default': True, 'description': 'Включать ли метаданные книги', 'title': 'Include Metadata', 'type': 'boolean'}, 'max_chapters': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'Максимальное количество частей для извлечения', 'title': 'Max Chapters'}}
+3. book_library.dynamic_sql_query
+            - Описание: Генерация и выполнение SQL запроса для сложных вопросов
+            - Схема валидации параметров для динамического SQL запроса.: {'user_question': {'description': 'Вопрос пользователя для генерации SQL', 'title': 'User Question', 'type': 'string'}, 'context_tables': {'default': ['authors', 'books', 'chapters', 'genres'], 'description': 'Таблицы для использования в запросе', 'items': {'type': 'string'}, 'title': 'Context Tables', 'type': 'array'}, 'max_rows': {'default': 50, 'description': 'Максимальное количество строк в результате', 'maximum': 100, 'minimum': 1, 'title': 'Max Rows', 'type': 'integer'}, 'include_reasoning': {'default': False, 'description': 'Включать ли объяснение для запроса', 'title': 'Include Reasoning', 'type': 'boolean'}}
+4. planning.create_plan
+            - Описание: Создание первичного плана действий из цели
+            - Параметры для создания плана.: {'goal': {'description': 'Основная цель, для которой создается план', 'maxLength': 1000, 'minLength': 10, 'title': 'Goal', 'type': 'string'}, 'max_steps': {'default': 5, 'description': 'Максимальное количество шагов в плане', 'maximum': 20, 'minimum': 2, 'title': 'Max Steps', 'type': 'integer'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для создания плана', 'title': 'Context'}, 'strategy': {'default': 'iterative', 'description': 'Стратегия планирования', 'enum': ['iterative', 'hierarchical', 'goal_oriented'], 'title': 'Strategy', 'type': 'string'}}
+5. planning.update_plan
+            - Описание: Обновление существующего плана на основе прогресса или ошибок
+            - Параметры для обновления плана.: {'plan_id': {'description': 'ID обновляемого плана', 'title': 'Plan Id', 'type': 'string'}, 'updates': {'description': 'Изменения для шагов плана', 'items': {'additionalProperties': True, 'type': 'object'}, 'minItems': 1, 'title': 'Updates', 'type': 'array'}, 'context': {'description': 'Контекст обновления', 'maxLength': 2000, 'minLength': 5, 'title': 'Context', 'type': 'string'}}
+6. planning.decompose_task
+            - Описание: Декомпозиция сложной задачи на подзадачи
+            - Параметры для декомпозиции задачи.: {'task_id': {'description': 'ID задачи для декомпозиции', 'title': 'Task Id', 'type': 'string'}, 'task_description': {'description': 'Описание задачи', 'maxLength': 1000, 'minLength': 10, 'title': 'Task Description', 'type': 'string'}, 'max_subtasks': {'default': 5, 'description': 'Максимальное количество подзадач', 'maximum': 10, 'minimum': 2, 'title': 'Max Subtasks', 'type': 'integer'}, 'decomposition_strategy': {'default': 'by_functions', 'description': 'Стратегия декомпозиции', 'enum': ['by_time', 'by_functions', 'by_data', 'mixed'], 'title': 'Decomposition Strategy', 'type': 'string'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для декомпозиции', 'title': 'Context'}}
+7. planning.mark_task_completed
+            - Описание: Отметка задачи как выполненной
+            - Параметры для отметки задачи как выполненной.: {'task_id': {'description': 'ID задачи для отметки', 'title': 'Task Id', 'type': 'string'}, 'result_summary': {'description': 'Краткое описание результата', 'maxLength': 1000, 'minLength': 10, 'title': 'Result Summary', 'type': 'string'}, 'quality_score': {'default': 0.7, 'description': 'Оценка качества выполнения (0.0-1.0)', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Quality Score', 'type': 'number'}, 'time_spent_minutes': {'default': 15, 'description': 'Фактическое время выполнения в минутах', 'maximum': 240, 'minimum': 1, 'title': 'Time Spent Minutes', 'type': 'integer'}, 'next_actions': {'anyOf': [{'items': {'additionalProperties': {'type': 'string'}, 'type': 'object'}, 'maxItems': 10, 'type': 'array'}, {'type': 'null'}], 'default': None, 'description': 'Рекомендуемые следующие действия', 'title': 'Next Actions'}, 'plan_adjustment_needed': {'default': False, 'description': 'Требуется ли корректировка плана', 'title': 'Plan Adjustment Needed', 'type': 'boolean'}}
+8. table_description.get_description
+            - Описание: Получение описания таблицы в формате, оптимальном для LLM
+            - Параметры для получения описания таблицы.
+
+СООТВЕТСТВИЕ АРХИТЕКТУРЕ:
+- Это класс параметров, а не схема
+- Используется напрямую в capability
+- Соответствует формату ожидаемых параметров: {'schema_name': {'default': 'Lib', 'description': 'Имя схемы БД', 'title': 'Schema Name', 'type': 'string'}, 'table_name': {'description': 'Название таблицы', 'title': 'Table Name', 'type': 'string'}, 'format': {'default': 'text', 'description': 'Формат вывода', 'enum': ['text', 'json', 'markdown'], 'title': 'Format', 'type': 'string'}, 'include_examples': {'default': True, 'description': 'Включать примеры данных', 'title': 'Include Examples', 'type': 'boolean'}, 'max_examples': {'default': 3, 'description': 'Максимальное количество примеров', 'maximum': 10, 'minimum': 1, 'title': 'Max Examples', 'type': 'integer'}}
+
+ИНСТРУКЦИИ:
+1. ВНИМАТЕЛЬНО проанализируй контекст и прогресс
+2. ДАЙ подробную оценку текущей ситуации
+3. ОЦЕНИ, требуется ли откат на предыдущие шаги из-за ошибок или отсутствия прогресса
+4. ПРЕДЛОЖИ конкретное действие с обоснованием
+5. УКАЖИ альтернативные подходы для рассмотрения
+
+СТРУКТУРА АНАЛИЗА:
+1. Текущая ситуация: кратко опиши, где мы сейчас
+2. Прогресс: насколько мы приблизились к цели
+3. Уверенность: оцени от 0.0 до 1.0
+4. Ошибки: есть ли последовательные ошибки
+5. План: есть ли план, каков его статус
+6. Прогресс шагов: есть ли шаги без прогресса
+
+ФОРМАТ ВЫВОДА:
+Строго следуй JSON Schema, предоставленной в параметрах вызова. Не добавляй дополнительных полей или текста вне JSON.
+
+КРИТЕРИИ КАЧЕСТВЕННОГО ОТВЕТА:
+- Конкретные оценки прогресса
+- Четкие критерии для отката
+- Практичные рекомендации по действиям
+- Реалистичные альтернативные подходы
+- Логичные обоснования решений
+
+2025-12-26 13:50:02,843 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:50:02,843 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # max_tokens: 1500
+2025-12-26 13:50:02,843 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,117 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,118 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Получен ответ от LLM: {
+  "analysis": {
+    "current_situation": "Цель — определить, какие книги написал Пушкин. На данный момент не выполнены ни один шаг, план действий существует, но его статус неизвестен. Система предоставляет доступ к capability для поиска книг по автору, что является прямым решением для текущей задачи.",
+    "progress_assessment": "Прогресс отсутствует из-за отсутствия выполненных шагов. Однако цель четко сформулирована, и доступен прямой способ получения ответа через capability book_library.get_books_by_author. Уровень уверенности в том, что использование этого capability приведет к решению задачи, высок.",
+    "confidence": 0.95,
+    "errors_detected": false,
+    "consecutive_errors": 0,
+    "has_plan": true,
+    "plan_status": "unknown",
+    "execution_time": 12213.4,
+    "no_progress_steps": 0
+  },
+  "needs_rollback": false,
+  "rollback_steps": null,
+  "recommended_action": {
+    "action_type": "execute_capability",
+    "capability_name": "book_library.get_books_by_author",
+    "parameters": {
+      "first_name": "Пушкин",
+      "last_name": "Александр"
+    },
+    "reasoning": "Цель — определить книги Пушкина. Непосредственный способ получить этот ответ — использовать capability book_library.get_books_by_author с указанием имени и фамилии автора. Данный подход является наиболее эффективным, точным и требует минимальных дополнительных шагов. Отсутствие выполненных шагов не является проблемой, так как начальный шаг может быть выполнен сразу."
+  },
+  "alternative_approaches": [
+    "Использовать dynamic_sql_query с вопросом 'Какие книги написал А.С. Пушкин?' для получения результатов из базы данных",
+    "Создать план действий с декомпозицией на подзадачи: 1) найти автора, 2) получить список книг по автору",
+    "Попробовать получить описание таблицы с помощью table_description.get_description для анализа структуры данных перед поиском"
+  ]
+}
+2025-12-26 13:54:53,119 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,136 - core.agent_runtime.strategies.react.strategy - DEBUG - Структурированное рассуждение выполнено за 290.30 секунд
+2025-12-26 13:54:53,136 - core.system_context.execution_gateway - DEBUG - Выполнение capability 'book_library.get_books_by_author' через навык 'BookLibrarySkill'
+2025-12-26 13:54:53,137 - core.skills.book_library.skill - DEBUG - Выполнение capability 'book_library.get_books_by_author' на шаге 1
+2025-12-26 13:54:53,137 - core.skills.book_library.skill - DEBUG - Выполнение SQL запроса: 
+                SELECT 
+                    b.id as book_id,
+                    b.title as book_ti...
+2025-12-26 13:54:53,137 - core.skills.book_library.skill - ERROR - Ошибка получения книг по автору: 'SessionContext' object has no attribute 'system_context'
+2025-12-26 13:54:53,138 - core.skills.book_library.skill - ERROR - Построение результата с ошибкой на шаге 1: AUTHOR_SEARCH_ERROR - 'SessionContext' object has no attribute 'system_context'
+2025-12-26 13:54:53,139 - core.system_context.system_context - DEBUG - Тип LLM провайдера: LlamaCppProvider
+2025-12-26 13:54:53,141 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Генерация структурированных данных в формате JSON:
+2025-12-26 13:54:53,141 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,142 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Системный промпт: 
+Ты — эксперт по анализу и принятию решений. Твоя задача — проанализировать контекст и предложить оптимальное действие в строгом JSON формате.
+
+ТЫ — ГЕНЕРАТОР JSON ДАННЫХ. Твоя задача — создать валидный JSON объект в строгом соответствии с указанной схемой.
+
+JSON СХЕМА:
+{
+  "$defs": {
+    "AnalysisResult": {
+      "description": "Модель для анализа текущей ситуации.",
+      "properties": {
+        "current_situation": {
+          "description": "Анализ текущей ситуации, контекста и выполненных шагов",
+          "maxLength": 1000,
+          "minLength": 10,
+          "title": "Current Situation",
+          "type": "string"
+        },
+        "progress_assessment": {
+          "description": "Оценка прогресса в достижении цели",
+          "maxLength": 500,
+          "minLength": 5,
+          "title": "Progress Assessment",
+          "type": "string"
+        },
+        "confidence": {
+          "description": "Уровень уверенности в текущем подходе (0.0 - нет уверенности, 1.0 - полная уверенность)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "errors_detected": {
+          "description": "Обнаружены ли ошибки в последних шагах",
+          "title": "Errors Detected",
+          "type": "boolean"
+        },
+        "consecutive_errors": {
+          "description": "Количество последовательных ошибок",
+          "minimum": 0,
+          "title": "Consecutive Errors",
+          "type": "integer"
+        },
+        "has_plan": {
+          "description": "Существует ли текущий план действий",
+          "title": "Has Plan",
+          "type": "boolean"
+        },
+        "plan_status": {
+          "description": "Статус текущего плана (active/completed/failed)",
+          "title": "Plan Status",
+          "type": "string"
+        },
+        "execution_time": {
+          "description": "Время выполнения сессии в секундах",
+          "minimum": 0.0,
+          "title": "Execution Time",
+          "type": "number"
+        },
+        "no_progress_steps": {
+          "description": "Количество шагов без значимого прогресса",
+          "minimum": 0,
+          "title": "No Progress Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "current_situation",
+        "progress_assessment",
+        "confidence",
+        "errors_detected",
+        "consecutive_errors",
+        "has_plan",
+        "plan_status",
+        "execution_time",
+        "no_progress_steps"
+      ],
+      "title": "AnalysisResult",
+      "type": "object"
+    },
+    "RecommendedAction": {
+      "description": "Модель для рекомендуемого действия агента.",
+      "properties": {
+        "action_type": {
+          "description": "Тип рекомендуемого действия",
+          "enum": [
+            "execute_capability",
+            "create_plan",
+            "update_plan",
+            "rollback",
+            "stop"
+          ],
+          "title": "Action Type",
+          "type": "string"
+        },
+        "capability_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Имя capability для выполнения (только для action_type=execute_capability)",
+          "title": "Capability Name"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Параметры для capability (только для action_type=execute_capability)",
+          "title": "Parameters"
+        },
+        "reasoning": {
+          "description": "Обоснование выбора действия",
+          "minLength": 10,
+          "title": "Reasoning",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "reasoning"
+      ],
+      "title": "RecommendedAction",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "analysis": {
+      "$ref": "#/$defs/AnalysisResult",
+      "description": "Детальный анализ текущей ситуации"
+    },
+    "needs_rollback": {
+      "description": "Требуется ли откат на предыдущие шаги",
+      "title": "Needs Rollback",
+      "type": "boolean"
+    },
+    "rollback_steps": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Количество шагов для отката (только если needs_rollback=true)",
+      "title": "Rollback Steps"
+    },
+    "recommended_action": {
+      "$ref": "#/$defs/RecommendedAction",
+      "description": "Детали рекомендуемого действия"
+    },
+    "alternative_approaches": {
+      "description": "Список альтернативных подходов",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Alternative Approaches",
+      "type": "array"
+    }
+  },
+  "required": [
+    "analysis",
+    "needs_rollback",
+    "recommended_action"
+  ],
+  "type": "object"
+}
+
+СТРОГИЕ ПРАВИЛА:
+1. ВЫВОДИ ТОЛЬКО ВАЛИДНЫЙ JSON БЕЗ ДОПОЛНИТЕЛЬНОГО ТЕКСТА ИЛИ КОММЕНТАРИЕВ
+2. Используй ТОЛЬКО двойные кавычки для всех строк
+3. Соблюдай все указанные типы данных (string, number, boolean, array, object)
+4. Включи ВСЕ обязательные поля из раздела "required"
+5. Не добавляй полей, которых нет в схеме
+6. Для массивов используй квадратные скобки []
+7. Для объектов используй фигурные скобки {}
+8. Не используй комментарии внутри JSON
+
+ПРИМЕР КОРРЕКТНОГО ФОРМАТА ДЛЯ ЭТОЙ СХЕМЫ:
+{
+    "field1": "значение",
+    "field2": 123,
+    "field3": true,
+    "field4": ["элемент1", "элемент2"],
+    "field5": {
+        "nested_field": "вложенное значение"
+    }
+}
+
+ВАЖНО: Если ты не можешь создать валидный JSON, верни ПУСТОЙ ОБЪЕКТ {} вместо некорректных данных.
+
+2025-12-26 13:54:53,144 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,145 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # Промпт для генерации: 
+ТВОЯ ЗАДАЧА: Проанализируй текущую ситуацию и предоставь структурированную рекомендацию по следующему действию.
+КОНТЕКСТ ЗАДАЧИ:
+Цель: Какие книги написал Пушкин?
+Общее количество шагов: 0
+Время выполнения: 12503.7 секунд
+Текущий план: Да (статус: unknown)
+
+АНАЛИЗ ПРОГРЕССА:
+- Последовательные ошибки: 0
+- Шаги без прогресса: 0
+- Уровень уверенности: высокий
+
+ПОСЛЕДНИЕ ШАГИ:
+Нет выполненных шагов
+
+ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+1. book_library.get_books_by_author
+            - Описание: Получение информации о книгах по автору
+            - Схема валидации параметров для поиска книг по автору.: {'first_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Имя автора', 'title': 'First Name'}, 'last_name': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Фамилия автора', 'title': 'Last Name'}, 'author_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID автора', 'title': 'Author Id'}}
+2. book_library.get_full_text
+            - Описание: Получение полного текста книги
+            - Схема валидации параметров для получения полного текста книги.: {'book_title': {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Название книги', 'title': 'Book Title'}, 'book_id': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'ID книги', 'title': 'Book Id'}, 'include_metadata': {'default': True, 'description': 'Включать ли метаданные книги', 'title': 'Include Metadata', 'type': 'boolean'}, 'max_chapters': {'anyOf': [{'type': 'integer'}, {'type': 'null'}], 'default': None, 'description': 'Максимальное количество частей для извлечения', 'title': 'Max Chapters'}}
+3. book_library.dynamic_sql_query
+            - Описание: Генерация и выполнение SQL запроса для сложных вопросов
+            - Схема валидации параметров для динамического SQL запроса.: {'user_question': {'description': 'Вопрос пользователя для генерации SQL', 'title': 'User Question', 'type': 'string'}, 'context_tables': {'default': ['authors', 'books', 'chapters', 'genres'], 'description': 'Таблицы для использования в запросе', 'items': {'type': 'string'}, 'title': 'Context Tables', 'type': 'array'}, 'max_rows': {'default': 50, 'description': 'Максимальное количество строк в результате', 'maximum': 100, 'minimum': 1, 'title': 'Max Rows', 'type': 'integer'}, 'include_reasoning': {'default': False, 'description': 'Включать ли объяснение для запроса', 'title': 'Include Reasoning', 'type': 'boolean'}}
+4. planning.create_plan
+            - Описание: Создание первичного плана действий из цели
+            - Параметры для создания плана.: {'goal': {'description': 'Основная цель, для которой создается план', 'maxLength': 1000, 'minLength': 10, 'title': 'Goal', 'type': 'string'}, 'max_steps': {'default': 5, 'description': 'Максимальное количество шагов в плане', 'maximum': 20, 'minimum': 2, 'title': 'Max Steps', 'type': 'integer'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для создания плана', 'title': 'Context'}, 'strategy': {'default': 'iterative', 'description': 'Стратегия планирования', 'enum': ['iterative', 'hierarchical', 'goal_oriented'], 'title': 'Strategy', 'type': 'string'}}
+5. planning.update_plan
+            - Описание: Обновление существующего плана на основе прогресса или ошибок
+            - Параметры для обновления плана.: {'plan_id': {'description': 'ID обновляемого плана', 'title': 'Plan Id', 'type': 'string'}, 'updates': {'description': 'Изменения для шагов плана', 'items': {'additionalProperties': True, 'type': 'object'}, 'minItems': 1, 'title': 'Updates', 'type': 'array'}, 'context': {'description': 'Контекст обновления', 'maxLength': 2000, 'minLength': 5, 'title': 'Context', 'type': 'string'}}
+6. planning.decompose_task
+            - Описание: Декомпозиция сложной задачи на подзадачи
+            - Параметры для декомпозиции задачи.: {'task_id': {'description': 'ID задачи для декомпозиции', 'title': 'Task Id', 'type': 'string'}, 'task_description': {'description': 'Описание задачи', 'maxLength': 1000, 'minLength': 10, 'title': 'Task Description', 'type': 'string'}, 'max_subtasks': {'default': 5, 'description': 'Максимальное количество подзадач', 'maximum': 10, 'minimum': 2, 'title': 'Max Subtasks', 'type': 'integer'}, 'decomposition_strategy': {'default': 'by_functions', 'description': 'Стратегия декомпозиции', 'enum': ['by_time', 'by_functions', 'by_data', 'mixed'], 'title': 'Decomposition Strategy', 'type': 'string'}, 'context': {'anyOf': [{'maxLength': 2000, 'type': 'string'}, {'type': 'null'}], 'default': None, 'description': 'Контекст для декомпозиции', 'title': 'Context'}}
+7. planning.mark_task_completed
+            - Описание: Отметка задачи как выполненной
+            - Параметры для отметки задачи как выполненной.: {'task_id': {'description': 'ID задачи для отметки', 'title': 'Task Id', 'type': 'string'}, 'result_summary': {'description': 'Краткое описание результата', 'maxLength': 1000, 'minLength': 10, 'title': 'Result Summary', 'type': 'string'}, 'quality_score': {'default': 0.7, 'description': 'Оценка качества выполнения (0.0-1.0)', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Quality Score', 'type': 'number'}, 'time_spent_minutes': {'default': 15, 'description': 'Фактическое время выполнения в минутах', 'maximum': 240, 'minimum': 1, 'title': 'Time Spent Minutes', 'type': 'integer'}, 'next_actions': {'anyOf': [{'items': {'additionalProperties': {'type': 'string'}, 'type': 'object'}, 'maxItems': 10, 'type': 'array'}, {'type': 'null'}], 'default': None, 'description': 'Рекомендуемые следующие действия', 'title': 'Next Actions'}, 'plan_adjustment_needed': {'default': False, 'description': 'Требуется ли корректировка плана', 'title': 'Plan Adjustment Needed', 'type': 'boolean'}}
+8. table_description.get_description
+            - Описание: Получение описания таблицы в формате, оптимальном для LLM
+            - Параметры для получения описания таблицы.
+
+СООТВЕТСТВИЕ АРХИТЕКТУРЕ:
+- Это класс параметров, а не схема
+- Используется напрямую в capability
+- Соответствует формату ожидаемых параметров: {'schema_name': {'default': 'Lib', 'description': 'Имя схемы БД', 'title': 'Schema Name', 'type': 'string'}, 'table_name': {'description': 'Название таблицы', 'title': 'Table Name', 'type': 'string'}, 'format': {'default': 'text', 'description': 'Формат вывода', 'enum': ['text', 'json', 'markdown'], 'title': 'Format', 'type': 'string'}, 'include_examples': {'default': True, 'description': 'Включать примеры данных', 'title': 'Include Examples', 'type': 'boolean'}, 'max_examples': {'default': 3, 'description': 'Максимальное количество примеров', 'maximum': 10, 'minimum': 1, 'title': 'Max Examples', 'type': 'integer'}}
+
+ИНСТРУКЦИИ:
+1. ВНИМАТЕЛЬНО проанализируй контекст и прогресс
+2. ДАЙ подробную оценку текущей ситуации
+3. ОЦЕНИ, требуется ли откат на предыдущие шаги из-за ошибок или отсутствия прогресса
+4. ПРЕДЛОЖИ конкретное действие с обоснованием
+5. УКАЖИ альтернативные подходы для рассмотрения
+
+СТРУКТУРА АНАЛИЗА:
+1. Текущая ситуация: кратко опиши, где мы сейчас
+2. Прогресс: насколько мы приблизились к цели
+3. Уверенность: оцени от 0.0 до 1.0
+4. Ошибки: есть ли последовательные ошибки
+5. План: есть ли план, каков его статус
+6. Прогресс шагов: есть ли шаги без прогресса
+
+ФОРМАТ ВЫВОДА:
+Строго следуй JSON Schema, предоставленной в параметрах вызова. Не добавляй дополнительных полей или текста вне JSON.
+
+КРИТЕРИИ КАЧЕСТВЕННОГО ОТВЕТА:
+- Конкретные оценки прогресса
+- Четкие критерии для отката
+- Практичные рекомендации по действиям
+- Реалистичные альтернативные подходы
+- Логичные обоснования решений
+
+2025-12-26 13:54:53,147 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################
+2025-12-26 13:54:53,147 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - # max_tokens: 1500
+2025-12-26 13:54:53,148 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - ###############################################################

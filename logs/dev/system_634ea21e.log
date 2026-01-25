@@ -1,0 +1,7 @@
+2026-01-25 18:41:58,075 - core.system_context.system_context - INFO - SystemContext создан (ID: 634ea21e-dc5d-4af9-a4a3-77016305b75f)
+2026-01-25 18:41:58,081 - core.system_context.system_context - INFO - Инициализация системы (ID: 634ea21e-dc5d-4af9-a4a3-77016305b75f) с профилем: dev
+2026-01-25 18:41:58,084 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-25 18:41:58,087 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-25 18:41:58,090 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-25 18:41:58,092 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-25 18:41:58,448 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0

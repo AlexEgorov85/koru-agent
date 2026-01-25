@@ -1,0 +1,81 @@
+2026-01-25 17:23:29,116 - core.system_context.system_context - INFO - SystemContext создан (ID: c5b48b9d-5ce9-4ba4-9ffa-68804081359d)
+2026-01-25 17:23:29,135 - core.system_context.system_context - INFO - Инициализация системы (ID: c5b48b9d-5ce9-4ba4-9ffa-68804081359d) с профилем: dev
+2026-01-25 17:23:29,139 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-25 17:23:29,141 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-25 17:23:29,145 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-25 17:23:29,149 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-25 17:23:29,720 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-25 17:23:48,821 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 19.67 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-25 17:23:48,838 - core.infrastructure.providers.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-25 17:23:48,842 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-25 17:23:48,846 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-25 17:23:48,848 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-25 17:23:48,850 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-25 17:23:49,012 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-25 17:23:49,018 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.17 секунд
+2026-01-25 17:23:49,019 - core.infrastructure.providers.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-25 17:23:49,019 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-25 17:23:49,019 - core.infrastructure.providers.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-25 17:23:49,080 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'ASTParserTool'
+2026-01-25 17:23:49,080 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'FileListerTool'
+2026-01-25 17:23:49,080 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'FileReaderTool'
+2026-01-25 17:23:49,096 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'FileWriterTool'
+2026-01-25 17:23:49,096 - core.infrastructure.providers.factory - DEBUG - Найден класс инструмента 'SQLTool'
+2026-01-25 17:23:49,096 - core.infrastructure.providers.factory - INFO - Найдено классов инструментов: 5
+2026-01-25 17:23:49,096 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'ASTParserTool' из класса ASTParserTool
+2026-01-25 17:23:49,096 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-25 17:23:49,109 - core.infrastructure.providers.factory - INFO - Инструмент 'ASTParserTool' успешно создан
+2026-01-25 17:23:49,111 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'FileListerTool' из класса FileListerTool
+2026-01-25 17:23:49,113 - core.infrastructure.providers.factory - INFO - Инструмент 'FileListerTool' успешно создан
+2026-01-25 17:23:49,115 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'FileReaderTool' из класса FileReaderTool
+2026-01-25 17:23:49,117 - core.infrastructure.providers.factory - INFO - Инструмент 'FileReaderTool' успешно создан
+2026-01-25 17:23:49,119 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'FileWriterTool' из класса FileWriterTool
+2026-01-25 17:23:49,119 - core.infrastructure.providers.factory - INFO - Инструмент 'FileWriterTool' успешно создан
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - DEBUG - Создание инструмента 'SQLTool' из класса SQLTool
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'SQLTool' успешно создан
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'ASTParserTool' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'FileListerTool' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'FileReaderTool' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'FileWriterTool' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,130 - core.infrastructure.providers.factory - INFO - Инструмент 'SQLTool' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,146 - core.infrastructure.providers.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-25 17:23:49,146 - core.infrastructure.providers.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-25 17:23:49,149 - core.infrastructure.providers.factory - DEBUG - Найден класс навыка 'PlanningSkill'
+2026-01-25 17:23:49,180 - core.infrastructure.providers.factory - DEBUG - Найден класс навыка 'TableDescriptionSkill'
+2026-01-25 17:23:49,180 - core.infrastructure.providers.factory - INFO - Найдено классов навыков: 2
+2026-01-25 17:23:49,180 - core.infrastructure.providers.factory - DEBUG - Создание навыка 'PlanningSkill' из класса PlanningSkill
+2026-01-25 17:23:49,195 - core.skills.planning.skill - INFO - Инициализирован навык планирования: PlanningSkill
+2026-01-25 17:23:49,196 - core.infrastructure.providers.factory - INFO - Навык 'PlanningSkill' успешно создан
+2026-01-25 17:23:49,196 - core.infrastructure.providers.factory - DEBUG - Создание навыка 'TableDescriptionSkill' из класса TableDescriptionSkill
+2026-01-25 17:23:49,201 - asyncio - INFO - Инициализирован навык получения описания: TableDescriptionSkill
+2026-01-25 17:23:49,201 - core.infrastructure.providers.factory - INFO - Навык 'TableDescriptionSkill' успешно создан
+2026-01-25 17:23:49,201 - core.infrastructure.providers.factory - INFO - Навык 'PlanningSkill' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,201 - core.infrastructure.providers.factory - INFO - Навык 'TableDescriptionSkill' успешно зарегистрирован в реестре
+2026-01-25 17:23:49,201 - core.infrastructure.providers.factory - INFO - Успешно создано и зарегистрировано навыков: 2
+2026-01-25 17:23:49,213 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-25 17:23:49,213 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-25 17:23:49,213 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-25 17:23:49,213 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для python: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,213 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для java: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,213 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для kotlin: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,213 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для go: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для javascript: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для typescript: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для cpp: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для c: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для rust: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,230 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для ruby: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,245 - core.infrastructure.tools.ast_parser_tool - WARNING - Не удалось загрузить парсер для php: get_parser() takes exactly 1 positional argument (0 given)
+2026-01-25 17:23:49,248 - core.system_context.lifecycle_manager - INFO - Ресурс 'ASTParserTool' успешно инициализирован
+2026-01-25 17:23:49,251 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileListerTool' успешно инициализирован
+2026-01-25 17:23:49,254 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileReaderTool' успешно инициализирован
+2026-01-25 17:23:49,258 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileWriterTool' успешно инициализирован
+2026-01-25 17:23:49,263 - core.system_context.lifecycle_manager - INFO - Ресурс 'SQLTool' успешно инициализирован
+2026-01-25 17:23:49,300 - core.system_context.lifecycle_manager - INFO - Ресурс 'PlanningSkill' успешно инициализирован
+2026-01-25 17:23:49,306 - core.system_context.lifecycle_manager - INFO - Ресурс 'TableDescriptionSkill' успешно инициализирован
+2026-01-25 17:23:49,306 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-25 17:23:49,396 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-25 17:23:49,396 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.09 секунд
+2026-01-25 17:23:49,396 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-25 17:23:49,396 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-25 17:23:56,060 - core.system_context.system_context - INFO - Система успешно инициализирована
