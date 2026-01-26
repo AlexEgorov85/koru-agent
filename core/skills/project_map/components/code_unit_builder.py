@@ -45,9 +45,12 @@ import_unit = builder.build_import_unit(
 Компонент интегрируется с ProjectMapSkill и использует его для доступа к логированию и конфигурации.
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from core.skills.project_map.models.code_unit import CodeUnit, Location, CodeSpan, CodeUnitType
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 class CodeUnitBuilder:
     """Компонент для построения CodeUnit из AST узлов.
@@ -553,7 +556,7 @@ class CodeUnitBuilder:
             return source_code[return_type_node.start_byte:return_type_node.end_byte]
         return None
     
-    def _extract_imported_names(self, node, source_code: str) -> List[Dict[str, Any]]:
+    def _extract_imported_names(self, node, source_code: str, source_bytes: bytes) -> List[Dict[str, Any]]:
         """Извлечение имен из узла импорта."""
         result = []
         
@@ -561,7 +564,7 @@ class CodeUnitBuilder:
             # Обработка "import module" и "import module as alias"
             for child in node.children:
                 if child.type == 'dotted_name':
-                    module_name = source_code[child.start_byte:child.end_byte]
+                    module_name = self._get_node_text(child, source_bytes, source_code)
                     result.append({
                         'name': module_name.split('.')[-1],
                         'module': module_name,
@@ -569,47 +572,107 @@ class CodeUnitBuilder:
                     })
                 elif child.type == 'aliased_import':
                     # Обработка "import module as alias"
-                    module_node = child.child_by_field_name('name')
-                    alias_node = child.child_by_field_name('alias')
-                    if module_node and alias_node:
-                        module_name = source_code[module_node.start_byte:module_node.end_byte]
-                        alias_name = source_code[alias_node.start_byte:alias_node.end_byte]
+                    for grandchild in child.children:
+                        if grandchild.type == 'dotted_name':
+                            module_name = self._get_node_text(grandchild, source_bytes, source_code)
+                        elif grandchild.type == 'identifier':
+                            alias_name = self._get_node_text(grandchild, source_bytes, source_code)
+                    if 'module_name' in locals() and 'alias_name' in locals():
                         result.append({
                             'name': alias_name,
                             'module': module_name,
                             'alias': alias_name,
                             'is_relative': False
                         })
-        
         elif node.type == 'import_from_statement':
-            # Обработка "from module import name"
+            # Исправленная обработка "from module import name"
             module_node = node.child_by_field_name('module_name')
+            if not module_node:
+                # Попробуем найти модуль в дочерних узлах, если field не работает
+                for child in node.children:
+                    if child.type == 'dotted_name' or child.type == 'relative_import':
+                        module_node = child
+                        break
+            
             if module_node:
-                module_name = source_code[module_node.start_byte:module_node.end_byte]
-                is_relative = module_name.startswith('.')
+                module_name = self._get_node_text(module_node, source_bytes, source_code)
+                is_relative = module_name.startswith('.') or any(c.type == 'relative_import' for c in node.children)
                 
-                # Извлечение импортируемых имен
-                imports_node = node.child_by_field_name('imports')
-                if imports_node:
-                    for import_child in imports_node.children:
-                        if import_child.type == 'dotted_name':
-                            name = source_code[import_child.start_byte:import_child.end_byte]
+                # Извлечение импортируемых имен - исправленный подход
+                imports_node = node.child_by_field_name('name') or node.child_by_field_name('names') or node.child_by_field_name('imports')
+                
+                if not imports_node:
+                    # Альтернативный поиск импортируемых имен
+                    for child in node.children:
+                        if child.type in ['dotted_name', 'identifier', 'aliased_import', 'import_specifier']:
+                            imports_node = child
+                            break
+                
+                imported_items = []
+                
+                # Если imports_node - это список
+                if imports_node and hasattr(imports_node, 'children'):
+                    imported_items = imports_node.children
+                # Если imports_node - это один узел
+                elif imports_node:
+                    imported_items = [imports_node]
+                
+                # Если все еще нет импортируемых имен, проверяем дочерние узлы узла импорта
+                if not imported_items:
+                    for child in node.children:
+                        if child != module_node and child.type not in ['from', 'import', 'relative_import']:
+                            imported_items.append(child)
+                
+                # Обработка каждого импортируемого элемента
+                for import_item in imported_items:
+                    if import_item.type == 'dotted_name' or import_item.type == 'identifier':
+                        name = self._get_node_text(import_item, source_bytes, source_code)
+                        if name:
                             result.append({
                                 'name': name.split('.')[-1],
                                 'module': module_name,
                                 'is_relative': is_relative
                             })
-                        elif import_child.type == 'aliased_import':
-                            name_node = import_child.child_by_field_name('name')
-                            alias_node = import_child.child_by_field_name('alias')
-                            if name_node and alias_node:
-                                name = source_code[name_node.start_byte:name_node.end_byte]
-                                alias = source_code[alias_node.start_byte:alias_node.end_byte]
-                                result.append({
-                                    'name': alias,
-                                    'module': module_name,
-                                    'alias': alias,
-                                    'is_relative': is_relative
-                                })
+                    elif import_item.type == 'aliased_import' or import_item.type == 'import_specifier':
+                        # Обработка "from module import name as alias"
+                        name_node = None
+                        alias_node = None
+                        
+                        # Ищем имя и алиас в дочерних узлах
+                        for child in import_item.children:
+                            if child.type == 'identifier':
+                                if name_node is None:
+                                    name_node = child
+                                else:
+                                    alias_node = child
+                            elif child.type == 'dotted_name' and name_node is None:
+                                name_node = child
+                        
+                        if name_node:
+                            name = self._get_node_text(name_node, source_bytes, source_code)
+                            alias = name  # По умолчанию алиас равен имени
+                            
+                            if alias_node:
+                                alias = self._get_node_text(alias_node, source_bytes, source_code)
+                            
+                            result.append({
+                                'name': alias,
+                                'module': module_name,
+                                'alias': alias if alias != name else None,
+                                'original_name': name,
+                                'is_relative': is_relative
+                            })
+                    elif import_item.type == 'relative_import':
+                        # Обработка "from . import name"
+                        is_relative = True
+                        continue
+            
+            # Отладочное логирование для понимания структуры AST
+            if not result and node.type == 'import_from_statement':
+                logger.debug(f"Не удалось извлечь имена из import_from_statement. Структура узла:")
+                logger.debug(f"- Тип узла: {node.type}")
+                logger.debug(f"- Дочерние узлы: {[child.type for child in node.children]}")
+                logger.debug(f"- Поля узла: {[field for field in dir(node) if not field.startswith('_')]}")
+                logger.debug(f"- Текст узла: {self._get_node_text(node, source_bytes, source_code)}")
         
         return result

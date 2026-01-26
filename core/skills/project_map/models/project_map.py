@@ -77,7 +77,7 @@ class FileInfo:
     file_path: str
     size: int
     last_modified: float
-    code_unit_ids: List[str] = field(default_factory=list)
+    code_units: List[CodeUnit] = field(default_factory=list)
     imports: List[str] = field(default_factory=list)
     exports: List[str] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)
@@ -88,7 +88,7 @@ class FileInfo:
             'file_path': self.file_path,
             'size': self.size,
             'last_modified': self.last_modified,
-            'code_unit_count': len(self.code_unit_ids),
+            'code_unit_count': len(self.code_units),
             'imports_count': len(self.imports),
             'exports_count': len(self.exports),
             'dependencies_count': len(self.dependencies)

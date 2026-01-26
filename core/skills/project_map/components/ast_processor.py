@@ -331,120 +331,290 @@ class ASTProcessor:
         except Exception as e:
             logger.error(f"Ошибка построения функции {func_name} в {file_path}: {str(e)}", exc_info=True)
             return None
-    
+
     def _extract_imports(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, parent_id: Optional[str]) -> List[CodeUnit]:
         """Извлечение всех импортов из AST с корректной обработкой."""
         imports = []
         
         def walk_imports(current_node: Node):
-            if current_node.type in ['import_statement', 'import_from_statement']:
-                # Получение полного текста импорта
-                import_text = self._get_node_text(current_node, source_bytes, source_code)
+            # Обработка импортов на текущем уровне
+            if current_node.type == 'import_statement':
+                self._process_import_statement(current_node, file_path, source_code, source_bytes, parent_id, imports)
+            elif current_node.type == 'import_from_statement':
+                self._process_import_from_statement(current_node, file_path, source_code, source_bytes, parent_id, imports)
                 
-                # Извлечение имен импортируемых модулей/символов
-                imported_names = self._extract_imported_names(current_node, source_code, source_bytes)
-                
-                for name_info in imported_names:
-                    name = name_info.get('name', '').strip()
-                    if not name:
-                        continue
-                    
-                    location = Location(
-                        file_path=file_path,
-                        start_line=max(1, current_node.start_point[0] + 1),
-                        end_line=max(1, current_node.end_point[0] + 1),
-                        start_column=max(1, current_node.start_point[1] + 1),
-                        end_column=max(1, current_node.end_point[1] + 1)
-                    )
-                    
-                    import_text = self._get_node_text(current_node, source_bytes, source_code)
-                    import_id = f"import_{name}_{hash(import_text) % 10000}"
-                    
-                    import_unit = CodeUnit(
-                        id=import_id,
-                        name=name,
-                        type=CodeUnitType.IMPORT,
-                        location=location,
-                        code_span=CodeSpan(source_code=import_text),
-                        parent_id=parent_id,
-                        metadata={
-                            'import_type': 'from_import' if current_node.type == 'import_from_statement' else 'import',
-                            'original_text': import_text,
-                            'module': name_info.get('module'),
-                            'alias': name_info.get('alias'),
-                            'is_relative': name_info.get('is_relative', False)
-                        },
-                        language="python"
-                    )
-                    imports.append(import_unit)
-            
+            # Рекурсивный обход дочерних узлов
             for child in current_node.children:
                 walk_imports(child)
         
         walk_imports(node)
         return imports
-    
-    def _extract_imported_names(self, node: Node, source_code: str, source_bytes: bytes) -> List[Dict[str, Any]]:
-        """Извлечение имен из узла импорта."""
-        result = []
+
+    def _process_import_statement(self, node: Node, file_path: str, source_code: str, source_bytes: bytes, 
+                                parent_id: Optional[str], imports: List[CodeUnit]):
+        """Обработка узла import_statement."""
+        import_text = self._get_node_text(node, source_bytes, source_code)
+        location = self._create_location(node, file_path)
         
-        if node.type == 'import_statement':
-            # Обработка "import module" и "import module as alias"
+        # Обработка каждого импорта в statement
+        for child in node.children:
+            if child.type == 'dotted_name':
+                # Простой импорт: import module
+                module_name = self._get_node_text(child, source_bytes, source_code)
+                self._create_import_unit(
+                    module_name, module_name, None, file_path, import_text,
+                    location, parent_id, False, 'import', imports
+                )
+            elif child.type == 'aliased_import':
+                # Импорт с алиасом: import module as alias
+                name_node = child.child_by_field_name('name')
+                alias_node = child.child_by_field_name('alias')
+                if name_node and alias_node:
+                    module_name = self._get_node_text(name_node, source_bytes, source_code)
+                    alias_name = self._get_node_text(alias_node, source_bytes, source_code)
+                    self._create_import_unit(
+                        alias_name, module_name, alias_name, file_path, import_text,
+                        location, parent_id, False, 'import', imports
+                    )
+
+    def _process_import_from_statement(self, node: Node, file_path: str, source_code: str, source_bytes: bytes,
+                                  parent_id: Optional[str], imports: List[CodeUnit]):
+        """Обработка узла import_from_statement с корректной обработкой различных типов импортов."""
+        import_text = self._get_node_text(node, source_bytes, source_code)
+        location = self._create_location(node, file_path)
+        
+        # 1. Получение имени модуля (from ... import)
+        module_node = node.child_by_field_name('module_name')
+        module_name = ""
+        is_relative = False
+        
+        if module_node:
+            module_name = self._get_node_text(module_node, source_bytes, source_code)
+            is_relative = module_name.startswith('.')
+        else:
+            # Обработка относительных импортов без указания модуля (from . import name)
+            dot_count = 0
             for child in node.children:
-                if child.type == 'dotted_name':
-                    module_name = self._get_node_text(child, source_bytes, source_code)
-                    result.append({
-                        'name': module_name.split('.')[-1],
-                        'module': module_name,
-                        'is_relative': False
-                    })
+                if child.type == 'relative_import' or (child.type == 'dotted_name' and child.text.startswith(b'.')):
+                    dot_count += 1
+            if dot_count > 0:
+                is_relative = True
+                module_name = "." * dot_count
+        
+        # 2. Определение типа импорта и получение импортируемых имен
+        import_type = "unknown"
+        imported_items = []
+        
+        # Ищем все узлы после ключевого слова 'import'
+        found_import_keyword = False
+        for child in node.children:
+            # Ищем ключевое слово 'import'
+            if child.type == 'import':
+                found_import_keyword = True
+                continue
+            
+            # После ключевого слова 'import' обрабатываем все узлы как импортируемые имена
+            if found_import_keyword:
+                if child.type == 'wildcard_import':  # from module import *
+                    imported_items.append(('*', None, None))
+                    import_type = "wildcard"
+                    break
+                elif child.type in ['identifier', 'dotted_name']:
+                    # Простой импорт: from module import name
+                    name = self._get_node_text(child, source_bytes, source_code)
+                    imported_items.append((name, None, None))
+                    import_type = "simple"
                 elif child.type == 'aliased_import':
-                    # Обработка "import module as alias"
+                    # Обработка импорта с алиасом: from module import name as alias
+                    name_node = child.child_by_field_name('name') or self._find_child_by_type(child, ['identifier', 'dotted_name'])
+                    alias_node = child.child_by_field_name('alias') or self._find_child_by_type(child, ['identifier'])
+                    
+                    if name_node:
+                        name = self._get_node_text(name_node, source_bytes, source_code)
+                        alias = None
+                        if alias_node:
+                            alias = self._get_node_text(alias_node, source_bytes, source_code)
+                        imported_items.append((name, alias, None))
+                        import_type = "aliased"
+            
+            # Альтернативный поиск импортируемых имен, если не нашли после 'import'
+            if not found_import_keyword and child.type in ['import_specifier', 'aliased_import', 'wildcard_import']:
+                if child.type == 'wildcard_import':
+                    imported_items.append(('*', None, None))
+                    import_type = "wildcard"
+                elif child.type == 'import_specifier':
+                    # from module import name
+                    name_node = child.child_by_field_name('name')
+                    if name_node:
+                        name = self._get_node_text(name_node, source_bytes, source_code)
+                        imported_items.append((name, None, None))
+                        import_type = "simple"
+                elif child.type == 'aliased_import':
+                    # from module import name as alias
                     name_node = child.child_by_field_name('name')
                     alias_node = child.child_by_field_name('alias')
-                    if name_node and alias_node:
-                        module_name = self._get_node_text(name_node, source_bytes, source_code)
-                        alias_name = self._get_node_text(alias_node, source_bytes, source_code)
-                        result.append({
-                            'name': alias_name,
-                            'module': module_name,
-                            'alias': alias_name,
-                            'is_relative': False
-                        })
+                    if name_node:
+                        name = self._get_node_text(name_node, source_bytes, source_code)
+                        alias = self._get_node_text(alias_node, source_bytes, source_code) if alias_node else None
+                        imported_items.append((name, alias, None))
+                        import_type = "aliased"
         
-        elif node.type == 'import_from_statement':
-            # Обработка "from module import name"
-            module_node = node.child_by_field_name('module_name')
-            if module_node:
-                module_name = self._get_node_text(module_node, source_bytes, source_code)
-                is_relative = module_name.startswith('.')
+        # Если не нашли импортируемые имена, пытаемся найти их альтернативным способом
+        if not imported_items:
+            # Ищем все идентификаторы после модуля
+            for i, child in enumerate(node.children):
+                if child == module_node and i + 1 < len(node.children):
+                    next_child = node.children[i + 1]
+                    if next_child.type == 'import':
+                        continue
+                    
+                    # Обработка одного имени
+                    if next_child.type in ['identifier', 'dotted_name']:
+                        name = self._get_node_text(next_child, source_bytes, source_code)
+                        imported_items.append((name, None, None))
+                        import_type = "simple"
+                    
+                    # Обработка списка имен
+                    elif next_child.type == 'import_specifier_list':
+                        for spec in next_child.children:
+                            if spec.type in ['identifier', 'dotted_name']:
+                                name = self._get_node_text(spec, source_bytes, source_code)
+                                imported_items.append((name, None, None))
+                                import_type = "simple"
+                            elif spec.type == 'aliased_import':
+                                name_node = spec.child_by_field_name('name')
+                                alias_node = spec.child_by_field_name('alias')
+                                if name_node:
+                                    name = self._get_node_text(name_node, source_bytes, source_code)
+                                    alias = self._get_node_text(alias_node, source_bytes, source_code) if alias_node else None
+                                    imported_items.append((name, alias, None))
+                                    import_type = "aliased"
+        
+        # 3. Создание CodeUnit для каждого импортируемого имени
+        if not imported_items:
+            # Если не найдены имена, создаем импорт для всего модуля
+            if module_name:
+                self._create_import_unit(
+                    name=module_name.split('.')[-1],
+                    module=module_name,
+                    alias=None,
+                    file_path=file_path,
+                    import_text=import_text,
+                    location=location,
+                    parent_id=parent_id,
+                    is_relative=is_relative,
+                    import_type="from_import",
+                    imports=imports
+                )
+            return
+        
+        # Обработка каждого импортируемого имени
+        for name, alias, original_name in imported_items:
+            if name == '*':
+                # Создаем импорт для wildcard
+                self._create_import_unit(
+                    name="*",
+                    module=module_name,
+                    alias=None,
+                    file_path=file_path,
+                    import_text=import_text,
+                    location=location,
+                    parent_id=parent_id,
+                    is_relative=is_relative,
+                    import_type="from_import_wildcard",
+                    imports=imports
+                )
+            else:
+                # Создаем импорт для конкретного имени
+                self._create_import_unit(
+                    name=alias or name,
+                    module=module_name,
+                    alias=alias,
+                    file_path=file_path,
+                    import_text=import_text,
+                    location=location,
+                    parent_id=parent_id,
+                    is_relative=is_relative,
+                    import_type=f"from_import_{import_type}",
+                    imports=imports
+                )
+
+    def _find_child_by_type(self, node: Node, target_types: List[str]) -> Optional[Node]:
+        """Поиск первого дочернего узла заданного типа."""
+        for child in node.children:
+            if child.type in target_types:
+                return child
+        return None
+
+
+    def _process_single_import_specifier(self, node: Node, module_name: str, is_relative: bool,
+                                        file_path: str, import_text: str, location: Location,
+                                        parent_id: Optional[str], imports: List[CodeUnit],
+                                        source_code: str, source_bytes: bytes,):
+        """Обработка одного импортируемого имени."""
+        # Определение типа узла импорта
+        if node.type == 'import_specifier':
+            name_node = node.child_by_field_name('name')
+            alias_node = node.child_by_field_name('alias')
+            
+            if name_node:
+                name = self._get_node_text(name_node, source_bytes, source_code)
+                alias = None
+                if alias_node:
+                    alias = self._get_node_text(alias_node, source_bytes, source_code)
                 
-                # Извлечение импортируемых имен
-                imports_node = node.child_by_field_name('imports')
-                if imports_node:
-                    for import_child in imports_node.children:
-                        if import_child.type == 'dotted_name':
-                            name = self._get_node_text(import_child, source_bytes, source_code)
-                            result.append({
-                                'name': name.split('.')[-1],
-                                'module': module_name,
-                                'is_relative': is_relative
-                            })
-                        elif import_child.type == 'aliased_import':
-                            name_node = import_child.child_by_field_name('name')
-                            alias_node = import_child.child_by_field_name('alias')
-                            if name_node and alias_node:
-                                name = self._get_node_text(name_node, source_bytes, source_code)
-                                alias = self._get_node_text(alias_node, source_bytes, source_code)
-                                result.append({
-                                    'name': alias,
-                                    'module': module_name,
-                                    'alias': alias,
-                                    'is_relative': is_relative
-                                })
-        
-        return result
-    
+                self._create_import_unit(
+                    alias or name, module_name, alias, file_path, import_text,
+                    location, parent_id, is_relative, 'from_import', imports
+                )
+        elif node.type == 'aliased_import':
+            name_node = node.child_by_field_name('name') or node.named_children[0]
+            alias_node = node.child_by_field_name('alias') or node.named_children[-1]
+            
+            if name_node and alias_node:
+                name = self._get_node_text(name_node, source_bytes, source_code)
+                alias = self._get_node_text(alias_node, source_bytes, source_code)
+                self._create_import_unit(
+                    alias, module_name, alias, file_path, import_text,
+                    location, parent_id, is_relative, 'from_import', imports
+                )
+
+    def _create_import_unit(self, name: str, module: str, alias: Optional[str], file_path: str,
+                        import_text: str, location: Location, parent_id: Optional[str],
+                        is_relative: bool, import_type: str, imports: List[CodeUnit]):
+        """Создание CodeUnit для импорта."""
+        if not name or not module:
+            return
+            
+        import_id = f"import_{name.replace('.', '_')}_{hash(import_text) % 10000}"
+        import_unit = CodeUnit(
+            id=import_id,
+            name=name,
+            type=CodeUnitType.IMPORT,
+            location=location,
+            code_span=CodeSpan(source_code=import_text),
+            parent_id=parent_id,
+            metadata={
+                'import_type': import_type,
+                'original_text': import_text,
+                'module': module,
+                'alias': alias,
+                'is_relative': is_relative
+            },
+            language="python"
+        )
+        imports.append(import_unit)
+
+    def _create_location(self, node: Node, file_path: str) -> Location:
+        """Создание объекта Location с валидацией координат."""
+        return Location(
+            file_path=file_path,
+            start_line=max(1, node.start_point[0] + 1),
+            end_line=max(1, node.end_point[0] + 1),
+            start_column=max(1, node.start_point[1] + 1),
+            end_column=max(1, node.end_point[1] + 1)
+        )
+
     def _extract_module_docstring(self, node: Node, source_code: str, source_bytes: bytes) -> Optional[str]:
         """Извлечение docstring модуля."""
         # Поиск первого выражения в модуле
