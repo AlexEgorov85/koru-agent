@@ -50,6 +50,7 @@ class SessionContext(BaseSessionContext):
         self.created_at = datetime.now()
         self.last_activity = datetime.now()
         self.goal = None
+        self.project_map = None
         self.current_plan_item_id: Optional[str] = None # Атрибут для хранения ID текущего плана
         self.current_plan_step_id: Optional[str] = None # Атрибут для хранения ID текущего шага плана
         

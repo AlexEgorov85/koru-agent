@@ -38,6 +38,8 @@ class FileListerOutput(ToolOutput):
 
 class FileListerTool(BaseTool):
     """Инструмент для получения списка файлов и директорий с защитой от опасных директорий."""
+
+    name = "file_lister"
     
     @property
     def description(self) -> str:

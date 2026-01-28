@@ -16,9 +16,9 @@ async def analyze_file_example():
     session = SessionContext()
     
     # 3. Получение навыка
-    project_map_skill = system_context.get_resource("ProjectMapSkill")
+    project_map_skill = system_context.get_resource("project_map")
     if not project_map_skill:
-        print("Навык ProjectMapSkill не найден")
+        print("Навык project_map не найден")
         return
     
     # 4. Анализ файла с кодом навыка

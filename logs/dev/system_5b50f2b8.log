@@ -1,0 +1,100 @@
+2026-01-28 09:42:56,036 - core.system_context.system_context - INFO - SystemContext создан (ID: 5b50f2b8-23ec-46ec-b4c4-41a047868724)
+2026-01-28 09:42:56,036 - core.system_context.system_context - INFO - Инициализация системы (ID: 5b50f2b8-23ec-46ec-b4c4-41a047868724) с профилем: dev
+2026-01-28 09:42:56,036 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-28 09:42:56,036 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-28 09:42:56,044 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-28 09:43:04,746 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 8.70 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-28 09:43:04,748 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-28 09:43:04,748 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-28 09:43:04,750 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-28 09:43:04,750 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-28 09:43:04,750 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-28 09:43:04,922 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-28 09:43:04,922 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.17 секунд
+2026-01-28 09:43:04,922 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-28 09:43:04,922 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-28 09:43:04,936 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-28 09:43:04,943 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-28 09:43:04,944 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-28 09:43:04,946 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-28 09:43:04,947 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-28 09:43:04,947 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-28 09:43:04,956 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-28 09:43:04,957 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-28 09:43:04,957 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-28 09:43:04,958 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-28 09:43:04,960 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-28 09:43:04,961 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-28 09:43:04,962 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-28 09:43:04,964 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-28 09:43:04,965 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-28 09:43:05,207 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-28 09:43:05,207 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-28 09:43:05,207 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-28 09:43:05,207 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-28 09:43:05,215 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-28 09:43:05,215 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-28 09:43:05,217 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации: project_navigator
+2026-01-28 09:43:05,218 - core.skills.project_navigator.skill - ERROR - Не найден сервис 'ast_processing' в системном контексте
+2026-01-28 09:43:05,218 - core.system_context.factory - INFO - Навык 'project_navigator' успешно создан
+2026-01-28 09:43:05,219 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Навык 'project_navigator' успешно зарегистрирован в реестре
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-28 09:43:05,220 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 4
+2026-01-28 09:43:05,279 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-28 09:43:05,279 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-28 09:43:05,279 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-28 09:43:05,279 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-28 09:43:05,292 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-28 09:43:05,292 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-28 09:43:05,294 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-28 09:43:05,294 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-28 09:43:05,295 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-28 09:43:05,296 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-28 09:43:05,297 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-28 09:43:05,297 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-28 09:43:05,297 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-28 09:43:05,317 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-28 09:43:05,317 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-28 09:43:05,327 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-28 09:43:05,327 - core.skills.project_navigator.skill - INFO - ProjectNavigatorSkill успешно инициализирован
+2026-01-28 09:43:05,334 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_navigator' успешно инициализирован
+2026-01-28 09:43:05,337 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-28 09:43:05,337 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-28 09:43:05,342 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-28 09:43:05,431 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-28 09:43:05,434 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.10 секунд
+2026-01-28 09:43:05,434 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-28 09:43:05,435 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-28 09:43:05,436 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-28 09:43:05,436 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-28 09:43:05,437 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-28 09:43:06,655 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-28 09:43:06,655 - project_navigator_test - INFO - ✅ Система успешно инициализирована
+2026-01-28 09:43:06,655 - project_navigator_test - INFO - ✅ Сессия создана
+2026-01-28 09:43:06,655 - project_navigator_test - INFO - ================================================================================
+2026-01-28 09:43:06,655 - project_navigator_test - INFO - ЭТАП 1: Анализ структуры проекта через ProjectMapSkill
+2026-01-28 09:43:06,655 - project_navigator_test - INFO - ================================================================================
+2026-01-28 09:43:06,693 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 133
+2026-01-28 09:43:06,889 - core.infrastructure.services.code_analysis.adapters.python_adapter - ERROR - Ошибка извлечения текста узла string: min() arg is an empty sequence
+2026-01-28 09:43:07,618 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\infrastructure\services\__init__.py
+2026-01-28 09:43:08,706 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\skills\project_map\models\__init__.py
+2026-01-28 09:43:09,953 - core.skills.project_map.skill - INFO - Проанализировано файлов: 96 из 133 (поддерживаемые расширения: ['py'])
+2026-01-28 09:43:09,977 - project_navigator_test - INFO - ✅ Проект успешно проанализирован
+2026-01-28 09:43:09,977 - project_navigator_test - INFO -    Файлов: 96
+2026-01-28 09:43:09,977 - project_navigator_test - INFO -    Единиц кода: 1297
+2026-01-28 09:43:09,977 - project_navigator_test - INFO - ✅ ProjectMap сохранён в контекст сессии
+2026-01-28 09:43:09,991 - project_navigator_test - INFO - 
+✅ Анализ проекта завершён успешно. Запуск сценариев навигации...
+2026-01-28 09:43:09,991 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 09:43:09,992 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #1
+2026-01-28 09:43:09,993 - project_navigator_test - INFO - ================================================================================
+2026-01-28 09:43:09,994 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 09:43:09,996 - project_navigator_test - INFO - СЦЕНАРИЙ 1: Навигация к файлу и получение его содержимого
+2026-01-28 09:43:09,997 - project_navigator_test - INFO - ================================================================================
+2026-01-28 09:43:09,999 - core.infrastructure.tools.file_reader_tool - ERROR - Ошибка чтения файла C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py: 'FileReadInput' object has no attribute 'encoding'

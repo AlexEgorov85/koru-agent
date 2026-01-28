@@ -1,0 +1,127 @@
+2026-01-27 16:14:13,999 - core.system_context.system_context - INFO - SystemContext создан (ID: 7b5dc8d3-6e4c-447d-99dd-e51285a897e2)
+2026-01-27 16:14:13,999 - core.system_context.system_context - INFO - Инициализация системы (ID: 7b5dc8d3-6e4c-447d-99dd-e51285a897e2) с профилем: dev
+2026-01-27 16:14:13,999 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 16:14:13,999 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 16:14:13,999 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 16:14:13,999 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 16:14:14,415 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 16:14:19,448 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 5.45 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 16:14:19,449 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 16:14:19,449 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 16:14:19,450 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 16:14:19,450 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 16:14:19,451 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 16:14:19,529 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 16:14:19,530 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.08 секунд
+2026-01-27 16:14:19,530 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 16:14:19,531 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 16:14:19,531 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 16:14:19,534 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 16:14:19,534 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 16:14:19,535 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 16:14:19,535 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 16:14:19,535 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 16:14:19,536 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 16:14:19,536 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 16:14:19,537 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 16:14:19,537 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 16:14:19,537 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 16:14:19,542 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 16:14:19,543 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 16:14:19,543 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 16:14:19,543 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 16:14:19,544 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 16:14:19,544 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 16:14:19,544 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 16:14:19,544 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,544 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,545 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,545 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,545 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,545 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 16:14:19,545 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 16:14:19,547 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 16:14:19,577 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 16:14:19,629 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 16:14:19,634 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 16:14:19,639 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 16:14:19,639 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 16:14:19,639 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 16:14:19,640 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 16:14:19,640 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 16:14:19,640 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 16:14:19,641 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-27 16:14:19,641 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 16:14:19,641 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 16:14:19,642 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 16:14:19,642 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 16:14:19,646 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 16:14:19,647 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 16:14:19,647 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 16:14:19,647 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,647 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,648 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 16:14:19,648 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 16:14:19,658 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-27 16:14:19,659 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-27 16:14:19,659 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 16:14:19,661 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 16:14:19,662 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-27 16:14:19,662 - core.system_context.factory - DEBUG - Создание экземпляра сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 16:14:19,663 - core.system_context.factory - DEBUG - Экземпляр сервиса 'ast_processing' создан
+2026-01-27 16:14:19,663 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-27 16:14:19,663 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 16:14:19,664 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 16:14:19,664 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 16:14:19,664 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 16:14:19,664 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 16:14:19,665 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 16:14:19,665 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 16:14:19,666 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 16:14:19,666 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 16:14:19,683 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 16:14:19,683 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-27 16:14:19,686 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 16:14:19,687 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 16:14:19,687 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 16:14:19,689 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-27 16:14:19,728 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 16:14:19,729 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.04 секунд
+2026-01-27 16:14:19,729 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 16:14:19,730 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-27 16:14:19,730 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 16:14:19,730 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 16:14:19,731 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 16:14:21,067 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 16:14:21,094 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 22
+2026-01-27 16:14:21,094 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core/skills/project_map/skill.py (python), корневой узел: module
+2026-01-27 16:14:21,103 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 22
+2026-01-27 16:14:21,104 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core/skills/project_map/skill.py (python), корневой узел: module
+2026-01-27 16:14:21,171 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core/skills/project_map/skill.py: 28 элементов (17 верхнего уровня)
+2026-01-27 16:14:21,171 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core/skills/project_map/skill.py: найдено 28 единиц кода
+2026-01-27 16:14:21,171 - core.skills.project_map.skill - ERROR - Ошибка получения единиц кода из файла core/skills/project_map/skill.py: sequence item 0: expected str instance, dict found
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 545, in _get_file_code_units
+    code_units=[unit.to_dict() for unit in code_units],  # Сериализация объектов
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 545, in <listcomp>
+    code_units=[unit.to_dict() for unit in code_units],  # Сериализация объектов
+                ^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\models\code_unit.py", line 338, in to_dict
+    'signature': self.get_signature(),
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\models\code_unit.py", line 296, in get_signature
+    bases_str = f"({', '.join(bases)})" if bases else ""
+                    ^^^^^^^^^^^^^^^^
+TypeError: sequence item 0: expected str instance, dict found

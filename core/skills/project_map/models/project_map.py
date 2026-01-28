@@ -44,7 +44,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from core.skills.project_map.models.code_unit import CodeUnit
+from models.code_unit import CodeUnit
 
 @dataclass
 class FileInfo:
@@ -307,7 +307,7 @@ class ProjectStructure:
         """
         return {
             'root_dir': self.root_dir,
-            'scan_time': self.scan_time.isoformat(),
+            'scan_time': self.scan_time,
             'total_files': self.total_files,
             'total_code_units': self.total_code_units,
             'files_count': len(self.files),

@@ -21,7 +21,7 @@ from core.system_context.resource_registry import ResourceRegistry, ResourceInfo
 from core.system_context.capability_registry import CapabilityRegistry
 from core.system_context.lifecycle_manager import LifecycleManager
 
-from core.infrastructure.providers.factory import ProviderFactory
+from core.system_context.factory import ProviderFactory
 from models.capability import Capability
 from models.llm_types import LLMRequest, LLMResponse
 from models.resource import ResourceType
@@ -131,13 +131,16 @@ class SystemContext(BaseSystemContext):
             
             # 3. Автоматическая регистрация навыков из директории
             await self.provider_factory.discover_and_create_all_skills()
+
+            # 4. Автоматическая регистрация сервисов из директории
+            await self.provider_factory.discover_and_create_all_services()
             
-            # 4. Инициализация всех компонентов
+            # 5. Инициализация всех компонентов
             initialization_success = await self.lifecycle.initialize()
             if not initialization_success:
                 logger.warning("Не все компоненты были успешно инициализированы")
-            
-            # 5. Проверка здоровья системы
+
+            # 6. Проверка здоровья системы
             health_report = await self.lifecycle.check_health()
             if health_report["status"] == "unhealthy":
                 logger.error("Система не прошла проверку здоровья")
@@ -172,7 +175,7 @@ class SystemContext(BaseSystemContext):
         await self.lifecycle.shutdown()
         self.initialized = False
         logger.info("Система успешно завершила работу")
-    
+
     async def _register_providers_from_config(self) -> None:
         """
         Автоматическая регистрация провайдеров из конфигурации.
@@ -566,3 +569,16 @@ class SystemContext(BaseSystemContext):
         
         # Стратегия по умолчанию
         return self.config.agent.get("default_strategy", "react")
+
+    def list_services(self) -> List[str]:
+        """Получение списка всех доступных сервисов.
+        
+        Returns:
+            List[str]: Список имен сервисов
+        """
+        return [
+            info.name for info in self.registry.all() 
+            if info.resource_type == ResourceType.SERVICE
+        ]
+
+

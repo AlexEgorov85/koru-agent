@@ -1,0 +1,90 @@
+2026-01-27 10:21:31,303 - core.system_context.system_context - INFO - SystemContext создан (ID: 3b224d1e-2a5e-4c3f-982d-7eee77949bc2)
+2026-01-27 10:21:31,306 - core.system_context.system_context - INFO - Инициализация системы (ID: 3b224d1e-2a5e-4c3f-982d-7eee77949bc2) с профилем: dev
+2026-01-27 10:21:31,307 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 10:21:31,309 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 10:21:31,311 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 10:21:31,314 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 10:21:31,754 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 10:21:40,593 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 9.28 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 10:21:40,594 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 10:21:40,595 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 10:21:40,596 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 10:21:40,597 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 10:21:40,597 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 10:21:40,678 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 10:21:40,679 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.08 секунд
+2026-01-27 10:21:40,680 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 10:21:40,681 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 10:21:40,682 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 10:21:40,684 - core.system_context.factory - DEBUG - Найден класс инструмента 'ASTParserTool'
+2026-01-27 10:21:40,685 - core.system_context.factory - DEBUG - Найден класс инструмента 'FileListerTool'
+2026-01-27 10:21:40,686 - core.system_context.factory - DEBUG - Найден класс инструмента 'FileReaderTool'
+2026-01-27 10:21:40,687 - core.system_context.factory - DEBUG - Найден класс инструмента 'FileWriterTool'
+2026-01-27 10:21:40,687 - core.system_context.factory - DEBUG - Найден класс инструмента 'SQLTool'
+2026-01-27 10:21:40,688 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 10:21:40,690 - core.system_context.factory - DEBUG - Создание инструмента 'ASTParserTool' из класса ASTParserTool
+2026-01-27 10:21:40,690 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 10:21:40,691 - core.system_context.factory - INFO - Инструмент 'ASTParserTool' успешно создан
+2026-01-27 10:21:40,692 - core.system_context.factory - DEBUG - Создание инструмента 'FileListerTool' из класса FileListerTool
+2026-01-27 10:21:40,694 - core.system_context.factory - INFO - Инструмент 'FileListerTool' успешно создан
+2026-01-27 10:21:40,695 - core.system_context.factory - DEBUG - Создание инструмента 'FileReaderTool' из класса FileReaderTool
+2026-01-27 10:21:40,697 - core.system_context.factory - INFO - Инструмент 'FileReaderTool' успешно создан
+2026-01-27 10:21:40,698 - core.system_context.factory - DEBUG - Создание инструмента 'FileWriterTool' из класса FileWriterTool
+2026-01-27 10:21:40,699 - core.system_context.factory - INFO - Инструмент 'FileWriterTool' успешно создан
+2026-01-27 10:21:40,700 - core.system_context.factory - DEBUG - Создание инструмента 'SQLTool' из класса SQLTool
+2026-01-27 10:21:40,701 - core.system_context.factory - INFO - Инструмент 'SQLTool' успешно создан
+2026-01-27 10:21:40,702 - core.system_context.factory - INFO - Инструмент 'ASTParserTool' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,703 - core.system_context.factory - INFO - Инструмент 'FileListerTool' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,704 - core.system_context.factory - INFO - Инструмент 'FileReaderTool' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,705 - core.system_context.factory - INFO - Инструмент 'FileWriterTool' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,706 - core.system_context.factory - INFO - Инструмент 'SQLTool' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,706 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 10:21:40,707 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 10:21:40,710 - core.system_context.factory - DEBUG - Найден класс навыка 'PlanningSkill'
+2026-01-27 10:21:40,730 - core.system_context.factory - DEBUG - Найден класс навыка 'ProjectMapSkill'
+2026-01-27 10:21:40,778 - core.system_context.factory - DEBUG - Найден класс навыка 'ProjectNavigatorSkill'
+2026-01-27 10:21:40,782 - core.system_context.factory - DEBUG - Найден класс навыка 'TableDescriptionSkill'
+2026-01-27 10:21:40,793 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 10:21:40,794 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 10:21:40,795 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 10:21:40,796 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 10:21:40,797 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 10:21:40,798 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 10:21:40,799 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 10:21:40,800 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 10:21:40,801 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 10:21:40,802 - core.skills.project_navigator.skill - INFO - ProjectNavigatorSkill успешно инициализирован
+2026-01-27 10:21:40,803 - core.system_context.factory - INFO - Навык 'project_navigator' успешно создан
+2026-01-27 10:21:40,804 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 10:21:40,805 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 10:21:40,806 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 10:21:40,807 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,808 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,809 - core.system_context.factory - INFO - Навык 'project_navigator' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,810 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 10:21:40,810 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 4
+2026-01-27 10:21:40,812 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 10:21:40,814 - core.system_context.factory - ERROR - Ошибка при загрузке модуля 'core.infrastructure.services.code_analysis.ast_processing.service': type object 'ASTProcessingService' has no attribute 'name'
+2026-01-27 10:21:40,816 - core.system_context.factory - ERROR - Ошибка при загрузке модуля 'core.infrastructure.services.code_analysis.code_navigation.service': type object 'CodeNavigationService' has no attribute 'name'
+2026-01-27 10:21:40,818 - core.system_context.factory - INFO - Найдено классов сервисов: 0
+2026-01-27 10:21:40,819 - core.system_context.factory - INFO - Успешно создано и зарегистрировано сервисов: 0
+2026-01-27 10:21:40,820 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 10:21:40,821 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 10:21:40,821 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 10:21:40,823 - core.infrastructure.tools.ast_parser_tool - INFO - Успешно инициализирован парсер для Python
+2026-01-27 10:21:40,824 - core.system_context.lifecycle_manager - INFO - Ресурс 'ASTParserTool' успешно инициализирован
+2026-01-27 10:21:40,825 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileListerTool' успешно инициализирован
+2026-01-27 10:21:40,826 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileReaderTool' успешно инициализирован
+2026-01-27 10:21:40,827 - core.system_context.lifecycle_manager - INFO - Ресурс 'FileWriterTool' успешно инициализирован
+2026-01-27 10:21:40,827 - core.system_context.lifecycle_manager - INFO - Ресурс 'SQLTool' успешно инициализирован
+2026-01-27 10:21:40,838 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 10:21:40,840 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 10:21:40,841 - core.skills.project_navigator.skill - INFO - ProjectNavigatorSkill успешно инициализирован
+2026-01-27 10:21:40,847 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_navigator' успешно инициализирован
+2026-01-27 10:21:40,849 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 10:21:40,850 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 10:21:40,902 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 10:21:40,903 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.05 секунд
+2026-01-27 10:21:40,904 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 10:21:40,905 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 10:21:43,901 - core.system_context.system_context - INFO - Система успешно инициализирована

@@ -1,0 +1,472 @@
+2026-01-27 13:26:55,482 - core.system_context.system_context - INFO - SystemContext создан (ID: bd006534-d1c8-4fac-a1e9-4b95c3a08d3d)
+2026-01-27 13:26:55,482 - core.system_context.system_context - INFO - Инициализация системы (ID: bd006534-d1c8-4fac-a1e9-4b95c3a08d3d) с профилем: dev
+2026-01-27 13:26:55,482 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 13:26:55,482 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 13:26:55,482 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 13:26:55,482 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 13:26:55,634 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 13:27:00,080 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 4.60 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 13:27:00,080 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 13:27:00,080 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 13:27:00,080 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 13:27:00,080 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 13:27:00,080 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 13:27:00,138 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 13:27:00,140 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.06 секунд
+2026-01-27 13:27:00,140 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 13:27:00,140 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 13:27:00,140 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 13:27:00,142 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 13:27:00,142 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 13:27:00,142 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 13:27:00,144 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 13:27:00,144 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 13:27:00,144 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 13:27:00,145 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 13:27:00,145 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 13:27:00,145 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 13:27:00,145 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 13:27:00,145 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 13:27:00,145 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 13:27:00,145 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,146 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,146 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,146 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,146 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,146 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 13:27:00,147 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 13:27:00,147 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 13:27:00,148 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 13:27:00,169 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 13:27:00,173 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 13:27:00,177 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 13:27:00,177 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 13:27:00,177 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 13:27:00,177 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 13:27:00,177 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 13:27:00,177 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 13:27:00,178 - core.skills.project_map.skill - ERROR - Не удалось получить сервисы анализа кода (ast_processing, code_navigation)
+2026-01-27 13:27:00,178 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 13:27:00,178 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 13:27:00,178 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 13:27:00,178 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 13:27:00,180 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 13:27:00,180 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 13:27:00,180 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 13:27:00,180 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,180 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,180 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,180 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 13:27:00,181 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 13:27:00,183 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 13:27:00,183 - core.system_context.factory - DEBUG - Найден класс сервиса 'CodeNavigationService' -> зарегистрирован как 'code_navigation'
+2026-01-27 13:27:00,184 - core.system_context.factory - INFO - Найдено классов сервисов: 2
+2026-01-27 13:27:00,184 - core.system_context.factory - DEBUG - Создание сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 13:27:00,184 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi)
+2026-01-27 13:27:00,184 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 13:27:00,184 - core.system_context.factory - INFO - Сервис 'ast_processing' успешно создан и инициализирован
+2026-01-27 13:27:00,184 - core.system_context.factory - DEBUG - Создание сервиса 'code_navigation' из класса CodeNavigationService
+2026-01-27 13:27:00,184 - core.infrastructure.services.code_analysis.code_navigation.service - ERROR - Требуется ASTProcessingService для инициализации
+2026-01-27 13:27:00,184 - core.system_context.factory - ERROR - Не удалось инициализировать сервис 'code_navigation'
+2026-01-27 13:27:00,185 - core.system_context.factory - INFO - Сервис 'ast_processing' успешно зарегистрирован в реестре
+2026-01-27 13:27:00,185 - core.system_context.factory - INFO - Успешно создано и зарегистрировано сервисов: 1
+2026-01-27 13:27:00,185 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 13:27:00,185 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 13:27:00,185 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 13:27:00,185 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 13:27:00,185 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 13:27:00,185 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 13:27:00,186 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 13:27:00,186 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 13:27:00,186 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 13:27:00,189 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 13:27:00,189 - core.skills.project_map.skill - ERROR - Не удалось получить сервисы анализа кода (ast_processing, code_navigation)
+2026-01-27 13:27:00,193 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 13:27:00,193 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 13:27:00,194 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 13:27:00,195 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован
+2026-01-27 13:27:00,262 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 13:27:00,263 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.07 секунд
+2026-01-27 13:27:00,264 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 13:27:00,264 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi)
+2026-01-27 13:27:00,264 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 13:27:00,265 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 13:27:00,265 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 13:27:00,266 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован
+2026-01-27 13:27:01,456 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .git
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .ipynb_checkpoints
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .pytest_cache
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .vscode
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: logs
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,456 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,463 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,463 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,464 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,465 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,465 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,465 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,466 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,466 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,467 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,468 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,469 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,469 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,470 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,470 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,471 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,472 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,472 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,473 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,473 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,473 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,475 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 13:27:01,479 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 143
+2026-01-27 13:27:01,479 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: .gitignore
+2026-01-27 13:27:01,479 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: about.md
+2026-01-27 13:27:01,481 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,482 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл analyze_file.py (python), корневой узел: module
+2026-01-27 13:27:01,482 - core.skills.project_map.skill - WARNING - Ошибка анализа файла analyze_file.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,482 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: core_skills_project_map_skill_analysis.json
+2026-01-27 13:27:01,487 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 24
+2026-01-27 13:27:01,487 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл main.py (python), корневой узел: module
+2026-01-27 13:27:01,487 - core.skills.project_map.skill - WARNING - Ошибка анализа файла main.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,493 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 13:27:01,493 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл project_navigator.py (python), корневой узел: module
+2026-01-27 13:27:01,493 - core.skills.project_map.skill - WARNING - Ошибка анализа файла project_navigator.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,493 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: project_structure.json
+2026-01-27 13:27:01,494 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: readme.md
+2026-01-27 13:27:01,494 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: requirements.txt
+2026-01-27 13:27:01,495 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,495 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл test_main.py (python), корневой узел: module
+2026-01-27 13:27:01,496 - core.skills.project_map.skill - WARNING - Ошибка анализа файла test_main.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,496 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: Untitled.ipynb
+2026-01-27 13:27:01,497 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 13:27:01,497 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\executor.py (python), корневой узел: module
+2026-01-27 13:27:01,497 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\executor.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,498 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 13:27:01,498 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\interfaces.py (python), корневой узел: module
+2026-01-27 13:27:01,499 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\interfaces.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,499 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 13:27:01,499 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\model.py (python), корневой узел: module
+2026-01-27 13:27:01,499 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\model.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,500 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 13:27:01,500 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\policy.py (python), корневой узел: module
+2026-01-27 13:27:01,500 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\policy.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,501 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 13:27:01,501 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\progress.py (python), корневой узел: module
+2026-01-27 13:27:01,501 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\progress.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,504 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 13:27:01,504 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\runtime.py (python), корневой узел: module
+2026-01-27 13:27:01,504 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\runtime.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,505 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,505 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\state.py (python), корневой узел: module
+2026-01-27 13:27:01,505 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\state.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,506 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,506 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\base.py (python), корневой узел: module
+2026-01-27 13:27:01,506 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\base.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,507 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\evaluation.py (python), корневой узел: module
+2026-01-27 13:27:01,507 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\evaluation.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,508 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\fallback.py (python), корневой узел: module
+2026-01-27 13:27:01,508 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\fallback.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,508 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,508 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,509 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,511 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,512 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\models.py (python), корневой узел: module
+2026-01-27 13:27:01,512 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\models.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,513 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 13:27:01,513 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\prompts.py (python), корневой узел: module
+2026-01-27 13:27:01,513 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\prompts.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,518 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,518 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\schema_validator.py (python), корневой узел: module
+2026-01-27 13:27:01,518 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\schema_validator.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,524 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 17
+2026-01-27 13:27:01,524 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\strategy.py (python), корневой узел: module
+2026-01-27 13:27:01,524 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\strategy.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,527 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 13:27:01,527 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\utils.py (python), корневой узел: module
+2026-01-27 13:27:01,527 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\utils.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,531 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 13:27:01,531 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\validation.py (python), корневой узел: module
+2026-01-27 13:27:01,531 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\validation.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,533 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,533 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,533 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,552 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,552 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\config_loader.py (python), корневой узел: module
+2026-01-27 13:27:01,552 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\config_loader.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,562 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 13:27:01,562 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\models.py (python), корневой узел: module
+2026-01-27 13:27:01,562 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\models.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,563 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,563 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,563 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,565 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,565 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\base_db.py (python), корневой узел: module
+2026-01-27 13:27:01,565 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\base_db.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,567 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 13:27:01,567 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\postgres_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,568 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\postgres_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,569 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,570 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\base_llm.py (python), корневой узел: module
+2026-01-27 13:27:01,570 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\base_llm.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,572 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 13:27:01,572 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,572 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\llama_cpp_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,582 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 13:27:01,582 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\vllm_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,582 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\vllm_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,583 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,583 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\base_service.py (python), корневой узел: module
+2026-01-27 13:27:01,584 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\base_service.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,584 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\infrastructure\services\__init__.py
+2026-01-27 13:27:01,585 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,585 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\base.py (python), корневой узел: module
+2026-01-27 13:27:01,585 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\base.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,586 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,586 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\language_registry.py (python), корневой узел: module
+2026-01-27 13:27:01,586 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\language_registry.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,587 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,587 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,587 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\base_adapter.py (python), корневой узел: module
+2026-01-27 13:27:01,588 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\base_adapter.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\python_adapter.py (python), корневой узел: module
+2026-01-27 13:27:01,588 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\python_adapter.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,588 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,588 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,594 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,594 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\service.py (python), корневой узел: module
+2026-01-27 13:27:01,594 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\service.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,595 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 13:27:01,595 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,595 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,598 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,598 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\code_navigation\service.py (python), корневой узел: module
+2026-01-27 13:27:01,598 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\code_navigation\service.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,600 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 13:27:01,600 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\code_navigation\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,600 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\code_navigation\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,602 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 13:27:01,602 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\ast_parser_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,602 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\ast_parser_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,602 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,603 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\base_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,603 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\base_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,605 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 13:27:01,605 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_lister_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,605 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_lister_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,608 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,608 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_reader_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,609 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_reader_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,611 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,611 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_writer_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,612 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_writer_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,613 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,614 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\sql_tool.py (python), корневой узел: module
+2026-01-27 13:27:01,614 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\sql_tool.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,615 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,615 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,615 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,616 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,616 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\retry_and_error_policy.py (python), корневой узел: module
+2026-01-27 13:27:01,616 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\retry_and_error_policy.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,617 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,617 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\utils.py (python), корневой узел: module
+2026-01-27 13:27:01,617 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\utils.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\base_session_context.py (python), корневой узел: module
+2026-01-27 13:27:01,619 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\base_session_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\data_context.py (python), корневой узел: module
+2026-01-27 13:27:01,619 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\data_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,619 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\model.py (python), корневой узел: module
+2026-01-27 13:27:01,619 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\model.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\session_context.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\session_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\step_context.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\step_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\base_skill.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\base_skill.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,646 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\prompt.py (python), корневой узел: module
+2026-01-27 13:27:01,646 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\prompt.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,661 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 54
+2026-01-27 13:27:01,661 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\schema.py (python), корневой узел: module
+2026-01-27 13:27:01,661 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\schema.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,663 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 13:27:01,663 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\skill.py (python), корневой узел: module
+2026-01-27 13:27:01,663 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\skill.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,670 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,671 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\schema.py (python), корневой узел: module
+2026-01-27 13:27:01,671 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\schema.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,675 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 22
+2026-01-27 13:27:01,675 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\skill.py (python), корневой узел: module
+2026-01-27 13:27:01,675 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\skill.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,678 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,678 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,678 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,681 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 13:27:01,681 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\models\code_unit.py (python), корневой узел: module
+2026-01-27 13:27:01,682 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\models\code_unit.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\models\project_map.py (python), корневой узел: module
+2026-01-27 13:27:01,684 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\models\project_map.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\models\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,684 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\models\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 13:27:01,684 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\schema.py (python), корневой узел: module
+2026-01-27 13:27:01,684 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\schema.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,699 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 27
+2026-01-27 13:27:01,700 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\skill.py (python), корневой узел: module
+2026-01-27 13:27:01,700 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\skill.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,702 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 13:27:01,703 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\utils.py (python), корневой узел: module
+2026-01-27 13:27:01,703 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\utils.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,704 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 13:27:01,704 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,704 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,739 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,739 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\ast_analyzer.py (python), корневой узел: module
+2026-01-27 13:27:01,739 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\ast_analyzer.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,739 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,739 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\dependency_resolver.py (python), корневой узел: module
+2026-01-27 13:27:01,739 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\dependency_resolver.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\semantics_analyzer.py (python), корневой узел: module
+2026-01-27 13:27:01,752 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\semantics_analyzer.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\__init__.py (python), корневой узел: module
+2026-01-27 13:27:01,752 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\__init__.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,752 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\navigation.py (python), корневой узел: module
+2026-01-27 13:27:01,752 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\models\navigation.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,758 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,758 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\semantics.py (python), корневой узел: module
+2026-01-27 13:27:01,758 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\models\semantics.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,760 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 13:27:01,760 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\schema.py (python), корневой узел: module
+2026-01-27 13:27:01,760 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\table_description\schema.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,765 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,765 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\skill.py (python), корневой узел: module
+2026-01-27 13:27:01,765 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\table_description\skill.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,768 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,769 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\base_system_contex.py (python), корневой узел: module
+2026-01-27 13:27:01,769 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\base_system_contex.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,770 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,770 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\capability_registry.py (python), корневой узел: module
+2026-01-27 13:27:01,770 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\capability_registry.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,770 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 13:27:01,771 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\execution_gateway.py (python), корневой узел: module
+2026-01-27 13:27:01,771 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\execution_gateway.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,773 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 20
+2026-01-27 13:27:01,773 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\factory.py (python), корневой узел: module
+2026-01-27 13:27:01,773 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\factory.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,780 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,780 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\lifecycle_manager.py (python), корневой узел: module
+2026-01-27 13:27:01,780 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\lifecycle_manager.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,782 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 13:27:01,782 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\resource_registry.py (python), корневой узел: module
+2026-01-27 13:27:01,782 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\resource_registry.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,784 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 23
+2026-01-27 13:27:01,784 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\system_context.py (python), корневой узел: module
+2026-01-27 13:27:01,784 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\system_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\capability.py (python), корневой узел: module
+2026-01-27 13:27:01,813 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\capability.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\db_types.py (python), корневой узел: module
+2026-01-27 13:27:01,813 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\db_types.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\execution.py (python), корневой узел: module
+2026-01-27 13:27:01,813 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\execution.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 13:27:01,813 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\llm_types.py (python), корневой узел: module
+2026-01-27 13:27:01,813 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\llm_types.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,825 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 13:27:01,825 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\resource.py (python), корневой узел: module
+2026-01-27 13:27:01,825 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\resource.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,826 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 13:27:01,826 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\retry_policy.py (python), корневой узел: module
+2026-01-27 13:27:01,826 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\retry_policy.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,827 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 13:27:01,827 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\structured_actions.py (python), корневой узел: module
+2026-01-27 13:27:01,827 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\structured_actions.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,835 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 33
+2026-01-27 13:27:01,835 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_execution_gateway.py (python), корневой узел: module
+2026-01-27 13:27:01,835 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\test_execution_gateway.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,839 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 30
+2026-01-27 13:27:01,839 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_session_context.py (python), корневой узел: module
+2026-01-27 13:27:01,839 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\test_session_context.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,842 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 34
+2026-01-27 13:27:01,842 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\conftest.py (python), корневой узел: module
+2026-01-27 13:27:01,842 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\conftest.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,849 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 13:27:01,850 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_db.py (python), корневой узел: module
+2026-01-27 13:27:01,850 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_base_db.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,853 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 13:27:01,853 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_llm.py (python), корневой узел: module
+2026-01-27 13:27:01,853 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_base_llm.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,859 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 19
+2026-01-27 13:27:01,859 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_factory.py (python), корневой узел: module
+2026-01-27 13:27:01,860 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_factory.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,870 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 25
+2026-01-27 13:27:01,870 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,870 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_llama_cpp_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,886 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 35
+2026-01-27 13:27:01,886 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_postgres_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,886 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_postgres_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,892 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 13:27:01,893 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_vllm_provider.py (python), корневой узел: module
+2026-01-27 13:27:01,893 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_vllm_provider.py (python): 'NoneType' object has no attribute 'get_file_outline'
+2026-01-27 13:27:01,894 - core.skills.project_map.skill - INFO - Проанализировано файлов: 0 из 143 (поддерживаемые расширения: ['py'])
+2026-01-27 13:27:01,894 - core.skills.project_map.skill - DEBUG - Проанализированы зависимости для 0 файлов

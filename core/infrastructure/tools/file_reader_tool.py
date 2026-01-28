@@ -27,6 +27,8 @@ class FileReadOutput(ToolOutput):
 
 class FileReaderTool(BaseTool):
     """Инструмент для чтения содержимого файлов."""
+
+    name = "file_reader"
     
     @property
     def description(self) -> str:

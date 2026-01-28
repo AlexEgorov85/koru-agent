@@ -1,0 +1,764 @@
+2026-01-27 15:42:12,843 - core.system_context.system_context - INFO - SystemContext создан (ID: 008c1521-957c-4807-a999-dfcabefe13e5)
+2026-01-27 15:42:12,843 - core.system_context.system_context - INFO - Инициализация системы (ID: 008c1521-957c-4807-a999-dfcabefe13e5) с профилем: dev
+2026-01-27 15:42:12,843 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 15:42:12,843 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 15:42:12,846 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 15:42:12,846 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 15:42:13,042 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 15:42:19,923 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 7.08 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 15:42:19,923 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 15:42:19,923 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 15:42:19,923 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 15:42:19,924 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 15:42:19,924 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:42:19,995 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:42:19,997 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.07 секунд
+2026-01-27 15:42:19,997 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 15:42:19,997 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 15:42:19,998 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 15:42:19,998 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 15:42:19,999 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 15:42:19,999 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 15:42:19,999 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 15:42:20,000 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 15:42:20,000 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 15:42:20,000 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 15:42:20,000 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:42:20,001 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 15:42:20,001 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 15:42:20,002 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 15:42:20,002 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 15:42:20,002 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 15:42:20,003 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 15:42:20,003 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 15:42:20,003 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 15:42:20,003 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 15:42:20,003 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 15:42:20,004 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 15:42:20,005 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 15:42:20,006 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 15:42:20,037 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 15:42:20,039 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 15:42:20,041 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 15:42:20,041 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 15:42:20,041 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 15:42:20,041 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 15:42:20,044 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 15:42:20,044 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 15:42:20,044 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-27 15:42:20,044 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 15:42:20,044 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 15:42:20,045 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 15:42:20,045 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 15:42:20,047 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 15:42:20,047 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 15:42:20,047 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 15:42:20,047 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,047 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,047 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 15:42:20,047 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 15:42:20,052 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-27 15:42:20,052 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-27 15:42:20,052 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 15:42:20,054 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 15:42:20,055 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-27 15:42:20,055 - core.system_context.factory - DEBUG - Создание экземпляра сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 15:42:20,056 - core.system_context.factory - DEBUG - Экземпляр сервиса 'ast_processing' создан
+2026-01-27 15:42:20,056 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 15:42:20,056 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 15:42:20,056 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 15:42:20,056 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 15:42:20,057 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 15:42:20,057 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-27 15:42:20,066 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 15:42:20,066 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 15:42:20,067 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:42:20,068 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-27 15:42:20,127 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:42:20,127 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.06 секунд
+2026-01-27 15:42:20,127 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 15:42:20,127 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-27 15:42:20,127 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 15:42:20,133 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 15:42:20,133 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 15:42:21,230 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .git
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .ipynb_checkpoints
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .pytest_cache
+2026-01-27 15:42:21,230 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .vscode
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: logs
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:42:21,246 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,249 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,250 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,251 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,252 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,252 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,253 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,253 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,254 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,254 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,255 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,256 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,256 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,257 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,257 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,258 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,259 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,259 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,260 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,260 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,261 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,262 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,262 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,262 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,263 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,264 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,265 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:42:21,265 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 140
+2026-01-27 15:42:21,266 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: .gitignore
+2026-01-27 15:42:21,266 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: about.md
+2026-01-27 15:42:21,266 - core.skills.project_map.skill - WARNING - Ошибка анализа файла analyze_file.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: core_skills_project_map_skill_analysis.json
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - WARNING - Ошибка анализа файла main.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - WARNING - Ошибка анализа файла project_navigator.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: project_structure.json
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: readme.md
+2026-01-27 15:42:21,267 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: requirements.txt
+2026-01-27 15:42:21,269 - core.skills.project_map.skill - WARNING - Ошибка анализа файла test_main.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,269 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: Untitled.ipynb
+2026-01-27 15:42:21,269 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\executor.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,270 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\interfaces.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,270 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\model.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,271 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\policy.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,271 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\progress.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,271 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\runtime.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,271 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\state.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,273 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\base.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,273 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\evaluation.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,273 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\fallback.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,274 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,274 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\models.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,274 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\prompts.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,275 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\schema_validator.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,275 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\strategy.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,275 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\utils.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,276 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\validation.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,276 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,276 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\config_loader.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,277 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\models.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,277 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,277 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\base_db.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,277 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\postgres_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,278 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\base_llm.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,278 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\llama_cpp_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,278 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\vllm_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,278 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\base_service.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,278 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,280 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\base.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,280 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\language_registry.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,280 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,280 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\base_adapter.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,281 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\python_adapter.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,281 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,281 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\service.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,282 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,282 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\ast_parser_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,283 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\base_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,283 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_lister_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,283 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_reader_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_writer_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\sql_tool.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\retry_and_error_policy.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\utils.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\base_session_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,286 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\data_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,289 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\model.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,289 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\session_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,289 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\step_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,289 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,291 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\base_skill.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,291 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,292 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\prompt.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,292 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\schema.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,292 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\planning\skill.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,293 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\schema.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,293 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\skill.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\models\project_map.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_map\models\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\schema.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\skill.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\utils.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\ast_analyzer.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\dependency_resolver.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\semantics_analyzer.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\components\__init__.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\models\navigation.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,294 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\project_navigator\models\semantics.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,299 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\table_description\schema.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,299 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\table_description\skill.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,300 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\base_system_contex.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,300 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\capability_registry.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,301 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\execution_gateway.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,302 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\factory.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,302 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\lifecycle_manager.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,303 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\resource_registry.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,303 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\system_context\system_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\capability.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\code_unit.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\db_types.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\execution.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\llm_types.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\resource.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\retry_policy.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла models\structured_actions.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\test_execution_gateway.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\test_session_context.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\conftest.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_base_db.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,304 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_base_llm.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,309 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_factory.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,309 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_llama_cpp_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,309 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_postgres_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,310 - core.skills.project_map.skill - WARNING - Ошибка анализа файла tests\providers\test_vllm_provider.py (python): FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 370, in _analyze_file
+    file_read_input = FileReadInput(file_path=file_path)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: FileReadInput.__init__() got an unexpected keyword argument 'file_path'
+2026-01-27 15:42:21,310 - core.skills.project_map.skill - INFO - Проанализировано файлов: 0 из 140 (поддерживаемые расширения: ['py'])
+2026-01-27 15:42:21,310 - core.skills.project_map.skill - DEBUG - Проанализированы зависимости для 0 файлов

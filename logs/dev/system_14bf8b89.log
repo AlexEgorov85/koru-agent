@@ -1,0 +1,755 @@
+2026-01-27 16:01:39,048 - core.system_context.system_context - INFO - SystemContext создан (ID: 14bf8b89-ed98-492c-a012-e9609c547dd0)
+2026-01-27 16:01:39,049 - core.system_context.system_context - INFO - Инициализация системы (ID: 14bf8b89-ed98-492c-a012-e9609c547dd0) с профилем: dev
+2026-01-27 16:01:39,050 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 16:01:39,050 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 16:01:39,050 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 16:01:39,050 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 16:01:39,349 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 16:01:44,403 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 5.35 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 16:01:44,403 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 16:01:44,403 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 16:01:44,405 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 16:01:44,405 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 16:01:44,405 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 16:01:44,477 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 16:01:44,478 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.07 секунд
+2026-01-27 16:01:44,479 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 16:01:44,479 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 16:01:44,479 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 16:01:44,482 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 16:01:44,482 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 16:01:44,483 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 16:01:44,484 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 16:01:44,484 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 16:01:44,484 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 16:01:44,485 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 16:01:44,485 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 16:01:44,486 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 16:01:44,486 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 16:01:44,492 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 16:01:44,493 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 16:01:44,493 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 16:01:44,494 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 16:01:44,494 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 16:01:44,494 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,495 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,496 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 16:01:44,496 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 16:01:44,498 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 16:01:44,500 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 16:01:44,565 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 16:01:44,566 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 16:01:44,577 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 16:01:44,578 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 16:01:44,578 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 16:01:44,578 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 16:01:44,578 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 16:01:44,578 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 16:01:44,578 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-27 16:01:44,578 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 16:01:44,578 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 16:01:44,578 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 16:01:44,578 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 16:01:44,584 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 16:01:44,584 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 16:01:44,585 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 16:01:44,585 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,585 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,585 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 16:01:44,585 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 16:02:32,713 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-27 16:02:32,714 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-27 16:02:32,715 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 16:02:32,718 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 16:02:32,721 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-27 16:02:32,722 - core.system_context.factory - DEBUG - Создание экземпляра сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 16:02:32,723 - core.system_context.factory - DEBUG - Экземпляр сервиса 'ast_processing' создан
+2026-01-27 16:02:32,723 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-27 16:02:32,724 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 16:02:32,725 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 16:02:32,726 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 16:02:32,727 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 16:02:32,727 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 16:02:32,728 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 16:02:32,728 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 16:02:32,729 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 16:02:32,730 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 16:02:32,767 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 16:02:32,768 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-27 16:02:32,771 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 16:02:32,774 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 16:02:32,774 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 16:02:32,777 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-27 16:02:32,842 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 16:02:32,842 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.07 секунд
+2026-01-27 16:02:32,857 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 16:02:32,858 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-27 16:02:32,858 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 16:02:32,858 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 16:02:32,858 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 16:02:34,125 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 16:02:34,127 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 16:02:34,127 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .git
+2026-01-27 16:02:34,128 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 16:02:34,129 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .ipynb_checkpoints
+2026-01-27 16:02:34,129 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 16:02:34,130 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .pytest_cache
+2026-01-27 16:02:34,130 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 16:02:34,130 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .vscode
+2026-01-27 16:02:34,131 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 16:02:34,132 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: logs
+2026-01-27 16:02:34,133 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 16:02:34,133 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 16:02:34,134 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 16:02:34,135 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 16:02:34,135 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 16:02:34,135 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,136 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,140 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,141 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,142 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,145 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,147 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,148 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,149 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,150 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,152 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,153 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,154 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,157 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,158 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,160 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,162 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,163 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,165 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,165 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,166 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,168 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,168 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,169 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,171 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,173 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,174 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 16:02:34,176 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 140
+2026-01-27 16:02:34,176 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: .gitignore
+2026-01-27 16:02:34,176 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: about.md
+2026-01-27 16:02:34,176 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:34,176 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл analyze_file.py (python), корневой узел: module
+2026-01-27 16:02:34,176 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:34,176 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл analyze_file.py (python), корневой узел: module
+2026-01-27 16:02:34,186 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для analyze_file.py: 7 элементов (6 верхнего уровня)
+2026-01-27 16:02:34,187 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл analyze_file.py: найдено 7 единиц кода
+2026-01-27 16:02:34,187 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: core_skills_project_map_skill_analysis.json
+2026-01-27 16:02:34,194 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 24
+2026-01-27 16:02:34,195 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл main.py (python), корневой узел: module
+2026-01-27 16:02:34,197 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 24
+2026-01-27 16:02:34,197 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл main.py (python), корневой узел: module
+2026-01-27 16:02:34,241 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для main.py: 28 элементов (20 верхнего уровня)
+2026-01-27 16:02:34,241 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл main.py: найдено 28 единиц кода
+2026-01-27 16:02:34,241 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 16:02:34,241 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл project_navigator.py (python), корневой узел: module
+2026-01-27 16:02:34,260 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 16:02:34,260 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл project_navigator.py (python), корневой узел: module
+2026-01-27 16:02:34,274 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для project_navigator.py: 19 элементов (18 верхнего уровня)
+2026-01-27 16:02:34,274 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл project_navigator.py: найдено 19 единиц кода
+2026-01-27 16:02:34,276 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: project_structure.json
+2026-01-27 16:02:34,276 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: readme.md
+2026-01-27 16:02:34,276 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: requirements.txt
+2026-01-27 16:02:34,278 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:34,278 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл test_main.py (python), корневой узел: module
+2026-01-27 16:02:34,280 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:34,280 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл test_main.py (python), корневой узел: module
+2026-01-27 16:02:34,281 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для test_main.py: 8 элементов (7 верхнего уровня)
+2026-01-27 16:02:34,282 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл test_main.py: найдено 8 единиц кода
+2026-01-27 16:02:34,282 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: Untitled.ipynb
+2026-01-27 16:02:34,283 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,283 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\executor.py (python), корневой узел: module
+2026-01-27 16:02:34,283 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,284 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\executor.py (python), корневой узел: module
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\executor.py: 8 элементов (5 верхнего уровня)
+2026-01-27 16:02:34,285 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\executor.py: найдено 8 единиц кода
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\interfaces.py (python), корневой узел: module
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\interfaces.py (python), корневой узел: module
+2026-01-27 16:02:34,285 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\interfaces.py: 6 элементов (5 верхнего уровня)
+2026-01-27 16:02:34,285 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\interfaces.py: найдено 6 единиц кода
+2026-01-27 16:02:34,291 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,291 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\model.py (python), корневой узел: module
+2026-01-27 16:02:34,291 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:34,291 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\model.py (python), корневой узел: module
+2026-01-27 16:02:34,327 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\model.py: 7 элементов (4 верхнего уровня)
+2026-01-27 16:02:34,328 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\model.py: найдено 7 единиц кода
+2026-01-27 16:02:34,329 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 16:02:34,329 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\policy.py (python), корневой узел: module
+2026-01-27 16:02:34,330 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 16:02:34,330 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\policy.py (python), корневой узел: module
+2026-01-27 16:02:34,331 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\policy.py: 5 элементов (1 верхнего уровня)
+2026-01-27 16:02:34,331 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\policy.py: найдено 5 единиц кода
+2026-01-27 16:02:34,331 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 16:02:34,331 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\progress.py (python), корневой узел: module
+2026-01-27 16:02:34,333 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 16:02:34,333 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\progress.py (python), корневой узел: module
+2026-01-27 16:02:34,334 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\progress.py: 4 элементов (1 верхнего уровня)
+2026-01-27 16:02:34,335 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\progress.py: найдено 4 единиц кода
+2026-01-27 16:02:34,339 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 16:02:34,339 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\runtime.py (python), корневой узел: module
+2026-01-27 16:02:34,344 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 16:02:34,345 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\runtime.py (python), корневой узел: module
+2026-01-27 16:02:34,346 - core.infrastructure.services.code_analysis.adapters.python_adapter - ERROR - Ошибка извлечения текста узла string: min() arg is an empty sequence
+2026-01-27 16:02:34,362 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\runtime.py: 22 элементов (17 верхнего уровня)
+2026-01-27 16:02:34,362 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\runtime.py: найдено 22 единиц кода
+2026-01-27 16:02:34,363 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,365 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\state.py (python), корневой узел: module
+2026-01-27 16:02:34,365 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,366 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\state.py (python), корневой узел: module
+2026-01-27 16:02:34,367 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\state.py: 6 элементов (2 верхнего уровня)
+2026-01-27 16:02:34,367 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\state.py: найдено 6 единиц кода
+2026-01-27 16:02:34,367 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\base.py (python), корневой узел: module
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\base.py (python), корневой узел: module
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\base.py: 5 элементов (4 верхнего уровня)
+2026-01-27 16:02:34,368 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\base.py: найдено 5 единиц кода
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\evaluation.py (python), корневой узел: module
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,368 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\evaluation.py (python), корневой узел: module
+2026-01-27 16:02:34,373 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\evaluation.py: 5 элементов (3 верхнего уровня)
+2026-01-27 16:02:34,373 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\evaluation.py: найдено 5 единиц кода
+2026-01-27 16:02:34,375 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,375 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\fallback.py (python), корневой узел: module
+2026-01-27 16:02:34,376 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,376 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\fallback.py (python), корневой узел: module
+2026-01-27 16:02:34,377 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\fallback.py: 5 элементов (3 верхнего уровня)
+2026-01-27 16:02:34,377 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\fallback.py: найдено 5 единиц кода
+2026-01-27 16:02:34,377 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,378 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,379 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,379 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,379 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\__init__.py: 5 элементов (4 верхнего уровня)
+2026-01-27 16:02:34,379 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\__init__.py: найдено 5 единиц кода
+2026-01-27 16:02:34,382 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,382 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\models.py (python), корневой узел: module
+2026-01-27 16:02:34,382 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,382 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\models.py (python), корневой узел: module
+2026-01-27 16:02:34,388 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\models.py: 6 элементов (5 верхнего уровня)
+2026-01-27 16:02:34,388 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\models.py: найдено 6 единиц кода
+2026-01-27 16:02:34,392 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:34,393 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\prompts.py (python), корневой узел: module
+2026-01-27 16:02:34,395 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:34,395 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\prompts.py (python), корневой узел: module
+2026-01-27 16:02:34,397 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\prompts.py: 4 элементов (3 верхнего уровня)
+2026-01-27 16:02:34,397 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\prompts.py: найдено 4 единиц кода
+2026-01-27 16:02:34,413 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:34,413 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\schema_validator.py (python), корневой узел: module
+2026-01-27 16:02:34,434 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:34,435 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\schema_validator.py (python), корневой узел: module
+2026-01-27 16:02:34,511 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\schema_validator.py: 23 элементов (8 верхнего уровня)
+2026-01-27 16:02:34,511 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\schema_validator.py: найдено 23 единиц кода
+2026-01-27 16:02:34,520 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 17
+2026-01-27 16:02:34,520 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\strategy.py (python), корневой узел: module
+2026-01-27 16:02:34,527 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 17
+2026-01-27 16:02:34,528 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\strategy.py (python), корневой узел: module
+2026-01-27 16:02:34,592 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\strategy.py: 26 элементов (15 верхнего уровня)
+2026-01-27 16:02:34,592 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\strategy.py: найдено 26 единиц кода
+2026-01-27 16:02:34,592 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:34,592 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\utils.py (python), корневой узел: module
+2026-01-27 16:02:34,610 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:34,611 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\utils.py (python), корневой узел: module
+2026-01-27 16:02:34,618 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\utils.py: 12 элементов (10 верхнего уровня)
+2026-01-27 16:02:34,618 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\utils.py: найдено 12 единиц кода
+2026-01-27 16:02:34,631 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:34,631 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\validation.py (python), корневой узел: module
+2026-01-27 16:02:34,633 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:34,640 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\validation.py (python), корневой узел: module
+2026-01-27 16:02:34,647 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\validation.py: 16 элементов (15 верхнего уровня)
+2026-01-27 16:02:34,647 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\validation.py: найдено 16 единиц кода
+2026-01-27 16:02:34,655 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,655 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,655 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:34,656 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,656 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\agent_runtime\strategies\react\__init__.py: 2 элементов (1 верхнего уровня)
+2026-01-27 16:02:34,657 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\agent_runtime\strategies\react\__init__.py: найдено 2 единиц кода
+2026-01-27 16:02:34,660 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:34,660 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\config_loader.py (python), корневой узел: module
+2026-01-27 16:02:34,667 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:34,668 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\config_loader.py (python), корневой узел: module
+2026-01-27 16:02:34,724 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\config\config_loader.py: 18 элементов (7 верхнего уровня)
+2026-01-27 16:02:34,725 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\config\config_loader.py: найдено 18 единиц кода
+2026-01-27 16:02:34,734 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:34,735 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\models.py (python), корневой узел: module
+2026-01-27 16:02:34,746 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:34,747 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\models.py (python), корневой узел: module
+2026-01-27 16:02:34,765 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\config\models.py: 18 элементов (13 верхнего уровня)
+2026-01-27 16:02:34,773 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\config\models.py: найдено 18 единиц кода
+2026-01-27 16:02:34,776 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,777 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,778 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:34,779 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\__init__.py (python), корневой узел: module
+2026-01-27 16:02:34,781 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\config\__init__.py: 6 элементов (5 верхнего уровня)
+2026-01-27 16:02:34,781 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\config\__init__.py: найдено 6 единиц кода
+2026-01-27 16:02:34,781 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:34,781 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\base_db.py (python), корневой узел: module
+2026-01-27 16:02:34,792 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:34,793 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\base_db.py (python), корневой узел: module
+2026-01-27 16:02:34,795 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\providers\database\base_db.py: 13 элементов (8 верхнего уровня)
+2026-01-27 16:02:34,795 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\providers\database\base_db.py: найдено 13 единиц кода
+2026-01-27 16:02:34,806 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:34,806 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\postgres_provider.py (python), корневой узел: module
+2026-01-27 16:02:34,808 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:34,808 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\postgres_provider.py (python), корневой узел: module
+2026-01-27 16:02:34,874 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\providers\database\postgres_provider.py: 15 элементов (9 верхнего уровня)
+2026-01-27 16:02:34,875 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\providers\database\postgres_provider.py: найдено 15 единиц кода
+2026-01-27 16:02:34,875 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:34,875 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\base_llm.py (python), корневой узел: module
+2026-01-27 16:02:34,880 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:34,881 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\base_llm.py (python), корневой узел: module
+2026-01-27 16:02:34,886 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\providers\llm\base_llm.py: 12 элементов (7 верхнего уровня)
+2026-01-27 16:02:34,886 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\providers\llm\base_llm.py: найдено 12 единиц кода
+2026-01-27 16:02:34,910 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:34,911 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 16:02:34,931 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:34,931 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 16:02:35,007 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\providers\llm\llama_cpp_provider.py: 31 элементов (13 верхнего уровня)
+2026-01-27 16:02:35,007 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\providers\llm\llama_cpp_provider.py: найдено 31 единиц кода
+2026-01-27 16:02:35,024 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 16:02:35,024 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\vllm_provider.py (python), корневой узел: module
+2026-01-27 16:02:35,041 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 16:02:35,041 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\vllm_provider.py (python), корневой узел: module
+2026-01-27 16:02:35,128 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\providers\llm\vllm_provider.py: 29 элементов (12 верхнего уровня)
+2026-01-27 16:02:35,129 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\providers\llm\vllm_provider.py: найдено 29 единиц кода
+2026-01-27 16:02:35,131 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,131 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\base_service.py (python), корневой узел: module
+2026-01-27 16:02:35,131 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,132 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\base_service.py (python), корневой узел: module
+2026-01-27 16:02:35,135 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\base_service.py: 10 элементов (4 верхнего уровня)
+2026-01-27 16:02:35,136 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\base_service.py: найдено 10 единиц кода
+2026-01-27 16:02:35,136 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\infrastructure\services\__init__.py
+2026-01-27 16:02:35,139 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:35,139 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\base.py (python), корневой узел: module
+2026-01-27 16:02:35,142 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:35,142 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\base.py (python), корневой узел: module
+2026-01-27 16:02:35,146 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\base.py: 7 элементов (6 верхнего уровня)
+2026-01-27 16:02:35,146 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\base.py: найдено 7 единиц кода
+2026-01-27 16:02:35,149 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,149 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\language_registry.py (python), корневой узел: module
+2026-01-27 16:02:35,152 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,153 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\language_registry.py (python), корневой узел: module
+2026-01-27 16:02:35,159 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\language_registry.py: 11 элементов (4 верхнего уровня)
+2026-01-27 16:02:35,160 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\language_registry.py: найдено 11 единиц кода
+2026-01-27 16:02:35,161 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:35,161 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,162 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:35,162 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,163 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\__init__.py: 4 элементов (3 верхнего уровня)
+2026-01-27 16:02:35,163 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\__init__.py: найдено 4 единиц кода
+2026-01-27 16:02:35,164 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:35,164 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\base_adapter.py (python), корневой узел: module
+2026-01-27 16:02:35,166 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:35,166 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\base_adapter.py (python), корневой узел: module
+2026-01-27 16:02:35,168 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\adapters\base_adapter.py: 8 элементов (4 верхнего уровня)
+2026-01-27 16:02:35,168 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\adapters\base_adapter.py: найдено 8 единиц кода
+2026-01-27 16:02:35,180 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,180 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\python_adapter.py (python), корневой узел: module
+2026-01-27 16:02:35,255 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,255 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\python_adapter.py (python), корневой узел: module
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\adapters\python_adapter.py: 44 элементов (10 верхнего уровня)
+2026-01-27 16:02:35,406 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\adapters\python_adapter.py: найдено 44 единиц кода
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,406 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\adapters\__init__.py: 3 элементов (2 верхнего уровня)
+2026-01-27 16:02:35,415 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\adapters\__init__.py: найдено 3 единиц кода
+2026-01-27 16:02:35,420 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:35,420 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\service.py (python), корневой узел: module
+2026-01-27 16:02:35,423 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:35,424 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\service.py (python), корневой узел: module
+2026-01-27 16:02:35,430 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\ast_processing\service.py: 22 элементов (9 верхнего уровня)
+2026-01-27 16:02:35,430 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\ast_processing\service.py: найдено 22 единиц кода
+2026-01-27 16:02:35,437 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:35,437 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,438 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:35,438 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,438 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\services\code_analysis\ast_processing\__init__.py: 2 элементов (1 верхнего уровня)
+2026-01-27 16:02:35,439 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\services\code_analysis\ast_processing\__init__.py: найдено 2 единиц кода
+2026-01-27 16:02:35,442 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,442 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\ast_parser_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,445 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,446 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\ast_parser_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\ast_parser_tool.py: 15 элементов (9 верхнего уровня)
+2026-01-27 16:02:35,507 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\ast_parser_tool.py: найдено 15 единиц кода
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\base_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\base_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\base_tool.py: 8 элементов (6 верхнего уровня)
+2026-01-27 16:02:35,507 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\base_tool.py: найдено 8 единиц кода
+2026-01-27 16:02:35,521 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:35,521 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_lister_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,528 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:35,528 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_lister_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,577 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\file_lister_tool.py: 23 элементов (9 верхнего уровня)
+2026-01-27 16:02:35,577 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\file_lister_tool.py: найдено 23 единиц кода
+2026-01-27 16:02:35,577 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,577 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_reader_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,596 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,597 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_reader_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,679 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\file_reader_tool.py: 15 элементов (7 верхнего уровня)
+2026-01-27 16:02:35,680 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\file_reader_tool.py: найдено 15 единиц кода
+2026-01-27 16:02:35,687 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,688 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_writer_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,695 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,695 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_writer_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,726 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\file_writer_tool.py: 16 элементов (7 верхнего уровня)
+2026-01-27 16:02:35,728 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\file_writer_tool.py: найдено 16 единиц кода
+2026-01-27 16:02:35,732 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:35,732 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\sql_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,736 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:35,737 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\sql_tool.py (python), корневой узел: module
+2026-01-27 16:02:35,747 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\sql_tool.py: 14 элементов (7 верхнего уровня)
+2026-01-27 16:02:35,748 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\sql_tool.py: найдено 14 единиц кода
+2026-01-27 16:02:35,749 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:35,749 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,749 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:35,749 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,756 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\infrastructure\tools\__init__.py: 7 элементов (6 верхнего уровня)
+2026-01-27 16:02:35,756 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\infrastructure\tools\__init__.py: найдено 7 единиц кода
+2026-01-27 16:02:35,761 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:35,761 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\retry_and_error_policy.py (python), корневой узел: module
+2026-01-27 16:02:35,763 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:35,764 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\retry_and_error_policy.py (python), корневой узел: module
+2026-01-27 16:02:35,766 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\retry_policy\retry_and_error_policy.py: 6 элементов (3 верхнего уровня)
+2026-01-27 16:02:35,766 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\retry_policy\retry_and_error_policy.py: найдено 6 единиц кода
+2026-01-27 16:02:35,772 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:35,773 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\utils.py (python), корневой узел: module
+2026-01-27 16:02:35,774 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:35,775 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\utils.py (python), корневой узел: module
+2026-01-27 16:02:35,777 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\retry_policy\utils.py: 4 элементов (3 верхнего уровня)
+2026-01-27 16:02:35,777 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\retry_policy\utils.py: найдено 4 единиц кода
+2026-01-27 16:02:35,780 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,780 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\base_session_context.py (python), корневой узел: module
+2026-01-27 16:02:35,782 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,783 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\base_session_context.py (python), корневой узел: module
+2026-01-27 16:02:35,790 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\base_session_context.py: 21 элементов (4 верхнего уровня)
+2026-01-27 16:02:35,791 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\base_session_context.py: найдено 21 единиц кода
+2026-01-27 16:02:35,793 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,793 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\data_context.py (python), корневой узел: module
+2026-01-27 16:02:35,794 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,795 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\data_context.py (python), корневой узел: module
+2026-01-27 16:02:35,797 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\data_context.py: 11 элементов (3 верхнего уровня)
+2026-01-27 16:02:35,797 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\data_context.py: найдено 11 единиц кода
+2026-01-27 16:02:35,800 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,801 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\model.py (python), корневой узел: module
+2026-01-27 16:02:35,802 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:35,802 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\model.py (python), корневой узел: module
+2026-01-27 16:02:35,806 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\model.py: 12 элементов (6 верхнего уровня)
+2026-01-27 16:02:35,806 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\model.py: найдено 12 единиц кода
+2026-01-27 16:02:35,811 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,812 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\session_context.py (python), корневой узел: module
+2026-01-27 16:02:35,815 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:35,816 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\session_context.py (python), корневой узел: module
+2026-01-27 16:02:35,884 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\session_context.py: 29 элементов (10 верхнего уровня)
+2026-01-27 16:02:35,885 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\session_context.py: найдено 29 единиц кода
+2026-01-27 16:02:35,889 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,890 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\step_context.py (python), корневой узел: module
+2026-01-27 16:02:35,891 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,892 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\step_context.py (python), корневой узел: module
+2026-01-27 16:02:35,898 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\step_context.py: 10 элементов (3 верхнего уровня)
+2026-01-27 16:02:35,899 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\step_context.py: найдено 10 единиц кода
+2026-01-27 16:02:35,901 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,901 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,901 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:35,902 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,903 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\session_context\__init__.py: 5 элементов (4 верхнего уровня)
+2026-01-27 16:02:35,903 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\session_context\__init__.py: найдено 5 единиц кода
+2026-01-27 16:02:35,906 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:35,907 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\base_skill.py (python), корневой узел: module
+2026-01-27 16:02:35,910 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:35,910 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\base_skill.py (python), корневой узел: module
+2026-01-27 16:02:35,914 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\base_skill.py: 11 элементов (8 верхнего уровня)
+2026-01-27 16:02:35,914 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\base_skill.py: найдено 11 единиц кода
+2026-01-27 16:02:35,916 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,917 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,917 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 16:02:35,917 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\__init__.py (python), корневой узел: module
+2026-01-27 16:02:35,919 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\__init__.py: 3 элементов (2 верхнего уровня)
+2026-01-27 16:02:35,920 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\__init__.py: найдено 3 единиц кода
+2026-01-27 16:02:35,921 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:35,922 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\prompt.py (python), корневой узел: module
+2026-01-27 16:02:35,922 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:35,922 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\prompt.py (python), корневой узел: module
+2026-01-27 16:02:35,925 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\planning\prompt.py: 1 элементов (0 верхнего уровня)
+2026-01-27 16:02:35,925 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\planning\prompt.py: найдено 1 единиц кода
+2026-01-27 16:02:35,942 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 54
+2026-01-27 16:02:35,943 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\schema.py (python), корневой узел: module
+2026-01-27 16:02:35,947 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 54
+2026-01-27 16:02:35,947 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,009 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\planning\schema.py: 30 элементов (29 верхнего уровня)
+2026-01-27 16:02:36,009 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\planning\schema.py: найдено 30 единиц кода
+2026-01-27 16:02:36,025 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 16:02:36,025 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,028 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 16:02:36,028 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,126 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\planning\skill.py: 25 элементов (13 верхнего уровня)
+2026-01-27 16:02:36,127 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\planning\skill.py: найдено 25 единиц кода
+2026-01-27 16:02:36,132 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,133 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,140 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,141 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,169 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_map\schema.py: 8 элементов (6 верхнего уровня)
+2026-01-27 16:02:36,169 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_map\schema.py: найдено 8 единиц кода
+2026-01-27 16:02:36,206 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 22
+2026-01-27 16:02:36,208 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,214 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 22
+2026-01-27 16:02:36,214 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,286 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_map\skill.py: 28 элементов (17 верхнего уровня)
+2026-01-27 16:02:36,286 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_map\skill.py: найдено 28 единиц кода
+2026-01-27 16:02:36,287 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:36,287 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,288 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:36,288 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,289 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_map\__init__.py: 2 элементов (1 верхнего уровня)
+2026-01-27 16:02:36,289 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_map\__init__.py: найдено 2 единиц кода
+2026-01-27 16:02:36,293 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:36,294 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\models\project_map.py (python), корневой узел: module
+2026-01-27 16:02:36,297 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:36,297 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_map\models\project_map.py (python), корневой узел: module
+2026-01-27 16:02:36,310 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_map\models\project_map.py: 21 элементов (5 верхнего уровня)
+2026-01-27 16:02:36,310 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_map\models\project_map.py: найдено 21 единиц кода
+2026-01-27 16:02:36,310 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\skills\project_map\models\__init__.py
+2026-01-27 16:02:36,314 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:36,314 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,318 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:36,319 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,328 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\schema.py: 13 элементов (12 верхнего уровня)
+2026-01-27 16:02:36,329 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\schema.py: найдено 13 единиц кода
+2026-01-27 16:02:36,391 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 27
+2026-01-27 16:02:36,391 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,423 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 27
+2026-01-27 16:02:36,424 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\skill.py (python), корневой узел: module
+2026-01-27 16:02:36,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\skill.py: 42 элементов (20 верхнего уровня)
+2026-01-27 16:02:36,507 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\skill.py: найдено 42 единиц кода
+2026-01-27 16:02:36,507 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:36,507 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\utils.py (python), корневой узел: module
+2026-01-27 16:02:36,516 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 16:02:36,517 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\utils.py (python), корневой узел: module
+2026-01-27 16:02:36,526 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\utils.py: 19 элементов (11 верхнего уровня)
+2026-01-27 16:02:36,527 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\utils.py: найдено 19 единиц кода
+2026-01-27 16:02:36,528 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,529 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,530 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,531 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,531 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\__init__.py: 1 элементов (0 верхнего уровня)
+2026-01-27 16:02:36,532 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\__init__.py: найдено 1 единиц кода
+2026-01-27 16:02:36,549 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:36,556 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\ast_analyzer.py (python), корневой узел: module
+2026-01-27 16:02:36,578 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:36,578 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\ast_analyzer.py (python), корневой узел: module
+2026-01-27 16:02:36,710 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\components\ast_analyzer.py: 27 элементов (7 верхнего уровня)
+2026-01-27 16:02:36,710 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\components\ast_analyzer.py: найдено 27 единиц кода
+2026-01-27 16:02:36,710 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,710 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\dependency_resolver.py (python), корневой узел: module
+2026-01-27 16:02:36,710 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,710 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\dependency_resolver.py (python), корневой узел: module
+2026-01-27 16:02:36,727 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\components\dependency_resolver.py: 10 элементов (5 верхнего уровня)
+2026-01-27 16:02:36,727 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\components\dependency_resolver.py: найдено 10 единиц кода
+2026-01-27 16:02:36,790 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:36,790 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\semantics_analyzer.py (python), корневой узел: module
+2026-01-27 16:02:36,804 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:36,806 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\semantics_analyzer.py (python), корневой узел: module
+2026-01-27 16:02:36,913 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\components\semantics_analyzer.py: 29 элементов (11 верхнего уровня)
+2026-01-27 16:02:36,913 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\components\semantics_analyzer.py: найдено 29 единиц кода
+2026-01-27 16:02:36,914 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,914 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,915 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,915 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\components\__init__.py (python), корневой узел: module
+2026-01-27 16:02:36,915 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\components\__init__.py: 1 элементов (0 верхнего уровня)
+2026-01-27 16:02:36,916 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\components\__init__.py: найдено 1 единиц кода
+2026-01-27 16:02:36,917 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,917 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\navigation.py (python), корневой узел: module
+2026-01-27 16:02:36,918 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:36,919 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\navigation.py (python), корневой узел: module
+2026-01-27 16:02:36,921 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\models\navigation.py: 7 элементов (6 верхнего уровня)
+2026-01-27 16:02:36,922 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\models\navigation.py: найдено 7 единиц кода
+2026-01-27 16:02:36,924 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:36,924 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\semantics.py (python), корневой узел: module
+2026-01-27 16:02:36,932 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:36,933 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\project_navigator\models\semantics.py (python), корневой узел: module
+2026-01-27 16:02:36,948 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\project_navigator\models\semantics.py: 8 элементов (7 верхнего уровня)
+2026-01-27 16:02:36,948 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\project_navigator\models\semantics.py: найдено 8 единиц кода
+2026-01-27 16:02:36,948 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,948 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,948 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 16:02:36,948 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\schema.py (python), корневой узел: module
+2026-01-27 16:02:36,958 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\table_description\schema.py: 3 элементов (2 верхнего уровня)
+2026-01-27 16:02:36,959 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\table_description\schema.py: найдено 3 единиц кода
+2026-01-27 16:02:37,040 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:37,041 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\skill.py (python), корневой узел: module
+2026-01-27 16:02:37,048 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:37,048 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\table_description\skill.py (python), корневой узел: module
+2026-01-27 16:02:37,084 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\table_description\skill.py: 19 элементов (9 верхнего уровня)
+2026-01-27 16:02:37,084 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\table_description\skill.py: найдено 19 единиц кода
+2026-01-27 16:02:37,084 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,084 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\base_system_contex.py (python), корневой узел: module
+2026-01-27 16:02:37,091 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,092 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\base_system_contex.py (python), корневой узел: module
+2026-01-27 16:02:37,141 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\base_system_contex.py: 23 элементов (7 верхнего уровня)
+2026-01-27 16:02:37,141 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\base_system_contex.py: найдено 23 единиц кода
+2026-01-27 16:02:37,157 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:37,157 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\capability_registry.py (python), корневой узел: module
+2026-01-27 16:02:37,157 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:37,157 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\capability_registry.py (python), корневой узел: module
+2026-01-27 16:02:37,163 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\capability_registry.py: 10 элементов (4 верхнего уровня)
+2026-01-27 16:02:37,164 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\capability_registry.py: найдено 10 единиц кода
+2026-01-27 16:02:37,166 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:37,166 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\execution_gateway.py (python), корневой узел: module
+2026-01-27 16:02:37,166 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 16:02:37,166 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\execution_gateway.py (python), корневой узел: module
+2026-01-27 16:02:37,172 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\execution_gateway.py: 14 элементов (11 верхнего уровня)
+2026-01-27 16:02:37,173 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\execution_gateway.py: найдено 14 единиц кода
+2026-01-27 16:02:37,174 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 20
+2026-01-27 16:02:37,174 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\factory.py (python), корневой узел: module
+2026-01-27 16:02:37,194 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 20
+2026-01-27 16:02:37,196 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\factory.py (python), корневой узел: module
+2026-01-27 16:02:37,293 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\factory.py: 36 элементов (18 верхнего уровня)
+2026-01-27 16:02:37,293 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\factory.py: найдено 36 единиц кода
+2026-01-27 16:02:37,304 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,305 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\lifecycle_manager.py (python), корневой узел: module
+2026-01-27 16:02:37,312 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,312 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\lifecycle_manager.py (python), корневой узел: module
+2026-01-27 16:02:37,346 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\lifecycle_manager.py: 14 элементов (6 верхнего уровня)
+2026-01-27 16:02:37,346 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\lifecycle_manager.py: найдено 14 единиц кода
+2026-01-27 16:02:37,348 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:37,348 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\resource_registry.py (python), корневой узел: module
+2026-01-27 16:02:37,357 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 16:02:37,358 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\resource_registry.py (python), корневой узел: module
+2026-01-27 16:02:37,365 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\resource_registry.py: 14 элементов (6 верхнего уровня)
+2026-01-27 16:02:37,365 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\resource_registry.py: найдено 14 единиц кода
+2026-01-27 16:02:37,376 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 20
+2026-01-27 16:02:37,376 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\system_context.py (python), корневой узел: module
+2026-01-27 16:02:37,383 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 20
+2026-01-27 16:02:37,384 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\system_context\system_context.py (python), корневой узел: module
+2026-01-27 16:02:37,469 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\system_context\system_context.py: 36 элементов (18 верхнего уровня)
+2026-01-27 16:02:37,470 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\system_context\system_context.py: найдено 36 единиц кода
+2026-01-27 16:02:37,470 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:37,471 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\capability.py (python), корневой узел: module
+2026-01-27 16:02:37,471 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 16:02:37,472 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\capability.py (python), корневой узел: module
+2026-01-27 16:02:37,473 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\capability.py: 4 элементов (3 верхнего уровня)
+2026-01-27 16:02:37,473 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\capability.py: найдено 4 единиц кода
+2026-01-27 16:02:37,478 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:37,479 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\code_unit.py (python), корневой узел: module
+2026-01-27 16:02:37,481 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 16:02:37,481 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\code_unit.py (python), корневой узел: module
+2026-01-27 16:02:37,497 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\code_unit.py: 21 элементов (7 верхнего уровня)
+2026-01-27 16:02:37,497 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\code_unit.py: найдено 21 единиц кода
+2026-01-27 16:02:37,502 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:37,503 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\db_types.py (python), корневой узел: module
+2026-01-27 16:02:37,505 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 16:02:37,505 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\db_types.py (python), корневой узел: module
+2026-01-27 16:02:37,514 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\db_types.py: 11 элементов (4 верхнего уровня)
+2026-01-27 16:02:37,514 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\db_types.py: найдено 11 единиц кода
+2026-01-27 16:02:37,516 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:37,517 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\execution.py (python), корневой узел: module
+2026-01-27 16:02:37,518 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 16:02:37,518 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\execution.py (python), корневой узел: module
+2026-01-27 16:02:37,523 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\execution.py: 6 элементов (4 верхнего уровня)
+2026-01-27 16:02:37,523 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\execution.py: найдено 6 единиц кода
+2026-01-27 16:02:37,528 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,528 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\llm_types.py (python), корневой узел: module
+2026-01-27 16:02:37,532 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 16:02:37,532 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\llm_types.py (python), корневой узел: module
+2026-01-27 16:02:37,543 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\llm_types.py: 10 элементов (5 верхнего уровня)
+2026-01-27 16:02:37,544 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\llm_types.py: найдено 10 единиц кода
+2026-01-27 16:02:37,546 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:37,546 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\resource.py (python), корневой узел: module
+2026-01-27 16:02:37,547 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 16:02:37,547 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\resource.py (python), корневой узел: module
+2026-01-27 16:02:37,550 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\resource.py: 4 элементов (3 верхнего уровня)
+2026-01-27 16:02:37,551 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\resource.py: найдено 4 единиц кода
+2026-01-27 16:02:37,553 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:37,553 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\retry_policy.py (python), корневой узел: module
+2026-01-27 16:02:37,556 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 16:02:37,556 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\retry_policy.py (python), корневой узел: module
+2026-01-27 16:02:37,561 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\retry_policy.py: 8 элементов (5 верхнего уровня)
+2026-01-27 16:02:37,562 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\retry_policy.py: найдено 8 единиц кода
+2026-01-27 16:02:37,567 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 16:02:37,568 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\structured_actions.py (python), корневой узел: module
+2026-01-27 16:02:37,570 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 16:02:37,571 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл models\structured_actions.py (python), корневой узел: module
+2026-01-27 16:02:37,574 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для models\structured_actions.py: 17 элементов (10 верхнего уровня)
+2026-01-27 16:02:37,574 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл models\structured_actions.py: найдено 17 единиц кода
+2026-01-27 16:02:37,641 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 33
+2026-01-27 16:02:37,641 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_execution_gateway.py (python), корневой узел: module
+2026-01-27 16:02:37,653 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 33
+2026-01-27 16:02:37,653 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_execution_gateway.py (python), корневой узел: module
+2026-01-27 16:02:37,679 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\test_execution_gateway.py: 25 элементов (13 верхнего уровня)
+2026-01-27 16:02:37,689 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\test_execution_gateway.py: найдено 25 единиц кода
+2026-01-27 16:02:37,691 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 30
+2026-01-27 16:02:37,691 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_session_context.py (python), корневой узел: module
+2026-01-27 16:02:37,699 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 30
+2026-01-27 16:02:37,700 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\test_session_context.py (python), корневой узел: module
+2026-01-27 16:02:37,708 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\test_session_context.py: 15 элементов (14 верхнего уровня)
+2026-01-27 16:02:37,708 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\test_session_context.py: найдено 15 единиц кода
+2026-01-27 16:02:37,714 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 34
+2026-01-27 16:02:37,715 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\conftest.py (python), корневой узел: module
+2026-01-27 16:02:37,718 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 34
+2026-01-27 16:02:37,719 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\conftest.py (python), корневой узел: module
+2026-01-27 16:02:37,727 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\conftest.py: 22 элементов (11 верхнего уровня)
+2026-01-27 16:02:37,727 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\conftest.py: найдено 22 единиц кода
+2026-01-27 16:02:37,731 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:37,731 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_db.py (python), корневой узел: module
+2026-01-27 16:02:37,742 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 16:02:37,742 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_db.py (python), корневой узел: module
+2026-01-27 16:02:37,823 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_base_db.py: 20 элементов (9 верхнего уровня)
+2026-01-27 16:02:37,823 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_base_db.py: найдено 20 единиц кода
+2026-01-27 16:02:37,833 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 16:02:37,834 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_llm.py (python), корневой узел: module
+2026-01-27 16:02:37,844 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 16:02:37,845 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_base_llm.py (python), корневой узел: module
+2026-01-27 16:02:37,863 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_base_llm.py: 22 элементов (9 верхнего уровня)
+2026-01-27 16:02:37,863 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_base_llm.py: найдено 22 единиц кода
+2026-01-27 16:02:37,874 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 19
+2026-01-27 16:02:37,874 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_factory.py (python), корневой узел: module
+2026-01-27 16:02:37,882 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 19
+2026-01-27 16:02:37,882 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_factory.py (python), корневой узел: module
+2026-01-27 16:02:37,898 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_factory.py: 19 элементов (10 верхнего уровня)
+2026-01-27 16:02:37,898 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_factory.py: найдено 19 единиц кода
+2026-01-27 16:02:37,916 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 25
+2026-01-27 16:02:37,916 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 16:02:37,929 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 25
+2026-01-27 16:02:37,929 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 16:02:37,948 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_llama_cpp_provider.py: 13 элементов (9 верхнего уровня)
+2026-01-27 16:02:37,948 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_llama_cpp_provider.py: найдено 13 единиц кода
+2026-01-27 16:02:38,007 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 35
+2026-01-27 16:02:38,007 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_postgres_provider.py (python), корневой узел: module
+2026-01-27 16:02:38,029 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 35
+2026-01-27 16:02:38,029 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_postgres_provider.py (python), корневой узел: module
+2026-01-27 16:02:38,085 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_postgres_provider.py: 21 элементов (15 верхнего уровня)
+2026-01-27 16:02:38,085 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_postgres_provider.py: найдено 21 единиц кода
+2026-01-27 16:02:38,097 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:38,098 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_vllm_provider.py (python), корневой узел: module
+2026-01-27 16:02:38,105 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 16:02:38,106 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл tests\providers\test_vllm_provider.py (python), корневой узел: module
+2026-01-27 16:02:38,113 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для tests\providers\test_vllm_provider.py: 18 элементов (6 верхнего уровня)
+2026-01-27 16:02:38,113 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл tests\providers\test_vllm_provider.py: найдено 18 единиц кода
+2026-01-27 16:02:38,113 - core.skills.project_map.skill - INFO - Проанализировано файлов: 99 из 140 (поддерживаемые расширения: ['py'])
+2026-01-27 16:02:38,147 - core.skills.project_map.skill - DEBUG - Проанализированы зависимости для 46 файлов

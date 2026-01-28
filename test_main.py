@@ -25,7 +25,7 @@ async def analyze_project_example():
     session.set_goal("Проанализировать структуру проекта")
     
     # 5. Получение навыка и capability
-    project_map_skill = system_context.get_resource("ProjectMapSkill")
+    project_map_skill = system_context.get_resource("project_map")
     if not project_map_skill:
         print("Навык ProjectMapSkill не найден")
         return
@@ -38,7 +38,7 @@ async def analyze_project_example():
     # 6. Подготовка параметров
     parameters = AnalyzeProjectInput(
         root_dir = ".",
-        max_depth = 10,
+        max_items = 10000,
         include_tests = False,
         file_extensions = ["py"],
         include_code_units = True

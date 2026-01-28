@@ -28,6 +28,7 @@ class ASTParserOutput(ToolOutput):
 
 class ASTParserTool(BaseTool):
     """Инструмент для построения AST дерева из Python кода."""
+    name = "ast_parser"
     
     @property
     def description(self) -> str:

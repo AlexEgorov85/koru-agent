@@ -1,0 +1,165 @@
+2026-01-27 15:41:21,171 - core.system_context.system_context - INFO - SystemContext создан (ID: 4233c01c-bdd3-45f3-9057-c1b4c5d28024)
+2026-01-27 15:41:21,171 - core.system_context.system_context - INFO - Инициализация системы (ID: 4233c01c-bdd3-45f3-9057-c1b4c5d28024) с профилем: dev
+2026-01-27 15:41:21,171 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 15:41:21,171 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 15:41:21,171 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 15:41:21,171 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 15:41:21,340 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 15:41:26,643 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 5.47 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 15:41:26,643 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 15:41:26,643 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 15:41:26,643 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 15:41:26,643 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 15:41:26,643 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:41:26,718 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:41:26,718 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.08 секунд
+2026-01-27 15:41:26,718 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 15:41:26,718 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 15:41:26,720 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 15:41:26,720 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 15:41:26,720 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 15:41:26,722 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 15:41:26,722 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 15:41:26,722 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 15:41:26,722 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 15:41:26,722 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 15:41:26,722 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:41:26,722 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 15:41:26,722 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 15:41:26,724 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 15:41:26,724 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 15:41:26,724 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 15:41:26,724 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 15:41:26,726 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 15:41:26,726 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 15:41:26,726 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 15:41:26,726 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,726 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,727 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,727 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,727 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,727 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 15:41:26,727 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 15:41:26,729 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 15:41:26,730 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 15:41:26,767 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 15:41:26,777 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 15:41:26,779 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 15:41:26,779 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 15:41:26,779 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 15:41:26,782 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 15:41:26,782 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 15:41:26,782 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 15:41:26,782 - core.skills.project_map.skill - ERROR - Ошибка инициализации ProjectMapSkill: 'SystemContext' object has no attribute 'get_service'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 91, in initialize
+    self.ast_service = self.system_context.get_service("ast_processing")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SystemContext' object has no attribute 'get_service'
+2026-01-27 15:41:26,784 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 15:41:26,784 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 15:41:26,785 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 15:41:26,785 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 15:41:26,788 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 15:41:26,788 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 15:41:26,788 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 15:41:26,788 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,788 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,788 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 15:41:26,788 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 15:41:26,795 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-27 15:41:26,795 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-27 15:41:26,796 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 15:41:26,797 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 15:41:26,797 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-27 15:41:26,798 - core.system_context.factory - DEBUG - Создание экземпляра сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 15:41:26,798 - core.system_context.factory - DEBUG - Экземпляр сервиса 'ast_processing' создан
+2026-01-27 15:41:26,798 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-27 15:41:26,798 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 15:41:26,798 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 15:41:26,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 15:41:26,798 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:41:26,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 15:41:26,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 15:41:26,799 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 15:41:26,799 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 15:41:26,799 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 15:41:26,800 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 15:41:26,800 - core.skills.project_map.skill - ERROR - Ошибка инициализации ProjectMapSkill: 'SystemContext' object has no attribute 'get_service'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 91, in initialize
+    self.ast_service = self.system_context.get_service("ast_processing")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SystemContext' object has no attribute 'get_service'
+2026-01-27 15:41:26,809 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 15:41:26,810 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 15:41:26,810 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:41:26,812 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-27 15:41:26,849 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:41:26,849 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.04 секунд
+2026-01-27 15:41:26,849 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 15:41:26,849 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-27 15:41:26,849 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 15:41:26,849 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 15:41:26,849 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 15:41:28,106 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 15:41:28,108 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:41:28,108 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .git
+2026-01-27 15:41:28,109 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:41:28,109 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .ipynb_checkpoints
+2026-01-27 15:41:28,110 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:41:28,110 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .pytest_cache
+2026-01-27 15:41:28,110 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:41:28,110 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .vscode
+2026-01-27 15:41:28,112 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:41:28,112 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: logs
+2026-01-27 15:41:28,115 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:41:28,115 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:41:28,115 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:41:28,115 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:41:28,116 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:41:28,116 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,117 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,119 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,120 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,121 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,123 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,124 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,125 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,126 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,126 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,127 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,127 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,128 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,129 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,129 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,130 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,130 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,132 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,132 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,132 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,134 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,135 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,136 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,136 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,137 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,138 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,138 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:41:28,139 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 140
+2026-01-27 15:41:28,139 - core.skills.project_map.skill - ERROR - Ошибка анализа проекта: 'NoneType' object has no attribute 'get_file_language'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 242, in _analyze_project
+    language = await self.ast_service.get_file_language(file_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get_file_language'

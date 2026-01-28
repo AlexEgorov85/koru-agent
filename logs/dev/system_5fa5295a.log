@@ -1,0 +1,1474 @@
+2026-01-27 15:52:03,080 - core.system_context.system_context - INFO - SystemContext создан (ID: 5fa5295a-9b40-4aec-8ec7-dfa85af23ec5)
+2026-01-27 15:52:03,080 - core.system_context.system_context - INFO - Инициализация системы (ID: 5fa5295a-9b40-4aec-8ec7-dfa85af23ec5) с профилем: dev
+2026-01-27 15:52:03,080 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-27 15:52:03,080 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-27 15:52:03,080 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Конфигурация: LlamaCppConfig(model_path='C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf', n_ctx=8192, n_gpu_layers=0, n_batch=1024, temperature=0.2, max_tokens=4096, top_p=0.95, verbose=False, f16_kv=True, embedding=False, stop=['<|im_end|>', '<|endoftext|>'], echo=False)
+2026-01-27 15:52:03,080 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-27 15:52:03,217 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Загрузка Llama.cpp движка: model_path=C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf, n_ctx=8192, n_gpu_layers=0
+2026-01-27 15:52:07,657 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 4.58 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-27 15:52:07,659 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-27 15:52:07,659 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-27 15:52:07,659 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-27 15:52:07,659 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-27 15:52:07,659 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:52:07,724 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:52:07,724 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.06 секунд
+2026-01-27 15:52:07,725 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-27 15:52:07,725 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-27 15:52:07,725 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-27 15:52:07,726 - core.system_context.factory - DEBUG - Найден класс инструмента 'ast_parser'
+2026-01-27 15:52:07,727 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_lister'
+2026-01-27 15:52:07,727 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_reader'
+2026-01-27 15:52:07,727 - core.system_context.factory - DEBUG - Найден класс инструмента 'file_writer'
+2026-01-27 15:52:07,727 - core.system_context.factory - DEBUG - Найден класс инструмента 'sql_tool'
+2026-01-27 15:52:07,728 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-27 15:52:07,728 - core.system_context.factory - DEBUG - Создание инструмента 'ast_parser' из класса ASTParserTool
+2026-01-27 15:52:07,728 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:52:07,728 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-27 15:52:07,728 - core.system_context.factory - DEBUG - Создание инструмента 'file_lister' из класса FileListerTool
+2026-01-27 15:52:07,730 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-27 15:52:07,731 - core.system_context.factory - DEBUG - Создание инструмента 'file_reader' из класса FileReaderTool
+2026-01-27 15:52:07,731 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-27 15:52:07,732 - core.system_context.factory - DEBUG - Создание инструмента 'file_writer' из класса FileWriterTool
+2026-01-27 15:52:07,732 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-27 15:52:07,732 - core.system_context.factory - DEBUG - Создание инструмента 'sql_tool' из класса SQLTool
+2026-01-27 15:52:07,732 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-27 15:52:07,733 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,733 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,733 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,733 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,734 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,734 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-27 15:52:07,734 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-27 15:52:07,734 - core.system_context.factory - DEBUG - Найден класс навыка 'planning'
+2026-01-27 15:52:07,734 - core.system_context.factory - DEBUG - Найден класс навыка 'project_map'
+2026-01-27 15:52:07,769 - core.system_context.factory - DEBUG - Найден класс навыка 'project_navigator'
+2026-01-27 15:52:07,771 - core.system_context.factory - DEBUG - Найден класс навыка 'table_description'
+2026-01-27 15:52:07,772 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-27 15:52:07,772 - core.system_context.factory - DEBUG - Создание навыка 'planning' из класса PlanningSkill
+2026-01-27 15:52:07,772 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-27 15:52:07,772 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-27 15:52:07,776 - core.system_context.factory - DEBUG - Создание навыка 'project_map' из класса ProjectMapSkill
+2026-01-27 15:52:07,776 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-27 15:52:07,776 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-27 15:52:07,776 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-27 15:52:07,776 - core.system_context.factory - DEBUG - Создание навыка 'project_navigator' из класса ProjectNavigatorSkill
+2026-01-27 15:52:07,776 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации по проекту: project_navigator
+2026-01-27 15:52:07,776 - core.system_context.factory - ERROR - Ошибка создания навыка 'project_navigator': 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\system_context\factory.py", line 465, in _create_skill_instance
+    skill = skill_class(**init_params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 93, in __init__
+    self.dependency_resolver = DependencyResolver(self)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\components\dependency_resolver.py", line 24, in __init__
+    self.dependency_analyzer = skill_context.dependency_analyzer
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProjectNavigatorSkill' object has no attribute 'dependency_analyzer'
+2026-01-27 15:52:07,778 - core.system_context.factory - DEBUG - Создание навыка 'table_description' из класса TableDescriptionSkill
+2026-01-27 15:52:07,778 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-27 15:52:07,778 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-27 15:52:07,778 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,778 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,778 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-27 15:52:07,778 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 3
+2026-01-27 15:52:07,789 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-27 15:52:07,789 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-27 15:52:07,789 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-27 15:52:07,796 - core.system_context.factory - DEBUG - Найден класс сервиса 'ASTProcessingService' -> зарегистрирован как 'ast_processing'
+2026-01-27 15:52:07,796 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-27 15:52:07,797 - core.system_context.factory - DEBUG - Создание экземпляра сервиса 'ast_processing' из класса ASTProcessingService
+2026-01-27 15:52:07,797 - core.system_context.factory - DEBUG - Экземпляр сервиса 'ast_processing' создан
+2026-01-27 15:52:07,797 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-27 15:52:07,797 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-27 15:52:07,797 - core.infrastructure.providers.llm.llama_cpp_provider - DEBUG - Llama.cpp движок уже инициализирован
+2026-01-27 15:52:07,797 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-27 15:52:07,797 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-27 15:52:07,797 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-27 15:52:07,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-27 15:52:07,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-27 15:52:07,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-27 15:52:07,798 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-27 15:52:07,802 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-27 15:52:07,802 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-27 15:52:07,806 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-27 15:52:07,806 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-27 15:52:07,807 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-27 15:52:07,808 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-27 15:52:07,839 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-27 15:52:07,839 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.03 секунд
+2026-01-27 15:52:07,839 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-27 15:52:07,839 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-27 15:52:07,839 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-27 15:52:07,839 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-27 15:52:07,839 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-27 15:52:08,966 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .git
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .ipynb_checkpoints
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .pytest_cache
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: .vscode
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Пропускаем игнорируемую директорию: logs
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .git
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .ipynb_checkpoints
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .pytest_cache
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: .vscode
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: logs
+2026-01-27 15:52:08,966 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,971 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,973 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,974 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,975 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,976 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,977 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,977 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,977 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,979 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,979 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,981 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,981 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,982 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,983 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,984 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,985 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,986 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,987 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,988 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,988 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,989 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,990 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,990 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,991 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,992 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,993 - core.infrastructure.tools.file_lister_tool - DEBUG - Игнорируем директорию по паттерну: __pycache__
+2026-01-27 15:52:08,994 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 140
+2026-01-27 15:52:08,994 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: .gitignore
+2026-01-27 15:52:08,995 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: about.md
+2026-01-27 15:52:08,996 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:08,996 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл analyze_file.py (python), корневой узел: module
+2026-01-27 15:52:08,998 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:08,999 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл analyze_file.py (python), корневой узел: module
+2026-01-27 15:52:08,999 - core.skills.project_map.skill - WARNING - Ошибка анализа файла analyze_file.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,001 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: core_skills_project_map_skill_analysis.json
+2026-01-27 15:52:09,007 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 24
+2026-01-27 15:52:09,007 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл main.py (python), корневой узел: module
+2026-01-27 15:52:09,011 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 24
+2026-01-27 15:52:09,011 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл main.py (python), корневой узел: module
+2026-01-27 15:52:09,012 - core.skills.project_map.skill - WARNING - Ошибка анализа файла main.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,019 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 15:52:09,019 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл project_navigator.py (python), корневой узел: module
+2026-01-27 15:52:09,025 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 26
+2026-01-27 15:52:09,025 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл project_navigator.py (python), корневой узел: module
+2026-01-27 15:52:09,025 - core.skills.project_map.skill - WARNING - Ошибка анализа файла project_navigator.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,026 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: project_structure.json
+2026-01-27 15:52:09,026 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: readme.md
+2026-01-27 15:52:09,027 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: requirements.txt
+2026-01-27 15:52:09,028 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,028 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл test_main.py (python), корневой узел: module
+2026-01-27 15:52:09,029 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,029 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл test_main.py (python), корневой узел: module
+2026-01-27 15:52:09,030 - core.skills.project_map.skill - WARNING - Ошибка анализа файла test_main.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,031 - core.skills.project_map.skill - DEBUG - Пропущен файл с неподдерживаемым расширением: Untitled.ipynb
+2026-01-27 15:52:09,031 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,032 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\executor.py (python), корневой узел: module
+2026-01-27 15:52:09,033 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,033 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\executor.py (python), корневой узел: module
+2026-01-27 15:52:09,033 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\executor.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,035 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,036 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\interfaces.py (python), корневой узел: module
+2026-01-27 15:52:09,037 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,037 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\interfaces.py (python), корневой узел: module
+2026-01-27 15:52:09,037 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\interfaces.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,039 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,039 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\model.py (python), корневой узел: module
+2026-01-27 15:52:09,039 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,039 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\model.py (python), корневой узел: module
+2026-01-27 15:52:09,039 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\model.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,039 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 15:52:09,043 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\policy.py (python), корневой узел: module
+2026-01-27 15:52:09,043 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 15:52:09,043 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\policy.py (python), корневой узел: module
+2026-01-27 15:52:09,045 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\policy.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 300, in process_node
+    return self._process_class_definition(node, parent_id, file_path, source_bytes, code_units, depth)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 456, in _process_class_definition
+    hash=self._compute_hash(class_code.encode('utf-8')) if class_code else None
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,047 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 15:52:09,047 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\progress.py (python), корневой узел: module
+2026-01-27 15:52:09,047 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 1
+2026-01-27 15:52:09,047 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\progress.py (python), корневой узел: module
+2026-01-27 15:52:09,048 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\progress.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 300, in process_node
+    return self._process_class_definition(node, parent_id, file_path, source_bytes, code_units, depth)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 456, in _process_class_definition
+    hash=self._compute_hash(class_code.encode('utf-8')) if class_code else None
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,052 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 15:52:09,053 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\runtime.py (python), корневой узел: module
+2026-01-27 15:52:09,056 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 18
+2026-01-27 15:52:09,056 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\runtime.py (python), корневой узел: module
+2026-01-27 15:52:09,056 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\runtime.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,059 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,059 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\state.py (python), корневой узел: module
+2026-01-27 15:52:09,059 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,059 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\state.py (python), корневой узел: module
+2026-01-27 15:52:09,060 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\state.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,062 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,062 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\base.py (python), корневой узел: module
+2026-01-27 15:52:09,062 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,062 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\base.py (python), корневой узел: module
+2026-01-27 15:52:09,062 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\base.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,065 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,065 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\evaluation.py (python), корневой узел: module
+2026-01-27 15:52:09,066 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,066 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\evaluation.py (python), корневой узел: module
+2026-01-27 15:52:09,066 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\evaluation.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,068 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,068 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\fallback.py (python), корневой узел: module
+2026-01-27 15:52:09,069 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,069 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\fallback.py (python), корневой узел: module
+2026-01-27 15:52:09,069 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\fallback.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,070 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,071 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\models.py (python), корневой узел: module
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,071 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\models.py (python), корневой узел: module
+2026-01-27 15:52:09,071 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\models.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,104 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 15:52:09,104 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\prompts.py (python), корневой узел: module
+2026-01-27 15:52:09,106 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 14
+2026-01-27 15:52:09,106 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\prompts.py (python), корневой узел: module
+2026-01-27 15:52:09,106 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\prompts.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,117 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,117 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\schema_validator.py (python), корневой узел: module
+2026-01-27 15:52:09,125 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,125 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\schema_validator.py (python), корневой узел: module
+2026-01-27 15:52:09,127 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\schema_validator.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,133 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 17
+2026-01-27 15:52:09,133 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\strategy.py (python), корневой узел: module
+2026-01-27 15:52:09,139 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 17
+2026-01-27 15:52:09,139 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\strategy.py (python), корневой узел: module
+2026-01-27 15:52:09,139 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\strategy.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,144 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,144 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\utils.py (python), корневой узел: module
+2026-01-27 15:52:09,144 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,144 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\utils.py (python), корневой узел: module
+2026-01-27 15:52:09,144 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\utils.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,150 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 15:52:09,150 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\validation.py (python), корневой узел: module
+2026-01-27 15:52:09,157 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 15:52:09,157 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\validation.py (python), корневой узел: module
+2026-01-27 15:52:09,158 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\validation.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,160 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,160 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,161 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,161 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\agent_runtime\strategies\react\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,161 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\agent_runtime\strategies\react\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,165 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,165 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\config_loader.py (python), корневой узел: module
+2026-01-27 15:52:09,166 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,166 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\config_loader.py (python), корневой узел: module
+2026-01-27 15:52:09,166 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\config_loader.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,171 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 15:52:09,171 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\models.py (python), корневой узел: module
+2026-01-27 15:52:09,199 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 15:52:09,200 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\models.py (python), корневой узел: module
+2026-01-27 15:52:09,200 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\models.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,201 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,201 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,202 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,202 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\config\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,202 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\config\__init__.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\base_db.py (python), корневой узел: module
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\base_db.py (python), корневой узел: module
+2026-01-27 15:52:09,205 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\base_db.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 15:52:09,205 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\postgres_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,212 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 15:52:09,212 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\database\postgres_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,212 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\database\postgres_provider.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,214 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,214 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\base_llm.py (python), корневой узел: module
+2026-01-27 15:52:09,215 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,215 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\base_llm.py (python), корневой узел: module
+2026-01-27 15:52:09,215 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\base_llm.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,222 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 15:52:09,222 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,226 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 16
+2026-01-27 15:52:09,227 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\llama_cpp_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,227 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\llama_cpp_provider.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,235 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 15:52:09,235 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\vllm_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,239 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 15
+2026-01-27 15:52:09,239 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\providers\llm\vllm_provider.py (python), корневой узел: module
+2026-01-27 15:52:09,239 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\providers\llm\vllm_provider.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,242 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,242 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\base_service.py (python), корневой узел: module
+2026-01-27 15:52:09,243 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,244 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\base_service.py (python), корневой узел: module
+2026-01-27 15:52:09,244 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\base_service.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,244 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\infrastructure\services\__init__.py
+2026-01-27 15:52:09,245 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:09,245 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\base.py (python), корневой узел: module
+2026-01-27 15:52:09,246 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:09,246 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\base.py (python), корневой узел: module
+2026-01-27 15:52:09,246 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\base.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,248 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,248 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\language_registry.py (python), корневой узел: module
+2026-01-27 15:52:09,249 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,249 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\language_registry.py (python), корневой узел: module
+2026-01-27 15:52:09,249 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\language_registry.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,252 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,252 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,252 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,253 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,253 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,254 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,254 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\base_adapter.py (python), корневой узел: module
+2026-01-27 15:52:09,255 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 5
+2026-01-27 15:52:09,255 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\base_adapter.py (python), корневой узел: module
+2026-01-27 15:52:09,255 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\base_adapter.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,283 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,283 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\python_adapter.py (python), корневой узел: module
+2026-01-27 15:52:09,299 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,299 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\python_adapter.py (python), корневой узел: module
+2026-01-27 15:52:09,299 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\python_adapter.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,307 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,308 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,309 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,309 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\adapters\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,309 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\adapters\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,312 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 15:52:09,312 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\service.py (python), корневой узел: module
+2026-01-27 15:52:09,313 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 11
+2026-01-27 15:52:09,314 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\service.py (python), корневой узел: module
+2026-01-27 15:52:09,314 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\service.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,316 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 15:52:09,316 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,316 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 2
+2026-01-27 15:52:09,316 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\services\code_analysis\ast_processing\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,317 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\services\code_analysis\ast_processing\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,319 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,320 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\ast_parser_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,321 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,321 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\ast_parser_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,322 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\ast_parser_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,323 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,323 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\base_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,324 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,324 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\base_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,324 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\base_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,330 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 15:52:09,330 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_lister_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,334 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 13
+2026-01-27 15:52:09,334 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_lister_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,335 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_lister_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_reader_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_reader_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,366 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_reader_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,366 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_writer_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,376 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,376 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\file_writer_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,376 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\file_writer_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,377 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,378 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\sql_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,379 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,379 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\sql_tool.py (python), корневой узел: module
+2026-01-27 15:52:09,379 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\sql_tool.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,380 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,380 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,382 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,382 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\infrastructure\tools\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,382 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\infrastructure\tools\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,384 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:09,384 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\retry_and_error_policy.py (python), корневой узел: module
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 7
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\retry_and_error_policy.py (python), корневой узел: module
+2026-01-27 15:52:09,385 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\retry_and_error_policy.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\utils.py (python), корневой узел: module
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 3
+2026-01-27 15:52:09,385 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\retry_policy\utils.py (python), корневой узел: module
+2026-01-27 15:52:09,385 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\retry_policy\utils.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,390 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,390 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\base_session_context.py (python), корневой узел: module
+2026-01-27 15:52:09,391 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,391 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\base_session_context.py (python), корневой узел: module
+2026-01-27 15:52:09,391 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\base_session_context.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,393 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,393 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\data_context.py (python), корневой узел: module
+2026-01-27 15:52:09,394 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,394 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\data_context.py (python), корневой узел: module
+2026-01-27 15:52:09,394 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\data_context.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,396 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,396 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\model.py (python), корневой узел: module
+2026-01-27 15:52:09,397 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 10
+2026-01-27 15:52:09,397 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\model.py (python), корневой узел: module
+2026-01-27 15:52:09,397 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\model.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,401 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,401 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\session_context.py (python), корневой узел: module
+2026-01-27 15:52:09,404 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 12
+2026-01-27 15:52:09,404 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\session_context.py (python), корневой узел: module
+2026-01-27 15:52:09,404 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\session_context.py (python): 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 634, in _process_import_statement
+    hash=self._compute_hash(import_text.encode('utf-8'))
+         ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PythonLanguageAdapter' object has no attribute '_compute_hash'
+2026-01-27 15:52:09,406 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,406 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\step_context.py (python), корневой узел: module
+2026-01-27 15:52:09,407 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,407 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\step_context.py (python), корневой узел: module
+2026-01-27 15:52:09,408 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\step_context.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 6
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\session_context\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,408 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\session_context\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\base_skill.py (python), корневой узел: module
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 9
+2026-01-27 15:52:09,408 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\base_skill.py (python), корневой узел: module
+2026-01-27 15:52:09,408 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\base_skill.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,413 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,413 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,413 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 4
+2026-01-27 15:52:09,413 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\__init__.py (python), корневой узел: module
+2026-01-27 15:52:09,414 - core.skills.project_map.skill - WARNING - Ошибка анализа файла core\skills\__init__.py (python): IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 387, in _analyze_file
+    outline = await self.ast_service.get_file_outline(file_path, source_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\ast_processing\service.py", line 161, in get_file_outline
+    outline = await adapter.get_outline(ast, file_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 332, in get_outline
+    child_id = process_node(child, module_unit, depth=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 308, in process_node
+    return self._process_import_statement(node, parent_id, file_path, source_bytes, code_units)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\infrastructure\services\code_analysis\adapters\python_adapter.py", line 611, in _process_import_statement
+    import_type = CodeUnitType.IMPORT_FROM if node.type == 'import_from_statement' else CodeUnitType.IMPORT
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM
+2026-01-27 15:52:09,415 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,415 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\prompt.py (python), корневой узел: module
+2026-01-27 15:52:09,416 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Успешно спарсен Python файл, узлов: 8
+2026-01-27 15:52:09,416 - core.infrastructure.services.code_analysis.ast_processing.service - DEBUG - Успешно спарсен файл core\skills\planning\prompt.py (python), корневой узел: module
+2026-01-27 15:52:09,416 - core.infrastructure.services.code_analysis.adapters.python_adapter - DEBUG - Построена полная структура для core\skills\planning\prompt.py: 1 элементов (0 верхнего уровня)
+2026-01-27 15:52:09,416 - core.skills.project_map.skill - DEBUG - Успешно проанализирован файл core\skills\planning\prompt.py: найдено 1 единиц кода
+2026-01-27 15:52:09,416 - core.skills.project_map.skill - ERROR - Ошибка анализа проекта: IMPORT_FROM
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 265, in _analyze_project
+    file_info.imports = [
+                        ^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_map\skill.py", line 267, in <listcomp>
+    if unit.type in [CodeUnitType.IMPORT, CodeUnitType.IMPORT_FROM]
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\enum.py", line 786, in __getattr__
+    raise AttributeError(name) from None
+AttributeError: IMPORT_FROM

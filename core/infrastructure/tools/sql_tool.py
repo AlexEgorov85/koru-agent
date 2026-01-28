@@ -21,6 +21,8 @@ class SQLToolOutput(ToolOutput):
 
 class SQLTool(BaseTool):
     """Инструмент для выполнения SQL-запросов с четким контрактом."""
+
+    name = "sql_tool"
     
     @property
     def description(self) -> str:

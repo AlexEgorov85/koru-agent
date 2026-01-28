@@ -25,6 +25,8 @@ class FileWriteOutput(ToolOutput):
 
 class FileWriterTool(BaseTool):
     """Инструмент для записи содержимого в файлы."""
+
+    name = "file_writer"
     
     @property
     def description(self) -> str:

@@ -1,0 +1,244 @@
+2026-01-28 08:43:01,675 - core.system_context.system_context - INFO - SystemContext создан (ID: ac3766f6-bec3-4b7d-aa29-dba2b7e3a561)
+2026-01-28 08:43:01,676 - core.system_context.system_context - INFO - Инициализация системы (ID: ac3766f6-bec3-4b7d-aa29-dba2b7e3a561) с профилем: dev
+2026-01-28 08:43:01,678 - core.infrastructure.providers.llm.base_llm - INFO - Создан LLM-провайдер для модели: qwen-4b
+2026-01-28 08:43:01,678 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Создан LlamaCppProvider для модели: qwen-4b
+2026-01-28 08:43:01,680 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Начало инициализации Llama.cpp движка для модели: qwen-4b
+2026-01-28 08:43:14,105 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно инициализирован за 12.43 секунд. Тестовый ответ: Hello! This is a test. 😊...
+2026-01-28 08:43:14,107 - core.system_context.factory - INFO - LLM провайдер 'default_llm' (llama_cpp) успешно создан и инициализирован
+2026-01-28 08:43:14,109 - core.system_context.system_context - INFO - LLM провайдер 'default_llm' успешно зарегистрирован
+2026-01-28 08:43:14,109 - core.infrastructure.providers.database.base_db - INFO - Создан DB провайдер для базы: postgres@localhost
+2026-01-28 08:43:14,111 - core.infrastructure.providers.database.postgres_provider - INFO - Инициализация PostgreSQL провайдера для базы: postgres
+2026-01-28 08:43:14,111 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-28 08:43:14,255 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-28 08:43:14,270 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.16 секунд
+2026-01-28 08:43:14,270 - core.system_context.factory - INFO - DB провайдер 'default_db' (postgres) успешно создан и инициализирован
+2026-01-28 08:43:14,270 - core.system_context.system_context - INFO - DB провайдер 'default_db' успешно зарегистрирован
+2026-01-28 08:43:14,277 - core.system_context.factory - INFO - Сканирование директории инструментов: core\infrastructure\tools
+2026-01-28 08:43:14,285 - core.system_context.factory - INFO - Найдено классов инструментов: 5
+2026-01-28 08:43:14,287 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-28 08:43:14,288 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно создан
+2026-01-28 08:43:14,290 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно создан
+2026-01-28 08:43:14,291 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно создан
+2026-01-28 08:43:14,292 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно создан
+2026-01-28 08:43:14,293 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно создан
+2026-01-28 08:43:14,293 - core.system_context.factory - INFO - Инструмент 'ast_parser' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,294 - core.system_context.factory - INFO - Инструмент 'file_lister' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,295 - core.system_context.factory - INFO - Инструмент 'file_reader' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,296 - core.system_context.factory - INFO - Инструмент 'file_writer' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,296 - core.system_context.factory - INFO - Инструмент 'sql_tool' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,296 - core.system_context.factory - INFO - Успешно создано и зарегистрировано инструментов: 5
+2026-01-28 08:43:14,297 - core.system_context.factory - INFO - Сканирование директории навыков: core\skills
+2026-01-28 08:43:14,609 - core.system_context.factory - INFO - Найдено классов навыков: 4
+2026-01-28 08:43:14,609 - core.skills.planning.skill - INFO - Инициализирован навык планирования: planning
+2026-01-28 08:43:14,609 - core.system_context.factory - INFO - Навык 'planning' успешно создан
+2026-01-28 08:43:14,614 - core.skills.project_map.skill - INFO - Инициализирован навык карты проекта: project_map
+2026-01-28 08:43:14,614 - core.skills.project_map.skill - INFO - ProjectMapSkill успешно инициализирован
+2026-01-28 08:43:14,614 - core.system_context.factory - INFO - Навык 'project_map' успешно создан
+2026-01-28 08:43:14,614 - core.skills.project_navigator.skill - INFO - Инициализирован навык навигации: project_navigator
+2026-01-28 08:43:14,614 - core.skills.project_navigator.skill - ERROR - Не найден сервис 'ast_processing' в системном контексте
+2026-01-28 08:43:14,617 - core.system_context.factory - INFO - Навык 'project_navigator' успешно создан
+2026-01-28 08:43:14,617 - asyncio - INFO - Инициализирован навык получения описания: table_description
+2026-01-28 08:43:14,618 - core.system_context.factory - INFO - Навык 'table_description' успешно создан
+2026-01-28 08:43:14,619 - core.system_context.factory - INFO - Навык 'planning' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,619 - core.system_context.factory - INFO - Навык 'project_map' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,619 - core.system_context.factory - INFO - Навык 'project_navigator' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,620 - core.system_context.factory - INFO - Навык 'table_description' успешно зарегистрирован в реестре
+2026-01-28 08:43:14,620 - core.system_context.factory - INFO - Успешно создано и зарегистрировано навыков: 4
+2026-01-28 08:43:14,697 - core.infrastructure.services.code_analysis.language_registry - INFO - Зарегистрирован адаптер языка: python (py, pyi, pyw)
+2026-01-28 08:43:14,699 - core.system_context.factory - INFO - Базовые сервисы (language_registry) зарегистрированы
+2026-01-28 08:43:14,699 - core.system_context.factory - INFO - Сканирование директории сервисов: core\infrastructure\services
+2026-01-28 08:43:14,703 - core.system_context.factory - INFO - Найдено классов сервисов: 1
+2026-01-28 08:43:14,704 - core.system_context.factory - INFO - Сервис 'ast_processing' зарегистрирован в реестре
+2026-01-28 08:43:14,704 - core.system_context.lifecycle_manager - INFO - Начало инициализации системы...
+2026-01-28 08:43:14,707 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_llm' успешно инициализирован
+2026-01-28 08:43:14,708 - core.infrastructure.tools.ast_parser_tool - ERROR - Не удалось получить инструмент file_reader
+2026-01-28 08:43:14,709 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_parser' успешно инициализирован
+2026-01-28 08:43:14,710 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_lister' успешно инициализирован
+2026-01-28 08:43:14,710 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_reader' успешно инициализирован
+2026-01-28 08:43:14,711 - core.system_context.lifecycle_manager - INFO - Ресурс 'file_writer' успешно инициализирован
+2026-01-28 08:43:14,712 - core.system_context.lifecycle_manager - INFO - Ресурс 'sql_tool' успешно инициализирован
+2026-01-28 08:43:14,738 - core.system_context.lifecycle_manager - INFO - Ресурс 'planning' успешно инициализирован
+2026-01-28 08:43:14,738 - core.skills.project_map.skill - ERROR - Не удалось получить сервис анализа кода (ast_processing)
+2026-01-28 08:43:14,740 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_map' успешно инициализирован
+2026-01-28 08:43:14,740 - core.skills.project_navigator.skill - INFO - ProjectNavigatorSkill успешно инициализирован
+2026-01-28 08:43:14,742 - core.system_context.lifecycle_manager - INFO - Ресурс 'project_navigator' успешно инициализирован
+2026-01-28 08:43:14,742 - core.system_context.lifecycle_manager - INFO - Ресурс 'table_description' успешно инициализирован
+2026-01-28 08:43:14,746 - core.infrastructure.providers.database.postgres_provider - INFO - Создание пула соединений с PostgreSQL: localhost:5432/postgres
+2026-01-28 08:43:14,750 - core.infrastructure.services.code_analysis.adapters.python_adapter - INFO - PythonLanguageAdapter успешно инициализирован с поддержкой всех конструкций Python 3.x
+2026-01-28 08:43:14,822 - core.infrastructure.providers.database.postgres_provider - INFO - Подключено к PostgreSQL: PostgreSQL 13.22, compiled by Visual C++ build 1925, 64-bit
+2026-01-28 08:43:14,823 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно инициализирован за 0.08 секунд
+2026-01-28 08:43:14,823 - core.system_context.lifecycle_manager - INFO - Ресурс 'default_db' успешно инициализирован
+2026-01-28 08:43:14,823 - core.system_context.lifecycle_manager - INFO - Ресурс 'language_registry' успешно инициализирован
+2026-01-28 08:43:14,823 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService успешно инициализирован
+2026-01-28 08:43:14,823 - core.system_context.lifecycle_manager - INFO - Ресурс 'ast_processing' успешно инициализирован
+2026-01-28 08:43:14,823 - core.system_context.lifecycle_manager - INFO - Все ресурсы успешно инициализированы
+2026-01-28 08:43:16,145 - core.system_context.system_context - INFO - Система успешно инициализирована
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ✅ Система успешно инициализирована
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - 
+--------------------------------------------------------------------------------
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ШАГ 2: Создание сессии
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - --------------------------------------------------------------------------------
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ✅ Сессия создана
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - 
+--------------------------------------------------------------------------------
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ШАГ 3: Анализ структуры проекта (обязательный предварительный шаг)
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - --------------------------------------------------------------------------------
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:16,147 - project_navigator_test - INFO - ЭТАП 1: Анализ структуры проекта через ProjectMapSkill
+2026-01-28 08:43:16,149 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:16,181 - core.skills.project_map.skill - INFO - Получено файлов от инструмента: 133
+2026-01-28 08:43:16,322 - core.infrastructure.services.code_analysis.adapters.python_adapter - ERROR - Ошибка извлечения текста узла string: min() arg is an empty sequence
+2026-01-28 08:43:16,691 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\infrastructure\services\__init__.py
+2026-01-28 08:43:17,473 - core.skills.project_map.skill - WARNING - Не удалось прочитать файл: core\skills\project_map\models\__init__.py
+2026-01-28 08:43:18,285 - core.skills.project_map.skill - INFO - Проанализировано файлов: 96 из 133 (поддерживаемые расширения: ['py'])
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ✅ Проект успешно проанализирован
+2026-01-28 08:43:18,287 - project_navigator_test - INFO -    Файлов: 96
+2026-01-28 08:43:18,287 - project_navigator_test - INFO -    Единиц кода: 1297
+2026-01-28 08:43:18,287 - project_navigator_test - INFO -    Типов файлов: {'py': 96}
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ✅ ProjectMap сохранён в контекст сессии
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - 
+✅ Анализ проекта завершён успешно. Запуск сценариев навигации...
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #1
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - СЦЕНАРИЙ 1: Навигация к файлу и получение его содержимого
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:18,287 - core.infrastructure.tools.file_reader_tool - ERROR - Ошибка чтения файла C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py: 'FileReadInput' object has no attribute 'start_line'
+2026-01-28 08:43:18,287 - project_navigator_test - INFO - ✅ Файл успешно найден: core\skills\project_navigator\skill.py
+2026-01-28 08:43:18,298 - project_navigator_test - ERROR - ❌ Критическая ошибка в сценарии 1: object of type 'NoneType' has no len()
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\project_navigator.py", line 132, in scenario_1_navigate_to_file
+    logger.info(f"   Размер: {len(nav_result.get('source_code', ''))} символов")
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: object of type 'NoneType' has no len()
+2026-01-28 08:43:18,806 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:18,807 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #2
+2026-01-28 08:43:18,809 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:18,809 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:18,811 - project_navigator_test - INFO - СЦЕНАРИЙ 2: Навигация к классу и получение его реализации
+2026-01-28 08:43:18,811 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:18,811 - core.infrastructure.tools.file_reader_tool - ERROR - Ошибка чтения файла C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py: 'FileReadInput' object has no attribute 'start_line'
+2026-01-28 08:43:18,814 - core.skills.project_navigator.skill - ERROR - Ошибка навигации: sequence item 0: expected str instance, dict found
+Traceback (most recent call last):
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 281, in _navigate
+    result = await self._navigate_to_class(input_data, project_map, context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py", line 737, in _navigate_to_class
+    signature=target_unit.get_signature(),
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Алексей\Documents\WORK\Agent_code\models\code_unit.py", line 296, in get_signature
+    bases_str = f"({', '.join(bases)})" if bases else ""
+                    ^^^^^^^^^^^^^^^^
+TypeError: sequence item 0: expected str instance, dict found
+2026-01-28 08:43:18,824 - project_navigator_test - ERROR - ❌ Ошибка навигации к классу: Ошибка навигации: sequence item 0: expected str instance, dict found
+2026-01-28 08:43:18,825 - project_navigator_test - ERROR -    Детали: NAVIGATION_ERROR
+2026-01-28 08:43:19,337 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:19,338 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #3
+2026-01-28 08:43:19,338 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:19,340 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:19,340 - project_navigator_test - INFO - СЦЕНАРИЙ 3: Навигация к методу класса
+2026-01-28 08:43:19,340 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:19,340 - project_navigator_test - INFO - ✅ Метод успешно найден: _navigate_to_class
+2026-01-28 08:43:19,340 - project_navigator_test - INFO -    Класс: неизвестно
+2026-01-28 08:43:19,340 - project_navigator_test - INFO -    Файл: core\skills\project_navigator\skill.py
+2026-01-28 08:43:19,851 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:19,855 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #4
+2026-01-28 08:43:19,856 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:19,856 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:19,866 - project_navigator_test - INFO - СЦЕНАРИЙ 4: Поиск элементов кода по имени
+2026-01-28 08:43:19,868 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:19,879 - project_navigator_test - INFO - ✅ Найдено 284 элементов с 'execute' в названии
+2026-01-28 08:43:19,879 - project_navigator_test - INFO -    Показано результатов: 10
+2026-01-28 08:43:19,879 - project_navigator_test - INFO - 
+1. Method: execute
+2026-01-28 08:43:19,888 - project_navigator_test - INFO -    Файл: core\infrastructure\providers\database\postgres_provider.py
+2026-01-28 08:43:19,889 - project_navigator_test - INFO -    Строка: 142
+2026-01-28 08:43:19,889 - project_navigator_test - INFO -    Релевантность: 1.00
+2026-01-28 08:43:19,890 - project_navigator_test - INFO -    Контекст: method 'execute' at line 142
+2026-01-28 08:43:19,890 - project_navigator_test - INFO - 
+2. Method: execute
+2026-01-28 08:43:19,891 - project_navigator_test - INFO -    Файл: core\infrastructure\tools\ast_parser_tool.py
+2026-01-28 08:43:19,891 - project_navigator_test - INFO -    Строка: 61
+2026-01-28 08:43:19,892 - project_navigator_test - INFO -    Релевантность: 1.00
+2026-01-28 08:43:19,893 - project_navigator_test - INFO -    Контекст: method 'execute' at line 61
+2026-01-28 08:43:19,893 - project_navigator_test - INFO - 
+3. Method: execute
+2026-01-28 08:43:19,893 - project_navigator_test - INFO -    Файл: core\infrastructure\tools\file_lister_tool.py
+2026-01-28 08:43:19,895 - project_navigator_test - INFO -    Строка: 157
+2026-01-28 08:43:19,895 - project_navigator_test - INFO -    Релевантность: 1.00
+2026-01-28 08:43:19,897 - project_navigator_test - INFO -    Контекст: method 'execute' at line 157
+2026-01-28 08:43:19,897 - project_navigator_test - INFO - 
+4. Method: execute
+2026-01-28 08:43:19,897 - project_navigator_test - INFO -    Файл: core\infrastructure\tools\file_reader_tool.py
+2026-01-28 08:43:19,898 - project_navigator_test - INFO -    Строка: 77
+2026-01-28 08:43:19,898 - project_navigator_test - INFO -    Релевантность: 1.00
+2026-01-28 08:43:19,899 - project_navigator_test - INFO -    Контекст: method 'execute' at line 77
+2026-01-28 08:43:19,899 - project_navigator_test - INFO - 
+5. Method: execute
+2026-01-28 08:43:19,899 - project_navigator_test - INFO -    Файл: core\infrastructure\tools\file_writer_tool.py
+2026-01-28 08:43:19,899 - project_navigator_test - INFO -    Строка: 95
+2026-01-28 08:43:19,899 - project_navigator_test - INFO -    Релевантность: 1.00
+2026-01-28 08:43:19,899 - project_navigator_test - INFO -    Контекст: method 'execute' at line 95
+2026-01-28 08:43:19,899 - project_navigator_test - INFO - 
+... и ещё 279 элементов
+2026-01-28 08:43:20,400 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:20,408 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #5
+2026-01-28 08:43:20,408 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:20,409 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:20,409 - project_navigator_test - INFO - СЦЕНАРИЙ 5: Получение структуры файла (внутренняя capability)
+2026-01-28 08:43:20,410 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:20,411 - core.infrastructure.tools.file_reader_tool - ERROR - Ошибка чтения файла C:\Users\Алексей\Documents\WORK\Agent_code\core\skills\project_navigator\skill.py: 'FileReadInput' object has no attribute 'start_line'
+2026-01-28 08:43:20,411 - project_navigator_test - ERROR - ❌ Ошибка получения структуры: Ошибка чтения файла: 'FileReadInput' object has no attribute 'start_line'
+2026-01-28 08:43:20,411 - project_navigator_test - ERROR -    Детали: FILE_READ_ERROR
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - ЗАПУСК СЦЕНАРИЯ #6
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - СЦЕНАРИЙ 6: Получение зависимостей файла (внутренняя capability)
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:20,921 - project_navigator_test - INFO - ✅ Зависимости файла получены: core/skills/project_navigator/skill.py
+2026-01-28 08:43:20,921 - project_navigator_test - INFO -    Всего зависимостей: 0
+2026-01-28 08:43:21,437 - project_navigator_test - INFO - 
+================================================================================
+2026-01-28 08:43:21,437 - project_navigator_test - INFO - ВСЕ СЦЕНАРИИ ЗАВЕРШЕНЫ
+2026-01-28 08:43:21,439 - project_navigator_test - INFO - ================================================================================
+2026-01-28 08:43:21,439 - project_navigator_test - INFO - Количество выполненных сценариев: 6
+2026-01-28 08:43:21,439 - project_navigator_test - INFO - ID сессии: e93a8385-7cec-4536-be03-a0d16a0844ad
+2026-01-28 08:43:21,439 - project_navigator_test - INFO - Время выполнения: 0.00 сек
+2026-01-28 08:43:21,439 - project_navigator_test - INFO - 
+РЕКОМЕНДАЦИИ:
+2026-01-28 08:43:21,441 - project_navigator_test - INFO -   • Для продвинутого использования сохраняйте результаты в контекст сессии
+2026-01-28 08:43:21,441 - project_navigator_test - INFO -   • Используйте параметр 'detail_level' для контроля объёма возвращаемых данных
+2026-01-28 08:43:21,441 - project_navigator_test - INFO -   • Для поиска по большому проекту ограничивайте 'max_results' и используйте 'scope'
+2026-01-28 08:43:21,441 - project_navigator_test - INFO - 
+--------------------------------------------------------------------------------
+2026-01-28 08:43:21,443 - project_navigator_test - INFO - ЗАВЕРШЕНИЕ РАБОТЫ
+2026-01-28 08:43:21,446 - project_navigator_test - INFO - --------------------------------------------------------------------------------
+2026-01-28 08:43:21,447 - core.system_context.system_context - INFO - Завершение работы системы...
+2026-01-28 08:43:21,447 - core.system_context.lifecycle_manager - INFO - Начало завершения работы системы...
+2026-01-28 08:43:21,448 - core.infrastructure.services.code_analysis.ast_processing.service - INFO - ASTProcessingService завершил работу
+2026-01-28 08:43:21,448 - core.infrastructure.tools.file_writer_tool - INFO - FileWriterTool завершил работу
+2026-01-28 08:43:21,449 - core.infrastructure.tools.file_reader_tool - INFO - FileReaderTool завершил работу
+2026-01-28 08:43:21,449 - core.infrastructure.tools.file_lister_tool - INFO - FileListerTool завершил работу
+2026-01-28 08:43:21,449 - core.infrastructure.tools.ast_parser_tool - INFO - ASTParserTool завершил работу
+2026-01-28 08:43:21,451 - core.infrastructure.providers.database.postgres_provider - INFO - Завершение работы пула соединений PostgreSQL...
+2026-01-28 08:43:21,458 - core.infrastructure.providers.database.postgres_provider - INFO - PostgreSQL провайдер успешно завершил работу
+2026-01-28 08:43:21,460 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Завершение работы Llama.cpp движка...
+2026-01-28 08:43:22,691 - core.infrastructure.providers.llm.llama_cpp_provider - INFO - Llama.cpp провайдер успешно завершил работу
+2026-01-28 08:43:22,691 - core.system_context.lifecycle_manager - INFO - Система корректно завершила работу
+2026-01-28 08:43:22,691 - core.system_context.system_context - INFO - Система успешно завершила работу
+2026-01-28 08:43:22,691 - project_navigator_test - INFO - ✅ Системный контекст завершил работу
+2026-01-28 08:43:22,691 - project_navigator_test - INFO - Тестирование переработанного ProjectNavigatorSkill завершено
