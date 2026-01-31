@@ -10,6 +10,7 @@ from core.session_context.base_session_context import BaseSessionContext
 
 if TYPE_CHECKING:
     from core.agent_runtime.thinking_patterns.base import AgentStrategyInterface
+    from models.agent_state import AgentState
 
 
 @dataclass

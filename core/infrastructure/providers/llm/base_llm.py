@@ -80,7 +80,15 @@ class BaseLLMProvider(ABC):
         pass
     
     @abstractmethod
-    async def generate_structured(self, request: LLMRequest, output_schema: Dict[str, Any]) -> LLMResponse:
+    async def generate_structured(
+        self,
+        user_prompt: str,
+        output_schema: Dict[str, Any],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> LLMResponse:
         """Генерация структурированных данных по JSON Schema."""
         pass
     

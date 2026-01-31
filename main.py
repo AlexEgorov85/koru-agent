@@ -163,34 +163,28 @@ class Application:
         logger = logging.getLogger("main")
         
         try:
-
             logger.info(f"Запуск агента с целью: {self.args.goal}")
             
             # 2. Создание и запуск агента
-            agent = await self.system_context.create_agent(
-                parameters=getattr(self.config.agent, 'parameters', {})
-            )
-
-            agent.session.set_goal(self.args.goal)
+            agent = await self.system_context.create_agent()
             
             # 3. Выполнение агента
             start_time = datetime.now()
-            result = await agent.execute(self.args.goal)
+            result = await agent.run(self.args.goal)
             end_time = datetime.now()
             
             # 4. Сохранение результатов в сессию
-            self.session.set_result(result)
-            self.session.execution_time = (end_time - start_time).total_seconds()
+            execution_time = (end_time - start_time).total_seconds()
             
-            logger.info(f"Агент успешно завершил выполнение за {self.session.execution_time:.2f} секунд")
+            logger.info(f"Агент успешно завершил выполнение за {execution_time:.2f} секунд")
             
             return {
                 "success": True,
                 "goal": self.args.goal,
                 "result": result,
-                "session_id": self.session.session_id,
-                "execution_time": self.session.execution_time,
-                "steps_taken": self.session.steps_taken
+                "session_id": agent.session.session_id if hasattr(agent, 'session') else "unknown",
+                "execution_time": execution_time,
+                "steps_taken": getattr(agent.session, 'step', 0) if hasattr(agent, 'session') else 0
             }
             
         except Exception as e:
@@ -211,10 +205,6 @@ class Application:
         if self.system_context:
             logger.info("Завершение работы системного контекста...")
             await self.system_context.shutdown()
-        
-        if self.session_manager:
-            logger.info("Завершение работы менеджера сессий...")
-            await self.session_manager.shutdown()
     
     def save_results(self, result: Dict[str, Any]) -> None:
         """
@@ -267,7 +257,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Запуск агента для выполнения задач")
     
     # Основной параметр - вопрос
-    parser.add_argument("goal", type=str, nargs="?", default="Какие книги написал Пушкин?",
+    parser.add_argument("goal", type=str, nargs="?", default="Проанализируй структуру текущего проекта и опиши основные компоненты.",
                         help="Цель для агента (вопрос или задача)")
     
     # Параметры для переопределения конфигурации

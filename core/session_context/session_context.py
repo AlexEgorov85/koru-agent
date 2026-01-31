@@ -74,7 +74,7 @@ class SessionContext(BaseSessionContext):
         """
         return self.goal
 
-    def _add_context_item(
+    def add_context_item(
         self,
         item_type: ContextItemType,
         content: Any,
@@ -224,7 +224,7 @@ class SessionContext(BaseSessionContext):
             step_number=step_number,
             confidence=0.9
         )
-        return self._add_context_item(
+        return self.add_context_item(
             item_type=ContextItemType.ACTION,
             content=action_data,
             metadata=meta
@@ -237,7 +237,7 @@ class SessionContext(BaseSessionContext):
             step_number=step_number,
             confidence=0.8
         )
-        return self._add_context_item(
+        return self.add_context_item(
             item_type=ContextItemType.OBSERVATION,
             content=observation_data,
             metadata=meta
@@ -255,7 +255,7 @@ class SessionContext(BaseSessionContext):
         }
         item_type = plan_type_map.get(plan_type, ContextItemType.EXECUTION_PLAN)
 
-        self.current_plan_item_id = self._add_context_item(
+        self.current_plan_item_id = self.add_context_item(
             item_type=item_type,
             content=plan_data,
             metadata=meta
@@ -272,7 +272,7 @@ class SessionContext(BaseSessionContext):
             "decision": decision_data,
             "reasoning": reasoning
         }
-        return self._add_context_item(
+        return self.add_context_item(
             item_type=ContextItemType.THOUGHT,
             content=content,
             metadata=meta
@@ -289,7 +289,7 @@ class SessionContext(BaseSessionContext):
             "error": error_data,
             "error_type": error_type
         }
-        return self._add_context_item(
+        return self.add_context_item(
             item_type=ContextItemType.ERROR_LOG,
             content=content,
             metadata=meta
@@ -305,8 +305,8 @@ class SessionContext(BaseSessionContext):
             "name": name,
             "value": value,
             "unit": unit
-        }
-        return self._add_context_item(
+            }
+        return self.add_context_item(
             item_type=ContextItemType.TOOL_RESULT,
             content=content,
             metadata=meta
@@ -322,7 +322,7 @@ class SessionContext(BaseSessionContext):
             "event_type": event_type,
             "description": description
         }
-        return self._add_context_item(
+        return self.add_context_item(
             item_type=ContextItemType.THOUGHT,
             content=content,
             metadata=meta

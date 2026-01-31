@@ -16,13 +16,13 @@ from typing import Dict, Any, Optional, Type
 
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.llm.openrouter_provider import OpenRouterProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 from core.infrastructure.services.base_service import BaseService
-from core.infrastructure.tools.base_tool import BaseTool
+# Удаляем прямой импорт BaseTool, чтобы избежать циклической зависимости
+# BaseTool будет импортирован локально в методах, где он используется
 from core.system_context.base_system_contex import BaseSystemContext
 from core.system_context.resource_registry import ResourceInfo
 from models.resource import ResourceType
@@ -68,17 +68,17 @@ class ProviderFactory:
         - None если тип провайдера не поддерживается
         
         ПОДДЕРЖИВАЕМЫЕ ТИПЫ:
-        - vllm: VLLMProvider
         - llama_cpp: LlamaCppProvider
         - openrouter: OpenRouterProvider
         
         ПРИМЕР:
         config = {
-            "type": "vllm",
+            "type": "llama_cpp",
             "model_name": "mistral-7b",
             "parameters": {
-                "tensor_parallel_size": 1,
-                "gpu_memory_utilization": 0.9
+                "model_path": "./models/mistral-7b.gguf",
+                "n_ctx": 2048,
+                "temperature": 0.7
             }
         }
         provider = await factory.create_llm_provider_from_config(config, "primary_llm")
@@ -101,9 +101,7 @@ class ProviderFactory:
         parameters = provider_config.parameters
         
         try:
-            if provider_type == "vllm":
-                provider = VLLMProvider(model_name = model_name, config = parameters)
-            elif provider_type == "llama_cpp":
+            if provider_type == "llama_cpp":
                 provider = LlamaCppProvider(model_name = model_name, config = parameters)
             elif provider_type == "openrouter":
                 provider = OpenRouterProvider(model_name = model_name, config = parameters)
@@ -221,7 +219,7 @@ class ProviderFactory:
         
         logger.info(f"Успешно создано и зарегистрировано инструментов: {len(tools)}")
     
-    async def _discover_tools_from_directory(self) -> Dict[str, Type[BaseTool]]:
+    async def _discover_tools_from_directory(self) -> Dict[str, Type['BaseTool']]:
         """Обнаружение всех классов инструментов в директории.
         
         ВОЗВРАЩАЕТ:
@@ -249,6 +247,9 @@ class ProviderFactory:
                 try:
                     # Динамически импортируем модуль
                     module = importlib.import_module(full_module_name)
+                    
+                    # Локальный импорт BaseTool для избежания циклической зависимости
+                    from core.infrastructure.tools.base_tool import BaseTool
                     
                     # Ищем все классы в модуле, наследуемые от BaseTool
                     for name, obj in inspect.getmembers(module, inspect.isclass):
@@ -301,10 +302,10 @@ class ProviderFactory:
     
     async def _create_tool_instance(
         self, 
-        tool_class: Type[BaseTool], 
+        tool_class: Type['BaseTool'], 
         tool_name: str, 
         config: Dict[str, Any]
-    ) -> Optional[BaseTool]:
+    ) -> Optional['BaseTool']:
         """Создание экземпляра инструмента с применением конфигурации.
         
         ПАРАМЕТРЫ:
@@ -317,6 +318,9 @@ class ProviderFactory:
         """
         try:
             logger.debug(f"Создание инструмента '{tool_name}' из класса {tool_class.__name__}")
+            
+            # Локальный импорт BaseTool для избежания циклической зависимости
+            from core.infrastructure.tools.base_tool import BaseTool
             
             # Подготовка параметров для конструктора
             init_params = {

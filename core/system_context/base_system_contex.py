@@ -2,15 +2,15 @@
 Базовый класс системного контекста (SystemContext).
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from core.session_context.session_context import SessionContext
 from core.system_context.resource_registry import ResourceInfo
 from models.capability import Capability
 from models.llm_types import LLMResponse
 from models.resource import ResourceType
 
 
-class BaseSystemContext:
+class BaseSystemContext(ABC):
     
     def _setup_logging(self):
         """
@@ -106,7 +106,7 @@ class BaseSystemContext:
         skill_name: str, 
         capability_name: str, 
         parameters: dict,
-        session_context: SessionContext = None
+        session_context: 'core.session_context.session_context.SessionContext' = None
     ):
         """
         Выполняет конкретный навык с заданными параметрами.

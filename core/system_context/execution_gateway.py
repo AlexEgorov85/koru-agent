@@ -23,6 +23,11 @@ from core.system_context.base_system_contex import BaseSystemContext
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 
+# Используем TYPE_CHECKING для предотвращения циклических импортов
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.session_context.session_context import SessionContext
+
 logger = logging.getLogger(__name__)
 
 class ExecutionGateway:

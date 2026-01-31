@@ -51,7 +51,7 @@ class PlanningThinkingPattern(AgentThinkingPatternInterface):
         Основной метод — создание плана действий.
         ВОЗВРАЩАЕТ: решение о переключении на выполнение плана после создания
         """
-        session = runtime.session()
+        session = runtime.session
         goal = session.get_goal() or ""
         current_step = session.step_context.get_current_step_number()
         

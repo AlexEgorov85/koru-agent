@@ -125,3 +125,19 @@ class DataContext:
         if not self.items:
             return None
         return list(self.items.keys())[-1]
+    
+    def get_last_items(self, count: int) -> List[ContextItem]:
+        """
+        Получение последних N элементов контекста.
+        
+        ПАРАМЕТРЫ:
+        - count: Количество элементов для получения (по умолчанию 10)
+        
+        ВОЗВРАЩАЕТ:
+        - Список последних элементов в порядке добавления (новые в конце)
+        """
+        if count <= 0:
+            return []
+        
+        all_items = list(self.items.values())
+        return all_items[-count:] if len(all_items) >= count else all_items

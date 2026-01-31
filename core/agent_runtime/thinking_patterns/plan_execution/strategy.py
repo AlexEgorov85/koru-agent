@@ -56,7 +56,7 @@ class PlanExecutionThinkingPattern(AgentThinkingPatternInterface):
           - SWITCH на evaluation при завершении плана
           - SWITCH на fallback при критической ошибке
         """
-        session = runtime.session()
+        session = runtime.session
         current_step_num = session.step_context.get_current_step_number()
         
         # Получение плана из контекста

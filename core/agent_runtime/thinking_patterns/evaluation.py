@@ -10,7 +10,7 @@ class EvaluationThinkingPattern(AgentThinkingPatternInterface):
     name = "evaluation"
 
     async def next_step(self, runtime):
-        session = runtime.session()
+        session = runtime.session
 
         prompt = f"""
 Цель:

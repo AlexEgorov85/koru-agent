@@ -1,3 +1,4 @@
 # Основные зависимости для AST парсинга
 tree-sitter==0.21.0
-tree-sitter-languages==1.9.0
+tree-sitter-languages==1.9.1
+pydantic>=2.5.0

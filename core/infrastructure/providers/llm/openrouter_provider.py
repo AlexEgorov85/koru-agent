@@ -21,7 +21,7 @@ class OpenRouterProvider(BaseLLMProvider):
         self.api_key = config.get("api_key")
         self.base_url = config.get("base_url", "https://openrouter.ai/api/v1")
         self.model_name = model_name
-        self.default_temperature = config.get("temperature", 0.7)
+        self.default_temperature = config.get("temperature", 0.2)
         self.default_max_tokens = config.get("max_tokens", 2048)
         self.default_top_p = config.get("top_p", 1.0)
         self.default_frequency_penalty = config.get("frequency_penalty", 0.0)
@@ -242,7 +242,15 @@ class OpenRouterProvider(BaseLLMProvider):
                     self._update_metrics(time.time() - start_time, success=False)
                     raise
     
-    async def generate_structured(self, request: LLMRequest, output_schema: Dict[str, Any]) -> LLMResponse:
+    async def generate_structured(
+        self,
+        user_prompt: str,
+        output_schema: Dict[str, Any],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> LLMResponse:
         """
         Генерация структурированного ответа в формате JSON.
         """
@@ -250,22 +258,14 @@ class OpenRouterProvider(BaseLLMProvider):
         
         # Обновляем промпт, чтобы указать формат JSON
         structured_system_prompt = (
-            request.system_prompt or 
+            system_prompt or 
             "You are a helpful assistant that responds in JSON format. "
             "Always respond with valid JSON that matches the requested schema."
         )
         
-        # Создаем новый запрос с обновленным системным промптом и указанием формата
-        structured_request = LLMRequest(
-            prompt=request.prompt,
-            system_prompt=structured_system_prompt,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-            top_p=request.top_p,
-            frequency_penalty=request.frequency_penalty,
-            presence_penalty=request.presence_penalty,
-            metadata={**(request.metadata or {}), "response_format": {"type": "json_object"}}
-        )
+        # Используем переданные параметры или значения по умолчанию
+        temperature = temperature or self.default_temperature
+        max_tokens = max_tokens or self.default_max_tokens
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -276,20 +276,18 @@ class OpenRouterProvider(BaseLLMProvider):
             "model": self.model_name,
             "messages": [
                 {"role": "system", "content": structured_system_prompt},
-                {"role": "user", "content": request.prompt}
+                {"role": "user", "content": user_prompt}
             ],
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
-            "top_p": request.top_p,
-            "frequency_penalty": request.frequency_penalty,
-            "presence_penalty": request.presence_penalty,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": self.default_top_p,
+            "frequency_penalty": self.default_frequency_penalty,
+            "presence_penalty": self.default_presence_penalty,
             "response_format": {"type": "json_object"}
         }
         
-        # Добавляем любые дополнительные параметры из metadata
-        if request.metadata:
-            if 'extra_params' in request.metadata:
-                payload.update(request.metadata['extra_params'])
+        # Добавляем любые дополнительные параметры из kwargs
+        payload.update(kwargs)
         
         attempt = 0
         max_retries = getattr(self, 'max_retries', 3)
@@ -344,9 +342,9 @@ class OpenRouterProvider(BaseLLMProvider):
                             metadata={
                                 "usage": usage,
                                 "parameters": {
-                                    "temperature": request.temperature,
-                                    "max_tokens": request.max_tokens,
-                                    "top_p": request.top_p
+                                    "temperature": temperature,
+                                    "max_tokens": max_tokens,
+                                    "top_p": self.default_top_p
                                 },
                                 "output_schema": output_schema
                             }

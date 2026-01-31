@@ -72,7 +72,7 @@ class ReActThinkingPattern(AgentThinkingPatternInterface):
         # Определяем, какой тип контекста используется
         if hasattr(runtime, 'session'):
             # Это обычный интерфейс агента
-            session = runtime.session()
+            session = runtime.session
         else:
             # Это ExecutionContext
             session = runtime.session

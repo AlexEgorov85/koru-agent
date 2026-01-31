@@ -11,7 +11,12 @@ from core.agent_runtime.thinking_patterns.react.strategy import ReActThinkingPat
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata
 from core.system_context.base_system_contex import BaseSystemContext
-from .state import AgentState
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.session_context.session_context import SessionContext
+
+from models.agent_state import AgentState
 from .progress import ProgressScorer
 from .executor import ActionExecutor
 from .policy import AgentPolicy

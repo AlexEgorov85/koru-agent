@@ -12,7 +12,17 @@ class AgentPolicy:
         self.max_no_progress_steps = max_no_progress_steps
 
     def should_fallback(self, state) -> bool:
-        return state.error_count >= self.max_errors
+        # Fallback происходит, когда количество ошибок достигает или превышает лимит
+        # Особый случай: если лимит 0, то fallback происходит при любой ошибке (> 0)
+        if self.max_errors == 0:
+            return state.error_count > 0
+        else:
+            return state.error_count >= self.max_errors
 
     def should_stop_no_progress(self, state) -> bool:
-        return state.no_progress_steps >= self.max_no_progress_steps
+        # Остановка происходит, когда количество шагов без прогресса достигает или превышает лимит
+        # Особый случай: если лимит 0, то остановка происходит при любом шаге без прогресса (> 0)
+        if self.max_no_progress_steps == 0:
+            return state.no_progress_steps > 0
+        else:
+            return state.no_progress_steps >= self.max_no_progress_steps

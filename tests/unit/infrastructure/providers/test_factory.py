@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
-from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 from core.system_context.factory import ProviderFactory

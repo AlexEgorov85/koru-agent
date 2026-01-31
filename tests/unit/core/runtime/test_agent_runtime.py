@@ -8,7 +8,7 @@ from core.agent_runtime.states import ExecutionState
 from core.agent_runtime.task_scheduler import SimpleTaskScheduler, Task, TaskStatus
 from core.agent_runtime.checkpoint import CheckpointManager
 from core.agent_runtime.strategy_loader import ThinkingPatternLoader
-from core.agent_runtime.state import AgentState
+from models.agent_state import AgentState
 from core.agent_runtime.progress import ProgressScorer
 from core.agent_runtime.executor import ActionExecutor
 from core.agent_runtime.policy import AgentPolicy

@@ -16,6 +16,11 @@ from core.config.models import SystemConfig
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.session_context import SessionContext
 from core.system_context.base_system_contex import BaseSystemContext
+
+# Используем TYPE_CHECKING для предотвращения циклических импортов
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.session_context.session_context import SessionContext
 from core.system_context.execution_gateway import ExecutionGateway
 from core.system_context.resource_registry import ResourceRegistry, ResourceInfo
 from core.system_context.capability_registry import CapabilityRegistry
@@ -522,7 +527,7 @@ class SystemContext(BaseSystemContext):
         self, 
         capability_name: str, 
         parameters: dict,
-        session_context: BaseSessionContext = None
+        session_context: 'BaseSessionContext' = None
     ):
         """
         Выполняет конкретный навык с заданными параметрами.
