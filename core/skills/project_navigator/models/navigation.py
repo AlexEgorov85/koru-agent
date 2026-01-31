@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 class NavigationResult(BaseModel):
     """
     Результат навигации к элементу кода.
-    
     Пример использования:
     ```python
     result = NavigationResult(
@@ -28,7 +27,7 @@ class NavigationResult(BaseModel):
     success: bool = Field(..., description="Успешность навигации")
     target_type: str = Field(..., description="Тип найденного элемента")
     identifier: str = Field(..., description="Имя или путь элемента")
-    file_path: str = Field(..., description="Путь к файлу с элементом")
+    file_path: str = Field(..., description="Путь к файлу с элементом (относительный от корня проекта)")
     source_code: Optional[str] = Field(
         None,
         description="Исходный код элемента (при detail_level=FULL)"
@@ -49,3 +48,6 @@ class NavigationResult(BaseModel):
         None,
         description="Описание ошибки при неудачной навигации"
     )
+    
+    class Config:
+        arbitrary_types_allowed = True

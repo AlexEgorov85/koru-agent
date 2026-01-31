@@ -64,6 +64,7 @@ class PlanningSkill(BaseSkill):
                 parameters_schema=CreatePlanInput.model_json_schema(),
                 parameters_class=CreatePlanInput,
                 skill_name=self.name,
+                visiable=False
             ),
             Capability(
                 name="planning.update_plan",
@@ -71,6 +72,7 @@ class PlanningSkill(BaseSkill):
                 parameters_schema=UpdatePlanInput.model_json_schema(),
                 parameters_class=UpdatePlanInput,
                 skill_name=self.name,
+                visiable=False
             ),
             Capability(
                 name="planning.decompose_task",
@@ -78,6 +80,7 @@ class PlanningSkill(BaseSkill):
                 parameters_schema=DecomposeTaskInput.model_json_schema(),
                 parameters_class=DecomposeTaskInput,
                 skill_name=self.name,
+                visiable=False
             ),
             Capability(
                 name="planning.mark_task_completed",

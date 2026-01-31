@@ -102,7 +102,7 @@ class FileListerTool(BaseTool):
         # Проверка по имени директории
         for pattern in self.ignore_patterns:
             if pattern.match(dir_name.lower()):
-                logger.debug(f"Игнорируем директорию по паттерну: {dir_name}")
+                # logger.debug(f"Игнорируем директорию по паттерну: {dir_name}")
                 return True
                 
         # Дополнительная проверка по полному пути (для вложенных директорий)

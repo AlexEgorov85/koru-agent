@@ -396,7 +396,7 @@ class ProjectMapSkill(BaseSkill):
             
             # 4. outline уже содержит список объектов CodeUnit — просто возвращаем
             if include_code_units:
-                logger.debug(f"Успешно проанализирован файл {file_path}: найдено {len(outline)} единиц кода")
+                # logger.debug(f"Успешно проанализирован файл {file_path}: найдено {len(outline)} единиц кода")
                 self._file_cache[file_path] = outline
                 return outline
             

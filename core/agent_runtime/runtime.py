@@ -1,10 +1,13 @@
 from datetime import datetime
 import logging
 from typing import Any, Dict
-from core.agent_runtime.strategies.base import AgentStrategyInterface
-from core.agent_runtime.strategies.evaluation import EvaluationStrategy
-from core.agent_runtime.strategies.fallback import FallbackStrategy
-from core.agent_runtime.strategies.react.strategy import ReActStrategy
+from core.agent_runtime.thinking_patterns.base import AgentThinkingPatternInterface
+from core.agent_runtime.thinking_patterns.code_analysis.strategy import CodeAnalysisThinkingPattern
+from core.agent_runtime.thinking_patterns.evaluation import EvaluationThinkingPattern
+from core.agent_runtime.thinking_patterns.fallback import FallbackThinkingPattern
+from core.agent_runtime.thinking_patterns.plan_execution.strategy import PlanExecutionThinkingPattern
+from core.agent_runtime.thinking_patterns.planning.strategy import PlanningThinkingPattern
+from core.agent_runtime.thinking_patterns.react.strategy import ReActThinkingPattern
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata
 from core.system_context.base_system_contex import BaseSystemContext
@@ -13,6 +16,8 @@ from .progress import ProgressScorer
 from .executor import ActionExecutor
 from .policy import AgentPolicy
 from .model import StrategyDecisionType
+from .execution_context import ExecutionContext
+from .states import ExecutionState
 from models.execution import ExecutionStatus
 
 logger = logging.getLogger(__name__)
@@ -27,27 +32,43 @@ class AgentRuntime:
         system_context: BaseSystemContext,
         session_context: BaseSessionContext,
         policy: AgentPolicy = None,
-        max_steps: int = 10
+        max_steps: int = 10, 
+        strategy: str = None
     ):
         self.system = system_context
         self.session = session_context
-        self.strategy = ReActStrategy()
         self.policy = policy or AgentPolicy()
         self.max_steps = max_steps
         self.state = AgentState()
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
         
-        # Регистрация всех доступных стратегий
-        self._strategy_registry = {
-            "react": ReActStrategy(),
-            "plan_and_execute": ReActStrategy(),  # Используем ReAct как базу для plan_and_execute
-            "chain_of_thought": None,  # Заглушка для будущей реализации
-            "evaluation": EvaluationStrategy(),
-            "fallback": FallbackStrategy()
+        # Регистрация всех доступных паттернов мышления
+        self._thinking_pattern_registry = {
+            "react": ReActThinkingPattern(),
+            "planning": PlanningThinkingPattern(),
+            "plan_execution": PlanExecutionThinkingPattern(),
+            "code_analysis": CodeAnalysisThinkingPattern(),
+            "evaluation": EvaluationThinkingPattern(),
+            "fallback": FallbackThinkingPattern()
         }
-
-    def get_strategy(self, strategy_name: str) -> AgentStrategyInterface:
+        if strategy:
+            self.strategy = self._thinking_pattern_registry[strategy]
+        else:
+            # По умолчанию начинать с реактивного паттерна мышления
+            self.strategy = self._thinking_pattern_registry["react"]
+        
+        # Создание контекста выполнения
+        self.context = ExecutionContext(
+            system=system_context,
+            session=session_context,
+            state=self.state,
+            policy=self.policy,
+            progress=self.progress,
+            executor=self.executor,
+            strategy=self.strategy
+        )
+    def get_strategy(self, strategy_name: str) -> AgentThinkingPatternInterface:
         """Получение стратегии по имени.
         
         ПАРАМЕТРЫ:
@@ -60,15 +81,15 @@ class AgentRuntime:
         - ValueError если стратегия не найдена
         """
         strategy_name = strategy_name.lower()
-        if strategy_name not in self._strategy_registry:
-            raise ValueError(f"Стратегия '{strategy_name}' не найдена. Доступные: {list(self._strategy_registry.keys())}")
+        if strategy_name not in self._thinking_pattern_registry:
+            raise ValueError(f"Паттерн мышления '{strategy_name}' не найден. Доступные: {list(self._thinking_pattern_registry.keys())}")
         
-        strategy = self._strategy_registry[strategy_name]
-        if strategy is None:
-            raise ValueError(f"Стратегия '{strategy_name}' зарегистрирована, но не реализована")
+        pattern = self._thinking_pattern_registry[strategy_name]
+        if pattern is None:
+            raise ValueError(f"Паттерн мышления '{strategy_name}' зарегистрирован, но не реализован")
         
-        logger.debug(f"Получена стратегия: {strategy_name} -> {strategy.__class__.__name__}")
-        return strategy
+        logger.debug(f"Получен паттерн мышления: {strategy_name} -> {pattern.__class__.__name__}")
+        return pattern
 
     async def run(self, goal: str):
         """Главный execution loop агента."""
@@ -77,6 +98,9 @@ class AgentRuntime:
         # Запись системного события
         self.session.record_system_event("session_start", f"Starting session with goal: {goal}")
         
+        # Используем паттерн "Состояние" для управления выполнением
+        execution_state = ExecutionState()
+        
         for _ in range(self.max_steps):
             if self.state.finished:
                 break
@@ -84,7 +108,7 @@ class AgentRuntime:
             # Текущий номер шага (начинаем с 1)
             current_step = self.state.step + 1
             
-            decision = await self.strategy.next_step(self)
+            decision = await execution_state.execute(self.context)
             
             # Запись решения стратегии
             if decision:

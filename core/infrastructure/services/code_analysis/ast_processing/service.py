@@ -121,7 +121,7 @@ class ASTProcessingService(BaseService):
         try:
             source_bytes = source_code.encode('utf-8')
             ast = await adapter.parse(source_code, source_bytes)
-            logger.debug(f"Успешно спарсен файл {file_path} ({language}), корневой узел: {ast.type}")
+            # logger.debug(f"Успешно спарсен файл {file_path} ({language}), корневой узел: {ast.type}")
             return ast
             
         except Exception as e:

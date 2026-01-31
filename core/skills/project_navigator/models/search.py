@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 class SearchResult(BaseModel):
     """
     Один результат поиска элемента кода.
-    
     Пример:
     ```python
     result = SearchResult(
@@ -22,7 +21,7 @@ class SearchResult(BaseModel):
     ```
     """
     name: str = Field(..., description="Имя элемента")
-    file_path: str = Field(..., description="Путь к файлу")
+    file_path: str = Field(..., description="Путь к файлу (относительный от корня проекта)")
     type: str = Field(..., description="Тип элемента (class, function, method)")
     line: int = Field(..., description="Номер строки начала элемента", ge=1)
     relevance_score: float = Field(
@@ -37,7 +36,6 @@ class SearchResult(BaseModel):
 class SearchResultSet(BaseModel):
     """
     Набор результатов поиска.
-    
     Пример:
     ```python
     results = SearchResultSet(

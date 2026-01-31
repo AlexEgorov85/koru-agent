@@ -30,7 +30,6 @@ class NavigationDetailLevel(str, Enum):
 class NavigationInput(BaseModel):
     """
     Параметры для навигации к элементу кода.
-    
     Пример использования:
     ```python
     params = NavigationInput(
@@ -49,7 +48,11 @@ class NavigationInput(BaseModel):
     )
     file_path: Optional[str] = Field(
         None,
-        description="Путь к файлу (обязателен для классов/функций/методов)",
+        description=(
+            "Путь к файлу (обязателен для классов/функций/методов). "
+            "Поддерживает абсолютные и относительные пути, "
+            "автоматически нормализуется для поиска в структуре проекта."
+        ),
         max_length=512
     )
     class_name: Optional[str] = Field(
@@ -69,7 +72,7 @@ class NavigationInput(BaseModel):
         1, ge=1, le=3,
         description="Глубина анализа зависимостей (1-3)"
     )
-
+    
     @field_validator('dependency_depth')
     @classmethod
     def validate_dependency_depth(cls, v: int) -> int:
@@ -80,7 +83,6 @@ class NavigationInput(BaseModel):
 class SearchInput(BaseModel):
     """
     Параметры для поиска элементов кода.
-    
     Пример использования:
     ```python
     params = SearchInput(
@@ -111,7 +113,7 @@ class SearchInput(BaseModel):
         10, ge=1, le=20,
         description="Максимальное количество результатов"
     )
-
+    
     @field_validator('max_results')
     @classmethod
     def validate_max_results(cls, v: int) -> int:

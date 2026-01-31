@@ -11,6 +11,10 @@ class StrategyDecisionType(Enum):
     STOP = "stop"        # Завершить выполнение агента
     SWITCH = "switch"    # Переключить стратегию
     RETRY = "retry"      # Повторить предыдущий шаг
+    
+    def is_terminal(self) -> bool:
+        """Проверяет, является ли действие терминальным."""
+        return self in [StrategyDecisionType.STOP, StrategyDecisionType.SWITCH]
 
 
 @dataclass

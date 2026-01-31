@@ -220,7 +220,7 @@ class PythonLanguageAdapter(BaseLanguageAdapter):
             # Оборачиваем корневой узел в абстрактный интерфейс
             root_node = PythonTreeSitterNode(tree.root_node, source_bytes)
             
-            logger.debug(f"Успешно спарсен Python файл, узлов: {len(tree.root_node.children)}")
+            # logger.debug(f"Успешно спарсен Python файл, узлов: {len(tree.root_node.children)}")
             return root_node
             
         except Exception as e:
@@ -336,10 +336,10 @@ class PythonLanguageAdapter(BaseLanguageAdapter):
         # 4. Обновление дочерних элементов модуля
         module_unit.child_ids = module_child_ids
         
-        logger.debug(
-            f"Построена полная структура для {file_path}: "
-            f"{len(code_units)} элементов ({len(module_child_ids)} верхнего уровня)"
-        )
+        # logger.debug(
+        #     f"Построена полная структура для {file_path}: "
+        #     f"{len(code_units)} элементов ({len(module_child_ids)} верхнего уровня)"
+        # )
         return code_units
     
     async def resolve_import(
