@@ -15,7 +15,7 @@ from datetime import datetime
 import uuid
 
 
-from config import get_config
+from core.config.config_loader import get_config
 from core.infrastructure.providers.database.base_db import DBConnectionConfig, DBHealthStatus
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 

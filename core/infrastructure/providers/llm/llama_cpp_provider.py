@@ -36,25 +36,28 @@ llm_provider: LLMPort = LlamaCppProvider(
 await llm_provider.initialize()
 
 # Генерация текста
-response = await llm_provider.generate(
+request = LLMRequest(
     prompt="Привет! Расскажи о себе",
     system_prompt="Ты — полезный ассистент",
     max_tokens=100
 )
+response = await llm_provider.generate(request)
 
 # Генерация структурированных данных
-structured_data = await llm_provider.generate_structured(
+structured_request = LLMRequest(
     prompt="Создай профиль пользователя",
-    output_schema={
-        "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"},
-            "interests": {"type": "array", "items": {"type": "string"}}
-        },
-        "required": ["name", "age"]
-    }
+    system_prompt="Ты — помощник по созданию профилей",
+    max_tokens=200
 )
+structured_data = await llm_provider.generate_structured(structured_request, {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "integer"},
+        "interests": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["name", "age"]
+})
 """
 import asyncio
 import logging
@@ -69,7 +72,7 @@ from pathlib import Path
 from core.config.models import LLMProviderConfig
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider, LLMResponse
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from models.llm_types import LLMHealthStatus
+from models.llm_types import LLMHealthStatus, LLMRequest
 
 logger = logging.getLogger(__name__)
 
@@ -375,15 +378,7 @@ class LlamaCppProvider(BaseLLMProvider):
                 "is_initialized": self._is_initialized
             }
     
-    async def generate(
-        self,
-        user_prompt: str,
-        system_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        stop_sequences: Optional[List[str]] = None,
-        max_retries: int = 3
-    ) -> LLMResponse:
+    async def generate(self, request: LLMRequest) -> LLMResponse:
         """
         Генерация текста с использованием Llama.cpp.
         
@@ -395,11 +390,7 @@ class LlamaCppProvider(BaseLLMProvider):
         5. Обработка результата и создание LLMResponse
         
         ПАРАМЕТРЫ:
-        - prompt: Основной промпт пользователя
-        - system_prompt: Системный промпт (опционально)
-        - max_tokens: Максимальное количество токенов в ответе
-        - temperature: Температура генерации (0.0-1.0)
-        - stop_sequences: Последовательности для остановки генерации
+        - request: Объект LLMRequest с параметрами запроса
         
         ВОЗВРАЩАЕТ:
         - LLMResponse с результатом генерации
@@ -416,27 +407,24 @@ class LlamaCppProvider(BaseLLMProvider):
         
         start_time = time.time()
         attempt = 0
+        max_retries = getattr(self, 'max_retries', 3)
         
         while attempt <= max_retries:
             try:
-                # Формирование полного промпта
-                # full_prompt = self._build_prompt(prompt, system_prompt)
-                
-
                 # Форматирование промпта для Qwen3
-                full_prompt = self._format_qwen_prompt(user_prompt, system_prompt)
+                full_prompt = self._format_qwen_prompt(request.prompt, request.system_prompt)
 
-                # Параметры генерации
+                # Параметры генерации из объекта запроса
                 gen_params = {
-                    "max_tokens": max_tokens or self._config.max_tokens,
-                    "temperature": temperature or self._config.temperature,
-                    "top_p": self._config.top_p,
+                    "max_tokens": request.max_tokens,
+                    "temperature": request.temperature,
+                    "top_p": request.top_p,
                     "echo": False,
                     "stream": False
                 }
                 
-                if stop_sequences:
-                    gen_params["stop"] = stop_sequences
+                if request.metadata and 'stop_sequences' in request.metadata:
+                    gen_params["stop"] = request.metadata['stop_sequences']
                 
                 # Генерация в отдельном потоке
                 loop = asyncio.get_running_loop()
@@ -509,38 +497,37 @@ class LlamaCppProvider(BaseLLMProvider):
         )
 
 
-    async def generate_structured(
-        self,
-        user_prompt: str,
-        output_schema: Dict[str, Any],
-        system_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        max_retries: Optional[int] = None
-    ) -> LLMResponse:
+    async def generate_structured(self, request: LLMRequest, output_schema: Dict[str, Any]) -> LLMResponse:
         """
         Генерация структурированных данных в формате JSON Schema.
         Совместимая версия для LlamaCppProvider.
         """
         # Формирование системного промпта для структурированной генерации
-        structured_system_prompt = self._build_structured_system_prompt(output_schema, system_prompt)
+        structured_system_prompt = self._build_structured_system_prompt(output_schema, request.system_prompt)
         logger.info("Генерация структурированных данных в формате JSON:")
         logger.debug("###############################################################")
         logger.debug(f"# Системный промпт: {structured_system_prompt}")
         logger.debug("###############################################################")
-        logger.debug(f"# Промпт для генерации: {user_prompt}")
+        logger.debug(f"# Промпт для генерации: {request.prompt}")
         logger.debug("###############################################################")
-        logger.debug(f"# max_tokens: {max_tokens}")
+        logger.debug(f"# max_tokens: {request.max_tokens}")
         logger.debug("###############################################################")
+        
+        # Создаем новый запрос с обновленным системным промптом и параметрами для структурированной генерации
+        structured_request = LLMRequest(
+            prompt=request.prompt,
+            system_prompt=structured_system_prompt,
+            temperature=min(request.temperature, 0.3),  # Понижаем температуру для более детерминированного ответа
+            max_tokens=request.max_tokens or (self._config.max_tokens * 2),
+            top_p=request.top_p,
+            frequency_penalty=request.frequency_penalty,
+            presence_penalty=request.presence_penalty,
+            metadata=request.metadata
+        )
         
         # Генерация с пониженной температурой для детерминированности
         try:
-            response = await self.generate(
-                user_prompt=user_prompt,
-                system_prompt=structured_system_prompt,
-                max_tokens=max_tokens or (self._config.max_tokens * 2),
-                temperature=temperature or 0.3,
-            )
+            response = await self.generate(structured_request)
 
             logger.debug("###############################################################")
             logger.debug(f"# Получен ответ от LLM: {response.content}")
@@ -550,7 +537,7 @@ class LlamaCppProvider(BaseLLMProvider):
             json_content = self._extract_json_from_response(response.content)
             
             # Валидация по схеме
-            validated_content = await self.validate_output(json_content, output_schema, max_retries or 3)
+            validated_content = await self.validate_output(json_content, output_schema, 3)
             
             # Создание результата
             return LLMResponse(
@@ -562,7 +549,8 @@ class LlamaCppProvider(BaseLLMProvider):
                 metadata={
                     **response.metadata,
                     "validation": "successful" if json_content else "fixed",
-                    "original_content": response.content
+                    "original_content": response.content,
+                    "output_schema": output_schema
                 }
             )
         except Exception as e:

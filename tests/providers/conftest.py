@@ -7,12 +7,11 @@ import os
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.base_llm import BaseLLMProvider, LLMRequest, LLMResponse
-from providers.base_db import BaseDBProvider, DBConnectionConfig
-from providers.vllm_provider import VLLMProvider
-from providers.llama_cpp_provider import LlamaCppProvider
-from providers.postgres_provider import PostgreSQLProvider
-from providers.factory import ProviderFactory
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider, LLMRequest, LLMResponse
+from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
+from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
+from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 
 # ==========================================================
 # Глобальные настройки
@@ -71,7 +70,7 @@ def db_connection_config(mock_db_config):
 @pytest.fixture
 def mock_vllm_engine():
     """Фикстура с моком vLLM движка."""
-    with patch('providers.vllm_provider.AsyncLLMEngine') as mock_engine:
+    with patch('core.infrastructure.providers.llm.vllm_provider.AsyncLLMEngine') as mock_engine:
         mock_instance = AsyncMock()
         mock_engine.from_engine_args.return_value = mock_instance
         yield mock_instance
@@ -79,7 +78,7 @@ def mock_vllm_engine():
 @pytest.fixture
 def mock_llama_cpp_engine():
     """Фикстура с моком Llama.cpp движка."""
-    with patch('providers.llama_cpp_provider.Llama') as mock_engine:
+    with patch('core.infrastructure.providers.llm.llama_cpp_provider.Llama') as mock_engine:
         mock_instance = MagicMock()
         mock_engine.return_value = mock_instance
         yield mock_instance
@@ -87,7 +86,7 @@ def mock_llama_cpp_engine():
 @pytest.fixture
 def mock_asyncpg_pool():
     """Фикстура с моком asyncpg пула соединений."""
-    with patch('providers.postgres_provider.asyncpg.create_pool') as mock_create_pool:
+    with patch('core.infrastructure.providers.database.postgres_provider.asyncpg.create_pool') as mock_create_pool:
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
         

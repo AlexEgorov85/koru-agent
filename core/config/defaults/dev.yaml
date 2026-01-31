@@ -7,18 +7,18 @@ log_dir: logs/dev
 data_dir: data/dev
 llm_providers:
   default_llm:
-    type_provider: llama_cpp
-    model_name: qwen-4b
+    type_provider: openrouter
+    model_name: "tngtech/deepseek-r1t2-chimera:free"  # или другая поддерживаемая модель
     enabled: true
     parameters:
-      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
-      n_gpu_layers: 0
-      n_ctx: 20480
-      n_batch: 1024
-      temperature: 0.2
-      max_tokens: 262100
-      verbose: false
-      stop: ["<|im_end|>", "<|endoftext|>"]
+      api_key: "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"
+      base_url: "https://openrouter.ai/api/v1"
+      temperature: 0.7
+      max_tokens: 2048
+      top_p: 1.0
+      frequency_penalty: 0.0
+      presence_penalty: 0.0
+
 db_providers:
   default_db:
     type_provider: postgres

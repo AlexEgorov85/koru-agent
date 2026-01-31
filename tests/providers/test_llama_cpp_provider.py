@@ -11,7 +11,7 @@ import time
 import json
 
 
-from core.config.app_config import get_config
+from core.config.config_loader import get_config
 from core.infrastructure.providers.llm.base_llm import LLMResponse
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from models.llm_types import LLMHealthStatus, LLMRequest

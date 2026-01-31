@@ -38,7 +38,7 @@ class BaseModelConfig(BaseModel):
 
 class LLMProviderConfig(BaseModel):
     """Конфигурация LLM провайдера"""
-    type_provider: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai)")
+    type_provider: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai, openrouter)")
     model_name: str = Field(default="qwen-4b", description="Название модели")
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
     enabled: bool = Field(default=True, description="Включен ли провайдер")
@@ -46,7 +46,7 @@ class LLMProviderConfig(BaseModel):
 
     @field_validator('type_provider')
     def validate_provider_type(cls, v):
-        valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini']
+        valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini', 'openrouter']
         if v.lower() not in valid_types:
             raise ValueError(f"Неподдерживаемый тип LLM провайдера: {v}. Допустимые значения: {valid_types}")
         return v.lower()

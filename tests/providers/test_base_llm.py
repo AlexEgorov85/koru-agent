@@ -6,8 +6,8 @@ import json
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.base_llm import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus
-from src.domain.capability import Capability  # Предполагается, что этот класс существует
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus
+from models.capability import Capability
 
 
 class MockLLMProvider(BaseLLMProvider):
@@ -32,9 +32,14 @@ class MockLLMProvider(BaseLLMProvider):
             finish_reason="stop"
         )
     
-    async def generate_structured(self, prompt: str, output_schema: dict, 
-                                 system_prompt: str = None, **kwargs) -> dict:
-        return {"result": "structured_data"}
+    async def generate_structured(self, request: LLMRequest, output_schema: dict) -> LLMResponse:
+        return LLMResponse(
+            content={"result": "structured_data"},
+            model=self.model_name,
+            tokens_used=10,
+            generation_time=0.1,
+            finish_reason="stop"
+        )
 
 
 @pytest.fixture
@@ -110,12 +115,15 @@ async def test_base_provider_generate_structured(base_provider):
         "required": ["result"]
     }
     
-    result = await base_provider.generate_structured(
+    request = LLMRequest(
         prompt="Test structured prompt",
-        output_schema=schema
+        temperature=0.7,
+        max_tokens=100
     )
+    result = await base_provider.generate_structured(request, schema)
     
-    assert result == {"result": "structured_data"}
+    assert isinstance(result, LLMResponse)
+    assert result.content == {"result": "structured_data"}
 
 
 def test_base_provider_get_model_info(base_provider):
@@ -153,10 +161,17 @@ async def test_base_provider_generate_for_capability(base_provider):
         )
     ]
     
-    with patch.object(base_provider, 'generate_structured', return_value={
-        "capability_name": "test.capability1",
-        "parameters": {"param1": "value1"}
-    }) as mock_generate:
+    mock_response = LLMResponse(
+        content={
+            "capability_name": "test.capability1",
+            "parameters": {"param1": "value1"}
+        },
+        model=base_provider.model_name,
+        tokens_used=10,
+        generation_time=0.1,
+        finish_reason="stop"
+    )
+    with patch.object(base_provider, 'generate_structured', return_value=mock_response) as mock_generate:
         result = await base_provider.generate_for_capability(
             system_prompt="Test system prompt",
             user_input="Test user input",
@@ -164,6 +179,8 @@ async def test_base_provider_generate_for_capability(base_provider):
         )
         
         mock_generate.assert_called_once()
+        # Поскольку теперь возвращается LLMResponse, нам нужно получить content
+        call_args = mock_generate.call_args
         assert result == ("test.capability1", {"param1": "value1"})
 
 

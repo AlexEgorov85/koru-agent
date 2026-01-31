@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
 
-from providers.base_db import BaseDBProvider, DBConnectionConfig, DBQueryResult, DBHealthStatus
+from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig, DBQueryResult, DBHealthStatus
 from contextlib import asynccontextmanager
 
 

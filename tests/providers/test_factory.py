@@ -4,12 +4,13 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.factory import ProviderFactory
-from providers.base_llm import BaseLLMProvider
-from providers.base_db import BaseDBProvider, DBConnectionConfig
-from providers.vllm_provider import VLLMProvider
-from providers.llama_cpp_provider import LlamaCppProvider
-from providers.postgres_provider import PostgreSQLProvider
+
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
+from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
+from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
+from core.system_context.factory import ProviderFactory
 
 
 @pytest.mark.parametrize("provider_type, expected_class", [
@@ -18,7 +19,7 @@ from providers.postgres_provider import PostgreSQLProvider
 ])
 def test_create_llm_provider(provider_type, expected_class):
     """Тест создания LLM провайдера."""
-    with patch(f"providers.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
+    with patch(f"core.infrastructure.providers.llm.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
         mock_instance = MagicMock(spec=BaseLLMProvider)
         mock_provider.return_value = mock_instance
         
@@ -48,7 +49,7 @@ def test_create_llm_provider_unsupported_type():
 ])
 def test_create_db_provider(provider_type, expected_class, mock_db_config):
     """Тест создания DB провайдера."""
-    with patch(f"providers.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
+    with patch(f"core.infrastructure.providers.database.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
         mock_instance = MagicMock(spec=BaseDBProvider)
         mock_provider.return_value = mock_instance
         
@@ -111,7 +112,7 @@ async def test_initialize_provider_failure(provider_class):
 @pytest.mark.asyncio
 async def test_create_and_initialize_llm(mock_llm_config):
     """Тест создания и инициализации LLM провайдера."""
-    with patch("providers.factory.VLLMProvider") as mock_provider_class:
+    with patch("core.infrastructure.providers.llm.vllm_provider.VLLMProvider") as mock_provider_class:
         mock_provider = AsyncMock(spec=VLLMProvider)
         mock_provider.initialize.return_value = True
         mock_provider_class.return_value = mock_provider
@@ -130,7 +131,7 @@ async def test_create_and_initialize_llm(mock_llm_config):
 @pytest.mark.asyncio
 async def test_create_and_initialize_llm_failure(mock_llm_config):
     """Тест создания и инициализации LLM провайдера с ошибкой."""
-    with patch("providers.factory.VLLMProvider") as mock_provider_class:
+    with patch("core.infrastructure.providers.llm.vllm_provider.VLLMProvider") as mock_provider_class:
         mock_provider = AsyncMock(spec=VLLMProvider)
         mock_provider.initialize.return_value = False
         mock_provider_class.return_value = mock_provider
@@ -149,7 +150,7 @@ async def test_create_and_initialize_llm_failure(mock_llm_config):
 @pytest.mark.asyncio
 async def test_create_and_initialize_db(db_connection_config):
     """Тест создания и инициализации DB провайдера."""
-    with patch("providers.factory.PostgreSQLProvider") as mock_provider_class:
+    with patch("core.infrastructure.providers.database.postgres_provider.PostgreSQLProvider") as mock_provider_class:
         mock_provider = AsyncMock(spec=PostgreSQLProvider)
         mock_provider.initialize.return_value = True
         mock_provider_class.return_value = mock_provider
@@ -167,7 +168,7 @@ async def test_create_and_initialize_db(db_connection_config):
 @pytest.mark.asyncio
 async def test_create_and_initialize_db_failure(db_connection_config):
     """Тест создания и инициализации DB провайдера с ошибкой."""
-    with patch("providers.factory.PostgreSQLProvider") as mock_provider_class:
+    with patch("core.infrastructure.providers.database.postgres_provider.PostgreSQLProvider") as mock_provider_class:
         mock_provider = AsyncMock(spec=PostgreSQLProvider)
         mock_provider.initialize.return_value = False
         mock_provider_class.return_value = mock_provider

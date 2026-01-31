@@ -18,6 +18,7 @@ from typing import Dict, Any, Optional, Type
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.llm.openrouter_provider import OpenRouterProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 from core.infrastructure.services.base_service import BaseService
@@ -69,6 +70,7 @@ class ProviderFactory:
         ПОДДЕРЖИВАЕМЫЕ ТИПЫ:
         - vllm: VLLMProvider
         - llama_cpp: LlamaCppProvider
+        - openrouter: OpenRouterProvider
         
         ПРИМЕР:
         config = {
@@ -80,6 +82,19 @@ class ProviderFactory:
             }
         }
         provider = await factory.create_llm_provider_from_config(config, "primary_llm")
+        
+        # Использование OpenRouter
+        openrouter_config = {
+            "type": "openrouter",
+            "model_name": "qwen/qwen-2-72b-instruct",  # или другая поддерживаемая модель
+            "parameters": {
+                "api_key": "your_openrouter_api_key",
+                "base_url": "https://openrouter.ai/api/v1",
+                "temperature": 0.7,
+                "max_tokens": 2048
+            }
+        }
+        openrouter_provider = await factory.create_llm_provider_from_config(openrouter_config, "openrouter_llm")
         """
         provider_type = provider_config.type_provider.lower()
         model_name = provider_config.model_name
@@ -90,6 +105,8 @@ class ProviderFactory:
                 provider = VLLMProvider(model_name = model_name, config = parameters)
             elif provider_type == "llama_cpp":
                 provider = LlamaCppProvider(model_name = model_name, config = parameters)
+            elif provider_type == "openrouter":
+                provider = OpenRouterProvider(model_name = model_name, config = parameters)
             else:
                 logger.error(f"Неподдерживаемый тип LLM провайдера: {provider_type}")
                 return None
