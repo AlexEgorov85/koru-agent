@@ -14,7 +14,7 @@ from datetime import timedelta
 
 import pytest
 
-from core.ports.session_context_port import ContextItem, ContextItemMetadata
+from core.session_context.model import ContextItem, ContextItemMetadata
 from core.session_context.model import ContextItemType
 from core.session_context.session_context import SessionContext
 

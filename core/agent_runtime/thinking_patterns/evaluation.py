@@ -1,3 +1,4 @@
+from core.agent_runtime.runtime_interface import AgentRuntimeInterface
 from core.agent_runtime.model import StrategyDecision, StrategyDecisionType
 from .base import AgentThinkingPatternInterface
 
@@ -9,7 +10,7 @@ class EvaluationThinkingPattern(AgentThinkingPatternInterface):
 
     name = "evaluation"
 
-    async def next_step(self, runtime):
+    async def next_step(self, runtime: AgentRuntimeInterface) -> StrategyDecision:
         session = runtime.session
 
         prompt = f"""
@@ -34,6 +35,6 @@ class EvaluationThinkingPattern(AgentThinkingPatternInterface):
 
         return StrategyDecision(
             action=StrategyDecisionType.SWITCH,
-            next_strategy="react",
+            next_strategy="react_composable",
             reason="goal_not_achieved"
         )

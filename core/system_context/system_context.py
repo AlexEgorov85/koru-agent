@@ -11,7 +11,10 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from core.agent_runtime.runtime import AgentRuntime
+# Используем TYPE_CHECKING для предотвращения циклических импортов
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.agent_runtime.runtime import AgentRuntime
 from core.config.models import SystemConfig
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.session_context import SessionContext
@@ -573,7 +576,7 @@ class SystemContext(BaseSystemContext):
             return "evaluation"
         
         # Стратегия по умолчанию
-        return self.config.agent.get("default_strategy", "react")
+        return self.config.agent.get("default_strategy", "react_composable")
 
     def list_services(self) -> List[str]:
         """Получение списка всех доступных сервисов.

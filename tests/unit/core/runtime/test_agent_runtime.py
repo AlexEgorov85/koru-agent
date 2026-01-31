@@ -376,12 +376,23 @@ class TestThinkingPatternLoader:
         loader = ThinkingPatternLoader()
         
         # Проверяем, что все паттерны мышления зарегистрированы
-        assert "react" in loader._patterns
-        assert "planning" in loader._patterns
-        assert "plan_execution" in loader._patterns
-        assert "code_analysis" in loader._patterns
-        assert "evaluation" in loader._patterns
-        assert "fallback" in loader._patterns
+        # Проверка, что старые стратегии больше не регистрируются
+        # Эти старые стратегии были удалены из новой архитектуры
+        # assert "react" not in loader._patterns
+        # assert "planning" not in loader._patterns
+        # assert "plan_execution" not in loader._patterns
+        # assert "code_analysis" not in loader._patterns
+        # assert "evaluation" not in loader._patterns
+        # assert "fallback" not in loader._patterns
+        
+        # Проверка, что новые компонуемые паттерны доступны
+        assert "react_composable" in loader.pattern_registry.get_all_patterns()
+        assert "plan_and_execute_composable" in loader.pattern_registry.get_all_patterns()
+        assert "tool_use_composable" in loader.pattern_registry.get_all_patterns()
+        assert "reflection_composable" in loader.pattern_registry.get_all_patterns()
+        assert "code_analysis.default" in loader.pattern_registry.get_all_patterns()
+        assert "database_query.default" in loader.pattern_registry.get_all_patterns()
+        assert "research.default" in loader.pattern_registry.get_all_patterns()
         
         # Проверяем, что можно получить класс паттерна мышления
         react_pattern_class = loader.get_pattern_class("react")

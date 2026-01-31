@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 from core.session_context.session_context import SessionContext
 from core.system_context.base_system_contex import BaseSystemContext
 from models.capability import Capability
-from models.resource import ResourceInfo, ResourceType
+from core.system_context.resource_registry import ResourceInfo
+from models.resource import ResourceType
 from models.llm_types import LLMResponse
 
 

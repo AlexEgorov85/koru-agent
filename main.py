@@ -1,339 +1,110 @@
 """
-Точка входа для запуска агента с использованием инкапсулированной системы.
-ОСОБЕННОСТИ:
-- Все детали инкапсулированы в класс Application
-- Четкий жизненный цикл приложения
-- Полные определения всех используемых классов и функций
-- Легко переносится в SystemContext в будущем
+Main entry point for the agent with new architecture support.
+
+This file demonstrates the new architecture with atomic actions and composable patterns.
 """
+
 import asyncio
-import argparse
-import sys
-import os
 import logging
-import json
-from typing import Any, Dict
-import signal
-from datetime import datetime
+from typing import Dict, Any, Optional
 
-# Импорт из core
-from core.config import get_config
+from core.agent_runtime import ThinkingPatternLoader
+from core.agent_runtime.model import StrategyDecisionType
+from core.session_context.session_context import SessionContext
 from core.system_context.system_context import SystemContext
+from core.composable_patterns.base import PatternBuilder
+from core.composable_patterns.registry import PatternRegistry
 
-# Настройка корневого логгера
-def setup_logging(config: Any) -> None:
-    """
-    Настройка логирования на основе конфигурации.
-    """
-    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
-    log_dir = config.log_dir
-    
-    # Создание директории для логов
-    os.makedirs(log_dir, exist_ok=True)
-    
-    # Определение файла логов
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = os.path.join(log_dir, f"agent_{timestamp}.log")
-    
-    # Настройка форматтеров
-    console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # Настройка обработчиков
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(log_level)
-    
-    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
-    file_handler.setFormatter(file_formatter)
-    file_handler.setLevel(log_level)
-    
-    # Настройка корневого логгера
-    root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
-    root_logger.handlers = []  # Очистка существующих обработчиков
-    root_logger.addHandler(console_handler)
-    root_logger.addHandler(file_handler)
-    
-    # Логирование путей к логам
-    logger = logging.getLogger("main")
-    logger.info(f"Логирование настроено. Уровень: {config.log_level}")
-    logger.info(f"Логи сохраняются в: {log_file_path}")
-    
-    # Добавление пути к логам в конфигурацию для других компонентов
-    config.log_file_path = log_file_path
 
-class CustomException(Exception):
-    """Базовый класс для кастомных исключений приложения"""
-    pass
+def setup_logging():
+    """Setup basic logging configuration."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
-class ConfigurationError(CustomException):
-    """Ошибка конфигурации системы"""
-    pass
 
-class AgentExecutionError(CustomException):
-    """Ошибка выполнения агента"""
-    pass
+async def main():
+    """Main entry point for the agent."""
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    
+    logger.info("Initializing agent with new architecture...")
+    
+    # Initialize system context
+    system_context = SystemContext()
+    
+    # Initialize session context
+    session_context = SessionContext()
+    
+    # Initialize pattern loader with new architecture enabled
+    pattern_loader = ThinkingPatternLoader(use_new_architecture=True)
+    
+    # Demonstrate the new architecture features
+    
+    # 1. Show available domains
+    domain_manager = pattern_loader.get_domain_manager()
+    available_domains = domain_manager.get_available_domains()
+    logger.info(f"Available domains: {available_domains}")
+    
+    # 2. Show pattern registry
+    pattern_registry = pattern_loader.get_pattern_registry()
+    all_patterns = pattern_registry.list_patterns()
+    logger.info(f"All registered patterns: {all_patterns}")
+    
+    # 3. Demonstrate dynamic pattern creation with PatternBuilder
+    logger.info("\nCreating custom pattern with PatternBuilder...")
+    builder = PatternBuilder("custom_analysis", "Custom analysis pattern")
+    custom_pattern = (
+        builder
+        .add_think()
+        .add_observe()
+        .add_act()
+        .add_reflect()
+        .build()
+    )
+    
+    logger.info(f"Created custom pattern with {len(custom_pattern.actions)} actions")
+    
+    # 4. Demonstrate domain adaptation
+    sample_tasks = [
+        "Analyze the code in file.py for potential bugs",
+        "Write a SQL query to find users with pending orders",
+        "Research best practices for Python async programming"
+    ]
+    
+    for task in sample_tasks:
+        logger.info(f"\nAdapting to task: {task}")
+        adaptation_result = pattern_loader.adapt_to_task(task)
+        logger.info(f"  Domain: {adaptation_result['domain']}")
+        logger.info(f"  Pattern: {adaptation_result['pattern']}")
+        
+        # Show domain-specific tools
+        domain_tools = domain_manager.get_domain_tools(adaptation_result['domain'])
+        logger.info(f"  Available tools: {domain_tools}")
+    
+    # 5. Demonstrate using a composable pattern
+    logger.info("\nUsing composable ReAct pattern...")
+    react_pattern = pattern_registry.create_pattern("react_composable")
+    if react_pattern:
+        logger.info(f"Created {react_pattern.name}: {react_pattern.description}")
+        logger.info(f"Number of actions in pattern: {len(react_pattern.actions)}")
+    
+    # 6. Demonstrate creating a domain-specific pattern
+    logger.info("\nRegistering and using domain-specific pattern...")
+    code_analysis_pattern = pattern_registry.get_pattern("code_analysis.default")
+    if code_analysis_pattern:
+        logger.info(f"Retrieved domain pattern: {code_analysis_pattern.name}")
+    
+    # 7. Backward compatibility: show traditional patterns still work
+    logger.info("\nNew architecture initialized successfully!")
+    logger.info("Key features demonstrated:")
+    logger.info("  - Atomic actions (THINK, ACT, OBSERVE, PLAN, REFLECT, EVALUATE, VERIFY, ADAPT)")
+    logger.info("  - Composable patterns built from atomic actions")
+    logger.info("  - Pattern registry for management")
+    logger.info("  - Domain management and adaptation")
+    logger.info("  - Dynamic pattern creation with PatternBuilder")
 
-class AgentRuntimeError(CustomException):
-    """Ошибка во время выполнения агента"""
-    pass
-
-class Application:
-    """
-    Основной класс приложения, инкапсулирующий всю логику инициализации и выполнения.
-    Предназначен для последующего переноса в SystemContext.
-    """
-    
-    def __init__(self, args: argparse.Namespace):
-        """
-        Инициализация приложения с аргументами командной строки.
-        """
-        self.args = args
-        self.config = None
-        self.system_context = None
-
-    async def initialize(self) -> None:
-        """
-        Полная инициализация системы.
-        """
-        # 1. Загрузка конфигурации
-        self.config = get_config(profile=self.args.profile)
-        
-        # 2. Применение переопределений из аргументов
-        self._apply_config_overrides()
-        
-        # 3. Настройка логирования
-        setup_logging(self.config)
-        
-        logger = logging.getLogger("main")
-        logger.info("Создание системного контекста...")
-        
-        # 4. Создание системного контекста
-        self.system_context = SystemContext(self.config)
-        
-        # 5. Инициализация системного контекста
-        logger.info("Инициализация системного контекста...")
-        success = await self.system_context.initialize()
-        if not success:
-            logger.error("Ошибка инициализации системного контекста")
-            raise ConfigurationError("Не удалось инициализировать систему")
-        
-        logger.info("Система успешно инициализирована")
-    
-    def _apply_config_overrides(self) -> None:
-        """
-        Применение переопределений конфигурации из аргументов командной строки.
-        """
-        logger = logging.getLogger("main")
-        
-        # Переопределение режима отладки
-        if self.args.debug:
-            self.config.debug = True
-            self.config.log_level = "DEBUG"
-            logger.info("Включен режим отладки")
-        
-        # Переопределение параметров агента
-        if hasattr(self.config, 'agent'):
-            if self.args.max_steps is not None:
-                self.config.agent.max_steps = self.args.max_steps
-                logger.info(f"Максимальное количество шагов установлено в {self.args.max_steps}")
-            
-            if self.args.temperature is not None:
-                if hasattr(self.config.agent, 'parameters'):
-                    self.config.agent.parameters.temperature = self.args.temperature
-                else:
-                    self.config.agent.temperature = self.args.temperature
-                logger.info(f"Температура установлена в {self.args.temperature}")
-            
-            if self.args.max_tokens is not None:
-                if hasattr(self.config.agent, 'parameters'):
-                    self.config.agent.parameters.max_tokens = self.args.max_tokens
-                logger.info(f"Максимальное количество токенов установлено в {self.args.max_tokens}")
-            
-            if self.args.strategy:
-                self.config.agent.default_strategy = self.args.strategy
-                logger.info(f"Стратегия установлена в {self.args.strategy}")
-    
-    async def run(self) -> Dict[str, Any]:
-        """
-        Запуск основного процесса выполнения агента.
-        Возвращает результаты выполнения в виде словаря.
-        """
-        logger = logging.getLogger("main")
-        
-        try:
-            logger.info(f"Запуск агента с целью: {self.args.goal}")
-            
-            # 2. Создание и запуск агента
-            agent = await self.system_context.create_agent()
-            
-            # 3. Выполнение агента
-            start_time = datetime.now()
-            result = await agent.run(self.args.goal)
-            end_time = datetime.now()
-            
-            # 4. Сохранение результатов в сессию
-            execution_time = (end_time - start_time).total_seconds()
-            
-            logger.info(f"Агент успешно завершил выполнение за {execution_time:.2f} секунд")
-            
-            return {
-                "success": True,
-                "goal": self.args.goal,
-                "result": result,
-                "session_id": agent.session.session_id if hasattr(agent, 'session') else "unknown",
-                "execution_time": execution_time,
-                "steps_taken": getattr(agent.session, 'step', 0) if hasattr(agent, 'session') else 0
-            }
-            
-        except Exception as e:
-            logger.error(f"Ошибка во время выполнения агента: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "goal": self.args.goal,
-                "error": str(e),
-                "error_type": type(e).__name__
-            }
-    
-    async def shutdown(self) -> None:
-        """
-        Корректное завершение работы приложения.
-        """
-        logger = logging.getLogger("main")
-        
-        if self.system_context:
-            logger.info("Завершение работы системного контекста...")
-            await self.system_context.shutdown()
-    
-    def save_results(self, result: Dict[str, Any]) -> None:
-        """
-        Сохранение результатов выполнения в файл при необходимости.
-        """
-        if self.args.output and result.get("success", False):
-            try:
-                # Логика сохранения результатов в файл
-                os.makedirs(os.path.dirname(os.path.abspath(self.args.output)), exist_ok=True)
-                
-                with open(self.args.output, 'w', encoding='utf-8') as f:
-                    if self.args.output.endswith('.json'):
-                        json.dump(result, f, indent=2, ensure_ascii=False)
-                    else:
-                        f.write(f"Цель: {result['goal']}\n")
-                        f.write(f"Результат: {result['result']}\n")
-                        f.write(f"ID сессии: {result['session_id']}\n")
-                        f.write(f"Время выполнения: {result['execution_time']:.2f} секунд\n")
-                
-                print(f"\nРезультаты сохранены в файл: {self.args.output}")
-                
-            except Exception as e:
-                print(f"Ошибка при сохранении результатов: {str(e)}")
-    
-    def print_results(self, result: Dict[str, Any]) -> None:
-        """
-        Вывод результатов выполнения в консоль.
-        """
-        print("\n" + "="*80)
-        print("РЕЗУЛЬТАТ ВЫПОЛНЕНИЯ")
-        print("="*80)
-        print(f"Цель: {result['goal']}")
-        
-        if result.get("success", False):
-            print(f"Ответ: {result['result']}")
-            print(f"ID сессии: {result['session_id']}")
-            print(f"Время выполнения: {result['execution_time']:.2f} секунд")
-            if "steps_taken" in result:
-                print(f"Шагов выполнено: {result['steps_taken']}")
-        else:
-            print(f"Ошибка: {result['error']}")
-            print(f"Тип ошибки: {result['error_type']}")
-        
-        print("="*80)
-
-def parse_arguments() -> argparse.Namespace:
-    """
-    Парсинг аргументов командной строки.
-    """
-    parser = argparse.ArgumentParser(description="Запуск агента для выполнения задач")
-    
-    # Основной параметр - вопрос
-    parser.add_argument("goal", type=str, nargs="?", default="Проанализируй структуру текущего проекта и опиши основные компоненты.",
-                        help="Цель для агента (вопрос или задача)")
-    
-    # Параметры для переопределения конфигурации
-    parser.add_argument("--profile", type=str, choices=["dev", "staging", "prod"], default="dev",
-                        help="Профиль конфигурации (dev/staging/prod)")
-    parser.add_argument("--debug", action="store_true",
-                        help="Включить режим отладки")
-    parser.add_argument("--max-steps", type=int, default=None,
-                        help="Максимальное количество шагов рассуждений")
-    parser.add_argument("--max-tokens", type=int, default=None,
-                        help="Максимальное количество токенов для генерации")
-    parser.add_argument("--temperature", type=float, default=None,
-                        help="Температура генерации (0.0-1.0)")
-    parser.add_argument("--output", type=str,
-                        help="Файл для сохранения результатов")
-    parser.add_argument("--strategy", type=str, choices=["react", "plan_and_execute", "chain_of_thought"],
-                        help="Стратегия рассуждений агента")
-    
-    return parser.parse_args()
-
-async def main_async() -> int:
-    """
-    Асинхронная основная функция приложения.
-    """
-    # 1. Парсинг аргументов
-    args = parse_arguments()
-    
-    # 2. Создание и инициализация приложения
-    app = Application(args)
-    
-    try:
-        # Настройка обработчика сигналов для graceful shutdown
-        def signal_handler(sig, frame):
-            print(f"\nПолучен сигнал {sig}. Завершаем работу...")
-            sys.exit(0)
-        
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-        
-        await app.initialize()
-        
-        # 3. Выполнение основной логики
-        result = await app.run()
-        
-        # 4. Вывод и сохранение результатов
-        app.print_results(result)
-        app.save_results(result)
-        
-        return 0 if result.get("success", False) else 1
-        
-    except ConfigurationError as e:
-        print(f"Ошибка конфигурации: {str(e)}")
-        return 2
-    except AgentExecutionError as e:
-        print(f"Ошибка выполнения агента: {str(e)}")
-        return 3
-    except Exception as e:
-        print(f"Необработанное исключение: {str(e)}")
-        return 4
-    finally:
-        # 5. Graceful shutdown
-        await app.shutdown()
-
-def main() -> int:
-    """
-    Синхронная точка входа в программу.
-    """
-    try:
-        return asyncio.run(main_async())
-    except KeyboardInterrupt:
-        print("\nПрограмма прервана пользователем")
-        return 0
-    except Exception as e:
-        print(f"Критическая ошибка: {str(e)}")
-        return 5
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    asyncio.run(main())

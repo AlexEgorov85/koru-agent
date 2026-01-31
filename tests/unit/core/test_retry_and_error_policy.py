@@ -2,7 +2,8 @@
 Тесты для модели RetryAndErrorPolicy (RetryPolicy, ErrorCategory, ExecutionErrorInfo).
 """
 import pytest
-from models.retry_policy import RetryPolicy, ErrorCategory, ExecutionErrorInfo, RetryDecision, RetryResult
+from core.retry_policy.retry_and_error_policy import RetryPolicy
+from models.retry_policy import ErrorCategory, ExecutionErrorInfo, RetryDecision, RetryResult
 
 
 class TestRetryPolicyModel:

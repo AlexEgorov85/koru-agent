@@ -11,7 +11,7 @@ import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
 
-from core.agent_runtime.interfaces import AgentRuntimeInterface
+from core.agent_runtime.runtime_interface import AgentRuntimeInterface
 from core.agent_runtime.model import StrategyDecision, StrategyDecisionType
 from core.agent_runtime.thinking_patterns.base import AgentThinkingPatternInterface
 from core.session_context.model import ContextItemMetadata
@@ -375,7 +375,7 @@ class PlanExecutionThinkingPattern(AgentThinkingPatternInterface):
         # Переключение на оценку результата
         return StrategyDecision(
             action=StrategyDecisionType.SWITCH,
-            next_strategy="evaluation",
+            next_strategy="evaluation_composable",  # Используем новую компонуемую стратегию
             reason="plan_execution_completed",
             payload={"plan_observation_id": observation_id}
         )

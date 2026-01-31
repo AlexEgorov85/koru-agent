@@ -7,11 +7,14 @@ class ExecutionStrategyType(str, Enum):
     """
     Тип стратегии выполнения.
     """
-    REACT = "react"
-    PLANNING = "planning"
+    REACT_COMPOSABLE = "react_composable"
+    PLAN_AND_EXECUTE_COMPOSABLE = "plan_and_execute_composable"
+    TOOL_USE_COMPOSABLE = "tool_use_composable"
+    REFLECTION_COMPOSABLE = "reflection_composable"
+    CODE_ANALYSIS_DEFAULT = "code_analysis.default"
+    DATABASE_QUERY_DEFAULT = "database_query.default"
+    RESEARCH_DEFAULT = "research.default"
     THINKING = "thinking"
-    EVALUATION = "evaluation"
-    FALLBACK = "fallback"
     SEQUENTIAL = "sequential"
     PARALLEL = "parallel"
 

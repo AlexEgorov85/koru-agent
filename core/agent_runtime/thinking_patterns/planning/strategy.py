@@ -11,7 +11,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from core.agent_runtime.interfaces import AgentRuntimeInterface
+from core.agent_runtime.runtime_interface import AgentRuntimeInterface
 from core.agent_runtime.model import StrategyDecision, StrategyDecisionType
 from core.agent_runtime.thinking_patterns.base import AgentThinkingPatternInterface
 from core.session_context.model import ContextItemMetadata
@@ -183,7 +183,7 @@ class PlanningThinkingPattern(AgentThinkingPatternInterface):
         # Переключение на выполнение плана
         return StrategyDecision(
             action=StrategyDecisionType.SWITCH,
-            next_strategy="plan_execution",
+            next_strategy="plan_and_execute_composable",
             reason="plan_created_successfully",
             payload={"plan_observation_id": observation_id}
         )

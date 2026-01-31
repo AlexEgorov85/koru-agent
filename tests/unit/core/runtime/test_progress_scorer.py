@@ -3,7 +3,8 @@
 """
 import pytest
 from unittest.mock import MagicMock
-from models.progress_scorer import ProgressScorer, ProgressStatus
+from core.agent_runtime.progress import ProgressScorer
+from models.progress import ProgressStatus
 
 
 class TestProgressScorerModel:

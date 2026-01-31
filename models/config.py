@@ -18,7 +18,7 @@ class Config(BaseModel):
     log_level: str = Field(default="INFO", description="Уровень логирования")
     log_dir: str = Field(default="logs", description="Директория для логов")
     agent: Dict[str, Any] = Field(
-        default={"max_steps": 10, "default_strategy": "react"},
+        default={"max_steps": 10, "default_strategy": "react_composable"},
         description="Параметры агента"
     )
     llm_providers: Dict[str, Any] = Field(default_factory=dict, description="LLM провайдеры")

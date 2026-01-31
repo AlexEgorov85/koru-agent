@@ -1,44 +1,58 @@
+"""
+Interfaces for the agent runtime with support for new architecture.
+"""
+
 from abc import ABC, abstractmethod
-from typing import Optional, Any
-from .model import StrategyDecision
+from typing import Any, Dict, Optional, Protocol, TYPE_CHECKING
+
+# Используем TYPE_CHECKING для предотвращения циклических импортов
+if TYPE_CHECKING:
+    from core.atomic_actions.base import AtomicAction
+    from core.composable_patterns.base import ComposablePattern
+
+from core.atomic_actions.base import AtomicAction  # Импорт для выполнения, не для типизации
+from core.composable_patterns.base import ComposablePattern  # Также импорт для выполнения
 
 
-class AgentRuntimeInterface(ABC):
+class ComposableAgentInterface(ABC):
     """
-    ЧИСТЫЙ контракт runtime, доступный стратегиям.
+    Interface for agents that support composable patterns.
     """
-
+    
     @abstractmethod
-    async def call_llm(self, prompt: str) -> str:
-        pass
-
-    @abstractmethod
-    def get_capability(self, name: str) -> Optional[Any]:
-        pass
-
-    @abstractmethod
-    async def execute_capability(self, cap: Any, parameters: dict) -> Any:
-        pass
-
-    @abstractmethod
-    def session(self) -> Any:
-        pass
-
-    @abstractmethod
-    def state(self) -> Any:
-        pass
-
-
-class AgentStrategyInterface(ABC):
-    """
-    Интерфейс стратегий.
-    """
-
-    name: str
-
-    @abstractmethod
-    async def next_step(
+    async def execute_atomic_action(
         self,
-        runtime: AgentRuntimeInterface
-    ) -> StrategyDecision:
-        pass
+        action: AtomicAction,
+        context: Any,
+        parameters: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Execute an atomic action.
+        """
+        ...
+    
+    @abstractmethod
+    async def execute_composable_pattern(
+        self,
+        pattern: ComposablePattern,
+        context: Any,
+        parameters: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Execute a composable pattern.
+        """
+        ...
+    
+    @abstractmethod
+    def adapt_to_domain(self, domain: str):
+        """
+        Adapt the agent to a specific domain.
+        """
+        ...
+    
+    @abstractmethod
+    def get_available_domains(self) -> list[str]:
+        """
+        Get list of available domains.
+        """
+        ...

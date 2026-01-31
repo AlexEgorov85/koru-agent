@@ -11,7 +11,7 @@ import time
 import json
 
 
-from core.config.config_loader import get_config
+from core.config.config_loader import ConfigLoader
 from core.infrastructure.providers.llm.base_llm import LLMResponse
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from models.llm_types import LLMHealthStatus, LLMRequest
@@ -30,12 +30,11 @@ def check_test_model_exists():
     if not os.path.exists(TEST_MODELS_DIR):
         os.makedirs(TEST_MODELS_DIR)
     
-    if not os.path.exists(DEFAULT_MODEL_PATH):
-        pytest.skip(f"Тестовая модель не найдена по пути: {DEFAULT_MODEL_PATH}. Скачайте тестовую модель для запуска этих тестов.")
-    return True
+    return os.path.exists(DEFAULT_MODEL_PATH)
 
 # Пропускаем тесты если нет модели
-check_test_model_exists()
+if not check_test_model_exists():
+    pytest.skip(f"Тестовая модель не найдена по пути: {DEFAULT_MODEL_PATH}. Скачайте тестовую модель для запуска этих тестов.", allow_module_level=True)
 
 @pytest.fixture(scope="module")
 def real_llama_config():
@@ -54,7 +53,7 @@ def real_llama_config():
 @pytest.fixture(scope="module")
 def system_context():
     """Системный контекст для тестов."""
-    return get_config()
+    return ConfigLoader()
 
 # ==========================================================
 # Реальные тесты

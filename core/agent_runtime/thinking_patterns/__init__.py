@@ -15,19 +15,21 @@
 - Полная запись всех шагов и наблюдений в контекст
 """
 from .base import AgentThinkingPatternInterface
-from .evaluation import EvaluationThinkingPattern
-from .fallback import FallbackThinkingPattern
+from .react.strategy import ReActThinkingPattern
 from .planning.strategy import PlanningThinkingPattern
 from .plan_execution.strategy import PlanExecutionThinkingPattern
-from .react.strategy import ReActThinkingPattern
+from .evaluation import EvaluationThinkingPattern
+from .evaluation_composable import EvaluationComposableThinkingPattern
+from .fallback import FallbackThinkingPattern
 from .code_analysis.strategy import CodeAnalysisThinkingPattern
 
 __all__ = [
-    'AgentThinkingPatternInterface',
-    'EvaluationThinkingPattern',
-    'FallbackThinkingPattern',
-    'PlanningThinkingPattern',
-    'PlanExecutionThinkingPattern',
-    'ReActThinkingPattern',
-    'CodeAnalysisThinkingPattern'
+    "AgentThinkingPatternInterface",
+    "ReActThinkingPattern",
+    "PlanningThinkingPattern",
+    "PlanExecutionThinkingPattern",
+    "EvaluationThinkingPattern",
+    "EvaluationComposableThinkingPattern",
+    "FallbackThinkingPattern",
+    "CodeAnalysisThinkingPattern"
 ]

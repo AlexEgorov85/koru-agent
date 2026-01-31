@@ -15,7 +15,7 @@ from datetime import datetime
 import uuid
 
 
-from core.config.config_loader import get_config
+from core.config.config_loader import ConfigLoader
 from core.infrastructure.providers.database.base_db import DBConnectionConfig, DBHealthStatus
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 
@@ -71,7 +71,7 @@ def db_connection_config(test_db_config):
 @pytest.fixture(scope="module")
 def system_context():
     """Системный контекст для тестов."""
-    return get_config()
+    return ConfigLoader()
 
 # ==========================================================
 # Вспомогательные функции

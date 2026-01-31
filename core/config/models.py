@@ -123,7 +123,7 @@ class SystemConfig(BaseModelConfig):
             "max_steps": 10,
             "max_retries": 3,
             "temperature": 0.2,
-            "default_strategy": "react"
+            "default_strategy": "react_composable"
         },
         description="Параметры агента"
     )

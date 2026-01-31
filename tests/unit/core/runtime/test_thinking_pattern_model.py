@@ -2,7 +2,8 @@
 Тесты для модели ThinkingPattern (ThinkingPattern, ThinkingPatternType, StrategyDecision, StrategyDecisionType).
 """
 import pytest
-from models.thinking_pattern import ThinkingPattern, ThinkingPatternType, StrategyDecision, StrategyDecisionType
+from core.agent_runtime.model import StrategyDecision, StrategyDecisionType
+from core.composable_patterns.patterns import ReActPattern as ThinkingPattern, ToolUsePattern as ThinkingPatternType
 
 
 class TestThinkingPatternModel:

@@ -28,7 +28,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
-from core.agent_runtime.interfaces import AgentRuntimeInterface
+from core.agent_runtime.runtime_interface import AgentRuntimeInterface
 from core.agent_runtime.model import StrategyDecision, StrategyDecisionType
 from core.agent_runtime.thinking_patterns.base import AgentThinkingPatternInterface
 from core.session_context.model import ContextItemMetadata
@@ -809,6 +809,12 @@ class CodeAnalysisThinkingPattern(AgentThinkingPatternInterface):
             next_strategy = "evaluation"  # Требуется ручная оценка
         
         # Формирование решения для переключения
+        # Если next_strategy по-прежнему старая стратегия, используем новую
+        if next_strategy == "react":
+            next_strategy = "react_composable"
+        elif next_strategy == "evaluation":
+            next_strategy = "evaluation_composable"  # если такая стратегия существует, иначе оставим как есть
+        
         return StrategyDecision(
             action=StrategyDecisionType.SWITCH,
             next_strategy=next_strategy,
