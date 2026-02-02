@@ -2,3 +2,6 @@
 tree-sitter==0.21.0
 tree-sitter-languages==1.9.1
 pydantic>=2.5.0
+
+# Зависимости для SQL
+sqlparse>=0.4.4
