@@ -1,8 +1,7 @@
 import os
 import json
-from pathlib import Path
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import yaml
 
 
@@ -14,9 +13,7 @@ class BaseModelConfig(BaseModel):
     log_dir: str = Field(default="logs", description="Директория для логов")
     data_dir: str = Field(default="data", description="Директория для данных")
     
-    class Config:
-        extra = "allow"
-        validate_assignment = True
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
     
     def dict(self, **kwargs):
         """Дополнительная обработка для экспорта в словарь"""

@@ -18,6 +18,16 @@ class LLMProviderType(Enum):
     HUGGINGFACE = "huggingface"
 
 
+class LLMDecisionType(str, Enum):
+    """
+    Типы решений от LLM
+    """
+    EXECUTE_TOOL = "execute_tool"      # Выполнить инструмент (после валидации системой)
+    PLAN_NEXT_STEP = "plan_next_step"  # Запланировать следующий шаг
+    ASK_USER = "ask_user"              # Запросить уточнение у пользователя
+    STOP = "stop"                      # Завершить выполнение
+
+
 @dataclass
 class LLMRequest:
     """
@@ -39,11 +49,16 @@ class LLMResponse:
     """
     Ответ от LLM.
     """
-    content: str
+    raw_text: str                      # Сырой ответ от LLM (для аудита)
     model: str
     tokens_used: int
     generation_time: float
-    finish_reason: str
+    parsed: Optional[Dict[str, Any]] = None   # Валидированное решение (после парсинга)
+    validation_error: Optional[str] = None    # Ошибка валидации (если есть)
+    validation_attempts: int = 0       # Кол-во попыток валидации
+    validation_chain: Optional[List[str]] = None  # Цепочка действий при валидации
+    finish_reason: str = ""
+    is_truncated: bool = False         # Флаг обрезанного ответа
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -139,13 +154,17 @@ class BaseLLMProvider(ABC):
         # Проверяем, является ли ответ валидным JSON
         import json
         try:
-            json_content = json.loads(response.content)
+            json_content = json.loads(response.raw_text)
             # Проверяем соответствие схеме
             validated_content = await self.validate_output(json_content, output_schema)
-            response.content = validated_content
+            # Обновляем parsed данные в ответе
+            response.parsed = validated_content
         except json.JSONDecodeError:
-            # Если не удалось распознать JSON, возвращаем оригинальный ответ
-            pass
+            # Если не удалось распознать JSON, сохраняем информацию об ошибке
+            response.validation_error = f"Failed to parse JSON from response: {response.raw_text}"
+        except Exception as e:
+            # Если ошибка валидации, сохраняем информацию об ошибке
+            response.validation_error = f"Schema validation error: {str(e)}"
         
         return response
     

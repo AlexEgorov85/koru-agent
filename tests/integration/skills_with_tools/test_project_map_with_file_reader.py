@@ -23,7 +23,7 @@ class TestProjectMapWithFileReader:
         # Проверяем, что навык имеет метод execute
         assert hasattr(skill, 'execute')
     
-    @patch('infrastructure.adapters.skills.project_map.skill.FileReaderTool')
+    @patch('infrastructure.tools.file_reader_tool.FileReaderTool')
     def test_project_map_skill_integration_with_real_file_reader(self, mock_file_reader_class):
         """Тест интеграции навыка карты проекта с реальным инструментом чтения файлов"""
         # Мокируем результат работы инструмента чтения файлов

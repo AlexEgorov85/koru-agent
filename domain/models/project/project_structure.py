@@ -24,7 +24,7 @@ project.add_file(FileInfo(
 
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from domain.models.code.code_unit import CodeUnit
 from domain.models.project.directory_info import DirectoryInfo

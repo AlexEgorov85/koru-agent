@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any
 import importlib
 
@@ -7,7 +7,7 @@ class Capability(BaseModel):
     """Единая модель возможности для всего приложения"""
     name: str = Field(..., description="Уникальное имя capability")
     description: str = Field(..., description="Человекочитаемое описание")
-    parameters_schema: Dict[str, Any] = Field(..., description="JSON Schema параметров")
+    parameters_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema параметров")
     skill_name: str = Field(..., description="Имя навыка-владельца")
     
     # НОВОЕ: поддержка валидации через Pydantic
@@ -16,8 +16,7 @@ class Capability(BaseModel):
         description="Полное имя класса параметров (для десериализации)"
     )
     
-    class Config:
-        frozen = True  # Иммутабельность для безопасности
+    model_config = ConfigDict(frozen=True)  # Иммутабельность для безопасности
     
     def validate_parameters(self, params: Dict[str, Any]) -> bool:
         """Валидация параметров через динамическую загрузку класса"""

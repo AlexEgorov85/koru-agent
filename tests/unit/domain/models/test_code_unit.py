@@ -44,8 +44,8 @@ class TestCodeUnit:
             code_span=CodeSpan(source_code="def test(): pass")
         )
         
-        # Проверяем, что строковое представление содержит имя класса и имя юнита
-        assert "FUNCTION" in str(code_unit)
+        # Проверяем, что строковое представление содержит тип и имя юнита
+        assert "function" in str(code_unit)  # тип в нижнем регистре
         assert "test_unit" in str(code_unit)
     
     def test_code_unit_repr_contains_essential_fields(self):

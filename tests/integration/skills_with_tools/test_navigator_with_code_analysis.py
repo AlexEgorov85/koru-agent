@@ -23,7 +23,7 @@ class TestNavigatorWithCodeAnalysis:
         # Проверяем, что навык имеет метод execute
         assert hasattr(skill, 'execute')
     
-    @patch('infrastructure.adapters.skills.project_navigator.skill.ASTParserTool')
+    @patch('infrastructure.tools.ast_parser_tool.ASTParserTool')
     def test_navigator_skill_integration_with_real_ast_parser(self, mock_ast_parser_class):
         """Тест интеграции навыка навигации с реальным инструментом анализа AST"""
         # Мокируем результат работы инструмента анализа AST

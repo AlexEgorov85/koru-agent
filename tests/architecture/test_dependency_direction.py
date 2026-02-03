@@ -62,7 +62,7 @@ class TestDependencyDirection:
         
         # Проверим, что абстракции находятся в домене, а реализации в инфраструктуре
         from infrastructure.adapters.skills.project_map.skill import ProjectMapSkill
-        from infrastructure.tools.filesystem.file_reader import FileReader
+        from infrastructure.tools.filesystem.file_reader import FileReaderTool
         
         # BaseSkill - это абстракция в домене
         assert "domain.abstractions" in inspect.getmodule(BaseSkill).__name__
@@ -70,8 +70,8 @@ class TestDependencyDirection:
         # ProjectMapSkill - это реализация в инфраструктуре
         assert "infrastructure" in inspect.getmodule(ProjectMapSkill).__name__
         
-        # FileReader - это реализация в инфраструктуре
-        assert "infrastructure" in inspect.getmodule(FileReader).__name__
+        # FileReaderTool - это реализация в инфраструктуре
+        assert "infrastructure" in inspect.getmodule(FileReaderTool).__name__
     
     def test_abstractions_not_dependent_on_concrete_implementation(self):
         """Тест что абстракции не зависят от конкретных реализаций"""

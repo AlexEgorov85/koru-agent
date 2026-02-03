@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from domain.abstractions.event_system import EventType
-from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus
+from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus, LLMDecisionType
 
 
 class LlamaCppProvider(BaseLLMProvider):
@@ -152,13 +152,21 @@ class LlamaCppProvider(BaseLLMProvider):
             content = response["choices"][0]["text"].strip()
             usage = response["usage"]
             
+            # Проверяем, был ли ответ обрезан
+            is_truncated = response["choices"][0].get("finish_reason", "") == "length"
+            
             # Создаем ответ
             llm_response = LLMResponse(
-                content=content,
+                raw_text=content,
                 model=self.model_name,
                 tokens_used=usage["total_tokens"],
                 generation_time=time.time() - start_time,
+                parsed=None,  # Будет заполнено валидатором
+                validation_error=None,  # Будет заполнено валидатором
+                validation_attempts=0,  # Будет обновлено валидатором
+                validation_chain=[],  # Будет обновлено валидатором
                 finish_reason=response["choices"][0].get("finish_reason", "stop"),
+                is_truncated=is_truncated,
                 metadata={
                     "prompt_tokens": usage["prompt_tokens"],
                     "completion_tokens": usage["completion_tokens"],

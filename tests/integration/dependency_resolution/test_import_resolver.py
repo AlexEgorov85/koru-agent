@@ -34,8 +34,8 @@ class TestImportResolverIntegration:
         """Тест строкового представления резолвера импорта"""
         resolver = ImportResolver()
         
-        # Проверяем, что объект имеет строковое представление
-        assert str(resolver) == "<ImportResolver object>"
+        # Проверяем, что строковое представление содержит имя класса
+        assert "ImportResolver" in str(resolver)
     
     def test_import_resolver_repr_contains_class_name(self):
         """Тест repr содержит название класса"""

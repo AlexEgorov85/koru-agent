@@ -36,14 +36,28 @@ class TestSystemContext:
     
     def test_system_context_str_representation(self):
         """Тест строкового представления системного контекста"""
-        context = SystemContext()
+        from unittest.mock import Mock
+        from config.models import SystemConfig
+        from domain.abstractions.event_system import IEventPublisher
+
+        # Создаем моки для зависимостей
+        mock_config = SystemConfig()
+        mock_event_publisher = Mock(spec=IEventPublisher)
+        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
         
         # Проверяем, что строковое представление содержит имя класса
         assert "SystemContext" in str(context)
     
     def test_system_context_repr_contains_class_name(self):
         """Тест repr содержит название класса"""
-        context = SystemContext()
+        from unittest.mock import Mock
+        from config.models import SystemConfig
+        from domain.abstractions.event_system import IEventPublisher
+
+        # Создаем моки для зависимостей
+        mock_config = SystemConfig()
+        mock_event_publisher = Mock(spec=IEventPublisher)
+        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
         
         repr_str = repr(context)
         assert "SystemContext" in repr_str

@@ -158,7 +158,8 @@ class SessionContext(BaseSessionContext):
                     capability_name: str,
                     action_item_id: str,
                     observation_item_ids: List[str],
-                    summary: str) -> None:
+                    summary: str,
+                    llm_response: Optional[Any] = None) -> None:
         """Записать шаг выполнения в контекст сессии"""
         step = {
             "step_number": step_number,
@@ -166,6 +167,14 @@ class SessionContext(BaseSessionContext):
             "action_item_id": action_item_id,
             "observation_item_ids": observation_item_ids,
             "summary": summary,
+            "llm_response": {
+                "raw_text": getattr(llm_response, 'raw_text', None) if llm_response else None,
+                "parsed": getattr(llm_response, 'parsed', None) if llm_response else None,
+                "validation_error": getattr(llm_response, 'validation_error', None) if llm_response else None,
+                "validation_attempts": getattr(llm_response, 'validation_attempts', None) if llm_response else 0,
+                "validation_chain": getattr(llm_response, 'validation_chain', None) if llm_response else [],
+                "is_truncated": getattr(llm_response, 'is_truncated', False) if llm_response else False,
+            } if llm_response else None,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -184,7 +193,8 @@ class SessionContext(BaseSessionContext):
                         "step_number": step_number,
                         "capability": capability_name,
                         "summary": summary[:100],
-                        "timestamp": step["timestamp"]
+                        "timestamp": step["timestamp"],
+                        "has_llm_response": bool(llm_response)
                     }
                 ))
             except Exception:
