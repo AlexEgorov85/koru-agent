@@ -38,7 +38,7 @@ class ProjectStructureFactory:
     """Фабрика для создания объектов ProjectStructure"""
     
     @staticmethod
-    def create_sample_project_structure(name="test_project", root_path="/tmp/test_project"):
+    def create_sample_project_structure(name="test_project", root_path="./test_project"):
         """Создает экземпляр ProjectStructure с тестовыми данными"""
         return ProjectStructure(
             name=name,
@@ -52,7 +52,7 @@ class ProjectStructureFactory:
         """Создает экземпляр ProjectStructure со сложной структурой"""
         return ProjectStructure(
             name="complex_test_project",
-            root_path="/tmp/complex_test_project",
+            root_path="./complex_test_project",
             files=[
                 "src/main.py",
                 "src/utils/helper.py",

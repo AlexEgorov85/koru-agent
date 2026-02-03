@@ -86,3 +86,14 @@ def sample_filesystem_structure():
             "tests"
         ]
     }
+
+
+@pytest.fixture(autouse=True)
+async def clean_prompt_cache():
+    """Очистка кэша перед каждым тестом"""
+    from application.services.cached_prompt_repository import CachedPromptRepository
+    # Очищаем кэши всех экземпляров перед тестом
+    CachedPromptRepository.clear_all_caches()
+    yield
+    # Повторная очистка после теста
+    CachedPromptRepository.clear_all_caches()

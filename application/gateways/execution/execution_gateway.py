@@ -1,10 +1,14 @@
-оаfrom typing import Dict, Any
+from typing import Dict, Any
 from domain.abstractions.system.base_system_context import IBaseSystemContext
 from domain.abstractions.system.base_session_context import BaseSessionContext
 from domain.models.capability import Capability
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
-from application.services.llm_decision_validator import llm_validator, ValidationResult
+from application.services.prompt_renderer import PromptRenderer
+from domain.models.prompt.prompt_version import PromptUsageMetrics
+from datetime import datetime
+
+from domain.value_objects.provider_type import LLMProviderType
 
 
 class ExecutionGateway:
@@ -17,8 +21,9 @@ class ExecutionGateway:
     3. Базовую обработку исключений
     """
     
-    def __init__(self, system_context: IBaseSystemContext):
+    def __init__(self, system_context: IBaseSystemContext, prompt_repository=None):
         self._system_context = system_context
+        self._prompt_repository = prompt_repository
 
     @staticmethod
     def _create_failed_result(error: str, summary: str) -> ExecutionResult:
@@ -52,6 +57,7 @@ class ExecutionGateway:
         """
         Выполнение capability через соответствующий навык.
         Включает предварительную валидацию решения от LLM.
+        Использует систему версионности промтов при наличии репозитория.
         
         Args:
             capability: Объект capability для выполнения
@@ -107,6 +113,33 @@ class ExecutionGateway:
                 if llm_response.parsed:
                     actual_params = llm_response.parsed
 
+        # Определение провайдера из контекста (по умолчанию используем LOCAL_LLAMA)
+        provider_type = LLMProviderType.LOCAL_LLAMA  # В реальной системе определяется из контекста сессии
+
+        # Рендеринг промтов через сервис, если доступен репозиторий
+        rendered_prompts = {}
+        system_version_id = None
+        user_version_id = None
+
+        if self._prompt_repository:
+            prompt_renderer = PromptRenderer(self._prompt_repository)
+            rendered_prompts, errors = await prompt_renderer.render_for_request(
+                capability=capability,
+                provider_type=provider_type,
+                template_context={
+                    "goal": session.get_goal() if hasattr(session, 'get_goal') and callable(getattr(session, 'get_goal')) else "",
+                    "context": session.get_last_steps(3) if hasattr(session, 'get_last_steps') and callable(getattr(session, 'get_last_steps')) else [],
+                    "tools": self._get_available_tools(),
+                    **parameters
+                },
+                session_id=session.session_id if hasattr(session, 'session_id') else f"session_{datetime.utcnow().isoformat()}"
+            )
+            # Сохраняем ID версий для аудита
+            system_key = f"{provider_type.value}:system"
+            user_key = f"{provider_type.value}:user"
+            system_version_id = capability.prompt_versions.get(system_key)
+            user_version_id = capability.prompt_versions.get(user_key)
+
         # 1. Получение навыка для capability
         skill = self._system_context.get_resource(capability.skill_name)
         if not skill:
@@ -118,15 +151,70 @@ class ExecutionGateway:
         # 2. Выполнение через навык
         try:
             result = await skill.execute(actual_params, session)
+            
+            # Обновление метрик использования промтов, если доступен репозиторий
+            if self._prompt_repository:
+                await self._update_prompt_metrics(
+                    system_version_id=system_version_id,
+                    user_version_id=user_version_id,
+                    success=True,
+                    generation_time=0  # В реальной системе получается из ответа LLM
+                )
+            
             return self._create_success_result(
                 result=result,
                 summary=f"Capability '{capability.name}' executed successfully"
             )
         except Exception as e:
+            # Обновление метрик при ошибке выполнения
+            if self._prompt_repository:
+                await self._update_prompt_metrics(
+                    system_version_id=system_version_id,
+                    user_version_id=user_version_id,
+                    success=False,
+                    generation_time=0  # В реальной системе получается из ответа LLM
+                )
             return self._create_failed_result(
                 error=str(e),
                 summary=f"Error executing capability '{capability.name}': {str(e)}"
             )
+    
+    
+    def _get_available_tools(self) -> list:
+        """Получение списка доступных инструментов"""
+        # В реальной системе этот метод должен возвращать актуальный список инструментов
+        # Здесь возвращаем пустой список как заглушку
+        return []
+    
+    
+    async def _update_prompt_metrics(
+        self,
+        system_version_id: str,
+        user_version_id: str,
+        success: bool,
+        generation_time: float
+    ) -> None:
+        """Обновление метрик использования версий промтов"""
+        if not self._prompt_repository:
+            return
+        
+        # Подготовка обновления метрик
+        metrics_update = PromptUsageMetrics(
+            usage_count=1,
+            success_count=1 if success else 0,
+            avg_generation_time=generation_time,
+            last_used_at=datetime.utcnow(),
+            error_rate=0.0 if success else 1.0
+        )
+        
+        # Обновление метрик для системного промта
+        if system_version_id:
+            await self._prompt_repository.update_usage_metrics(system_version_id, metrics_update)
+        
+        # Обновление метрик для пользовательского промта
+        if user_version_id:
+            await self._prompt_repository.update_usage_metrics(user_version_id, metrics_update)
+    
     
     def _log_validation_error(self, validation_error: str, raw_text: str) -> None:
         """Логирование ошибки валидации"""

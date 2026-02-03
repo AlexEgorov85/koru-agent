@@ -32,3 +32,4 @@ class DomainType(str, Enum):
     MAINTENANCE = "maintenance"
     LEARNING = "learning"
     COMMUNICATION = "communication"
+    REASONING = "reasoning"

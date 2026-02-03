@@ -16,6 +16,12 @@ class Capability(BaseModel):
         description="Полное имя класса параметров (для десериализации)"
     )
     
+    # НОВОЕ: поддержка версионности промтов
+    prompt_versions: Optional[Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Словарь версий промтов: ключ = 'provider:role', значение = ID версии промта"
+    )
+    
     model_config = ConfigDict(frozen=True)  # Иммутабельность для безопасности
     
     def validate_parameters(self, params: Dict[str, Any]) -> bool:

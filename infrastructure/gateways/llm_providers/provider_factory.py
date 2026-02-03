@@ -4,7 +4,8 @@ ProviderFactory - фабрика создания провайдеров из к
 from typing import Dict, Any, Type
 from enum import Enum
 
-from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider, LLMProviderType
+from domain.value_objects.provider_type import LLMProviderType
+from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider
 from infrastructure.gateways.llm_providers.llama_cpp_provider import LlamaCppProvider
 
 

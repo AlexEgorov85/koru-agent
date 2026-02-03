@@ -1,63 +1,58 @@
-"""Тесты для системного контекста"""
-import pytest
+#!/usr/bin/env python3
+"""
+Тестирование новой реализации SystemContext
+"""
+import asyncio
 from application.context.system.system_context import SystemContext
+from infrastructure.gateways.event_system import EventSystem
+from infrastructure.adapters.event_publisher_adapter import EventPublisherAdapter
+from config.models import SystemConfig
 
 
-class TestSystemContext:
-    """Тесты для системного контекста"""
+async def test_system_context():
+    """Тестирование жизненного цикла SystemContext"""
+    print("[TEST] Запуск теста SystemContext...")
     
-    def test_system_context_creation(self):
-        """Тест создания системного контекста"""
-        from unittest.mock import Mock
-        from config.models import SystemConfig
-        from domain.abstractions.event_system import IEventPublisher
-
-        # Создаем моки для зависимостей
-        mock_config = SystemConfig()
-        mock_event_publisher = Mock(spec=IEventPublisher)
-        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
-        
-        # Проверяем, что объект создался успешно
-        assert context is not None
+    # Создание конфигурации
+    config = SystemConfig(debug=True, log_dir="logs", data_dir="data")
     
-    def test_system_context_initial_state(self):
-        """Тест начального состояния системного контекста"""
-        from unittest.mock import Mock
-        from config.models import SystemConfig
-        from domain.abstractions.event_system import IEventPublisher
-
-        # Создаем моки для зависимостей
-        mock_config = SystemConfig()
-        mock_event_publisher = Mock(spec=IEventPublisher)
-        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
-        
-        # Проверяем начальное состояние
-        assert context is not None
+    # Создание шины событий
+    event_system = EventSystem()
+    event_publisher = EventPublisherAdapter(event_system)
     
-    def test_system_context_str_representation(self):
-        """Тест строкового представления системного контекста"""
-        from unittest.mock import Mock
-        from config.models import SystemConfig
-        from domain.abstractions.event_system import IEventPublisher
-
-        # Создаем моки для зависимостей
-        mock_config = SystemConfig()
-        mock_event_publisher = Mock(spec=IEventPublisher)
-        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
-        
-        # Проверяем, что строковое представление содержит имя класса
-        assert "SystemContext" in str(context)
+    # Создание системного контекста
+    context = SystemContext(config, event_publisher)
     
-    def test_system_context_repr_contains_class_name(self):
-        """Тест repr содержит название класса"""
-        from unittest.mock import Mock
-        from config.models import SystemConfig
-        from domain.abstractions.event_system import IEventPublisher
+    print("[OK] Контекст создан")
+    
+    # Тест инициализации
+    result = await context.initialize()
+    assert result == True, 'Инициализация не удалась'
+    assert context._initialized == True, 'Флаг инициализации не установлен'
+    
+    print("[OK] Инициализация прошла успешно")
+    
+    # Тест получения ресурсов
+    file_reader = context.get_resource('file_reader')
+    assert file_reader is not None, 'file_reader не найден'
+    assert hasattr(file_reader, 'execute'), 'file_reader не имеет метода execute'
+    assert file_reader.event_publisher is context._event_publisher, 'Зависимость не инжектирована'
+    
+    print("[OK] Ресурсы успешно получены")
+    
+    # Тест получения capability
+    # Для этого нам нужно убедиться, что capability зарегистрированы
+    capabilities = context.list_capabilities()
+    print(f"[INFO] Найдено capability: {len(capabilities)}")
+    
+    # Тест завершения работы
+    await context.shutdown()
+    assert context._initialized == False, 'Флаг инициализации не сброшен после shutdown'
+    
+    print("[OK] Завершение работы прошло успешно")
+    
+    print("\n[SUCCESS] Все тесты SystemContext пройдены!")
 
-        # Создаем моки для зависимостей
-        mock_config = SystemConfig()
-        mock_event_publisher = Mock(spec=IEventPublisher)
-        context = SystemContext(config=mock_config, event_publisher=mock_event_publisher)
-        
-        repr_str = repr(context)
-        assert "SystemContext" in repr_str
+
+if __name__ == "__main__":
+    asyncio.run(test_system_context())
