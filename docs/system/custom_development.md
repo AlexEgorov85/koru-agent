@@ -1,6 +1,6 @@
 # Разработка системных компонентов под свои задачи
 
-В этом разделе описаны рекомендации и практики по адаптации и расширению системных компонентов Composable AI Agent Framework для удовлетворения специфических требований и задач. Вы узнаете, как модифицировать существующие системные компоненты и создавать новые для расширения функциональности системы.
+В этом разделе описаны рекомендации и практики по адаптации и расширению системных компонентов Koru AI Agent Framework для удовлетворения специфических требований и задач. Вы узнаете, как модифицировать существующие системные компоненты и создавать новые для расширения функциональности системы.
 
 ## Архитектура системных компонентов
 
@@ -2075,7 +2075,7 @@ class TestSpecializedConfigurationManager:
         assert filtered_config["nested"]["other"] == "value"
 ```
 
-Эти примеры показывают, как адаптировать и расширять архитектурные компоненты Composable AI Agent Framework под специфические задачи, обеспечивая модульность, безопасность и надежность системы.
+Эти примеры показывают, как адаптировать и расширять архитектурные компоненты Koru AI Agent Framework под специфические задачи, обеспечивая модульность, безопасность и надежность системы.
 </final_file_content>
 
 IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.

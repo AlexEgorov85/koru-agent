@@ -1,6 +1,6 @@
-# Руководство по безопасности Composable AI Agent Framework
+# Руководство по безопасности Koru AI Agent Framework
 
-В этом разделе описаны рекомендации и практики по обеспечению безопасности при использовании Composable AI Agent Framework. Вы узнаете, как защитить систему от потенциальных угроз, обеспечить безопасное выполнение задач и защитить чувствительные данные.
+В этом разделе описаны рекомендации и практики по обеспечению безопасности при использовании Koru AI Agent Framework. Вы узнаете, как защитить систему от потенциальных угроз, обеспечить безопасное выполнение задач и защитить чувствительные данные.
 
 ## Архитектурные принципы безопасности
 
@@ -1409,7 +1409,7 @@ class TestSecurityMonitor:
         assert report["current_activity_rates"]["requests_per_minute"] > 5
 ```
 
-Эти рекомендации помогут вам обеспечить безопасность Composable AI Agent Framework при адаптации под свои задачи, предотвращая потенциальные угрозы и защищая чувствительные данные.
+Эти рекомендации помогут вам обеспечить безопасность Koru AI Agent Framework при адаптации под свои задачи, предотвращая потенциальные угрозы и защищая чувствительные данные.
 </final_file_content>
 
 IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.
