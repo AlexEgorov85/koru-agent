@@ -48,29 +48,61 @@ class SQLTool(BaseTool):
         """Внутренняя реализация выполнения SQL-запроса."""
         start_time = time.time()
         
-        # Заглушка для выполнения запроса
-        # result = await self.db_connection.execute(
-        #     query=input_data.sql,
-        #     params=input_data.parameters,
-        #     max_rows=input_data.max_rows
-        # )
+        # Проверяем наличие подключения к БД
+        if not self.db_connection:
+            # Если подключение не установлено, возвращаем ошибку
+            return SQLToolOutput(
+                success=False,
+                rows=[],
+                columns=[],
+                rowcount=0,
+                execution_time=0.0
+            )
         
-        # Временная заглушка до тех пор, пока не будет реализовано подключение к БД
-        result = type('Result', (), {
-            'rows': [['stub_data']],
-            'columns': ['column1'],
-            'rowcount': 1
-        })()
-        
-        execution_time = time.time() - start_time
-        
-        return SQLToolOutput(
-            success=True,
-            rows=result.rows,
-            columns=result.columns,
-            rowcount=result.rowcount,
-            execution_time=execution_time
-        )
+        # Выполняем SQL-запрос
+        try:
+            result = await self.db_connection.execute(
+                query=input_data.sql,
+                params=input_data.parameters,
+                max_rows=input_data.max_rows
+            )
+            
+            execution_time = time.time() - start_time
+            
+            return SQLToolOutput(
+                success=True,
+                rows=result.rows,
+                columns=result.columns,
+                rowcount=result.rowcount,
+                execution_time=execution_time
+            )
+        except Exception as e:
+            execution_time = time.time() - start_time
+            # В случае ошибки выполнения запроса возвращаем информацию об ошибке
+            if self.system_context and hasattr(self.system_context, 'get_resource'):
+                event_publisher = self.system_context.get_resource("event_publisher")
+                if event_publisher:
+                    try:
+                        await event_publisher.publish(
+                            event_type="ERROR",
+                            source=self.name,
+                            data={
+                                "message": f"Ошибка выполнения SQL-запроса: {str(e)}",
+                                "query": input_data.sql,
+                                "error": str(e),
+                                "execution_time": execution_time
+                            }
+                        )
+                    except Exception:
+                        pass  # Если не удалось опубликовать ошибку, продолжаем работу
+            
+            return SQLToolOutput(
+                success=False,
+                rows=[],
+                columns=[],
+                rowcount=0,
+                execution_time=execution_time
+            )
 
     async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Выполнение инструмента согласно новому контракту."""

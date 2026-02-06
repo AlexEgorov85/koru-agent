@@ -7,7 +7,7 @@ class IPromptRepository(ABC):
     """Абстракция для хранилища версий промтов (инверсия зависимостей)"""
     
     @abstractmethod
-    async def get_active_version(
+    def get_active_version(
         self,
         domain: str,
         capability_name: str,
@@ -18,7 +18,7 @@ class IPromptRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_shadow_version(
+    def get_shadow_version(
         self,
         domain: str,
         capability_name: str,
@@ -29,37 +29,37 @@ class IPromptRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_version_by_id(self, version_id: str) -> Optional[PromptVersion]:
+    def get_version_by_id(self, version_id: str) -> Optional[PromptVersion]:
         """Получить версию промта по ID"""
         pass
     
     @abstractmethod
-    async def save_version(self, version: PromptVersion) -> None:
-        """Сохранить новую версию промта"""
+    def save_version(self, version: PromptVersion) -> None:
+        """Сохранить новую версию промта (не поддерживается в file-only режиме)"""
         pass
     
     @abstractmethod
-    async def update_version_status(self, version_id: str, status: PromptStatus) -> None:
-        """Обновить статус версии промта"""
+    def update_version_status(self, version_id: str, status: PromptStatus) -> None:
+        """Обновить статус версии промта (не поддерживается в file-only режиме)"""
         pass
     
     @abstractmethod
-    async def activate_version(self, version_id: str) -> None:
-        """Активировать версию промта (и деактивировать текущую активную)"""
+    def activate_version(self, version_id: str) -> None:
+        """Активировать версию промта (и деактивировать текущую активную) (не поддерживается в file-only режиме)"""
         pass
     
     @abstractmethod
-    async def archive_version(self, version_id: str) -> None:
-        """Архивировать версию промта"""
+    def archive_version(self, version_id: str) -> None:
+        """Архивировать версию промта (не поддерживается в file-only режиме)"""
         pass
     
     @abstractmethod
-    async def list_versions(self, capability_name: str) -> List[PromptVersion]:
+    def list_versions(self, capability_name: str) -> List[PromptVersion]:
         """Получить все версии для конкретной capability"""
         pass
     
     @abstractmethod
-    async def list_versions_by_address(
+    def list_versions_by_address(
         self,
         domain: str,
         capability_name: str,
@@ -70,12 +70,12 @@ class IPromptRepository(ABC):
         pass
     
     @abstractmethod
-    async def update_usage_metrics(
+    def update_usage_metrics(
         self,
         version_id: str,
         metrics_update: PromptUsageMetrics
     ) -> None:
-        """Обновить метрики использования версии промта"""
+        """Обновить метрики использования версии промта (не поддерживается в file-only режиме)"""
         pass
 
 

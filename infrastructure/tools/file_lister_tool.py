@@ -169,9 +169,22 @@ class FileListerTool(BaseTool):
                                     "context": "ignored_directory_path"
                                 }
                             ))
-                        except RuntimeError:
-                            # Если не удалось получить event loop, просто пропускаем
-                            pass
+                        except RuntimeError as e:
+                            # Если не удалось получить event loop, логируем ошибку
+                            if self.event_publisher:
+                                try:
+                                    asyncio.create_task(self.event_publisher.publish(
+                                        EventType.WARNING,
+                                        self.name,
+                                        {
+                                            "message": "Не удалось получить event loop для публикации события",
+                                            "error": str(e),
+                                            "context": "event_loop_error"
+                                        }
+                                    ))
+                                except Exception:
+                                    # Если даже публикация ошибки не удалась, ничего не делаем
+                                    pass
                     return True
                     
         return False
@@ -415,9 +428,22 @@ class FileListerTool(BaseTool):
                                 "context": "file_size_exceeded"
                             }
                         ))
-                    except RuntimeError:
-                        # Если не удалось получить event loop, просто пропускаем
-                        pass
+                    except RuntimeError as e:
+                        # Если не удалось получить event loop, логируем ошибку
+                        if self.event_publisher:
+                            try:
+                                asyncio.create_task(self.event_publisher.publish(
+                                    EventType.WARNING,
+                                    self.name,
+                                    {
+                                        "message": "Не удалось получить event loop для публикации события",
+                                        "error": str(e),
+                                        "context": "event_loop_error"
+                                    }
+                                ))
+                            except Exception:
+                                # Если даже публикация ошибки не удалась, ничего не делаем
+                                pass
                 return False
         except OSError:
             return False
@@ -462,9 +488,22 @@ class FileListerTool(BaseTool):
                             "context": "metadata_retrieval_error"
                         }
                     ))
-                except RuntimeError:
-                    # Если не удалось получить event loop, просто пропускаем
-                    pass
+                except RuntimeError as e:
+                    # Если не удалось получить event loop, логируем ошибку
+                    if self.event_publisher:
+                        try:
+                            asyncio.create_task(self.event_publisher.publish(
+                                EventType.WARNING,
+                                self.name,
+                                {
+                                    "message": "Не удалось получить event loop для публикации события",
+                                    "error": str(e),
+                                    "context": "event_loop_error"
+                                }
+                            ))
+                        except Exception:
+                            # Если даже публикация ошибки не удалась, ничего не делаем
+                            pass
             return None
     
     def _process_file(self, file_name: str, file_path: str, rel_path: str) -> Optional[FileListItem]:
@@ -496,9 +535,22 @@ class FileListerTool(BaseTool):
                             "context": "file_metadata_retrieval_error"
                         }
                     ))
-                except RuntimeError:
-                    # Если не удалось получить event loop, просто пропускаем
-                    pass
+                except RuntimeError as e:
+                    # Если не удалось получить event loop, логируем ошибку
+                    if self.event_publisher:
+                        try:
+                            asyncio.create_task(self.event_publisher.publish(
+                                EventType.WARNING,
+                                self.name,
+                                {
+                                    "message": "Не удалось получить event loop для публикации события",
+                                    "error": str(e),
+                                    "context": "event_loop_error"
+                                }
+                            ))
+                        except Exception:
+                            # Если даже публикация ошибки не удалась, ничего не делаем
+                            pass
             return None
     
     def _process_single_file(self, file_path: str) -> FileListerOutput:
@@ -537,9 +589,22 @@ class FileListerTool(BaseTool):
                             "context": "file_processing_error"
                         }
                     ))
-                except RuntimeError:
-                    # Если не удалось получить event loop, просто пропускаем
-                    pass
+                except RuntimeError as e:
+                    # Если не удалось получить event loop, логируем ошибку
+                    if self.event_publisher:
+                        try:
+                            asyncio.create_task(self.event_publisher.publish(
+                                EventType.WARNING,
+                                self.name,
+                                {
+                                    "message": "Не удалось получить event loop для публикации события",
+                                    "error": str(e),
+                                    "context": "event_loop_error"
+                                }
+                            ))
+                        except Exception:
+                            # Если даже публикация ошибки не удалась, ничего не делаем
+                            pass
             return FileListerOutput(success=False, error=str(e))
         
     async def shutdown(self) -> None:

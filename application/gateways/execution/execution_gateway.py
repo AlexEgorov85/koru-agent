@@ -1,6 +1,9 @@
 from typing import Dict, Any
-from domain.abstractions.system.base_system_context import IBaseSystemContext
+from domain.abstractions.system.i_skill_registry import ISkillRegistry
+from domain.abstractions.system.i_tool_registry import IToolRegistry
+from domain.abstractions.system.i_config_manager import IConfigManager
 from domain.abstractions.system.base_session_context import BaseSessionContext
+from domain.abstractions.event_system import IEventPublisher
 from domain.models.capability import Capability
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
@@ -21,9 +24,10 @@ class ExecutionGateway:
     3. Базовую обработку исключений
     """
     
-    def __init__(self, system_context: IBaseSystemContext, prompt_repository=None):
-        self._system_context = system_context
+    def __init__(self, skill_registry: ISkillRegistry, prompt_repository=None, event_publisher: IEventPublisher = None):
+        self._skill_registry = skill_registry
         self._prompt_repository = prompt_repository
+        self._event_publisher = event_publisher
 
     @staticmethod
     def _create_failed_result(error: str, summary: str) -> ExecutionResult:
@@ -141,7 +145,7 @@ class ExecutionGateway:
             user_version_id = capability.prompt_versions.get(user_key)
 
         # 1. Получение навыка для capability
-        skill = self._system_context.get_resource(capability.skill_name)
+        skill = self._skill_registry.get_skill(capability.skill_name)
         if not skill:
             return self._create_failed_result(
                 error=f"Skill for capability '{capability.name}' not found",

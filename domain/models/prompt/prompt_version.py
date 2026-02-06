@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
@@ -75,6 +75,7 @@ class PromptVersion(BaseModel):
     
     # === Содержимое ===
     content: str = Field(description="Текст промта")
+    max_size_bytes: int = Field(default=500_000, description="Максимальный размер промта в байтах (по умолчанию 500KB)")
     variables_schema: List[VariableSchema] = Field(
         default_factory=list,
         description="Схема переменных шаблона с валидацией"
@@ -102,11 +103,28 @@ class PromptVersion(BaseModel):
     
     class Config:
         frozen = True  # Иммутабельность
+
+    @field_validator('content')
+    @classmethod
+    def validate_content_size(cls, content, info):
+        """Проверка ограничения размера промта"""
+        # Получаем max_size_bytes из значений по умолчанию, если не указано иначе
+        max_size_bytes = info.data.get('max_size_bytes', 500_000)
+        content_size = len(content.encode('utf-8'))
+        if content_size > max_size_bytes:
+            raise ValueError(f"Размер промта превышает допустимый лимит {max_size_bytes} байт. "
+                           f"Текущий размер: {content_size} байт")
+        return content
     
     def get_address_key(self) -> str:
         """Ключ для поиска: домен:провайдер:capability:роль"""
-        return f"{self.domain.value}:{self.provider_type.value}:{self.capability_name}:{self.role.value}"
+        return f"{self.domain.value}:{self.capability_name}:{self.provider_type.value}:{self.role.value}"
     
+    @property
+    def template_variables(self) -> List[str]:
+        """Совместимость со старым форматом: возвращает список имен переменных"""
+        return [var.name for var in self.variables_schema]
+
     def validate_variables(self, variables: Dict[str, Any]) -> Dict[str, List[str]]:
         """Валидация переменных по схеме, возвращает ошибки"""
         errors = {}

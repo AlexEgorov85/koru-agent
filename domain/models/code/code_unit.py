@@ -49,11 +49,11 @@ data = function_unit.to_dict()
 
 """
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 from datetime import datetime
-import json
 import hashlib
 from enum import Enum
+from pydantic import BaseModel, Field
+
 
 class CodeUnitType(str, Enum):
     """Типы единиц кода.
@@ -81,8 +81,8 @@ class CodeUnitType(str, Enum):
     DECORATOR = "decorator"
     UNKNOWN = "unknown"
 
-@dataclass(frozen=True)
-class Location:
+
+class Location(BaseModel):
     """Неизменяемая структура местоположения в коде.
     Представляет точное местоположение элемента кода в файле.
     Все координаты используют 1-based индексацию для соответствия
@@ -108,11 +108,11 @@ class Location:
     ```
     """
 
-    file_path: str
-    start_line: int
-    end_line: int
-    start_column: int
-    end_column: int
+    file_path: str = Field(..., description="Путь к файлу относительно корня проекта")
+    start_line: int = Field(..., description="Начальная строка (1-based)", ge=1)
+    end_line: int = Field(..., description="Конечная строка (1-based)", ge=1)
+    start_column: int = Field(..., description="Начальная колонка (1-based)", ge=1)
+    end_column: int = Field(..., description="Конечная колонка (1-based)", ge=1)
 
     def __str__(self) -> str:
         """Человекочитаемое представление местоположения."""
@@ -128,8 +128,8 @@ class Location:
             'end_column': self.end_column
         }
 
-@dataclass(frozen=True)
-class CodeSpan:
+
+class CodeSpan(BaseModel):
     """Диапазон кода с хешем для сравнения.
     Представляет фрагмент исходного кода с автоматическим вычислением хеша.
     Хеш используется для быстрого сравнения и определения изменений.
@@ -154,15 +154,17 @@ class CodeSpan:
     ```
     """
 
-    source_code: str
-    hash: str = field(init=False)
+    source_code: str = Field(..., description="Исходный код в виде строки")
+    hash: str = Field("", description="MD5 хеш исходного кода")
 
-    def __post_init__(self):
+    def __init__(self, **data):
         """Вычисление хеша при инициализации.
         
         Автоматически вычисляет MD5 хеш исходного кода.
         """
-        object.__setattr__(self, 'hash', hashlib.md5(self.source_code.encode()).hexdigest())
+        super().__init__(**data)
+        if not data.get('hash'):
+            self.hash = hashlib.md5(self.source_code.encode()).hexdigest()
 
     def __len__(self) -> int:
         """Длина кода в символах."""
@@ -172,8 +174,8 @@ class CodeSpan:
         """Количество строк в коде."""
         return len(self.source_code.splitlines())
 
-@dataclass
-class CodeUnit:
+
+class CodeUnit(BaseModel):
     """
     Минимальная модель единицы кода с расширяемыми метаданными.
     Основной строительный блок для анализа кода. Представляет любой элемент кода:
@@ -182,7 +184,7 @@ class CodeUnit:
     - комментарии, декораторы
 
     Особенности:
-    1. Иммутабельность базовых полей (через frozen dataclasses)
+    1. Иммутабельность базовых полей (через frozen pydantic модели)
     2. Расширяемость через метаданные (поле metadata)
     3. Кэширование для производительности
     4. Автоматическая генерация уникального ID
@@ -237,33 +239,43 @@ class CodeUnit:
     """
 
     # Идентификаторы
-    id: str
-    name: str
+    id: str = Field(..., description="Уникальный идентификатор")
+    name: str = Field(..., description="Имя элемента")
 
     # Классификация
-    type: CodeUnitType
+    type: CodeUnitType = Field(..., description="Тип элемента (CodeUnitType)")
 
     # Местоположение
-    location: Location
+    location: Location = Field(..., description="Местоположение в файле")
 
     # Содержимое
-    code_span: CodeSpan
+    code_span: CodeSpan = Field(..., description="Диапазон исходного кода")
+    
+    # Документация
+    docstring: Optional[str] = Field(None, description="Документация символа")
+    
+    # Параметры (для функций/методов)
+    parameters: List[str] = Field(default_factory=list, description="Параметры (для функций/методов)")
+    
+    # Сигнатура
+    signature: Optional[str] = Field(None, description="Сигнатура символа")
 
     # Связи
-    parent_id: Optional[str] = None
-    child_ids: List[str] = field(default_factory=list)
+    parent_id: Optional[str] = Field(None, description="ID родительского элемента")
+    child_ids: List[str] = Field(default_factory=list, description="Список ID дочерних элементов")
 
     # Метаданные (главный механизм расширения)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Расширяемые метаданные")
 
     # Системные поля
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    language: str = field(default="python")
-    version: int = field(default=1)
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Время создания")
+    language: str = Field(default="python", description="Язык программирования")
+    version: int = Field(default=1, description="Версия модели")
 
     # Кэширование для производительности
-    _cached_signature: Optional[str] = field(default=None, init=False)
-    _cached_documentation: Optional[str] = field(default=None, init=False)
+    # Внутренние атрибуты для кэширования не являются полями модели
+    _cached_signature: Optional[str] = None
+    _cached_documentation: Optional[str] = None
 
     def get_signature(self) -> str:
         """
@@ -323,9 +335,9 @@ class CodeUnit:
         return self._cached_signature
 
     def get_documentation(self) -> Optional[str]:
-        """Получение документации из метаданных.
+        """Получение документации.
         
-        Извлекает документацию (docstring) из метаданных.
+        Извлекает документацию (docstring) из поля docstring.
         Результат кэшируется для производительности.
         
         Returns:
@@ -334,9 +346,8 @@ class CodeUnit:
         if self._cached_documentation is not None:
             return self._cached_documentation
         
-        doc = self.metadata.get('docstring')
-        self._cached_documentation = doc
-        return doc
+        self._cached_documentation = self.docstring
+        return self.docstring
 
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для сериализации.

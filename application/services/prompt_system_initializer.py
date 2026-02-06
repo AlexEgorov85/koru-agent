@@ -1,35 +1,31 @@
 from typing import Optional
 from domain.abstractions.prompt_repository import IPromptRepository
-from infrastructure.gateways.database_providers.base_provider import BaseDBProvider
-from infrastructure.repositories.prompt_repository import DatabasePromptRepository, DatabaseSnapshotManager
-from infrastructure.services.prompt_sync_service import PromptFileSyncService
+from application.services.file_prompt_repository import FilePromptRepository, FileSnapshotManager
 from application.services.cached_prompt_repository import CachedPromptRepository
 
 
 class PromptSystemInitializer:
-    """Инициализация системы промтов при старте приложения через существующий DBProvider"""
+    """Инициализация системы промтов при старте приложения из файлов"""
     
-    def __init__(self, db_provider: BaseDBProvider, fs_directory: str = "./prompts"):
-        self._db_provider = db_provider
+    def __init__(self, fs_directory: str = "./prompts"):
         self._fs_directory = fs_directory
     
-    async def initialize(self) -> CachedPromptRepository:
-        """Инициализировать систему промтов"""
-        # Создаем репозиторий через существующий DBProvider
-        db_repo = DatabasePromptRepository(self._db_provider)
+    def initialize(self) -> CachedPromptRepository:
+        """Инициализировать систему промтов из файлов"""
+        # Создаем файловый репозиторий
+        file_repo = FilePromptRepository(base_path=self._fs_directory)
+        errors = file_repo.load_from_directory(self._fs_directory)
         
-        # Создаем snapshot manager через существующий DBProvider
-        snapshot_manager = DatabaseSnapshotManager(self._db_provider)
-        
-        # Синхронизируем файлы с БД
-        sync_service = PromptFileSyncService(self._db_provider, self._fs_directory)
-        await sync_service.sync_from_fs_to_db()
+        if errors:
+            print(f"Предупреждения при загрузке промтов: {errors}")
+        else:
+            print("Промты успешно загружены из файлов")
         
         # Создаем кэширующий репозиторий
-        cached_repo = CachedPromptRepository(db_repo)
+        cached_repo = CachedPromptRepository(file_repo)
         
         # Загружаем все активные промты в кэш для быстрого доступа
-        await cached_repo.refresh_cache()
+        cached_repo.refresh_cache()
         
         print("Система промтов инициализирована успешно")
         return cached_repo

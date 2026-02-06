@@ -6,6 +6,7 @@
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from domain.models.composable_pattern_state import ComposablePatternState, ComposablePatternStatus
+from domain.models.execution.execution_result import ExecutionResult
 from domain.interfaces.event_system import EventSystem
 from domain.models.events import EventType
 
@@ -157,7 +158,9 @@ class ComposablePatternStateManager:
             return False
 
         state = self.pattern_states[state_id]
-        state.start_action_execution(action_name)
+        # Обновляем текущее действие в состоянии
+        state.record_action({"action_name": action_name})
+        state.start_iteration()
 
         # Используем шину событий вместо логгера
         import asyncio
@@ -202,7 +205,11 @@ class ComposablePatternStateManager:
             return False
 
         state = self.pattern_states[state_id]
-        state.finish_action_execution(action_result)
+        # Обновляем результат действия в состоянии
+        if "observation" in action_result:
+            state.record_observation(action_result["observation"])
+        if "error" in action_result and action_result["error"]:
+            state.register_error()
 
         # Используем шину событий вместо логгера
         import asyncio
@@ -211,9 +218,9 @@ class ComposablePatternStateManager:
             event_type=EventType.INFO,
             source="ComposablePatternStateManager",
             data={
-                "message": f"Завершено действие в паттерне '{state.pattern_name}', всего выполнено действий: {state.action_index}",
+                "message": f"Завершено действие в паттерне '{state.pattern_name}', всего выполнено действий: {state.step_count}",
                 "pattern_name": state.pattern_name,
-                "action_count": state.action_index,
+                "action_count": state.step_count,
                 "context": "action_execution_finished"
             }
         ))

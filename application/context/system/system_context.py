@@ -1,174 +1,160 @@
-# Реализация системного контекста
-"""
-SystemContext — реализация системного контекста
-"""
-from typing import Any, Dict, List, Optional, Callable
-import os
-import logging
+from typing import Any, Dict, Optional
+from domain.abstractions.tools.base_tool import BaseTool
+from domain.abstractions.skills.base_skill import BaseSkill
+from application.context.system.tool_registry import ToolRegistry
+from application.context.system.skill_registry import SkillRegistry
+from application.context.system.config_manager import ConfigManager
+from domain.models.system.config import SystemConfig
 from domain.abstractions.system.base_system_context import IBaseSystemContext
-from domain.abstractions.event_system import IEventPublisher, EventType, Event
-from domain.models.capability import Capability
-from config.models import SystemConfig
-from application.services.system_initialization_service import SystemInitializationService
+from domain.abstractions.event_system import IEventPublisher
 
 
 class SystemContext(IBaseSystemContext):
     """
-    Реализация системного контекста для управления системными ресурсами
+    Cистемный контекст - чистый реестр компонентов системы.
+    
+    АРХИТЕКТУРА:
+    - Pattern: Registry/Facade
+    - Предоставляет доступ только к реестрам компонентов (инструментов, навыков, конфигурации)
+    - Не содержит логики выполнения, жизненного цикла или управления событиями
+    - Является read-only источником для других компонентов системы
+    
+    ВНУТРЕННИЕ КОМПОНЕНТЫ:
+    - tool_registry: Реестр инструментов
+    - skill_registry: Реестр навыков
+    - config_manager: Менеджер конфигурации
     """
     
-    def __init__(self, config: SystemConfig, event_publisher: IEventPublisher):
-        """Инициализация системного контекста."""
-        self._config = config
-        self._event_publisher = event_publisher
-        self._resource_factories: Dict[str, Callable] = {}
-        self._resources: Dict[str, Any] = {}
-        self._capabilities: Dict[str, Capability] = {}
-        self._initialized = False
+    def __init__(self, config: Optional[SystemConfig] = None):
+        """
+        Инициализация системного контекста.
         
-        # Инициализация сервиса инициализации
-        self._initialization_service = SystemInitializationService(
-            system_context=self,
-            config=config,
-            event_publisher=event_publisher
-        )
-
-    async def _register_system_handlers(self) -> None:
-        """Регистрация системных обработчиков событий"""
-        # Обработчик ошибок — запись в лог-файл + вывод в консоль
-        async def error_handler(event: Event):
-            # Запись в файл
-            log_dir = self._config.log_dir or "logs"
-            os.makedirs(log_dir, exist_ok=True)
-            log_file_path = os.path.join(log_dir, "system_errors.log")
-            with open(log_file_path, "a", encoding="utf-8") as f:
-                f.write(f"[ERROR] {event.timestamp} {event.source}: {event.data}\n")
-            # Вывод в консоль
-            print(f"❌ [{event.source}] {event.data.get('message', event.data)}")
+        ПАРАМЕТРЫ:
+        - config: Конфигурация приложения (опционально)
+        """
+        self.tool_registry = ToolRegistry()
+        self.skill_registry = SkillRegistry()
+        self.config_manager = ConfigManager(config)
         
-        # Обработчик прогресса — вывод в консоль
-        async def progress_handler(event: Event):
-            progress = event.data.get('progress', 0)
-            total = event.data.get('total_steps', 100)
-            message = event.data.get('message', 'Processing')
-            print(f"⏳ {message} [{progress}/{total}]")
-        
-        # Обработчик отладки — только в режиме разработки
-        if self._config.debug:
-            async def debug_handler(event: Event):
-                print(f"🐞 [DEBUG] {event.source}: {event.data}")
-            self._event_publisher.subscribe(EventType.DEBUG, debug_handler)
-        
-        # Регистрация глобальных обработчиков
-        self._event_publisher.subscribe(EventType.ERROR, error_handler)
-        self._event_publisher.subscribe(EventType.INFO, progress_handler)
-
-    async def _initialize_resources(self) -> None:
-        """Инициализация ресурсов через фабрики"""
-        # Регистрация фабрик инструментов
-        from infrastructure.tools.file_reader_tool import FileReaderTool
-        from infrastructure.tools.file_lister_tool import FileListerTool
-        
-        self._register_resource_factory("file_reader", lambda: FileReaderTool(
-            name="file_reader",
-            event_publisher=self._event_publisher,
-            config={"root_dir": self._config.data_dir}
-        ))
-        self._register_resource_factory("file_lister", lambda: FileListerTool(
-            name="file_lister",
-            event_publisher=self._event_publisher,
-            config={"root_dir": self._config.data_dir}
-        ))
-
-    def _register_resource_factory(self, name: str, factory: Callable) -> None:
-        """Регистрация фабрики ресурса"""
-        self._resource_factories[name] = factory
-
+        # Связываем реестры для проверки зависимостей
+        self.skill_registry.set_tool_registry(self.tool_registry)
+    
     def get_resource(self, resource_name: str) -> Any:
-        """Получить ресурс по имени"""
-        if resource_name in self._resources:
-            return self._resources[resource_name]
+        """
+        Получить ресурс по имени (реализация интерфейса IBaseSystemContext)
+        """
+        # Для совместимости с интерфейсом - ищем в навыках
+        skill = self.skill_registry.get_skill(resource_name)
+        if skill:
+            return skill
         
-        factory = self._resource_factories.get(resource_name)
-        if not factory:
-            raise ValueError(f"Resource '{resource_name}' not registered in system context")
-        
-        resource = factory()
-        self._resources[resource_name] = resource
-        return resource
-
+        # Также можем искать инструменты
+        tool = self.tool_registry.get_tool(resource_name)
+        if tool:
+            return tool
+            
+        return None
+    
     def get_event_bus(self) -> IEventPublisher:
-        """Получить шину событий"""
-        return self._event_publisher
-
-    def get_capability(self, name: str) -> Optional[Capability]:
-        """Получить capability по имени"""
-        return self._capabilities.get(name)
-
-    def list_capabilities(self) -> List[Capability]:
-        """Получить список всех capability"""
-        return list(self._capabilities.values())
-
-    async def initialize(self) -> bool:
-        """Инициализировать контекст"""
-        if self._initialized:
-            return True
+        """
+        Получить шину событий (реализация интерфейса IBaseSystemContext)
+        """
+        # Возвращаем None, так как SystemContext не управляет шиной событий
+        # Шина событий управляется через SystemOrchestrator
+        return None
+    
+    def initialize(self) -> bool:
+        """
+        Инициализировать контекст (реализация интерфейса IBaseSystemContext)
+        """
+        return self.validate()
+    
+    def shutdown(self) -> None:
+        """
+        Корректно завершить работу (реализация интерфейса IBaseSystemContext)
+        """
+        # Выполняем сброс конфигурации
+        self.config_manager.reset_config()
+    
+    # Методы для работы с инструментами
+    def register_tool(self, tool: BaseTool) -> None:
+        """Регистрация инструмента"""
+        self.tool_registry.register_tool(tool)
+    
+    def get_tool(self, name: str) -> Optional[BaseTool]:
+        """Получение инструмента по имени"""
+        return self.tool_registry.get_tool(name)
+    
+    def get_all_tools(self) -> Dict[str, BaseTool]:
+        """Получение всех инструментов"""
+        return self.tool_registry.get_all_tools()
+    
+    def filter_tools_by_tag(self, tag: str) -> Dict[str, BaseTool]:
+        """Фильтрация инструментов по тегу"""
+        return self.tool_registry.filter_tools_by_tag(tag)
+    
+    def update_tool(self, name: str, tool: BaseTool) -> None:
+        """Обновление инструмента"""
+        self.tool_registry.update_tool(name, tool)
+    
+    def remove_tool(self, name: str) -> bool:
+        """Удаление инструмента по имени"""
+        return self.tool_registry.remove_tool(name)
+    
+    # Методы для работы с навыками
+    def register_skill(self, skill: BaseSkill) -> None:
+        """Регистрация навыка"""
+        self.skill_registry.register_skill(skill)
+    
+    def get_skill(self, name: str) -> Optional[BaseSkill]:
+        """Получение навыка по имени"""
+        return self.skill_registry.get_skill(name)
+    
+    def get_all_skills(self) -> Dict[str, BaseSkill]:
+        """Получение всех навыков"""
+        return self.skill_registry.get_all_skills()
+    
+    def filter_skills_by_category(self, category: str) -> Dict[str, BaseSkill]:
+        """Фильтрация навыков по категории"""
+        return self.skill_registry.filter_skills_by_category(category)
+    
+    def get_skill_dependencies(self, name: str) -> list:
+        """Получение зависимостей навыка"""
+        return self.skill_registry.get_skill_dependencies(name)
+    
+    def is_skill_ready(self, name: str) -> bool:
+        """Проверка готовности навыка"""
+        return self.skill_registry.is_skill_ready(name)
+    
+    def remove_skill(self, name: str) -> bool:
+        """Удаление навыка по имени"""
+        return self.skill_registry.remove_skill(name)
+    
+    # Методы для работы с конфигурацией
+    def set_config(self, key: str, value: Any) -> None:
+        """Установка параметра конфигурации"""
+        self.config_manager.set_config(key, value)
+    
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """Получение параметра конфигурации"""
+        return self.config_manager.get_config(key, default)
+    
+    def export_config(self) -> Dict[str, Any]:
+        """Экспорт конфигурации"""
+        return self.config_manager.export_config()
+    
+    def reset_config(self) -> None:
+        """Сброс конфигурации"""
+        self.config_manager.reset_config()
+    
+    def validate(self) -> bool:
+        """Валидация системы"""
+        # Проверяем, что все зарегистрированные навыки готовы (их зависимости удовлетворены)
+        all_skills = self.get_all_skills()
+        for skill_name in all_skills:
+            if not self.is_skill_ready(skill_name):
+                # Вместо выбрасывания исключения, возвращаем False при проблемах с зависимостями
+                return False
         
-        try:
-            # 1. Настройка логирования
-            await self._initialization_service.setup_logging()
-            
-            # 2. Регистрация обработчиков ДО инициализации ресурсов
-            await self._register_system_handlers()
-            
-            # 3. Инициализация ресурсов через фабрики
-            await self._initialize_resources()
-            
-            # 4. Инициализация провайдеров из конфигурации
-            await self._initialization_service.initialize_providers_from_config()
-            
-            # 5. Регистрация capability из ресурсов
-            await self._register_capabilities()
-            
-            self._initialized = True
-            await self._event_publisher.publish(
-                EventType.INFO, "SystemContext", {"message": "System initialized successfully"}
-            )
-            return True
-        except Exception as e:
-            await self._event_publisher.publish(
-                EventType.ERROR, "SystemContext", {"message": "Initialization failed", "error": str(e)}
-            )
-            return False
-
-    async def _register_capabilities(self) -> None:
-        """Регистрация capability из ресурсов"""
-        # Получение всех ресурсов и регистрация их capability
-        for name, resource in self._resources.items():
-            if hasattr(resource, 'get_capabilities'):
-                capabilities = resource.get_capabilities()
-                for cap in capabilities:
-                    self._capabilities[cap.name] = cap
-
-    async def shutdown(self) -> None:
-        """Корректно завершить работу"""
-        if not self._initialized:
-            return
-        
-        try:
-            # Обратный порядок: сначала ресурсы, потом шина
-            for name in reversed(list(self._resources.keys())):
-                resource = self._resources[name]
-                if hasattr(resource, 'shutdown'):
-                    if callable(getattr(resource, 'shutdown')):
-                        await resource.shutdown()
-            
-            self._resources.clear()
-            self._initialized = False
-            await self._event_publisher.publish(
-                EventType.INFO, "SystemContext", {"message": "System shutdown completed"}
-            )
-        except Exception as e:
-            await self._event_publisher.publish(
-                EventType.ERROR, "SystemContext", {"message": "Shutdown error", "error": str(e)}
-            )
+        # Проверяем конфигурацию
+        return self.config_manager.validate_config()

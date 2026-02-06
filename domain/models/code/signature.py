@@ -1,6 +1,6 @@
 """Модели для представления сигнатур кода.
 
-Этот модуль содержит модели для работы с сигнатурами кода:
+Этот модуль содержит модели для работы с сигнатурками кода:
 - CodeSignature - представление сигнатуры элемента кода
 - ParameterInfo - информация о параметре функции/метода
 
@@ -11,8 +11,8 @@
 """
 
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 from enum import Enum
+from pydantic import BaseModel, Field
 
 
 class ParameterKind(str, Enum):
@@ -25,8 +25,7 @@ class ParameterKind(str, Enum):
     VAR_KEYWORD = "var_keyword"             # **kwargs
 
 
-@dataclass(frozen=True)
-class ParameterInfo:
+class ParameterInfo(BaseModel):
     """Информация о параметре функции/метода.
     
     Атрибуты:
@@ -48,11 +47,11 @@ class ParameterInfo:
     ```
     """
     
-    name: str
-    type_annotation: Optional[str] = None
-    default_value: Optional[Any] = None
-    kind: ParameterKind = ParameterKind.POSITIONAL_OR_KEYWORD
-    is_optional: bool = False
+    name: str = Field(..., description="Имя параметра")
+    type_annotation: Optional[str] = Field(None, description="Аннотация типа параметра")
+    default_value: Optional[Any] = Field(None, description="Значение по умолчанию")
+    kind: ParameterKind = Field(ParameterKind.POSITIONAL_OR_KEYWORD, description="Тип параметра (из ParameterKind)")
+    is_optional: bool = Field(False, description="Является ли параметр опциональным")
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для сериализации."""
@@ -65,8 +64,7 @@ class ParameterInfo:
         }
 
 
-@dataclass
-class CodeSignature:
+class CodeSignature(BaseModel):
     """Представление сигнатуры элемента кода.
     
     Атрибуты:
@@ -94,14 +92,14 @@ class CodeSignature:
     ```
     """
     
-    name: str
-    parameters: List[ParameterInfo] = field(default_factory=list)
-    return_type: Optional[str] = None
-    decorators: List[str] = field(default_factory=list)
-    visibility: str = "public"  # public, private, protected
-    is_async: bool = False
-    is_static: bool = False
-    is_class_method: bool = False
+    name: str = Field(..., description="Имя элемента")
+    parameters: List[ParameterInfo] = Field(default_factory=list, description="Список параметров")
+    return_type: Optional[str] = Field(None, description="Тип возвращаемого значения")
+    decorators: List[str] = Field(default_factory=list, description="Список декораторов")
+    visibility: str = Field("public", description="Уровень видимости (public, private, protected)")  # public, private, protected
+    is_async: bool = Field(False, description="Является ли асинхронным")
+    is_static: bool = Field(False, description="Является ли статическим (для методов)")
+    is_class_method: bool = Field(False, description="Является ли методом класса (для методов)")
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для сериализации."""

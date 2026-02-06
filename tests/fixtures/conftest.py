@@ -59,8 +59,8 @@ def temp_test_directory(tmp_path):
 
 
 @pytest.fixture
-def mock_config():
-    """Фикстура для мокированной конфигурации"""
+def test_config():
+    """Фикстура для тестовой конфигурации"""
     return {
         "test_setting": "test_value",
         "debug": True,

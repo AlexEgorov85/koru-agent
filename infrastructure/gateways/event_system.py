@@ -7,32 +7,10 @@ import asyncio
 from datetime import datetime
 import logging
 
-
-class EventType(Enum):
-    """
-    Перечисление типов событий.
-    """
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    DEBUG = "debug"
-    SUCCESS = "success"
-    FAILURE = "failure"
+from domain.abstractions.event_system import IEventPublisher, EventType, Event
 
 
-class Event:
-    """
-    Класс события.
-    """
-    def __init__(self, event_type: EventType, source: str, data: Any, timestamp: datetime = None):
-        self.event_type = event_type
-        self.source = source
-        self.data = data
-        self.timestamp = timestamp or datetime.now()
-        self.id = f"{event_type.value}_{self.timestamp.timestamp()}_{source}"
-
-
-class EventSystem:
+class EventSystem(IEventPublisher):
     """
     Реализация шины событий.
     
@@ -115,12 +93,9 @@ class EventSystem:
         if middleware in self._middleware:
             self._middleware.remove(middleware)
     
-    async def publish(self, event: Event) -> None:
+    async def _publish_event(self, event: Event) -> None:
         """
-        Публикация события.
-        
-        Args:
-            event: Событие для публикации
+        Внутренний метод для публикации события с обработкой middleware.
         """
         if not self._enabled:
             return
@@ -150,6 +125,20 @@ class EventSystem:
                     self._logger.error(f"Ошибка в обработчике события {processed_event.event_type}: {e}")
         except Exception as e:
             self._logger.error(f"Ошибка при публикации события: {e}")
+
+
+    async def publish(self, event_type: EventType, source: str, data: Any) -> None:
+        """
+        Публикация события.
+        
+        Args:
+            event_type: Тип события
+            source: Источник события
+            data: Данные события
+        """
+        event = Event(event_type=event_type, source=source, data=data)
+        await self._publish_event(event)
+    
     
     async def publish_simple(self, event_type: EventType, source: str, data: Any) -> None:
         """

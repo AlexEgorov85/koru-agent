@@ -14,6 +14,8 @@ class EventType(Enum):
     DEBUG = "debug"
     SUCCESS = "success"
     FAILURE = "failure"
+    AGENT_THOUGHT = "agent_thought"
+    AGENT_ACTION = "agent_action"
 
 
 class Event:
