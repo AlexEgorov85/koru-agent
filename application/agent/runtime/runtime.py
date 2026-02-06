@@ -2,9 +2,8 @@
 Чистый рантайм агента - только оркестрация.
 """
 import asyncio
-from tkinter import EventType
 from typing import Optional, List, Dict, Any
-from domain.abstractions.event_types import IEventPublisher
+from domain.abstractions.event_types import IEventPublisher, EventType
 from domain.abstractions.thinking_pattern import IThinkingPattern
 from domain.abstractions.system.base_session_context import BaseSessionContext
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway

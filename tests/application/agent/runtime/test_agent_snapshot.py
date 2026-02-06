@@ -58,7 +58,7 @@ class TestAgentSnapshot:
         event_publisher = Mock(spec=IEventPublisher)
         
         # Настроим возвращаемые значения
-        skill_registry.get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        skill_registry.get_all_skills = Mock(return_value={'test_capability': 'available'})
         skill_registry.get_capability_names = AsyncMock(return_value=['test_capability'])
         thinking_pattern.adapt_to_task = AsyncMock(return_value={'domain': 'test', 'confidence': 0.8})
         thinking_pattern.execute = AsyncMock(return_value={'action': 'CONTINUE'})
@@ -91,7 +91,7 @@ class TestAgentSnapshot:
         event_publisher = Mock(spec=IEventPublisher)
         
         # Настроим возвращаемые значения
-        skill_registry.get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        skill_registry.get_all_skills = Mock(return_value={'test_capability': 'available'})
         
         # Создадим агента
         agent = AgentRuntime(
@@ -119,7 +119,7 @@ class TestAgentSnapshot:
         event_publisher = Mock(spec=IEventPublisher)
         
         # Настроим возвращаемые значения
-        skill_registry.get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        skill_registry.get_all_skills = Mock(return_value={'test_capability': 'available'})
         
         # Создадим агента
         agent = AgentRuntime(

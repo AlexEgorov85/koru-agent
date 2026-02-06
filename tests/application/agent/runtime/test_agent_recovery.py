@@ -50,7 +50,7 @@ class TestAgentRecovery:
     def mock_skill_registry(self):
         """Создает мок реестра навыков"""
         registry = Mock(spec=ISkillRegistry)
-        registry.get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        registry.get_all_skills = Mock(return_value={'test_capability': 'available'})
         registry.get_capability_names = AsyncMock(return_value=['test_capability'])
         return registry
     

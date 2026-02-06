@@ -38,7 +38,7 @@ class TestAgentLifecycle:
     @pytest.mark.asyncio
     async def test_agent_can_be_initialized_once(self, mock_dependencies):
         """Тест: повторная инициализация не создает новых ресурсов"""
-        mock_dependencies['skill_registry'].get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        mock_dependencies['skill_registry'].get_all_skills = Mock(return_value={'test_capability': 'available'})
         
         agent = AgentRuntime(**mock_dependencies)
         
@@ -57,7 +57,7 @@ class TestAgentLifecycle:
     @pytest.mark.asyncio
     async def test_agent_lifecycle_initialize_run_shutdown(self, mock_dependencies):
         """Тест: полный жизненный цикл - инициализация → выполнение → завершение"""
-        mock_dependencies['skill_registry'].get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        mock_dependencies['skill_registry'].get_all_skills = Mock(return_value={'test_capability': 'available'})
         mock_dependencies['thinking_pattern'].adapt_to_task = AsyncMock(return_value={'domain': 'test', 'confidence': 0.8})
         mock_dependencies['thinking_pattern'].execute = AsyncMock(return_value={'action': 'CONTINUE'})
         
@@ -90,7 +90,7 @@ class TestAgentLifecycle:
     @pytest.mark.asyncio
     async def test_agent_lifecycle_events_published(self, mock_dependencies):
         """Тест: события жизненного цикла публикуются корректно"""
-        mock_dependencies['skill_registry'].get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        mock_dependencies['skill_registry'].get_all_skills = Mock(return_value={'test_capability': 'available'})
         mock_dependencies['event_publisher'].publish = AsyncMock()
         
         agent = AgentRuntime(**mock_dependencies)
@@ -113,7 +113,7 @@ class TestAgentLifecycle:
     @pytest.mark.asyncio
     async def test_agent_state_preserved_during_lifecycle(self, mock_dependencies):
         """Тест: состояние агента сохраняется в течение жизненного цикла"""
-        mock_dependencies['skill_registry'].get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        mock_dependencies['skill_registry'].get_all_skills = Mock(return_value={'test_capability': 'available'})
         
         agent = AgentRuntime(**mock_dependencies)
         
@@ -135,7 +135,7 @@ class TestAgentLifecycle:
     @pytest.mark.asyncio
     async def test_agent_lifecycle_respects_max_steps(self, mock_dependencies):
         """Тест: жизненный цикл учитывает максимальное количество шагов"""
-        mock_dependencies['skill_registry'].get_all_capabilities = AsyncMock(return_value=['test_capability'])
+        mock_dependencies['skill_registry'].get_all_skills = Mock(return_value={'test_capability': 'available'})
         mock_dependencies['thinking_pattern'].adapt_to_task = AsyncMock(return_value={'domain': 'test', 'confidence': 0.8})
         mock_dependencies['thinking_pattern'].execute = AsyncMock(return_value={'action': 'CONTINUE'})
         
