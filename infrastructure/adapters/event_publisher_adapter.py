@@ -1,4 +1,5 @@
-from domain.abstractions.event_system import IEventPublisher, EventType, Event
+
+from domain.abstractions.event_types import Event, EventType, IEventPublisher
 from infrastructure.gateways.event_system import EventSystem
 from typing import Any, Callable, Awaitable
 

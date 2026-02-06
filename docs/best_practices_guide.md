@@ -16,7 +16,7 @@
 
 ```python
 # Правильно: зависимости направлены внутрь
-from domain.abstractions.event_system import IEventPublisher
+from domain.abstractions.event_types import IEventPublisher
 
 class AgentService:
     def __init__(self, event_publisher: IEventPublisher):

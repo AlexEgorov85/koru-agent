@@ -6,7 +6,7 @@ import time
 from typing import Dict, Any, Optional, List
 from contextlib import asynccontextmanager
 
-from domain.abstractions.event_system import EventType
+from domain.abstractions.event_types import EventType
 from infrastructure.gateways.database_providers.base_provider import BaseDBProvider, DatabaseHealthStatus
 
 

@@ -1,13 +1,11 @@
 """
 EventSystem - реализация шины событий.
 """
+
 from typing import Any, Dict, List, Callable, Awaitable
-from enum import Enum
-import asyncio
-from datetime import datetime
 import logging
 
-from domain.abstractions.event_system import IEventPublisher, EventType, Event
+from domain.abstractions.event_types import Event, EventType, IEventPublisher
 
 
 class EventSystem(IEventPublisher):

@@ -4,12 +4,10 @@
 import pytest
 from unittest.mock import Mock, AsyncMock
 from application.agent.runtime.runtime import AgentRuntime
+from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.thinking_pattern import IThinkingPattern
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
-from domain.abstractions.event_system import IEventPublisher
-from domain.models.execution.execution_result import ExecutionResult
-from domain.models.execution.execution_status import ExecutionStatus
 
 
 class TestAgentSnapshot:

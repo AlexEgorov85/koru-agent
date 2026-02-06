@@ -23,9 +23,9 @@ import re
 from typing import Any, List, Optional, Dict
 import os
 
+from domain.abstractions.event_types import EventType, IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool
 from domain.abstractions.tools.base_tool import ToolInput, ToolOutput
-from domain.abstractions.event_system import IEventPublisher, EventType
 
 
 @dataclass
@@ -62,7 +62,7 @@ class FileListerTool(BaseTool):
     def description(self) -> str:
         return "Получение списка файлов и директорий с возможностью фильтрации и игнорированием системных директорий"
     
-    def __init__(self, name: str = "file_lister", event_publisher: 'IEventPublisher' = None, system_context: Any = None, **kwargs):
+    def __init__(self, name: str = "file_lister", event_publisher: IEventPublisher = None, system_context: Any = None, **kwargs):
         # Изменим инициализацию, чтобы она соответствовала базовому классу
         super().__init__()
         self.name = name

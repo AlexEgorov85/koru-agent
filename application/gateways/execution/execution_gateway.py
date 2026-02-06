@@ -1,9 +1,7 @@
 from typing import Dict, Any
+from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
-from domain.abstractions.system.i_tool_registry import IToolRegistry
-from domain.abstractions.system.i_config_manager import IConfigManager
 from domain.abstractions.system.base_session_context import BaseSessionContext
-from domain.abstractions.event_system import IEventPublisher
 from domain.models.capability import Capability
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus

@@ -1,8 +1,9 @@
-from domain.interfaces.event_system import IEventSystem, EventType
+
+from domain.abstractions.event_types import EventType, IEventPublisher
 from infrastructure.gateways.event_system import EventSystem as GatewayEventSystem
 
 
-class EventBusAdapter(IEventSystem):
+class EventBusAdapter(IEventPublisher):
     def __init__(self, event_system: GatewayEventSystem):  # EventSystem из gateways
         self._event_system = event_system
     

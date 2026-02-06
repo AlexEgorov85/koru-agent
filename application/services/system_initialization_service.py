@@ -1,6 +1,6 @@
 from typing import Dict, Any, Callable
 from config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
-from domain.abstractions.event_system import IEventPublisher, EventType
+from domain.abstractions.event_types import EventType, IEventPublisher
 from domain.abstractions.system.base_system_context import IBaseSystemContext
 import os
 

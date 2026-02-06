@@ -7,7 +7,7 @@ import json
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-from domain.abstractions.event_system import EventType
+from domain.abstractions.event_types import EventType
 from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus, LLMDecisionType
 
 

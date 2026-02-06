@@ -9,8 +9,6 @@ from application.gateways.execution.execution_gateway import ExecutionGateway
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
 from domain.abstractions.system.i_tool_registry import IToolRegistry
 from domain.abstractions.system.i_config_manager import IConfigManager
-from domain.abstractions.event_system import IEventPublisher
-from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from domain.abstractions.skills.base_skill import BaseSkill
 

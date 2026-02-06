@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
-from domain.abstractions.event_system import IEventPublisher
+from typing import Any
+
+from domain.abstractions.event_types import IEventPublisher
 
 class IBaseSystemContext(ABC):
     """

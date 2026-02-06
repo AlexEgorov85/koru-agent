@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool
 from domain.abstractions.skills.base_skill import BaseSkill
 from application.context.system.tool_registry import ToolRegistry
@@ -6,7 +7,6 @@ from application.context.system.skill_registry import SkillRegistry
 from application.context.system.config_manager import ConfigManager
 from domain.models.system.config import SystemConfig
 from domain.abstractions.system.base_system_context import IBaseSystemContext
-from domain.abstractions.event_system import IEventPublisher
 
 
 class SystemContext(IBaseSystemContext):

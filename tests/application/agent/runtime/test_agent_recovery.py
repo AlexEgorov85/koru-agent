@@ -6,9 +6,9 @@ from unittest.mock import Mock, AsyncMock
 from application.agent.runtime.runtime import AgentRuntime
 from application.agent.pattern_recovery_manager import PatternRecoveryManager
 from application.agent.thinking_patterns.react_pattern import ReActThinkingPattern
+from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
-from domain.abstractions.event_system import IEventPublisher
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
 

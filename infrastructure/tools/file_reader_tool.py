@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from typing import Optional, Any, Dict
 import os
 
+from domain.abstractions.event_types import EventType, IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool, ToolAdapter
 from domain.abstractions.tools.base_tool import ToolInput, ToolOutput
-from domain.abstractions.event_system import IEventPublisher, EventType
 
 
 @dataclass
@@ -33,7 +33,7 @@ class FileReaderTool(BaseTool):
     def description(self) -> str:
         return "Чтение содержимого файлов с защитой от чтения больших файлов"
     
-    def __init__(self, name: str = "file_reader", event_publisher: 'IEventPublisher' = None, system_context: Any = None, **kwargs):
+    def __init__(self, name: str = "file_reader", event_publisher: IEventPublisher = None, system_context: Any = None, **kwargs):
         # Изменим инициализацию, чтобы она соответствовала базовому классу
         super().__init__()
         self.name = name

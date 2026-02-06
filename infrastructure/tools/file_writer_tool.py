@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from typing import Optional, Any, Dict
 import os
 
+from domain.abstractions.event_types import EventType, IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool
 from domain.abstractions.tools.base_tool import ToolInput, ToolOutput
-from domain.abstractions.event_system import IEventPublisher, EventType
 
 
 @dataclass

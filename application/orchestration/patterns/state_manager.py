@@ -3,12 +3,12 @@
 Обеспечивает отслеживание и управление состоянием выполнения композиционных паттернов.
 """
 
+from tkinter import EventType
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from domain.models.composable_pattern_state import ComposablePatternState, ComposablePatternStatus
 from domain.models.execution.execution_result import ExecutionResult
-from domain.interfaces.event_system import EventSystem
-from domain.models.events import EventType
+from infrastructure.gateways.event_system import EventSystem
 
 
 class ComposablePatternStateManager:
