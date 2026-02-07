@@ -1,6 +1,6 @@
 # Определение атомарных действий
 """
-THINK, ACT, OBSERVE, PLAN, REFLECT, EVALUATE, VERIFY, ADAPT
+THINK, ACT, OBSERVE, PLAN, REFLECT, EVALUATE, VERIFY, ADAPT, FILE_OPERATION
 """
 
 
@@ -56,5 +56,12 @@ class VERIFY:
 class ADAPT:
     """
     Действие адаптации - адаптация к новым условиям
+    """
+    pass
+
+
+class FILE_OPERATION:
+    """
+    Действие операции с файлами - чтение, запись, удаление, список файлов
     """
     pass

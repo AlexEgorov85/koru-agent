@@ -6,7 +6,7 @@ import pytest
 from typing import Any, Dict
 from application.context.system.system_context import SystemContext
 from domain.abstractions.tools.base_tool import BaseTool, ToolInput, ToolOutput
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from pydantic import BaseModel
 
 

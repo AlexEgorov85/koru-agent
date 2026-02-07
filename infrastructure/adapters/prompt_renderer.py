@@ -5,16 +5,16 @@ from domain.models.capability import Capability
 from domain.models.prompt.prompt_version import PromptRole, PromptExecutionSnapshot
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
 from domain.value_objects.provider_type import LLMProviderType
-from domain.abstractions.event_types import IEventPublisher, EventType
+from infrastructure.gateways.event_system import EventSystem, EventType
 
 
 class PromptRenderer:
     """Рендеринг промтов из версий с подстановкой переменных и валидацией"""
-
-    def __init__(self, prompt_repository: IPromptRepository, snapshot_manager: ISnapshotManager = None, event_publisher: IEventPublisher = None):
+    
+    def __init__(self, prompt_repository: IPromptRepository, snapshot_manager: ISnapshotManager = None, event_system: EventSystem = None):
         self._prompt_repository = prompt_repository
         self._snapshot_manager = snapshot_manager
-        self._event_publisher = event_publisher
+        self._event_system = event_system or EventSystem()
         self._max_render_size = 1024 * 1024  # 1 MB максимум для результата рендеринга
     
     def _validate_recursive_substitution(self, content: str) -> bool:
@@ -133,31 +133,15 @@ class PromptRenderer:
         
         # Публикуем событие в шину событий
         success = len(all_errors) == 0
-        if self._event_publisher:
-            # Для синхронной версии вызываем публикацию без ожидания и ловим RuntimeError для корректной обработки асинхронных вызовов
+        # Для синхронной версии вызываем публикацию без ожидания и ловим RuntimeError для корректной обработки асинхронных вызовов
+        try:
+            import asyncio
             try:
-                import asyncio
-                try:
-                    # Пробуем вызвать асинхронный метод
-                    loop = asyncio.get_running_loop()
-                    # Если уже есть запущенный цикл, используем run_coroutine_threadsafe
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._event_publisher.publish(
-                            event_type=EventType.INFO if success else EventType.ERROR,
-                            source="PromptRenderer",
-                            data={
-                                "capability": capability.name,
-                                "provider_type": provider_type.value,
-                                "session_id": session_id,
-                                "success": success,
-                                "error_count": len(all_errors),
-                                "errors": all_errors
-                            }
-                        ), loop)
-                    # Не ждем результат, чтобы не блокировать основной поток
-                except RuntimeError:
-                    # Если нет запущенного цикла, запускаем его краткосрочно
-                    asyncio.run(self._event_publisher.publish(
+                # Пробуем вызвать асинхронный метод
+                loop = asyncio.get_running_loop()
+                # Если уже есть запущенный цикл, используем run_coroutine_threadsafe
+                future = asyncio.run_coroutine_threadsafe(
+                    self._event_system.publish_simple(
                         event_type=EventType.INFO if success else EventType.ERROR,
                         source="PromptRenderer",
                         data={
@@ -168,10 +152,25 @@ class PromptRenderer:
                             "error_count": len(all_errors),
                             "errors": all_errors
                         }
-                    ))
-            except Exception:
-                # Игнорируем ошибки публикации событий, чтобы не ломать основной процесс
-                pass
+                    ), loop)
+                # Не ждем результат, чтобы не блокировать основной поток
+            except RuntimeError:
+                # Если нет запущенного цикла, запускаем его краткосрочно
+                asyncio.run(self._event_system.publish_simple(
+                    event_type=EventType.INFO if success else EventType.ERROR,
+                    source="PromptRenderer",
+                    data={
+                        "capability": capability.name,
+                        "provider_type": provider_type.value,
+                        "session_id": session_id,
+                        "success": success,
+                        "error_count": len(all_errors),
+                        "errors": all_errors
+                    }
+                ))
+        except Exception:
+            # Игнорируем ошибки публикации событий, чтобы не ломать основной процесс
+            pass
         
         return rendered_prompts, all_errors
 

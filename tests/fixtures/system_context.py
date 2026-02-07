@@ -6,7 +6,7 @@ from application.services.prompt_renderer import PromptRenderer
 from application.services.benchmark_runner_service import BenchmarkRunnerService
 from infrastructure.testing.llm.test_llm_provider import TestLLMProvider
 from infrastructure.testing.db.in_memory_db_provider import InMemoryDBProvider
-from application.services.file_prompt_repository import FilePromptRepository, FileSnapshotManager
+from infrastructure.services.prompt_storage.file_prompt_repository import FilePromptRepository, FileSnapshotManager
 from infrastructure.repositories.benchmark_repository_impl import BenchmarkRepositoryImpl  # Используем реальный репозиторий
 from domain.abstractions.benchmark_evaluator import IBenchmarkEvaluator
 from application.services.solution_analyzer_service import SolutionAnalyzerService

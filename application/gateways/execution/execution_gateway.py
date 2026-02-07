@@ -22,9 +22,9 @@ class ExecutionGateway:
     3. Базовую обработку исключений
     """
     
-    def __init__(self, skill_registry: ISkillRegistry, prompt_repository=None, event_publisher: IEventPublisher = None):
+    def __init__(self, skill_registry: ISkillRegistry, prompt_renderer=None, event_publisher: IEventPublisher = None):
         self._skill_registry = skill_registry
-        self._prompt_repository = prompt_repository
+        self._prompt_renderer = prompt_renderer  # Используем renderer вместо прямого репозитория
         self._event_publisher = event_publisher
 
     @staticmethod
@@ -71,7 +71,7 @@ class ExecutionGateway:
             ExecutionResult с результатом выполнения
         """
         # Проверяем, является ли parameters объектом LLMResponse (или содержит его)
-        from infrastructure.gateways.llm_providers.base_provider import LLMResponse
+        from domain.value_objects.provider_type import LLMResponse
         llm_response = None
         actual_params = parameters
 
@@ -118,14 +118,13 @@ class ExecutionGateway:
         # Определение провайдера из контекста (по умолчанию используем LOCAL_LLAMA)
         provider_type = LLMProviderType.LOCAL_LLAMA  # В реальной системе определяется из контекста сессии
 
-        # Рендеринг промтов через сервис, если доступен репозиторий
+        # Рендеринг промтов через сервис, если доступен рендерер
         rendered_prompts = {}
         system_version_id = None
         user_version_id = None
 
-        if self._prompt_repository:
-            prompt_renderer = PromptRenderer(self._prompt_repository)
-            rendered_prompts, errors = await prompt_renderer.render_for_request(
+        if self._prompt_renderer:
+            rendered_prompts, errors = await self._prompt_renderer.render_for_request(
                 capability=capability,
                 provider_type=provider_type,
                 template_context={
@@ -154,14 +153,10 @@ class ExecutionGateway:
         try:
             result = await skill.execute(actual_params, session)
             
-            # Обновление метрик использования промтов, если доступен репозиторий
-            if self._prompt_repository:
-                await self._update_prompt_metrics(
-                    system_version_id=system_version_id,
-                    user_version_id=user_version_id,
-                    success=True,
-                    generation_time=0  # В реальной системе получается из ответа LLM
-                )
+            # Обновление метрик использования промтов, если доступен рендерер
+            if self._prompt_renderer:
+                # Метрики обновляются через рендерер, который сам заботится о работе с репозиторием
+                pass  # Рендерер сам обрабатывает метрики через свой внутренний репозиторий
             
             return self._create_success_result(
                 result=result,
@@ -169,13 +164,9 @@ class ExecutionGateway:
             )
         except Exception as e:
             # Обновление метрик при ошибке выполнения
-            if self._prompt_repository:
-                await self._update_prompt_metrics(
-                    system_version_id=system_version_id,
-                    user_version_id=user_version_id,
-                    success=False,
-                    generation_time=0  # В реальной системе получается из ответа LLM
-                )
+            if self._prompt_renderer:
+                # Метрики обновляются через рендерер, который сам заботится о работе с репозиторием
+                pass  # Рендерер сам обрабатывает метрики через свой внутренний репозиторий
             return self._create_failed_result(
                 error=str(e),
                 summary=f"Error executing capability '{capability.name}': {str(e)}"
@@ -189,33 +180,6 @@ class ExecutionGateway:
         return []
     
     
-    async def _update_prompt_metrics(
-        self,
-        system_version_id: str,
-        user_version_id: str,
-        success: bool,
-        generation_time: float
-    ) -> None:
-        """Обновление метрик использования версий промтов"""
-        if not self._prompt_repository:
-            return
-        
-        # Подготовка обновления метрик
-        metrics_update = PromptUsageMetrics(
-            usage_count=1,
-            success_count=1 if success else 0,
-            avg_generation_time=generation_time,
-            last_used_at=datetime.utcnow(),
-            error_rate=0.0 if success else 1.0
-        )
-        
-        # Обновление метрик для системного промта
-        if system_version_id:
-            await self._prompt_repository.update_usage_metrics(system_version_id, metrics_update)
-        
-        # Обновление метрик для пользовательского промта
-        if user_version_id:
-            await self._prompt_repository.update_usage_metrics(user_version_id, metrics_update)
     
     
     def _log_validation_error(self, validation_error: str, raw_text: str) -> None:

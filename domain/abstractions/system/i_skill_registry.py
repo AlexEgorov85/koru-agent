@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 
 
 class ISkillRegistry(ABC):

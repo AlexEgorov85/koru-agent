@@ -72,7 +72,7 @@ class TestProjectMapSkill:
         assert result.status.name == "SUCCESS"  # SUCCESS - это enum, поэтому обращаемся через .name
         assert result.result is not None
         # Проверим, что результат - это ProjectStructure
-        from domain.models.project.project_structure import ProjectStructure
+        from domain.core.project.project_structure import ProjectStructure
         assert isinstance(result.result, ProjectStructure)
         assert result.result.root_dir == str(self.project_path.absolute())
         # Проверим, что файл main.py был найден и обработан

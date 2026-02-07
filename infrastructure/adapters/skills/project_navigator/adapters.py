@@ -2,7 +2,7 @@
 Адаптеры преобразования для ProjectNavigatorSkill
 """
 from typing import List, Dict, Any, Optional
-from domain.models.code.code_unit import CodeUnit
+from domain.core.project.value_objects.code_unit import CodeUnit
 
 
 def adapt_code_unit_navigation(raw_code_unit: Dict[str, Any]) -> CodeUnit:

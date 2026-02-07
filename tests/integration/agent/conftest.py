@@ -1,5 +1,5 @@
 import pytest
-from application.services.file_prompt_repository import FilePromptRepository
+from infrastructure.services.prompt_storage.file_prompt_repository import FilePromptRepository
 
 def pytest_configure(config):
     """Валидация промтов перед запуском интеграционных тестов."""

@@ -2,8 +2,8 @@
 Адаптеры преобразования для ProjectMapSkill
 """
 from typing import List, Dict, Any, Optional
-from domain.models.code.code_unit import CodeUnit
-from domain.models.project.project_structure import ProjectStructure
+from domain.core.project.value_objects.code_unit import CodeUnit
+from domain.core.project.project_structure import ProjectStructure
 
 
 def adapt_code_units(raw_code_units: List[Dict[str, Any]]) -> List[CodeUnit]:

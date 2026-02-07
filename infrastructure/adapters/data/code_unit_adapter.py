@@ -2,7 +2,7 @@
 Преобразование между инфраструктурными и доменными моделями кода
 """
 from typing import List, Dict, Any, Union
-from domain.models.code.code_unit import CodeUnit
+from domain.core.project.value_objects.code_unit import CodeUnit
 
 
 class CodeUnitAdapter:

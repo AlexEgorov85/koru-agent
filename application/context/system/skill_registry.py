@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from domain.models.system.skill_metadata import SkillMetadata
 
 

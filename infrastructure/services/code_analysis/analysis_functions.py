@@ -7,8 +7,8 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import uuid
 
-from domain.models.code.code_unit import CodeUnit, CodeUnitType, Location, CodeSpan
-from domain.models.code.signature import ParameterInfo, CodeSignature
+from domain.core.project.value_objects.code_unit import CodeUnit, CodeUnitType, Location, CodeSpan
+from domain.core.project.value_objects.signature import ParameterInfo, CodeSignature
 
 # Определяем модели для зависимостей
 from pydantic import BaseModel, Field

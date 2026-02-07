@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 from domain.models.prompt.prompt_version import PromptVersion, PromptStatus, PromptUsageMetrics, PromptExecutionSnapshot
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
-from application.services.prompt_loader import PromptLoader
+from infrastructure.services.prompt_storage.prompt_loader import PromptLoader
 import logging
 from datetime import datetime
 from collections import defaultdict

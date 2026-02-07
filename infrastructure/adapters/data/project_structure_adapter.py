@@ -2,11 +2,11 @@
 Преобразование структуры проекта
 """
 from typing import Dict, Any, List
-from domain.models.project.project_structure import ProjectStructure
-from domain.models.code.code_unit import CodeUnit
-from domain.models.project.file_info import FileInfo
-from domain.models.project.file_dependency import FileDependency
-from domain.models.project.entry_point import EntryPointInfo
+from domain.core.project.project_structure import ProjectStructure
+from domain.core.project.value_objects.code_unit import CodeUnit
+from domain.core.project.value_objects.file_info import FileInfo
+from domain.core.project.value_objects.file_dependency import FileDependency
+from domain.core.project.value_objects.entry_point import EntryPointInfo
 
 
 class ProjectStructureAdapter:

@@ -7,7 +7,7 @@ from application.context.system.tool_registry import ToolRegistry
 from application.context.system.skill_registry import SkillRegistry
 from application.context.system.config_manager import ConfigManager
 from domain.abstractions.tools.base_tool import BaseTool
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from domain.abstractions.system.i_tool_registry import IToolRegistry
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
 from domain.abstractions.system.i_config_manager import IConfigManager

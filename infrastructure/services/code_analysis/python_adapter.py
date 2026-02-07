@@ -2,7 +2,7 @@
 PythonLanguageAdapter - адаптер для анализа Python-кода через AST.
 """
 from typing import List, Optional, Any
-from domain.models.code.code_unit import CodeUnit, CodeUnitType
+from domain.core.project.value_objects.code_unit import CodeUnit, CodeUnitType
 from infrastructure.services.code_analysis.analysis_functions import (
     parse,
     parse_file,

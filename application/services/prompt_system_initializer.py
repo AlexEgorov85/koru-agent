@@ -1,6 +1,6 @@
 from typing import Optional
 from domain.abstractions.prompt_repository import IPromptRepository
-from application.services.file_prompt_repository import FilePromptRepository, FileSnapshotManager
+from infrastructure.services.prompt_storage.file_prompt_repository import FilePromptRepository, FileSnapshotManager
 from application.services.cached_prompt_repository import CachedPromptRepository
 
 

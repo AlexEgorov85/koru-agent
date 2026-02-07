@@ -6,7 +6,7 @@ from pathlib import Path
 import importlib.util
 import inspect
 
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 
 
 class SkillFactory:

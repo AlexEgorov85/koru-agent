@@ -12,7 +12,7 @@
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
-from domain.models.code.code_unit import CodeUnit
+from domain.core.project.value_objects.code_unit import CodeUnit
 
 
 @dataclass

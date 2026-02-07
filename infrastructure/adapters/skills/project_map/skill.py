@@ -6,16 +6,16 @@ import os
 from datetime import datetime
 import pathlib
 
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
 from domain.models.capability import Capability
 from infrastructure.tools.safe_file_reader_tool import SafeFileReaderTool
 from infrastructure.services.code_analysis.python_adapter import PythonLanguageAdapter
-from domain.models.project.project_structure import ProjectStructure
-from domain.models.project.file_info import FileInfo
-from domain.models.project.file_dependency import FileDependency
-from domain.models.code.code_unit import CodeUnit
+from domain.core.project.project_structure import ProjectStructure
+from domain.core.project.value_objects.file_info import FileInfo
+from domain.core.project.value_objects.file_dependency import FileDependency
+from domain.core.project.value_objects.code_unit import CodeUnit
 
 
 class ProjectMapSkill(BaseSkill):

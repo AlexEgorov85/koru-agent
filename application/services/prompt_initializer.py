@@ -1,7 +1,7 @@
 from domain.models.prompt.prompt_version import PromptVersion, PromptRole
 from domain.value_objects.domain_type import DomainType
 from domain.value_objects.provider_type import LLMProviderType
-from application.services.file_prompt_repository import FilePromptRepository
+from infrastructure.services.prompt_storage.file_prompt_repository import FilePromptRepository
 
 
 class PromptInitializer:

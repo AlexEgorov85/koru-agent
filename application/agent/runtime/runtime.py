@@ -29,6 +29,7 @@ class AgentRuntime:
         self,
         session_context: BaseSessionContext,          # ← координационная точка
         thinking_pattern: IThinkingPattern,        # ← ПОРТ паттерна мышления (было 'strategy')
+        pattern_executor,                           # ← НОВЫЙ ПОРТ для выполнения рассуждений
         execution_gateway: IExecutionGateway,      # ← ПОРТ шлюза
         skill_registry: ISkillRegistry,            # ← ПОРТ реестра
         event_publisher: IEventPublisher,          # ← ПОРТ шины
@@ -37,6 +38,7 @@ class AgentRuntime:
     ):
         self.session = session_context
         self.thinking_pattern = thinking_pattern   # ← переименовано из 'strategy'
+        self.pattern_executor = pattern_executor   # ← НОВЫЙ порт для рассуждений
         self.execution_gateway = execution_gateway
         self.skill_registry = skill_registry
         self.event_publisher = event_publisher
@@ -115,12 +117,49 @@ class AgentRuntime:
         try:
             # Основной цикл: выполнение паттерна мышления
             while not self._should_stop():
-                # 1. ВЫПОЛНЕНИЕ ПАТТЕРНА МЫШЛЕНИЯ
+                # 1. ВЫПОЛНЕНИЕ ПАТТЕРНА МЫШЛЕНИЯ (сначала без LLM ответа)
                 result = await self.thinking_pattern.execute(
                     state=self.state,
                     context=self.session,
-                    available_capabilities=list(self.skill_registry.get_all_skills().keys()) if hasattr(self.skill_registry, 'get_all_skills') else []
+                    available_capabilities=list(self.skill_registry.get_all_skills().keys()) if hasattr(self.skill_registry, 'get_all_skills') else [],
+                    llm_response=None  # ← Сначала без ответа от LLM
                 )
+
+                # 2. Если требуется рассуждение — оркестратор вызывает порт
+                if result.get("requires_reasoning", False):
+                    start_time = asyncio.get_event_loop().time()
+                    
+                    # ЕДИНСТВЕННЫЙ вызов инфраструктуры из оркестратора
+                    llm_response = await self.pattern_executor.execute_thinking(
+                        pattern_name=self.thinking_pattern.name,
+                        session_id=getattr(self.session, 'session_id', 'unknown'),
+                        context=self._build_reasoning_context(result)
+                    )
+                    
+                    duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    
+                    # → ПУБЛИКАЦИЯ СОБЫТИЯ РАССУЖДЕНИЯ (правильное место!)
+                    await self.event_publisher.publish(
+                        event_type=EventType.INFO,  # ← Используй существующий тип события
+                        source="AgentRuntime",  # ← ИСТОЧНИК: оркестратор, НЕ паттерн!
+                        data={
+                            "session_id": getattr(self.session, 'session_id', 'unknown'),
+                            "pattern": self.thinking_pattern.name,
+                            "duration_ms": duration_ms,
+                            "tokens_used": getattr(llm_response, "tokens_used", 0),
+                            "generation_time": getattr(llm_response, "generation_time", 0.0),
+                            "confidence": getattr(llm_response, "confidence", 0.0)
+                            # ← ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ АВТОМАТИЧЕСКИ САНИТИЗИРУЮТСЯ В АДАПТЕРЕ ШИНЫ
+                        }
+                    )
+                    
+                    # 3. Передаем СУЩЕСТВУЮЩИЙ LLMResponse обратно паттерну
+                    result = await self.thinking_pattern.execute(
+                        state=self.state,
+                        context=self.session,
+                        available_capabilities=list(self.skill_registry.get_all_skills().keys()) if hasattr(self.skill_registry, 'get_all_skills') else [],
+                        llm_response=llm_response  # ← Не создаем новые модели!
+                    )
                 
                 # 2. ВАЛИДАЦИЯ: проверка результата политикой
                 if not await self._validate_result(result):
@@ -272,6 +311,18 @@ class AgentRuntime:
         # В реальной реализации анализ прогресса
         return True
     
+    def _build_reasoning_context(self, decision: Dict[str, Any]) -> Dict[str, Any]:
+        """Построить контекст для рассуждения."""
+        return {
+            "goal": getattr(self.session, 'goal', ''),
+            "current_state": self.state.model_dump() if hasattr(self.state, 'model_dump') else {},
+            "available_capabilities": list(self.skill_registry.get_all_skills().keys()) if hasattr(self.skill_registry, 'get_all_skills') else [],
+            "reason": decision.get("reason", ""),
+            "history": self.state.history[-5:],  # последние 5 шагов
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
+
     async def _finalize_execution(self) -> ExecutionResult:
         """Финализация выполнения задачи."""
         return ExecutionResult(

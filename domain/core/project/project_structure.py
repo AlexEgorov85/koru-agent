@@ -26,11 +26,11 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from domain.models.code.code_unit import CodeUnit
-from domain.models.project.directory_info import DirectoryInfo
-from domain.models.project.entry_point import EntryPointInfo
-from domain.models.project.file_dependency import FileDependency
-from domain.models.project.file_info import FileInfo
+from domain.core.project.value_objects.code_unit import CodeUnit
+from domain.core.project.value_objects.directory_info import DirectoryInfo
+from domain.core.project.value_objects.entry_point import EntryPointInfo
+from domain.core.project.value_objects.file_dependency import FileDependency
+from domain.core.project.value_objects.file_info import FileInfo
 
 
 class ProjectStructure:

@@ -10,7 +10,7 @@ from domain.abstractions.system.i_skill_registry import ISkillRegistry
 from domain.abstractions.system.i_tool_registry import IToolRegistry
 from domain.abstractions.system.i_config_manager import IConfigManager
 from domain.abstractions.tools.base_tool import BaseTool, ToolInput, ToolOutput
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 
 
 class MockToolInput(ToolInput):

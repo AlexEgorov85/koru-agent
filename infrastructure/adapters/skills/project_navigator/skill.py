@@ -3,7 +3,7 @@ ProjectNavigatorSkill - навык для навигации по проекту
 """
 from typing import Dict, Any, List
 
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
 from domain.models.capability import Capability

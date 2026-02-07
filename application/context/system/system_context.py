@@ -1,41 +1,43 @@
 from typing import Any, Dict, Optional
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool
-from domain.abstractions.skills.base_skill import BaseSkill
+from domain.abstractions.base_skill import BaseSkill
 from application.context.system.tool_registry import ToolRegistry
 from application.context.system.skill_registry import SkillRegistry
 from application.context.system.config_manager import ConfigManager
 from domain.models.system.config import SystemConfig
 from domain.abstractions.system.base_system_context import IBaseSystemContext
+from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
+from application.gateways.execution.execution_gateway import ExecutionGateway
 
 
 class SystemContext(IBaseSystemContext):
     """
     Cистемный контекст - чистый реестр компонентов системы.
-    
+
     АРХИТЕКТУРА:
     - Pattern: Registry/Facade
     - Предоставляет доступ только к реестрам компонентов (инструментов, навыков, конфигурации)
     - Не содержит логики выполнения, жизненного цикла или управления событиями
     - Является read-only источником для других компонентов системы
-    
+
     ВНУТРЕННИЕ КОМПОНЕНТЫ:
     - tool_registry: Реестр инструментов
     - skill_registry: Реестр навыков
     - config_manager: Менеджер конфигурации
     """
-    
+
     def __init__(self, config: Optional[SystemConfig] = None):
         """
         Инициализация системного контекста.
-        
+
         ПАРАМЕТРЫ:
         - config: Конфигурация приложения (опционально)
         """
         self.tool_registry = ToolRegistry()
         self.skill_registry = SkillRegistry()
         self.config_manager = ConfigManager(config)
-        
+
         # Связываем реестры для проверки зависимостей
         self.skill_registry.set_tool_registry(self.tool_registry)
     
@@ -47,13 +49,17 @@ class SystemContext(IBaseSystemContext):
         skill = self.skill_registry.get_skill(resource_name)
         if skill:
             return skill
-        
+
         # Также можем искать инструменты
         tool = self.tool_registry.get_tool(resource_name)
         if tool:
             return tool
-            
+
         return None
+
+    def get_skill_registry(self):
+        """Get skill registry (for factory purposes)."""
+        return self.skill_registry
     
     def get_event_bus(self) -> IEventPublisher:
         """
@@ -62,6 +68,12 @@ class SystemContext(IBaseSystemContext):
         # Возвращаем None, так как SystemContext не управляет шиной событий
         # Шина событий управляется через SystemOrchestrator
         return None
+
+    def create_execution_gateway(self, session_id: str) -> IExecutionGateway:
+        """Создать сессионно-изолированный шлюз выполнения."""
+        # Возвращаем порт, а не конкретную реализацию
+        # Реализация будет предоставлена через фабрику в инфраструктурном слое
+        raise NotImplementedError("Шлюзы выполнения должны создаваться через инфраструктурные фабрики")
     
     def initialize(self) -> bool:
         """
