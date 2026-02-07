@@ -4,8 +4,8 @@ import re
 from domain.models.capability import Capability
 from domain.models.prompt.prompt_version import PromptRole, PromptExecutionSnapshot
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
-from domain.value_objects.provider_type import LLMProviderType
 from domain.abstractions.event_types import IEventPublisher, EventType
+from domain.models.provider_type import LLMProviderType
 
 
 class PromptRenderer:
