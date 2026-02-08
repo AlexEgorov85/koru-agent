@@ -1,10 +1,8 @@
 from typing import Optional, Dict, List
 from collections import defaultdict
 import threading
-from domain.models.prompt.prompt_version import PromptVersion, PromptStatus, PromptRole, PromptUsageMetrics
+from domain.models.prompt.prompt_version import PromptVersion, PromptStatus, PromptUsageMetrics
 from domain.abstractions.prompt_repository import IPromptRepository
-from domain.value_objects.domain_type import DomainType
-from domain.value_objects.provider_type import LLMProviderType
 
 # Глобальный реестр для очистки кэшей в тестах
 _all_instances = []

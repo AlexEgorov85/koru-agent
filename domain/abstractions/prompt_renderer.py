@@ -4,8 +4,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from domain.models.prompt.prompt_version import PromptVersion
-from domain.value_objects.domain_type import DomainType
-from domain.value_objects.provider_type import LLMProviderType
+from domain.models.domain_type import DomainType
+from domain.models.provider_type import LLMProviderType
 
 
 class IPromptRenderer(ABC):

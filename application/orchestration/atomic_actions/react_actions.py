@@ -26,15 +26,8 @@ class ThinkAction(AtomicAction):
         self.event_publisher = event_publisher
 
     @property
-    def name(self) -> str:
-        return "THINK"
-
-    @property
     def action_type(self) -> AtomicActionType:
         return AtomicActionType.THINK
-
-    def requires_confirmation(self) -> bool:
-        return False
 
     def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
         # Проверяем наличие необходимых параметров
@@ -59,22 +52,19 @@ class ThinkAction(AtomicAction):
         thought = f"Анализирую текущую ситуацию для достижения цели: {goal[:50]}..."
         next_action_type = "ACT"  # По умолчанию следующий шаг - выполнение действия
 
-        # Публикуем событие о начале рассуждения
-        if self.event_publisher:
-            asyncio.create_task(
-                self.event_publisher.publish(
-                    EventType.INFO,
-                    "ThinkAction",
-                    {
-                        "action": "THINK",
-                        "thought": thought,
-                        "goal": goal,
-                        "available_capabilities": available_capabilities
-                    }
-                )
-            )
+        # Подготавливаем событие для публикации
+        events_to_publish = [{
+            "event_type": EventType.INFO,
+            "source": "ThinkAction",
+            "data": {
+                "action": "THINK",
+                "thought": thought,
+                "goal": goal,
+                "available_capabilities": available_capabilities
+            }
+        }]
 
-        return ThinkActionResult(
+        result = ThinkActionResult(
             success=True,
             action_type=AtomicActionType.THINK,
             thought=thought,
@@ -88,6 +78,8 @@ class ThinkAction(AtomicAction):
                 "next_action_type": next_action_type
             }
         )
+        result.events_to_publish = events_to_publish
+        return result
 
     async def rollback(self, token: Optional[str]) -> ThinkActionResult:
         """Откат действия мышления"""
@@ -109,15 +101,8 @@ class ActAction(AtomicAction):
         self.event_publisher = event_publisher
 
     @property
-    def name(self) -> str:
-        return "ACT"
-
-    @property
     def action_type(self) -> AtomicActionType:
         return AtomicActionType.ACT
-
-    def requires_confirmation(self) -> bool:
-        return True  # Выполнение действий может требовать подтверждения
 
     def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
         # Проверяем наличие необходимых параметров
@@ -134,28 +119,26 @@ class ActAction(AtomicAction):
         Returns:
             Результат выполнения действия (ActActionResult)
         """
+        events_to_publish = []
         selected_action = parameters.get('selected_action', "")
         action_params = parameters.get('action_parameters', {})
         available_capabilities = parameters.get('available_capabilities', [])
 
         # Проверяем, доступна ли выбранная возможность
         if selected_action and selected_action not in available_capabilities:
-            # Публикуем событие об ошибке
-            if self.event_publisher:
-                asyncio.create_task(
-                    self.event_publisher.publish(
-                        EventType.ERROR,
-                        "ActAction",
-                        {
-                            "action": "ACT",
-                            "selected_action": selected_action,
-                            "error": f"Выбранное действие '{selected_action}' недоступно",
-                            "available_capabilities": available_capabilities
-                        }
-                    )
-                )
+            # Подготавливаем событие об ошибке
+            events_to_publish.append({
+                "event_type": EventType.ERROR,
+                "source": "ActAction",
+                "data": {
+                    "action": "ACT",
+                    "selected_action": selected_action,
+                    "error": f"Выбранное действие '{selected_action}' недоступно",
+                    "available_capabilities": available_capabilities
+                }
+            })
 
-            return ActActionResult(
+            result = ActActionResult(
                 success=False,
                 action_type=AtomicActionType.ACT,
                 error_message=f"Выбранное действие '{selected_action}' недоступно",
@@ -163,44 +146,45 @@ class ActAction(AtomicAction):
                     "available_capabilities": available_capabilities
                 }
             )
+            result.events_to_publish = events_to_publish
+            return result
 
         # В реальной реализации здесь будет выполнение выбранного действия
-        result = f"Выполняю действие {selected_action} с параметрами {action_params}" if selected_action else "Нет действия для выполнения"
+        result_str = f"Выполняю действие {selected_action} с параметрами {action_params}" if selected_action else "Нет действия для выполнения"
 
-        # Публикуем событие о выполнении действия
-        if self.event_publisher:
-            asyncio.create_task(
-                self.event_publisher.publish(
-                    EventType.INFO,
-                    "ActAction",
-                    {
-                        "action": "ACT",
-                        "executed_action": selected_action,
-                        "action_result": result,
-                        "parameters": action_params
-                    }
-                )
-            )
+        # Подготавливаем событие о выполнении действия
+        events_to_publish.append({
+            "event_type": EventType.INFO,
+            "source": "ActAction",
+            "data": {
+                "action": "ACT",
+                "executed_action": selected_action,
+                "action_result": result_str,
+                "parameters": action_params
+            }
+        })
 
-        return ActActionResult(
+        result = ActActionResult(
             success=True,
             action_type=AtomicActionType.ACT,
             executed_action=selected_action,
-            action_result=result,
+            action_result=result_str,
             parameters=action_params,
             result_data={
                 "executed_action": selected_action,
-                "action_result": result,
+                "action_result": result_str,
                 "parameters": action_params
             },
             context_update={
                 "last_action": selected_action,
-                "action_result": result,
+                "action_result": result_str,
                 "step_type": "action"
             } if selected_action else {},
             can_rollback=True,
             rollback_token=f"act_{selected_action}_{hash(str(action_params))}"
         )
+        result.events_to_publish = events_to_publish
+        return result
 
     async def rollback(self, token: Optional[str]) -> ActActionResult:
         """Откат действия выполнения"""
@@ -222,15 +206,8 @@ class ObserveAction(AtomicAction):
         self.event_publisher = event_publisher
 
     @property
-    def name(self) -> str:
-        return "OBSERVE"
-
-    @property
     def action_type(self) -> AtomicActionType:
         return AtomicActionType.OBSERVE
-
-    def requires_confirmation(self) -> bool:
-        return False
 
     def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
         # Проверяем наличие необходимых параметров

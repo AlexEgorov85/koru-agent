@@ -7,13 +7,17 @@ SystemOrchestrator - единая точка инициализации сист
 - Предоставляет единую точку доступа к общей инфраструктуре системы
 """
 from typing import Optional
+from application.context.session_context import SessionContext
+from application.thinking_patterns.base.react_pattern import CodeAnalysisThinkingPattern, EvaluationThinkingPattern, FallbackThinkingPattern, PlanExecutionThinkingPattern, PlanningThinkingPattern
+from application.thinking_patterns.composable.composable_pattern import ReActPattern
+from application.agent.runtime import AgentRuntime
 from domain.models.system.config import SystemConfig
-from application.context.system.system_context import SystemContext
 from domain.abstractions.event_types import IEventPublisher
-from domain.abstractions.event_factory import IEventPublisherFactory
-from application.gateways.execution.execution_gateway import ExecutionGateway
-from application.context.session.session_context import SessionContext
+# NOTE: We no longer use IEventPublisherFactory as we use EventSystem directly
+# from domain.abstractions.event_factory import IEventPublisherFactory
+from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
+from infrastructure.contexts.system.system_context import SystemContext
 
 
 class SystemOrchestrator:
@@ -30,9 +34,10 @@ class SystemOrchestrator:
     def __init__(self,
                  config: Optional[SystemConfig] = None,
                  event_publisher: Optional[IEventPublisher] = None,
-                 event_publisher_factory: Optional[IEventPublisherFactory] = None,
+                 event_publisher_factory=None,  # Deprecated parameter
                  prompt_repository: Optional[IPromptRepository] = None,
-                 snapshot_manager: Optional[ISnapshotManager] = None):
+                 snapshot_manager: Optional[ISnapshotManager] = None,
+                 execution_gateway: Optional[IExecutionGateway] = None):
         """
         Инициализация оркестратора системы.
 
@@ -45,17 +50,16 @@ class SystemOrchestrator:
         # Создаем чистый системный контекст (только реестры)
         self.system_context = SystemContext(config)
 
-        # Используем переданного издателя событий или создаем глобальный через фабрику
+        # Используем переданного издателя событий или создаем глобальный
         if event_publisher:
             self.event_system = event_publisher
-        elif event_publisher_factory:
-            self.event_system = event_publisher_factory.get_global_event_publisher()
         else:
-            # В идеале, здесь должен быть способ получения глобального издателя событий
-            # через фабрику, но мы не можем импортировать инфраструктуру напрямую
-            # Поэтому оставим как есть, но отметим, что это место требует архитектурного решения
-            # В продакшене это должно быть решено через DI-контейнер
-            self.event_system = None  # будет установлен позже через DI
+            # Используем новый упрощенный EventSystem напрямую
+            from infrastructure.event_system import get_event_system
+            self.event_system = get_event_system()
+
+        # Используем переданный шлюз выполнения
+        self.execution_gateway = execution_gateway  # может быть None, будет предоставлен через DI
 
         # Компоненты управления промтами и снапшотами
         self.prompt_repository = prompt_repository
@@ -68,7 +72,6 @@ class SystemOrchestrator:
     def agent_factory(self):
         """Ленивая инициализация фабрики агентов."""
         if self._agent_factory is None:
-            from application.factories.agent_factory import AgentFactory
             self._agent_factory = AgentFactory(
                 system_context=self.system_context,
                 event_publisher=self.event_system
@@ -85,12 +88,13 @@ class SystemOrchestrator:
         ВОЗВРАЩАЕТ:
         - SessionContext с инъекцией зависимостей через координацию
         """
-        # Создаем сессионный шлюз с доступом к общим компонентам
-        execution_gateway = ExecutionGateway(
-            skill_registry=self.system_context.skill_registry,
-            prompt_repository=self.prompt_repository,  # Используем репозиторий промтов из оркестратора
-            event_publisher=self.event_system
-        )
+        # Используем переданный шлюз выполнения или создаем через DI
+        if self.execution_gateway:
+            execution_gateway = self.execution_gateway
+        else:
+            # В продакшене это должно быть создано через DI-контейнер
+            # с внедрением необходимых зависимостей
+            execution_gateway = None  # будет предоставлен через DI
         
         # Создаем сессионный контекст
         session_context = SessionContext(session_id=session_id)
@@ -118,8 +122,6 @@ class SystemOrchestrator:
         thinking_pattern = await self._create_thinking_pattern(thinking_pattern_name, session)
         
         # 3. Создаём агента с ПОРТАМИ вместо контекстов
-        from application.agent.runtime.runtime import AgentRuntime
-        
         agent = AgentRuntime(
             session_context=session,
             thinking_pattern=thinking_pattern,      # ← правильная терминология
@@ -136,10 +138,7 @@ class SystemOrchestrator:
         pattern_name: str,
         session: SessionContext
     ):
-        """Фабричный метод создания паттерна мышления."""
-        from domain.abstractions.thinking_pattern import IThinkingPattern
-        from application.agent.thinking_patterns.react_pattern import ReActThinkingPattern, CodeAnalysisThinkingPattern, PlanningThinkingPattern, PlanExecutionThinkingPattern, EvaluationThinkingPattern, FallbackThinkingPattern
-        
+        """Фабричный метод создания паттерна мышления."""        
         # Получаем LLM провайдер из сессии, оркестратора или из системного контекста
         llm_provider = getattr(session, 'llm_provider', None) or getattr(self, 'llm_provider', None)
         prompt_renderer = getattr(session, 'prompt_renderer', None) or getattr(self, 'prompt_renderer', None)
@@ -147,7 +146,7 @@ class SystemOrchestrator:
         
         # Возвращаем экземпляры классических паттернов мышления с провайдерами
         classic_patterns = {
-            "react": ReActThinkingPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository),
+            "react": ReActPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository),
             "code_analysis": CodeAnalysisThinkingPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository),
             "planning": PlanningThinkingPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository),
             "plan_execution": PlanExecutionThinkingPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository),
@@ -159,7 +158,7 @@ class SystemOrchestrator:
             return classic_patterns[pattern_name]
         else:
             # По умолчанию используем ReAct
-            return ReActThinkingPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository)
+            return ReActPattern(llm_provider=llm_provider, prompt_renderer=prompt_renderer, prompt_repository=prompt_repository)
     
     async def initialize(self) -> bool:
         """

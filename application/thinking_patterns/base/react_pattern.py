@@ -2,12 +2,17 @@
 Алиасы для обратной совместимости с устаревшими паттернами мышления.
 """
 # Импорты из нового местоположения Composable Patterns
-from application.agent.composable_patterns.patterns import (
+from application.thinking_patterns.composable.composable_pattern import (
     ReActPattern as ReActThinkingPattern,
     PlanAndExecutePattern as PlanAndExecuteThinkingPattern,
-    ToolUsePattern as ToolUseThinkingPattern,
-    ReflectionPattern as ReflectionThinkingPattern
+    ReflectionPattern as ReflectionThinkingPattern,
+    ToolUsePattern
 )
+
+class ToolUseThinkingPattern(ToolUsePattern):
+    """Паттерн использования инструментов - алиас для обратной совместимости."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 # Создаем псевдонимы для устаревших классов

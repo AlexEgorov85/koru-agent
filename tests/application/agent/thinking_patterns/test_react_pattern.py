@@ -3,7 +3,7 @@
 """
 import pytest
 from unittest.mock import Mock, AsyncMock
-from application.agent.thinking_patterns.react_pattern import ReActThinkingPattern, PlanningThinkingPattern, CodeAnalysisThinkingPattern, FallbackThinkingPattern
+from application.thinking_patterns.composable.composable_pattern import ReActPattern as ReActThinkingPattern, PlanAndExecutePattern as PlanningThinkingPattern, ToolUsePattern as CodeAnalysisThinkingPattern, ReflectionPattern as FallbackThinkingPattern
 from domain.models.agent.agent_state import AgentState
 
 

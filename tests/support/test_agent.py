@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Literal, Dict, Any, Optional
-from application.agent.runtime.runtime import AgentRuntime
+from application.agent.runtime import AgentRuntime
 from domain.abstractions.event_types import EventType
 from domain.models.execution.execution_result import ExecutionResult
 
@@ -151,7 +151,7 @@ class TestAgent:
     
     async def run(self, task: str) -> AgentTestResult:
         """Запуск агента с отслеживанием всех событий"""
-        from application.agent.thinking_patterns.react_pattern import ReActThinkingPattern
+        from application.thinking_patterns.composable.composable_pattern import ReActPattern as ReActThinkingPattern
         from domain.abstractions.system.base_session_context import BaseSessionContext
         from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
         from domain.abstractions.system.i_skill_registry import ISkillRegistry

@@ -3,7 +3,7 @@
 """
 import pytest
 from unittest.mock import Mock
-from application.agent.thinking_patterns.react_pattern import ReActPattern
+from application.thinking_patterns.composable.composable_pattern import ReActPattern
 from domain.models.agent.agent_state import AgentState
 from domain.models.react_state import ReActState, ActionType
 

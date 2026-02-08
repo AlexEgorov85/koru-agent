@@ -3,11 +3,14 @@
 """
 import pytest
 from unittest.mock import Mock, AsyncMock
+from application.agent.patterns.patterns import ReActPattern
 from application.coordination.pattern_recovery_manager import PatternRecoveryManager
-from application.to_infrastructure.runtime.runtime import AgentRuntime
+from application.agent.runtime import AgentRuntime
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
+from domain.abstractions.prompt_renderer import IPromptRenderer
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
+from domain.abstractions.system_initialization_service import ISystemInitializationService
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
 
@@ -63,10 +66,6 @@ class TestAgentRecovery:
     @pytest.fixture
     def basic_thinking_pattern(self):
         """Создает базовый паттерн мышления"""
-        # Используем существующий ReActPattern из оркестрации
-        from application.orchestration.patterns.patterns import ReActPattern
-        from domain.abstractions.prompt_renderer import IPromptRenderer
-        from domain.abstractions.system_initialization_service import ISystemInitializationService
         
         # Создаем моки для зависимостей
         mock_prompt_renderer = Mock(spec=IPromptRenderer)

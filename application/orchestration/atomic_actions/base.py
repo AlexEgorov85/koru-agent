@@ -7,6 +7,7 @@ from abc import ABC
 from typing import Dict, Any, Optional
 from domain.abstractions.atomic_action import IAtomicAction
 from domain.models.atomic_action.result import AtomicActionResult
+from domain.models.atomic_action.types import AtomicActionType
 
 
 class AtomicAction(IAtomicAction, ABC):
@@ -15,13 +16,9 @@ class AtomicAction(IAtomicAction, ABC):
     """
     
     @property
-    def name(self) -> str:
-        """Название действия по умолчанию - имя класса"""
-        return self.__class__.__name__
-    
-    def requires_confirmation(self) -> bool:
-        """По умолчанию действия не требуют подтверждения"""
-        return False
+    def action_type(self) -> AtomicActionType:
+        """Тип атомарного действия - должен быть переопределен в наследниках"""
+        raise NotImplementedError("Каждый наследник должен реализовать свойство action_type")
     
     def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
         """По умолчанию параметры считаются валидными"""
@@ -29,12 +26,9 @@ class AtomicAction(IAtomicAction, ABC):
     
     async def rollback(self, token: Optional[str]) -> AtomicActionResult:
         """По умолчанию откат не поддерживается"""
-        from domain.models.atomic_action.result import AtomicActionResult
-        from domain.models.atomic_action.types import AtomicActionType
-        
         return AtomicActionResult(
             success=False,
-            action_type=AtomicActionType.THINK,  # Placeholder type
+            action_type=self.action_type,
             error_message="Rollback not implemented for this action",
             can_rollback=False
         )

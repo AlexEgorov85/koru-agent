@@ -260,7 +260,7 @@ class IEventPublisher(ABC):
     async def publish(self, event_type: EventType, source: str, data: Any):
         """
         Публикация события.
-        
+
         Args:
             event_type: Тип события
             source: Источник события
@@ -272,9 +272,34 @@ class IEventPublisher(ABC):
     def subscribe(self, event_type: EventType, handler: Callable[[Event], Awaitable[None]]):
         """
         Подписка на событие определенного типа.
-        
+
         Args:
             event_type: Тип события
             handler: Обработчик события
         """
         pass
+
+    async def publish_with_ack(self, event_type: EventType, source: str, data: Any) -> str:
+        """
+        Публикация события с отслеживанием подтверждения (опционально)
+        
+        Returns:
+            str: ID события
+        """
+        # По умолчанию просто вызываем обычную публикацию
+        event = Event(event_type=event_type, source=source, data=data)
+        await self.publish(event_type, source, data)
+        return event.id
+
+    def subscribe_with_ack(self, event_type: EventType, handler: Callable[[Event], Awaitable[bool]]):
+        """
+        Подписка на событие с подтверждением (опционально)
+        """
+        # По умолчанию оборачиваем обычный обработчик
+        async def wrapped_handler(event: Event) -> None:
+            try:
+                await handler(event)
+            except Exception:
+                pass  # Игнорируем ошибки в базовой реализации
+        
+        self.subscribe(event_type, wrapped_handler)

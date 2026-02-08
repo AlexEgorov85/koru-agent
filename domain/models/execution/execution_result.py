@@ -48,6 +48,9 @@ class ExecutionResult:
     undo_operation: Optional[Dict[str, Any]] = None     # Информация для отката операции
     timestamp: datetime = None                          # Время создания результата
     
+    # Добавляем атрибут для хранения событий для публикации
+    events_to_publish: Optional[list] = None
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.utcnow()
@@ -55,3 +58,5 @@ class ExecutionResult:
             self.progress_metadata = {}
         if self.action_metadata is None:
             self.action_metadata = {}
+        if self.events_to_publish is None:
+            self.events_to_publish = []

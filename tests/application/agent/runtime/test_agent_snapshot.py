@@ -3,7 +3,7 @@
 """
 import pytest
 from unittest.mock import Mock, AsyncMock
-from application.agent.runtime.runtime import AgentRuntime
+from application.agent.runtime import AgentRuntime
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.thinking_pattern import IThinkingPattern
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway

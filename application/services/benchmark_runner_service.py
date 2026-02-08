@@ -5,12 +5,12 @@ from typing import List
 import uuid
 from datetime import datetime
 
+from domain.abstractions.agent import IAgent
 from domain.models.benchmark.benchmark_question import BenchmarkQuestion
 from domain.models.benchmark.benchmark_result import BenchmarkResult
 from domain.models.benchmark.benchmark_session import BenchmarkSession
 from domain.abstractions.benchmark_repository import IBenchmarkRepository
 from domain.abstractions.benchmark_evaluator import IBenchmarkEvaluator
-from domain.agents.base_agent import BaseAgent
 
 
 class BenchmarkRunnerService:
@@ -35,7 +35,7 @@ class BenchmarkRunnerService:
     async def run_benchmark(
         self,
         questions: List[BenchmarkQuestion],
-        agent: BaseAgent
+        agent: IAgent
     ) -> BenchmarkSession:
         """
         Запустить бенчмарк с заданными вопросами
@@ -98,7 +98,7 @@ class BenchmarkRunnerService:
         
         return "\n".join(report_lines)
     
-    async def _run_agent_with_question(self, agent: BaseAgent, question: BenchmarkQuestion) -> str:
+    async def _run_agent_with_question(self, agent: IAgent, question: BenchmarkQuestion) -> str:
         """
         Запустить агента с конкретным вопросом
         """

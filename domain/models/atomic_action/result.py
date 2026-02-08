@@ -15,17 +15,24 @@ class AtomicActionResult:
     action_type: AtomicActionType
     error_message: Optional[str] = None
     error_type: Optional[str] = None  # Тип ошибки для лучшей классификации
-    
+
     # Поддержка отката
     can_rollback: bool = False
     rollback_token: Optional[str] = None
-    
+
     # Метрики выполнения
     execution_time_ms: Optional[int] = None
     security_validated: bool = True  # Флаг прохождения валидации безопасности
-    
+
     context_update: Optional[Dict[str, Any]] = None
     result_data: Optional[Dict[str, Any]] = None
+    
+    # События для публикации
+    events_to_publish: Optional[list] = None
+
+    def __post_init__(self):
+        if self.events_to_publish is None:
+            self.events_to_publish = []
 
 
 @dataclass

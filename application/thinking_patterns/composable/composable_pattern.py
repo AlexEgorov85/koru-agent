@@ -2,7 +2,7 @@
 Реализации компонуемых паттернов через атомарные действия.
 """
 from typing import Any, Dict, List, Optional
-from application.agent.composable_patterns.base import ComposablePattern
+from application.orchestration.patterns.base import ComposablePattern
 from domain.models.agent.agent_state import AgentState
 from domain.models.provider_type import LLMResponse
 from domain.models.react_state import ReActState

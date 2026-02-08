@@ -1,4 +1,9 @@
 
+"""
+DEPRECATED: This adapter is no longer needed as we now use EventSystem directly.
+This file is kept for backward compatibility during migration and will be removed.
+"""
+import warnings
 from domain.abstractions.event_types import Event, EventType, IEventPublisher
 from infrastructure.gateways.event_system import EventSystem
 from typing import Any, Callable, Awaitable
@@ -6,42 +11,37 @@ from typing import Any, Callable, Awaitable
 
 class EventPublisherAdapter(IEventPublisher):
     """
-    Адаптер для преобразования конкретной реализации EventSystem в интерфейс IEventPublisher.
-    
-    АРХИТЕКТУРА:
-    - Расположение: инфраструктурный слой (адаптер)
-    - Зависимости: от конкретной реализации EventSystem и доменных абстракций
-    - Ответственность: обеспечение соответствия контракту IEventPublisher
-    - Принципы: соблюдение инверсии зависимостей (D в SOLID)
+    DEPRECATED: This adapter is no longer needed as we now use EventSystem directly.
+    This class is kept for backward compatibility during migration and will be removed.
     """
     
     def __init__(self, event_system: EventSystem):
-        """
-        Инициализация адаптера.
-        
-        Args:
-            event_system: Конкретная реализация EventSystem
-        """
+        warnings.warn(
+            "EventPublisherAdapter is deprecated. Use EventSystem directly.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self._event_system = event_system
-    
+
     async def publish(self, event_type: EventType, source: str, data: Any):
         """
-        Публикация события через адаптированную реализацию.
-        
-        Args:
-            event_type: Тип события
-            source: Источник события
-            data: Данные события
+        DEPRECATED: Use EventSystem directly.
         """
+        warnings.warn(
+            "EventPublisherAdapter.publish is deprecated. Use EventSystem directly.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         event = Event(event_type=event_type, source=source, data=data)
         await self._event_system.publish(event)
-    
+
     def subscribe(self, event_type: EventType, handler: Callable[[Event], Awaitable[None]]):
         """
-        Подписка на событие определенного типа.
-        
-        Args:
-            event_type: Тип события
-            handler: Обработчик события
+        DEPRECATED: Use EventSystem directly.
         """
+        warnings.warn(
+            "EventPublisherAdapter.subscribe is deprecated. Use EventSystem directly.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self._event_system.subscribe(event_type, handler)

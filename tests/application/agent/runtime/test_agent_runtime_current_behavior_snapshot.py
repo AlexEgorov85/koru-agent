@@ -2,7 +2,7 @@
 Снапшот текущего поведения — НЕ МЕНЯТЬ после создания
 """
 import pytest
-from application.agent.runtime.runtime import AgentRuntime
+from application.agent.runtime import AgentRuntime
 
 
 class TestAgentCurrentBehavior:
