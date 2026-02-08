@@ -2,13 +2,13 @@ from typing import Any, Dict, Optional
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.tools.base_tool import BaseTool
 from domain.abstractions.base_skill import BaseSkill
-from application.context.system.tool_registry import ToolRegistry
-from application.context.system.skill_registry import SkillRegistry
-from application.context.system.config_manager import ConfigManager
+from infrastructure.contexts.system.tool_registry import ToolRegistry
+from infrastructure.contexts.system.skill_registry import SkillRegistry
+from infrastructure.config.config_manager import ConfigManager
 from domain.models.system.config import SystemConfig
 from domain.abstractions.system.base_system_context import IBaseSystemContext
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
-from application.gateways.execution.execution_gateway import ExecutionGateway
+from infrastructure.gateways.llm.llm_execution_gateway import ExecutionGateway
 
 
 class SystemContext(IBaseSystemContext):

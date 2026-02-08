@@ -14,9 +14,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.system.base_session_context import BaseSessionContext
-from application.context.system.tool_registry import ToolRegistry
-from application.context.system.skill_registry import SkillRegistry
-from application.context.system.config_manager import ConfigManager
+from infrastructure.contexts.system.tool_registry import ToolRegistry
+from infrastructure.contexts.system.skill_registry import SkillRegistry
+from infrastructure.config.config_manager import ConfigManager
 from domain.models.system.config import SystemConfig
 
 logger = logging.getLogger(__name__)

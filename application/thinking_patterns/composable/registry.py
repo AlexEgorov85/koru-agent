@@ -2,7 +2,7 @@
 Реестр компонуемых паттернов.
 """
 from typing import Dict, Type, Optional, List
-from application.agent.composable_patterns.base import ComposablePattern
+from application.orchestration.patterns.base import ComposablePattern
 
 
 class ComposablePatternRegistry:

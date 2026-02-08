@@ -8,6 +8,12 @@
 - Обработку событий
 """
 import asyncio
+import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python для импорта модулей
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
 from domain.abstractions.event_types import EventType, Event
 from infrastructure.event_system import EventSystem, SecurityEventFilter, SizeLimitFilter, EventValidator
 

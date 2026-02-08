@@ -10,6 +10,11 @@
 import asyncio
 import tempfile
 import os
+import sys
+
+# Добавляем корневую директорию проекта в путь Python для импорта модулей
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from domain.models.system.config import SystemConfig
 from infrastructure.contexts.system.system_context import SystemContext
 from infrastructure.tools.file_tools.file_reader_tool import FileReaderTool
@@ -79,26 +84,26 @@ async def demonstrate_direct_tool_usage():
         # Создаем системный контекст
         config = SystemConfig()
         system_context = SystemContext(config=config)
-        print("✓ Системный контекст создан")
+        print("+ Системный контекст создан")
         
         # Создаем и инициализируем инструменты
         file_reader = FileReaderTool()
         await file_reader.initialize()
-        print("✓ Инструмент чтения файлов инициализирован")
+        print("+ Инструмент чтения файлов инициализирован")
         
         file_writer = FileWriterTool()
         await file_writer.initialize()
-        print("✓ Инструмент записи файлов инициализирован")
+        print("+ Инструмент записи файлов инициализирован")
         
         # Регистрируем инструменты в системном контексте
         system_context.register_tool(file_reader)
         system_context.register_tool(file_writer)
-        print("✓ Инструменты зарегистрированы в системном контексте")
+        print("+ Инструменты зарегистрированы в системном контексте")
         
         # Создаем и регистрируем навык
         file_skill = FileOperationSkill()
         system_context.register_skill(file_skill)
-        print("✓ Навык файловых операций зарегистрирован")
+        print("+ Навык файловых операций зарегистрирован")
         
         # Демонстрация прямого использования инструмента чтения
         print(f"\n--- Чтение файла: {temp_file_path} ---")

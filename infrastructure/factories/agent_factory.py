@@ -7,10 +7,10 @@ AgentFactory - фабрика для создания агентов с инъе
 - Обеспечивает инъекцию системного контекста, шины событий и других компонентов
 """
 from typing import Any, Optional
-from application.context.system.system_context import SystemContext
+from infrastructure.contexts.system.system_context import SystemContext
 from infrastructure.gateways.event_system import EventSystem
 from application.agent.runtime.runtime import AgentRuntime
-from application.agent.composable_patterns.patterns import ReActPattern, PlanAndExecutePattern, ToolUsePattern, ReflectionPattern
+from application.thinking_patterns.composable.composable_pattern import ReActPattern, PlanAndExecutePattern, ToolUsePattern, ReflectionPattern
 from domain.abstractions.thinking_pattern import IThinkingPattern
 from application.context.session.session_context import SessionContext
 from domain.abstractions.event_types import IEventPublisher
@@ -58,7 +58,7 @@ class AgentFactory:
         
         # Создаем PromptRenderer через инфраструктурную фабрику
         from infrastructure.services.prompt_storage.file_prompt_repository import FilePromptRepository
-        from application.services.prompt_renderer import PromptRenderer
+        from infrastructure.services.prompt_renderer.prompt_renderer import PromptRenderer
         from infrastructure.services.prompt_storage.prompt_loader import PromptLoader
         
         prompt_repository = FilePromptRepository()

@@ -4,7 +4,7 @@
 from typing import Optional
 from domain.abstractions.pattern_executor import IPatternExecutor
 from domain.abstractions.event_types import IEventPublisher
-from application.services.prompt_renderer import PromptRenderer
+from infrastructure.services.prompt_renderer.prompt_renderer import PromptRenderer
 from infrastructure.adapters.pattern_executor import PatternExecutor
 
 

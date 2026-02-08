@@ -8,6 +8,12 @@
 - Валидацию системы
 """
 import asyncio
+import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python для импорта модулей
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from domain.models.system.config import SystemConfig
 from infrastructure.contexts.system.system_context import SystemContext
 from infrastructure.tools.file_tools.file_reader_tool import FileReaderTool
@@ -51,49 +57,49 @@ async def demonstrate_system_context():
     
     # Создаем системный контекст
     system_context = SystemContext(config=config)
-    print("✓ Системный контекст создан")
+    print("+ Системный контекст создан")
     
     # Регистрируем инструмент
     file_reader = FileReaderTool()
     await file_reader.initialize()
     system_context.register_tool(file_reader)
-    print(f"✓ Инструмент '{file_reader.name}' зарегистрирован")
+    print(f"+ Инструмент '{file_reader.name}' зарегистрирован")
     
     # Регистрируем навык
     simple_skill = SimpleSkill()
     system_context.register_skill(simple_skill)
-    print(f"✓ Навык '{simple_skill.name}' зарегистрирован")
+    print(f"+ Навык '{simple_skill.name}' зарегистрирован")
     
     # Работа с конфигурацией
     system_context.set_config("max_workers", 4)
     system_context.set_config("timeout", 30)
     max_workers = system_context.get_config("max_workers", 1)
-    print(f"✓ Конфигурация: max_workers = {max_workers}")
+    print(f"+ Конфигурация: max_workers = {max_workers}")
     
     # Получаем все инструменты
     all_tools = system_context.get_all_tools()
-    print(f"✓ Зарегистрировано инструментов: {len(all_tools)}")
+    print(f"+ Зарегистрировано инструментов: {len(all_tools)}")
     
     # Получаем все навыки
     all_skills = system_context.get_all_skills()
-    print(f"✓ Зарегистрировано навыков: {len(all_skills)}")
+    print(f"+ Зарегистрировано навыков: {len(all_skills)}")
     
     # Валидация системы
     is_valid = system_context.validate()
-    print(f"✓ Валидация системы: {'Успешна' if is_valid else 'Неудачна'}")
+    print(f"+ Валидация системы: {'Успешна' if is_valid else 'Неудачна'}")
     
     # Демонстрация получения ресурсов
     retrieved_tool = system_context.get_resource(file_reader.name)
     if retrieved_tool:
-        print(f"✓ Инструмент получен по имени: {retrieved_tool.name}")
+        print(f"+ Инструмент получен по имени: {retrieved_tool.name}")
     
     retrieved_skill = system_context.get_resource(simple_skill.name)
     if retrieved_skill:
-        print(f"✓ Навык получен по имени: {retrieved_skill.name}")
+        print(f"+ Навык получен по имени: {retrieved_skill.name}")
     
     # Экспорт конфигурации
     exported_config = system_context.export_config()
-    print(f"✓ Экспортированная конфигурация: {exported_config}")
+    print(f"+ Экспортированная конфигурация: {exported_config}")
     
     print("\n=== Демонстрация завершена ===")
 

@@ -8,7 +8,13 @@
 - Запуск агента с простой задачей
 """
 import asyncio
+import sys
+import os
 from unittest.mock import Mock, AsyncMock
+
+# Добавляем корневую директорию проекта в путь Python для импорта модулей
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
 from domain.models.system.config import SystemConfig
 from infrastructure.contexts.system.system_context import SystemContext
 from application.agent.runtime import AgentRuntime

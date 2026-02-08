@@ -7,6 +7,12 @@
 - Выполнение шагов через паттерны
 """
 import asyncio
+import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python для импорта модулей
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
 from domain.models.agent.agent_state import AgentState
 from application.thinking_patterns.composable.composable_pattern import (
     ReActPattern,

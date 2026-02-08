@@ -18,434 +18,129 @@
 # Правильно: зависимости направлены внутрь
 from domain.abstractions.event_types import IEventPublisher
 
-class AgentService:
+class MyClass:
     def __init__(self, event_publisher: IEventPublisher):
-        self.event_publisher = event_publisher  # Зависит от абстракции
-
-# Неправильно: жесткая зависимость от реализации
-class AgentService:
-    def __init__(self):
-        self.event_publisher = ConcreteEventPublisher()  # Зависит от реализации
+        self._event_publisher = event_publisher
 ```
 
-#### Слабая связанность
+#### Слои архитектуры
 
-- Используйте интерфейсы и абстракции
-- Избегайте жестких зависимостей между компонентами
-- Применяйте принцип инверсии зависимостей
+Разделяйте систему на три основных слоя:
+
+- **Domain Layer**: Содержит бизнес-логику и правила
+- **Application Layer**: Координирует работу компонентов домена
+- **Infrastructure Layer**: Реализует внешние зависимости
+
+### 2. Инверсия зависимостей
+
+Используйте интерфейсы для инверсии зависимостей:
+
+- Модули верхнего уровня не должны зависеть от модулей нижнего уровня
+- Оба должны зависеть от абстракций
+- Абстракции не должны зависеть от деталей, детали должны зависеть от абстракций
 
 ```python
-# Хорошо: слабая связанность через интерфейсы
-class Agent:
-    def __init__(self, action_executor: IAtomicActionExecutor):
-        self.action_executor = action_executor
+# Правильно: зависимость инвертирована через интерфейс
+from domain.abstractions.repository import IRepository
 
-# Плохо: жесткая связанность
-class Agent:
-    def __init__(self):
-        self.action_executor = SpecificActionExecutor()  # Жесткая связь
+class UserService:
+    def __init__(self, repository: IRepository):
+        self._repository = repository
 ```
 
-### 2. Модульность и расширяемость
+### 3. Единственная ответственность
 
-Создавайте модульные и расширяемые компоненты:
+Каждый класс должен иметь только одну причину для изменения:
 
-#### Открытость/закрытость
+- Один класс - одна задача
+- Если класс решает несколько разных задач - разделите его
+- Следите за количеством методов и строк кода в классе
 
-- Компоненты должны быть открыты для расширения, но закрыты для модификации
+### 4. Открытость/закрытость
+
+Классы должны быть открыты для расширения, но закрыты для модификации:
+
 - Используйте наследование или композицию для расширения функциональности
+- Не изменяйте существующий код, если не требуется изменить основную логику
+
+## Практики разработки
+
+### 1. Типизация и аннотации
+
+Используйте аннотации типов для повышения читаемости кода:
 
 ```python
-# Хорошо: открыт для расширения
-class BasePattern(IThinkingPattern):
-    async def execute(self, state, context, capabilities):
-        # Базовая логика
-        pass
+from typing import List, Dict, Optional
 
-class SecurityAnalysisPattern(BasePattern):
-    # Расширение базовой функциональности
-    pass
-
-# Плохо: трудно расширять
-class MonolithicPattern:
-    def execute(self, task_type, state, context):
-        if task_type == "security":
-            # Логика безопасности
-            pass
-        elif task_type == "code_analysis":
-            # Логика анализа кода
-            pass
-        # и т.д. - трудно расширять
-```
-
-#### Единая ответственность
-
-- Каждый класс должен иметь одну причину для изменения
-- Разделяйте обязанности между классами
-
-```python
-# Хорошо: каждый класс отвечает за свою область
-class PromptValidator:
-    """Отвечает только за валидацию промтов"""
-    pass
-
-class PromptRenderer:
-    """Отвечает только за рендеринг промтов"""
-    pass
-
-class PromptLoader:
-    """Отвечает только за загрузку промтов"""
-    pass
-
-# Плохо: один класс делает слишком много
-class PromptManager:
-    """Отвечает за валидацию, рендеринг, загрузку и т.д."""
+def process_users(users: List[Dict[str, str]]) -> Optional[str]:
+    # Обработка пользователей
     pass
 ```
+
+### 2. Обработка ошибок
+
+Реализуйте надежную обработку ошибок:
+
+- Используйте конкретные типы исключений
+- Логируйте ошибки с достаточной информацией для диагностики
+- Обрабатывайте ошибки на соответствующем уровне абстракции
+
+### 3. Тестирование
+
+Покрывайте код тестами:
+
+- Модульные тесты для отдельных компонентов
+- Интеграционные тесты для взаимодействия между компонентами
+- Используйте фикстуры и моки для изоляции тестируемого кода
 
 ## Практики безопасности
 
-### 1. Валидация входных данных
+### 1. Валидация данных
 
-Обязательно валидируйте все входные данные:
+Всегда валидируйте входные данные:
 
 ```python
-def validate_prompt_parameters(self, parameters: Dict[str, Any]) -> bool:
-    """Проверить параметры промта"""
-    required_fields = ["path"]  # или другие обязательные поля
-    if not all(field in parameters for field in required_fields):
-        return False
-    
-    # Дополнительные проверки
-    if "path" in parameters and not self._is_safe_path(parameters["path"]):
-        return False
-    
-    return True
+from typing import Dict, Any
 
-def _is_safe_path(self, path: str) -> bool:
-    """Проверить, является ли путь безопасным для использования"""
-    try:
-        # Преобразовать в абсолютный путь
-        abs_path = Path(path).resolve()
+class PromptManager:
+    def validate_prompt_parameters(self, parameters: Dict[str, Any]) -> bool:
+        """Проверяет параметры промта на корректность и безопасность"""
+        errors = []
         
-        # Получить корневой каталог проекта
-        project_root = Path.cwd().resolve()
+        # Проверка чувствительных полей
+        sensitive_fields = ["password", "token", "api_key", "secret", "credentials",
+                           "private_key", "certificate", "oauth_token", "email", "phone"]
+        for field in sensitive_fields:
+            if field in parameters:
+                errors.append(f"Чувствительное поле '{field}' не должно передаваться напрямую")
         
-        # Проверить, что путь находится внутри корневого каталога
-        abs_path.relative_to(project_root)
-        return True
-    except ValueError:
-        # Если путь вне корневого каталога, он небезопасен
-        return False
+        # Проверка размера параметров
+        params_size = len(str(parameters))
+        max_size = 10 * 1024 * 1024  # 10MB
+        if params_size > max_size:
+            errors.append(f"Размер параметров превышает лимит: {params_size} байт, максимум {max_size}")
+        
+        # Проверка безопасного пути
+        if "path" in parameters:
+            if not self._is_safe_path(parameters["path"]):
+                errors.append("Небезопасный путь в параметрах")
+        
+        return len(errors) == 0
 ```
 
 ### 2. Управление доступом
 
-Используйте системы управления доступом:
+Реализуйте надежное управление доступом:
 
-```python
-class AccessControlManager:
-    """Менеджер контроля доступа"""
-    
-    def __init__(self):
-        self.permissions = {}
-        self.role_assignments = {}
-    
-    def check_permission(self, agent_id: str, resource: str, action: str) -> bool:
-        """Проверить, есть ли у агента разрешение на действие с ресурсом"""
-        agent_roles = self.role_assignments.get(agent_id, [])
-        
-        for role in agent_roles:
-            role_permissions = self.permissions.get(role, {})
-            if resource in role_permissions:
-                allowed_actions = role_permissions[resource]
-                if action in allowed_actions or "*" in allowed_actions:
-                    return True
-        
-        return False
-```
-
-### 3. Обработка чувствительных данных
-
-Фильтруйте и защищайте чувствительные данные:
-
-```python
-def filter_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Отфильтровать чувствительные данные"""
-    if not data:
-        return data
-    
-    filtered_data = data.copy()
-    
-    sensitive_fields = [
-        "password", "token", "api_key", "secret", "credentials",
-        "private_key", "certificate", "oauth_token"
-    ]
-    
-    for field in sensitive_fields:
-        if field in filtered_data:
-            filtered_data[field] = "***FILTERED***"
-    
-    return filtered_data
-```
-
-## Практики производительности
-
-### 1. Асинхронность
-
-Используйте асинхронные операции для повышения производительности:
-
-```python
-# Хорошо: асинхронные операции
-async def execute_multiple_tasks(tasks: List[Task]) -> List[Result]:
-    """Выполнить несколько задач параллельно"""
-    results = await asyncio.gather(*[
-        task.execute() for task in tasks
-    ])
-    return results
-
-# Плохо: синхронное выполнение
-def execute_multiple_tasks(tasks: List[Task]) -> List[Result]:
-    """Выполнить несколько задач последовательно"""
-    results = []
-    for task in tasks:
-        results.append(task.execute())  # Блокирует выполнение
-    return results
-```
-
-### 2. Кэширование
-
-Используйте кэширование для улучшения производительности:
-
-```python
-import functools
-import time
-
-class CacheManager:
-    """Менеджер кэширования"""
-    
-    def __init__(self, ttl: int = 3600):  # 1 час по умолчанию
-        self.ttl = ttl
-        self.cache = {}
-    
-    def get(self, key: str):
-        """Получить значение из кэша"""
-        if key in self.cache:
-            cached_value, timestamp = self.cache[key]
-            if time.time() - timestamp < self.ttl:
-                return cached_value
-            else:
-                del self.cache[key]  # Удалить устаревшее значение
-        return None
-    
-    def set(self, key: str, value):
-        """Установить значение в кэш"""
-        self.cache[key] = (value, time.time())
-    
-    def invalidate(self, key: str):
-        """Инвалидировать кэш для ключа"""
-        if key in self.cache:
-            del self.cache[key]
-
-# Использование декоратора для кэширования
-def cached_method(ttl: int = 3600):
-    def decorator(func):
-        cache = {}
-        
-        async def wrapper(*args, **kwargs):
-            # Создать ключ кэша на основе аргументов
-            cache_key = str(args) + str(sorted(kwargs.items()))
-            
-            if cache_key in cache:
-                cached_result, timestamp = cache[cache_key]
-                if time.time() - timestamp < ttl:
-                    return cached_result
-                else:
-                    del cache[cache_key]
-            
-            # Выполнить функцию и закэшировать результат
-            result = await func(*args, **kwargs)
-            cache[cache_key] = (result, time.time())
-            
-            return result
-        
-        return wrapper
-    return decorator
-```
-
-### 3. Управление ресурсами
-
-Контролируйте использование ресурсов:
-
-```python
-class ResourceManager:
-    """Менеджер ресурсов"""
-    
-    def __init__(self, max_memory: str = "1GB", max_cpu: float = 80.0):
-        self.max_memory = self._parse_memory_size(max_memory)
-        self.max_cpu = max_cpu
-        self.current_usage = {"memory": 0, "cpu": 0}
-    
-    def check_resource_availability(self, required_resources: Dict[str, Any]) -> bool:
-        """Проверить доступность ресурсов"""
-        current_memory = self._get_current_memory_usage()
-        requested_memory = required_resources.get("memory", 0)
-        
-        if (current_memory + requested_memory) > self.max_memory:
-            return False
-        
-        current_cpu = self._get_current_cpu_usage()
-        requested_cpu = required_resources.get("cpu", 0)
-        
-        if (current_cpu + requested_cpu) > self.max_cpu:
-            return False
-        
-        return True
-    
-    def _parse_memory_size(self, memory_str: str) -> int:
-        """Разобрать строку размера памяти в байты"""
-        units = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
-        
-        for unit, multiplier in units.items():
-            if memory_str.upper().endswith(unit):
-                number = float(memory_str[:-len(unit)])
-                return int(number * multiplier)
-        
-        # Если единица измерения не указана, предполагаем байты
-        return int(memory_str)
-```
-
-## Практики тестирования
-
-### 1. Модульное тестирование
-
-Тестируйте каждый компонент отдельно:
-
-```python
-# test_agent_service.py
-import pytest
-from unittest.mock import AsyncMock, Mock
-from domain.models.agent.agent_state import AgentState
-
-class TestAgentService:
-    @pytest.mark.asyncio
-    async def test_agent_execution_success(self):
-        """Тест успешного выполнения задачи агентом"""
-        # Создать моки зависимостей
-        mock_event_publisher = AsyncMock()
-        mock_action_executor = AsyncMock()
-        mock_pattern_executor = AsyncMock()
-        
-        # Создать сервис
-        agent_service = AgentService(
-            event_publisher=mock_event_publisher,
-            action_executor=mock_action_executor,
-            pattern_executor=mock_pattern_executor
-        )
-        
-        # Настроить возвращаемые значения
-        mock_pattern_executor.execute_pattern.return_value = {
-            "success": True,
-            "result": "Test result"
-        }
-        
-        # Выполнить задачу
-        result = await agent_service.execute_task(
-            task_description="Test task",
-            context={"test": "data"}
-        )
-        
-        # Проверить результат
-        assert result["success"] is True
-        assert result["result"] == "Test result"
-        
-        # Проверить, что были вызваны зависимости
-        mock_event_publisher.publish.assert_called_once()
-        mock_pattern_executor.execute_pattern.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_agent_execution_with_error(self):
-        """Тест выполнения задачи с ошибкой"""
-        # Создать моки зависимостей
-        mock_event_publisher = AsyncMock()
-        mock_action_executor = AsyncMock()
-        mock_pattern_executor = AsyncMock()
-        
-        # Настроить выброс исключения
-        mock_pattern_executor.execute_pattern.side_effect = Exception("Test error")
-        
-        # Создать сервис
-        agent_service = AgentService(
-            event_publisher=mock_event_publisher,
-            action_executor=mock_action_executor,
-            pattern_executor=mock_pattern_executor
-        )
-        
-        # Выполнить задачу - должна возникнуть ошибка
-        result = await agent_service.execute_task(
-            task_description="Test task with error",
-            context={}
-        )
-        
-        # Проверить, что результат содержит ошибку
-        assert result["success"] is False
-        assert "Test error" in result["error"]
-```
-
-### 2. Интеграционное тестирование
-
-Тестируйте взаимодействие между компонентами:
-
-```python
-# test_integration.py
-import pytest
-from application.factories.agent_factory import AgentFactory
-from domain.value_objects.domain_type import DomainType
-
-class TestAgentIntegration:
-    @pytest.mark.asyncio
-    async def test_agent_prompt_integration(self):
-        """Тест интеграции агента с системой промтов"""
-        
-        # Создать агента
-        agent = await AgentFactory().create_agent(
-            agent_type="composable",
-            domain=DomainType.CODE_ANALYSIS
-        )
-        
-        # Загрузить промт
-        from application.services.prompt_loader import PromptLoader
-        prompt_loader = PromptLoader(base_path="./prompts")
-        prompts, errors = prompt_loader.load_all_prompts()
-        
-        # Выбрать подходящий промт
-        code_analysis_prompts = [
-            p for p in prompts 
-            if p.domain == DomainType.CODE_ANALYSIS
-            and p.role == PromptRole.SYSTEM
-        ]
-        
-        assert len(code_analysis_prompts) > 0, "Должен быть хотя бы один промт анализа кода"
-        
-        # Выполнить задачу с использованием промта
-        result = await agent.execute_task(
-            task_description="Проанализируй этот Python код",
-            context={
-                "code": "def hello(): pass",
-                "language": "python"
-            }
-        )
-        
-        # Проверить результат
-        assert "success" in result
-        # В зависимости от реализации, проверить другие поля результата
-```
+- Проверяйте права доступа перед выполнением операций
+- Используйте ролевую модель для управления правами
+- Логируйте попытки несанкционированного доступа
 
 ## Практики конфигурации
 
-### 1. Централизованная конфигурация
+### 1. Настройка приложения
 
-Используйте централизованную систему конфигурации:
+Используйте структурированную конфигурацию:
 
 ```python
 # config/app_config.py
@@ -478,9 +173,9 @@ class AppConfig(BaseModel):
     enable_monitoring: bool = Field(default=True)
 ```
 
-### 2. Переменные окружения
+### 2. Управление настройками
 
-Используйте переменные окружения для чувствительных данных:
+Используйте систему управления настройками:
 
 ```python
 import os
@@ -504,38 +199,71 @@ class Settings(BaseSettings):
     enable_audit_logging: bool = True
     
     class Config:
-        env_file = ".env"  # Загружать из .env файла
-        env_prefix = "AGENT_"  # Префикс переменных: AGENT_LLM_API_KEY
+        env_file = ".env"  # Используем .env файл для настроек
+        env_prefix = "AGENT_"  # Префикс для переменных окружения: AGENT_LLM_API_KEY
 
 settings = Settings()
 ```
 
 ## Практики документирования
 
-### 1. Документирование компонентов
+### 1. Документирование кода
 
-Документируйте все компоненты системы:
+Используйте docstrings для документирования классов и методов:
+
+```python
+class UserService:
+    """
+    Сервис для управления пользователями.
+    
+    Отвечает за создание, обновление и удаление пользователей.
+    """
+    
+    def create_user(self, user_data: dict) -> dict:
+        """
+        Создает нового пользователя.
+        
+        Args:
+            user_data: Данные пользователя для создания
+            
+        Returns:
+            Словарь с информацией о созданном пользователе
+        """
+        pass
+```
+
+### 2. Комментарии
+
+Пишите комментарии, объясняющие "почему", а не "что":
+
+- Не комментируйте очевидный код
+- Объясняйте нетривиальные решения
+- Используйте комментарии для обозначения временных решений (TODO, FIXME)
+
+## Практики паттернов мышления
+
+### 1. Создание специализированных паттернов
+
+Создавайте специализированные паттерны мышления для конкретных задач:
 
 ```python
 class SecurityAnalysisPattern(IThinkingPattern):
     """
-    Паттерн анализа безопасности кода.
+    Паттерн для анализа безопасности кода.
     
-    Этот паттерн реализует стратегию анализа кода на наличие
-    уязвимостей безопасности. Поддерживает анализ различных
-    языков программирования и проверку на соответствие
-    стандартам безопасности.
+    Обеспечивает безопасное выполнение анализа уязвимостей
+    в коде с использованием различных методов проверки.
     
-    Примеры проверок:
+    Поддерживает:
     - SQL-инъекции
-    - XSS-уязвимости
-    - Небезопасное хранение данных
-    - Проблемы с аутентификацией
+    - XSS-атаки
+    - Небезопасное использование внешних ресурсов
+    - Нарушения безопасности в API
     """
     
     @property
     def name(self) -> str:
-        """Уникальное имя паттерна анализа безопасности."""
+        """Уникальное имя паттерна для анализа безопасности."""
         return "security_analysis_pattern"
     
     async def execute(
@@ -545,32 +273,32 @@ class SecurityAnalysisPattern(IThinkingPattern):
         available_capabilities: List[str]
     ) -> Dict[str, Any]:
         """
-        Выполнить анализ безопасности кода.
+        Выполняет анализ безопасности кода.
         
         Args:
-            state: Текущее состояние агента
-            context: Контекст выполнения (обычно содержит код для анализа)
-            available_capabilities: Доступные возможности агента
+            state: Состояние агента на момент выполнения
+            context: Контекст выполнения (например, код для анализа)
+            available_capabilities: Список доступных возможностей для выполнения
             
         Returns:
-            Словарь с результатами анализа, содержащий:
-            - success: флаг успешности выполнения
-            - findings: список обнаруженных уязвимостей
-            - summary: краткое резюме анализа
+            Словарь с результатами выполнения паттерна:
+            - success: Успешно ли выполнено задание
+            - findings: Список найденных уязвимостей
+            - summary: Краткое описание выполнения задания
         """
         pass
 ```
 
-### 2. Примеры использования
+### 2. Обработка специфических случаев
 
-Предоставляйте примеры использования для каждого компонента:
+Обрабатывайте специфические случаи в паттернах:
 
 ```python
 # examples/security_analysis_example.py
 """
-Пример использования паттерна анализа безопасности.
+Пример использования паттерна анализа безопасности кода.
 
-Этот пример демонстрирует, как использовать паттерн анализа безопасности
+В этом примере показано, как использовать паттерн анализа безопасности
 для проверки Python-кода на наличие уязвимостей.
 """
 
@@ -579,28 +307,28 @@ from domain.value_objects.domain_type import DomainType
 
 async def security_analysis_example():
     """
-    Пример анализа безопасности кода.
+    Пример выполнения задания по анализу безопасности.
     
-    Создает агента для анализа безопасности и выполняет
-    проверку фрагмента кода на наличие уязвимостей.
+    Возвращает результат выполнения задания по
+    анализу безопасности кода на наличие уязвимостей.
     """
     
-    # Создать агента для анализа кода
+    # Создание агента для выполнения задания
     agent = await AgentFactory().create_agent(
         agent_type="composable",
         domain=DomainType.CODE_ANALYSIS
     )
     
-    # Определить код для анализа
+    # Подготовка кода для анализа
     vulnerable_code = """
 def login(username, password):
     query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
     return execute_query(query)
 """
     
-    # Выполнить анализ безопасности
+    # Выполнение задания по анализу
     result = await agent.execute_task(
-        task_description="Проанализируй этот код на наличие уязвимостей безопасности",
+        task_description="Проанализируй этот код на наличие уязвимостей безопасности в веб-приложении",
         context={
             "code": vulnerable_code,
             "language": "python",
@@ -608,13 +336,13 @@ def login(username, password):
         }
     )
     
-    print("Результаты анализа безопасности:")
+    print("Результаты выполнения задания по анализу безопасности:")
     if result.get("success"):
         findings = result.get("findings", [])
         for finding in findings:
             print(f"- {finding['type']}: {finding['description']}")
     else:
-        print(f"Ошибка при анализе: {result.get('error')}")
+        print(f"Ошибка выполнения задания: {result.get('error')}")
     
     return result
 
@@ -623,7 +351,7 @@ if __name__ == "__main__":
     asyncio.run(security_analysis_example())
 ```
 
-## Практики мониторинга и логирования
+## Практики логирования и мониторинга
 
 ### 1. Структурированное логирование
 
@@ -635,14 +363,14 @@ import json
 from datetime import datetime
 
 class StructuredLogger:
-    """Структурированный логгер"""
+    """Структурированный логгер для приложения"""
     
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.INFO)
     
     def log_event(self, event_type: str, data: dict, level: str = "INFO"):
-        """Залогировать событие в структурированном формате"""
+        """Записывает событие в структурированном формате с метаданными"""
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "event_type": event_type,
@@ -661,20 +389,20 @@ class StructuredLogger:
         else:
             self.logger.info(log_message)
 
-# Использование в компонентах
+# Пример использования в сервисе
 class AgentService:
     def __init__(self):
         self.logger = StructuredLogger(self.__class__.__name__)
     
     async def execute_task(self, task_description: str, context: dict):
-        """Выполнить задачу с логированием"""
+        """Выполняет задачу с логированием этапов выполнения"""
         self.logger.log_event("task_started", {
-            "task_description": task_description[:50],  # Первые 50 символов
+            "task_description": task_description[:50],  # Ограничиваем 50 символами
             "context_keys": list(context.keys()) if context else []
         })
         
         try:
-            # Выполнить задачу
+            # Выполнение задачи
             result = await self._execute_task_logic(task_description, context)
             
             self.logger.log_event("task_completed", {
@@ -694,13 +422,13 @@ class AgentService:
             raise
 ```
 
-### 2. Метрики и мониторинг
+### 2. Сбор метрик
 
-Собирайте метрики для мониторинга:
+Собирайте метрики производительности:
 
 ```python
 class MetricsCollector:
-    """Сборщик метрик"""
+    """Сборщик метрик выполнения задач"""
     
     def __init__(self):
         self.metrics = {
@@ -713,7 +441,7 @@ class MetricsCollector:
         self.execution_times = []
     
     def record_task_completion(self, execution_time: float):
-        """Записать завершение задачи"""
+        """Фиксирует завершение задачи с учетом времени выполнения"""
         self.metrics["tasks_completed"] += 1
         self.execution_times.append(execution_time)
         self.metrics["total_execution_time"] += execution_time
@@ -724,7 +452,7 @@ class MetricsCollector:
             )
     
     def record_task_failure(self):
-        """Записать провал задачи"""
+        """Фиксирует ошибку выполнения задачи"""
         self.metrics["tasks_failed"] += 1
         self.metrics["error_rate"] = (
             self.metrics["tasks_failed"] / 
@@ -732,7 +460,7 @@ class MetricsCollector:
         )
     
     def get_current_metrics(self) -> Dict[str, Any]:
-        """Получить текущие метрики"""
+        """Возвращает текущие метрики выполнения задач"""
         current_metrics = self.metrics.copy()
         current_metrics["execution_times"] = self.execution_times.copy()
         current_metrics["current_error_rate"] = self.metrics["error_rate"]
@@ -744,7 +472,7 @@ class MetricsCollector:
 
 ### 1. Контейнеризация
 
-Используйте Docker для развертывания:
+Используйте Docker для контейнеризации:
 
 ```dockerfile
 # Dockerfile
@@ -752,24 +480,24 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Установить зависимости
+# Установка зависимостей
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копировать код
+# Копирование кода
 COPY . .
 
-# Создать пользователя для безопасности
+# Создание пользователя для запуска приложения
 RUN useradd --create-home --shell /bin/bash app
 USER app
 
-# Точка входа
+# Запуск приложения
 CMD ["python", "-m", "application.main"]
 ```
 
-### 2. Конфигурация для разных окружений
+### 2. Конфигурация для разных сред
 
-Создавайте разные конфигурации для разных окружений:
+Используйте разные конфигурации для разных сред:
 
 ```yaml
 # config/production.yaml
@@ -817,4 +545,4 @@ system:
     cpu: 50.0
 ```
 
-Эти лучшие практики помогут вам создавать надежные, безопасные и эффективные системы на основе Koru AI Agent Framework.
+Эти практики помогут вам эффективно использовать Koru AI Agent Framework и создавать надежные, безопасные и масштабируемые решения.

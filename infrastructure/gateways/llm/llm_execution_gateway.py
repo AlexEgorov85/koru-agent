@@ -5,11 +5,10 @@ from domain.abstractions.system.base_session_context import BaseSessionContext
 from domain.models.capability import Capability
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
-from application.services.prompt_renderer import PromptRenderer
 from domain.models.prompt.prompt_version import PromptUsageMetrics
 from datetime import datetime
 
-from domain.value_objects.provider_type import LLMProviderType
+from domain.models.provider_type import LLMProviderType
 
 
 class ExecutionGateway:
@@ -71,7 +70,7 @@ class ExecutionGateway:
             ExecutionResult с результатом выполнения
         """
         # Проверяем, является ли parameters объектом LLMResponse (или содержит его)
-        from domain.value_objects.provider_type import LLMResponse
+        from domain.models.provider_type import LLMResponse
         llm_response = None
         actual_params = parameters
 
