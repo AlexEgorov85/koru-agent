@@ -7,14 +7,14 @@ SystemOrchestrator - единая точка инициализации сист
 - Предоставляет единую точку доступа к общей инфраструктуре системы
 """
 from typing import Optional
+from application.agent.agent_factory import AgentFactory
 from application.context.session_context import SessionContext
 from application.thinking_patterns.base.react_pattern import CodeAnalysisThinkingPattern, EvaluationThinkingPattern, FallbackThinkingPattern, PlanExecutionThinkingPattern, PlanningThinkingPattern
 from application.thinking_patterns.composable.composable_pattern import ReActPattern
 from application.agent.runtime import AgentRuntime
 from domain.models.system.config import SystemConfig
 from domain.abstractions.event_types import IEventPublisher
-# NOTE: We no longer use IEventPublisherFactory as we use EventSystem directly
-# from domain.abstractions.event_factory import IEventPublisherFactory
+
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
 from infrastructure.contexts.system.system_context import SystemContext
@@ -200,39 +200,3 @@ class SystemOrchestrator:
         - IEventPublisher: Интерфейс издателя событий
         """
         return self.event_system
-
-
-class AgentFactory:
-    """
-    Фабрика агентов - создает экземпляры агентов с инъекцией зависимостей.
-
-    ОТВЕТСТВЕННОСТЬ:
-    - Создание агентов с нужными зависимостями
-    - Инъекция системного контекста, шины событий и других компонентов
-    """
-
-    def __init__(self, system_context: SystemContext, event_publisher: IEventPublisher):
-        """
-        Инициализация фабрики агентов.
-
-        ПАРАМЕТРЫ:
-        - system_context: Системный контекст (реестр компонентов)
-        - event_publisher: Издатель событий (один экземпляр на систему)
-        """
-        self.system_context = system_context
-        self.event_publisher = event_publisher
-    
-    def create_agent(self, agent_type: str, **kwargs):
-        """
-        Создание агента с инъекцией зависимостей.
-        
-        ПАРАМЕТРЫ:
-        - agent_type: Тип создаваемого агента
-        - **kwargs: Дополнительные параметры
-        
-        ВОЗВРАЩАЕТ:
-        - Экземпляр агента с инъекцией зависимостей
-        """
-        # В реальной реализации здесь будет создание конкретного типа агента
-        # с инъекцией нужных зависимостей через конструктор или методы
-        raise NotImplementedError("Создание агентов будет реализовано в рамках другой задачи")
