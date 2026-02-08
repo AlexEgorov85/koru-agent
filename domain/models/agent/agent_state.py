@@ -18,15 +18,3 @@ class AgentState(BaseModel):
     history: List[str] = []
     current_plan_step: Optional[str] = None
 
-    def register_error(self):
-        self.error_count += 1
-
-    def register_progress(self, progressed: bool):
-        if progressed:
-            self.no_progress_steps = 0
-        else:
-            self.no_progress_steps += 1
-
-    def complete(self):
-        """Отмечает агента как завершившего выполнение."""
-        self.finished = True

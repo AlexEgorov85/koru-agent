@@ -1,25 +1,40 @@
 # Базовый класс для атомарных действий
 """
-AtomicAction(ABC) — базовый контракт
+AtomicAction — базовый класс, реализующий IAtomicAction интерфейс
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
+from typing import Dict, Any, Optional
+from domain.abstractions.atomic_action import IAtomicAction
+from domain.models.atomic_action.result import AtomicActionResult
 
 
-class AtomicAction(ABC):
+class AtomicAction(IAtomicAction, ABC):
     """
-    Абстрактный базовый класс для атомарных действий
+    Базовый класс для атомарных действий, реализующий IAtomicAction интерфейс
     """
     
-    @abstractmethod
-    def execute(self, context):
-        """
-        Выполнить атомарное действие
+    @property
+    def name(self) -> str:
+        """Название действия по умолчанию - имя класса"""
+        return self.__class__.__name__
+    
+    def requires_confirmation(self) -> bool:
+        """По умолчанию действия не требуют подтверждения"""
+        return False
+    
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        """По умолчанию параметры считаются валидными"""
+        return True
+    
+    async def rollback(self, token: Optional[str]) -> AtomicActionResult:
+        """По умолчанию откат не поддерживается"""
+        from domain.models.atomic_action.result import AtomicActionResult
+        from domain.models.atomic_action.types import AtomicActionType
         
-        Args:
-            context: Контекст выполнения действия
-            
-        Returns:
-            Результат выполнения действия
-        """
-        pass
+        return AtomicActionResult(
+            success=False,
+            action_type=AtomicActionType.THINK,  # Placeholder type
+            error_message="Rollback not implemented for this action",
+            can_rollback=False
+        )

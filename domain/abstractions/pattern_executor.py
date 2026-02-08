@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from domain.value_objects.provider_type import LLMResponse  # ← ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩИЙ!
+from domain.models.provider_type import LLMResponse  # ← ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩИЙ!
 
 
 class IPatternExecutor(ABC):

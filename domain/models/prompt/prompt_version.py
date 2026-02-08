@@ -3,8 +3,8 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
 from datetime import datetime
-from domain.value_objects.domain_type import DomainType
-from domain.value_objects.provider_type import LLMProviderType
+from domain.models.domain_type import DomainType
+from domain.models.provider_type import LLMProviderType
 import json
 import re
 

@@ -32,15 +32,15 @@ def _format_full_report(violations: List[Dict]) -> str:
     """Полный форматированный отчет"""
     if not violations:
         return "✅ Архитектурный аудит пройден: все принципы соблюдены!\n"
-    
+
     # Группировка по типам
     grouped: Dict[str, List[Dict]] = {}
     for v in violations:
         grouped.setdefault(v["type"], []).append(v)
-    
+
     report = "🚨 АРХИТЕКТУРНЫЙ АУДИТ: НАРУШЕНИЯ ОБНАРУЖЕНЫ\n\n"
     report += f"Всего нарушений: {len(violations)}\n\n"
-    
+
     type_descriptions = {
         "FORBIDDEN_IMPORT": "❌ Запрещенные импорты",
         "INFRASTRUCTURE_LEAKAGE": "🔥 Утечка инфраструктуры",
@@ -49,18 +49,18 @@ def _format_full_report(violations: List[Dict]) -> str:
         "CLASS_DUPLICATION": "🔄 Дублирование классов",
         "SYNTAX_ERROR": "⚠️ Синтаксические ошибки",
     }
-    
+
     for vtype, items in grouped.items():
         desc = type_descriptions.get(vtype, vtype)
         report += f"{desc} ({len(items)}):\n"
-        for item in items[:10]:  # Первые 10 нарушения каждого типа
+        for item in items[:10]:  # Первые 10 нарушений каждого типа
             line_info = f":{item['line']}" if 'line' in item else ""
-            msg = item['message'][:200] + "..." if len(item['message']) > 80 else item['message']
+            msg = item['message'][:200] + "..." if len(item['message']) > 200 else item['message']
             report += f"  • {item['file']}{line_info}: {msg}\n"
-        if len(items) > 3:
+        if len(items) > 10:
             report += f"  ... и еще {len(items) - 10} нарушений этого типа\n"
         report += "\n"
-    
+
     return report
 
 
@@ -98,7 +98,7 @@ class ArchitectureAuditor:
             "agent_state",
             "session_context",
         ]
-        
+
         # Классы/файлы, которые НЕ должны публиковать события
         self.no_event_publishers = [
             "thinking_pattern",
@@ -144,15 +144,15 @@ class ArchitectureAuditor:
             for py_file in layer_path.rglob("*.py"):
                 if self._is_test_file(py_file) or self._is_init_file(py_file):
                     continue
-                
+
                 content = self._read_file_safe(py_file)
                 if not content:
                     continue
-                
+
                 try:
                     tree = ast.parse(content, filename=str(py_file))
                     imports = self._extract_imports(tree)
-                    
+
                     for imp in imports:
                         # Проверка запрещенных импортов для слоя
                         if layer_name in self.forbidden_imports:
@@ -164,7 +164,7 @@ class ArchitectureAuditor:
                                         "message": f"Запрещенный импорт '{imp}' в слое '{layer_name}'",
                                         "recommendation": f"Используйте порт (абстракцию) вместо прямого импорта инфраструктуры",
                                     })
-                
+
                 except (SyntaxError, ValueError) as e:
                     self.violations.append({
                         "type": "SYNTAX_ERROR",
@@ -188,22 +188,22 @@ class ArchitectureAuditor:
             "skill_registry.",
             "event_publisher.publish(",
         ]
-        
+
         for layer_name in ["domain", "application"]:
             layer_path = self.layers.get(layer_name)
             if not layer_path:
                 continue
-            
+
             for py_file in layer_path.rglob("*.py"):
                 if self._is_test_file(py_file) or self._is_init_file(py_file):
                     continue
-                
+
                 content = self._read_file_safe(py_file)
                 if not content:
                     continue
-                
+
                 rel_path = str(py_file.relative_to(self.project_root))
-                
+
                 # Пропустить разрешенные места (адаптеры, оркестратор)
                 allowed_paths = [
                     "adapters", "repositories", "pattern_executor",
@@ -211,7 +211,7 @@ class ArchitectureAuditor:
                 ]
                 if any(allowed in rel_path for allowed in allowed_paths):
                     continue
-                
+
                 # Проверка на вызовы инфраструктуры (игнорируя комментарии)
                 for pattern in patterns:
                     if pattern in content:
@@ -235,34 +235,41 @@ class ArchitectureAuditor:
             self.project_root / "core" / "session_context" / "session_context.py",
             self.project_root / "core" / "system_context" / "system_context.py",
             self.project_root / "application" / "context" / "session_context.py",
+            self.project_root / "application" / "context" / "system_context.py",
         ]
-        
+
         context_files = [f for f in context_patterns if f.exists()]
-        
+
         for ctx_file in context_files:
             content = self._read_file_safe(ctx_file)
             if not content:
                 continue
-            
+
             rel_path = str(ctx_file.relative_to(self.project_root))
-            
+
             # Поиск полей с типами инфраструктуры в контексте
             infra_types = [
                 "SystemContext", "ToolRegistry", "SkillRegistry", "LLMProvider",
                 "PromptRepository", "EventPublisher", "ExecutionGateway",
-                "IEventPublisher", "IPromptRepository", "BaseLLMProvider"
+                "IEventPublisher", "IPromptRepository", "BaseLLMProvider",
+                "EventSystem", "FilePromptRepository", "InMemoryPromptRepository"
             ]
-            
+
             lines = content.splitlines()
             for i, line in enumerate(lines):
+                stripped_line = line.strip()
+                if stripped_line.startswith("from ") or stripped_line.startswith("import "):
+                    continue  # Пропускаем импорты
+                    
                 for infra_type in infra_types:
-                    if f": {infra_type}" in line or f"= {infra_type}" in line:
-                        # Исключаем аннотации возвращаемых значений методов и импорты
+                    if f": {infra_type}" in line or f"= {infra_type}(" in line:
+                        # Исключаем аннотации возвращаемых значений методов
                         if "def " in line and "->" in line:
                             continue
-                        if line.strip().startswith("from ") or line.strip().startswith("import "):
+                        # Исключаем поля, которые могут быть в классах-реестрах
+                        if "class " in line:
                             continue
-                        
+
                         self.violations.append({
                             "type": "CONTEXT_CONTAMINATION",
                             "file": rel_path,
@@ -278,24 +285,38 @@ class ArchitectureAuditor:
             for py_file in layer_path.rglob("*.py"):
                 if self._is_test_file(py_file) or self._is_init_file(py_file):
                     continue
-                
+
                 content = self._read_file_safe(py_file)
                 if not content:
                     continue
-                
+
                 rel_path = str(py_file.relative_to(self.project_root))
-                
+
                 # Разрешенные места публикации событий
                 allowed_publishers = [
+                    "application\\agent\\runtime\\runtime.py",
+                    "application/agent/runtime/runtime.py",
+                    "runtime\\runtime.py",
                     "runtime/runtime.py",
+                    "runtime\\agent_runtime.py",
                     "runtime/agent_runtime.py",
+                    "application\\agent\\runtime\\agent_runtime.py",
+                    "application/agent/runtime/agent_runtime.py",
                     "adapters/events",
                     "infrastructure/adapters/events",
                 ]
-                
-                if any(allowed in rel_path for allowed in allowed_publishers):
+
+                # Проверка на точное совпадение или вхождение разрешенного пути
+                is_allowed = any(
+                    allowed == rel_path or 
+                    allowed.replace('\\', '/') in rel_path.replace('\\', '/') or 
+                    allowed.replace('/', '\\') in rel_path.replace('/', '\\')
+                    for allowed in allowed_publishers
+                )
+
+                if is_allowed:
                     continue
-                
+
                 # Проверка публикации событий из запрещенных мест
                 if ".publish(" in content:
                     lines = content.splitlines()
@@ -318,16 +339,16 @@ class ArchitectureAuditor:
         """Поиск дублирующих классов по сигнатурам и функциональности"""
         # Сбор всех классов из проекта
         classes_by_name: Dict[str, List[Tuple[Path, ast.ClassDef]]] = {}
-        
+
         for layer_path in self.layers.values():
             for py_file in layer_path.rglob("*.py"):
                 if self._is_test_file(py_file) or self._is_init_file(py_file):
                     continue
-                
+
                 content = self._read_file_safe(py_file)
                 if not content:
                     continue
-                
+
                 try:
                     tree = ast.parse(content, filename=str(py_file))
                     for node in ast.walk(tree):
@@ -337,13 +358,13 @@ class ArchitectureAuditor:
                             classes_by_name[node.name].append((py_file, node))
                 except (SyntaxError, ValueError):
                     continue
-        
+
         # Анализ дубликатов
         for class_name, occurrences in classes_by_name.items():
             if len(occurrences) > 1:
                 # Группировка по сигнатурам методов
                 signature_groups: Dict[str, List[Tuple[Path, ast.ClassDef]]] = {}
-                
+
                 for file_path, class_node in occurrences:
                     # Сбор сигнатур публичных методов
                     methods = []
@@ -351,27 +372,31 @@ class ArchitectureAuditor:
                         if isinstance(item, ast.FunctionDef) and not item.name.startswith("_"):
                             args = [arg.arg for arg in item.args.args if arg.arg != "self"]
                             methods.append(f"{item.name}({', '.join(args)})")
-                    
+
                     signature = "|".join(sorted(methods))
                     if signature not in signature_groups:
                         signature_groups[signature] = []
                     signature_groups[signature].append((file_path, class_node))
-                
+
                 # Если есть группы с одинаковыми сигнатурами > 1 — дублирование
                 for sig, group in signature_groups.items():
                     if len(group) > 1 and sig and len(sig) > 10:  # игнорируем слишком короткие сигнатуры
                         # Проверка на осмысленное дублирование (не абстракции и не исключения)
-                        if not any(
-                            "ABC" in str(cls_node.bases) or 
-                            "Exception" in str(cls_node.bases) or
-                            "Base" in cls_node.name or
-                            "Mixin" in cls_node.name or
-                            cls_node.name.startswith("I")  # Интерфейсы
+                        is_abstract_class = any(
+                            any(base.id == 'ABC' for base in cls_node.bases if isinstance(base, ast.Name)) or
+                            'Exception' in cls_node.name or
+                            'Base' in cls_node.name or
+                            'Mixin' in cls_node.name or
+                            cls_node.name.startswith('I') and len(cls_node.name) > 1  # Интерфейсы
                             for _, cls_node in group
-                        ):
+                        )
+                        
+                        if not is_abstract_class:
                             files = [str(fp.relative_to(self.project_root)) for fp, _ in group]
                             # Исключаем тестовые файлы и файлы с явными суффиксами различия
-                            if not any("test" in f.lower() or "mock" in f.lower() or "base" in f.lower() for f in files):
+                            is_test_or_mock = any('test' in f.lower() or 'mock' in f.lower() or 'base' in f.lower() for f in files)
+                            
+                            if not is_test_or_mock:
                                 self.violations.append({
                                     "type": "CLASS_DUPLICATION",
                                     "file": ", ".join(files[:10]),  # Первые 10 файла

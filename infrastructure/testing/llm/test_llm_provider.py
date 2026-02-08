@@ -2,7 +2,7 @@
 Централизованный мок для LLM-провайдеров
 """
 from typing import Dict, Any, Optional, List
-from domain.value_objects.provider_type import LLMRequest, LLMResponse, LLMHealthStatus
+from domain.models.provider_type import LLMHealthStatus, LLMRequest, LLMResponse
 from infrastructure.gateways.llm_providers.base_provider import BaseLLMProvider
 
 

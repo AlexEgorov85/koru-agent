@@ -15,7 +15,6 @@ from domain.abstractions.thinking_pattern import IThinkingPattern
 from application.context.session.session_context import SessionContext
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
-from domain.abstractions.system.i_skill_registry import ISkillRegistry
 from infrastructure.adapters.event_publisher_adapter import EventPublisherAdapter
 
 
@@ -94,7 +93,6 @@ class AgentFactory:
             thinking_pattern=thinking_pattern,
             pattern_executor=pattern_executor,      # ← НОВЫЙ ПОРТ
             execution_gateway=execution_gateway,  # ← ПОРТ
-            skill_registry=skill_registry,        # ← ПОРТ
             event_publisher=event_publisher,      # ← ПОРТ
             max_steps=kwargs.get("max_steps", 10)
         )

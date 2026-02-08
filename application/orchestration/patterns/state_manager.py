@@ -3,12 +3,11 @@
 Обеспечивает отслеживание и управление состоянием выполнения композиционных паттернов.
 """
 
-from tkinter import EventType
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from domain.models.composable_pattern_state import ComposablePatternState, ComposablePatternStatus
 from domain.models.execution.execution_result import ExecutionResult
-from infrastructure.gateways.event_system import EventSystem
+from domain.abstractions.event_types import IEventPublisher, EventType
 
 
 class ComposablePatternStateManager:
@@ -30,8 +29,9 @@ class ComposablePatternStateManager:
     - Получение истории выполнения
     """
     
-    def __init__(self):
+    def __init__(self, event_publisher: IEventPublisher = None):
         self.pattern_states: Dict[str, ComposablePatternState] = {}
+        self.event_publisher = event_publisher
     
     def create_state(
         self, 
@@ -57,19 +57,6 @@ class ComposablePatternStateManager:
         state.start_execution(pattern_name, pattern_description)
         self.pattern_states[state_id] = state
 
-        # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Создано состояние для паттерна '{pattern_name}' с ID: {state_id}",
-                "pattern_name": pattern_name,
-                "state_id": state_id,
-                "context": "pattern_state_created"
-            }
-        ))
         return state
     
     def get_state(self, state_id: str) -> Optional[ComposablePatternState]:
@@ -97,17 +84,17 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено для обновления",
-                    "state_id": state_id,
-                    "context": "state_not_found_for_update"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено для обновления",
+                        "state_id": state_id,
+                        "context": "state_not_found_for_update"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
@@ -118,17 +105,17 @@ class ComposablePatternStateManager:
                 setattr(state, key, value)
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.DEBUG,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Обновлено состояние с ID '{state_id}'",
-                "state_id": state_id,
-                "context": "state_updated"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.DEBUG,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Обновлено состояние с ID '{state_id}'",
+                    "state_id": state_id,
+                    "context": "state_updated"
+                }
+            ))
         return True
     
     def start_action_execution(self, state_id: str, action_name: str) -> bool:
@@ -144,17 +131,17 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
@@ -163,19 +150,19 @@ class ComposablePatternStateManager:
         state.start_iteration()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Начало выполнения действия '{action_name}' в паттерне '{state.pattern_name}' (ID: {state_id})",
-                "action_name": action_name,
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "action_execution_started"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Начало выполнения действия '{action_name}' в паттерне '{state.pattern_name}' (ID: {state_id})",
+                    "action_name": action_name,
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "action_execution_started"
+                }
+            ))
         return True
     
     def finish_action_execution(self, state_id: str, action_result: Dict[str, Any]) -> bool:
@@ -191,17 +178,17 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
@@ -212,18 +199,18 @@ class ComposablePatternStateManager:
             state.register_error()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Завершено действие в паттерне '{state.pattern_name}', всего выполнено действий: {state.step_count}",
-                "pattern_name": state.pattern_name,
-                "action_count": state.step_count,
-                "context": "action_execution_finished"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Завершено действие в паттерне '{state.pattern_name}', всего выполнено действий: {state.step_count}",
+                    "pattern_name": state.pattern_name,
+                    "action_count": state.step_count,
+                    "context": "action_execution_finished"
+                }
+            ))
         return True
     
     def register_error(self, state_id: str) -> bool:
@@ -238,35 +225,35 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
         state.register_error()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.ERROR,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Зарегистрирована ошибка в паттерне '{state.pattern_name}' (ID: {state_id})",
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "error_registered"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.ERROR,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Зарегистрирована ошибка в паттерне '{state.pattern_name}' (ID: {state_id})",
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "error_registered"
+                }
+            ))
         return True
     
     def register_progress(self, state_id: str, progressed: bool) -> bool:
@@ -282,17 +269,17 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
@@ -300,19 +287,19 @@ class ComposablePatternStateManager:
 
         progress_status = "прогресс" if progressed else "без прогресса"
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Зарегистрирован {progress_status} в паттерне '{state.pattern_name}' (ID: {state_id})",
-                "progress_status": progress_status,
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "progress_registered"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Зарегистрирован {progress_status} в паттерне '{state.pattern_name}' (ID: {state_id})",
+                    "progress_status": progress_status,
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "progress_registered"
+                }
+            ))
         return True
     
     def complete(self, state_id: str) -> bool:
@@ -327,35 +314,35 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
         state.complete()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Паттерн '{state.pattern_name}' помечен как завершенный (ID: {state_id})",
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "pattern_completed"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Паттерн '{state.pattern_name}' помечен как завершенный (ID: {state_id})",
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "pattern_completed"
+                }
+            ))
         return True
     
     def pause(self, state_id: str) -> bool:
@@ -370,35 +357,35 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
         state.pause()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Паттерн '{state.pattern_name}' приостановлен (ID: {state_id})",
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "pattern_paused"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Паттерн '{state.pattern_name}' приостановлен (ID: {state_id})",
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "pattern_paused"
+                }
+            ))
         return True
     
     def resume(self, state_id: str) -> bool:
@@ -413,35 +400,35 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
         state.resume()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Паттерн '{state.pattern_name}' возобновлен (ID: {state_id})",
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "pattern_resumed"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Паттерн '{state.pattern_name}' возобновлен (ID: {state_id})",
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "pattern_resumed"
+                }
+            ))
         return True
     
     def waiting_for_input(self, state_id: str) -> bool:
@@ -456,35 +443,35 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return False
 
         state = self.pattern_states[state_id]
         state.waiting_for_input()
 
         # Используем шину событий вместо логгера
-        import asyncio
-        event_bus = EventSystem()
-        asyncio.create_task(event_bus.publish_simple(
-            event_type=EventType.INFO,
-            source="ComposablePatternStateManager",
-            data={
-                "message": f"Паттерн '{state.pattern_name}' ожидает ввода (ID: {state_id})",
-                "pattern_name": state.pattern_name,
-                "state_id": state_id,
-                "context": "pattern_waiting_for_input"
-            }
-        ))
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.publish(
+                event_type=EventType.INFO,
+                source="ComposablePatternStateManager",
+                data={
+                    "message": f"Паттерн '{state.pattern_name}' ожидает ввода (ID: {state_id})",
+                    "pattern_name": state.pattern_name,
+                    "state_id": state_id,
+                    "context": "pattern_waiting_for_input"
+                }
+            ))
         return True
     
     def get_pattern_history(self, state_id: str) -> List[Dict[str, Any]]:
@@ -499,17 +486,17 @@ class ComposablePatternStateManager:
         """
         if state_id not in self.pattern_states:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено",
-                    "state_id": state_id,
-                    "context": "state_not_found"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено",
+                        "state_id": state_id,
+                        "context": "state_not_found"
+                    }
+                ))
             return []
 
         state = self.pattern_states[state_id]
@@ -537,29 +524,29 @@ class ComposablePatternStateManager:
         if state_id in self.pattern_states:
             del self.pattern_states[state_id]
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.INFO,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Удалено состояние с ID '{state_id}'",
-                    "state_id": state_id,
-                    "context": "state_removed"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.INFO,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Удалено состояние с ID '{state_id}'",
+                        "state_id": state_id,
+                        "context": "state_removed"
+                    }
+                ))
             return True
         else:
             # Используем шину событий вместо логгера
-            import asyncio
-            event_bus = EventSystem()
-            asyncio.create_task(event_bus.publish_simple(
-                event_type=EventType.WARNING,
-                source="ComposablePatternStateManager",
-                data={
-                    "message": f"Состояние с ID '{state_id}' не найдено для удаления",
-                    "state_id": state_id,
-                    "context": "state_not_found_for_removal"
-                }
-            ))
+            if self.event_publisher:
+                import asyncio
+                asyncio.create_task(self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ComposablePatternStateManager",
+                    data={
+                        "message": f"Состояние с ID '{state_id}' не найдено для удаления",
+                        "state_id": state_id,
+                        "context": "state_not_found_for_removal"
+                    }
+                ))
             return False

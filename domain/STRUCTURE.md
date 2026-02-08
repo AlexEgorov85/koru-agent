@@ -5,21 +5,23 @@
 
 1. **`models/`** — ВСЁ что является данными:
    - Состояния агента (`agent/`)
-   - Структура проекта (`project/`)
-   - Модели кода (`code/`)
+   - Сессионные данные (`session/`)
+   - Системные модели (`system/`)
+   - Модели выполнения (`execution/`)
    - Версионность промтов (`prompt/`) ← Ядро системы
    - Оценка качества (`benchmark/`) ← Ядро системы
-   - Типы и перечисления (`domain_type.py`, `provider_type.py`, `resource.py`)
+   - Типы и перечисления (`domain_type.py`, `provider_type.py`, `resource.py`, `capability.py`)
 
 2. **`abstractions/`** — ТОЛЬКО интерфейсы/порты:
-   - Контракты для инверсии зависимостей (`IAgent`, `ITool`, `ISkill`...)
-   - Системные абстракции (`IConfigManager`, `IToolRegistry`...)
-   - Шлюзы и адаптеры (`IExecutionGateway`, `IPromptRepository`...)
+   - Контракты для инверсии зависимостей (`IEventPublisher`, `IThinkingPattern`, `IPatternExecutor`...)
+   - Системные абстракции (`IBaseSystemContext`, `ISkillRegistry`, `IToolRegistry`...)
+   - Шлюзы (`IExecutionGateway`...)
 
 ## Запрещено в домене
-- Логика оркестрации (перемещена в `domain/to_application/` для анализа)
+- Логика оркестрации (перемещена в `application/orchestration/`)
 - Конкретные реализации инструментов/навыков
-- Дублирующие абстракции (папка `agents/` удалена)
+- Дублирующие абстракции
+- Прямые зависимости от инфраструктуры
 
 ## Ядро системы
 Следующие компоненты являются частью ядра и остаются в домене:

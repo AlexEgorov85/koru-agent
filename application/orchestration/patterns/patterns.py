@@ -3,19 +3,14 @@
 ReActPattern, PlanAndExecutePattern, ReflectionPattern
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List, Tuple
-from domain.models.composable_pattern_state import ComposablePatternState
+from typing import Any, Dict
 from domain.models.execution.execution_result import ExecutionResult
 from domain.models.execution.execution_status import ExecutionStatus
-from domain.models.agent.agent_runtime_state import AgentRuntimeState, AgentRuntimeStatus
-from domain.models.session.context_item import ContextItem, ContextItemType
-from infrastructure.gateways.event_system import EventSystem, EventType
-from application.services.prompt_renderer import PromptRenderer
-from application.services.prompt_initializer import PromptInitializer
-from application.services.system_initialization_service import SystemInitializationService
-from domain.models.prompt.prompt_version import PromptVersion, PromptRole
-import asyncio
-import json
+from domain.models.agent.agent_runtime_state import AgentRuntimeState
+from domain.abstractions.event_types import IEventPublisher, EventType
+
+from domain.abstractions.prompt_renderer import IPromptRenderer
+from domain.abstractions.system_initialization_service import ISystemInitializationService
 
 
 class IComposablePattern(ABC):
@@ -47,13 +42,14 @@ class ReActPattern(IComposablePattern):
     - Наблюдением (Observation) - анализ результата действия
     """
     
-    def __init__(self, 
-                 prompt_renderer: PromptRenderer,
-                 system_initialization_service: SystemInitializationService):
+    def __init__(self,
+                 prompt_renderer: IPromptRenderer,
+                 system_initialization_service: ISystemInitializationService,
+                 event_publisher: IEventPublisher = None):
         self.prompt_renderer = prompt_renderer
         self.system_initialization_service = system_initialization_service
-        self.event_system = EventSystem()
-        
+        self.event_publisher = event_publisher  # Используем переданный publisher вместо создания своего
+
         # Инициализация промптов для ReAct
         self._initialize_prompts()
     
@@ -99,17 +95,6 @@ class ReActPattern(IComposablePattern):
         max_iterations = context.get("max_iterations", 10)
         runtime_state.max_iterations = max_iterations
         
-        # Публикуем событие начала выполнения
-        await self.event_system.publish_simple(
-            event_type=EventType.INFO,
-            source="ReActPattern",
-            data={
-                "message": f"Начало выполнения ReAct паттерна",
-                "session_id": runtime_state.session_id,
-                "task_id": runtime_state.task_id,
-                "max_iterations": max_iterations
-            }
-        )
         
         # Основной цикл ReAct
         iteration = 0
@@ -120,16 +105,17 @@ class ReActPattern(IComposablePattern):
             runtime_state.start_iteration()
             
             # Публикуем событие начала итерации
-            await self.event_system.publish_simple(
-                event_type=EventType.AGENT_THOUGHT,
-                source="ReActPattern",
-                data={
-                    "message": f"Начало итерации {iteration}",
-                    "session_id": runtime_state.session_id,
-                    "task_id": runtime_state.task_id,
-                    "iteration": iteration
-                }
-            )
+            if self.event_publisher:
+                await self.event_publisher.publish(
+                    event_type=EventType.AGENT_THOUGHT,
+                    source="ReActPattern",
+                    data={
+                        "message": f"Начало итерации {iteration}",
+                        "session_id": runtime_state.session_id,
+                        "task_id": runtime_state.task_id,
+                        "iteration": iteration
+                    }
+                )
             
             try:
                 # Фаза мышления (Thought)
@@ -139,18 +125,19 @@ class ReActPattern(IComposablePattern):
                 runtime_state.start_thinking(thought_result.get("thought", ""))
                 
                 # Публикуем событие мышления
-                await self.event_system.publish_simple(
-                    event_type=EventType.AGENT_THOUGHT,
-                    source="ReActPattern",
-                    data={
-                        "message": "Фаза мышления (Thought)",
-                        "session_id": runtime_state.session_id,
-                        "task_id": runtime_state.task_id,
-                        "iteration": iteration,
-                        "thought": thought_result.get("thought", ""),
-                        "reasoning": thought_result.get("reasoning", "")
-                    }
-                )
+                if self.event_publisher:
+                    await self.event_publisher.publish(
+                        event_type=EventType.AGENT_THOUGHT,
+                        source="ReActPattern",
+                        data={
+                            "message": "Фаза мышления (Thought)",
+                            "session_id": runtime_state.session_id,
+                            "task_id": runtime_state.task_id,
+                            "iteration": iteration,
+                            "thought": thought_result.get("thought", ""),
+                            "reasoning": thought_result.get("reasoning", "")
+                        }
+                    )
                 
                 # Фаза действия (Action)
                 action_result = await self._act(context, thought_result, runtime_state)
@@ -159,19 +146,20 @@ class ReActPattern(IComposablePattern):
                 runtime_state.start_acting(action_result.get("action", {}))
                 
                 # Публикуем событие действия
-                await self.event_system.publish_simple(
-                    event_type=EventType.AGENT_ACTION,
-                    source="ReActPattern",
-                    data={
-                        "message": "Фаза действия (Action)",
-                        "session_id": runtime_state.session_id,
-                        "task_id": runtime_state.task_id,
-                        "iteration": iteration,
-                        "action": action_result.get("action", {}),
-                        "tool_name": action_result.get("tool_name", ""),
-                        "tool_args": action_result.get("tool_args", {})
-                    }
-                )
+                if self.event_publisher:
+                    await self.event_publisher.publish(
+                        event_type=EventType.AGENT_ACTION,
+                        source="ReActPattern",
+                        data={
+                            "message": "Фаза действия (Action)",
+                            "session_id": runtime_state.session_id,
+                            "task_id": runtime_state.task_id,
+                            "iteration": iteration,
+                            "action": action_result.get("action", {}),
+                            "tool_name": action_result.get("tool_name", ""),
+                            "tool_args": action_result.get("tool_args", {})
+                        }
+                    )
                 
                 # Фаза наблюдения (Observation)
                 observation_result = await self._observe(context, action_result, runtime_state)
@@ -180,31 +168,33 @@ class ReActPattern(IComposablePattern):
                 runtime_state.start_observing(observation_result.get("observation", ""))
                 
                 # Публикуем событие наблюдения
-                await self.event_system.publish_simple(
-                    event_type=EventType.AGENT_OBSERVATION,
-                    source="ReActPattern",
-                    data={
-                        "message": "Фаза наблюдения (Observation)",
-                        "session_id": runtime_state.session_id,
-                        "task_id": runtime_state.task_id,
-                        "iteration": iteration,
-                        "observation": observation_result.get("observation", ""),
-                        "action_result": observation_result.get("action_result", {})
-                    }
-                )
+                if self.event_publisher:
+                    await self.event_publisher.publish(
+                        event_type=EventType.AGENT_OBSERVATION,
+                        source="ReActPattern",
+                        data={
+                            "message": "Фаза наблюдения (Observation)",
+                            "session_id": runtime_state.session_id,
+                            "task_id": runtime_state.task_id,
+                            "iteration": iteration,
+                            "observation": observation_result.get("observation", ""),
+                            "action_result": observation_result.get("action_result", {})
+                        }
+                    )
                 
                 # Проверяем, достигли ли мы цели
                 if await self._is_goal_reached(context, observation_result, runtime_state):
-                    await self.event_system.publish_simple(
-                        event_type=EventType.SUCCESS,
-                        source="ReActPattern",
-                        data={
-                            "message": "Цель достигнута",
-                            "session_id": runtime_state.session_id,
-                            "task_id": runtime_state.task_id,
-                            "iteration": iteration
-                        }
-                    )
+                    if self.event_publisher:
+                        await self.event_publisher.publish(
+                            event_type=EventType.SUCCESS,
+                            source="ReActPattern",
+                            data={
+                                "message": "Цель достигнута",
+                                "session_id": runtime_state.session_id,
+                                "task_id": runtime_state.task_id,
+                                "iteration": iteration
+                            }
+                        )
                     runtime_state.complete()
                     final_result = observation_result.get("action_result")
                     break
@@ -217,17 +207,18 @@ class ReActPattern(IComposablePattern):
                 runtime_state.register_error()
                 error_msg = f"Ошибка в итерации {iteration}: {str(e)}"
                 
-                await self.event_system.publish_simple(
-                    event_type=EventType.ERROR,
-                    source="ReActPattern",
-                    data={
-                        "message": error_msg,
-                        "session_id": runtime_state.session_id,
-                        "task_id": runtime_state.task_id,
-                        "iteration": iteration,
-                        "error": str(e)
-                    }
-                )
+                if self.event_publisher:
+                    await self.event_publisher.publish(
+                        event_type=EventType.ERROR,
+                        source="ReActPattern",
+                        data={
+                            "message": error_msg,
+                            "session_id": runtime_state.session_id,
+                            "task_id": runtime_state.task_id,
+                            "iteration": iteration,
+                            "error": str(e)
+                        }
+                    )
                 
                 # Проверяем, достигнуто ли максимальное количество ошибок
                 if runtime_state.error_count >= 3:  # Максимум 3 ошибки
@@ -236,16 +227,17 @@ class ReActPattern(IComposablePattern):
         
         # Проверяем, не было ли превышено максимальное количество итераций
         if runtime_state.is_max_iterations_reached() and not runtime_state.finished:
-            await self.event_system.publish_simple(
-                event_type=EventType.WARNING,
-                source="ReActPattern",
-                data={
-                    "message": "Превышено максимальное количество итераций",
-                    "session_id": runtime_state.session_id,
-                    "task_id": runtime_state.task_id,
-                    "max_iterations": max_iterations
-                }
-            )
+            if self.event_publisher:
+                await self.event_publisher.publish(
+                    event_type=EventType.WARNING,
+                    source="ReActPattern",
+                    data={
+                        "message": "Превышено максимальное количество итераций",
+                        "session_id": runtime_state.session_id,
+                        "task_id": runtime_state.task_id,
+                        "max_iterations": max_iterations
+                    }
+                )
             runtime_state.fail({"error": "Max iterations reached"})
         
         # Определяем статус выполнения
@@ -393,39 +385,3 @@ class ReActPattern(IComposablePattern):
         return False
 
 
-class PlanAndExecutePattern(IComposablePattern):
-    """
-    Паттерн PlanAndExecute - сначала планирование, затем выполнение
-    """
-    
-    async def execute(self, context: Dict[str, Any]) -> ExecutionResult:
-        """
-        Выполнить паттерн PlanAndExecute
-        """
-        # Заглушка для реализации
-        return ExecutionResult(
-            status=ExecutionStatus.SUCCESS,
-            result="PlanAndExecute completed",
-            observation_item_id="obs_plan_execute_default",
-            summary="PlanAndExecute паттерн заглушка",
-            execution_time=0.0
-        )
-
-
-class ReflectionPattern(IComposablePattern):
-    """
-    Паттерн Reflection - выполнение с рефлексией и самоанализом
-    """
-    
-    async def execute(self, context: Dict[str, Any]) -> ExecutionResult:
-        """
-        Выполнить паттерн Reflection
-        """
-        # Заглушка для реализации
-        return ExecutionResult(
-            status=ExecutionStatus.SUCCESS,
-            result="Reflection completed",
-            observation_item_id="obs_reflection_default",
-            summary="Reflection паттерн заглушка",
-            execution_time=0.0
-        )

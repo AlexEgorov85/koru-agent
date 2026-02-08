@@ -2,11 +2,19 @@
 Атомарные действия для ReAct паттерна.
 """
 import asyncio
+import pathlib
 from typing import Dict, Any, Optional
+from pathlib import Path
+from application.context.session_context import SessionContext
 from application.orchestration.atomic_actions.base import AtomicAction
-from application.orchestration.atomic_actions.models import ThinkActionResult, ActActionResult, ObserveActionResult
-from application.context.session.session_context import SessionContext
+from domain.models.atomic_action.result import FileOperationActionResult, ThinkActionResult, ActActionResult, ObserveActionResult
+from domain.models.atomic_action.types import AtomicActionType
 from domain.abstractions.event_types import EventType
+
+
+class SecurityError(Exception):
+    """Исключение для безопасности атомарных действий"""
+    pass
 
 
 class ThinkAction(AtomicAction):
@@ -15,21 +23,37 @@ class ThinkAction(AtomicAction):
     """
 
     def __init__(self, event_publisher: Optional[Any] = None):
-        super().__init__(event_publisher=event_publisher)
+        self.event_publisher = event_publisher
 
-    def execute(self, context: SessionContext) -> ThinkActionResult:
+    @property
+    def name(self) -> str:
+        return "THINK"
+
+    @property
+    def action_type(self) -> AtomicActionType:
+        return AtomicActionType.THINK
+
+    def requires_confirmation(self) -> bool:
+        return False
+
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        # Проверяем наличие необходимых параметров
+        required_params = ['goal']
+        return all(param in parameters for param in required_params)
+
+    async def execute(self, parameters: Dict[str, Any]) -> ThinkActionResult:
         """
         Выполнить действие мышления
 
         Args:
-            context: Контекст выполнения (SessionContext), содержащий цель, текущую информацию и т.д.
+            parameters: Параметры для выполнения действия
 
         Returns:
             Результат рассуждения (ThinkActionResult)
         """
-        goal = getattr(context, 'goal', "") or ""
-        history = getattr(context, 'history', []) or []
-        available_capabilities = getattr(context, 'available_capabilities', []) or []
+        goal = parameters.get('goal', "")
+        history = parameters.get('history', [])
+        available_capabilities = parameters.get('available_capabilities', [])
 
         # Простая логика рассуждения без прямого доступа к LLM
         thought = f"Анализирую текущую ситуацию для достижения цели: {goal[:50]}..."
@@ -38,7 +62,7 @@ class ThinkAction(AtomicAction):
         # Публикуем событие о начале рассуждения
         if self.event_publisher:
             asyncio.create_task(
-                self._publish_event(
+                self.event_publisher.publish(
                     EventType.INFO,
                     "ThinkAction",
                     {
@@ -52,7 +76,7 @@ class ThinkAction(AtomicAction):
 
         return ThinkActionResult(
             success=True,
-            action_type="THINK",
+            action_type=AtomicActionType.THINK,
             thought=thought,
             next_action_type=next_action_type,
             context_update={
@@ -65,6 +89,16 @@ class ThinkAction(AtomicAction):
             }
         )
 
+    async def rollback(self, token: Optional[str]) -> ThinkActionResult:
+        """Откат действия мышления"""
+        return ThinkActionResult(
+            success=True,
+            action_type=AtomicActionType.THINK,
+            thought="Откат рассуждения выполнен",
+            next_action_type="THINK",
+            can_rollback=False  # Рассуждение не требует отката
+        )
+
 
 class ActAction(AtomicAction):
     """
@@ -72,28 +106,44 @@ class ActAction(AtomicAction):
     """
 
     def __init__(self, event_publisher: Optional[Any] = None):
-        super().__init__(event_publisher=event_publisher)
+        self.event_publisher = event_publisher
 
-    def execute(self, context: SessionContext) -> ActActionResult:
+    @property
+    def name(self) -> str:
+        return "ACT"
+
+    @property
+    def action_type(self) -> AtomicActionType:
+        return AtomicActionType.ACT
+
+    def requires_confirmation(self) -> bool:
+        return True  # Выполнение действий может требовать подтверждения
+
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        # Проверяем наличие необходимых параметров
+        required_params = ['selected_action']
+        return all(param in parameters for param in required_params)
+
+    async def execute(self, parameters: Dict[str, Any]) -> ActActionResult:
         """
         Выполнить действие
 
         Args:
-            context: Контекст выполнения (SessionContext), содержащий выбранное действие и параметры
+            parameters: Параметры для выполнения действия
 
         Returns:
             Результат выполнения действия (ActActionResult)
         """
-        selected_action = getattr(context, 'selected_action', "") or ""
-        action_params = getattr(context, 'action_parameters', {}) or {}
-        available_capabilities = getattr(context, 'available_capabilities', []) or []
+        selected_action = parameters.get('selected_action', "")
+        action_params = parameters.get('action_parameters', {})
+        available_capabilities = parameters.get('available_capabilities', [])
 
         # Проверяем, доступна ли выбранная возможность
         if selected_action and selected_action not in available_capabilities:
             # Публикуем событие об ошибке
             if self.event_publisher:
                 asyncio.create_task(
-                    self._publish_event(
+                    self.event_publisher.publish(
                         EventType.ERROR,
                         "ActAction",
                         {
@@ -107,7 +157,7 @@ class ActAction(AtomicAction):
 
             return ActActionResult(
                 success=False,
-                action_type="ACT",
+                action_type=AtomicActionType.ACT,
                 error_message=f"Выбранное действие '{selected_action}' недоступно",
                 result_data={
                     "available_capabilities": available_capabilities
@@ -120,7 +170,7 @@ class ActAction(AtomicAction):
         # Публикуем событие о выполнении действия
         if self.event_publisher:
             asyncio.create_task(
-                self._publish_event(
+                self.event_publisher.publish(
                     EventType.INFO,
                     "ActAction",
                     {
@@ -134,7 +184,7 @@ class ActAction(AtomicAction):
 
         return ActActionResult(
             success=True,
-            action_type="ACT",
+            action_type=AtomicActionType.ACT,
             executed_action=selected_action,
             action_result=result,
             parameters=action_params,
@@ -147,7 +197,19 @@ class ActAction(AtomicAction):
                 "last_action": selected_action,
                 "action_result": result,
                 "step_type": "action"
-            } if selected_action else {}
+            } if selected_action else {},
+            can_rollback=True,
+            rollback_token=f"act_{selected_action}_{hash(str(action_params))}"
+        )
+
+    async def rollback(self, token: Optional[str]) -> ActActionResult:
+        """Откат действия выполнения"""
+        return ActActionResult(
+            success=True,
+            action_type=AtomicActionType.ACT,
+            executed_action="ROLLBACK",
+            action_result=f"Откат действия выполнен, токен: {token}",
+            can_rollback=False
         )
 
 
@@ -157,20 +219,36 @@ class ObserveAction(AtomicAction):
     """
 
     def __init__(self, event_publisher: Optional[Any] = None):
-        super().__init__(event_publisher=event_publisher)
+        self.event_publisher = event_publisher
 
-    def execute(self, context: SessionContext) -> ObserveActionResult:
+    @property
+    def name(self) -> str:
+        return "OBSERVE"
+
+    @property
+    def action_type(self) -> AtomicActionType:
+        return AtomicActionType.OBSERVE
+
+    def requires_confirmation(self) -> bool:
+        return False
+
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        # Проверяем наличие необходимых параметров
+        required_params = ['action_result', 'last_action']
+        return all(param in parameters for param in required_params)
+
+    async def execute(self, parameters: Dict[str, Any]) -> ObserveActionResult:
         """
         Выполнить действие наблюдения
 
         Args:
-            context: Контекст выполнения (SessionContext), содержащий результаты предыдущих действий
+            parameters: Параметры для выполнения действия
 
         Returns:
             Результат наблюдения (ObserveActionResult)
         """
-        action_result = getattr(context, 'action_result', "") or ""
-        last_action = getattr(context, 'last_action', "") or ""
+        action_result = parameters.get('action_result', "")
+        last_action = parameters.get('last_action', "")
 
         # В реальной реализации здесь будет анализ результата действия
         observation = f"Наблюдение за результатом действия '{last_action}': {action_result}"
@@ -178,7 +256,7 @@ class ObserveAction(AtomicAction):
         # Публикуем событие о наблюдении
         if self.event_publisher:
             asyncio.create_task(
-                self._publish_event(
+                self.event_publisher.publish(
                     EventType.INFO,
                     "ObserveAction",
                     {
@@ -192,7 +270,7 @@ class ObserveAction(AtomicAction):
 
         return ObserveActionResult(
             success=True,
-            action_type="OBSERVE",
+            action_type=AtomicActionType.OBSERVE,
             observation=observation,
             processed_result=action_result,
             result_data={
@@ -205,143 +283,14 @@ class ObserveAction(AtomicAction):
             }
         )
 
+    async def rollback(self, token: Optional[str]) -> ObserveActionResult:
+        """Откат действия наблюдения"""
+        return ObserveActionResult(
+            success=True,
+            action_type=AtomicActionType.OBSERVE,
+            observation="Откат наблюдения выполнен",
+            processed_result="",
+            can_rollback=False  # Наблюдение не требует отката
+        )
 
-class FileOperationAction(AtomicAction):
-    """
-    Действие операции с файлами - чтение, запись, удаление, список файлов
-    """
 
-    def __init__(self, event_publisher: Optional[Any] = None):
-        super().__init__(event_publisher=event_publisher)
-
-    def execute(self, context: SessionContext) -> FileOperationActionResult:
-        """
-        Выполнить файловую операцию
-
-        Args:
-            context: Контекст выполнения (SessionContext), содержащий тип операции и параметры
-
-        Returns:
-            Результат файловой операции
-        """
-        operation_type = getattr(context, 'file_operation_type', "") or ""
-        file_path = getattr(context, 'file_path', "") or ""
-        file_content = getattr(context, 'file_content', "") or ""
-        file_mode = getattr(context, 'file_mode', "r") or "r"
-
-        # Проверяем тип операции
-        if operation_type not in ["read", "write", "delete", "list", "exists"]:
-            # Публикуем событие об ошибке
-            if self.event_publisher:
-                asyncio.create_task(
-                    self._publish_event(
-                        EventType.ERROR,
-                        "FileOperationAction",
-                        {
-                            "action": "FILE_OPERATION",
-                            "operation_type": operation_type,
-                            "error": f"Неподдерживаемый тип файловой операции: {operation_type}",
-                            "file_path": file_path
-                        }
-                    )
-                )
-
-            return FileOperationActionResult(
-                success=False,
-                action_type="FILE_OPERATION",
-                error_message=f"Неподдерживаемый тип файловой операции: {operation_type}",
-                operation_type=operation_type,
-                file_path=file_path,
-                result_data={
-                    "supported_operations": ["read", "write", "delete", "list", "exists"]
-                }
-            )
-
-        # Выполняем операцию в зависимости от типа
-        result = None
-        success = False
-
-        try:
-            if operation_type == "read":
-                # Логика чтения файла
-                result = f"Содержимое файла {file_path} прочитано"
-                success = True
-            elif operation_type == "write":
-                # Логика записи файла
-                result = f"Файл {file_path} записан с содержимым длиной {len(file_content)} символов"
-                success = True
-            elif operation_type == "delete":
-                # Логика удаления файла
-                result = f"Файл {file_path} удален"
-                success = True
-            elif operation_type == "list":
-                # Логика получения списка файлов
-                result = f"Список файлов в директории {file_path} получен"
-                success = True
-            elif operation_type == "exists":
-                # Логика проверки существования файла
-                result = f"Файл {file_path} существует: True"
-                success = True
-
-            # Публикуем событие о выполнении файловой операции
-            if self.event_publisher:
-                asyncio.create_task(
-                    self._publish_event(
-                        EventType.INFO,
-                        "FileOperationAction",
-                        {
-                            "action": "FILE_OPERATION",
-                            "operation_type": operation_type,
-                            "file_path": file_path,
-                            "result": result,
-                            "success": success
-                        }
-                    )
-                )
-
-            return FileOperationActionResult(
-                success=success,
-                action_type="FILE_OPERATION",
-                operation_type=operation_type,
-                file_path=file_path,
-                result=result,
-                result_data={
-                    "operation_type": operation_type,
-                    "file_path": file_path,
-                    "result": result
-                },
-                context_update={
-                    "last_file_operation": operation_type,
-                    "last_file_path": file_path,
-                    "step_type": "file_operation"
-                }
-            )
-
-        except Exception as e:
-            # Публикуем событие об ошибке
-            if self.event_publisher:
-                asyncio.create_task(
-                    self._publish_event(
-                        EventType.ERROR,
-                        "FileOperationAction",
-                        {
-                            "action": "FILE_OPERATION",
-                            "operation_type": operation_type,
-                            "file_path": file_path,
-                            "error": str(e)
-                        }
-                    )
-                )
-
-            return FileOperationActionResult(
-                success=False,
-                action_type="FILE_OPERATION",
-                operation_type=operation_type,
-                file_path=file_path,
-                error_message=str(e),
-                result_data={
-                    "operation_type": operation_type,
-                    "file_path": file_path,
-                    "error": str(e)
-                }
-            )

@@ -3,9 +3,8 @@
 """
 import pytest
 from unittest.mock import Mock, AsyncMock
-from application.agent.runtime.runtime import AgentRuntime
-from application.agent.pattern_recovery_manager import PatternRecoveryManager
-from application.agent.thinking_patterns.react_pattern import ReActThinkingPattern
+from application.coordination.pattern_recovery_manager import PatternRecoveryManager
+from application.to_infrastructure.runtime.runtime import AgentRuntime
 from domain.abstractions.event_types import IEventPublisher
 from domain.abstractions.gateways.i_execution_gateway import IExecutionGateway
 from domain.abstractions.system.i_skill_registry import ISkillRegistry
@@ -64,7 +63,19 @@ class TestAgentRecovery:
     @pytest.fixture
     def basic_thinking_pattern(self):
         """Создает базовый паттерн мышления"""
-        pattern = ReActThinkingPattern()
+        # Используем существующий ReActPattern из оркестрации
+        from application.orchestration.patterns.patterns import ReActPattern
+        from domain.abstractions.prompt_renderer import IPromptRenderer
+        from domain.abstractions.system_initialization_service import ISystemInitializationService
+        
+        # Создаем моки для зависимостей
+        mock_prompt_renderer = Mock(spec=IPromptRenderer)
+        mock_system_init_service = Mock(spec=ISystemInitializationService)
+        
+        pattern = ReActPattern(
+            prompt_renderer=mock_prompt_renderer,
+            system_initialization_service=mock_system_init_service
+        )
         # Мокаем метод execute, чтобы контролировать поведение
         pattern.execute = AsyncMock(return_value={'action': 'CONTINUE', 'thought': 'Continuing'})
         pattern.adapt_to_task = AsyncMock(return_value={'domain': 'test', 'confidence': 0.8, 'parameters': {}})

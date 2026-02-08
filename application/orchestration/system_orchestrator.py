@@ -9,7 +9,8 @@ SystemOrchestrator - единая точка инициализации сист
 from typing import Optional
 from domain.models.system.config import SystemConfig
 from application.context.system.system_context import SystemContext
-from infrastructure.gateways.event_system import EventSystem, get_event_system
+from domain.abstractions.event_types import IEventPublisher
+from domain.abstractions.event_factory import IEventPublisherFactory
 from application.gateways.execution.execution_gateway import ExecutionGateway
 from application.context.session.session_context import SessionContext
 from domain.abstractions.prompt_repository import IPromptRepository, ISnapshotManager
@@ -26,25 +27,40 @@ class SystemOrchestrator:
     - Управление шлюзами выполнения (один на сессию)
     """
     
-    def __init__(self, config: Optional[SystemConfig] = None, prompt_repository: Optional[IPromptRepository] = None, snapshot_manager: Optional[ISnapshotManager] = None):
+    def __init__(self,
+                 config: Optional[SystemConfig] = None,
+                 event_publisher: Optional[IEventPublisher] = None,
+                 event_publisher_factory: Optional[IEventPublisherFactory] = None,
+                 prompt_repository: Optional[IPromptRepository] = None,
+                 snapshot_manager: Optional[ISnapshotManager] = None):
         """
         Инициализация оркестратора системы.
-        
+
         ПАРАМЕТРЫ:
         - config: Конфигурация приложения (опционально)
+        - event_publisher: Издатель событий (опционально, если не указан, будет использован глобальный)
         - prompt_repository: Репозиторий промтов (опционально)
         - snapshot_manager: Менеджер снапшотов (опционально)
         """
         # Создаем чистый системный контекст (только реестры)
         self.system_context = SystemContext(config)
-        
-        # Получаем глобальный экземпляр шины событий (один на всю систему)
-        self.event_system = get_event_system()
-        
+
+        # Используем переданного издателя событий или создаем глобальный через фабрику
+        if event_publisher:
+            self.event_system = event_publisher
+        elif event_publisher_factory:
+            self.event_system = event_publisher_factory.get_global_event_publisher()
+        else:
+            # В идеале, здесь должен быть способ получения глобального издателя событий
+            # через фабрику, но мы не можем импортировать инфраструктуру напрямую
+            # Поэтому оставим как есть, но отметим, что это место требует архитектурного решения
+            # В продакшене это должно быть решено через DI-контейнер
+            self.event_system = None  # будет установлен позже через DI
+
         # Компоненты управления промтами и снапшотами
         self.prompt_repository = prompt_repository
         self.snapshot_manager = snapshot_manager
-        
+
         # Агент фабрика будет создаваться при необходимости
         self._agent_factory = None
     
@@ -55,7 +71,7 @@ class SystemOrchestrator:
             from application.factories.agent_factory import AgentFactory
             self._agent_factory = AgentFactory(
                 system_context=self.system_context,
-                event_system=self.event_system
+                event_publisher=self.event_system
             )
         return self._agent_factory
     
@@ -177,12 +193,12 @@ class SystemOrchestrator:
         """
         return self.system_context
     
-    def get_event_system(self) -> EventSystem:
+    def get_event_publisher(self) -> IEventPublisher:
         """
-        Получение общей шины событий.
-        
+        Получение издателя событий.
+
         ВОЗВРАЩАЕТ:
-        - EventSystem: Один экземпляр на всю систему
+        - IEventPublisher: Интерфейс издателя событий
         """
         return self.event_system
 
@@ -190,22 +206,22 @@ class SystemOrchestrator:
 class AgentFactory:
     """
     Фабрика агентов - создает экземпляры агентов с инъекцией зависимостей.
-    
+
     ОТВЕТСТВЕННОСТЬ:
     - Создание агентов с нужными зависимостями
     - Инъекция системного контекста, шины событий и других компонентов
     """
-    
-    def __init__(self, system_context: SystemContext, event_system: EventSystem):
+
+    def __init__(self, system_context: SystemContext, event_publisher: IEventPublisher):
         """
         Инициализация фабрики агентов.
-        
+
         ПАРАМЕТРЫ:
         - system_context: Системный контекст (реестр компонентов)
-        - event_system: Шина событий (один экземпляр на систему)
+        - event_publisher: Издатель событий (один экземпляр на систему)
         """
         self.system_context = system_context
-        self.event_system = event_system
+        self.event_publisher = event_publisher
     
     def create_agent(self, agent_type: str, **kwargs):
         """

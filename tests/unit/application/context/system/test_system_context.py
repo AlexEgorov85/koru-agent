@@ -46,7 +46,7 @@ class MockSkill(BaseSkill):
         self._required_tools = required_tools or []
     
     def get_capabilities(self) -> list:
-        from domain.models.system.capability import Capability
+        from domain.models.capability import Capability
         return [
             Capability(
                 name=f"{self.name}_capability",
