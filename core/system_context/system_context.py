@@ -483,6 +483,7 @@ class SystemContext(BaseSystemContext):
     async def get_service(self, service_name: str) -> Optional[BaseService]:
         """
         Получение инфраструктурного сервиса по имени.
+        Сначала ищет в service_registry, затем в общем реестре ресурсов.
 
         ARGS:
         - service_name: имя сервиса
@@ -490,7 +491,17 @@ class SystemContext(BaseSystemContext):
         RETURNS:
         - Экземпляр сервиса или None если сервис не найден
         """
-        return self.service_registry.get(service_name)
+        # Сначала ищем в service_registry
+        service = self.service_registry.get(service_name)
+        if service:
+            return service
+        
+        # Затем ищем в общем реестре ресурсов
+        resource_info = self.registry.get_resource(service_name)
+        if resource_info and hasattr(resource_info, 'instance'):
+            return resource_info.instance
+        
+        return None
 
     async def _initialize_infrastructure_services(self) -> None:
         """
