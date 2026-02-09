@@ -305,19 +305,56 @@ class TableDescriptionService(BaseService):
                 "examples": []
             }
     
+    async def get_tables_structure(self, table_list: list, schema_name: str = "Lib") -> Dict[str, Any]:
+        """
+        Получение структуры нескольких таблиц.
+
+        ARGS:
+        - table_list: список имен таблиц
+        - schema_name: имя схемы (по умолчанию "Lib")
+
+        RETURNS:
+        - Словарь с метаданными для каждой таблицы
+        """
+        result = {}
+        session_context = BaseSessionContext()  # Создаем базовый контекст сессии
+        
+        for table_name in table_list:
+            try:
+                table_metadata = await self.get_table_metadata(
+                    schema_name=schema_name,
+                    table_name=table_name,
+                    context=session_context,
+                    step_number=1
+                )
+                result[f"{schema_name}.{table_name}"] = table_metadata
+            except Exception as e:
+                self.logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}")
+                # Добавляем базовую информацию даже при ошибке
+                result[f"{schema_name}.{table_name}"] = {
+                    "schema_name": schema_name,
+                    "table_name": table_name,
+                    "description": f"Ошибка получения метаданных: {str(e)}",
+                    "columns": [],
+                    "constraints": [],
+                    "examples": []
+                }
+        
+        return result
+
     def _is_valid_identifier(self, identifier: str) -> bool:
         """
         Проверка, является ли идентификатор (имя схемы/таблицы) безопасным.
-        
+
         ARGS:
         - identifier: имя для проверки
-        
+
         RETURNS:
         - True если имя безопасно, иначе False
         """
         if not identifier or len(identifier) > 128:
             return False
-        
+
         # Проверяем, что имя состоит только из букв, цифр и подчеркиваний
         import re
         return bool(re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', identifier))
