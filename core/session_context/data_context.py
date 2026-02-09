@@ -60,24 +60,29 @@ class DataContext:
         self.items[item.item_id] = item
         return item.item_id
     
-    def get_item(self, item_id: str) -> ContextItem:
+    def get_item(self, item_id: str, raise_on_missing: bool = True) -> ContextItem:
         """
         Получение элемента по идентификатору.
-        
+
         ПАРАМЕТРЫ:
         - item_id: Уникальный идентификатор элемента
-        
+        - raise_on_missing: Если True, выбрасывает KeyError при отсутствии элемента;
+                           если False, возвращает None
+
         ВОЗВРАЩАЕТ:
-        - ContextItem: Запрошенный элемент
-        
+        - ContextItem: Запрошенный элемент или None если элемент не найден и raise_on_missing=False
+
         ВЫБРАСЫВАЕТ:
-        - KeyError если элемент не найден
-        
+        - KeyError если элемент не найден и raise_on_missing=True
+
         ПРОИЗВОДИТЕЛЬНОСТЬ:
         - O(1) благодаря использованию словаря
         """
         if item_id not in self.items:
-            raise KeyError(f"Элемент контекста не найден: {item_id}")
+            if raise_on_missing:
+                raise KeyError(f"Элемент контекста не найден: {item_id}")
+            else:
+                return None
         return self.items[item_id]
     
     def item_exists(self, item_id: str) -> bool:

@@ -4,7 +4,6 @@
 
 from typing import Dict, List, Optional
 
-from core.skills.base_skill import BaseSkill
 from models.capability import Capability
 
 
@@ -43,27 +42,27 @@ class CapabilityRegistry:
     def __init__(self):
         self._caps: Dict[str, Capability] = {}
 
-    def register_from_skill(self, skill: BaseSkill):
+    def register_from_skill(self, skill):
         """
         Регистрация всех capability из навыка.
-        
+
         ПАРАМЕТРЫ:
         - skill: Экземпляр навыка, реализующий get_capabilities()
-        
+
         ПРИМЕР:
         registry = CapabilityRegistry()
         planning_skill = PlanningSkill()
         registry.register_from_skill(planning_skill)
-        
+
         # Теперь доступны capability:
         # "planning.create_plan"
         # "planning.update_plan"
-        
+
         МЕХАНИЗМ:
         - Вызывает skill.get_capabilities() для получения списка capability
         - Добавляет каждую capability в реестр с её именем в качестве ключа
         - Перезаписывает существующие capability с таким же именем
-        
+
         ВАЖНО:
         - Метод не проверяет дубликаты имен capability
         - Последний зарегистрированный навык "победит" при конфликте имен

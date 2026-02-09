@@ -11,40 +11,36 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 
 from core.system_context.resource_registry import ResourceRegistry, ResourceInfo, ResourceType
-from core.system_context.capability_registry import CapabilityRegistry
 
 logger = logging.getLogger(__name__)
 
 class LifecycleManager:
     """
     Упрощенный менеджер жизненного цикла ресурсов.
-    
+
     ПОРЯДОК ИНИЦИАЛИЗАЦИИ:
     1. LLM провайдеры
     2. Инструменты
     3. Навыки
     4. Прочие ресурсы
-    
+
     ФУНКЦИОНАЛЬНОСТЬ:
     - Инициализация всех ресурсов в правильном порядке
     - Корректное завершение работы
     - Проверка здоровья системы
     """
-    
+
     def __init__(
         self,
-        registry: ResourceRegistry,
-        capabilities: CapabilityRegistry
+        registry: ResourceRegistry
     ):
         """
         Инициализация менеджера жизненного цикла.
-        
+
         ПАРАМЕТРЫ:
-        - registry: Реестр ресурсов
-        - capabilities: Реестр capability
+        - registry: Единый реестр ресурсов и возможностей
         """
         self.registry = registry
-        self.capabilities = capabilities
     
     async def initialize(self) -> bool:
         """
@@ -230,15 +226,15 @@ class LifecycleManager:
     async def _initialize_resource(self, name: str, info: ResourceInfo) -> bool:
         """
         Инициализация отдельного ресурса.
-        
+
         ПАРАМЕТРЫ:
         - name: Имя ресурса
         - info: Информация о ресурсе
-        
+
         ВОЗВРАЩАЕТ:
         - True если ресурс успешно инициализирован
         - False если возникла ошибка инициализации
-        
+
         ЛОГИКА:
         1. Вызов метода initialize() если он существует
         2. Обработка ошибок и обновление состояния здоровья
@@ -246,7 +242,7 @@ class LifecycleManager:
         """
         try:
             instance = info.instance
-            
+
             # Вызов метода initialize() если он существует
             if hasattr(instance, "initialize"):
                 init_method = instance.initialize
@@ -254,16 +250,16 @@ class LifecycleManager:
                     await init_method()
                 else:
                     init_method()
-            
-            # Регистрация capability для навыков
-            if info.resource_type == ResourceType.SKILL and hasattr(instance, "get_capabilities"):
-                for capability in instance.get_capabilities():
-                    self.capabilities.register(capability)
-            
+
+            # Регистрация capability для навыков - УДАЛЕНО: теперь делается через register_from_skill
+            # УДАЛИТЬ: прямой вызов self.capabilities.register() больше не нужен
+            # capability уже зарегистрированы через вызов registry.register_from_skill() 
+            # при регистрации навыка
+
             info.health = "healthy"
             logger.info(f"Ресурс '{name}' успешно инициализирован")
             return True
-            
+
         except Exception as e:
             logger.error(f"Ошибка инициализации ресурса '{name}': {str(e)}")
             info.health = "unhealthy"

@@ -40,31 +40,37 @@ class EventType(Enum):
     SYSTEM_INITIALIZED = "system.initialized"
     SYSTEM_SHUTDOWN = "system.shutdown"
     SYSTEM_ERROR = "system.error"
-    
+
     # События агента
     AGENT_CREATED = "agent.created"
     AGENT_STARTED = "agent.started"
     AGENT_COMPLETED = "agent.completed"
     AGENT_FAILED = "agent.failed"
-    
+
     # События выполнения
     CAPABILITY_SELECTED = "capability.selected"
     SKILL_EXECUTED = "skill.executed"
     ACTION_PERFORMED = "action.performed"
     STEP_REGISTERED = "step.registered"
-    
+
     # События контекста
     CONTEXT_ITEM_ADDED = "context.item.added"
     PLAN_CREATED = "plan.created"
     PLAN_UPDATED = "plan.updated"
-    
+
     # События провайдеров
     PROVIDER_REGISTERED = "provider.registered"
     PROVIDER_UNREGISTERED = "provider.unregistered"
     LLM_CALL_STARTED = "llm.call.started"
     LLM_CALL_COMPLETED = "llm.call.completed"
     LLM_CALL_FAILED = "llm.call.failed"
-    
+
+    # События сервисов
+    SERVICE_REGISTERED = "service.registered"
+    SERVICE_INITIALIZED = "service.initialized"
+    SERVICE_SHUTDOWN = "service.shutdown"
+    SERVICE_ERROR = "service.error"
+
     # События ошибок
     RETRY_ATTEMPT = "retry.attempt"
     ERROR_OCCURRED = "error.occurred"

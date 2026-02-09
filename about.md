@@ -87,6 +87,8 @@ ExecutionGateway.execute_capability()
 | **SessionContext** | Управление состоянием сессии | Session State, Context Object |
 | **SystemContext** | Управление ресурсами | Registry, Dependency Injection |
 | **EventBus** | Централизованная обработка событий | Observer, Publisher-Subscriber |
+| **Infrastructure Services** | Инфраструктурные сервисы (БД, LLM и др.) | Service Layer Pattern |
+| **PromptService** | Централизованное управление промптами | Service Layer, Template Pattern |
 
 ### **Модели и типы (models/)**
 
@@ -168,6 +170,17 @@ event_bus.subscribe(EventType.AGENT_CREATED, handler_function)
 ```
 Замена традиционного логирования на систему событий
 
+### **8. PromptService (Шаблон централизованного управления промптами)**
+```
+Prompts хранятся в отдельной директории (prompts/)
+→ Индексация при старте системы
+→ Резолюция версий (по умолчанию из metadata.yaml)
+→ Рендеринг с безопасной подстановкой переменных
+→ Поддержка стратегий (react, plan_and_execute и др.)
+→ Валидация обязательных переменных перед рендерингом
+```
+Централизованное управление промптами с поддержкой версионирования и безопасного рендеринга
+
 ---
 
 ## 🔗 **Связи и зависимости**
@@ -206,13 +219,26 @@ project/
 │   ├── system_context.py   # Управление ресурсами
 │   ├── retry_policy.py     # Политика повторных попыток
 │   ├── structured_actions.py # Валидация действий
-│   └── events/             # Система событий
-│       ├── event_bus.py    # Шина событий
-│       └── event_handlers.py # Обработчики событий
+│   ├── events/             # Система событий
+│   │   ├── event_bus.py    # Шина событий
+│   │   └── event_handlers.py # Обработчики событий
+│   └── infrastructure/     # Инфраструктурные компоненты
+│       ├── service/        # Инфраструктурные сервисы
+│       │   ├── base_service.py # Базовый класс сервиса
+│       │   └── table_description_service.py # Сервис описания таблиц
+│       ├── providers/      # Провайдеры (LLM, DB и др.)
+│       └── tools/          # Инструменты для I/O
 ├── models/                 # Типы данных
 ├── skills/                 # Навыки агента
 ├── tools/                  # Инструменты для I/O
 ├── providers/              # Адаптеры для внешних сервисов
+├── prompts/                # Промпты для навыков и стратегий
+│   ├── skills/             # Промпты для навыков
+│   │   ├── planning/       # Промпты для планирования
+│   │   └── book_library/   # Промпты для библиотечных навыков
+│   ├── strategies/         # Промпты для стратегий
+│   │   └── react/          # Промпты для стратегии ReAct
+│   └── metadata.yaml       # Управление версиями и архивацией
 └── tests/                  # Тесты всех компонентов
 ```
 
@@ -288,6 +314,23 @@ graph LR
 - LLM-провайдеры мокаются для тестов
 - DB-провайдеры используют in-memory БД
 - Skills тестируются с заглушенными зависимостями
+
+---
+
+## 🔒 **Защита от попадания нежелательных файлов в репозиторий**
+
+Для защиты от попадания нежелательных файлов в репозиторий используется файл `.gitignore`, который игнорирует:
+- Временные файлы и директории (`*.tmp`, `*.temp`, `tmp/`, `temp/`)
+- Лог-файлы и директории (`logs/`)
+- Файлы настроек IDE (`.vscode/`, `.idea/`, `*.swp`, `*.swo`)
+- Виртуальные окружения (`venv/`, `env/`, `.venv/`, `.env`)
+- Файлы с секретами и конфигурациями (`*.secrets`, `.env*`, `config/secrets.*`)
+- Кэш-файлы (`__pycache__/`, `.pytest_cache/`, `.hypothesis/`, `*.pyc`)
+- Файлы данных и модели (`*.csv`, `*.json`, `*.db`, `models/trained/`, `data/`)
+- Файлы Jupyter Notebook checkpoints (`.ipynb_checkpoints/`)
+- Системные файлы ОС (`.DS_Store`, `Thumbs.db`, `desktop.ini`)
+
+Также предусмотрен файл `.qwenignore` для исключения файлов из индексации системой Qwen Code.
 
 ---
 
@@ -376,3 +419,80 @@ factory.create_llm_provider("new_backend", config)
 4. Рассмотреть event-driven подход для масштабирования
 
 **Архитектура** балансирует между **практичностью** (работает сейчас) и **расширяемостью** (можно развивать), что делает ее отличной основой для production-системы автономных агентов.
+
+---
+
+## 🤖 **Использование PromptService**
+
+### **Пример использования в навыках:**
+```python
+# В конструкторе навыка
+def __init__(self, name: str, system_context: BaseSystemContext, **kwargs):
+    super().__init__(name, system_context, **kwargs)
+    self.prompt_service = system_context.get_resource("prompt_service")  # Получение сервиса
+
+# В методе выполнения
+async def _create_plan(self, parameters: Dict[str, Any], context: BaseSessionContext) -> ExecutionResult:
+    # ИСПОЛЬЗУЕМ СЕРВИС:
+    prompt = await self.prompt_service.render(
+        capability_name="planning.create_plan",
+        variables={
+            "goal": goal,
+            "max_steps": input_data.max_steps,
+            "capabilities_list": self._get_capabilities_list(),
+            "context": input_data.context or context.get_summary()
+        }
+    )
+    # ... остальная логика
+```
+
+### **Формат файла промпта:**
+```yaml
+# === МЕТАДАННЫЕ ===
+version: "1.2.0"              # Версия в метаданных (дублирует имя файла)
+skill: "planning"             # Навык-владелец
+capability: "planning.create_plan"  # Capability для которой предназначен
+strategy: null                # null = для всех стратегий, или "react", "plan_and_execute"
+role: "system"                # system/user/assistant
+language: "ru"                # Язык (всегда "ru" — без локализации)
+tags: 
+  - "planning"
+  - "initial"
+  - "structured_output"
+variables:                    # Обязательные переменные для рендеринга
+  - "goal"
+  - "max_steps"
+  - "capabilities_list"
+  - "context"
+# ... остальные метаданные
+
+# === САМ ПРОМПТ ===
+content: |
+  Ты — модуль планирования агентной системы.
+  Твоя задача — создать ПЕРВИЧНЫЙ план действий для достижения цели.
+  
+  ДОСТУПНЫЕ ВОЗМОЖНОСТИ СИСТЕМЫ:
+  {{ capabilities_list }}
+  
+  ИНСТРУКЦИИ:
+  1. СТРОЙ план с нуля на основе цели
+  2. ДЕЛИ план на конкретные, выполнимые шаги
+  3. УЧИТЫВАЙ доступные возможности системы при выборе действий
+  4. ДЕЛАЙ шаги последовательными и логичными
+  5. УКАЖИ реалистичные оценки времени для каждого шага
+  6. УЧИТЫВАЙ ограничения системы (максимум {{ max_steps }} шагов)
+  
+  ЦЕЛЬ:
+  {{ goal }}
+  
+  ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ:
+  {{ context }}
+```
+
+### **Преимущества использования:**
+1. **Централизованное управление** - все промпты в одной директории
+2. **Версионирование** - поддержка разных версий промптов
+3. **Безопасный рендеринг** - защита от небезопасной подстановки переменных
+4. **Валидация переменных** - проверка обязательных переменных перед рендерингом
+5. **Поддержка стратегий** - разные промпты для разных стратегий выполнения
+6. **Горячая перезагрузка** - возможность обновления промптов без перезапуска системы

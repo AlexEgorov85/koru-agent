@@ -28,6 +28,11 @@ from models.capability import Capability
 from models.llm_types import LLMRequest, LLMResponse
 from models.resource import ResourceType
 
+# Импорты для инфраструктурных сервисов
+from core.infrastructure.service.base_service import BaseService
+from core.infrastructure.service.prompt_service import PromptService
+from typing import Type, Dict
+
 # Импорты для шины событий
 from core.events.event_bus import EventBus, EventType, get_event_bus, Event
 from core.events.event_handlers import LoggingEventHandler, MetricsEventHandler, AuditEventHandler
@@ -79,14 +84,17 @@ class SystemContext(BaseSystemContext):
         """
         self.id = str(uuid.uuid4())
         self.config = config or SystemConfig()
-        self.registry = ResourceRegistry()
-        self.capabilities = CapabilityRegistry()
-        self.lifecycle = LifecycleManager(self.registry, self.capabilities)
+        # === ЕДИНСТВЕННЫЙ реестр для ВСЕХ компонентов ===
+        self.registry = ResourceRegistry()  # ← Теперь управляет и ресурсами, и capability
+        self.lifecycle = LifecycleManager(self.registry)  # ← Передаём ЕДИНЫЙ реестр
         self.initialized = False
         self.execution_gateway = ExecutionGateway()
 
         # Инициализация фабрики провайдеров
         self.provider_factory = ProviderFactory(self)
+
+        # Инициализация реестра инфраструктурных сервисов
+        self.service_registry = {}
 
         # Инициализация шины событий
         self.event_bus = get_event_bus()
@@ -104,6 +112,16 @@ class SystemContext(BaseSystemContext):
         #     source="SystemContext.__init__",
         #     correlation_id=self.id
         # )
+    
+    @property
+    def capabilities(self):
+        """
+        BACKWARD COMPATIBILITY PROPERTY: Provides access to the capability registry
+        through the unified registry. This maintains the old interface while using
+        the new unified architecture.
+        """
+        # Return the internal capability registry from the unified ResourceRegistry
+        return self.registry._capabilities
     
     def _setup_event_handlers(self):
         """
@@ -190,57 +208,116 @@ class SystemContext(BaseSystemContext):
                 correlation_id=self.id
             )
 
+            initialization_errors = []
+
             # 1. Автоматическая регистрация провайдеров из конфигурации
-            await self._register_providers_from_config()
+            try:
+                await self._register_providers_from_config()
+            except Exception as e:
+                logger.warning(f"Ошибка регистрации провайдеров: {str(e)}")
+                initialization_errors.append(f"Providers registration failed: {str(e)}")
 
-            # 2. Автоматическая регистрация инструментов из директории
-            await self.provider_factory.discover_and_create_all_tools()
-
-            # 3. Автоматическая регистрация навыков из директории
-            await self.provider_factory.discover_and_create_all_skills()
-
-            # 4. Инициализация всех компонентов
-            initialization_success = await self.lifecycle.initialize()
-            if not initialization_success:
-                await self.event_bus.publish(
-                    EventType.ERROR_OCCURRED,
-                    data={
-                        "error": "Not all components were initialized successfully",
-                        "system_id": self.id
-                    },
-                    source="SystemContext.initialize",
-                    correlation_id=self.id
+            # 2. Создание и регистрация PromptService
+            try:
+                prompt_service = PromptService(
+                    prompts_dir=getattr(self.config, 'prompts_dir', "prompts"),
+                    default_version=getattr(self.config, 'prompts_default_version', "v1.2.0"),
+                    system_context=self
                 )
+                await prompt_service.initialize()
 
-            # 5. Проверка здоровья системы
-            health_report = await self.lifecycle.check_health()
-            if health_report["status"] == "unhealthy":
-                await self.event_bus.publish(
-                    EventType.SYSTEM_ERROR,
-                    data={
-                        "error": "System failed health check",
-                        "health_report": health_report,
-                        "system_id": self.id
-                    },
-                    source="SystemContext.initialize",
-                    correlation_id=self.id
+                resource_info = ResourceInfo(
+                    name="prompt_service",
+                    resource_type=ResourceType.SERVICE,
+                    instance=prompt_service
                 )
-                return False
+                resource_info.is_default = True
+                self.registry.register_resource(resource_info)
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации PromptService: {str(e)}")
+                initialization_errors.append(f"PromptService initialization failed: {str(e)}")
+
+            # 3. Автоматическая регистрация инфраструктурных сервисов из директории
+            try:
+                await self.provider_factory.discover_and_create_all_services()
+            except Exception as e:
+                logger.warning(f"Ошибка регистрации сервисов: {str(e)}")
+                initialization_errors.append(f"Services registration failed: {str(e)}")
+
+            # 4. Автоматическая регистрация инструментов из директории
+            try:
+                await self.provider_factory.discover_and_create_all_tools()
+            except Exception as e:
+                logger.warning(f"Ошибка регистрации инструментов: {str(e)}")
+                initialization_errors.append(f"Tools registration failed: {str(e)}")
+
+            # 5. Автоматическая регистрация навыков из директории
+            try:
+                await self.provider_factory.discover_and_create_all_skills()
+            except Exception as e:
+                logger.warning(f"Ошибка регистрации навыков: {str(e)}")
+                initialization_errors.append(f"Skills registration failed: {str(e)}")
+
+            # 6. Инициализация всех компонентов
+            try:
+                initialization_success = await self.lifecycle.initialize()
+                if not initialization_success:
+                    await self.event_bus.publish(
+                        EventType.ERROR_OCCURRED,
+                        data={
+                            "error": "Not all components were initialized successfully",
+                            "system_id": self.id
+                        },
+                        source="SystemContext.initialize",
+                        correlation_id=self.id
+                    )
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации компонентов: {str(e)}")
+                initialization_errors.append(f"Components initialization failed: {str(e)}")
+
+            # 7. Проверка здоровья системы
+            try:
+                health_report = await self.lifecycle.check_health()
+                if health_report["status"] == "unhealthy":
+                    await self.event_bus.publish(
+                        EventType.SYSTEM_ERROR,
+                        data={
+                            "error": "System failed health check",
+                            "health_report": health_report,
+                            "system_id": self.id
+                        },
+                        source="SystemContext.initialize",
+                        correlation_id=self.id
+                    )
+                    # Не возвращаем False здесь, чтобы позволить системе работать с частичной неудачей
+            except Exception as e:
+                logger.warning(f"Ошибка проверки здоровья системы: {str(e)}")
+                initialization_errors.append(f"Health check failed: {str(e)}")
+
+            # 8. Инициализация инфраструктурных сервисов
+            try:
+                await self._initialize_infrastructure_services()
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации инфраструктурных сервисов: {str(e)}")
+                initialization_errors.append(f"Infrastructure services initialization failed: {str(e)}")
 
             self.initialized = True
-            
+
             # Публикация события успешной инициализации
             await self.event_bus.publish(
                 EventType.SYSTEM_INITIALIZED,
                 data={
                     "system_id": self.id,
                     "status": "initialized",
-                    "profile": self.config.profile
+                    "profile": self.config.profile,
+                    "initialization_errors": initialization_errors if initialization_errors else None
                 },
                 source="SystemContext.initialize_complete",
                 correlation_id=self.id
             )
-            
+
+            # Возвращаем True, если инициализация прошла успешно хотя бы частично
+            # Возвращаем False только если критические ошибки не позволяют системе работать
             return True
 
         except Exception as e:
@@ -262,8 +339,9 @@ class SystemContext(BaseSystemContext):
 
         ПРОЦЕСС:
         1. Корректное завершение работы всех ресурсов
-        2. Установка флага initialized в False
-        3. Публикация события завершения работы
+        2. Завершение работы инфраструктурных сервисов
+        3. Установка флага initialized в False
+        4. Публикация события завершения работы
 
         ОСОБЕННОСТИ:
         - Метод безопасен для повторного вызова
@@ -281,6 +359,9 @@ class SystemContext(BaseSystemContext):
             correlation_id=self.id
         )
 
+        # Завершение работы инфраструктурных сервисов
+        await self._shutdown_infrastructure_services()
+
         await self.lifecycle.shutdown()
         self.initialized = False
         
@@ -291,6 +372,132 @@ class SystemContext(BaseSystemContext):
             source="SystemContext.shutdown_complete",
             correlation_id=self.id
         )
+
+    async def register_service(self, service_name: str, service: BaseService) -> bool:
+        """
+        Регистрация инфраструктурного сервиса.
+
+        ARGS:
+        - service_name: имя сервиса
+        - service: экземпляр сервиса
+
+        RETURNS:
+        - True если регистрация прошла успешно, иначе False
+        """
+        try:
+            # Проверка, что сервис наследуется от BaseService
+            if not isinstance(service, BaseService):
+                raise TypeError(f"Service must inherit from BaseService, got {type(service)}")
+
+            # Регистрация сервиса в реестре
+            self.service_registry[service_name] = service
+
+            # Публикация события регистрации сервиса
+            await self.event_bus.publish(
+                EventType.SERVICE_REGISTERED,
+                data={
+                    "service_name": service_name,
+                    "service_type": type(service).__name__,
+                    "system_id": self.id
+                },
+                source="SystemContext.register_service",
+                correlation_id=self.id
+            )
+
+            return True
+        except Exception as e:
+            # Публикация события ошибки регистрации сервиса
+            await self.event_bus.publish(
+                EventType.SYSTEM_ERROR,
+                data={
+                    "service_name": service_name,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "system_id": self.id
+                },
+                source="SystemContext.register_service",
+                correlation_id=self.id
+            )
+            return False
+
+    async def get_service(self, service_name: str) -> Optional[BaseService]:
+        """
+        Получение инфраструктурного сервиса по имени.
+
+        ARGS:
+        - service_name: имя сервиса
+
+        RETURNS:
+        - Экземпляр сервиса или None если сервис не найден
+        """
+        return self.service_registry.get(service_name)
+
+    async def _initialize_infrastructure_services(self) -> None:
+        """
+        Инициализация всех зарегистрированных инфраструктурных сервисов.
+        """
+        for service_name, service in self.service_registry.items():
+            try:
+                success = await service.initialize()
+                if not success:
+                    self.logger.warning(f"Service {service_name} failed to initialize properly")
+                
+                # Публикация события инициализации сервиса
+                await self.event_bus.publish(
+                    EventType.SERVICE_INITIALIZED,
+                    data={
+                        "service_name": service_name,
+                        "success": success,
+                        "system_id": self.id
+                    },
+                    source="SystemContext._initialize_infrastructure_services",
+                    correlation_id=self.id
+                )
+            except Exception as e:
+                # Публикация события ошибки инициализации сервиса
+                await self.event_bus.publish(
+                    EventType.SYSTEM_ERROR,
+                    data={
+                        "service_name": service_name,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "system_id": self.id
+                    },
+                    source="SystemContext._initialize_infrastructure_services",
+                    correlation_id=self.id
+                )
+
+    async def _shutdown_infrastructure_services(self) -> None:
+        """
+        Завершение работы всех зарегистрированных инфраструктурных сервисов.
+        """
+        for service_name, service in self.service_registry.items():
+            try:
+                await service.shutdown()
+                
+                # Публикация события завершения работы сервиса
+                await self.event_bus.publish(
+                    EventType.SERVICE_SHUTDOWN,
+                    data={
+                        "service_name": service_name,
+                        "system_id": self.id
+                    },
+                    source="SystemContext._shutdown_infrastructure_services",
+                    correlation_id=self.id
+                )
+            except Exception as e:
+                # Публикация события ошибки завершения работы сервиса
+                await self.event_bus.publish(
+                    EventType.SYSTEM_ERROR,
+                    data={
+                        "service_name": service_name,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "system_id": self.id
+                    },
+                    source="SystemContext._shutdown_infrastructure_services",
+                    correlation_id=self.id
+                )
     
     async def _register_providers_from_config(self) -> None:
         """
@@ -320,7 +527,7 @@ class SystemContext(BaseSystemContext):
                             instance=provider
                         )
                         info_llm.is_default=True # Нужно добавить проверку что именно первая LLM загружена
-                        self.registry.register(info_llm)
+                        self.registry.register_resource(info_llm)
                         
                         # Публикация события регистрации провайдера
                         await self.event_bus.publish(
@@ -365,8 +572,8 @@ class SystemContext(BaseSystemContext):
                         )
                         info_db.is_default=True
 
-                        self.registry.register(info_db)
-                        
+                        self.registry.register_resource(info_db)
+
                         # Публикация события регистрации провайдера
                         await self.event_bus.publish(
                             EventType.PROVIDER_REGISTERED,
@@ -415,52 +622,51 @@ class SystemContext(BaseSystemContext):
     def get_resource(self, name: str) -> Optional[Any]:
         """
         Получение ресурса по имени.
-        
+
         ПАРАМЕТРЫ:
         - name: Имя ресурса
-        
+
         ВОЗВРАЩАЕТ:
         - Экземпляр ресурса если найден
         - None если ресурс не найден
-        
+
         ПРИМЕР ИСПОЛЬЗОВАНИЯ:
         llm_provider = system.get_resource("primary_llm")
         if llm_provider:
             response = await llm_provider.generate(request)
         """
-        info = self.registry.get(name)
-        return info.instance if info else None
-    
+        return self.registry.get_resource(name)
+
     def get_capability(self, name: str) -> Optional[Capability]:
         """
         Получение capability по имени.
-        
+
         ПАРАМЕТРЫ:
         - name: Имя capability
-        
+
         ВОЗВРАЩАЕТ:
         - Capability объект если найден
         - None если capability не найдена
-        
+
         ПРИМЕР ИСПОЛЬЗОВАНИЯ:
         cap = system.get_capability("planning.create_plan")
         if cap:
             print(f"Описание: {cap.description}")
         """
-        return self.capabilities.get(name)
-    
+        return self.registry.get_capability(name)
+
     def list_capabilities(self) -> List[str]:
         """
         Получение списка всех доступных capability.
-        
+
         ВОЗВРАЩАЕТ:
         - Список имен capability
-        
+
         ПРИМЕР ИСПОЛЬЗОВАНИЯ:
         caps = system.list_capabilities()
         print(f"Доступные capability: {caps}")
         """
-        return [cap.name for cap in self.capabilities.all()]
+        return [cap.name for cap in self.registry.list_capabilities()]
     
     async def call_llm(self, prompt: str) -> str:
         """

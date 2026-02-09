@@ -7,8 +7,8 @@ tmp/
 temp/
 
 # Лог-файлы
-logs/
-*.log
+# logs/
+# *.log
 
 # Кэш-директории
 __pycache__/

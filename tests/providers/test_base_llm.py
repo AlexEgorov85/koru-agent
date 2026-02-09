@@ -6,8 +6,10 @@ import json
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.base_llm import BaseLLMProvider, LLMRequest, LLMResponse, LLMHealthStatus
-from src.domain.capability import Capability  # Предполагается, что этот класс существует
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+from models.capability import Capability
+from models.llm_types import LLMHealthStatus, LLMRequest, LLMResponse
+
 
 
 class MockLLMProvider(BaseLLMProvider):
@@ -15,6 +17,7 @@ class MockLLMProvider(BaseLLMProvider):
     
     async def initialize(self) -> bool:
         self.is_initialized = True
+        self._set_healthy_status()  # Устанавливаем статус здоровья как здоровый после инициализации
         return True
     
     async def shutdown(self) -> None:

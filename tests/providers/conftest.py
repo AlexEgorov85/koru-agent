@@ -7,12 +7,10 @@ import os
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.base_llm import BaseLLMProvider, LLMRequest, LLMResponse
-from providers.base_db import BaseDBProvider, DBConnectionConfig
-from providers.vllm_provider import VLLMProvider
-from providers.llama_cpp_provider import LlamaCppProvider
-from providers.postgres_provider import PostgreSQLProvider
-from providers.factory import ProviderFactory
+from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
+from core.infrastructure.providers.factory import ProviderFactory
+from models.db_types import DBConnectionConfig
 
 # ==========================================================
 # Глобальные настройки
@@ -68,13 +66,6 @@ def db_connection_config(mock_db_config):
 # Фикстуры моков
 # ==========================================================
 
-@pytest.fixture
-def mock_vllm_engine():
-    """Фикстура с моком vLLM движка."""
-    with patch('providers.vllm_provider.AsyncLLMEngine') as mock_engine:
-        mock_instance = AsyncMock()
-        mock_engine.from_engine_args.return_value = mock_instance
-        yield mock_instance
 
 @pytest.fixture
 def mock_llama_cpp_engine():
@@ -104,15 +95,6 @@ def mock_asyncpg_pool():
 # Фикстуры провайдеров
 # ==========================================================
 
-@pytest.fixture
-async def vllm_provider(mock_llm_config, mock_vllm_engine):
-    """Фикстура с инициализированным VLLMProvider."""
-    provider = VLLMProvider("test-model", mock_llm_config)
-    # Мокаем инициализацию
-    with patch.object(provider, '_load_vllm_engine', return_value=mock_vllm_engine):
-        success = await provider.initialize()
-        assert success, "Failed to initialize VLLMProvider"
-    return provider
 
 @pytest.fixture
 async def llama_cpp_provider(mock_llm_config, mock_llama_cpp_engine):

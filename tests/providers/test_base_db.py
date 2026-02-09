@@ -5,8 +5,11 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
 
-from providers.base_db import BaseDBProvider, DBConnectionConfig, DBQueryResult, DBHealthStatus
+
 from contextlib import asynccontextmanager
+
+from core.infrastructure.providers.database.base_db import BaseDBProvider
+from models.db_types import DBHealthStatus, DBQueryResult
 
 
 class MockDBProvider(BaseDBProvider):
@@ -14,6 +17,7 @@ class MockDBProvider(BaseDBProvider):
     
     async def initialize(self) -> bool:
         self.is_initialized = True
+        self._set_healthy_status()  # Устанавливаем статус здоровья как здоровый после инициализации
         return True
     
     async def shutdown(self) -> None:

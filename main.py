@@ -92,6 +92,7 @@ class Application:
         self.args = args
         self.config = None
         self.system_context = None
+        self.session = None  # Добавляем атрибут session
 
     async def initialize(self) -> None:
         """
@@ -161,38 +162,58 @@ class Application:
         Возвращает результаты выполнения в виде словаря.
         """
         logger = logging.getLogger("main")
-        
+
         try:
 
             logger.info(f"Запуск агента с целью: {self.args.goal}")
-            
+
             # 2. Создание и запуск агента
             agent = await self.system_context.create_agent(
                 parameters=getattr(self.config.agent, 'parameters', {})
             )
 
-            agent.session.set_goal(self.args.goal)
-            
+            # Устанавливаем цель для сессии агента, если она существует
+            if hasattr(agent, 'session'):
+                agent.session.set_goal(self.args.goal)
+            elif hasattr(self, 'session') and self.session:
+                self.session.set_goal(self.args.goal)
+            else:
+                # Создаем сессию, если ни у агента, ни у приложения нет сессии
+                from core.session_context.session_context import SessionContext
+                self.session = SessionContext()
+                self.session.set_goal(self.args.goal)
+
             # 3. Выполнение агента
             start_time = datetime.now()
-            result = await agent.execute(self.args.goal)
+            execution_result = await agent.run(self.args.goal)
+            result = execution_result
             end_time = datetime.now()
+
+            # 4. Создание и сохранение результатов в сессию
+            if self.session is None:
+                from core.session_context.session_context import SessionContext
+                self.session = SessionContext()
             
-            # 4. Сохранение результатов в сессию
-            self.session.set_result(result)
+            # Записываем результат как наблюдение в контекст
+            self.session.record_observation(
+                observation_data=result,
+                source="AgentRuntime.execute",
+                step_number=getattr(self.session, 'current_step_number', 0) + 1
+            )
             self.session.execution_time = (end_time - start_time).total_seconds()
-            
-            logger.info(f"Агент успешно завершил выполнение за {self.session.execution_time:.2f} секунд")
-            
+
+            execution_time = (end_time - start_time).total_seconds()
+            logger.info(f"Агент успешно завершил выполнение за {execution_time:.2f} секунд")
+
             return {
                 "success": True,
                 "goal": self.args.goal,
                 "result": result,
-                "session_id": self.session.session_id,
-                "execution_time": self.session.execution_time,
-                "steps_taken": self.session.steps_taken
+                "session_id": getattr(getattr(self, 'session', None), 'session_id', 'unknown'),
+                "execution_time": execution_time,
+                "steps_taken": getattr(getattr(self, 'session', None), 'steps_taken', 0)
             }
-            
+
         except Exception as e:
             logger.error(f"Ошибка во время выполнения агента: {str(e)}", exc_info=True)
             return {
@@ -207,14 +228,10 @@ class Application:
         Корректное завершение работы приложения.
         """
         logger = logging.getLogger("main")
-        
+
         if self.system_context:
             logger.info("Завершение работы системного контекста...")
             await self.system_context.shutdown()
-        
-        if self.session_manager:
-            logger.info("Завершение работы менеджера сессий...")
-            await self.session_manager.shutdown()
     
     def save_results(self, result: Dict[str, Any]) -> None:
         """
@@ -260,16 +277,19 @@ class Application:
         
         print("="*80)
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(args_list=None) -> argparse.Namespace:
     """
     Парсинг аргументов командной строки.
+    
+    ARGS:
+    - args_list: список аргументов для парсинга (по умолчанию sys.argv[1:])
     """
     parser = argparse.ArgumentParser(description="Запуск агента для выполнения задач")
-    
+
     # Основной параметр - вопрос
     parser.add_argument("goal", type=str, nargs="?", default="Какие книги написал Пушкин?",
                         help="Цель для агента (вопрос или задача)")
-    
+
     # Параметры для переопределения конфигурации
     parser.add_argument("--profile", type=str, choices=["dev", "staging", "prod"], default="dev",
                         help="Профиль конфигурации (dev/staging/prod)")
@@ -285,8 +305,18 @@ def parse_arguments() -> argparse.Namespace:
                         help="Файл для сохранения результатов")
     parser.add_argument("--strategy", type=str, choices=["react", "plan_and_execute", "chain_of_thought"],
                         help="Стратегия рассуждений агента")
-    
-    return parser.parse_args()
+
+    # Возвращаем результаты парсинга аргументов
+    if args_list is not None:
+        return parser.parse_args(args_list)
+    else:
+        # При запуске через pytest или в тестовой среде избегаем конфликта аргументов
+        import sys
+        if any('pytest' in arg for arg in sys.argv):
+            # Если запускается через pytest, используем аргументы по умолчанию
+            return parser.parse_args([])
+        else:
+            return parser.parse_args()
 
 async def main_async() -> int:
     """

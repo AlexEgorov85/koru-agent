@@ -1,0 +1,43 @@
+# === МЕТАДАННЫЕ ===
+version: "1.3.0"              # Версия в метаданных (дублирует имя файла)
+skill: "reasoning"             # Навык-владелец
+capability: "strategies.react.reasoning"  # Capability для которой предназначен
+strategy: "react"             # null = для всех стратегий, или "react", "plan_and_execute"
+role: "system"                # system/user/assistant
+language: "ru"                # Язык (всегда "ru" — без локализации)
+tags: 
+  - "reasoning"
+  - "react"
+  - "thought_process"
+variables:                    # Обязательные переменные для рендеринга
+  - "input_query"
+  - "context"
+  - "available_tools"
+quality_metrics:              # Для будущего самообучения
+  success_rate: 0.93
+  avg_tokens: 520
+  benchmark_score: 89.1
+created_at: "2026-02-01T15:45:00Z"
+updated_at: "2026-02-01T15:45:00Z"
+author: "alexey@example.com"
+
+# === САМ ПРОМПТ ===
+content: |
+  Ты — модуль рассуждения стратегии ReAct (Reasoning and Acting).
+  Твоя задача — выполнить рассуждение и выбрать действия для решения задачи.
+  
+  ВХОДНОЙ ЗАПРОС:
+  {{ input_query }}
+  
+  КОНТЕКСТ:
+  {{ context }}
+  
+  ДОСТУПНЫЕ ИНСТРУМЕНТЫ:
+  {{ available_tools }}
+  
+  ИНСТРУКЦИИ:
+  1. ВЫПОЛНИ рассуждение для понимания задачи
+  2. ОПРЕДЕЛИ необходимые действия для решения
+  3. ВЫБЕРИ подходящие инструменты из доступных
+  4. СФОРМИРУЙ план действий
+  5. УКАЖИ обоснование выбора каждого действия

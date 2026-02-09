@@ -4,31 +4,34 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from providers.factory import ProviderFactory
-from providers.base_llm import BaseLLMProvider
-from providers.base_db import BaseDBProvider, DBConnectionConfig
-from providers.vllm_provider import VLLMProvider
-from providers.llama_cpp_provider import LlamaCppProvider
-from providers.postgres_provider import PostgreSQLProvider
+from core.infrastructure.providers.database.base_db import BaseDBProvider
+from core.infrastructure.providers.factory import ProviderFactory
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
+from models.db_types import DBConnectionConfig
 
 
 @pytest.mark.parametrize("provider_type, expected_class", [
-    ("vllm", VLLMProvider),
     ("llama_cpp", LlamaCppProvider),
 ])
 def test_create_llm_provider(provider_type, expected_class):
     """Тест создания LLM провайдера."""
-    with patch(f"providers.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
+    # Мокируем класс в месте импорта в фабрике
+    with patch("core.infrastructure.providers.factory.LlamaCppProvider") as mock_provider_class:
         mock_instance = MagicMock(spec=BaseLLMProvider)
-        mock_provider.return_value = mock_instance
-        
+        mock_provider_class.return_value = mock_instance
+
+        # Для LlamaCppProvider передаем конфигурацию с model_path
+        config = {"model_path": "test-model.gguf", "n_ctx": 2048}
         provider = ProviderFactory.create_llm_provider(
             provider_type=provider_type,
             model_name="test-model",
-            config={"param": "value"}
+            config=config
         )
-        
-        mock_provider.assert_called_once_with("test-model", {"param": "value"})
+
+        # Проверяем, что вызов был с правильными аргументами
+        mock_provider_class.assert_called_once_with(model_name="test-model", config=config)
         assert provider is mock_instance
 
 
@@ -48,18 +51,24 @@ def test_create_llm_provider_unsupported_type():
 ])
 def test_create_db_provider(provider_type, expected_class, mock_db_config):
     """Тест создания DB провайдера."""
-    with patch(f"providers.{provider_type}_provider.{expected_class.__name__}") as mock_provider:
+    # Мокируем класс в месте импорта в фабрике
+    with patch("core.infrastructure.providers.factory.PostgreSQLProvider") as mock_provider:
         mock_instance = MagicMock(spec=BaseDBProvider)
         mock_provider.return_value = mock_instance
-        
+
+        config_obj = DBConnectionConfig(**mock_db_config)
         provider = ProviderFactory.create_db_provider(
             provider_type=provider_type,
-            config=mock_db_config
+            config=config_obj
         )
-        
+
         mock_provider.assert_called_once()
-        # Проверяем, что конфиг был преобразован в DBConnectionConfig
-        assert isinstance(mock_provider.call_args[0][0], DBConnectionConfig)
+        # Проверяем, что конфиг был передан как DBConnectionConfig
+        args, kwargs = mock_provider.call_args
+        if args:
+            assert isinstance(args[0], DBConnectionConfig)
+        else:
+            assert isinstance(kwargs.get('config'), DBConnectionConfig)
         assert provider is mock_instance
 
 
@@ -76,7 +85,6 @@ def test_create_db_provider_unsupported_type():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("provider_class", [
-    VLLMProvider,
     LlamaCppProvider,
     PostgreSQLProvider,
 ])
@@ -84,16 +92,15 @@ async def test_initialize_provider(provider_class):
     """Тест инициализации провайдера."""
     mock_provider = MagicMock(spec=provider_class)
     mock_provider.initialize = AsyncMock(return_value=True)
-    
+
     success = await ProviderFactory.initialize_provider(mock_provider)
-    
+
     mock_provider.initialize.assert_called_once()
     assert success is True
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("provider_class", [
-    VLLMProvider,
     LlamaCppProvider,
     PostgreSQLProvider,
 ])
@@ -101,9 +108,9 @@ async def test_initialize_provider_failure(provider_class):
     """Тест инициализации провайдера с ошибкой."""
     mock_provider = MagicMock(spec=provider_class)
     mock_provider.initialize = AsyncMock(side_effect=Exception("Test error"))
-    
+
     success = await ProviderFactory.initialize_provider(mock_provider)
-    
+
     mock_provider.initialize.assert_called_once()
     assert success is False
 
@@ -111,72 +118,82 @@ async def test_initialize_provider_failure(provider_class):
 @pytest.mark.asyncio
 async def test_create_and_initialize_llm(mock_llm_config):
     """Тест создания и инициализации LLM провайдера."""
-    with patch("providers.factory.VLLMProvider") as mock_provider_class:
-        mock_provider = AsyncMock(spec=VLLMProvider)
-        mock_provider.initialize.return_value = True
-        mock_provider_class.return_value = mock_provider
-        
-        provider = await ProviderFactory.create_and_initialize_llm(
-            provider_type="vllm",
-            model_name="test-model",
-            config=mock_llm_config
-        )
-        
-        mock_provider_class.assert_called_once_with("test-model", mock_llm_config)
-        mock_provider.initialize.assert_called_once()
-        assert provider is mock_provider
+    # Мокируем как создание провайдера, так и его инициализацию
+    with patch("core.infrastructure.providers.factory.ProviderFactory.create_llm_provider") as mock_create:
+        with patch("core.infrastructure.providers.factory.ProviderFactory.initialize_provider") as mock_init:
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+            mock_init.return_value = True
+
+            provider = await ProviderFactory.create_and_initialize_llm(
+                provider_type="llama_cpp",
+                model_name="test-model",
+                config=mock_llm_config
+            )
+
+            mock_create.assert_called_once_with("llama_cpp", "test-model", mock_llm_config)
+            mock_init.assert_called_once_with(mock_provider)
+            assert provider is mock_provider
 
 
 @pytest.mark.asyncio
 async def test_create_and_initialize_llm_failure(mock_llm_config):
     """Тест создания и инициализации LLM провайдера с ошибкой."""
-    with patch("providers.factory.VLLMProvider") as mock_provider_class:
-        mock_provider = AsyncMock(spec=VLLMProvider)
-        mock_provider.initialize.return_value = False
-        mock_provider_class.return_value = mock_provider
-        
-        with pytest.raises(RuntimeError) as exc_info:
-            await ProviderFactory.create_and_initialize_llm(
-                provider_type="vllm",
-                model_name="test-model",
-                config=mock_llm_config
-            )
-        
-        assert "Failed to initialize LLM provider vllm" in str(exc_info.value)
-        mock_provider.initialize.assert_called_once()
+    # Мокируем как создание провайдера, так и его инициализацию
+    with patch("core.infrastructure.providers.factory.ProviderFactory.create_llm_provider") as mock_create:
+        with patch("core.infrastructure.providers.factory.ProviderFactory.initialize_provider") as mock_init:
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+            mock_init.return_value = False  # Симулируем неудачную инициализацию
+
+            with pytest.raises(RuntimeError) as exc_info:
+                await ProviderFactory.create_and_initialize_llm(
+                    provider_type="llama_cpp",
+                    model_name="test-model",
+                    config=mock_llm_config
+                )
+
+            mock_create.assert_called_once_with("llama_cpp", "test-model", mock_llm_config)
+            mock_init.assert_called_once_with(mock_provider)
+            assert "Не удалось инициализировать LLM провайдер типа llama_cpp" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_create_and_initialize_db(db_connection_config):
     """Тест создания и инициализации DB провайдера."""
-    with patch("providers.factory.PostgreSQLProvider") as mock_provider_class:
-        mock_provider = AsyncMock(spec=PostgreSQLProvider)
-        mock_provider.initialize.return_value = True
-        mock_provider_class.return_value = mock_provider
-        
-        provider = await ProviderFactory.create_and_initialize_db(
-            provider_type="postgres",
-            config=db_connection_config
-        )
-        
-        mock_provider_class.assert_called_once_with(db_connection_config)
-        mock_provider.initialize.assert_called_once()
-        assert provider is mock_provider
+    # Мокируем как создание провайдера, так и его инициализацию
+    with patch("core.infrastructure.providers.factory.ProviderFactory.create_db_provider") as mock_create:
+        with patch("core.infrastructure.providers.factory.ProviderFactory.initialize_provider") as mock_init:
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+            mock_init.return_value = True
+
+            provider = await ProviderFactory.create_and_initialize_db(
+                provider_type="postgres",
+                config=db_connection_config
+            )
+
+            mock_create.assert_called_once_with("postgres", db_connection_config)
+            mock_init.assert_called_once_with(mock_provider)
+            assert provider is mock_provider
 
 
 @pytest.mark.asyncio
 async def test_create_and_initialize_db_failure(db_connection_config):
     """Тест создания и инициализации DB провайдера с ошибкой."""
-    with patch("providers.factory.PostgreSQLProvider") as mock_provider_class:
-        mock_provider = AsyncMock(spec=PostgreSQLProvider)
-        mock_provider.initialize.return_value = False
-        mock_provider_class.return_value = mock_provider
-        
-        with pytest.raises(RuntimeError) as exc_info:
-            await ProviderFactory.create_and_initialize_db(
-                provider_type="postgres",
-                config=db_connection_config
-            )
-        
-        assert "Failed to initialize DB provider postgres" in str(exc_info.value)
-        mock_provider.initialize.assert_called_once()
+    # Мокируем как создание провайдера, так и его инициализацию
+    with patch("core.infrastructure.providers.factory.ProviderFactory.create_db_provider") as mock_create:
+        with patch("core.infrastructure.providers.factory.ProviderFactory.initialize_provider") as mock_init:
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+            mock_init.return_value = False  # Симулируем неудачную инициализацию
+
+            with pytest.raises(RuntimeError) as exc_info:
+                await ProviderFactory.create_and_initialize_db(
+                    provider_type="postgres",
+                    config=db_connection_config
+                )
+
+            mock_create.assert_called_once_with("postgres", db_connection_config)
+            mock_init.assert_called_once_with(mock_provider)
+            assert "Не удалось инициализировать DB провайдер типа postgres" in str(exc_info.value)

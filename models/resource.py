@@ -35,6 +35,7 @@ class ResourceType(str, Enum):
     DATABASE = "database"
     CACHE = "cache"
     CONFIG = "config"
+    SERVICE = "service"
 
 class ResourceHealth(str, Enum):
     """

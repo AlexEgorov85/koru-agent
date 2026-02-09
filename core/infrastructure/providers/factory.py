@@ -14,7 +14,6 @@ from pathlib import Path
 import pkgutil
 from typing import Dict, Any, Optional, Type
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
@@ -83,9 +82,7 @@ class ProviderFactory:
         parameters = provider_config.parameters
         
         try:
-            if provider_type == "vllm":
-                provider = VLLMProvider(model_name = model_name, config = parameters)
-            elif provider_type == "llama_cpp":
+            if provider_type == "llama_cpp":
                 provider = LlamaCppProvider(model_name = model_name, config = parameters)
             else:
                 logger.error(f"Неподдерживаемый тип LLM провайдера: {provider_type}")
@@ -196,7 +193,7 @@ class ProviderFactory:
                 instance=tool
             )
             resource_info.is_default=False
-            self.system_context.registry.register(resource_info)
+            self.system_context.registry.register_resource(resource_info)
             logger.info(f"Инструмент '{tool_name}' успешно зарегистрирован в реестре")
         
         logger.info(f"Успешно создано и зарегистрировано инструментов: {len(tools)}")
@@ -341,19 +338,172 @@ class ProviderFactory:
             if skill:
                 skills[skill_name] = skill
         
-        # 3. Регистрация обнаруженных навыков в реестре
+        # 3. Регистрация обнаруженных навыков в реестре (вместе с их возможностями)
         for skill_name, skill in skills.items():
-            resource_info = ResourceInfo(
-                name=skill_name,
-                resource_type=ResourceType.SKILL,
-                instance=skill
-            )
-            resource_info.is_default=False
-            self.system_context.registry.register(resource_info)
-            logger.info(f"Навык '{skill_name}' успешно зарегистрирован в реестре")
+            self.system_context.registry.register_from_skill(skill)
+            logger.info(f"Навык '{skill_name}' успешно зарегистрирован в реестре вместе с его возможностями")
         
         logger.info(f"Успешно создано и зарегистрировано навыков: {len(skills)}")
         return skills
+
+    async def discover_and_create_all_services(self):
+        """Единый метод для автоматического обнаружения ВСЕХ инфраструктурных сервисов
+        и применения конфигурации при наличии.
+
+        ВОЗВРАЩАЕТ:
+        - Словарь {имя_сервиса: сервис} для всех успешно созданных сервисов
+        """
+        services = {}
+
+        # 1. Автоматическое обнаружение сервисов из директории
+        discovered_services = await self._discover_services_from_directory()
+
+        # 2. Применение конфигурации к обнаруженным сервисам
+        for service_name, service_class in discovered_services.items():
+            # Получаем конфигурацию из общей конфигурации системы
+            service_config = self._get_service_config(service_name)
+
+            # Пропускаем отключенные сервисы
+            if not service_config.get("enabled", True):
+                logger.info(f"Сервис '{service_name}' отключен в конфигурации")
+                continue
+
+            # Создаем сервис с применением конфигурации
+            service = await self._create_service_instance(service_class, service_name, service_config)
+            if service:
+                services[service_name] = service
+
+        # 3. Регистрация обнаруженных сервисов в реестре
+        for service_name, service in services.items():
+            resource_info = ResourceInfo(
+                name=service_name,
+                resource_type=ResourceType.SERVICE,
+                instance=service
+            )
+            self.system_context.registry.register_resource(resource_info)
+            logger.info(f"Сервис '{service_name}' успешно зарегистрирован в реестре")
+
+        logger.info(f"Успешно создано и зарегистрировано сервисов: {len(services)}")
+
+    async def _discover_services_from_directory(self):
+        """Обнаружение всех классов сервисов в директории сервисов."""
+        from pathlib import Path
+        import importlib
+        import pkgutil
+        import inspect
+
+        service_classes = {}
+
+        services_dir = Path("core/infrastructure/service")
+
+        if not services_dir.exists():
+            logger.warning(f"Директория сервисов не найдена: {services_dir}")
+            return service_classes
+
+        logger.info(f"Сканирование директории сервисов: {services_dir}")
+
+        # Получаем путь к модулю в формате Python
+        services_package_path = str(services_dir).replace("/", ".").replace("\\", ".")
+
+        try:
+            # Импортируем пакет сервисов
+            services_package = importlib.import_module(services_package_path)
+
+            # Сканируем все модули в пакете
+            for _, module_name, _ in pkgutil.iter_modules(services_package.__path__):
+                if module_name in ['base_service']:  # Пропускаем базовые классы
+                    continue
+                    
+                full_module_name = f"{services_package_path}.{module_name}"
+
+                try:
+                    # Динамически импортируем модуль
+                    module = importlib.import_module(full_module_name)
+
+                    # Ищем все классы в модуле, наследуемые от BaseService
+                    for name, obj in inspect.getmembers(module, inspect.isclass):
+                        # Проверяем, что класс определен в этом модуле (а не импортирован)
+                        if obj.__module__ != full_module_name:
+                            continue
+
+                        # Проверяем наследование от BaseService
+                        try:
+                            from core.infrastructure.service.base_service import BaseService
+                            if issubclass(obj, BaseService) and obj != BaseService:
+                                # Исключаем PromptService из автоматической регистрации, 
+                                # так как он регистрируется вручную как системный сервис
+                                if name != "PromptService":
+                                    # Генерируем имя сервиса из имени класса
+                                    service_classes[name] = obj
+                                    logger.debug(f"Найден класс сервиса '{name}' в модуле {module_name}")
+                                else:
+                                    logger.debug(f"Пропущен класс сервиса '{name}' (регистрируется вручную)")
+                        except:
+                            # Если не удается проверить наследование, пропускаем
+                            continue
+
+                except Exception as e:
+                    logger.error(f"Ошибка при загрузке модуля '{full_module_name}': {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Ошибка при импорте пакета сервисов '{services_package_path}': {str(e)}")
+
+        logger.info(f"Найдено классов сервисов: {len(service_classes)}")
+        return service_classes
+
+    def _get_service_config(self, service_name: str) -> Dict[str, Any]:
+        """Получение конфигурации для сервиса из общей конфигурации."""
+        # Получаем конфигурацию сервисов из системы
+        services_config = getattr(self.system_context.config, 'services', {})
+
+        if service_name in services_config:
+            config = services_config[service_name]
+            if hasattr(config, "dict"):
+                return config.dict()
+            elif hasattr(config, "__dict__"):
+                return config.__dict__
+            elif isinstance(config, dict):
+                return config
+
+        # Конфигурация по умолчанию
+        return {
+            "enabled": True,
+            "parameters": {}
+        }
+
+    async def _create_service_instance(
+        self,
+        service_class,
+        service_name: str,
+        config: Dict[str, Any]
+    ):
+        """Создание экземпляра сервиса с применением конфигурации."""
+        try:
+            logger.debug(f"Создание сервиса '{service_name}' из класса {service_class.__name__}")
+
+            # Подготовка параметров для конструктора
+            init_params = {
+                "system_context": self.system_context,
+                "name": service_name,
+                **config.get("parameters", {})
+            }
+
+            # Создание экземпляра
+            service = service_class(**init_params)
+
+            # Инициализация сервиса
+            if hasattr(service, "initialize") and callable(getattr(service, "initialize")):
+                success = await service.initialize()
+                if not success:
+                    logger.warning(f"Сервис '{service_name}' не прошел инициализацию")
+                    return None
+
+            logger.info(f"Сервис '{service_name}' успешно создан")
+            return service
+
+        except Exception as e:
+            logger.error(f"Ошибка создания сервиса '{service_name}': {str(e)}", exc_info=True)
+            return None
 
     async def _discover_skills_from_directory(self) -> Dict[str, Type[Any]]:
         """Обнаружение всех классов навыков в директории навыков."""
@@ -442,32 +592,134 @@ class ProviderFactory:
         }
 
     async def _create_skill_instance(
-        self, 
-        skill_class: Type[Any], 
-        skill_name: str, 
+        self,
+        skill_class: Type[Any],
+        skill_name: str,
         config: Dict[str, Any]
     ) -> Optional[Any]:
         """Создание экземпляра навыка с применением конфигурации."""
         try:
-            logger.debug(f"Создание навыка '{skill_name}' из класса {skill_class.__name__}") 
-            
+            logger.debug(f"Создание навыка '{skill_name}' из класса {skill_class.__name__}")
+
             # Подготовка параметров для конструктора
             init_params = {
                 "name": skill_name,
                 "system_context": self.system_context,
                 **config.get("parameters", {})
             }
-            
+
             # Создание экземпляра
             skill = skill_class(**init_params)
-            
+
             # Инициализация навыка
             if hasattr(skill, "initialize") and callable(skill.initialize):
                 await skill.initialize()
-            
+
             logger.info(f"Навык '{skill_name}' успешно создан")
             return skill
-            
+
         except Exception as e:
             logger.error(f"Ошибка создания навыка '{skill_name}': {str(e)}", exc_info=True)
             return None
+
+    @staticmethod
+    def create_llm_provider(provider_type: str, model_name: str, config: Optional[Dict[str, Any]] = None):
+        """
+        Создание LLM провайдера по типу.
+
+        ПАРАМЕТРЫ:
+        - provider_type: Тип провайдера ('llama_cpp')
+        - model_name: Название модели
+        - config: Дополнительная конфигурация
+
+        ВОЗВРАЩАЕТ:
+        - BaseLLMProvider: Созданный провайдер
+        """
+        config = config or {}
+        
+        if provider_type == "llama_cpp":
+            return LlamaCppProvider(model_name=model_name, config=config)
+        else:
+            raise ValueError(f"Unsupported LLM provider type: {provider_type}")
+
+    @staticmethod
+    def create_db_provider(provider_type: str, config: DBConnectionConfig):
+        """
+        Создание DB провайдера по типу.
+
+        ПАРАМЕТРЫ:
+        - provider_type: Тип провайдера ('postgres')
+        - config: Конфигурация подключения
+
+        ВОЗВРАЩАЕТ:
+        - BaseDBProvider: Созданный провайдер
+        """
+        if provider_type == "postgres":
+            return PostgreSQLProvider(config=config)
+        else:
+            raise ValueError(f"Unsupported DB provider type: {provider_type}")
+
+    @staticmethod
+    async def initialize_provider(provider):
+        """
+        Инициализация провайдера.
+
+        ПАРАМЕТРЫ:
+        - provider: Провайдер для инициализации
+
+        ВОЗВРАЩАЕТ:
+        - bool: Успех инициализации
+        """
+        try:
+            success = await provider.initialize()
+            return success
+        except Exception as e:
+            logger.error(f"Ошибка инициализации провайдера: {str(e)}")
+            return False
+
+    @staticmethod
+    async def create_and_initialize_llm(provider_type: str, model_name: str, config: Dict[str, Any]):
+        """
+        Создание и инициализация LLM провайдера.
+
+        ПАРАМЕТРЫ:
+        - provider_type: Тип провайдера
+        - model_name: Название модели
+        - config: Конфигурация
+
+        ВОЗВРАЩАЕТ:
+        - BaseLLMProvider: Инициализированный провайдер
+
+        ВЫЗЫВАЕТ:
+        - RuntimeError если инициализация не удалась
+        """
+        provider = ProviderFactory.create_llm_provider(provider_type, model_name, config)
+        success = await ProviderFactory.initialize_provider(provider)
+        
+        if not success:
+            raise RuntimeError(f"Не удалось инициализировать LLM провайдер типа {provider_type}")
+        
+        return provider
+
+    @staticmethod
+    async def create_and_initialize_db(provider_type: str, config: DBConnectionConfig):
+        """
+        Создание и инициализация DB провайдера.
+
+        ПАРАМЕТРЫ:
+        - provider_type: Тип провайдера
+        - config: Конфигурация подключения
+
+        ВОЗВРАЩАЕТ:
+        - BaseDBProvider: Инициализированный провайдер
+
+        ВЫЗЫВАЕТ:
+        - RuntimeError если инициализация не удалась
+        """
+        provider = ProviderFactory.create_db_provider(provider_type, config)
+        success = await ProviderFactory.initialize_provider(provider)
+        
+        if not success:
+            raise RuntimeError(f"Не удалось инициализировать DB провайдер типа {provider_type}")
+        
+        return provider

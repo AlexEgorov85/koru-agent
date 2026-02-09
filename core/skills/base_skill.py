@@ -38,6 +38,7 @@ class BaseSkill(ABC):
     def __init__(self, name: str, system_context: BaseSystemContext, **kwargs):
         self.name = name
         self.system_context = system_context
+        self.prompt_service = system_context.get_resource("prompt_service")  # Получение сервиса
         self.config = kwargs
     
     # --------------------------------------------------
@@ -96,19 +97,19 @@ class BaseSkill(ABC):
     ) -> ExecutionResult:
         """
         Выполнение конкретной capability навыка.
-        
+
         ПАРАМЕТРЫ:
         - capability: выбранная возможность для выполнения
         - parameters: параметры от LLM или runtime
         - context: порт для работы с контекстом сессии
-        
+
         ВОЗВРАЩАЕТ:
         - Результат выполнения capability
-        
+
         ИСПОЛЬЗОВАНИЕ:
         - Вызывается ExecutionGateway после валидации параметров
         - Результат будет сохранен в контексте как observation_item
-        
+
         ПРИМЕР:
         result = await skill.execute(
             capability=create_plan_cap,
@@ -116,4 +117,72 @@ class BaseSkill(ABC):
             context=session_context
         )
         """
-        raise NotImplementedError
+        # По умолчанию делегируем выполнение методу run для обратной совместимости
+        result = await self.run(parameters, context)
+        return ExecutionResult(
+            status=ExecutionStatus.SUCCESS,
+            result=result,
+            observation_item_id=None,
+            summary=f"Capability {capability.name} executed successfully",
+            error=None
+        )
+
+    def get_metadata(self):
+        """
+        Возвращает метаданные навыка.
+        
+        ВОЗВРАЩАЕТ:
+        - Объект с метаданными навыка
+        """
+        # Возвращаем объект с базовыми метаданными
+        class Metadata:
+            def __init__(self, schema):
+                self.input_schema = schema
+        
+        # Получаем схему параметров из первой capability или используем схему по умолчанию
+        capabilities = self.get_capabilities()
+        if capabilities:
+            schema = capabilities[0].parameters_schema
+        else:
+            schema = {"type": "object", "properties": {}}
+            
+        return Metadata(schema)
+
+    async def run(
+        self,
+        action_payload: Dict[str, Any],
+        session: BaseSessionContext
+    ) -> Dict[str, Any]:
+        """
+        Метод для совместимости с предыдущими версиями.
+        Выполняет действие с помощью execute метода.
+        
+        ПАРАМЕТРЫ:
+        - action_payload: Параметры действия
+        - session: Контекст сессии
+        
+        ВОЗВРАЩАЕТ:
+        - Результат выполнения в виде словаря
+        """
+        # Создаем фиктивную capability для совместимости
+        # В новой архитектуре все должно происходить через execute с конкретной capability
+        # Этот метод предоставлен для обратной совместимости
+        capabilities = self.get_capabilities()
+        capability = capabilities[0] if capabilities else Capability(
+            name=f"{self.name}.default",
+            description="Default capability for backward compatibility",
+            parameters_schema={"type": "object", "properties": {}},
+            skill_name=self.name
+        )
+        
+        result = await self.execute(
+            capability=capability,
+            parameters=action_payload,
+            context=session
+        )
+        
+        # Возвращаем content из ExecutionResult или сам результат
+        if hasattr(result, 'content') and result.content:
+            return result.content
+        else:
+            return {"result": "executed", "status": "success"}

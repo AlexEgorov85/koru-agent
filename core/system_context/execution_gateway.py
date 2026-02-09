@@ -41,17 +41,21 @@ class ExecutionGateway:
     """
     def __init__(
         self,
-        retry_policy: Optional[RetryPolicy] = None
+        system_context: Optional[BaseSystemContext] = None,
+        retry_policy: Optional[RetryPolicy] = None,
+        action_validator=None  # Добавляем параметр для валидации действий
     ):
+        self.system_context = system_context
         self.retry_policy = retry_policy
+        self.action_validator = action_validator
         logger.info("ExecutionGateway инициализирован")
 
     async def execute_capability(
         self,
-        capability_name: str,
-        parameters: Dict[str, Any],
-        system_context: BaseSystemContext,
-        session_context: BaseSessionContext
+        capability: Capability,  # Изменяем параметры на те, что используются в тестах
+        action_payload: Dict[str, Any],
+        session: BaseSessionContext,
+        step_number: int
     ) -> ExecutionResult:
         """
         Выполнение capability через соответствующий навык.
@@ -66,28 +70,78 @@ class ExecutionGateway:
         - Не обрабатывает ошибки, не логирует детали
         """
 
-        # 1. Определяем навык и возможность
-        capability = system_context.get_capability(capability_name)
-        skill = system_context.get_resource(capability.skill_name)
-        step_number = session_context.step_context.get_current_step_number() + 1
-
-
-        # 2. Выполняем capability через навык
-        logger.debug(f"Выполнение capability '{capability.name}' через навык '{skill.name}'")
-        execution_result = await skill.execute(
-            capability=capability,
-            parameters=parameters,
-            context=session_context
-        )
-
-        # Запись наблюдения
-        observation_id = session_context.record_observation(
-            execution_result,
-            source=skill.name,
-            step_number=step_number
-        )
-
-        execution_result.observation_item_id = observation_id
-
+        # 1. Получаем навык для выполнения capability
+        skill = self.system_context.get_resource(capability.skill_name)
         
-        return execution_result
+        # Проверяем, что навык найден
+        if skill is None:
+            error_msg = f"Skill not found for capability {capability.name}"
+            logger.error(error_msg)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=error_msg,
+                error="SKILL_NOT_FOUND"
+            )
+
+        # 2. Валидируем параметры действия, если есть валидатор
+        validated_payload = action_payload
+        if self.action_validator:
+            try:
+                validated_payload = self.action_validator.validate(action_payload)
+            except Exception as e:
+                logger.error(f"Ошибка валидации параметров действия: {str(e)}")
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    result=None,
+                    observation_item_id=None,
+                    summary=f"Invalid action payload: {str(e)}",
+                    error="INVALID_INPUT"
+                )
+
+        # 3. Записываем действие в контекст
+        action_item_id = session.record_action(
+            action_data=validated_payload,
+            step_number=step_number,
+            metadata=ContextItemMetadata(source=skill.name)
+        )
+
+        # 4. Выполняем capability через навык
+        logger.debug(f"Выполнение capability '{capability.name}' через навык '{skill.name}'")
+        try:
+            execution_result = await skill.execute(
+                capability=capability,
+                parameters=validated_payload,
+                context=session
+            )
+
+            # Запись наблюдения
+            observation_id = session.record_observation(
+                observation_data=execution_result,
+                source=skill.name,
+                step_number=step_number
+            )
+
+            # Регистрируем шаг
+            session.register_step(
+                step_number=step_number,
+                capability_name=capability.name,
+                skill_name=skill.name,
+                action_item_id=action_item_id,
+                observation_item_ids=[observation_id],
+                summary=capability.description
+            )
+
+            # Убедимся, что observation_item_id установлен в результате
+            execution_result.observation_item_id = observation_id
+            return execution_result
+        except Exception as e:
+            logger.error(f"Ошибка выполнения capability '{capability.name}': {str(e)}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=f"Error executing capability {capability.name}: {str(e)}",
+                error="EXECUTION_ERROR"
+            )

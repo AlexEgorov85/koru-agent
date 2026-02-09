@@ -11,11 +11,12 @@
 
 import time
 from datetime import timedelta
+import uuid
 
 import pytest
 
-from core.ports.session_context_port import ContextItem, ContextItemMetadata
-from core.session_context.model import ContextItemType
+
+from core.session_context.model import ContextItem, ContextItemMetadata, ContextItemType
 from core.session_context.session_context import SessionContext
 
 
@@ -32,6 +33,7 @@ def create_context_item(session_id: str, item_type: ContextItemType, content: st
     Используется в тестах для сокращения boilerplate-кода.
     """
     return ContextItem(
+        item_id=str(uuid.uuid4()),
         session_id=session_id,
         item_type=item_type,
         content=content,

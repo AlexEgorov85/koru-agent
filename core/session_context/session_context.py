@@ -105,15 +105,15 @@ class SessionContext(BaseSessionContext):
     def get_context_item(self, item_id: str) -> Optional[ContextItem]:
         """
         Получение элемента контекста по ID.
-        
+
         ПАРАМЕТРЫ:
         - item_id: Уникальный идентификатор элемента
-        
+
         ВОЗВРАЩАЕТ:
         - ContextItem если элемент найден
         - None если элемент не найден
         """
-        return self.data_context.get_item(item_id)
+        return self.data_context.get_item(item_id, raise_on_missing=False)
     
     def register_step(
         self,
@@ -162,13 +162,13 @@ class SessionContext(BaseSessionContext):
     def get_current_plan(self) -> Optional[ContextItem]:
         """
         Получение текущего плана.
-        
+
         ВОЗВРАЩАЕТ:
         - ContextItem с планом или None если план не установлен
         """
         if not self.current_plan_item_id:
             return None
-        return self.data_context.get_item(self.current_plan_item_id)
+        return self.data_context.get_item(self.current_plan_item_id, raise_on_missing=False)
     
     def is_expired(self, ttl_minutes: int = 60) -> bool:
         """

@@ -11,7 +11,7 @@ import time
 import json
 
 
-from core.config.app_config import get_config
+from core.config import get_config
 from core.infrastructure.providers.llm.base_llm import LLMResponse
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from models.llm_types import LLMHealthStatus, LLMRequest
@@ -35,7 +35,10 @@ def check_test_model_exists():
     return True
 
 # Пропускаем тесты если нет модели
-check_test_model_exists()
+@pytest.mark.skipif(not os.path.exists(DEFAULT_MODEL_PATH), reason=f"Тестовая модель не найдена по пути: {DEFAULT_MODEL_PATH}. Скачайте тестовую модель для запуска этих тестов.")
+def test_placeholder():
+    """Заглушка для пропуска модуля при отсутствии модели."""
+    pass
 
 @pytest.fixture(scope="module")
 def real_llama_config():

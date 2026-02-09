@@ -10,12 +10,11 @@ import pytest
 import os
 import time
 import json
-from typing import Dict, Any, List
-from datetime import datetime
 import uuid
 
 
-from config import get_config
+
+from core.config import get_config
 from core.infrastructure.providers.database.base_db import DBConnectionConfig, DBHealthStatus
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 
