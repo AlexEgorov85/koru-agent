@@ -498,8 +498,13 @@ class SystemContext(BaseSystemContext):
         
         # Затем ищем в общем реестре ресурсов
         resource_info = self.registry.get_resource(service_name)
-        if resource_info and hasattr(resource_info, 'instance'):
-            return resource_info.instance
+        if resource_info:
+            # resource_info может быть самим сервисом или объектом с атрибутом instance
+            if hasattr(resource_info, 'instance'):
+                return resource_info.instance
+            else:
+                # Если resource_info не имеет атрибута instance, то это может быть сам сервис
+                return resource_info
         
         return None
 
