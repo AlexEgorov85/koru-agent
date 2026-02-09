@@ -31,6 +31,7 @@ from models.resource import ResourceType
 # Импорты для инфраструктурных сервисов
 from core.infrastructure.service.base_service import BaseService
 from core.infrastructure.service.prompt_service import PromptService
+from core.infrastructure.service.sql_generation.service import SQLGenerationService
 from typing import Type, Dict
 
 # Импорты для шины событий
@@ -237,21 +238,40 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации PromptService: {str(e)}")
                 initialization_errors.append(f"PromptService initialization failed: {str(e)}")
 
-            # 3. Автоматическая регистрация инфраструктурных сервисов из директории
+            # 3. Создание и регистрация SQLGenerationService
+            try:
+                sql_generation_service = SQLGenerationService(self)
+                await sql_generation_service.initialize()
+
+                resource_info = ResourceInfo(
+                    name="sql_generation_service",
+                    resource_type=ResourceType.SERVICE,
+                    instance=sql_generation_service
+                )
+                resource_info.is_default = True
+                self.registry.register_resource(resource_info)
+                
+                # Также регистрируем в service_registry для обратной совместимости
+                await self.register_service("sql_generation_service", sql_generation_service)
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации SQLGenerationService: {str(e)}")
+                initialization_errors.append(f"SQLGenerationService initialization failed: {str(e)}")
+
+            # 4. Автоматическая регистрация инфраструктурных сервисов из директории
             try:
                 await self.provider_factory.discover_and_create_all_services()
             except Exception as e:
                 logger.warning(f"Ошибка регистрации сервисов: {str(e)}")
                 initialization_errors.append(f"Services registration failed: {str(e)}")
 
-            # 4. Автоматическая регистрация инструментов из директории
+            # 5. Автоматическая регистрация инструментов из директории
             try:
                 await self.provider_factory.discover_and_create_all_tools()
             except Exception as e:
                 logger.warning(f"Ошибка регистрации инструментов: {str(e)}")
                 initialization_errors.append(f"Tools registration failed: {str(e)}")
 
-            # 5. Автоматическая регистрация навыков из директории
+            # 6. Автоматическая регистрация навыков из директории
             try:
                 await self.provider_factory.discover_and_create_all_skills()
             except Exception as e:

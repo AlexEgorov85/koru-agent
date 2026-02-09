@@ -318,52 +318,51 @@ class BookLibrarySkill(BaseSkill):
         """Генерация и выполнение SQL запроса с правильной валидацией."""
         try:
             # 1. Валидация параметров
-            input_data = DynamicSQLInput(**parameters)
+            if isinstance(parameters, dict):
+                input_data = DynamicSQLInput(**parameters)
+            else:
+                input_data = parameters
             logger.debug(f"Валидация параметров успешна: {input_data}")
-            
-            # 2. Генерация SQL запроса (в реальном проекте здесь будет LLM, но для простоты используем заглушку)
-            # Это место где в реальном коде будет вызов LLM для генерации SQL
-            generated_sql = f"""
-            SELECT b.title, a.first_name, a.last_name 
-            FROM "Lib".books b 
-            JOIN "Lib".authors a ON b.author_id = a.id 
-            WHERE a.last_name ILIKE '%Толстой%'
-            LIMIT {input_data.max_rows};
-            """
-            reasoning = "Запрос возвращает названия книг и имена авторов с фамилией Толстой"
-            
-            # 3. Базовая валидация SQL запроса
-            if not generated_sql.strip().lower().startswith("select"):
-                raise ValueError("SQL запрос должен начинаться с SELECT")
-            
-            # 4. Добавление LIMIT если его нет
-            if "limit" not in generated_sql.lower():
-                generated_sql = generated_sql.rstrip("; ") + f" LIMIT {input_data.max_rows};"
-            
-            # 5. Выполнение SQL запроса
-            logger.debug(f"Выполнение сгенерированного SQL запроса: {generated_sql[:100]}...")
-            result = await self.system_context.execute_sql_query(query=generated_sql)
-            
-            if not result.success:
-                raise RuntimeError(f"Ошибка выполнения SQL запроса: {result.error}")
-            
-            # 6. Формирование результата
-            formatted_result = {
-                "sql": generated_sql,
-                "rows": result.rows or [],
-                "row_count": len(result.rows or []),
-                "column_names": result.columns if hasattr(result, 'columns') else [],
-                "reasoning": reasoning if input_data.include_reasoning else None
-            }
-            
-            return ExecutionResult(
-                status=ExecutionStatus.SUCCESS,
-                observation_item_id=None,
-                result=formatted_result,
-                summary=f"Выполнен SQL запрос, получено строк: {formatted_result['row_count']}",
-                error=None
+
+            # 2. Получение SQLGenerationService
+            sql_service = await self.system_context.get_service("sql_generation_service")
+            if not sql_service:
+                raise RuntimeError("SQLGenerationService не зарегистрирован в системном контексте")
+
+            # 3. Подготовка входных данных для сервиса генерации
+            from core.infrastructure.service.sql_generation.schema import SQLGenerationInput
+            generation_input = SQLGenerationInput(
+                user_question=input_data.user_question,
+                tables=input_data.context_tables,
+                max_rows=input_data.max_rows,
+                context=f"Цель: анализ библиотечных данных. Максимум {input_data.max_rows} строк."
             )
-            
+
+            # 4. Автоматическая генерация + выполнение + коррекция через новый сервис
+            result = await sql_service.execute_with_auto_correction(
+                generation_input,
+                context=context
+            )
+
+            if result.success:
+                formatted_result = {
+                    "sql": result.metadata.get("original_query", "Unknown query") if result.metadata else "Unknown query",
+                    "rows": result.rows or [],
+                    "row_count": result.rowcount,
+                    "column_names": result.columns if hasattr(result, 'columns') else [],
+                    "reasoning": "Запрос выполнен через SQLGenerationService с автоматической коррекцией" if input_data.include_reasoning else None
+                }
+
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    observation_item_id=None,
+                    result=formatted_result,
+                    summary=f"Выполнен SQL запрос, получено строк: {formatted_result['row_count']}",
+                    error=None
+                )
+            else:
+                raise RuntimeError(f"Ошибка выполнения SQL запроса через SQLGenerationService: {result.error}")
+
         except Exception as e:
             logger.error(f"Ошибка генерации и выполнения SQL: {str(e)}")
             return self._build_error_result(

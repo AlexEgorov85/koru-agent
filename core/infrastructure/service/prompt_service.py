@@ -278,7 +278,8 @@ class PromptService(BaseService):
         all_vars = {**variables, **kwargs}
         
         try:
-            template = Template(raw_prompt, undefined=UndefinedError)
+            from jinja2 import StrictUndefined
+            template = Template(raw_prompt, undefined=StrictUndefined)
             rendered_prompt = template.render(**all_vars)
             return rendered_prompt
         except UndefinedError as e:
