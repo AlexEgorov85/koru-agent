@@ -1,14 +1,63 @@
-Запуск тестов
+# Система агентов
+
+## Описание проекта
+
+Этот проект представляет собой модульную платформу для автономных AI-агентов с возможностью:
+- Reasoning-циклов (ReAct)
+- Планирования и выполнения задач
+- Интеграции с различными LLM и базами данных
+- Отслеживания состояния и контекста
+
+## Взаимодействие с Git
+
+### Защита от попадания нежелательных файлов в репозиторий
+
+Проект настроен для автоматического игнорирования следующих типов файлов и директорий:
+
+- Временные файлы и директории (`*.tmp`, `*.temp`, `tmp/`, `temp/`)
+- Лог-файлы и директории (`logs/`)
+- Файлы настроек IDE (`.vscode/`, `.idea/`, `*.swp`, `*.swo`)
+- Виртуальные окружения (`venv/`, `env/`, `.venv/`, `.env`)
+- Файлы с секретами и конфигурациями (`*.secrets`, `.env*`, `config/secrets.*`)
+- Кэш-файлы (`__pycache__/`, `.pytest_cache/`, `.hypothesis/`, `*.pyc`)
+- Файлы данных и модели (`*.csv`, `*.json`, `*.db`, `models/trained/`, `data/`)
+- Файлы Jupyter Notebook checkpoints (`.ipynb_checkpoints/`)
+- Системные файлы ОС (`.DS_Store`, `Thumbs.db`, `desktop.ini`)
+
+### Структура проекта
+
+```
+project/
+├── core/                    # Ядро системы
+│   ├── agent_runtime.py     # Reasoning-цикл
+│   ├── execution_gateway.py # Единая точка выполнения
+│   ├── context.py          # Двухуровневый контекст
+│   ├── system_context.py   # Управление ресурсами
+│   ├── retry_policy.py     # Политика повторных попыток
+│   ├── structured_actions.py # Валидация действий
+│   └── events/             # Система событий
+│       ├── event_bus.py    # Шина событий
+│       └── event_handlers.py # Обработчики событий
+├── models/                 # Типы данных
+├── skills/                 # Навыки агента
+├── tools/                  # Инструменты для I/O
+├── providers/              # Адаптеры для внешних сервисов
+└── tests/                  # Тесты всех компонентов
+```
+
+## Запуск тестов
+```bash
 python -m pytest tests/test_session_context.py -v
 
 python -m pytest tests/test_execution_gateway.py -v
 
 python -m pytest tests/providers/conftest.py -v
 python -m pytest -v tests/providers/
+```
 
+## Запуск агента
 
-
-
+```bash
 ########
 # Простой запуск с вопросом по умолчанию
 python main.py
@@ -24,7 +73,9 @@ python main.py "Сравни различные подходы к машинно
 
 # Запуск с кастомной конфигурацией
 python main.py "Проанализируй данные" --config-path=./configs/production.yaml
+```
 
+## Архитектурные особенности
 
 # Что нужно реализовать:
 * у инструментов и скиллов формат входящих данных
@@ -123,3 +174,4 @@ providers:
 agent:
   max_steps: 10
   timeout: 300
+```
