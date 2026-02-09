@@ -365,6 +365,22 @@ class BookLibrarySkill(BaseSkill):
                 step_number=step_number
             )
 
+    async def initialize(self) -> bool:
+        """Инициализация навыка - загрузка структуры таблиц если включено кэширование."""
+        try:
+            if self.cache_table_structure:
+                await self._load_table_structure()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка инициализации BookLibrarySkill: {str(e)}")
+            return False
+
+    async def shutdown(self):
+        """Очистка ресурсов навыка."""
+        # Очистка кэша структуры таблиц
+        self._table_structure_cache = None
+        logger.info("BookLibrarySkill остановлен")
+
     def _build_error_result(self, context: BaseSessionContext, error_message: str, error_type: str, step_number: int) -> ExecutionResult:
         """Построение результата ошибки."""
         logger.error(f"Ошибка на шаге {step_number}: {error_type} - {error_message}")

@@ -170,11 +170,11 @@ class BaseSkill(ABC):
         """
         Метод для совместимости с предыдущими версиями.
         Выполняет действие с помощью execute метода.
-        
+
         ПАРАМЕТРЫ:
         - action_payload: Параметры действия
         - session: Контекст сессии
-        
+
         ВОЗВРАЩАЕТ:
         - Результат выполнения в виде словаря
         """
@@ -188,15 +188,56 @@ class BaseSkill(ABC):
             parameters_schema={"type": "object", "properties": {}},
             skill_name=self.name
         )
-        
+
         result = await self.execute(
             capability=capability,
             parameters=action_payload,
             context=session
         )
-        
+
         # Возвращаем content из ExecutionResult или сам результат
         if hasattr(result, 'content') and result.content:
             return result.content
         else:
             return {"result": "executed", "status": "success"}
+
+    async def restart(self) -> bool:
+        """
+        Перезапуск навыка без полной перезагрузки системного контекста.
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала выполним остановку текущего состояния
+            await self.shutdown()
+            
+            # Затем заново инициализируем навык
+            if hasattr(self, 'initialize') and callable(getattr(self, 'initialize')):
+                return await self.initialize()
+            else:
+                # Если метод initialize не определен, просто возвращаем True
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
+            return False
+
+    def restart_with_module_reload(self):
+        """
+        Перезапуск навыка с перезагрузкой модуля Python.
+        ВНИМАНИЕ: Использовать с осторожностью!
+        
+        ВОЗВРАЩАЕТ:
+        - Новый экземпляр навыка из перезагруженного модуля
+        """
+        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
+        return safe_reload_component_with_module_reload(self)
+
+    async def shutdown(self):
+        """
+        Очистка ресурсов навыка перед остановкой или перезапуском.
+        Может быть переопределен в дочерних классах.
+        """
+        # По умолчанию ничего не делаем, но метод может быть переопределен
+        pass

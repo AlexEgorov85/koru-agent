@@ -75,6 +75,35 @@ class BaseService(ABC):
         """
         pass
 
+    async def restart(self) -> bool:
+        """
+        Перезапуск сервиса без полной перезагрузки системного контекста.
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала останавливаем текущий экземпляр
+            await self.shutdown()
+            
+            # Затем инициализируем заново
+            return await self.initialize()
+        except Exception as e:
+            self.logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            return False
+
+    async def restart_with_module_reload(self):
+        """
+        Перезапуск сервиса с перезагрузкой модуля Python.
+        ВНИМАНИЕ: Использовать с осторожностью!
+        
+        ВОЗВРАЩАЕТ:
+        - Новый экземпляр сервиса из перезагруженного модуля
+        """
+        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        return safe_reload_component_with_module_reload(self)
+
     @abstractmethod
     async def shutdown(self) -> None:
         """

@@ -937,3 +937,13 @@ class PlanningSkill(BaseSkill):
     async def _mark_task_completed(self, input_data: MarkTaskCompletedInput, context: "BaseSessionContext") -> ExecutionResult:
         # Заглушка для реализации
         pass
+
+    async def initialize(self) -> bool:
+        """Инициализация навыка."""
+        # В PlanningSkill нет специфической инициализации
+        return True
+
+    async def shutdown(self):
+        """Очистка ресурсов навыка."""
+        # В PlanningSkill нет специфических ресурсов для очистки
+        pass

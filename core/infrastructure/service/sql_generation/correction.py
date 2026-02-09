@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 from core.system_context.base_system_contex import BaseSystemContext
-from core.infrastructure.service.base_service import BaseService
+from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput
 from core.infrastructure.service.sql_generation.schema import SQLCorrectionInput, SQLCorrectionOutput
 from core.infrastructure.service.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 

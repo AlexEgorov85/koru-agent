@@ -125,8 +125,7 @@ class SQLQueryService(BaseService):
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error="SQLValidatorService не доступен",
-                    query_executed=sql_query
+                    error="SQLValidatorService не доступен"
                 )
 
             validation_result = await self.validator_service.validate_query(
@@ -140,8 +139,7 @@ class SQLQueryService(BaseService):
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error=f"Запрос не прошел валидацию: {validation_result.validation_errors}",
-                    query_executed=sql_query
+                    error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
                 )
 
             # Выполнение безопасного запроса через внутренний метод системного контекста
@@ -162,8 +160,7 @@ class SQLQueryService(BaseService):
                 rows=[],
                 columns=[],
                 rowcount=0,
-                error=str(e),
-                query_executed=sql_query
+                error=str(e)
             )
 
     async def execute_query_from_user_request(
@@ -194,8 +191,7 @@ class SQLQueryService(BaseService):
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error="SQLGenerationService не доступен",
-                    query_executed=""
+                    error="SQLGenerationService не доступен"
                 )
 
             # Подготовка входных данных для SQLGenerationService
@@ -222,8 +218,7 @@ class SQLQueryService(BaseService):
                 rows=[],
                 columns=[],
                 rowcount=0,
-                error=str(e),
-                query_executed=""
+                error=str(e)
             )
 
     async def execute_direct_query(
@@ -244,6 +239,23 @@ class SQLQueryService(BaseService):
         - DBQueryResult: результат выполнения запроса
         """
         return await self.execute_query(sql_query, parameters, max_rows)
+
+    async def restart(self) -> bool:
+        """
+        Перезапуск сервиса без полной перезагрузки системного контекста.
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала останавливаем текущий экземпляр
+            await self.shutdown()
+            
+            # Затем инициализируем заново
+            return await self.initialize()
+        except Exception as e:
+            self.logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
+            return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""

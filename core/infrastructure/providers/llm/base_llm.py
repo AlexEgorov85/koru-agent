@@ -69,6 +69,35 @@ class BaseLLMProvider(ABC):
         self.health_status = LLMHealthStatus.HEALTHY
         self.last_health_check = time.time()
     
+    async def restart(self) -> bool:
+        """
+        Перезапуск провайдера без полной перезагрузки системного контекста.
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала останавливаем текущий экземпляр
+            await self.shutdown()
+            
+            # Затем инициализируем заново
+            return await self.initialize()
+        except Exception as e:
+            logger.error(f"Ошибка перезапуска LLM провайдера: {str(e)}")
+            return False
+
+    def restart_with_module_reload(self):
+        """
+        Перезапуск провайдера с перезагрузкой модуля Python.
+        ВНИМАНИЕ: Использовать с осторожностью!
+        
+        ВОЗВРАЩАЕТ:
+        - Новый экземпляр провайдера из перезагруженного модуля
+        """
+        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для LLM провайдера {self.__class__.__name__}")
+        return safe_reload_component_with_module_reload(self)
+
     @abstractmethod
     async def shutdown(self) -> None:
         """Корректное завершение работы провайдера."""

@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from core.system_context.base_system_contex import BaseSystemContext
-from core.infrastructure.service.base_service import BaseService
+from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput
 import re
 
 @dataclass
@@ -66,7 +66,8 @@ class SQLErrorAnalyzer(BaseService):
     
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:
         """Выполнение анализа ошибки - в данном случае не используется напрямую"""
-        raise NotImplementedError("SQLErrorAnalyzer не поддерживает прямое выполнение")
+        # Этот метод не используется напрямую, так как анализатор ошибок используется через метод analyze
+        raise NotImplementedError("SQLErrorAnalyzer не поддерживает прямое выполнение. Используйте метод analyze()")
     
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""

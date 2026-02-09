@@ -103,6 +103,23 @@ class SQLGenerationService(BaseService):
         else:
             raise ValueError(f"Unsupported input type: {type(input_data)}")
 
+    async def restart(self) -> bool:
+        """
+        Перезапуск сервиса без полной перезагрузки системного контекста.
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала останавливаем текущий экземпляр
+            await self.shutdown()
+            
+            # Затем инициализируем заново
+            return await self.initialize()
+        except Exception as e:
+            self.logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
+            return False
+
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
         self.logger.info("Завершение работы SQLGenerationService")
