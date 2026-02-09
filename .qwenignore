@@ -1,0 +1,74 @@
+# Файлы и директории, которые не должны быть проиндексированы Qwen Code
+
+# Временные файлы
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Лог-файлы
+logs/
+*.log
+
+# Кэш-директории
+__pycache__/
+.pytest_cache/
+.hypothesis/
+.cache/
+.eggs/
+eggs/
+
+# Виртуальные окружения
+venv/
+env/
+.venv/
+.ENV/
+.env/
+
+# Файлы настроек IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Файлы и директории, содержащие данные
+data/
+dataset/
+datasets/
+*.csv
+*.json
+*.xml
+*.db
+*.sqlite
+
+# Модели
+models/trained/
+
+# Файлы, содержащие секреты
+*.secrets
+.secret
+.env*
+config/secrets.*
+
+# Файлы, создаваемые Git
+.git/
+.gitignore
+
+# Файлы, создаваемые Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Файлы, создаваемые Python
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
