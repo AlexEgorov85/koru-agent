@@ -731,7 +731,28 @@ class SystemContext(BaseSystemContext):
         if llm_provider:
             response = await llm_provider.generate(request)
         """
-        return self.registry.get_resource(name)
+        # Карта алиасов для обеспечения обратной совместимости
+        resource_aliases = {
+            "table_description_service": "TableDescriptionService",
+            "TableDescriptionService": "TableDescriptionService",
+        }
+        
+        # Нормализуем имя ресурса
+        normalized_name = resource_aliases.get(name, name)
+        
+        # Сначала ищем по нормальному имени
+        resource = self.registry.get_resource(normalized_name)
+        if resource:
+            return resource
+        
+        # Если не найден, пробуем поискать по алиасам
+        for alias, actual_name in resource_aliases.items():
+            if alias == name and alias != actual_name:
+                resource = self.registry.get_resource(actual_name)
+                if resource:
+                    return resource
+        
+        return None
 
     def get_capability(self, name: str) -> Optional[Capability]:
         """
