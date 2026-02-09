@@ -7,6 +7,8 @@
 - Планирования и выполнения задач
 - Интеграции с различными LLM и базами данных
 - Отслеживания состояния и контекста
+- Структурированного вывода с поддержкой нативной валидации провайдеров
+- Типизированной обработки данных с гарантией валидности
 
 ## Взаимодействие с Git
 
@@ -28,37 +30,50 @@
 
 ```
 project/
-├── core/                    # Ядро системы
-│   ├── agent_runtime.py     # Reasoning-цикл
-│   ├── execution_gateway.py # Единая точка выполнения
-│   ├── context.py          # Двухуровневый контекст
-│   ├── system_context.py   # Управление ресурсами
-│   ├── retry_policy.py     # Политика повторных попыток
-│   ├── structured_actions.py # Валидация действий
-│   └── events/             # Система событий
-│       ├── event_bus.py    # Шина событий
-│       └── event_handlers.py # Обработчики событий
-├── models/                 # Типы данных
-├── skills/                 # Навыки агента
-├── tools/                  # Инструменты для I/O
-├── providers/              # Адаптеры для внешних сервисов
-└── tests/                  # Тесты всех компонентов
+├── core/                           # Ядро системы
+│   ├── agent_runtime/              # Runtime агента
+│   │   └── runtime.py              # Reasoning-цикл
+│   ├── system_context/             # Системный контекст
+│   │   ├── system_context.py       # Основной фасад системы
+│   │   ├── base_system_contex.py   # Базовый класс системного контекста
+│   │   ├── resource_registry.py    # Реестр ресурсов
+│   │   ├── capability_registry.py  # Реестр capability
+│   │   ├── execution_gateway.py    # Шлюз выполнения
+│   │   └── lifecycle_manager.py    # Менеджер жизненного цикла
+│   ├── session_context/            # Контекст сессии
+│   │   ├── session_context.py      # Контекст сессии
+│   │   └── base_session_context.py # Базовый класс контекста сессии
+│   ├── infrastructure/             # Инфраструктурные компоненты
+│   │   ├── providers/              # Провайдеры (LLM, DB, etc.)
+│   │   ├── service/                # Инфраструктурные сервисы
+│   │   └── tools/                  # Инструменты
+│   ├── events/                     # Система событий
+│   │   ├── event_bus.py            # Шина событий
+│   │   └── event_handlers.py       # Обработчики событий
+│   ├── retry_policy/               # Политики повторных попыток
+│   └── errors/                     # Кастомные ошибки
+│       └── structured_output.py    # Ошибки структурированного вывода
+├── models/                         # Типы данных
+│   └── llm_types.py                # Типы LLM (LLMRequest, LLMResponse, etc.)
+├── skills/                         # Навыки агента
+├── tools/                          # Инструменты для I/O
+├── providers/                      # Адаптеры для внешних сервисов
+├── config/                         # Конфигурационные файлы
+└── tests/                          # Тесты всех компонентов
 ```
 
 ## Запуск тестов
 ```bash
-python -m pytest tests/test_session_context.py -v
+python -m pytest tests/test_components_simple.py -v
 
-python -m pytest tests/test_execution_gateway.py -v
+python -m pytest tests/test_components.py -v
 
-python -m pytest tests/providers/conftest.py -v
-python -m pytest -v tests/providers/
+python -m pytest tests/providers/ -v
 ```
 
 ## Запуск агента
 
 ```bash
-########
 # Простой запуск с вопросом по умолчанию
 python main.py
 
@@ -77,11 +92,18 @@ python main.py "Проанализируй данные" --config-path=./configs
 
 ## Архитектурные особенности
 
-# Что нужно реализовать:
-* у инструментов и скиллов формат входящих данных
-* у всех действий агента должно быть структура
-* как будет определяться стратегия? Может добавить SGR для размышления?
+### Структурированный вывод
+Система поддерживает два режима обработки структурированного вывода:
+- **Нативная валидация провайдером** - когда LLM-провайдер поддерживает `generate_structured` (например, OpenAI с response_format)
+- **Системная валидация** - резервный режим с ретраями и коррекцией через централизованный `SystemContext`
 
+### Типизированные модели
+- `StructuredOutputConfig` - конфигурация структурированного вывода
+- `StructuredLLMResponse[T]` - обобщенная модель для типизированного ответа
+- `RawLLMResponse` - модель для обычного (сырого) ответа
+- `provider_native_validation` - флаг, показывающий, была ли использована нативная валидация
+
+### Контексты
 
 SessionContext
  ├── DataContext           # вся истина, сырые данные
@@ -98,6 +120,8 @@ SystemContext (Facade / Composition Root)
 ├── HealthManager (health checks)
 ├── CapabilityRegistry (capabilities)
 ├── AgentFactory (создание агентов)
+├── ProviderFactory (фабрика провайдеров)
+├── Event Bus (система событий)
 └── Config (SystemConfig)
 
 
@@ -140,6 +164,12 @@ AgentRuntime
 * INVALID_INPUT → ABORT, а не retry
 * execution стал предсказуемым
 
+### Цель structured output
+Сделать так, чтобы:
+* компоненты получали гарантированно валидные Pydantic-модели
+* поддерживалась нативная валидация провайдеров, где доступна
+* использовалась резервная валидация на уровне системы при отсутствии нативной
+* обеспечивалась полная обратная совместимость
 
 ## Система конфигурации
 
