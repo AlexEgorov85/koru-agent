@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from models.llm_types import LLMHealthStatus, LLMRequest, LLMResponse
+from models.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +85,16 @@ class BaseLLMProvider(ABC):
         pass
     
     @abstractmethod
-    async def generate_structured(self, prompt: str, output_schema: Dict[str, Any],
-                                system_prompt: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-        """Генерация структурированных данных по JSON Schema."""
+    async def generate_structured(self, request: LLMRequest) -> Dict[str, Any]:
+        """
+        Генерация структурированных данных по JSON Schema.
+        
+        Args:
+            request (LLMRequest): Запрос к LLM с информацией о структурированном выводе
+            
+        Returns:
+            Dict[str, Any]: Структурированные данные
+        """
         pass
 
     async def generate_for_capability(self, system_prompt: str, user_input: str, capabilities) -> tuple:

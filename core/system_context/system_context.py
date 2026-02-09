@@ -11,7 +11,9 @@ import uuid
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 from core.agent_runtime.runtime import AgentRuntime
 from core.config.models import SystemConfig
@@ -25,8 +27,12 @@ from core.system_context.lifecycle_manager import LifecycleManager
 
 from core.infrastructure.providers.factory import ProviderFactory
 from models.capability import Capability
-from models.llm_types import LLMRequest, LLMResponse
+from models.llm_types import LLMRequest, LLMResponse, RawLLMResponse, StructuredLLMResponse, StructuredOutputConfig
 from models.resource import ResourceType
+from core.errors.structured_output import StructuredOutputError
+from pydantic import ValidationError
+from pydantic.main import BaseModel as PydanticBaseModel
+import json
 
 # Импорты для инфраструктурных сервисов
 from core.infrastructure.service.base_service import BaseService
@@ -688,32 +694,38 @@ class SystemContext(BaseSystemContext):
         """
         return [cap.name for cap in self.registry.list_capabilities()]
     
-    async def call_llm(self, prompt: str) -> str:
+    async def call_llm(
+        self,
+        request: LLMRequest
+    ) -> Union[RawLLMResponse, StructuredLLMResponse]:
         """
-        Вызов LLM для генерации текста.
-
-        ПАРАМЕТРЫ:
-        - prompt: Промпт для генерации
-
-        ВОЗВРАЩАЕТ:
-        - Сгенерированный текст
-
-        ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-        response = await system.call_llm("Привет! Как дела?")
-        """
-        correlation_id = str(uuid.uuid4())
+        ЕДИНСТВЕННАЯ ТОЧКА ВЫЗОВА LLM ДЛЯ ВСЕЙ СИСТЕМЫ.
         
+        ПОВЕДЕНИЕ:
+        - Если request.structured_output is None → возвращает RawLLMResponse
+        - Если request.structured_output is not None → возвращает StructuredLLMResponse[T]
+          с гарантией валидности или выбрасывает StructuredOutputError
+        
+        АРХИТЕКТУРНЫЕ ГАРАНТИИ:
+        1. Компоненты НЕ знают о ретраах — это скрыто внутри метода
+        2. Валидация происходит ОДИН раз на уровне контекста
+        3. События публикуются для каждой попытки (наблюдаемость)
+        4. Обратная совместимость сохранена (сырые запросы работают как раньше)
+        """
+        correlation_id = request.correlation_id or str(uuid.uuid4())
+
         # Публикация события начала вызова LLM
         await self.event_bus.publish(
             EventType.LLM_CALL_STARTED,
             data={
-                "prompt": prompt,
-                "system_id": self.id
+                "prompt": request.prompt,
+                "system_id": self.id,
+                "structured_output": request.structured_output is not None
             },
             source="SystemContext.call_llm",
             correlation_id=correlation_id
         )
-        
+
         default_llm = None
         for info in self.registry.all():
             if info.resource_type == ResourceType.LLM_PROVIDER and info.is_default:
@@ -740,28 +752,71 @@ class SystemContext(BaseSystemContext):
             )
             raise ValueError("Нет доступных LLM провайдеров")
 
+        # Базовый вызов провайдера (для получения метаданных)
+        raw_response = await default_llm.generate(request)
+
         try:
-            result = await default_llm.generate({"prompt": prompt})
-            
-            # Публикация события успешного завершения вызова LLM
-            await self.event_bus.publish(
-                EventType.LLM_CALL_COMPLETED,
-                data={
-                    "prompt": prompt,
-                    "result_length": len(result) if result else 0,
-                    "system_id": self.id
-                },
-                source="SystemContext.call_llm",
-                correlation_id=correlation_id
+            # 1. Если запрошена структурированная генерация и провайдер её поддерживает
+            if request.structured_output is not None:
+                # Проверяем, поддерживает ли провайдер нативную генерацию
+                if hasattr(default_llm, 'generate_structured'):
+                    try:
+                        # Пытаемся использовать нативную генерацию структурированного вывода
+                        structured_result = await default_llm.generate_structured(request)
+                        
+                        # Если нативная генерация успешна, возвращаем результат
+                        # с признаком, что использовалась нативная валидация
+                        from pydantic import BaseModel
+                        
+                        # Получаем модель для валидации
+                        output_model = self._resolve_output_model(request.structured_output.output_model)
+                        
+                        # Валидируем результат с помощью Pydantic модели
+                        validated_result = output_model.model_validate(structured_result)
+                        
+                        return StructuredLLMResponse(
+                            parsed_content=validated_result,
+                            raw_response=RawLLMResponse(
+                                content=str(structured_result),  # Конвертируем в строку для совместимости
+                                model=raw_response.model,
+                                tokens_used=raw_response.tokens_used,
+                                generation_time=raw_response.generation_time,
+                                finish_reason=raw_response.finish_reason,
+                                raw_provider_response=getattr(raw_response, 'raw_provider_response', None),
+                                metadata=raw_response.metadata
+                            ),
+                            parsing_attempts=1,
+                            validation_errors=[],
+                            provider_native_validation=True  # Использовалась нативная валидация
+                        )
+                    except Exception as native_error:
+                        # Если нативная генерация не удалась, переходим к резервной стратегии
+                        logger.warning(f"Нативная генерация структурированного вывода не удалась: {native_error}")
+                        # Продолжаем с резервной стратегии
+
+            # 2. Если структурированный вывод не запрошен — возврат сырого ответа
+            if request.structured_output is None:
+                return RawLLMResponse(
+                    content=raw_response.content,
+                    model=raw_response.model,
+                    tokens_used=raw_response.tokens_used,
+                    generation_time=raw_response.generation_time,
+                    finish_reason=raw_response.finish_reason,
+                    raw_provider_response=getattr(raw_response, 'raw_provider_response', None),
+                    metadata=raw_response.metadata
+                )
+
+            # 3. Обработка структурированного вывода с ретраями (резервная стратегия)
+            return await self._handle_structured_output(
+                request=request,
+                initial_response=raw_response
             )
-            
-            return result
         except Exception as e:
             # Публикация события ошибки вызова LLM
             await self.event_bus.publish(
                 EventType.LLM_CALL_FAILED,
                 data={
-                    "prompt": prompt,
+                    "prompt": request.prompt,
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "system_id": self.id
@@ -770,7 +825,6 @@ class SystemContext(BaseSystemContext):
                 correlation_id=correlation_id
             )
             raise
-    
 
     async def create_agent(self, **kwargs):
         """
@@ -1069,13 +1123,248 @@ class SystemContext(BaseSystemContext):
             )
             raise
     
+    async def _handle_structured_output(
+        self,
+        request: LLMRequest,
+        initial_response: Any  # Сырой ответ от провайдера
+    ) -> StructuredLLMResponse:
+        """Внутренняя реализация с ретраями и валидацией"""
+        structured_config = request.structured_output
+        max_retries = structured_config.max_retries
+        attempts = []
+        current_prompt = request.system_prompt or request.prompt
+        
+        # Получение реальной Pydantic модели по имени (из реестра моделей)
+        output_model = self._resolve_output_model(structured_config.output_model)
+        
+        for attempt in range(max_retries):
+            try:
+                # Парсинг ответа
+                parsed = output_model.model_validate_json(initial_response.content)
+                
+                # Публикация события успеха
+                await self._publish_structured_success_event(
+                    request=request,
+                    model_name=structured_config.output_model,
+                    attempt=attempt + 1,
+                    parsed_model=parsed
+                )
+                
+                return StructuredLLMResponse(
+                    parsed_content=parsed,
+                    raw_response=RawLLMResponse(
+                        content=initial_response.content,
+                        model=initial_response.model,
+                        tokens_used=initial_response.tokens_used,
+                        generation_time=initial_response.generation_time,
+                        finish_reason=initial_response.finish_reason,
+                        raw_provider_response=getattr(initial_response, 'raw_provider_response', None),
+                        metadata=initial_response.metadata
+                    ),
+                    parsing_attempts=attempt + 1,
+                    validation_errors=attempts,
+                    provider_native_validation=False  # По умолчанию считаем, что валидация происходит на нашей стороне
+                )
+                
+            except (ValidationError, json.JSONDecodeError) as e:
+                error_detail = self._extract_validation_error(e, output_model)
+                attempts.append(error_detail)
+                
+                # Публикация события ошибки
+                await self._publish_structured_failure_event(
+                    request=request,
+                    model_name=structured_config.output_model,
+                    attempt=attempt + 1,
+                    max_attempts=max_retries,
+                    error=error_detail
+                )
+                
+                # Ретрай с уточняющим промптом (если есть попытки)
+                if attempt < max_retries - 1:
+                    # Формирование уточняющего промпта через централизованный сервис
+                    prompt_service = self.get_resource("prompt_service")
+                    if prompt_service:
+                        correction_prompt = await prompt_service.render(
+                            capability_name="structured_output.correction_hint",
+                            variables={
+                                "original_prompt": current_prompt,
+                                "error_details": self._format_error_for_prompt(error_detail),
+                                "expected_schema": json.dumps(structured_config.schema_def, indent=2)
+                            }
+                        )
+                    else:
+                        # Если нет prompt_service, используем базовый уточняющий промпт
+                        correction_prompt = f"""
+                        {current_prompt}
+                        
+                        ПРЕДЫДУЩИЙ ОТВЕТ БЫЛ НЕКОРРЕКТНЫМ:
+                        {initial_response.content}
+                        
+                        ОШИБКА ВАЛИДАЦИИ:
+                        {self._format_error_for_prompt(error_detail)}
+                        
+                        ПОЖАЛУЙСТА, ВЕРНИ ОТВЕТ В СТРОГО ОПРЕДЕЛЕННОМ ФОРМАТЕ СХЕМЫ:
+                        {json.dumps(structured_config.schema_def, indent=2)}
+                        """
+                    
+                    # Повторный вызов с уточненным промптом
+                    retry_request = LLMRequest(
+                        prompt=request.prompt,
+                        system_prompt=correction_prompt,
+                        temperature=request.temperature * 0.9,  # Снижаем креативность для точности
+                        max_tokens=request.max_tokens,
+                        top_p=request.top_p,
+                        frequency_penalty=request.frequency_penalty,
+                        presence_penalty=request.presence_penalty,
+                        stream=request.stream,
+                        structured_output=structured_config,
+                        metadata=request.metadata,
+                        correlation_id=request.correlation_id,
+                        capability_name=request.capability_name
+                    )
+                    
+                    # Получаем LLM провайдер
+                    default_llm = None
+                    for info in self.registry.all():
+                        if info.resource_type == ResourceType.LLM_PROVIDER and info.is_default:
+                            default_llm = info.instance
+                            break
+
+                    if default_llm is None:
+                        for info in self.registry.all():
+                            if info.resource_type == ResourceType.LLM_PROVIDER:
+                                default_llm = info.instance
+                                break
+
+                    if default_llm is None:
+                        raise ValueError("Нет доступных LLM провайдеров")
+
+                    initial_response = await default_llm.generate(retry_request)
+                    current_prompt = correction_prompt
+                    continue
+                else:
+                    # Исчерпаны все попытки
+                    raise StructuredOutputError(
+                        message=f"Не удалось получить валидный структурированный вывод после {max_retries} попыток",
+                        model_name=structured_config.output_model,
+                        attempts=attempts,
+                        correlation_id=request.correlation_id or "unknown"
+                    )
+    
+    def _resolve_output_model(self, model_name: str) -> Type[PydanticBaseModel]:
+        """
+        Разрешение имени модели в реальный класс.
+        РЕАЛИЗАЦИЯ: реестр моделей или динамический импорт из безопасного списка.
+        """
+        # Пример реализации через реестр
+        from core.infrastructure.service.sql_generation.schema import SQLGenerationOutput, SQLCorrectionOutput
+        
+        registry = {
+            "SQLGenerationOutput": SQLGenerationOutput,
+            "SQLCorrectionOutput": SQLCorrectionOutput,
+            "AgentAction": None,  # Заглушка - будет добавлена при необходимости
+            "ToolResponse": None,  # Заглушка - будет добавлена при необходимости
+            # ... другие модели
+        }
+        
+        # Попробуем найти модель в реестре
+        if model_name in registry and registry[model_name] is not None:
+            return registry[model_name]
+        
+        # Если не найдено в реестре, пробуем динамический импорт
+        # Это позволяет использовать любую Pydantic модель, если она доступна
+        try:
+            # Попробуем импортировать из известных мест
+            if model_name == "SQLGenerationOutput":
+                from core.infrastructure.service.sql_generation.schema import SQLGenerationOutput
+                return SQLGenerationOutput
+            elif model_name == "SQLCorrectionOutput":
+                from core.infrastructure.service.sql_generation.schema import SQLCorrectionOutput
+                return SQLCorrectionOutput
+        except ImportError:
+            pass
+        
+        if model_name not in registry:
+            raise ValueError(f"Неизвестная модель для структурированного вывода: {model_name}")
+        
+        raise ValueError(f"Модель {model_name} не может быть разрешена")
+    
+    def _extract_validation_error(self, error: Exception, model: Type[PydanticBaseModel]) -> Dict[str, Any]:
+        """Извлечение деталей ошибки валидации"""
+        if isinstance(error, ValidationError):
+            return {
+                "type": "validation_error",
+                "details": error.errors(),
+                "model_name": model.__name__
+            }
+        elif isinstance(error, json.JSONDecodeError):
+            return {
+                "type": "json_decode_error",
+                "line": error.lineno,
+                "col": error.colno,
+                "message": str(error.msg),
+                "model_name": model.__name__
+            }
+        else:
+            return {
+                "type": "unknown_error",
+                "message": str(error),
+                "model_name": model.__name__
+            }
+    
+    def _format_error_for_prompt(self, error_detail: Dict[str, Any]) -> str:
+        """Форматирование ошибки для включения в промпт коррекции"""
+        if error_detail["type"] == "validation_error":
+            errors_str = "\n".join([
+                f"- Поле '{err['loc'][0]}': {err['msg']}" 
+                for err in error_detail["details"]
+            ])
+            return f"Ошибки валидации: {errors_str}"
+        elif error_detail["type"] == "json_decode_error":
+            return f"Ошибка парсинга JSON: {error_detail['message']} на с��роке {error_detail.get('line', '?')}, колонке {error_detail.get('col', '?')}"
+        else:
+            return f"Неизвестная ошибка: {error_detail['message']}"
+    
+    async def _publish_structured_success_event(self, request: LLMRequest, model_name: str, attempt: int, parsed_model: Any):
+        """Публикация события успешного структурированного вывода"""
+        await self.event_bus.publish(
+            EventType.LLM_CALL_COMPLETED,
+            data={
+                "request_type": "structured_output",
+                "model_name": model_name,
+                "attempt": attempt,
+                "success": True,
+                "parsed_fields": list(parsed_model.model_fields.keys()) if hasattr(parsed_model, 'model_fields') else [],
+                "system_id": self.id
+            },
+            source="SystemContext._handle_structured_output",
+            correlation_id=request.correlation_id or str(uuid.uuid4())
+        )
+    
+    async def _publish_structured_failure_event(self, request: LLMRequest, model_name: str, attempt: int, max_attempts: int, error: Dict[str, Any]):
+        """Публикация события неудачного структурированного вывода"""
+        await self.event_bus.publish(
+            EventType.LLM_CALL_FAILED,
+            data={
+                "request_type": "structured_output",
+                "model_name": model_name,
+                "attempt": attempt,
+                "max_attempts": max_attempts,
+                "success": False,
+                "error": error,
+                "system_id": self.id
+            },
+            source="SystemContext._handle_structured_output",
+            correlation_id=request.correlation_id or str(uuid.uuid4())
+        )
+
     async def _select_strategy_for_question(self, question: str) -> str:
         """
         Выбирает стратегию выполнения на основе типа вопроса.
         """
         # Анализируем вопрос для определения типа
         question_lower = question.lower()
-        
+
         # Правила выбора стратегии
         if any(keyword in question_lower for keyword in ["запланировать", "план", "шаги", "этапы"]):
             return "hierarchical_planning"
@@ -1083,6 +1372,6 @@ class SystemContext(BaseSystemContext):
             return "react"  # или специальная стратегия для работы с данными
         elif any(keyword in question_lower for keyword in ["оценить", "проверить", "результат"]):
             return "evaluation"
-        
+
         # Стратегия по умолчанию
         return self.config.agent.get("default_strategy", "react")

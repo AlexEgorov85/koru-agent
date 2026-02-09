@@ -17,6 +17,7 @@ from core.infrastructure.service.sql_generation.schema import (
 )
 from core.system_context.base_system_contex import BaseSystemContext
 from models.db_types import DBQueryResult
+from models.llm_types import LLMRequest, StructuredOutputConfig
 import logging
 
 logger = logging.getLogger(__name__)
@@ -142,35 +143,48 @@ class SQLGenerationService(BaseService):
             variables=prompt_vars
         )
         
-        # 3. Генерация через LLM с валидацией схемы
-        llm_response = await self.system_context.call_llm_with_params(
-            user_prompt=input_data.user_question,
-            system_prompt=prompt,
-            output_schema=SQLGenerationOutput.model_json_schema(),
-            temperature=0.3,
-            max_tokens=500
-        )
-        
-        # 4. Парсинг и валидация
         try:
-            output = SQLGenerationOutput.model_validate_json(llm_response.content)
+            # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели
+            request = LLMRequest(
+                prompt=input_data.user_question,
+                system_prompt=prompt,
+                temperature=0.3,
+                max_tokens=500,
+                structured_output=StructuredOutputConfig(
+                    output_model="SQLGenerationOutput",  # Имя модели из реестра
+                    schema_def=SQLGenerationOutput.model_json_schema(),
+                    max_retries=3,
+                    strict_mode=True
+                ),
+                correlation_id=f"sql_gen_{hash(input_data.user_question)}",
+                capability_name="sql_generation.generate_safe_query"
+            )
+            
+            # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
+            # Типизация на уровне компиляции: ответ будет StructuredLLMResponse[SQLGenerationOutput]
+            response = await self.system_context.call_llm(request)
+            
+            # 5. Использование без дополнительной валидации
+            # Типизация гарантирует, что parsed_content — валидный экземпляр SQLGenerationOutput
+            output = response.parsed_content
             validated = await self.validator.validate_query(output.sql, output.parameters)
+            
+            # 5. Формирование результата
+            result = SQLGenerationResult(
+                sql=validated.sql,
+                parameters=validated.parameters,
+                reasoning=output.reasoning,
+                tables_used=output.tables_used,
+                safety_score=validated.safety_score,
+                generation_id=f"gen_{hash(input_data.user_question)}"
+            )
+
+            await self._publish_generation_event("generation_success", result.sql, input_data, result.safety_score)
+            return result
+            
         except Exception as e:
             await self._publish_generation_event("generation_failed", str(e), input_data)
             raise ValueError(f"Ошибка валидации сгенерированного SQL: {str(e)}")
-        
-        # 5. Формирование результата
-        result = SQLGenerationResult(
-            sql=validated.sql,
-            parameters=validated.parameters,
-            reasoning=output.reasoning,
-            tables_used=output.tables_used,
-            safety_score=validated.safety_score,
-            generation_id=f"gen_{hash(input_data.user_question)}"
-        )
-        
-        await self._publish_generation_event("generation_success", result.sql, input_data, result.safety_score)
-        return result
 
     async def correct_query(
         self,
@@ -221,23 +235,33 @@ class SQLGenerationService(BaseService):
             variables=prompt_vars
         )
         
-        # 3. Генерация исправленного запроса
-        llm_response = await self.system_context.call_llm_with_params(
-            user_prompt=f"Исправь ошибку: {correction_input.error_message}",
-            system_prompt=prompt,
-            output_schema=SQLCorrectionOutput.model_json_schema(),
-            temperature=0.2,  # Более детерминированная генерация
-            max_tokens=400
-        )
-        
-        # 4. Валидация и возврат
         try:
-            correction_output = SQLCorrectionOutput.model_validate_json(llm_response.content)
+            # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели для коррекции
+            request = LLMRequest(
+                prompt=f"Исправь ошибку: {correction_input.error_message}",
+                system_prompt=prompt,
+                temperature=0.2,  # Более детерминированная генерация
+                max_tokens=400,
+                structured_output=StructuredOutputConfig(
+                    output_model="SQLCorrectionOutput",  # Имя модели из реестра
+                    schema_def=SQLCorrectionOutput.model_json_schema(),
+                    max_retries=2,  # Меньше попыток для коррекции
+                    strict_mode=True
+                ),
+                correlation_id=f"sql_corr_{hash(correction_input.original_query)}",
+                capability_name="sql_generation.correct_query"
+            )
+            
+            # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
+            response = await self.system_context.call_llm(request)
+            
+            # 5. Использование без дополнительной валидации
+            correction_output = response.parsed_content
             validated = await self.validator.validate_query(
                 correction_output.corrected_sql,
                 parameters  # Сохраняем оригинальные параметры
             )
-            
+
             result = SQLGenerationResult(
                 sql=validated.sql,
                 parameters=parameters,
@@ -246,20 +270,20 @@ class SQLGenerationService(BaseService):
                 safety_score=validated.safety_score,
                 generation_id=f"corr_{attempt}_{hash(original_query)}"
             )
-            
+
             await self._publish_correction_event("correction_success", result, attempt, error_analysis)
             return result
-            
+
         except Exception as e:
             self.logger.warning(f"Попытка коррекции #{attempt} не удалась: {str(e)}")
             await self._publish_correction_event("correction_failed", str(e), attempt, error_analysis)
-            
+
             # Рекурсивная попытка с увеличенным номером
             return await self.correct_query(
-                original_query, 
-                parameters, 
-                execution_error, 
-                context, 
+                original_query,
+                parameters,
+                execution_error,
+                context,
                 attempt + 1
             )
 

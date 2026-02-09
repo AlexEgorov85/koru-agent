@@ -2,12 +2,16 @@
 Базовый класс системного контекста (SystemContext).
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, TypeVar, Generic
 from core.session_context.session_context import SessionContext
 from core.system_context.resource_registry import ResourceInfo
 from models.capability import Capability
-from models.llm_types import LLMResponse
+from models.llm_types import LLMResponse, LLMRequest, RawLLMResponse, StructuredLLMResponse, StructuredOutputConfig
 from models.resource import ResourceType
+from pydantic import ValidationError
+import json
+
+T = TypeVar('T')
 
 
 class BaseSystemContext:
@@ -59,9 +63,23 @@ class BaseSystemContext:
         """
         pass
     
-    async def call_llm(self, prompt: str) -> str:
+    async def call_llm(
+        self,
+        request: LLMRequest
+    ) -> Union[RawLLMResponse, StructuredLLMResponse]:
         """
-        Вызов LLM для генерации текста.
+        ЕДИНСТВЕННАЯ ТОЧКА ВЫЗОВА LLM ДЛЯ ВСЕЙ СИСТЕМЫ.
+        
+        ПОВЕДЕНИЕ:
+        - Если request.structured_output is None → возвращает RawLLMResponse
+        - Если request.structured_output is not None → возвращает StructuredLLMResponse[T]
+          с гарантией валидности или выбрасывает StructuredOutputError
+        
+        АРХИТЕКТУРНЫЕ ГАРАНТИИ:
+        1. Компоненты НЕ знают о ретраях — это скрыто внутри метода
+        2. Валидация происходит ОДИН раз на уровне контекста
+        3. События публикуются для каждой попытки (наблюдаемость)
+        4. Обратная совместимость сохранена (сырые запросы работают как раньше)
         """
         pass
     

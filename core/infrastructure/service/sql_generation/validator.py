@@ -1,7 +1,8 @@
 from typing import Dict, Any, Tuple
 import re
+from core.infrastructure.service.sql_generation.service import ServiceOutput
 from core.system_context.base_system_contex import BaseSystemContext
-from core.infrastructure.service.base_service import BaseService
+from core.infrastructure.service.base_service import BaseService, ServiceInput
 
 class SQLQueryValidator(BaseService):
     """
