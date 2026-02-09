@@ -1,0 +1,1 @@
+"""SQLValidatorService - сервис для валидации SQL-запросов"""

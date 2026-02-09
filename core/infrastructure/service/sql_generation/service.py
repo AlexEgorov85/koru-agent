@@ -8,11 +8,10 @@ from abc import ABC
 class ServiceOutput(BaseServiceOutput):
     def __init__(self, data: Dict[str, Any]):
         self.data = data
-from core.infrastructure.service.sql_generation.validator import SQLQueryValidator
 from core.infrastructure.service.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 from core.infrastructure.service.sql_generation.correction import SQLCorrectionEngine
 from core.infrastructure.service.sql_generation.schema import (
-    SQLGenerationInput, SQLGenerationOutput, 
+    SQLGenerationInput, SQLGenerationOutput,
     SQLCorrectionInput, SQLCorrectionOutput
 )
 from core.system_context.base_system_contex import BaseSystemContext
@@ -50,15 +49,16 @@ class SQLGenerationService(BaseService):
 
     def __init__(self, system_context: BaseSystemContext, name: str = None):
         super().__init__(system_context, name or "sql_generation_service")
-        
+
         # Зависимости (инверсия через конструктор)
-        self.validator = SQLQueryValidator(system_context)
+        # Используем новый централизованный SQLValidatorService
+        self.validator_service = system_context.get_resource("sql_validator_service")
         self.error_analyzer = SQLErrorAnalyzer(system_context)
         self.correction_engine = SQLCorrectionEngine(system_context)
         # Заметка: для получения сервиса нужно использовать await, поэтому сохраняем системный контекст
         self.system_context = system_context
         self.prompt_service = system_context.get_resource("prompt_service")
-        
+
         # Конфигурация безопасности
         self.max_correction_attempts = 3
         self.allowed_operations = ["SELECT", "WITH"]  # Запрещаем все кроме чтения
@@ -121,7 +121,7 @@ class SQLGenerationService(BaseService):
         1. Получение метаданных таблиц через TableDescriptionService
         2. Формирование промпта через PromptService
         3. Генерация через LLM с выходной схемой
-        4. Валидация безопасности через SQLQueryValidator
+        4. Валидация безопасности через SQLValidatorService
         5. Публикация события генерации
         
         ВОЗВРАЩАЕТ:
@@ -164,11 +164,16 @@ class SQLGenerationService(BaseService):
             # Типизация на уровне компиляции: ответ будет StructuredLLMResponse[SQLGenerationOutput]
             response = await self.system_context.call_llm(request)
             
-            # 5. Использование без дополнительной валидации
+            # 5. Валидация сгенерированного SQL-запроса через централизованный SQLValidatorService
             # Типизация гарантирует, что parsed_content — валидный экземпляр SQLGenerationOutput
             output = response.parsed_content
-            validated = await self.validator.validate_query(output.sql, output.parameters)
             
+            # Проверяем, что валидатор доступен
+            if not self.validator_service:
+                raise RuntimeError("SQLValidatorService не зарегистрирован")
+                
+            validated = await self.validator_service.validate_query(output.sql, output.parameters)
+
             # 5. Формирование результата
             result = SQLGenerationResult(
                 sql=validated.sql,
@@ -255,9 +260,14 @@ class SQLGenerationService(BaseService):
             # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
             response = await self.system_context.call_llm(request)
             
-            # 5. Использование без дополнительной валидации
+            # 5. Валидация скорректированного SQL-запроса через централизованный SQLValidatorService
             correction_output = response.parsed_content
-            validated = await self.validator.validate_query(
+            
+            # Проверяем, что валидатор доступен
+            if not self.validator_service:
+                raise RuntimeError("SQLValidatorService не зарегистрирован")
+                
+            validated = await self.validator_service.validate_query(
                 correction_output.corrected_sql,
                 parameters  # Сохраняем оригинальные параметры
             )
@@ -313,8 +323,9 @@ class SQLGenerationService(BaseService):
         # 2. Выполнение с попытками коррекции
         for attempt in range(max_corrections + 1):
             try:
-                # Выполнение через безопасный интерфейс (параметризованный запрос!)
-                result = await self.system_context.execute_sql_query(
+                # Выполнение через внутренний безопасный интерфейс (параметризованный запрос!)
+                # Используем прямое выполнение, так как запрос уже прошел валидацию в SQLValidatorService
+                result = await self.system_context._execute_raw_sql_query(
                     query=generation_result.sql,
                     params=generation_result.parameters
                 )

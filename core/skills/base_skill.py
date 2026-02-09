@@ -24,16 +24,30 @@ from models.execution import ExecutionResult
 class BaseSkill(ABC):
     """
     Базовый класс для всех навыков агента с поддержкой архитектуры портов.
-    
+
     Архитектурная роль:
     - Skill = "как думать и что делать"
     - Capability = "что именно можно сделать"
     - Порты = "как взаимодействовать с внешним миром"
-    
+
     Один Skill может иметь несколько Capability.
     """
     #: Человекочитаемое имя навыка
     name: str = "base_skill"
+    #: Список стратегий, поддерживаемых навыком
+    supported_strategies: List[str] = ["react"]  # По умолчанию только для ReAct
+    
+    def supports_strategy(self, strategy_name: str) -> bool:
+        """
+        Проверяет, поддерживает ли навык указанную стратегию.
+        
+        ПАРАМЕТРЫ:
+        - strategy_name: имя стратегии для проверки
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если стратегия поддерживается, иначе False
+        """
+        return strategy_name.lower() in [s.lower() for s in self.supported_strategies]
     
     def __init__(self, name: str, system_context: BaseSystemContext, **kwargs):
         self.name = name

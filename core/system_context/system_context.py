@@ -38,6 +38,8 @@ import json
 from core.infrastructure.service.base_service import BaseService
 from core.infrastructure.service.prompt_service import PromptService
 from core.infrastructure.service.sql_generation.service import SQLGenerationService
+from core.infrastructure.service.sql_query.service import SQLQueryService
+from core.infrastructure.service.sql_validator.service import SQLValidatorService
 from typing import Type, Dict
 
 # Импорты для шины событий
@@ -263,7 +265,39 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации SQLGenerationService: {str(e)}")
                 initialization_errors.append(f"SQLGenerationService initialization failed: {str(e)}")
 
-            # 4. Автоматическая регистрация инфраструктурных сервисов из директории
+            # 4. Создание и регистрация SQLValidatorService
+            try:
+                sql_validator_service = SQLValidatorService(self, allowed_operations=["SELECT"])
+                await sql_validator_service.initialize()
+
+                resource_info = ResourceInfo(
+                    name="sql_validator_service",
+                    resource_type=ResourceType.SERVICE,
+                    instance=sql_validator_service
+                )
+                resource_info.is_default = True
+                self.registry.register_resource(resource_info)
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации SQLValidatorService: {str(e)}")
+                initialization_errors.append(f"SQLValidatorService initialization failed: {str(e)}")
+
+            # 5. Создание и регистрация SQLQueryService
+            try:
+                sql_query_service = SQLQueryService(self)
+                await sql_query_service.initialize()
+
+                resource_info = ResourceInfo(
+                    name="sql_query_service",
+                    resource_type=ResourceType.SERVICE,
+                    instance=sql_query_service
+                )
+                resource_info.is_default = True
+                self.registry.register_resource(resource_info)
+            except Exception as e:
+                logger.warning(f"Ошибка инициализации SQLQueryService: {str(e)}")
+                initialization_errors.append(f"SQLQueryService initialization failed: {str(e)}")
+
+            # 6. Автоматическая регистрация инфраструктурных сервисов из директории
             try:
                 await self.provider_factory.discover_and_create_all_services()
             except Exception as e:
@@ -918,25 +952,26 @@ class SystemContext(BaseSystemContext):
             **agent_params
         )
     
-    async def execute_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db"):
+    async def _execute_raw_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db"):
         """
-        Выполняет SQL-запрос к базе данных.
+        Внутренний метод для выполнения SQL-запроса напрямую к базе данных.
+        Используется сервисами, которые сами обеспечивают безопасность и валидацию.
         
         Параметры:
         - query: SQL-запрос
         - params: параметры запроса
         - db_provider_name: имя провайдера БД
-        
+
         Возвращает:
         - Результат выполнения в формате DBQueryResult
         """
         db_provider = self.get_resource(db_provider_name)
         if not db_provider:
             raise ValueError(f"DB провайдер '{db_provider_name}' не найден")
-        
+
         if not hasattr(db_provider, "execute"):
             raise ValueError(f"Провайдер '{db_provider_name}' не поддерживает выполнение запросов")
-        
+
         try:
             result = await db_provider.execute(query, params or {})
             logger.info(f"SQL запрос выполнен успешно. Затронуто строк: {result.rowcount}")
@@ -944,6 +979,41 @@ class SystemContext(BaseSystemContext):
         except Exception as e:
             logger.error(f"Ошибка выполнения SQL запроса: {str(e)}")
             raise
+
+    async def execute_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db", max_rows: int = 1000):
+        """
+        Выполняет SQL-запрос к базе данных через безопасный сервис.
+        Использует SQLQueryService для валидации и безопасного выполнения запроса.
+
+        Параметры:
+        - query: SQL-запрос
+        - params: параметры запроса
+        - db_provider_name: имя провайдера БД
+        - max_rows: максимальное количество возвращаемых строк
+
+        Возвращает:
+        - Результат выполнения в формате DBQueryResult
+        """
+        # Получаем SQLQueryService для безопасного выполнения запроса
+        sql_query_service = self.get_resource("sql_query_service")
+        
+        if sql_query_service:
+            # Выполняем запрос через безопасный сервис
+            try:
+                result = await sql_query_service.execute_direct_query(
+                    sql_query=query,
+                    parameters=params,
+                    max_rows=max_rows
+                )
+                return result
+            except Exception as e:
+                logger.warning(f"Ошибка выполнения запроса через SQLQueryService: {str(e)}, используем прямое выполнение")
+                # В случае ошибки используем прямое выполнение как fallback
+                return await self._execute_raw_sql_query(query, params, db_provider_name)
+        else:
+            logger.warning("SQLQueryService недоступен, используем прямое выполнение запроса")
+            # Если сервис недоступен, используем прямое выполнение как fallback
+            return await self._execute_raw_sql_query(query, params, db_provider_name)
     
     async def call_llm_with_params(
         self,
