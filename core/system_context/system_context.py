@@ -994,7 +994,8 @@ class SystemContext(BaseSystemContext):
             if query.strip().upper().startswith('SELECT'):
                 # Проверяем, есть ли уже LIMIT в запросе
                 if 'LIMIT' not in query.upper():
-                    query = f"{query} LIMIT {max_rows}"
+                    # Удаляем лишние пробелы и переносы строк в конце запроса перед добавлением LIMIT
+                    query = query.rstrip().rstrip(';') + f" LIMIT {max_rows}"
             
             # Преобразуем параметры в нужный формат для провайдера
             if isinstance(params, list):
