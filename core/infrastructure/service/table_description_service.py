@@ -141,8 +141,8 @@ class TableDescriptionService(BaseService):
             LEFT JOIN pg_catalog.pg_description col_desc
                 ON col_desc.objoid = st.relid
                 AND col_desc.objsubid = cols.ordinal_position
-            WHERE cols.table_schema = %s
-                AND cols.table_name = %s
+            WHERE cols.table_schema = $1
+                AND cols.table_name = $2
             ORDER BY cols.ordinal_position;
             """
 
@@ -152,18 +152,18 @@ class TableDescriptionService(BaseService):
                 obj_description(c.oid) as table_comment
             FROM pg_catalog.pg_class c
             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-            WHERE c.relname = %s AND n.nspname = %s
+            WHERE c.relname = $1 AND n.nspname = $2
             """
 
             # 3. Выполнение запросов с параметрами для безопасности
             self.logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
             columns_result = await self.system_context.execute_sql_query(
                 query=sql,
-                parameters=[schema_name, table_name]
+                params=[schema_name, table_name]
             )
             table_desc_result = await self.system_context.execute_sql_query(
                 query=table_desc_sql,
-                parameters=[table_name, schema_name]
+                params=[table_name, schema_name]
             )
 
             # 4. Проверка результатов
@@ -242,14 +242,14 @@ class TableDescriptionService(BaseService):
             JOIN information_schema.key_column_usage kcu
                 ON tc.constraint_name = kcu.constraint_name
                 AND tc.table_schema = kcu.table_schema
-            WHERE tc.table_schema = %s
-                AND tc.table_name = %s
+            WHERE tc.table_schema = $1
+                AND tc.table_name = $2
             ORDER BY tc.constraint_name, kcu.ordinal_position;
             """
             
             constraints_result = await self.system_context.execute_sql_query(
                 query=constraints_sql,
-                parameters=[schema_name, table_name]
+                params=[schema_name, table_name]
             )
             
             constraints = {}
