@@ -19,25 +19,25 @@ logger = logging.getLogger(__name__)
 
 class AgentRuntime:
     """Тонкий оркестратор выполнения агента.
-    
+
     НЕ содержит логики стратегий."""
-    
+
     def __init__(
         self,
         system_context: BaseSystemContext,
         session_context: BaseSessionContext,
         policy: AgentPolicy = None,
-        max_steps: int = 10
+        max_steps: int = 10,
+        strategy_name: str = "react"  # Новое поле для выбора стратегии
     ):
         self.system = system_context
         self.session = session_context
-        self.strategy = ReActStrategy()
         self.policy = policy or AgentPolicy()
         self.max_steps = max_steps
         self.state = AgentState()
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
-        
+
         # Регистрация всех доступных стратегий
         self._strategy_registry = {
             "react": ReActStrategy(),
@@ -47,26 +47,85 @@ class AgentRuntime:
             "fallback": FallbackStrategy()
         }
 
+        # Ленивая инициализация PlanningStrategy для избежания циклического импорта
+        if "planning" not in self._strategy_registry:
+            from core.agent_runtime.strategies.planning.strategy import PlanningStrategy
+            self._strategy_registry["planning"] = PlanningStrategy()
+
+        # Устанавливаем стратегию на основе переданного имени или по умолчанию
+        self.strategy = self._strategy_registry.get(strategy_name, ReActStrategy())
+
+    async def _select_initial_strategy(self, goal: str) -> str:
+        """
+        Выбор начальной стратегии на основе анализа цели пользователя.
+        Использует простой анализ ключевых слов + эвристики сложности.
+        """
+        goal_lower = goal.lower().strip()
+
+        # Ключевые слова, указывающие на необходимость планирования
+        planning_indicators = [
+            # Декомпозиция задач
+            "запланируй", "план", "шаги", "этапы", "последовательность", "алгоритм",
+            "расписание", "график", "маршрут", "по порядку", "сначала", "потом", "затем",
+            # Множественные действия
+            "и затем", "после этого", "в итоге", "в конце",
+            # Временные рамки
+            "на завтра", "на неделю", "ежедневно", "каждый день"
+        ]
+
+        # Эвристика сложности: длинные цели часто требуют планирования
+        is_complex = len(goal.split()) > 15 or goal.count("?") > 1 or goal.count(".") > 2
+
+        # Проверка ключевых слов
+        requires_planning = any(indicator in goal_lower for indicator in planning_indicators)
+
+        # Решение на основе анализа
+        if requires_planning or is_complex:
+            # Дополнительная проверка: есть ли доступные планировочные capability
+            planning_caps = [
+                cap for cap in self.system.list_capabilities()
+                if "planning" in [s.lower() for s in cap.supported_strategies]
+            ]
+            if planning_caps:
+                # Проверяем, что стратегия планирования доступна
+                if "planning" in self._strategy_registry or self._is_strategy_available("planning"):
+                    return "planning"
+
+        # По умолчанию — реактивная стратегия
+        return self.system.config.agent.get("default_strategy", "react") if hasattr(self.system, 'config') and hasattr(self.system.config, 'agent') else "react"
+
+    def _is_strategy_available(self, strategy_name: str) -> bool:
+        """Проверяет, доступна ли стратегия (возможна ленивая инициализация)."""
+        if strategy_name == "planning":
+            return True  # Предполагаем, что планирующая стратегия может быть инициализирована
+        return strategy_name in self._strategy_registry
+
     def get_strategy(self, strategy_name: str) -> AgentStrategyInterface:
         """Получение стратегии по имени.
-        
+
         ПАРАМЕТРЫ:
         - strategy_name: имя стратегии
-        
+
         ВОЗВРАЩАЕТ:
         - экземпляр стратегии
-        
+
         ИСКЛЮЧЕНИЯ:
         - ValueError если стратегия не найдена
         """
         strategy_name = strategy_name.lower()
+        
+        # Если запрашивается планирующая стратегия, но она еще не инициализирована
+        if strategy_name == "planning" and strategy_name not in self._strategy_registry:
+            from core.agent_runtime.strategies.planning.strategy import PlanningStrategy
+            self._strategy_registry["planning"] = PlanningStrategy()
+        
         if strategy_name not in self._strategy_registry:
             raise ValueError(f"Стратегия '{strategy_name}' не найдена. Доступные: {list(self._strategy_registry.keys())}")
-        
+
         strategy = self._strategy_registry[strategy_name]
         if strategy is None:
             raise ValueError(f"Стратегия '{strategy_name}' зарегистрирована, но не реализована")
-        
+
         logger.debug(f"Получена стратегия: {strategy_name} -> {strategy.__class__.__name__}")
         return strategy
 

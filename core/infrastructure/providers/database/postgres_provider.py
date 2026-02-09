@@ -158,9 +158,16 @@ class PostgreSQLProvider(BaseDBProvider):
                 
                 # Выполняем запрос
                 if params:
-                    # Преобразуем именованные параметры в позиционные
-                    param_values = [params[key] for key in sorted(params.keys())]
-                    result = await conn.fetch(query, *param_values)
+                    if isinstance(params, dict):
+                        # Если параметры переданы как словарь, извлекаем значения в правильном порядке
+                        param_values = [params[key] for key in sorted(params.keys())]
+                        result = await conn.fetch(query, *param_values)
+                    elif isinstance(params, (list, tuple)):
+                        # Если параметры переданы как список или кортеж, передаем напрямую
+                        result = await conn.fetch(query, *params)
+                    else:
+                        # В противном случае, передаем без параметров
+                        result = await conn.fetch(query)
                 else:
                     result = await conn.fetch(query)
                 

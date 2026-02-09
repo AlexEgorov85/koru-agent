@@ -142,11 +142,23 @@ class SQLQueryService(BaseService):
                     error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
                 )
 
+            # Преобразуем именованные параметры в позиционные для PostgreSQL
+            positional_params = []
+            query_for_postgres = validation_result.sql
+            
+            # Заменяем именованные параметры ($param) на позиционные ($1, $2, ...)
+            param_names = list(validation_result.parameters.keys())
+            for i, param_name in enumerate(param_names):
+                query_for_postgres = query_for_postgres.replace(f"${param_name}", f"${i+1}")
+            
+            # Создаем позиционный список параметров
+            positional_params = [validation_result.parameters[name] for name in param_names]
+            
             # Выполнение безопасного запроса через внутренний метод системного контекста
             # чтобы избежать циклической зависимости с SQLQueryService
             execution_result = await self.system_context._execute_raw_sql_query(
-                query=validation_result.sql,
-                params=validation_result.parameters,
+                query=query_for_postgres,
+                params=positional_params,
                 db_provider_name="default_db",
                 max_rows=max_rows
             )

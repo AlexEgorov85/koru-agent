@@ -952,15 +952,16 @@ class SystemContext(BaseSystemContext):
             **agent_params
         )
     
-    async def _execute_raw_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db"):
+    async def _execute_raw_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db", max_rows: int = 100):
         """
         Внутренний метод для выполнения SQL-запроса напрямую к базе данных.
         Используется сервисами, которые сами обеспечивают безопасность и валидацию.
-        
+
         Параметры:
         - query: SQL-запрос
         - params: параметры запроса
         - db_provider_name: имя провайдера БД
+        - max_rows: максимальное количество возвращаемых строк
 
         Возвращает:
         - Результат выполнения в формате DBQueryResult
@@ -973,7 +974,24 @@ class SystemContext(BaseSystemContext):
             raise ValueError(f"Провайдер '{db_provider_name}' не поддерживает выполнение запросов")
 
         try:
-            result = await db_provider.execute(query, params or {})
+            # Добавляем ограничение на количество строк, если это SELECT-запрос
+            if query.strip().upper().startswith('SELECT'):
+                # Проверяем, есть ли уже LIMIT в запросе
+                if 'LIMIT' not in query.upper():
+                    query = f"{query} LIMIT {max_rows}"
+            
+            # Преобразуем параметры в нужный формат для провайдера
+            if isinstance(params, list):
+                # Если параметры переданы как список, передаем как кортеж
+                provider_params = tuple(params)
+            elif isinstance(params, dict):
+                # Если параметры переданы как словарь, передаем как есть
+                provider_params = params or {}
+            else:
+                # По умолчанию используем пустой словарь
+                provider_params = {}
+            
+            result = await db_provider.execute(query, provider_params)
             logger.info(f"SQL запрос выполнен успешно. Затронуто строк: {result.rowcount}")
             return result
         except Exception as e:
@@ -1432,16 +1450,15 @@ class SystemContext(BaseSystemContext):
         """
         Выбирает стратегию выполнения на основе типа вопроса.
         """
-        # Анализируем вопрос для определения типа
-        question_lower = question.lower()
-
-        # Правила выбора стратегии
-        if any(keyword in question_lower for keyword in ["запланировать", "план", "шаги", "этапы"]):
-            return "hierarchical_planning"
-        elif any(keyword in question_lower for keyword in ["анализ", "данные", "таблица", "sql", "база"]):
-            return "react"  # или специальная стратегия для работы с данными
-        elif any(keyword in question_lower for keyword in ["оценить", "проверить", "результат"]):
-            return "evaluation"
-
-        # Стратегия по умолчанию
-        return self.config.agent.get("default_strategy", "react")
+        # Создаем временный экземпляр AgentRuntime для использования его метода выбора стратегии
+        # Это позволяет использовать ту же логику, что и в runtime
+        temp_runtime = AgentRuntime(
+            system_context=self,
+            session_context=SessionContext(),
+            max_steps=1  # Минимальное значение для инициализации
+        )
+        
+        # Используем метод выбора стратегии из AgentRuntime
+        selected_strategy = await temp_runtime._select_initial_strategy(question)
+        
+        return selected_strategy
