@@ -157,13 +157,15 @@ class TableDescriptionService(BaseService):
 
             # 3. Выполнение запросов с параметрами для безопасности
             self.logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
-            columns_result = await self.system_context.execute_sql_query(
+            columns_result = await self.system_context._execute_raw_sql_query(
                 query=sql,
-                params=[schema_name, table_name]
+                params=[schema_name, table_name],
+                max_rows=100
             )
-            table_desc_result = await self.system_context.execute_sql_query(
+            table_desc_result = await self.system_context._execute_raw_sql_query(
                 query=table_desc_sql,
-                params=[table_name, schema_name]
+                params=[table_name, schema_name],
+                max_rows=1
             )
 
             # 4. Проверка результатов
@@ -247,9 +249,10 @@ class TableDescriptionService(BaseService):
             ORDER BY tc.constraint_name, kcu.ordinal_position;
             """
             
-            constraints_result = await self.system_context.execute_sql_query(
+            constraints_result = await self.system_context._execute_raw_sql_query(
                 query=constraints_sql,
-                params=[schema_name, table_name]
+                params=[schema_name, table_name],
+                max_rows=50
             )
             
             constraints = {}
