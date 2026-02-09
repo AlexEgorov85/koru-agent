@@ -484,6 +484,7 @@ class SystemContext(BaseSystemContext):
         """
         Получение инфраструктурного сервиса по имени.
         Сначала ищет в service_registry, затем в общем реестре ресурсов.
+        Поддерживает алиасы для обеспечения обратной совместимости.
 
         ARGS:
         - service_name: имя сервиса
@@ -491,13 +492,22 @@ class SystemContext(BaseSystemContext):
         RETURNS:
         - Экземпляр сервиса или None если сервис не найден
         """
+        # Карта алиасов для обратной совместимости
+        service_aliases = {
+            "TableDescriptionService": "table_description_service",
+            "table_description_service": "table_description_service",
+        }
+        
+        # Нормализуем имя сервиса
+        normalized_name = service_aliases.get(service_name, service_name)
+        
         # Сначала ищем в service_registry
-        service = self.service_registry.get(service_name)
+        service = self.service_registry.get(normalized_name)
         if service:
             return service
         
         # Затем ищем в общем реестре ресурсов
-        resource_info = self.registry.get_resource(service_name)
+        resource_info = self.registry.get_resource(normalized_name)
         if resource_info:
             # resource_info может быть самим сервисом или объектом с атрибутом instance
             if hasattr(resource_info, 'instance'):
@@ -505,6 +515,16 @@ class SystemContext(BaseSystemContext):
             else:
                 # Если resource_info не имеет атрибута instance, то это может быть сам сервис
                 return resource_info
+        
+        # Если не найден по нормальному имени, пробуем поискать по алиасам
+        for alias, actual_name in service_aliases.items():
+            if alias == service_name and alias != actual_name:
+                resource_info = self.registry.get_resource(actual_name)
+                if resource_info:
+                    if hasattr(resource_info, 'instance'):
+                        return resource_info.instance
+                    else:
+                        return resource_info
         
         return None
 

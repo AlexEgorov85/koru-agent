@@ -46,7 +46,7 @@ class TableDescriptionService(BaseService):
         - system_context: системный контекст для выполнения SQL-запросов
         - name: имя сервиса (опционально)
         """
-        super().__init__(system_context, name or "TableDescriptionService")
+        super().__init__(system_context, name or "table_description_service")
         self.system_context = system_context
 
     async def initialize(self) -> bool:

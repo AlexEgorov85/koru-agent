@@ -29,7 +29,7 @@ class BookLibrarySkill(BaseSkill):
         
         # Получаем необходимые сервисы
         self.sql_query_service = system_context.get_resource("sql_query_service")
-        self.table_description_service = system_context.get_resource("TableDescriptionService")
+        self.table_description_service = system_context.get_resource("table_description_service")
         
         logger.info(f"Инициализирован навык работы с библиотекой книг: {self.name}, кэширование структуры таблиц: {self.cache_table_structure}")
 
@@ -46,7 +46,7 @@ class BookLibrarySkill(BaseSkill):
     async def _load_table_structure(self):
         """Загрузка структуры таблиц в кэш."""
         if not self.table_description_service:
-            logger.warning("TableDescriptionService недоступен, пропускаем загрузку структуры таблиц")
+            logger.warning("table_description_service недоступен, пропускаем загрузку структуры таблиц")
             return
 
         try:

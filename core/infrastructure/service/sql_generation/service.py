@@ -67,9 +67,9 @@ class SQLGenerationService(BaseService):
     async def initialize(self) -> bool:
         """Инициализация зависимостей"""
         # Проверка наличия критических сервисов
-        table_service = await self.system_context.get_service("TableDescriptionService")
+        table_service = await self.system_context.get_service("table_description_service")
         if not table_service:
-            self.logger.error("TableDescriptionService не зарегистрирован")
+            self.logger.error("table_description_service не зарегистрирован")
             return False
             
         if not self.prompt_service:
@@ -407,9 +407,9 @@ class SQLGenerationService(BaseService):
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:
         """Получение метаданных таблиц через существующий сервис"""
         # Используем уже зарегистрированный TableDescriptionService
-        table_service = await self.system_context.get_service("TableDescriptionService")
+        table_service = await self.system_context.get_service("table_description_service")
         if not table_service:
-            raise RuntimeError("TableDescriptionService не зарегистрирован в системном контексте")
+            raise RuntimeError("table_description_service не зарегистрирован в системном контексте")
             
         metadata_list = []
         for table_name in table_names:
