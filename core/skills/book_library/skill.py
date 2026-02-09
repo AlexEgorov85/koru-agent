@@ -29,7 +29,7 @@ class BookLibrarySkill(BaseSkill):
         
         # Получаем необходимые сервисы
         self.sql_query_service = system_context.get_resource("sql_query_service")
-        self.table_description_service = system_context.get_resource("table_description_service")
+        self.table_description_service = system_context.get_resource("TableDescriptionService")
         
         logger.info(f"Инициализирован навык работы с библиотекой книг: {self.name}, кэширование структуры таблиц: {self.cache_table_structure}")
 
