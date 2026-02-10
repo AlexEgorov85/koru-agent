@@ -97,7 +97,7 @@ class SystemContext(BaseSystemContext):
         self.registry = ResourceRegistry()  # ← Теперь управляет и ресурсами, и capability
         self.lifecycle = LifecycleManager(self.registry)  # ← Передаём ЕДИНЫЙ реестр
         self.initialized = False
-        self.execution_gateway = ExecutionGateway()
+        self.execution_gateway = ExecutionGateway(system_context=self)
 
         # Инициализация фабрики провайдеров
         self.provider_factory = ProviderFactory(self)
@@ -607,14 +607,19 @@ class SystemContext(BaseSystemContext):
         - Пропуск некорректных конфигураций
         - Публикация событий об ошибках создания провайдеров
         """
-       # 1. Регистрация LLM провайдеров
+        # 1. Регистрация LLM провайдеров
+        logger.info(f"Начинаем регистрацию LLM провайдеров. Найдено провайдеров: {len(self.config.llm_providers)}")
+        first_provider_registered = False
         for provider_name, provider_config in self.config.llm_providers.items():
+            logger.info(f"Обрабатываем провайдер: {provider_name}, тип: {type(provider_config)}, enabled: {getattr(provider_config, 'enabled', 'N/A')}")
             if provider_config.enabled:
                 try:
+                    logger.info(f"Пытаемся создать LLM провайдер: {provider_name}")
                     provider = await self.provider_factory.create_llm_provider_from_config(
                         provider_config,
                         provider_name
                     )
+                    logger.info(f"Результат создания провайдера {provider_name}: {provider is not None}")
                     if provider:
                         # Регистрация LLM провайдера в системе
                         info_llm = ResourceInfo(
@@ -622,20 +627,27 @@ class SystemContext(BaseSystemContext):
                             resource_type=ResourceType.LLM_PROVIDER,
                             instance=provider
                         )
-                        info_llm.is_default=True # Нужно добавить проверку что именно первая LLM загружена
+                        # Устанавливаем первый успешно зарегистрированный провайдер как default
+                        info_llm.is_default = not first_provider_registered
+                        if not first_provider_registered:
+                            first_provider_registered = True
                         self.registry.register_resource(info_llm)
-                        
+                        logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
+
                         # Публикация события регистрации провайдера
                         await self.event_bus.publish(
                             EventType.PROVIDER_REGISTERED,
                             data={
                                 "provider_name": provider_name,
                                 "provider_type": "LLM",
-                                "system_id": self.id
+                                "system_id": self.id,
+                                "is_default": info_llm.is_default
                             },
                             source="SystemContext._register_providers_from_config",
                             correlation_id=self.id
                         )
+                    else:
+                        logger.warning(f"Провайдер {provider_name} не был создан успешно")
                 except Exception as e:
                     # Публикация события ошибки регистрации провайдера
                     await self.event_bus.publish(
@@ -650,6 +662,9 @@ class SystemContext(BaseSystemContext):
                         source="SystemContext._register_providers_from_config",
                         correlation_id=self.id
                     )
+                    logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
+            else:
+                logger.warning(f"Провайдер {provider_name} отключен (enabled={getattr(provider_config, 'enabled', 'N/A')})")
 
         # 2. Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
@@ -1125,15 +1140,20 @@ class SystemContext(BaseSystemContext):
         # Получаем параметры по умолчанию из конфигурации провайдера
         default_temperature = 0.7
         default_max_tokens = 2048
-        
+
         if hasattr(llm_provider, "_config"):
             config = llm_provider._config
             default_temperature = getattr(config, "temperature", default_temperature)
             default_max_tokens = getattr(config, "max_tokens", default_max_tokens)
         elif hasattr(llm_provider, "config"):
             config = llm_provider.config
-            default_temperature = config.get("temperature", default_temperature)
-            default_max_tokens = config.get("max_tokens", default_max_tokens)
+            # Проверяем, является ли config словарем или объектом с атрибутами
+            if hasattr(config, 'get'):  # Это словарь
+                default_temperature = config.get("temperature", default_temperature)
+                default_max_tokens = config.get("max_tokens", default_max_tokens)
+            else:  # Это объект с атрибутами
+                default_temperature = getattr(config, "temperature", default_temperature)
+                default_max_tokens = getattr(config, "max_tokens", default_max_tokens)
         
         temperature = temperature or default_temperature
         max_tokens = max_tokens or default_max_tokens
