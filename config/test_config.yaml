@@ -1,0 +1,74 @@
+# Конфигурация для тестирования агента с mock-провайдером
+system:
+  # Провайдеры
+  providers:
+    llm:
+      default_llm:
+        type: "mock"  # Используем mock-провайдер для тестирования
+        model_name: "mock-gpt"
+        parameters:
+          temperature: 0.7
+          max_tokens: 1024
+          verbose: true
+    
+    database:
+      default_db:
+        type: "postgres"
+        parameters:
+          host: "localhost"
+          port: 5432
+          database: "postgres"
+          username: "postgres"
+          password: ""
+
+  # Сервисы
+  services:
+    prompt_service:
+      enabled: true
+    sql_generation_service:
+      enabled: true
+    sql_validator_service:
+      enabled: true
+    sql_query_service:
+      enabled: true
+
+  # Навыки
+  skills:
+    book_library:
+      enabled: true
+    final_answer:
+      enabled: true
+      parameters:
+        include_steps: true
+        include_evidence: true
+        format_type: "detailed"
+
+  # Инструменты
+  tools:
+    sql_tool:
+      enabled: true
+
+  # Стратегии
+  strategies:
+    default: "react"
+    available:
+      - "react"
+      - "planning"
+      - "evaluation"
+      - "fallback"
+
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    - type: "console"
+      level: "DEBUG"
+    - type: "file"
+      level: "INFO"
+      filename: "logs/test_run.log"
+
+agent:
+  max_steps: 10
+  temperature: 0.7
+  max_tokens: 1024
+  default_strategy: "react"
