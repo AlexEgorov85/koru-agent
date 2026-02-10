@@ -13,6 +13,7 @@ from .progress import ProgressScorer
 from .executor import ActionExecutor
 from .policy import AgentPolicy
 from .model import StrategyDecisionType
+from .strategy_manager import StrategyManager, ProgressMetrics
 from models.execution import ExecutionStatus
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,10 @@ class AgentRuntime:
         self.state = AgentState()
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
+
+        # Инициализация стратегического менеджера
+        self.strategy_manager = StrategyManager()
+        self.progress_metrics = ProgressMetrics()
 
         # Регистрация всех доступных стратегий
         self._strategy_registry = {
@@ -135,20 +140,25 @@ class AgentRuntime:
         
         # Запись системного события
         self.session.record_system_event("session_start", f"Starting session with goal: {goal}")
-        
+
+        # Выбор начальной стратегии через стратегический менеджер
+        initial_strategy_name = await self.strategy_manager.select_initial_strategy(goal)
+        self.strategy = self.get_strategy(initial_strategy_name)
+        logger.info(f"Выбрана начальная стратегия: {initial_strategy_name}")
+
         for _ in range(self.max_steps):
             if self.state.finished:
                 break
-            
+
             # Текущий номер шага (начинаем с 1)
-            current_step = self.state.step + 1
-            
+            current_step = len(self.session.step_context.steps) + 1
+
             decision = await self.strategy.next_step(self)
-            
+
             # Запись решения стратегии
             if decision:
                 self.session.record_decision(decision.action.value, reasoning=decision.reason)
-            
+
             if decision.action == StrategyDecisionType.STOP:
                 self.state.finished = True
                 # Регистрируем финальное решение
@@ -158,16 +168,23 @@ class AgentRuntime:
                     metadata=ContextItemMetadata(step_number=current_step)
                 )
                 break
-            
+
             if decision.action == StrategyDecisionType.SWITCH:
                 try:
                     # Используем новый метод для получения стратегии
                     self.strategy = self.get_strategy(decision.next_strategy)
+                    
+                    # Записываем переключение в историю
+                    self.strategy_manager.record_strategy_switch(
+                        decision=decision,
+                        from_strategy=self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
+                    )
+                    
                     logger.info(f"Переключение стратегии на: {decision.next_strategy}")
                 except Exception as e:
                     logger.error(f"Ошибка переключения стратегии: {str(e)}. Используется fallback стратегия.")
                     self.strategy = self.get_strategy("fallback")
-                
+
                 # Регистрируем смену стратегии
                 self.session.record_decision(
                     decision_data="SWITCH",
@@ -186,7 +203,7 @@ class AgentRuntime:
                         "skill": decision.capability.skill_name,
                         "step_number": current_step
                     }
-                    
+
                     action_item_id = self.session.record_action(
                         action_data=action_content,
                         step_number=current_step,
@@ -196,14 +213,14 @@ class AgentRuntime:
                             confidence=0.9
                         )
                     )
-                    
+
                     # 2. Выполняем capability
                     execution_result = await self.executor.execute_capability(
                         capability=decision.capability,
                         parameters=decision.payload,
                         session_context=self.session
                     )
-                    
+
                     # 3. Запись результата выполнения
                     self.session.register_step(
                         step_number=current_step,
@@ -214,7 +231,7 @@ class AgentRuntime:
                         summary=execution_result.summary,
                         status=execution_result.status.value
                     )
-                    
+
                     # 3.5 Обновление статуса шага в плане, если он был выполнен
                     if hasattr(self.session, 'current_plan_step_id') and self.session.current_plan_step_id:
                         await self._update_step_status_via_capability(
@@ -226,15 +243,51 @@ class AgentRuntime:
                         )
                         # Очищаем ID текущего шага после обновления
                         self.session.current_plan_step_id = None
-                    
+
                     # 4. Оценка прогресса и обновление состояния
                     progressed = self.progress.evaluate(self.session)
                     self.state.register_progress(progressed)
-                    
+
+                    # 5. ПОСЛЕ выполнения — оценка необходимости переключения стратегии
+                    state_metrics = self.progress_metrics.get_state_metrics()
+                    switch_decision = await self.strategy_manager.should_switch_strategy(
+                        current_strategy=self.strategy.name if hasattr(self.strategy, 'name') else 'unknown',
+                        state_metrics=state_metrics
+                    )
+
+                    if switch_decision:
+                        logger.info(f"Принято решение о переключении стратегии: {switch_decision.to_strategy}, причина: {switch_decision.reason}")
+
+                        # Получаем текущую стратегию для записи в историю
+                        current_strategy_name = self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
+
+                        # Выполняем переключение
+                        self.strategy = self.get_strategy(switch_decision.to_strategy)
+
+                        # Записываем переключение в историю
+                        self.strategy_manager.record_strategy_switch(
+                            decision=switch_decision,
+                            from_strategy=current_strategy_name
+                        )
+
+                        # Обновляем метрики переключения стратегии
+                        self.state.increment_strategy_switches()
+
+                        # Регистрируем смену стратегии
+                        self.session.record_decision(
+                            decision_data="STRATEGY_SWITCH_BY_MANAGER",
+                            reasoning={"action": "auto_strategy_change", "to_strategy": switch_decision.to_strategy, "reason": switch_decision.reason},
+                            metadata=ContextItemMetadata(step_number=current_step)
+                        )
+
+                    # Обновление состояния сессии - увеличиваем step только после успешного выполнения
+                    self.state.step += 1
+                    self.session.last_activity = datetime.now()
+
                 except Exception as e:
                     logger.error(f"Ошибка в работе агента на шаге {current_step}: {e}", exc_info=True)
                     self.state.register_error()
-                    
+
                     # Регистрация ошибки в контексте
                     error_item_id = self.session.record_error(
                         error_data=str(e),
@@ -245,7 +298,7 @@ class AgentRuntime:
                             timestamp=datetime.now()
                         )
                     )
-                    
+
                     # Обновление статуса шага в плане при ошибке
                     if hasattr(self.session, 'current_plan_step_id') and self.session.current_plan_step_id:
                         await self._update_step_status_via_capability(
@@ -256,10 +309,10 @@ class AgentRuntime:
                         )
                         # Очищаем ID текущего шага после обновления
                         self.session.current_plan_step_id = None
-            
-            # Обновление состояния сессии
-            self.state.step += 1
-            self.session.last_activity = datetime.now()
+
+                    # Обновление состояния сессии - увеличиваем step даже при ошибке, чтобы избежать зацикливания
+                    self.state.step += 1
+                    self.session.last_activity = datetime.now()
         
         # Регистрация завершения сессии
         self.session.record_system_event(
@@ -270,7 +323,12 @@ class AgentRuntime:
                 step_number=self.state.step
             )
         )
-        
+
+        # Генерация финального ответа
+        final_answer_result = await self._generate_final_answer()
+
+        # Возвращаем сессию с добавленной информацией о финальном ответе
+        self.session.final_answer = final_answer_result
         return self.session
     
     async def _update_step_status_via_capability(
@@ -332,3 +390,58 @@ class AgentRuntime:
         
         except Exception as e:
             logger.error(f"Ошибка при обновлении статуса шага через capability: {str(e)}", exc_info=True)
+
+    async def _generate_final_answer(self):
+        """Генерация финального ответа при завершении сессии."""
+        try:
+            logger.info("Генерация финального ответа...")
+            
+            # Получение capability для генерации финального ответа
+            capability = self.system.get_capability("final_answer.generate")
+            
+            if not capability:
+                logger.warning("Capability 'final_answer.generate' не найдена, создаем фиктивную")
+                # Возвращаем резервный ответ
+                return {
+                    "final_answer": self.session.get_summary().get("last_steps", [])[-1]["summary"] if self.session.get_summary().get("last_steps") else "Ответ сгенерирован",
+                    "source": "backup_solution"
+                }
+            
+            # Подготовка параметров для генерации финального ответа
+            parameters = {
+                "include_steps": True,
+                "include_evidence": True,
+                "format_type": "detailed"
+            }
+            
+            # Выполнение capability для генерации финального ответа
+            execution_result = await self.executor.execute_capability(
+                capability=capability,
+                parameters=parameters,
+                session_context=self.session
+            )
+            
+            if execution_result.status == ExecutionStatus.SUCCESS and execution_result.result:
+                logger.info("Финальный ответ успешно сгенерирован")
+                return execution_result.result
+            else:
+                logger.warning(f"Capability для генерации финального ответа вернула статус: {execution_result.status}")
+                # Возвращаем резервный ответ на основе последнего шага
+                last_steps = self.session.get_summary().get("last_steps", [])
+                backup_answer = last_steps[-1]["summary"] if last_steps else "Ответ сгенерирован"
+                return {
+                    "final_answer": backup_answer,
+                    "source": "backup_from_last_step",
+                    "execution_status": execution_result.status.value if execution_result.status else "unknown"
+                }
+                
+        except Exception as e:
+            logger.error(f"Ошибка при генерации финального ответа: {str(e)}", exc_info=True)
+            # Возвращаем резервный ответ
+            last_steps = self.session.get_summary().get("last_steps", [])
+            backup_answer = last_steps[-1]["summary"] if last_steps else "Ответ сгенерирован"
+            return {
+                "final_answer": backup_answer,
+                "source": "backup_exception_handling",
+                "error": str(e)
+            }
