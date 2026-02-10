@@ -423,7 +423,7 @@ class TestPostgreSQLProviderReal:
         SELECT 
             a.name as author_name,
             COUNT(b.id) as book_count,
-            AVG(b.publication_year) as avg_publication_year,
+            AVG(EXTRACT(YEAR FROM b.publication_date)) as avg_publication_year,
             STRING_AGG(b.title, ', ') as book_titles,
             MAX(r.rating) as max_rating
         FROM test_schema.authors a
@@ -467,7 +467,7 @@ class TestPostgreSQLProviderReal:
         FROM test_schema.books b
         JOIN author_stats a ON b.author = a.author
         WHERE a.author_rank <= 2
-        ORDER BY b.author, b.publication_year;
+        ORDER BY b.author, EXTRACT(YEAR FROM b.publication_date);
         """)
         
         assert window_result.success is True
