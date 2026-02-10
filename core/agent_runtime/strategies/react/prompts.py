@@ -169,9 +169,18 @@ def build_reasoning_prompt(
         name = cap.get('name', 'unknown')
         description = cap.get('description', 'Без описания')
         schema = cap.get('parameters_schema', 'Без схемы')
-        capabilities_list.append(f"""{k}. {name}
-            - Описание: {description}
-            - {schema['description']}: {schema['properties']}""")
+        # Проверяем, является ли schema словарем с ожидаемыми ключами
+        if isinstance(schema, dict):
+            schema_description = schema.get('description', 'Схема параметров')
+            schema_properties = schema.get('properties', {})
+            properties_str = ", ".join(list(schema_properties.keys())[:5]) if isinstance(schema_properties, dict) else str(schema_properties)
+            capabilities_list.append(f"""{k}. {name}
+                - Описание: {description}
+                - Параметры: {properties_str}""")
+        else:
+            capabilities_list.append(f"""{k}. {name}
+                - Описание: {description}
+                - Параметры: {schema}""")
     
     capabilities_str = "\n".join(capabilities_list) if capabilities_list else "Нет доступных возможностей"
     

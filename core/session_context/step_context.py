@@ -45,15 +45,15 @@ class StepContext:
     def add_step(self, step: AgentStep) -> None:
         """
         Добавление шага агента в контекст.
-        
+
         ПАРАМЕТРЫ:
         - step: Шаг агента для добавления
-        
+
         БИЗНЕС-ЛОГИКА:
         - Шаги добавляются в порядке выполнения
         - Дубликаты по step_number не допускаются
-        - Нумерация шагов должна быть последовательной
-        
+        - Нумерация шагов может быть произвольной
+
         ВАЛИДАЦИЯ:
         - Проверка корректности step_number
         - Проверка существования ссылочных item_id
@@ -62,11 +62,7 @@ class StepContext:
         # Проверка уникальности step_number
         if any(s.step_number == step.step_number for s in self.steps):
             raise ValueError(f"Шаг с номером {step.step_number} уже существует")
-        
-        # Проверка последовательности нумерации
-        if self.steps and step.step_number != self.steps[-1].step_number + 1:
-            raise ValueError(f"Нарушена последовательность шагов: ожидается {self.steps[-1].step_number + 1}, получено {step.step_number}")
-        
+
         self.steps.append(step)
     
     def get_last_steps(self, n: int) -> List[AgentStep]:

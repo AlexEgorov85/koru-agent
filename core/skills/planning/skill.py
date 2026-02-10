@@ -1,3 +1,4 @@
+import time
 from typing import Any, Dict, List
 from core.skills.base_skill import BaseSkill
 from core.skills.planning.schema import (
@@ -15,7 +16,7 @@ from models.execution import ExecutionResult, ExecutionStatus
 
 class PlanningSkill(BaseSkill):
     name = "planning"
-    supported_strategies = ["planning"]  # ← Только для планирования!
+    supported_strategies = ["planning", "react"]  # ← Поддержка нескольких стратегий
     
     def __init__(self, name: str, system_context: Any, **kwargs):
         super().__init__(name, system_context, **kwargs)
@@ -154,7 +155,6 @@ class PlanningSkill(BaseSkill):
             
             # 3. Генерация структурированного плана через системный контекст
             from models.llm_types import LLMRequest, StructuredOutputConfig
-            import time
             request = LLMRequest(
                 prompt=input_data.goal,
                 system_prompt=prompt,
@@ -545,7 +545,6 @@ class PlanningSkill(BaseSkill):
             
             # 3. Генерация иерархии подзадач
             from models.llm_types import LLMRequest, StructuredOutputConfig
-            import time
             request = LLMRequest(
                 prompt=input_data.task_description,
                 system_prompt=prompt,

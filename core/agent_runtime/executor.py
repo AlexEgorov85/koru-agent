@@ -17,9 +17,12 @@ class ActionExecutor:
         session_context: BaseSessionContext
     ) -> ExecutionResult:
         """Выполняет capability с заданными параметрами и контекстом."""
+        # Получаем текущий номер шага из сессии
+        step_number = getattr(session_context, 'current_step', 0) + 1
+        
         return await self.system.execution_gateway.execute_capability(
-            capability_name=capability.name,
-            parameters=parameters,
-            system_context=self.system,
-            session_context=session_context
+            capability=capability,
+            action_payload=parameters,
+            session=session_context,
+            step_number=step_number
         )

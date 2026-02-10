@@ -52,7 +52,8 @@ class SessionContext(BaseSessionContext):
         self.goal = None
         self.current_plan_item_id: Optional[str] = None # Атрибут для хранения ID текущего плана
         self.current_plan_step_id: Optional[str] = None # Атрибут для хранения ID текущего шага плана
-        
+        self.final_answer = None  # Атрибут для хранения финального ответа
+
         # Контексты
         self.data_context = DataContext()
         self.step_context = StepContext()
