@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class BookLibrarySkill(BaseSkill):
     """Навык для работы с библиотекой книг через новую архитектуру."""
     name = "book_library"
-    supported_strategies = ["react", "planning"]  # ← Доступен для обеих стратегий
+    supported_strategies = ["react", "planning", "evaluation"]  # ← Доступен для всех стратегий
 
     def __init__(self, name: str, system_context: Any, cache_table_structure: bool = True, **kwargs):
         super().__init__(name, system_context, **kwargs)
@@ -163,15 +163,15 @@ class BookLibrarySkill(BaseSkill):
 
             where_clause = " AND ".join(where_clauses)
             sql = f"""
-            SELECT 
-                b.id,
-                b.title,
+            SELECT
+                b.id as book_id,
+                b.title as book_title,
                 b.isbn,
-                b.publication_year,
-                a.first_name as author_first_name,
-                a.last_name as author_last_name,
-                b.genre,
-                b.description
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
             WHERE {where_clause}
@@ -231,14 +231,14 @@ class BookLibrarySkill(BaseSkill):
             # 1. Получение метаданных книги
             metadata_sql = """
             SELECT 
-                b.id,
-                b.title,
+                b.id as book_id,
+                b.title as book_title,
                 b.isbn,
-                b.publication_year,
-                a.first_name as author_first_name,
-                a.last_name as author_last_name,
-                b.genre,
-                b.description
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
             WHERE b.id = $book_id
