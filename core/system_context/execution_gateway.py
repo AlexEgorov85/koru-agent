@@ -52,7 +52,7 @@ class ExecutionGateway:
 
     async def execute_capability(
         self,
-        capability: Capability,  # Изменяем параметры на те, что используются в тестах
+        capability: Capability,
         action_payload: Dict[str, Any],
         session: BaseSessionContext,
         step_number: int
@@ -70,9 +70,21 @@ class ExecutionGateway:
         - Не обрабатывает ошибки, не логирует детали
         """
 
-        # 1. Получаем навык для выполнения capability
+        # 1. Проверяем, что system_context доступен
+        if self.system_context is None:
+            error_msg = f"System context недоступен для выполнения capability {capability.name}"
+            logger.error(error_msg)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=error_msg,
+                error="SYSTEM_CONTEXT_NOT_AVAILABLE"
+            )
+
+        # Получаем навык для выполнения capability
         skill = self.system_context.get_resource(capability.skill_name)
-        
+
         # Проверяем, что навык найден
         if skill is None:
             error_msg = f"Skill not found for capability {capability.name}"
