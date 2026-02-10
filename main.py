@@ -137,23 +137,41 @@ class Application:
         # Переопределение параметров агента
         if hasattr(self.config, 'agent'):
             if self.args.max_steps is not None:
-                self.config.agent.max_steps = self.args.max_steps
-                logger.info(f"Максимальное количество шагов установлено в {self.args.max_steps}")
-            
-            if self.args.temperature is not None:
-                if hasattr(self.config.agent, 'parameters'):
-                    self.config.agent.parameters.temperature = self.args.temperature
+                if isinstance(self.config.agent, dict):
+                    self.config.agent["max_steps"] = self.args.max_steps
                 else:
-                    self.config.agent.temperature = self.args.temperature
+                    self.config.agent.max_steps = self.args.max_steps
+                logger.info(f"Максимальное количество шагов установлено в {self.args.max_steps}")
+
+            if self.args.temperature is not None:
+                if isinstance(self.config.agent, dict):
+                    if "parameters" in self.config.agent:
+                        self.config.agent["parameters"]["temperature"] = self.args.temperature
+                    else:
+                        self.config.agent["temperature"] = self.args.temperature
+                else:
+                    if hasattr(self.config.agent, 'parameters'):
+                        self.config.agent.parameters.temperature = self.args.temperature
+                    else:
+                        self.config.agent.temperature = self.args.temperature
                 logger.info(f"Температура установлена в {self.args.temperature}")
-            
+
             if self.args.max_tokens is not None:
-                if hasattr(self.config.agent, 'parameters'):
-                    self.config.agent.parameters.max_tokens = self.args.max_tokens
+                if isinstance(self.config.agent, dict):
+                    if "parameters" in self.config.agent:
+                        self.config.agent["parameters"]["max_tokens"] = self.args.max_tokens
+                    else:
+                        self.config.agent["max_tokens"] = self.args.max_tokens
+                else:
+                    if hasattr(self.config.agent, 'parameters'):
+                        self.config.agent.parameters.max_tokens = self.args.max_tokens
                 logger.info(f"Максимальное количество токенов установлено в {self.args.max_tokens}")
-            
+
             if self.args.strategy:
-                self.config.agent.default_strategy = self.args.strategy
+                if isinstance(self.config.agent, dict):
+                    self.config.agent["default_strategy"] = self.args.strategy
+                else:
+                    self.config.agent.default_strategy = self.args.strategy
                 logger.info(f"Стратегия установлена в {self.args.strategy}")
     
     async def run(self) -> Dict[str, Any]:
@@ -168,9 +186,7 @@ class Application:
             logger.info(f"Запуск агента с целью: {self.args.goal}")
 
             # 2. Создание и запуск агента
-            agent = await self.system_context.create_agent(
-                parameters=getattr(self.config.agent, 'parameters', {})
-            )
+            agent = await self.system_context.create_agent()
 
             # Устанавливаем цель для сессии агента, если она существует
             if hasattr(agent, 'session'):
@@ -193,7 +209,7 @@ class Application:
             if self.session is None:
                 from core.session_context.session_context import SessionContext
                 self.session = SessionContext()
-            
+
             # Записываем результат как наблюдение в контекст
             self.session.record_observation(
                 observation_data=result,
@@ -205,13 +221,18 @@ class Application:
             execution_time = (end_time - start_time).total_seconds()
             logger.info(f"Агент успешно завершил выполнение за {execution_time:.2f} секунд")
 
+            # Получаем финальный ответ из сессии, если он есть
+            final_answer = getattr(self.session, 'final_answer', None)
+            result_value = final_answer.get('final_answer', result) if final_answer and isinstance(final_answer, dict) else result
+
             return {
                 "success": True,
                 "goal": self.args.goal,
-                "result": result,
+                "result": result_value,
                 "session_id": getattr(getattr(self, 'session', None), 'session_id', 'unknown'),
                 "execution_time": execution_time,
-                "steps_taken": getattr(getattr(self, 'session', None), 'steps_taken', 0)
+                "steps_taken": getattr(getattr(self, 'session', None), 'steps_taken', 0),
+                "final_answer": final_answer
             }
 
         except Exception as e:
@@ -266,7 +287,16 @@ class Application:
         print(f"Цель: {result['goal']}")
         
         if result.get("success", False):
-            print(f"Ответ: {result['result']}")
+            # Сначала выводим финальный ответ, если он есть
+            if "final_answer" in result and result["final_answer"]:
+                final_answer_data = result["final_answer"]
+                if isinstance(final_answer_data, dict) and "final_answer" in final_answer_data:
+                    print(f"Финальный ответ: {final_answer_data['final_answer']}")
+                else:
+                    print(f"Ответ: {result['result']}")
+            else:
+                print(f"Ответ: {result['result']}")
+            
             print(f"ID сессии: {result['session_id']}")
             print(f"Время выполнения: {result['execution_time']:.2f} секунд")
             if "steps_taken" in result:
