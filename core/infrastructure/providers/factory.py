@@ -15,6 +15,7 @@ import pkgutil
 from typing import Dict, Any, Optional, Type
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
+from core.infrastructure.providers.llm.mock_provider import MockLLMProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
 from core.infrastructure.tools.base_tool import BaseTool
@@ -53,53 +54,88 @@ class ProviderFactory:
     ) -> Optional[BaseLLMProvider]:
         """
         Создание LLM провайдера из конфигурации.
-        
+
         ПАРАМЕТРЫ:
         - provider_config: Конфигурация провайдера
         - provider_name: Имя провайдера
-        
+
         ВОЗВРАЩАЕТ:
         - BaseLLMProvider: Созданный и инициализированный провайдер
         - None если тип провайдера не поддерживается
-        
+
         ПОДДЕРЖИВАЕМЫЕ ТИПЫ:
-        - vllm: VLLMProvider
         - llama_cpp: LlamaCppProvider
-        
+        - mock: MockLLMProvider (для тестирования)
+
         ПРИМЕР:
         config = {
-            "type": "vllm",
+            "type": "llama_cpp",
             "model_name": "mistral-7b",
             "parameters": {
-                "tensor_parallel_size": 1,
-                "gpu_memory_utilization": 0.9
+                "model_path": "./models/mistral-7b.gguf",
+                "n_ctx": 2048,
+                "temperature": 0.7
             }
         }
         provider = await factory.create_llm_provider_from_config(config, "primary_llm")
         """
-        provider_type = provider_config.type_provider.lower()
-        model_name = provider_config.model_name
-        parameters = provider_config.parameters
-        
+        # Проверяем, является ли provider_config словарем или объектом Pydantic
+        if hasattr(provider_config, 'type_provider'):
+            # Это объект Pydantic
+            provider_type = getattr(provider_config, 'type_provider', 'llama_cpp').lower()
+            model_name = getattr(provider_config, 'model_name', 'default_model')
+            parameters = getattr(provider_config, 'parameters', {})
+        else:
+            # Это словарь
+            provider_type = provider_config.get("type", provider_config.get("type_provider", "llama_cpp")).lower()
+            model_name = provider_config.get("model_name", "default_model")
+            parameters = provider_config.get("parameters", {})
+
         try:
             if provider_type == "llama_cpp":
-                provider = LlamaCppProvider(model_name = model_name, config = parameters)
+                # Подготовим словарь параметров для LlamaCppProvider
+                config_params = {
+                    "model_path": parameters.get("model_path"),
+                    "n_ctx": parameters.get("n_ctx", 2048),
+                    "n_gpu_layers": parameters.get("n_gpu_layers", 0),
+                    "n_batch": parameters.get("n_batch", 512),
+                    "temperature": parameters.get("temperature", 0.7),
+                    "max_tokens": parameters.get("max_tokens", 512),
+                    "top_p": parameters.get("top_p", 0.95),
+                    "verbose": parameters.get("verbose", False),
+                    "f16_kv": True,
+                    "embedding": False,
+                    "stop": parameters.get("stop", ["\n", "###"]),
+                    "echo": False
+                }
+                provider = LlamaCppProvider(config=config_params, model_name=model_name)
+            elif provider_type == "mock":
+                # Используем mock-провайдер для тестирования
+                from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
+                config = MockLLMConfig(
+                    model_name=model_name,
+                    temperature=parameters.get("temperature", 0.7),
+                    max_tokens=parameters.get("max_tokens", 512),
+                    verbose=parameters.get("verbose", False)
+                )
+                provider = MockLLMProvider(config=config)
             else:
                 logger.error(f"Неподдерживаемый тип LLM провайдера: {provider_type}")
                 return None
-            
+
             # Инициализация провайдера
             success = await provider.initialize()
             if not success:
                 logger.error(f"Не удалось инициализировать LLM провайдер {provider_name}")
                 return None
-            
+
             logger.info(f"LLM провайдер '{provider_name}' ({provider_type}) успешно создан и инициализирован")
             return provider
-            
+
         except Exception as e:
             logger.error(f"Ошибка создания LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
-            return None
+            # Храним ошибку и возвращаем ее, чтобы система могла правильно обработать недоступность провайдера
+            raise
     
     async def create_db_provider_from_config(
         self,
