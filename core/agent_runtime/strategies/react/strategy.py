@@ -50,20 +50,63 @@ class ReActStrategy(AgentStrategyInterface):
     async def _get_available_capabilities(self, runtime) -> List[Capability]:
         """
         Получить список capability, доступных ТОЛЬКО для реактивной стратегии.
-        Фильтрация по полю supported_strategies.
+        Фильтрация по полю supported_strategies и по релевантности к текущей задаче.
         """
-        all_capabilities = runtime.system.list_capabilities()
-        
+        all_capability_names = runtime.system.list_capabilities()
+
         # Фильтрация: оставляем только capability с "react" в supported_strategies
-        available = [
-            cap for cap in all_capabilities
-            if any(s.lower() == "react" for s in cap.supported_strategies)
-        ]
-        
+        filtered_capabilities = []
+        for cap_name in all_capability_names:
+            cap = runtime.system.get_capability(cap_name)
+            if cap:
+                # Проверяем, что supported_strategies существует и является списком/кортежем
+                if hasattr(cap, 'supported_strategies') and cap.supported_strategies:
+                    if isinstance(cap.supported_strategies, (list, tuple)):
+                        if any(s.lower() == "react" for s in cap.supported_strategies):
+                            # Дополнительно проверяем релевантность к текущей задаче
+                            # Исключаем планировочные capability для задач, не связанных с планированием
+                            if not self._is_irrelevant_capability(cap, runtime):
+                                filtered_capabilities.append(cap)
+                    elif isinstance(cap.supported_strategies, str):
+                        # Если это строка, проверяем непосредственно
+                        if cap.supported_strategies.lower() == "react":
+                            # Дополнительно проверяем релевантность к текущей задаче
+                            if not self._is_irrelevant_capability(cap, runtime):
+                                filtered_capabilities.append(cap)
+
         # Сортировка по имени для консистентности
-        available.sort(key=lambda c: c.name)
+        filtered_capabilities.sort(key=lambda c: c.name)
+
+        return filtered_capabilities
+
+    def _is_irrelevant_capability(self, capability: Capability, runtime) -> bool:
+        """
+        Проверяет, является ли capability нерелевантной для текущей задачи.
+        """
+        # Получаем цель задачи для анализа
+        current_goal = getattr(runtime, 'current_goal', '').lower()
         
-        return available
+        # Определяем, какие навыки/названия capability не подходят для текущей задачи
+        irrelevant_skills = ['planning']  # Навыки, которые не подходят для текущей задачи
+        irrelevant_keywords = ['plan', 'task', 'decompose', 'update_step', 'mark_task']  # Ключевые слова в названиях capability
+        
+        # Проверяем по названию навыка
+        if hasattr(capability, 'skill_name'):
+            for skill in irrelevant_skills:
+                if skill.lower() in capability.skill_name.lower():
+                    # Если цель не связана с планированием, исключаем планировочные capability
+                    if 'plan' not in current_goal and 'задани' not in current_goal:
+                        return True
+        
+        # Проверяем по названию capability
+        if hasattr(capability, 'name'):
+            for keyword in irrelevant_keywords:
+                if keyword.lower() in capability.name.lower():
+                    # Если цель не связана с планированием, исключаем планировочные capability
+                    if 'plan' not in current_goal and 'задани' not in current_goal:
+                        return True
+        
+        return False
 
     async def next_step(self, runtime) -> StrategyDecision:
         """Основной метод стратегии - определяет следующий шаг агента.
