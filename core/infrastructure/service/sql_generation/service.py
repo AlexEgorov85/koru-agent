@@ -1,11 +1,12 @@
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
+from core.infrastructure.service.cached_base_service import CachedBaseService, ServiceInput, ServiceOutput as BaseServiceOutput
+from core.infrastructure.service.base_service import ServiceOutput
 from abc import ABC
 
 
 # Конкретная реализация ServiceOutput для SQLGenerationService
-class ServiceOutput(BaseServiceOutput):
+class SQLGenerationServiceOutput(BaseServiceOutput):
     def __init__(self, data: Dict[str, Any]):
         self.data = data
 from core.infrastructure.service.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
@@ -31,7 +32,7 @@ class SQLGenerationResult:
     safety_score: float  # 0.0-1.0 оценка безопасности
     generation_id: str   # Для трассировки в событиях
 
-class SQLGenerationService(BaseService):
+class SQLGenerationService(CachedBaseService):
     """
     Централизованный сервис генерации и коррекции безопасных SQL-запросов.
     
@@ -71,15 +72,61 @@ class SQLGenerationService(BaseService):
         if not table_service:
             self.logger.error("table_description_service не зарегистрирован")
             return False
-            
-        if not self.prompt_service:
-            self.logger.error("PromptService не зарегистрирован")
-            return False
-            
+
+        # В новой архитектуре prompt_service будет доступен через кэш
+        # Но пока оставим для обратной совместимости
+        self.prompt_service = self.system_context.get_resource("prompt_service")
+
         self.logger.info("SQLGenerationService успешно инициализирован")
         return True
 
-    async def execute(self, input_data: ServiceInput) -> ServiceOutput:
+    async def _load_service_prompts(self):
+        """Загрузка промптов, специфичных для сервиса генерации SQL"""
+        # Загрузка промптов для генерации SQL-запросов
+        try:
+            # Промпт для генерации безопасного SQL-запроса
+            gen_capability = "sql_generation.generate_safe_query"
+            version = None
+            if hasattr(self, '_agent_config') and self._agent_config:
+                version = self._agent_config.prompt_versions.get(gen_capability)
+            elif hasattr(self, '_system_resources_config') and self._system_resources_config:
+                version = self._system_resources_config.resource_prompt_versions.get(gen_capability)
+            
+            if self.prompt_service:  # Для обратной совместимости
+                prompt = await self.prompt_service.get_prompt(
+                    capability_name=gen_capability,
+                    version=version,
+                    allow_inactive=getattr(self, '_agent_config', {}).allow_inactive_resources if hasattr(self, '_agent_config') and self._agent_config else 
+                              getattr(self, '_system_resources_config', {}).allow_inactive_resources if hasattr(self, '_system_resources_config') and self._system_resources_config else False
+                )
+                self._cached_prompts[gen_capability] = prompt
+
+            # Промпт для коррекции SQL-запросов
+            corr_capability = "sql_generation.correct_query"
+            version = None
+            if hasattr(self, '_agent_config') and self._agent_config:
+                version = self._agent_config.prompt_versions.get(corr_capability)
+            elif hasattr(self, '_system_resources_config') and self._system_resources_config:
+                version = self._system_resources_config.resource_prompt_versions.get(corr_capability)
+            
+            if self.prompt_service:  # Для обратной совместимости
+                prompt = await self.prompt_service.get_prompt(
+                    capability_name=corr_capability,
+                    version=version,
+                    allow_inactive=getattr(self, '_agent_config', {}).allow_inactive_resources if hasattr(self, '_agent_config') and self._agent_config else 
+                              getattr(self, '_system_resources_config', {}).allow_inactive_resources if hasattr(self, '_system_resources_config') and self._system_resources_config else False
+                )
+                self._cached_prompts[corr_capability] = prompt
+
+        except Exception as e:
+            self.logger.error(f"Ошибка загрузки промптов для SQLGenerationService: {str(e)}")
+            raise
+
+    def get_required_prompt_names(self):
+        """Возвращает список имен промптов, необходимых для сервиса"""
+        return ["sql_generation.generate_safe_query", "sql_generation.correct_query"]
+
+    async def execute(self, input_data: ServiceInput) -> SQLGenerationServiceOutput:
         """
         Выполнение сервиса - в данном случае делегирует генерацию или коррекцию.
         
@@ -95,7 +142,7 @@ class SQLGenerationService(BaseService):
             # Преобразуем результат в подходящий ServiceOutput
             # Для этого создадим временный класс или используем словарь
             from dataclasses import asdict
-            return ServiceOutput(asdict(result))
+            return SQLGenerationServiceOutput(asdict(result))
         elif isinstance(input_data, SQLCorrectionInput):
             # Для коррекции нужно больше информации
             # Этот метод требует дополнительные параметры, которые не передаются через input_data
@@ -155,10 +202,20 @@ class SQLGenerationService(BaseService):
             "max_rows": self.max_result_rows
         }
         
-        prompt = await self.prompt_service.render(
-            capability_name="sql_generation.generate_safe_query",
-            variables=prompt_vars
-        )
+        # Используем кэшированный промпт, если он доступен, иначе fallback к оригинальному сервису
+        prompt_key = "sql_generation.generate_safe_query"
+        if prompt_key in self._cached_prompts:
+            # Заменяем переменные в кэшированном промпте
+            prompt = self._cached_prompts[prompt_key]
+            for var_name, var_value in prompt_vars.items():
+                placeholder = f"{{{var_name}}}"  # Формат {variable_name}
+                prompt = prompt.replace(placeholder, str(var_value))
+        else:
+            # Fallback для обратной совместимости
+            prompt = await self.prompt_service.render(
+                capability_name=prompt_key,
+                variables=prompt_vars
+            )
         
         try:
             # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели
@@ -252,10 +309,20 @@ class SQLGenerationService(BaseService):
             "allowed_operations": ", ".join(self.allowed_operations)
         }
         
-        prompt = await self.prompt_service.render(
-            capability_name="sql_generation.correct_query",
-            variables=prompt_vars
-        )
+        # Используем кэшированный промпт, если он доступен, иначе fallback к оригинальному сервису
+        prompt_key = "sql_generation.correct_query"
+        if prompt_key in self._cached_prompts:
+            # Заменяем переменные в кэшированном промпте
+            prompt = self._cached_prompts[prompt_key]
+            for var_name, var_value in prompt_vars.items():
+                placeholder = f"{{{var_name}}}"  # Формат {variable_name}
+                prompt = prompt.replace(placeholder, str(var_value))
+        else:
+            # Fallback для обратной совместимости
+            prompt = await self.prompt_service.render(
+                capability_name=prompt_key,
+                variables=prompt_vars
+            )
         
         try:
             # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели для коррекции

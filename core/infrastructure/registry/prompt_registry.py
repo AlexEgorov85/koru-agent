@@ -2,8 +2,8 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import yaml
 from datetime import datetime
-from ..models.prompt import Prompt, PromptStatus
-from ..models.prompt_serialization import PromptSerializer
+from core.models.prompt import Prompt, PromptStatus
+from core.models.prompt_serialization import PromptSerializer
 
 
 class PromptRegistryEntry:

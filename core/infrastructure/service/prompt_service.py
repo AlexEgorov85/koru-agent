@@ -95,7 +95,7 @@ class PromptService(BaseService):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     prompt_data = yaml.safe_load(f)
 
-                # Extract version from filename (e.g., create_plan_v1.2.0.yaml -> v1.2.0)
+                # Extract version from filename (e.g., create_plan_v1.0.0.yaml -> v1.0.0)
                 filename = file_path.stem
                 version = self._extract_version_from_filename(filename)
 
@@ -182,7 +182,7 @@ class PromptService(BaseService):
 
     def _extract_version_from_filename(self, filename: str) -> str:
         """
-        Extract version from filename like 'create_plan_v1.2.0' -> 'v1.2.0'
+        Extract version from filename like 'create_plan_v1.0.0' -> 'v1.0.0'
         """
         parts = filename.split('_')
         for i in range(len(parts)):
@@ -433,6 +433,18 @@ class PromptService(BaseService):
         if available_versions:
             return self._find_latest_version(available_versions)
         return None
+
+    def scan_active_prompts(self):
+        """
+        Сканирует и возвращает активные промпты для использования в auto_resolve.
+        """
+        active_prompts = {}
+        for capability, entry in self.registry.active_prompts.items():
+            active_prompts[capability] = {
+                "version": entry.version,
+                "status": entry.status.value if hasattr(entry.status, 'value') else str(entry.status)
+            }
+        return active_prompts
 
     async def render(
         self,

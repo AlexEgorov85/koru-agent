@@ -1,7 +1,7 @@
-current_version: "v1.2.0"  # Актуальная версия системы промптов
+current_version: "v1.0.0"  # Актуальная версия системы промптов
 
 active_versions:
-  - version: "v1.2.0"
+  - version: "v1.0.0"
     created_at: "2026-02-08T14:30:00Z"
     author: "llm_self_learning_agent"
     metrics:
