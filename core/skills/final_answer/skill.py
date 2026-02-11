@@ -31,10 +31,9 @@ class FinalAnswerSkill(BaseSkill):
             Capability(
                 name="final_answer.generate",
                 description="Генерация финального ответа на основе всего контекста сессии",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             )
         ]
 
@@ -199,20 +198,24 @@ class FinalAnswerSkill(BaseSkill):
         full_prompt = "\n".join(prompt_parts)
         
         try:
-            # Вызов LLM для генерации финального ответа
-            response = await self.system_context.call_llm_with_params(
-                user_prompt=full_prompt,
+            # Подготовка запроса к LLM
+            from models.llm_types import LLMRequest
+            request = LLMRequest(
+                prompt=full_prompt,
                 system_prompt="Ты помощник, который генерирует финальные ответы на основе собранной информации. Отвечай точно, структурировано и вежливо.",
                 temperature=0.3,
                 max_tokens=1000
             )
-            
+
+            # Вызов LLM через системный контекст
+            response = await self.system_context.call_llm(request)
+
             # Извлечение содержимого ответа
             if hasattr(response, 'content'):
                 return response.content
             else:
                 return str(response)
-                
+
         except Exception as e:
             logger.error(f"Ошибка вызова LLM для генерации ответа: {str(e)}")
             # Возврат резервного ответа

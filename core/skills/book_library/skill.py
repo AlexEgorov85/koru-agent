@@ -8,9 +8,9 @@
 """
 import logging
 from typing import Dict, Any, List, Optional
+from core.infrastructure.services.sql_generation.schema import SQLGenerationInput
 from core.session_context.base_session_context import BaseSessionContext
 from core.skills.base_skill import BaseSkill
-from core.skills.book_library.schema import AuthorSearchInput, DynamicSQLInput, FullTextInput
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 
@@ -68,26 +68,23 @@ class BookLibrarySkill(BaseSkill):
             Capability(
                 name="book_library.get_books_by_author",
                 description="Получение информации о книгах по автору",
-                parameters_schema=AuthorSearchInput.model_json_schema(),
-                parameters_class=AuthorSearchInput,
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="book_library.get_full_text",
                 description="Получение полного текста книги",
-                parameters_schema=FullTextInput.model_json_schema(),
-                parameters_class=FullTextInput,
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="book_library.dynamic_sql_query",
                 description="Генерация и выполнение SQL запроса для сложных вопросов",
-                parameters_schema=DynamicSQLInput.model_json_schema(),
-                parameters_class=DynamicSQLInput,
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             )
         ]
 
@@ -96,33 +93,38 @@ class BookLibrarySkill(BaseSkill):
         step_number = getattr(context, 'current_step', 0) + 1
         logger.debug(f"Выполнение capability '{capability.name}' на шаге {step_number}")
 
+        # Валидация параметров через кэшированный контракт
+        validation_result = await self.contract_service.validate(
+            capability_name=capability.name,
+            data=parameters,
+            direction="input"
+        )
+
+        if not validation_result["is_valid"]:
+            error_msg = f"Ошибка валидации параметров: {validation_result['errors']}"
+            logger.error(error_msg)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=error_msg,
+                error="INVALID_PARAMETERS"
+            )
+
+        validated_params = validation_result["validated_data"]
+
         try:
             if capability.name == "book_library.get_books_by_author":
-                # Конвертация если parameters - словарь
-                if isinstance(parameters, dict):
-                    params_obj = AuthorSearchInput(**parameters)
-                else:
-                    params_obj = parameters
-
-                return await self._get_books_by_author(params_obj, context, step_number)
+                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
+                return await self._get_books_by_author(validated_params, context, step_number)
 
             elif capability.name == "book_library.get_full_text":
-                # Конвертация если parameters - словарь
-                if isinstance(parameters, dict):
-                    params_obj = FullTextInput(**parameters)
-                else:
-                    params_obj = parameters
-
-                return await self._get_full_text(params_obj, context, step_number)
+                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
+                return await self._get_full_text(validated_params, context, step_number)
 
             elif capability.name == "book_library.dynamic_sql_query":
-                # Конвертация если parameters - словарь
-                if isinstance(parameters, dict):
-                    params_obj = DynamicSQLInput(**parameters)
-                else:
-                    params_obj = parameters
-
-                return await self._dynamic_sql_query(params_obj, context, step_number)
+                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
+                return await self._dynamic_sql_query(validated_params, context, step_number)
             else:
                 error_msg = f"Неподдерживаемая capability: {capability.name}"
                 logger.error(error_msg)
@@ -141,23 +143,38 @@ class BookLibrarySkill(BaseSkill):
                 step_number=step_number
             )
 
-    async def _get_books_by_author(self, input_data: AuthorSearchInput, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Получение книг по автору с использованием SQLQueryService."""
+    async def _get_books_by_author(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
+        """Получение книг по автору с использованием SQLQueryservices."""
         try:
             # 1. Построение SQL запроса
             where_clauses = []
             params = {}
 
-            if input_data.author_id:
+            # Проверяем, является ли input_data Pydantic моделью или словарем
+            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
+                # Это может быть Pydantic модель или словарь
+                if hasattr(input_data, 'author_id'):
+                    author_id = input_data.author_id
+                    name_author = getattr(input_data, 'name_author', None)
+                    family_author = getattr(input_data, 'family_author', None)
+                else:
+                    # Это словарь
+                    author_id = input_data.get('author_id')
+                    name_author = input_data.get('name_author')
+                    family_author = input_data.get('family_author')
+            else:
+                raise ValueError("input_data должен быть Pydantic моделью или словарем")
+
+            if author_id:
                 where_clauses.append("a.id = $author_id")
-                params["author_id"] = input_data.author_id
-            elif input_data.name_author or input_data.family_author:
-                if input_data.name_author:
+                params["author_id"] = author_id
+            elif name_author or family_author:
+                if name_author:
                     where_clauses.append("a.first_name ILIKE $name_author")
-                    params["name_author"] = f"%{input_data.name_author}%"
-                if input_data.family_author:
+                    params["name_author"] = f"%{name_author}%"
+                if family_author:
                     where_clauses.append("a.last_name ILIKE $family_author")
-                    params["family_author"] = f"%{input_data.family_author}%"
+                    params["family_author"] = f"%{family_author}%"
             else:
                 raise ValueError("Необходимо указать author_id, name_author или family_author")
 
@@ -180,10 +197,10 @@ class BookLibrarySkill(BaseSkill):
 
             # 2. Выполнение SQL запроса через SQLQueryService
             logger.debug(f"Выполнение SQL запроса через SQLQueryService: {sql[:100]}...")
-            
+
             if not self.sql_query_service:
                 raise RuntimeError("SQLQueryService недоступен")
-            
+
             sql_result = await self.sql_query_service.execute_direct_query(
                 sql_query=sql,
                 parameters=params,
@@ -199,9 +216,9 @@ class BookLibrarySkill(BaseSkill):
 
             formatted_result = {
                 "author": {
-                    "first_name": input_data.name_author,
-                    "last_name": input_data.family_author,
-                    "author_id": input_data.author_id,
+                    "first_name": name_author,
+                    "last_name": family_author,
+                    "author_id": author_id,
                 },
                 "books": books,
                 "total_books": book_count,
@@ -225,12 +242,26 @@ class BookLibrarySkill(BaseSkill):
                 step_number=step_number
             )
 
-    async def _get_full_text(self, input_data: FullTextInput, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Получение полного текста книги с использованием SQLQueryService."""
+    async def _get_full_text(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
+        """Получение полного текста книги с использованием SQLQueryservices."""
         try:
             # 1. Получение метаданных книги
+            # Проверяем, является ли input_data Pydantic моделью или словарем
+            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
+                # Это может быть Pydantic модель или словарь
+                if hasattr(input_data, 'book_id'):
+                    book_id = input_data.book_id
+                else:
+                    # Это словарь
+                    book_id = input_data.get('book_id')
+            else:
+                raise ValueError("input_data должен быть Pydantic моделью или словарем")
+            
+            if not book_id:
+                raise ValueError("Необходимо указать book_id для получения полного текста книги")
+            
             metadata_sql = """
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -244,24 +275,24 @@ class BookLibrarySkill(BaseSkill):
             WHERE b.id = $book_id
             LIMIT 1;
             """
-            
+
             if not self.sql_query_service:
                 raise RuntimeError("SQLQueryService недоступен")
-            
+
             metadata_result = await self.sql_query_service.execute_direct_query(
                 sql_query=metadata_sql,
-                parameters={"book_id": input_data.book_id},
+                parameters={"book_id": book_id},
                 max_rows=1
             )
 
             if not metadata_result.success or not metadata_result.rows:
-                raise ValueError(f"Книга с ID {input_data.book_id} не найдена")
+                raise ValueError(f"Книга с ID {book_id} не найдена")
 
             metadata = metadata_result.rows[0]
 
             # 2. Получение глав книги
             chapters_sql = """
-            SELECT 
+            SELECT
                 c.chapter_number,
                 c.title as chapter_title,
                 c.content
@@ -269,10 +300,10 @@ class BookLibrarySkill(BaseSkill):
             WHERE c.book_id = $book_id
             ORDER BY c.chapter_number;
             """
-            
+
             chapters_result = await self.sql_query_service.execute_direct_query(
                 sql_query=chapters_sql,
-                parameters={"book_id": input_data.book_id},
+                parameters={"book_id": book_id},
                 max_rows=100
             )
 
@@ -306,15 +337,29 @@ class BookLibrarySkill(BaseSkill):
                 step_number=step_number
             )
 
-    async def _dynamic_sql_query(self, parameters: DynamicSQLInput, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Генерация и выполнение SQL запроса с использованием SQLGenerationService."""
+    async def _dynamic_sql_query(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
+        """Генерация и выполнение SQL запроса с использованием SQLGenerationservices."""
         try:
             # 1. Валидация параметров
-            if isinstance(parameters, dict):
-                input_data = DynamicSQLInput(**parameters)
+            # Проверяем, является ли input_data Pydantic моделью или словарем
+            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
+                # Это может быть Pydantic модель или словарь
+                if hasattr(input_data, 'user_question'):
+                    user_question = input_data.user_question
+                    context_tables = getattr(input_data, 'context_tables', ["authors", "books", "chapters", "genres"])
+                    max_rows = getattr(input_data, 'max_rows', 50)
+                else:
+                    # Это словарь
+                    user_question = input_data.get('user_question')
+                    context_tables = input_data.get('context_tables', ["authors", "books", "chapters", "genres"])
+                    max_rows = input_data.get('max_rows', 50)
             else:
-                input_data = parameters
-            logger.debug(f"Валидация параметров успешна: {input_data}")
+                raise ValueError("input_data должен быть Pydantic моделью или словарем")
+            
+            if not user_question:
+                raise ValueError("Необходимо указать user_question для динамического SQL запроса")
+            
+            logger.debug(f"Валидация параметров успешна: user_question={user_question}, max_rows={max_rows}")
 
             # 2. Получение SQLGenerationService
             sql_service = await self.system_context.get_service("sql_generation_service")
@@ -322,12 +367,11 @@ class BookLibrarySkill(BaseSkill):
                 raise RuntimeError("SQLGenerationService не зарегистрирован в системном контексте")
 
             # 3. Подготовка входных данных для сервиса генерации
-            from core.infrastructure.service.sql_generation.schema import SQLGenerationInput
             generation_input = SQLGenerationInput(
-                user_question=input_data.user_question,
-                tables=input_data.context_tables,
-                max_rows=input_data.max_rows,
-                context=f"Цель: анализ библиотечных данных. Максимум {input_data.max_rows} строк."
+                user_question=user_question,
+                tables=context_tables,
+                max_rows=max_rows,
+                context=f"Цель: анализ библиотечных данных. Максимум {max_rows} строк."
             )
 
             # 4. Автоматическая генерация + выполнение + коррекция через новый сервис

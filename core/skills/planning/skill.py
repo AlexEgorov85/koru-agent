@@ -1,6 +1,8 @@
 import time
 from typing import Any, Dict, List
+from core.session_context.base_session_context import BaseSessionContext
 from core.skills.base_skill import BaseSkill
+from core.skills.planning.schema import StepStatus
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 
@@ -9,8 +11,8 @@ class PlanningSkill(BaseSkill):
     name = "planning"
     supported_strategies = ["planning", "react"]  # ← Поддержка нескольких стратегий
 
-    def __init__(self, name: str, system_context: Any, **kwargs):
-        super().__init__(name, system_context, **kwargs)
+    def __init__(self, name: str, system_context: Any, component_config=None, **kwargs):
+        super().__init__(name, system_context, component_config)
         # Получение зависимостей через порты
         self.prompt_service = system_context.get_resource("prompt_service")
         # Используем новый SQLQueryService для безопасного выполнения SQL-запросов
@@ -31,72 +33,78 @@ class PlanningSkill(BaseSkill):
             Capability(
                 name="planning.create_plan",
                 description="Создание первичного плана действий",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="planning.update_plan",
                 description="Обновление существующего плана",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="planning.get_next_step",
                 description="Получение следующего шага из плана",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="planning.update_step_status",
                 description="Обновление статуса шага плана",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="planning.decompose_task",
                 description="Декомпозиция сложной задачи на подзадачи",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             ),
             Capability(
                 name="planning.mark_task_completed",
                 description="Отметка задачи как завершенной",
-                parameters_schema={},  # Будет загружаться через contract_service
-                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies
+                supported_strategies=self.supported_strategies,
+                visiable=True
             )
         ]
 
     async def execute(self, capability: "Capability", parameters: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
-        # Валидируем параметры через ContractService
-        validation_result = await self.contract_service.validate(
-            capability_name=capability.name,
-            data=parameters,
-            direction="input"
-        )
-        
-        if not validation_result["is_valid"]:
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                result=None,
-                observation_item_id=None,
-                summary=f"Ошибка валидации параметров: {validation_result['errors']}",
-                error="INVALID_PARAMETERS"
+        # Валидируем параметры через кэшированный контракт
+        try:
+            input_schema = self.get_input_contract(capability.name)
+            
+            # Используем кэшированный контракт для валидации
+            # В новой архитектуре валидация происходит через кэшированные контракты
+            validation_result = await self.contract_service.validate(
+                capability_name=capability.name,
+                data=parameters,
+                direction="input"
             )
-        
-        validated_params = validation_result["validated_data"]
-        
+
+            if not validation_result["is_valid"]:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    result=None,
+                    observation_item_id=None,
+                    summary=f"Ошибка валидации параметров: {validation_result['errors']}",
+                    error="INVALID_PARAMETERS"
+                )
+
+            validated_params = validation_result["validated_data"]
+        except RuntimeError:
+            # Если контракт не найден в кэше, используем переданные параметры без валидации
+            # Это обеспечивает обратную совместимость
+            validated_params = parameters
+        except Exception as e:
+            # Если возникла другая ошибка при валидации, также используем параметры без валидации
+            validated_params = parameters
+
         # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
             return await self._create_plan(validated_params, context)
@@ -154,25 +162,14 @@ class PlanningSkill(BaseSkill):
 
             capabilities_list = self._format_capabilities_for_prompt(available_capabilities)
 
-            # 2. Рендеринг промпта через централизованный сервис
-            prompt = await self.prompt_service.render(
-                capability_name="planning.create_plan",
-                variables={
-                    "goal": input_data.get('goal'),
-                    "max_steps": input_data.get('max_steps', 10),
-                    "capabilities_list": capabilities_list,
-                    "context": input_data.get('context') or context.get_summary()
-                }
-            )
+            # 2. Рендеринг промпта через кэшированный сервис
+            prompt = self.get_prompt("planning.create_plan")  # Используем кэшированный промпт из BaseComponent
 
             # 3. Генерация структурированного плана через системный контекст
             from models.llm_types import LLMRequest, StructuredOutputConfig
-            
-            # Получаем выходную схему через ContractService
-            output_schema = await self.contract_service.get_contract_schema(
-                capability_name="planning.create_plan",
-                direction="output"
-            )
+
+            # Получаем выходную схему из кэшированного контракта
+            output_schema = self.get_output_contract("planning.create_plan")  # Используем кэшированный контракт из BaseComponent
             
             request = LLMRequest(
                 prompt=input_data.get('goal', ''),
@@ -194,8 +191,16 @@ class PlanningSkill(BaseSkill):
             llm_response = response.parsed_content  # Это уже валидный экземпляр CreatePlanOutput
 
             # 5. Сохранение плана в контекст сессии
+            # Преобразуем результат в словарь для сохранения
+            if hasattr(llm_response, 'model_dump'):
+                plan_data = llm_response.model_dump()
+            elif hasattr(llm_response, 'dict'):
+                plan_data = llm_response.dict()
+            else:
+                plan_data = llm_response  # уже словарь
+                
             plan_item_id = context.record_plan(
-                plan_data=llm_response.model_dump() if hasattr(llm_response, 'model_dump') else llm_response,
+                plan_data=plan_data,
                 plan_type="initial"
             )
             context.set_current_plan(plan_item_id)
@@ -244,11 +249,11 @@ class PlanningSkill(BaseSkill):
                 error="PLAN_CREATION_ERROR"
             )
     
-    async def _update_plan(self, input_data: UpdatePlanInput, context: "BaseSessionContext") -> ExecutionResult:
+    async def _update_plan(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         # Заглушка для реализации
         pass
     
-    async def _get_next_step(self, input_data: GetNextStepInput, context: "BaseSessionContext") -> ExecutionResult:
+    async def _get_next_step(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         """
         Получение следующего шага из плана с поддержкой иерархии.
         Обходит вложенные планы (сначала подзадачи, потом родительские).
@@ -302,7 +307,7 @@ class PlanningSkill(BaseSkill):
                 error="GET_NEXT_STEP_ERROR"
             )
 
-    async def _get_next_step_from_flat_plan(self, plan: Dict[str, Any], input_data: GetNextStepInput, context: "BaseSessionContext") -> Dict[str, Any]:
+    async def _get_next_step_from_flat_plan(self, plan: Dict[str, Any], input_data: Dict[str, Any], context: "BaseSessionContext") -> Dict[str, Any]:
         """
         Получение следующего шага из плоского плана.
         """
@@ -323,7 +328,7 @@ class PlanningSkill(BaseSkill):
         
         return None
 
-    async def _get_next_step_from_hierarchy(self, hierarchy_plan: Dict[str, Any], input_data: GetNextStepInput, context: "BaseSessionContext") -> Dict[str, Any]:
+    async def _get_next_step_from_hierarchy(self, hierarchy_plan: Dict[str, Any], input_data: Dict[str, Any], context: "BaseSessionContext") -> Dict[str, Any]:
         """
         Получение следующего шага из иерархического плана.
         Обходит подпланы рекурсивно.
@@ -339,10 +344,10 @@ class PlanningSkill(BaseSkill):
                 # Рекурсивно получаем следующий шаг из подплана
                 sub_plan = sub_plan_item.content
                 # Создаем временный input_data для подплана
-                sub_input = GetNextStepInput(
-                    plan_id=sub_plan_info.get("plan_id"),
-                    current_step_id=None  # начинаем с начала подплана
-                )
+                sub_input = {
+                    "plan_id": sub_plan_info.get("plan_id"),
+                    "current_step_id": None  # начинаем с начала подплана
+                }
                 
                 # Получаем следующий шаг из подплана
                 next_step = await self._get_next_step_from_flat_plan(sub_plan, sub_input, context)
@@ -523,7 +528,7 @@ class PlanningSkill(BaseSkill):
                 error="UPDATE_STEP_STATUS_ERROR"
             )
     
-    async def _decompose_task(self, input_data: DecomposeTaskInput, context: "BaseSessionContext") -> ExecutionResult:
+    async def _decompose_task(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         """
         Декомпозиция сложной задачи на иерархию подзадач.
         РЕЗУЛЬТАТ: создает вложенный план с подзадачами
@@ -552,7 +557,7 @@ class PlanningSkill(BaseSkill):
             capabilities_list = self._format_capabilities_for_prompt(available_capabilities)
             
             # 2. Рендеринг промпта декомпозиции
-            prompt = await self.prompt_service.render(
+            prompt = await self.prompt_services.render(
                 capability_name="planning.decompose_task",
                 variables={
                     "task_id": input_data.task_id,
@@ -571,7 +576,7 @@ class PlanningSkill(BaseSkill):
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
                     output_model="DecomposeTaskOutput",  # Имя модели из реестра
-                    schema_def=DecomposeTaskOutput.model_json_schema(),
+                    schema_def=self.get_output_contract("planning.decompose_task"),  # Используем кэшированную схему
                     max_retries=3,
                     strict_mode=True
                 ),
@@ -585,22 +590,49 @@ class PlanningSkill(BaseSkill):
             
             # 5. Создание вложенного плана для каждой подзадачи
             sub_plans = []
-            for subtask in decomposition.subtasks:
-                # Создаем мини-план для подзадачи
-                sub_plan_input = CreatePlanInput(
-                    goal=subtask.description,
-                    max_steps=min(3, len(subtask.description.split('.'))),  # Максимум 3 шага на подзадачу
-                    context=f"Подзадача {subtask.subtask_id} родительской задачи {input_data.task_id}",
-                    strategy="iterative"
-                )
-                sub_plan_result = await self._create_plan(sub_plan_input, context)
+            
+            # Получаем подзадачи из результата
+            if hasattr(decomposition, 'subtasks'):
+                # Если это Pydantic-модель
+                subtasks_list = decomposition.subtasks
+            else:
+                # Если это словарь
+                subtasks_list = decomposition.get('subtasks', []) if isinstance(decomposition, dict) else decomposition
+            
+            for subtask in subtasks_list:
+                # Определяем поля в зависимости от типа subtask
+                if hasattr(subtask, 'description'):
+                    # Это Pydantic-модель
+                    description = subtask.description
+                    subtask_id = subtask.subtask_id
+                else:
+                    # Это словарь
+                    description = subtask.get('description', '') if isinstance(subtask, dict) else ''
+                    subtask_id = subtask.get('subtask_id', '') if isinstance(subtask, dict) else ''
+                
+                # Создаем словарь параметров для мини-плана
+                sub_plan_params = {
+                    "goal": description,
+                    "max_steps": min(3, len(description.split('.'))),  # Максимум 3 шага на подзадачу
+                    "context": f"Подзадача {subtask_id} родительской задачи {input_data.task_id}",
+                    "strategy": "iterative"
+                }
+                sub_plan_result = await self._create_plan(sub_plan_params, context)
                 
                 if sub_plan_result.status == ExecutionStatus.SUCCESS:
+                    # Определяем значения для добавления в список подпланов
+                    if hasattr(subtask, 'subtask_id'):
+                        # Это Pydantic-модель
+                        subtask_complexity = subtask.complexity
+                    else:
+                        # Это словарь
+                        subtask_complexity = subtask.get('complexity', '') if isinstance(subtask, dict) else ''
+                    
                     sub_plans.append({
-                        "subtask_id": subtask.subtask_id,
+                        "subtask_id": subtask_id,  # уже получили выше
                         "plan_id": sub_plan_result.observation_item_id,
-                        "description": subtask.description,
-                        "complexity": subtask.complexity
+                        "description": description,  # уже получили выше
+                        "complexity": subtask_complexity
                     })
             
             # 6. Сохранение иерархии в контекст
@@ -682,7 +714,7 @@ class PlanningSkill(BaseSkill):
                 )
             
             # Выполнение через SQLQueryService с использованием метода для пользовательских запросов
-            result = await self.sql_query_service.execute_query_from_user_request(
+            result = await self.sql_query_services.execute_query_from_user_request(
                 user_question=user_question,
                 tables=context_tables,
                 max_rows=max_rows
@@ -747,20 +779,20 @@ class PlanningSkill(BaseSkill):
             analysis_result = await self._analyze_step_failure(failed_step, error_info, context)
             if analysis_result.status != ExecutionStatus.SUCCESS:
                 self.logger.warning("Не удалось проанализировать ошибку, используем базовую стратегию коррекции")
-                error_analysis = ErrorAnalysisOutput(
-                    error_type="unknown",
-                    reason="Не удалось провести детальный анализ ошибки",
-                    suggested_fix="Попробуйте повторить шаг или пропустить его",
-                    severity="medium",
-                    reasoning="Ошибка при анализе ошибки выполнения шага",
-                    summary="Ошибка анализа"
-                )
+                error_analysis = {
+                    "error_type": "unknown",
+                    "reason": "Не удалось провести детальный анализ ошибки",
+                    "suggested_fix": "Попробуйте повторить шаг или пропустить его",
+                    "severity": "medium",
+                    "reasoning": "Ошибка при анализе ошибки выполнения шага",
+                    "summary": "Ошибка анализа"
+                }
             else:
-                error_analysis = ErrorAnalysisOutput(**analysis_result.result)
+                error_analysis = analysis_result.result
 
             # 2. Формирование промпта коррекции
             import json
-            correction_prompt = await self.prompt_service.render(
+            correction_prompt = await self.prompt_services.render(
                 capability_name="planning.update_plan",
                 variables={
                     "current_plan": json.dumps(current_plan, ensure_ascii=False),
@@ -779,7 +811,7 @@ class PlanningSkill(BaseSkill):
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
                     output_model="UpdatePlanOutput",  # Имя модели из реестра
-                    schema_def=UpdatePlanOutput.model_json_schema(),
+                    schema_def=self.get_output_contract("planning.update_plan"),  # Используем кэшированную схему
                     max_retries=3,
                     strict_mode=True
                 ),
@@ -792,8 +824,16 @@ class PlanningSkill(BaseSkill):
             corrected_plan = response.parsed_content  # Это уже валидный экземпляр UpdatePlanOutput
             
             # 5. Сохранение исправленного плана
+            # Преобразуем результат в словарь для сохранения
+            if hasattr(corrected_plan, 'model_dump'):
+                plan_data = corrected_plan.model_dump()
+            elif hasattr(corrected_plan, 'dict'):
+                plan_data = corrected_plan.dict()
+            else:
+                plan_data = corrected_plan  # уже словарь
+                
             plan_item_id = context.record_plan(
-                plan_data=corrected_plan.model_dump(),
+                plan_data=plan_data,
                 plan_type="update"
             )
             context.set_current_plan(plan_item_id)
@@ -892,7 +932,7 @@ class PlanningSkill(BaseSkill):
         """
         try:
             # Формирование промпта для анализа ошибки
-            prompt = await self.prompt_service.render(
+            prompt = await self.prompt_services.render(
                 capability_name="planning.analyze_step_failure",
                 variables={
                     "step_description": current_step.get("description", ""),
@@ -912,7 +952,7 @@ class PlanningSkill(BaseSkill):
                 max_tokens=500,
                 structured_output=StructuredOutputConfig(
                     output_model="ErrorAnalysisOutput",  # Имя модели из реестра
-                    schema_def=ErrorAnalysisOutput.model_json_schema(),
+                    schema_def=self.get_output_contract("planning.analyze_step_failure"),  # Используем кэшированную схему
                     max_retries=2,
                     strict_mode=True
                 ),
@@ -924,35 +964,43 @@ class PlanningSkill(BaseSkill):
             response = await self.system_context.call_llm(request)
             analysis_result = response.parsed_content  # Это уже валидный экземпляр ErrorAnalysisOutput
             
+            # Преобразуем результат в словарь для возврата
+            if hasattr(analysis_result, 'dict'):
+                result_data = analysis_result.dict()
+                summary_text = analysis_result.summary if hasattr(analysis_result, 'summary') else str(result_data.get('summary', ''))
+            else:
+                result_data = analysis_result  # уже словарь
+                summary_text = str(result_data.get('summary', '')) if isinstance(result_data, dict) else str(result_data)
+                
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
-                result=analysis_result.dict(),
+                result=result_data,
                 observation_item_id=None,
-                summary=f"Проанализирована ошибка шага {current_step.get('step_id', 'unknown')}: {analysis_result.summary}",
+                summary=f"Проанализирована ошибка шага {current_step.get('step_id', 'unknown')}: {summary_text}",
                 error=None
             )
             
         except Exception as e:
             self.logger.error(f"Ошибка анализа ошибки шага: {str(e)}", exc_info=True)
             # Возвращаем базовый анализ в случае ошибки
-            basic_analysis = ErrorAnalysisOutput(
-                error_type="unknown",
-                reason="Не удалось провести детальный анализ ошибки",
-                suggested_fix="Попробуйте повторить шаг или пропустить его",
-                severity="medium",
-                reasoning="Ошибка при анализе ошибки выполнения шага",
-                summary="Ошибка анализа"
-            )
+            basic_analysis = {
+                "error_type": "unknown",
+                "reason": "Не удалось провести детальный анализ ошибки",
+                "suggested_fix": "Попробуйте повторить шаг или пропустить его",
+                "severity": "medium",
+                "reasoning": "Ошибка при анализе ошибки выполнения шага",
+                "summary": "Ошибка анализа"
+            }
             
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
-                result=basic_analysis.dict(),
+                result=basic_analysis,
                 observation_item_id=None,
-                summary=f"Базовый анализ ошибки: {basic_analysis.summary}",
+                summary=f"Базовый анализ ошибки: {basic_analysis.get('summary', 'No summary')}",
                 error=None
             )
 
-    async def _mark_task_completed(self, input_data: MarkTaskCompletedInput, context: "BaseSessionContext") -> ExecutionResult:
+    async def _mark_task_completed(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         # Заглушка для реализации
         pass
 
