@@ -1,6 +1,6 @@
 build_id: 2026.02.11-2026.02.11-2026.02.11-2026.02.11-2026.02.11-005
 created_at: '2026-02-11T15:00:00Z'
-code_version: 1.1.0
+code_version: 2.0.0
 python_version: '3.11'
 components:
   planning:
