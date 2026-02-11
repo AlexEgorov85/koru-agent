@@ -143,8 +143,11 @@ class AgentRuntime:
 
     async def run(self, goal: str):
         """Главный execution loop агента."""
-        self.session.goal = goal
+        # 1. Проверка готовности перед началом выполнения
+        await self._verify_readiness()
         
+        self.session.goal = goal
+
         # Запись системного события
         self.session.record_system_event("session_start", f"Starting session with goal: {goal}")
 
@@ -152,6 +155,31 @@ class AgentRuntime:
         initial_strategy_name = await self.strategy_manager.select_initial_strategy(goal)
         self.strategy = self.get_strategy(initial_strategy_name)
         logger.info(f"Выбрана начальная стратегия: {initial_strategy_name}")
+
+    async def _verify_readiness(self):
+        """Проверка готовности агента к выполнению задачи."""
+        # Проверяем, что система полностью инициализирована
+        if not self.system.is_fully_initialized():
+            raise RuntimeError(
+                "Агент не готов к выполнению: системные ресурсы не полностью инициализированы. "
+                "Выполните предварительную инициализацию системного контекста."
+            )
+        
+        # Проверяем, что конфигурация агента доступна
+        if not self._agent_config:
+            raise RuntimeError(
+                "Агент не готов к выполнению: отсутствует конфигурация агента. "
+                "Конфигурация должна быть предоставлена при создании агента."
+            )
+        
+        # Проверяем, что все необходимые сервисы доступны
+        required_services = ['prompt_service', 'contract_service']
+        for service_name in required_services:
+            service = self.system.get_resource(service_name)
+            if not service:
+                raise RuntimeError(f"Агент не готов к выполнению: отсутствует необходимый сервис '{service_name}'")
+        
+        logger.info("Проверка готовности агента завершена успешно")
 
         for _ in range(self.max_steps):
             if self.state.finished:
