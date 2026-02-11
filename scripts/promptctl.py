@@ -6,7 +6,7 @@ CLI-утилита для управления промптами
 import argparse
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 # Добавляем путь к корню проекта для импорта модулей
@@ -78,7 +78,7 @@ def create_prompt(args):
         status=PromptStatus.DRAFT,
         quality_metrics={},
         author=args.author,
-        changelog=[f"Создан {datetime.utcnow().isoformat()}"]
+        changelog=[f"Создан {datetime.now(timezone.utc).isoformat()}"]
     )
     
     # Создаем промпт
@@ -109,8 +109,8 @@ def promote_prompt(args):
     
     # Обновляем статус
     prompt.metadata.status = PromptStatus.ACTIVE
-    prompt.metadata.updated_at = datetime.utcnow()
-    prompt.metadata.changelog.append(f"Продвинут в активные {datetime.utcnow().isoformat()}")
+    prompt.metadata.updated_at = datetime.now(timezone.utc)
+    prompt.metadata.changelog.append(f"Продвинут в активные {datetime.now(timezone.utc).isoformat()}")
     
     # Обновляем реестр
     success = registry.promote(prompt)

@@ -2,7 +2,7 @@
 Модель конфигурации для системных ресурсов (навыки, инструменты, сервисы).
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, Optional, Literal
+from typing import Dict, Optional, Literal, Any
 from datetime import datetime
 import uuid
 

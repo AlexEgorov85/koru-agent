@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 
 # Добавляем путь к корню проекта для импорта модулей
@@ -108,10 +108,10 @@ def migrate_prompt(file_path: Path, data: dict, backup_dir: Path):
         'variables': extracted_vars,
         'status': status,
         'quality_metrics': data.get('quality_metrics'),
-        'created_at': datetime.utcnow(),
-        'updated_at': datetime.utcnow(),
+        'created_at': datetime.now(timezone.utc),
+        'updated_at': datetime.now(timezone.utc),
         'author': data.get('author', 'migration_script'),
-        'changelog': [f"Миграция из старого формата {datetime.utcnow().isoformat()}", 
+        'changelog': [f"Миграция из старого формата {datetime.now(timezone.utc).isoformat()}", 
                       f"Исходный файл: {file_path}"]
     }
     
@@ -160,7 +160,7 @@ def main():
         return 1
     
     # Создаем директорию для бэкапов
-    backup_dir = Path("backup_prompts_migration") / datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    backup_dir = Path("backup_prompts_migration") / datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     backup_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Директория для бэкапов: {backup_dir}")
@@ -207,7 +207,7 @@ def main():
     report_path = backup_dir / "migration_report.txt"
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(f"Отчет о миграции промптов\n")
-        f.write(f"Дата: {datetime.utcnow().isoformat()}\n")
+        f.write(f"Дата: {datetime.now(timezone.utc).isoformat()}\n")
         f.write(f"Всего обработано: {len(existing_prompts)}\n")
         f.write(f"Успешно мигрировано: {migrated_count}\n")
         f.write(f"Ошибок: {failed_count}\n\n")

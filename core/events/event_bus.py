@@ -66,10 +66,10 @@ class EventType(Enum):
     LLM_CALL_FAILED = "llm.call.failed"
 
     # События сервисов
-    SERVICE_REGISTERED = "service.registered"
-    SERVICE_INITIALIZED = "service.initialized"
-    SERVICE_SHUTDOWN = "service.shutdown"
-    SERVICE_ERROR = "service.error"
+    SERVICE_REGISTERED = "services.registered"
+    SERVICE_INITIALIZED = "services.initialized"
+    SERVICE_SHUTDOWN = "services.shutdown"
+    SERVICE_ERROR = "services.error"
 
     # События ошибок
     RETRY_ATTEMPT = "retry.attempt"

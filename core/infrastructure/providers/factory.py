@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import pkgutil
 from typing import Dict, Any, Optional, Type
+from datetime import datetime
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.llm.mock_provider import MockLLMProvider
@@ -22,6 +23,7 @@ from core.infrastructure.tools.base_tool import BaseTool
 from core.system_context.base_system_contex import BaseSystemContext
 from core.system_context.resource_registry import ResourceInfo
 from models.resource import ResourceType
+from core.config.component_config import ComponentConfig
 
 
 logger = logging.getLogger(__name__)
@@ -313,41 +315,56 @@ class ProviderFactory:
         }
     
     async def _create_tool_instance(
-        self, 
-        tool_class: Type[BaseTool], 
-        tool_name: str, 
+        self,
+        tool_class: Type[BaseTool],
+        tool_name: str,
         config: Dict[str, Any]
     ) -> Optional[BaseTool]:
         """Создание экземпляра инструмента с применением конфигурации.
-        
+
         ПАРАМЕТРЫ:
         - tool_class: Класс инструмента
         - tool_name: Имя инструмента
         - config: Конфигурация инструмента
-        
+
         ВОЗВРАЩАЕТ:
         - Экземпляр инструмента или None при ошибке
         """
         try:
             logger.debug(f"Создание инструмента '{tool_name}' из класса {tool_class.__name__}")
+
+            # Подготовка параметров для конструктора
+            # Создаем ComponentConfig из конфигурации
+            from core.config.component_config import ComponentConfig
             
+            # Извлекаем конфигурацию версий из параметров
+            component_config_params = {
+                "variant_id": config.get("variant_id", f"{tool_name}_default"),
+                "prompt_versions": config.get("prompt_versions", {}),
+                "input_contract_versions": config.get("input_contract_versions", {}),
+                "output_contract_versions": config.get("output_contract_versions", {})
+            }
+            
+            component_config = ComponentConfig(**component_config_params)
+
             # Подготовка параметров для конструктора
             init_params = {
                 "name": tool_name,
                 "system_context": self.system_context,
+                "component_config": component_config,
                 **config.get("parameters", {})
             }
-            
+
             # Создание экземпляра
             tool = tool_class(**init_params)
-            
+
             # Инициализация инструмента
             if hasattr(tool, "initialize") and callable(tool.initialize):
                 await tool.initialize()
-            
-            logger.info(f"Инструмент '{tool_name}' успешно создан")
+
+            logger.info(f"Инструмент '{tool_name}' успешно создан с ComponentConfig")
             return tool
-            
+
         except Exception as e:
             logger.error(f"Ошибка создания инструмента '{tool_name}': {str(e)}", exc_info=True)
             return None
@@ -464,7 +481,7 @@ class ProviderFactory:
 
                         # Проверяем наследование от BaseService
                         try:
-                            from core.infrastructure.service.base_service import BaseService
+                            from core.infrastructure.services.base_service import BaseService
                             if issubclass(obj, BaseService) and obj != BaseService:
                                 # Исключаем PromptService из автоматической регистрации, 
                                 # так как он регистрируется вручную как системный сервис
@@ -518,9 +535,24 @@ class ProviderFactory:
             logger.debug(f"Создание сервиса '{service_name}' из класса {service_class.__name__}")
 
             # Подготовка параметров для конструктора
+            # Создаем ComponentConfig из конфигурации
+            from core.config.component_config import ComponentConfig
+            
+            # Извлекаем конфигурацию версий из параметров
+            component_config_params = {
+                "variant_id": config.get("variant_id", f"{service_name}_default"),
+                "prompt_versions": config.get("prompt_versions", {}),
+                "input_contract_versions": config.get("input_contract_versions", {}),
+                "output_contract_versions": config.get("output_contract_versions", {})
+            }
+            
+            component_config = ComponentConfig(**component_config_params)
+
+            # Подготовка параметров для конструктора
             init_params = {
-                "system_context": self.system_context,
                 "name": service_name,
+                "system_context": self.system_context,
+                "component_config": component_config,
                 **config.get("parameters", {})
             }
 
@@ -534,7 +566,7 @@ class ProviderFactory:
                     logger.warning(f"Сервис '{service_name}' не прошел инициализацию")
                     return None
 
-            logger.info(f"Сервис '{service_name}' успешно создан")
+            logger.info(f"Сервис '{service_name}' успешно создан с ComponentConfig")
             return service
 
         except Exception as e:
@@ -638,9 +670,24 @@ class ProviderFactory:
             logger.debug(f"Создание навыка '{skill_name}' из класса {skill_class.__name__}")
 
             # Подготовка параметров для конструктора
+            # Создаем ComponentConfig из конфигурации
+            from core.config.component_config import ComponentConfig
+            
+            # Извлекаем конфигурацию версий из параметров
+            component_config_params = {
+                "variant_id": config.get("variant_id", f"{skill_name}_default"),
+                "prompt_versions": config.get("prompt_versions", {}),
+                "input_contract_versions": config.get("input_contract_versions", {}),
+                "output_contract_versions": config.get("output_contract_versions", {})
+            }
+            
+            component_config = ComponentConfig(**component_config_params)
+
+            # Подготовка параметров для конструктора
             init_params = {
                 "name": skill_name,
                 "system_context": self.system_context,
+                "component_config": component_config,
                 **config.get("parameters", {})
             }
 
@@ -651,7 +698,7 @@ class ProviderFactory:
             if hasattr(skill, "initialize") and callable(skill.initialize):
                 await skill.initialize()
 
-            logger.info(f"Навык '{skill_name}' успешно создан")
+            logger.info(f"Навык '{skill_name}' успешно создан с ComponentConfig")
             return skill
 
         except Exception as e:
@@ -754,8 +801,69 @@ class ProviderFactory:
         """
         provider = ProviderFactory.create_db_provider(provider_type, config)
         success = await ProviderFactory.initialize_provider(provider)
-        
+
         if not success:
             raise RuntimeError(f"Не удалось инициализировать DB провайдер типа {provider_type}")
-        
+
         return provider
+
+    async def create_component_variant(
+        self,
+        base_component_name: str,
+        variant_config: ComponentConfig,
+        variant_name: Optional[str] = None
+    ) -> str:
+        """
+        Создание изолированного варианта компонента с собственной конфигурацией.
+        Используется для A/B тестирования и канареечных релизов.
+
+        ARGS:
+        - base_component_name: имя базового компонента для клонирования структуры
+        - variant_config: конфигурация варианта компонента с версиями промптов и контрактов
+        - variant_name: опциональное имя варианта (генерируется автоматически если None)
+
+        RETURNS:
+        - str: имя зарегистрированного варианта компонента
+        """
+        # 1. Получаем базовый компонент для клонирования структуры
+        base_resource = self.system_context.registry.get_resource(base_component_name)
+        if not base_resource:
+            raise ValueError(f"Базовый компонент '{base_component_name}' не найден в реестре")
+
+        # 2. Генерируем уникальное имя варианта
+        variant_id = variant_config.variant_id or f"variant-{int(datetime.now().timestamp())}"
+        variant_name = variant_name or f"{base_component_name}@{variant_id}"
+
+        # 3. Создаём новый экземпляр компонента с изолированной конфигурацией
+        component_class = type(base_resource.instance)
+        variant_instance = component_class(
+            name=variant_name,
+            system_context=self.system_context,
+            component_config=variant_config  # ← СВОЯ конфигурация!
+        )
+
+        # 4. Инициализация: загрузка ВСЕХ ресурсов в изолированные кэши
+        await variant_instance.initialize()  # ← Гарантирует 0 обращений к хранилищу во время выполнения
+
+        # 5. Регистрация варианта
+        from core.system_context.resource_registry import ResourceInfo
+        from models.resource import ResourceType
+        variant_resource = ResourceInfo(
+            name=variant_name,
+            resource_type=base_resource.resource_type,
+            instance=variant_instance
+        )
+
+        self.system_context.registry.register_resource(
+            variant_resource,
+            variant_key=variant_config.variant_id
+        )
+
+        logger.info(
+            f"[ProviderFactory] Создан вариант '{variant_name}' для компонента '{base_component_name}'. "
+            f"Конфигурация: промпты={list(variant_config.prompt_versions.keys())}, "
+            f"input-контракты={list(variant_config.input_contract_versions.keys())}, "
+            f"output-контракты={list(variant_config.output_contract_versions.keys())}"
+        )
+
+        return variant_name

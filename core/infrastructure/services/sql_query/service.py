@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Optional
-from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput
+from core.infrastructure.services.base_service import BaseService, ServiceInput, ServiceOutput
 from models.db_types import DBQueryResult
-from core.infrastructure.service.sql_generation.error_analyzer import SQLErrorAnalyzer
+from core.infrastructure.services.sql_generation.error_analyzer import SQLErrorAnalyzer
 from core.system_context.base_system_contex import BaseSystemContext
 from .schema import SQLQueryInput, SQLQueryOutput
 import logging
@@ -26,7 +26,7 @@ class SQLQueryServiceOutput(ServiceOutput):
 class SQLQueryService(BaseService):
     """
     Сервис для безопасного выполнения SQL-запросов.
-    
+
     ОТЛИЧИЯ ОТ SQLGenerationService:
     - Только выполнение (без генерации)
     - Принимает готовый SQL-запрос
@@ -34,39 +34,49 @@ class SQLQueryService(BaseService):
     - Обеспечивает безопасное выполнение через параметризованные запросы
     """
     
+    # Зависимости в правильном порядке
+    DEPENDENCIES = ["sql_validator_service", "sql_generation_service"]  # Зависит от валидатора и генератора
+
     @property
     def description(self) -> str:
         return "Сервис для безопасного выполнения SQL-запросов с валидацией и параметризацией"
 
-    def __init__(self, system_context: BaseSystemContext, name: str = None):
-        super().__init__(system_context, name or "sql_query_service")
-        
-        # Зависимости
-        # Используем новый централизованный SQLValidatorService
-        self.validator_service = system_context.get_resource("sql_validator_service")
-        self.error_analyzer = SQLErrorAnalyzer(system_context)
-        
-        # Сохраняем системный контекст для выполнения запросов
-        self.system_context = system_context
-        
+    def __init__(self, system_context: BaseSystemContext, name: str = "sql_query_service", component_config=None):
+        from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        if component_config is None:
+            component_config = ComponentConfig(
+                variant_id="sql_query_service_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={}
+            )
+        super().__init__(name=name, system_context=system_context, component_config=component_config)
+
+        # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
+        self.error_analyzer = None
+
         # Конфигурация безопасности
         self.allowed_operations = ["SELECT"]  # Разрешаем только операции чтения
         self.max_result_rows = 1000
 
-    async def initialize(self) -> bool:
+    async def _custom_initialize(self) -> bool:
         """Инициализация зависимостей"""
         try:
-            # Проверка наличия валидатора
-            if not self.validator_service:
-                self.logger.error("SQLValidatorService не зарегистрирован в системном контексте")
-                return False
+            # Зависимости уже загружены родительским методом
+            # Доступны через: self.sql_validator_service_instance, self.sql_generation_service_instance
             
             # Инициализация анализатора ошибок
-            analyzer_ok = await self.error_analyzer.initialize()
-            if not analyzer_ok:
+            self.error_analyzer = SQLErrorAnalyzer(self.system_context)
+            if not await self.error_analyzer.initialize():
                 self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
-                
+
+            # Дополнительная валидация
+            if not self.sql_validator_service_instance:
+                self.logger.error("sql_validator_service не загружен (архитектурная ошибка)")
+                return False
+
             self.logger.info("SQLQueryService успешно инициализирован")
             return True
         except Exception as e:
@@ -133,7 +143,7 @@ class SQLQueryService(BaseService):
                 # Если параметры переданы как список/кортеж, создаем временный словарь для валидации
                 # используя индекс как имя параметра (это безопасно для валидации)
                 temp_params_dict = {f"param_{i}": val for i, val in enumerate(parameters)}
-                validation_result = await self.validator_service.validate_query(
+                validation_result = await self.validator_services.validate_query(
                     sql_query,
                     temp_params_dict
                 )
@@ -143,7 +153,7 @@ class SQLQueryService(BaseService):
                 positional_params = list(parameters)  # преобразуем в список для единообразия
             else:
                 # Если параметры уже в формате словаря, используем их напрямую
-                validation_result = await self.validator_service.validate_query(
+                validation_result = await self.validator_services.validate_query(
                     sql_query,
                     parameters or {}
                 )
@@ -197,7 +207,7 @@ class SQLQueryService(BaseService):
         max_rows: int = 50
     ) -> DBQueryResult:
         """
-        Выполнение SQL-запроса на основе пользовательского вопроса через интеграцию с SQLGenerationService.
+        Выполнение SQL-запроса на основе пользовательского вопроса через интеграцию с SQLGenerationservices.
         Этот метод обеспечивает совместимость с существующими вызовами.
 
         ПАРАМЕТРЫ:
@@ -222,7 +232,7 @@ class SQLQueryService(BaseService):
                 )
 
             # Подготовка входных данных для SQLGenerationService
-            from core.infrastructure.service.sql_generation.schema import SQLGenerationInput
+            from core.infrastructure.services.sql_generation.schema import SQLGenerationInput
             generation_input = SQLGenerationInput(
                 user_question=user_question,
                 tables=tables,
@@ -231,7 +241,7 @@ class SQLQueryService(BaseService):
             )
 
             # Выполнение через SQLGenerationService с автоматической коррекцией
-            result = await sql_gen_service.execute_with_auto_correction(
+            result = await sql_gen_services.execute_with_auto_correction(
                 generation_input,
                 context=None
             )
@@ -255,7 +265,7 @@ class SQLQueryService(BaseService):
         max_rows: int = 50
     ) -> DBQueryResult:
         """
-        Прямое выполнение готового SQL-запроса с валидацией через SQLValidatorService.
+        Прямое выполнение готового SQL-запроса с валидацией через SQLValidatorservices.
 
         ПАРАМЕТРЫ:
         - sql_query: готовый SQL-запрос для выполнения

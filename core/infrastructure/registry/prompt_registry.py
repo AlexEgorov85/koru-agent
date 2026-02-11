@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from core.models.prompt import Prompt, PromptStatus
 from core.models.prompt_serialization import PromptSerializer
 
@@ -14,7 +14,7 @@ class PromptRegistryEntry:
         self.status = status
         self.file_path = file_path
         self.quality_metrics = quality_metrics or {}
-        self.archived_at = archived_at or datetime.utcnow()
+        self.archived_at = archived_at or datetime.now(timezone.utc)
 
 
 class PromptRegistry:
@@ -24,7 +24,7 @@ class PromptRegistry:
         self.registry_path = registry_path
         self.registry_data = {
             'registry_version': '1.0',
-            'last_updated': datetime.utcnow().isoformat(),
+            'last_updated': datetime.now(timezone.utc).isoformat(),
             'author': 'system',
             'active_prompts': [],
             'archived_prompts': []
@@ -74,7 +74,7 @@ class PromptRegistry:
     def save_registry(self):
         """Сохраняет реестр в YAML файл"""
         # Обновляем данные реестра из внутренних структур
-        self.registry_data['last_updated'] = datetime.utcnow().isoformat()
+        self.registry_data['last_updated'] = datetime.now(timezone.utc).isoformat()
         self.registry_data['active_prompts'] = [
             {
                 'capability': entry.capability,
@@ -202,7 +202,7 @@ class PromptRegistry:
         try:
             # Обновляем статус промпта
             prompt.metadata.status = PromptStatus.ACTIVE
-            prompt.metadata.updated_at = datetime.utcnow()
+            prompt.metadata.updated_at = datetime.now(timezone.utc)
             
             # Сохраняем промпт в файл
             base_path = self.registry_path.parent  # используем директорию реестра как базовую
@@ -224,7 +224,7 @@ class PromptRegistry:
                     version=old_entry.version,
                     status=PromptStatus.ARCHIVED,
                     file_path=old_entry.file_path,
-                    archived_at=datetime.utcnow()
+                    archived_at=datetime.now(timezone.utc)
                 )
                 self.archived_prompts[(old_entry.capability, old_entry.version)] = archived_entry
             
@@ -261,7 +261,7 @@ class PromptRegistry:
                 version=active_entry.version,
                 status=PromptStatus.ARCHIVED,
                 file_path=active_entry.file_path,
-                archived_at=datetime.utcnow()
+                archived_at=datetime.now(timezone.utc)
             )
             self.archived_prompts[(active_entry.capability, active_entry.version)] = archived_entry
             
@@ -274,8 +274,8 @@ class PromptRegistry:
             if prompt_path.exists():
                 prompt = PromptSerializer.from_yaml(prompt_path)
                 prompt.metadata.status = PromptStatus.ARCHIVED
-                prompt.metadata.changelog.append(f"Архивирован {datetime.utcnow().isoformat()}: {reason}")
-                prompt.metadata.updated_at = datetime.utcnow()
+                prompt.metadata.changelog.append(f"Архивирован {datetime.now(timezone.utc).isoformat()}: {reason}")
+                prompt.metadata.updated_at = datetime.now(timezone.utc)
                 
                 # Если архивная директория не существует, создаем ее
                 archived_path = self.registry_path.parent / "archived"

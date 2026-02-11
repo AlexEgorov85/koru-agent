@@ -13,7 +13,7 @@ from pydantic import BaseModel
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.infrastructure.service.contract_service import ContractService
+from core.infrastructure.services.contract_service import ContractService
 from models.capability import Capability
 
 
@@ -89,7 +89,7 @@ async def migrate_schemas_to_yaml():
     contract_service = ContractService(system_context)
     
     # Инициализируем сервис
-    await contract_service.initialize()
+    await contract_services.initialize()
     
     # Находим все файлы schema.py
     schema_files = find_all_schema_files(project_root)
@@ -141,7 +141,7 @@ async def migrate_schemas_to_yaml():
             
             try:
                 # Конвертируем Pydantic-модель в YAML-контракт
-                result = await contract_service.convert_pydantic_to_yaml(
+                result = await contract_services.convert_pydantic_to_yaml(
                     capability_name=capability_name,
                     pydantic_model=model_class,
                     version="1.0.0",
@@ -199,7 +199,7 @@ async def migrate_schemas_to_yaml():
     print(f"\n=== Проверка загрузки контрактов ===")
     sample_capability = migration_results[0]['capability_name'] if migration_results else None
     if sample_capability:
-        schema = await contract_service.get_contract_schema(sample_capability)
+        schema = await contract_services.get_contract_schema(sample_capability)
         if schema:
             print(f"✓ Контракт {sample_capability} успешно загружен из YAML")
             print(f"  Свойства: {list(schema.get('properties', {}).keys())}")

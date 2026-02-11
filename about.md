@@ -224,8 +224,8 @@ project/
 │   │   └── event_handlers.py # Обработчики событий
 │   └── infrastructure/     # Инфраструктурные компоненты
 │       ├── service/        # Инфраструктурные сервисы
-│       │   ├── base_service.py # Базовый класс сервиса
-│       │   └── table_description_service.py # Сервис описания таблиц
+│       │   ├── base_services.py # Базовый класс сервиса
+│       │   └── table_description_services.py # Сервис описания таблиц
 │       ├── providers/      # Провайдеры (LLM, DB и др.)
 │       └── tools/          # Инструменты для I/O
 ├── models/                 # Типы данных
@@ -434,7 +434,7 @@ def __init__(self, name: str, system_context: BaseSystemContext, **kwargs):
 # В методе выполнения
 async def _create_plan(self, parameters: Dict[str, Any], context: BaseSessionContext) -> ExecutionResult:
     # ИСПОЛЬЗУЕМ СЕРВИС:
-    prompt = await self.prompt_service.render(
+    prompt = await self.prompt_services.render(
         capability_name="planning.create_plan",
         variables={
             "goal": goal,

@@ -20,33 +20,40 @@ class AgentFactory:
     ) -> 'AgentRuntime':
         """
         Создание агента с фиксированной конфигурацией.
-        
+
         Если конфигурация не указана — автоматически разрешается из активных версий.
         """
-        # 1. Разрешение конфигурации (если не указана явно)
+        # 1. Проверка готовности системы ДО создания агента
+        if not self.system_context.is_fully_initialized():
+            raise RuntimeError(
+                "Система не готова: не все ресурсы предзагружены. "
+                "Выполните инициализацию системного контекста с предзагрузкой ресурсов."
+            )
+
+        # 2. Разрешение конфигурации (если не указана явно)
         if agent_config is None:
             agent_config = AgentConfig.auto_resolve(self.system_context)
             self.system_context.logger.info(
                 f"Автоматически разрешена конфигурация агента: {agent_config.config_id}"
             )
-        
-        # 2. Создание агента с привязкой конфигурации
+
+        # 3. Создание агента с привязкой конфигурации
         agent = await self._create_agent_with_config(
             goal=goal,
             agent_config=agent_config,
             correlation_id=correlation_id
         )
-        
-        # 3. Инициализация ВСЕХ компонентов с загрузкой промптов/контрактов
+
+        # 4. Инициализация ВСЕХ компонентов с загрузкой промптов/контрактов
         # Это ЕДИНСТВЕННЫЙ момент загрузки ресурсов за жизненный цикл агента
         await self._initialize_agent_components(agent, agent_config)
-        
+
         self.system_context.logger.info(
             f"Агент создан (correlation_id={correlation_id}). "
             f"Загружено промптов: {len(agent_config.prompt_versions)}, "
             f"контрактов: {len(agent_config.contract_versions)}"
         )
-        
+
         return agent
     
     async def _create_agent_with_config(

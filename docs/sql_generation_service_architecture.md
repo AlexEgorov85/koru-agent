@@ -18,13 +18,13 @@ core/
 └── infrastructure/
     └── service/
         ├── sql_generation/          # Модуль генерации SQL
-        │   ├── service.py           # SQLGenerationService (фасад)
+        │   ├── services.py           # SQLGenerationService (фасад)
         │   ├── validator.py         # SQLQueryValidator
         │   ├── error_analyzer.py    # SQLErrorAnalyzer
         │   ├── correction.py        # SQLCorrectionEngine
         │   ├── schema.py            # Pydantic схемы
         │   └── __init__.py          # Пакет модуля
-        └── base_service.py          # Базовый класс сервиса
+        └── base_services.py          # Базовый класс сервиса
 ```
 
 ### Основные классы
@@ -86,7 +86,7 @@ generation_input = SQLGenerationInput(
     max_rows=10
 )
 
-result = await sql_service.execute_with_auto_correction(
+result = await sql_services.execute_with_auto_correction(
     generation_input,
     context=session_context
 )

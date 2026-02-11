@@ -10,7 +10,7 @@ import sys
 import yaml
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from packaging import version as pkg_version
 
 
@@ -78,7 +78,7 @@ class VersionApplier:
         
         # 4. Обновляем манифест
         self.manifest["build_id"] = f"{datetime.now().strftime('%Y.%m.%d')}-{self._next_build_number()}"
-        self.manifest["updated_at"] = datetime.utcnow().isoformat()
+        self.manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         # Сохраняем
         with open(self.manifest_path, 'w', encoding='utf-8') as f:
@@ -122,7 +122,7 @@ class VersionApplier:
         
         # Обновляем метаданные
         data['version'] = new_version
-        data['updated_at'] = datetime.utcnow().isoformat()
+        data['updated_at'] = datetime.now(timezone.utc).isoformat()
         
         # Добавляем или создаем changelog
         if 'changelog' not in data:
@@ -130,7 +130,7 @@ class VersionApplier:
         
         data['changelog'].append({
             'version': new_version,
-            'date': datetime.utcnow().isoformat(),
+            'date': datetime.now(timezone.utc).isoformat(),
             'author': author,
             'message': message,
             'previous_version': old_ver
@@ -169,7 +169,7 @@ class VersionApplier:
         
         # Обновляем метаданные
         data['version'] = new_version
-        data['updated_at'] = datetime.utcnow().isoformat()
+        data['updated_at'] = datetime.now(timezone.utc).isoformat()
         
         # Добавляем или создаем changelog
         if 'changelog' not in data:
@@ -177,7 +177,7 @@ class VersionApplier:
         
         data['changelog'].append({
             'version': new_version,
-            'date': datetime.utcnow().isoformat(),
+            'date': datetime.now(timezone.utc).isoformat(),
             'author': author,
             'message': message,
             'previous_version': old_ver

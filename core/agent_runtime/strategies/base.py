@@ -46,7 +46,7 @@ class AgentStrategyInterface(ABC):
         version = self._agent_config.prompt_versions.get(reasoning_cap)
         
         if version:
-            prompt = await self.prompt_service.get_prompt(
+            prompt = await self.prompt_services.get_prompt(
                 capability_name=reasoning_cap,
                 version=version,
                 allow_inactive=self._agent_config.allow_inactive_resources

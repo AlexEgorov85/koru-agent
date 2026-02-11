@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput
+from core.infrastructure.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.system_context.base_system_contex import BaseSystemContext
 import re
 import sqlparse
@@ -35,7 +35,7 @@ class ValidatedSQL:
 class SQLValidatorService(BaseService):
     """
     Сервис для валидации SQL-запросов.
-    
+
     ФУНКЦИИ:
     - Проверка синтаксиса SQL
     - Проверка на потенциальные SQL-инъекции
@@ -43,22 +43,33 @@ class SQLValidatorService(BaseService):
     - Санитизация и параметризация запросов
     """
     
+    # Зависит только от метаданных таблиц
+    DEPENDENCIES = ["table_description_service"]  # Зависит только от метаданных таблиц
+
     @property
     def description(self) -> str:
         return "Сервис для валидации SQL-запросов с проверкой безопасности и параметризацией"
 
-    def __init__(self, system_context: BaseSystemContext, name: str = None, allowed_operations: List[str] = None):
-        super().__init__(system_context, name or "sql_validator_service")
-        
-        # Конфигурация безопасности
+    def __init__(self, system_context: BaseSystemContext, name: str = "sql_validator_service", component_config=None, allowed_operations: List[str] = None):
+        from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        if component_config is None:
+            component_config = ComponentConfig(
+                variant_id="sql_validator_service_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={}
+            )
+        super().__init__(name=name, system_context=system_context, component_config=component_config)
+
+        # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
         self.allowed_operations = set(allowed_operations or ["SELECT"])
-        self.system_context = system_context
-        
+
         # Дополнительные настройки безопасности
         self.max_nesting_level = 3
         self.identifier_pattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
         self.schema_qualified_pattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$')
-        
+
         # Компилируем регулярные выражения для обнаружения потенциальных угроз
         self._dangerous_patterns = [
             re.compile(r"(?i)(drop|delete|insert|update|truncate|alter|create|exec|execute)", re.IGNORECASE),
@@ -66,10 +77,15 @@ class SQLValidatorService(BaseService):
             re.compile(r"'[^']*'.*['\"];", re.IGNORECASE),  # потенциальные инъекции
         ]
 
-    async def initialize(self) -> bool:
+    async def _custom_initialize(self) -> bool:
         """Инициализация сервиса"""
         try:
-            self.logger.info(f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}")
+            # Зависимости уже загружены родительским методом
+            # Доступны через: self.table_description_service_instance
+            
+            self.logger.info(
+                f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
+            )
             return True
         except Exception as e:
             self.logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")

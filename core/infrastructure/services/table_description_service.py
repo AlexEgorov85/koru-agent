@@ -3,13 +3,13 @@
 """
 import logging
 from typing import Dict, Any
-from core.infrastructure.service.base_service import BaseService, ServiceInput, ServiceOutput
+from core.infrastructure.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.session_context.base_session_context import BaseSessionContext
 from core.system_context.base_system_contex import BaseSystemContext
 
 
 class TableDescriptionServiceInput(ServiceInput):
-    """Входные данные для TableDescriptionService."""
+    """Входные данные для TableDescriptionservices."""
     def __init__(self, schema_name: str, table_name: str, context: BaseSessionContext, step_number: int):
         self.schema_name = schema_name
         self.table_name = table_name
@@ -18,7 +18,7 @@ class TableDescriptionServiceInput(ServiceInput):
 
 
 class TableDescriptionServiceOutput(ServiceOutput):
-    """Выходные данные для TableDescriptionService."""
+    """Выходные данные для TableDescriptionservices."""
     def __init__(self, metadata: Dict[str, Any]):
         self.metadata = metadata
 
@@ -33,28 +33,38 @@ class TableDescriptionService(BaseService):
     - Обеспечивает безопасность через проверку схемы и таблицы
     - Поддерживает разные форматы вывода
     """
+    
+    # Базовый сервис без зависимостей — инициализируется первым
+    DEPENDENCIES = []  # Нет зависимостей
 
     @property
     def description(self) -> str:
         return "Сервис для получения описания таблицы с метаданными"
-    
-    def __init__(self, system_context: BaseSystemContext, name: str = None):
+
+    def __init__(self, system_context: BaseSystemContext, name: str = None, component_config=None):
         """
         Инициализация сервиса получения описания таблицы.
 
         ARGS:
         - system_context: системный контекст для выполнения SQL-запросов
         - name: имя сервиса (опционально)
+        - component_config: конфигурация компонента
         """
-        super().__init__(system_context, name or "table_description_service")
-        self.system_context = system_context
+        from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        if component_config is None:
+            component_config = ComponentConfig(
+                variant_id="table_description_service_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={}
+            )
+        super().__init__(name or "table_description_service", system_context, component_config)
+        # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
 
-    async def initialize(self) -> bool:
+    async def _custom_initialize(self) -> bool:
         """
-        Инициализация сервиса описания таблицы.
-        
-        RETURNS:
-        - True если инициализация прошла успешно, иначе False
+        Специфичная инициализация для TableDescriptionService.
         """
         try:
             self.logger.info("Инициализация сервиса описания таблицы")
@@ -62,6 +72,9 @@ class TableDescriptionService(BaseService):
             if self.system_context is None:
                 self.logger.error("Отсутствует системный контекст")
                 return False
+
+            # Инициализация кэша таблиц
+            self._table_cache = {}
             
             self.logger.info("Сервис описания таблицы успешно инициализирован")
             return True
@@ -98,23 +111,23 @@ class TableDescriptionService(BaseService):
         except Exception as e:
             self.logger.error(f"Ошибка при завершении работы сервиса описания таблицы: {str(e)}")
             raise
-    
+
     async def get_table_metadata(
-        self, 
-        schema_name: str, 
-        table_name: str, 
+        self,
+        schema_name: str,
+        table_name: str,
         context: BaseSessionContext,
         step_number: int
     ) -> Dict[str, Any]:
         """
         Получение метаданных таблицы через SQL-запросы.
-        
+
         ARGS:
         - schema_name: имя схемы
         - table_name: имя таблицы
         - context: контекст сессии
         - step_number: номер шага
-        
+
         RETURNS:
         - Словарь с метаданными таблицы
         """
@@ -122,7 +135,7 @@ class TableDescriptionService(BaseService):
             # Проверка на безопасность имен (предотвращение SQL-инъекций)
             if not self._is_valid_identifier(schema_name) or not self._is_valid_identifier(table_name):
                 raise ValueError("Invalid schema or table name")
-            
+
             # 1. Формирование SQL-запроса для получения метаданных
             sql = f"""
             SELECT
@@ -189,7 +202,7 @@ class TableDescriptionService(BaseService):
                 else:
                     # Если это объект с атрибутами
                     table_comment = getattr(first_row, 'table_comment', "")
-                
+
                 if table_comment and isinstance(table_comment, str) and table_comment.strip():
                     table_description = table_comment.strip()
                     self.logger.debug(f"Получено описание таблицы: {table_description}")
@@ -248,13 +261,13 @@ class TableDescriptionService(BaseService):
                 AND tc.table_name = $2
             ORDER BY tc.constraint_name, kcu.ordinal_position;
             """
-            
+
             constraints_result = await self.system_context._execute_raw_sql_query(
                 query=constraints_sql,
                 params=[schema_name, table_name],
                 max_rows=50
             )
-            
+
             constraints = {}
             if constraints_result and hasattr(constraints_result, 'rows'):
                 for row in constraints_result.rows:
@@ -266,7 +279,7 @@ class TableDescriptionService(BaseService):
                         constraint_name = getattr(row, 'constraint_name', "")
                         constraint_type = getattr(row, 'constraint_type', "")
                         column_name = getattr(row, 'column_name', "")
-                    
+
                     if constraint_name and constraint_type:
                         if constraint_name not in constraints:
                             constraints[constraint_name] = {
@@ -304,7 +317,7 @@ class TableDescriptionService(BaseService):
                 "constraints": [],
                 "examples": []
             }
-    
+
     async def get_tables_structure(self, table_list: list, schema_name: str = "Lib") -> Dict[str, Any]:
         """
         Получение структуры нескольких таблиц.
@@ -318,7 +331,7 @@ class TableDescriptionService(BaseService):
         """
         result = {}
         session_context = BaseSessionContext()  # Создаем базовый контекст сессии
-        
+
         for table_name in table_list:
             try:
                 table_metadata = await self.get_table_metadata(
@@ -339,7 +352,7 @@ class TableDescriptionService(BaseService):
                     "constraints": [],
                     "examples": []
                 }
-        
+
         return result
 
     def _is_valid_identifier(self, identifier: str) -> bool:

@@ -1,7 +1,6 @@
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from core.infrastructure.service.cached_base_service import CachedBaseService, ServiceInput, ServiceOutput as BaseServiceOutput
-from core.infrastructure.service.base_service import ServiceOutput
+from core.infrastructure.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
 from abc import ABC
 
 
@@ -9,9 +8,9 @@ from abc import ABC
 class SQLGenerationServiceOutput(BaseServiceOutput):
     def __init__(self, data: Dict[str, Any]):
         self.data = data
-from core.infrastructure.service.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
-from core.infrastructure.service.sql_generation.correction import SQLCorrectionEngine
-from core.infrastructure.service.sql_generation.schema import (
+from core.infrastructure.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
+from core.infrastructure.services.sql_generation.correction import SQLCorrectionEngine
+from core.infrastructure.services.sql_generation.schema import (
     SQLGenerationInput, SQLGenerationOutput,
     SQLCorrectionInput, SQLCorrectionOutput
 )
@@ -32,10 +31,10 @@ class SQLGenerationResult:
     safety_score: float  # 0.0-1.0 оценка безопасности
     generation_id: str   # Для трассировки в событиях
 
-class SQLGenerationService(CachedBaseService):
+class SQLGenerationService(BaseService):
     """
     Централизованный сервис генерации и коррекции безопасных SQL-запросов.
-    
+
     АРХИТЕКТУРНЫЕ ПРИНЦИПЫ:
     - Единая точка генерации для всех навыков
     - Обязательная параметризация всех запросов
@@ -44,41 +43,64 @@ class SQLGenerationService(CachedBaseService):
     - Полная изоляция от инъекций через валидацию
     """
     
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["table_description_service", "prompt_service"]
+
     @property
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
 
-    def __init__(self, system_context: BaseSystemContext, name: str = None):
-        super().__init__(system_context, name or "sql_generation_service")
+    def __init__(self, system_context: BaseSystemContext = None, name: str = "sql_generation_service", component_config=None):
+        from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        if component_config is None:
+            component_config = ComponentConfig(
+                variant_id="sql_generation_service_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={}
+            )
+        super().__init__(name=name, system_context=system_context, component_config=component_config)
 
-        # Зависимости (инверсия через конструктор)
-        # Используем новый централизованный SQLValidatorService
-        self.validator_service = system_context.get_resource("sql_validator_service")
-        self.error_analyzer = SQLErrorAnalyzer(system_context)
-        self.correction_engine = SQLCorrectionEngine(system_context)
-        # Заметка: для получения сервиса нужно использовать await, поэтому сохраняем системный контекст
-        self.system_context = system_context
-        self.prompt_service = system_context.get_resource("prompt_service")
+        # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
+        # Зависимости будут загружены в _resolve_dependencies() при вызове initialize()
+        self.error_analyzer = None
+        self.correction_engine = None
 
         # Конфигурация безопасности
         self.max_correction_attempts = 3
         self.allowed_operations = ["SELECT", "WITH"]  # Запрещаем все кроме чтения
         self.max_result_rows = 1000
 
-    async def initialize(self) -> bool:
-        """Инициализация зависимостей"""
-        # Проверка наличия критических сервисов
-        table_service = await self.system_context.get_service("table_description_service")
-        if not table_service:
-            self.logger.error("table_description_service не зарегистрирован")
+    async def _custom_initialize(self) -> bool:
+        """Инициализация зависимостей и внутреннего состояния"""
+        try:
+            # Зависимости уже загружены родительским методом
+            # Доступны через: self.table_description_service_instance, self.prompt_service_instance
+            
+            # Инициализация анализатора ошибок
+            self.error_analyzer = SQLErrorAnalyzer(self.system_context)
+            if not await self.error_analyzer.initialize():
+                self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                return False
+            
+            # Инициализация движка коррекции
+            self.correction_engine = SQLCorrectionEngine(self.system_context)
+            
+            # Проверка критических зависимостей
+            if not self.table_description_service_instance:
+                self.logger.error("table_description_service не загружен (архитектурная ошибка)")
+                return False
+                
+            if not self.prompt_service_instance:
+                self.logger.error("prompt_service не загружен (архитектурная ошибка)")
+                return False
+
+            self.logger.info("SQLGenerationService успешно инициализирован")
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
             return False
-
-        # В новой архитектуре prompt_service будет доступен через кэш
-        # Но пока оставим для обратной совместимости
-        self.prompt_service = self.system_context.get_resource("prompt_service")
-
-        self.logger.info("SQLGenerationService успешно инициализирован")
-        return True
 
     async def _load_service_prompts(self):
         """Загрузка промптов, специфичных для сервиса генерации SQL"""
@@ -93,7 +115,7 @@ class SQLGenerationService(CachedBaseService):
                 version = self._system_resources_config.resource_prompt_versions.get(gen_capability)
             
             if self.prompt_service:  # Для обратной совместимости
-                prompt = await self.prompt_service.get_prompt(
+                prompt = await self.prompt_services.get_prompt(
                     capability_name=gen_capability,
                     version=version,
                     allow_inactive=getattr(self, '_agent_config', {}).allow_inactive_resources if hasattr(self, '_agent_config') and self._agent_config else 
@@ -110,7 +132,7 @@ class SQLGenerationService(CachedBaseService):
                 version = self._system_resources_config.resource_prompt_versions.get(corr_capability)
             
             if self.prompt_service:  # Для обратной совместимости
-                prompt = await self.prompt_service.get_prompt(
+                prompt = await self.prompt_services.get_prompt(
                     capability_name=corr_capability,
                     version=version,
                     allow_inactive=getattr(self, '_agent_config', {}).allow_inactive_resources if hasattr(self, '_agent_config') and self._agent_config else 
@@ -212,7 +234,7 @@ class SQLGenerationService(CachedBaseService):
                 prompt = prompt.replace(placeholder, str(var_value))
         else:
             # Fallback для обратной совместимости
-            prompt = await self.prompt_service.render(
+            prompt = await self.prompt_services.render(
                 capability_name=prompt_key,
                 variables=prompt_vars
             )
@@ -246,7 +268,7 @@ class SQLGenerationService(CachedBaseService):
             if not self.validator_service:
                 raise RuntimeError("SQLValidatorService не зарегистрирован")
                 
-            validated = await self.validator_service.validate_query(output.sql, output.parameters)
+            validated = await self.validator_services.validate_query(output.sql, output.parameters)
 
             # 5. Формирование результата
             result = SQLGenerationResult(
@@ -319,7 +341,7 @@ class SQLGenerationService(CachedBaseService):
                 prompt = prompt.replace(placeholder, str(var_value))
         else:
             # Fallback для обратной совместимости
-            prompt = await self.prompt_service.render(
+            prompt = await self.prompt_services.render(
                 capability_name=prompt_key,
                 variables=prompt_vars
             )
@@ -351,7 +373,7 @@ class SQLGenerationService(CachedBaseService):
             if not self.validator_service:
                 raise RuntimeError("SQLValidatorService не зарегистрирован")
                 
-            validated = await self.validator_service.validate_query(
+            validated = await self.validator_services.validate_query(
                 correction_output.corrected_sql,
                 parameters  # Сохраняем оригинальные параметры
             )
@@ -392,7 +414,7 @@ class SQLGenerationService(CachedBaseService):
         
         ИСПОЛЬЗОВАНИЕ В НАВЫКАХ:
         ```python
-        result = await sql_service.execute_with_auto_correction(
+        result = await sql_services.execute_with_auto_correction(
             SQLGenerationInput(
                 user_question="Какие книги написал Толстой?",
                 tables=["books", "authors"]
@@ -485,7 +507,7 @@ class SQLGenerationService(CachedBaseService):
             schema_name = parts[0] if len(parts) > 1 else "public"
             actual_table_name = parts[-1]
             
-            metadata = await table_service.get_table_metadata(
+            metadata = await table_services.get_table_metadata(
                 schema_name=schema_name,
                 table_name=actual_table_name,
                 context=None,  # Контекст будет передан извне при необходимости

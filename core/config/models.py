@@ -1,34 +1,37 @@
+"""
+Модели конфигурации для системы агента.
+СООТВЕТСТВУЕТ Pydantic V2 и современным стандартам.
+"""
 import os
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import yaml
 
 
 class BaseModelConfig(BaseModel):
     """Базовая модель для всех конфигураций"""
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    
     profile: str = Field(default="dev", description="Имя профиля конфигурации")
     debug: bool = Field(default=False, description="Включить режим отладки")
     log_level: str = Field(default="INFO", description="Уровень логирования")
     log_dir: str = Field(default="logs", description="Директория для логов")
     data_dir: str = Field(default="data", description="Директория для данных")
-    
-    class Config:
-        extra = "allow"
-        validate_assignment = True
-    
-    def dict(self, **kwargs):
+
+    def model_dump(self, **kwargs):
         """Дополнительная обработка для экспорта в словарь"""
-        d = super().dict(**kwargs)
+        d = super().model_dump(**kwargs)
         # Преобразуем пути в абсолютные
         if "log_dir" in d:
             d["log_dir"] = os.path.abspath(d["log_dir"])
         if "data_dir" in d:
             d["data_dir"] = os.path.abspath(d["data_dir"])
         return d
-    
+
     @field_validator('log_level')
+    @classmethod
     def validate_log_level(cls, v):
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if v.upper() not in valid_levels:
@@ -38,6 +41,8 @@ class BaseModelConfig(BaseModel):
 
 class LLMProviderConfig(BaseModel):
     """Конфигурация LLM провайдера"""
+    model_config = ConfigDict(validate_assignment=True)
+    
     type_provider: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai)")
     model_name: str = Field(default="qwen-4b", description="Название модели")
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
@@ -45,12 +50,13 @@ class LLMProviderConfig(BaseModel):
     fallback_providers: List[str] = Field(default_factory=list, description="Резервные провайдеры")
 
     @field_validator('type_provider')
+    @classmethod
     def validate_provider_type(cls, v):
         valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini']
         if v.lower() not in valid_types:
             raise ValueError(f"Неподдерживаемый тип LLM провайдера: {v}. Допустимые значения: {valid_types}")
         return v.lower()
-    
+
     def get_full_model_path(self) -> str:
         """Получение полного пути к модели из параметров конфигурации"""
         model_path = self.parameters.get("model_path", "")
@@ -61,6 +67,8 @@ class LLMProviderConfig(BaseModel):
 
 class DBProviderConfig(BaseModel):
     """Конфигурация базы данных"""
+    model_config = ConfigDict(validate_assignment=True)
+    
     type_provider: str = Field(default="postgres", description="Тип провайдера")
     enabled: bool = Field(default=True, description="Включена ли база данных")
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
@@ -68,6 +76,8 @@ class DBProviderConfig(BaseModel):
 
 class SkillConfig(BaseModel):
     """Конфигурация навыка"""
+    model_config = ConfigDict(validate_assignment=True)
+    
     enabled: bool = Field(default=True, description="Включен ли навык")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Параметры навыка")
     priority: int = Field(default=1, description="Приоритет навыка")
@@ -75,6 +85,8 @@ class SkillConfig(BaseModel):
 
 class ToolConfig(BaseModel):
     """Конфигурация инструмента"""
+    model_config = ConfigDict(validate_assignment=True)
+    
     enabled: bool = Field(default=True, description="Включен ли инструмент")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Параметры инструмента")
     dependencies: List[str] = Field(default_factory=list, description="Зависимости инструмента")
@@ -82,6 +94,8 @@ class ToolConfig(BaseModel):
 
 class SecurityConfig(BaseModel):
     """Конфигурация безопасности"""
+    model_config = ConfigDict(validate_assignment=True)
+    
     secrets_path: Optional[str] = Field(None, description="Путь к файлу с секретами")
     encryption_key: Optional[str] = Field(None, description="Ключ шифрования", repr=False)
     token_expiry_minutes: int = Field(default=60, description="Время жизни токена в минутах")
@@ -90,9 +104,9 @@ class SecurityConfig(BaseModel):
         """Загрузка секретов из файла"""
         if not self.secrets_path:
             return {}
-        
+
         try:
-            with open(self.secrets_path, 'r') as f:
+            with open(self.secrets_path, 'r', encoding='utf-8') as f:
                 if self.secrets_path.endswith('.yaml'):
                     return yaml.safe_load(f) or {}
                 elif self.secrets_path.endswith('.json'):
@@ -107,16 +121,16 @@ class SystemConfig(BaseModelConfig):
     """Корневая конфигурация системы"""
     # Конфигурация LLM провайдеров
     llm_providers: Dict[str, LLMProviderConfig] = Field(default_factory=dict, description="LLM провайдеры")
-    
+
     # Конфигурация БД
     db_providers: Dict[str, DBProviderConfig] = Field(default_factory=dict, description="Базы данных")
-    
+
     # Конфигурация навыков
     skills: Dict[str, SkillConfig] = Field(default_factory=dict, description="Навыки системы")
-    
+
     # Конфигурация инструментов
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Инструменты системы")
-    
+
     # Параметры агента
     agent: Dict[str, Any] = Field(
         default={
@@ -127,10 +141,10 @@ class SystemConfig(BaseModelConfig):
         },
         description="Параметры агента"
     )
-    
+
     # Безопасность
     security: SecurityConfig = Field(default_factory=SecurityConfig, description="Параметры безопасности")
-    
+
     # Дополнительные настройки
     providers: Dict[str, Any] = Field(default_factory=dict, description="Дополнительные провайдеры")
 
@@ -141,7 +155,7 @@ class SystemConfig(BaseModelConfig):
             if provider.enabled:
                 return provider
         return None
-    
+
     @property
     def default_db(self) -> Optional[DBProviderConfig]:
         """Получение основной базы данных"""
@@ -149,8 +163,9 @@ class SystemConfig(BaseModelConfig):
             if db.enabled:
                 return db
         return None
-    
+
     @field_validator('agent')
+    @classmethod
     def validate_agent_params(cls, v):
         """Валидация параметров агента"""
         if 'max_steps' in v and v['max_steps'] < 1:

@@ -102,7 +102,7 @@ class ExecutionGateway:
         contract_service = getattr(self.system_context, 'get_service', lambda name: None) and await self.system_context.get_service("contract_service")
         if contract_service:
             try:
-                validation_result = await contract_service.validate(
+                validation_result = await contract_services.validate(
                     capability_name=capability.name,
                     data=action_payload,
                     direction="input"

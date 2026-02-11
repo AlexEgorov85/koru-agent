@@ -12,7 +12,7 @@ import asyncio
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.infrastructure.service.contract_service import ContractService
+from core.infrastructure.services.contract_service import ContractService
 from models.capability import Capability
 
 
@@ -93,7 +93,7 @@ async def test_simple():
         contract_service = ContractService(mock_system_context)
         
         # Инициализируем сервис
-        success = await contract_service.initialize()
+        success = await contract_services.initialize()
         print(f"Инициализация успешна: {success}")
         
         # Проверяем, что файл существует
@@ -109,7 +109,7 @@ async def test_simple():
         
         # Тестируем загрузку конкретной версии
         print("\nПопытка загрузить схему для версии 1.0.0...")
-        schema = await contract_service.get_contract_schema("test.skill.action", version="1.0.0")
+        schema = await contract_services.get_contract_schema("test.skill.action", version="1.0.0")
         print(f"Полученная схема: {schema}")
         
         if schema and "properties" in schema and "param1" in schema["properties"]:
@@ -120,7 +120,7 @@ async def test_simple():
         
         # Тестируем валидацию
         print("\nПопытка валидации...")
-        validation_result = await contract_service.validate(
+        validation_result = await contract_services.validate(
             capability_name="test.skill.action",
             data={"param1": "valid_str", "param2": 123},
             version="1.0.0"
