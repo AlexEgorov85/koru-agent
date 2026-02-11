@@ -83,33 +83,32 @@ class ResourceRegistry:
         self._by_type: Dict[ResourceType, Set[str]] = {t: set() for t in ResourceType}
         # === НОВОЕ: Внутренний реестр capability ===
         self._capabilities: CapabilityRegistry = CapabilityRegistry()  # ВНУТРЕННИЙ компонент
+        # === НОВОЕ: Поддержка вариантов компонентов ===
+        self._resource_variants: Dict[str, Dict[str, ResourceInfo]] = {}
+        # Структура: {"planning": {"planning@beta": ResourceInfo(...), "planning@canary": ResourceInfo(...)}}
 
-    def register_resource(self, info: ResourceInfo, override: bool = False) -> None:
+    def register_resource(self, info: ResourceInfo, override: bool = False, variant_key: Optional[str] = None) -> None:
         """
-        Регистрация инстанса ресурса (провайдер, навык, инструмент).
-
-        ПАРАМЕТРЫ:
-        - info: Информация о ресурсе
-        - override: Флаг разрешения перезаписи существующего ресурса
-
-        ИСКЛЮЧЕНИЯ:
-        - ValueError: Если ресурс с таким именем уже существует и override=False
-
-        ПРИМЕР:
-        registry.register_resource(
-            ResourceInfo("main_db", ResourceType.DATABASE, db_instance),
-            override=False
-        )
-
-        ВАЖНО:
-        - По умолчанию запрещено перезаписывать существующие ресурсы
-        - Потокобезопасная реализация гарантирует целостность данных
+        Регистрация ресурса с поддержкой вариантов.
+        
+        :param variant_key: Если указан — регистрируется как вариант базового компонента.
+                            Должен содержать "@" (например "planning@beta")
         """
         with self._lock:
-            if info.name in self._resources and not override:
-                raise ValueError(f"Resource {info.name} already exists")
-            self._resources[info.name] = info
-            self._by_type[info.resource_type].add(info.name)
+            if variant_key and "@" in variant_key:
+                # Регистрация варианта
+                base_name = variant_key.split("@")[0]
+                
+                if base_name not in self._resource_variants:
+                    self._resource_variants[base_name] = {}
+                
+                self._resource_variants[base_name][variant_key] = info
+            else:
+                # Регистрация основного экземпляра (как сейчас)
+                if info.name in self._resources and not override:
+                    raise ValueError(f"Resource '{info.name}' already exists")
+                self._resources[info.name] = info
+                self._by_type[info.resource_type].add(info.name)
 
     def register_capability(self, capability: Capability) -> None:
         """
@@ -156,6 +155,15 @@ class ResourceRegistry:
         # 2. Регистрируем все его capability
         for cap in skill.get_capabilities():
             self.register_capability(cap)
+
+    def get_resource_variant(self, base_name: str, variant_key: str) -> Optional[ResourceInfo]:
+        """Получение конкретного варианта компонента"""
+        variants = self._resource_variants.get(base_name, {})
+        return variants.get(variant_key)
+
+    def list_variants(self, base_name: str) -> List[str]:
+        """Список всех зарегистрированных вариантов для базового компонента"""
+        return list(self._resource_variants.get(base_name, {}).keys())
 
     def unregister(self, name: str) -> None:
         """

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 from core.agent_runtime.runtime import AgentRuntime
 from core.config.models import SystemConfig
+from core.config.component_config import ComponentConfig
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.session_context import SessionContext
 from core.system_context.base_system_contex import BaseSystemContext
@@ -230,7 +231,7 @@ class SystemContext(BaseSystemContext):
             try:
                 prompt_service = PromptService(
                     prompts_dir=getattr(self.config, 'prompts_dir', "prompts"),
-                    default_version=getattr(self.config, 'prompts_default_version', "v1.2.0"),
+                    default_version=getattr(self.config, 'prompts_default_version', "v1.0.0"),
                     system_context=self
                 )
                 await prompt_service.initialize()
@@ -258,7 +259,7 @@ class SystemContext(BaseSystemContext):
                 )
                 resource_info.is_default = True
                 self.registry.register_resource(resource_info)
-                
+
                 # Также регистрируем в service_registry для обратной совместимости
                 await self.register_service("sql_generation_service", sql_generation_service)
             except Exception as e:
@@ -297,28 +298,52 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации SQLQueryService: {str(e)}")
                 initialization_errors.append(f"SQLQueryService initialization failed: {str(e)}")
 
-            # 6. Автоматическая регистрация инфраструктурных сервисов из директории
+            # 6. Создание конфигурации для системных ресурсов (навыки, инструменты, сервисы)
+            try:
+                from core.system_context.system_resources_config import SystemResourcesConfig
+                system_resources_config = SystemResourcesConfig.auto_resolve(self)
+            except Exception as e:
+                logger.warning(f"Ошибка создания конфигурации для системных ресурсов: {str(e)}")
+                system_resources_config = None
+                initialization_errors.append(f"System resources config creation failed: {str(e)}")
+
+            # 7. Автоматическая регистрация инфраструктурных сервисов из директории
             try:
                 await self.provider_factory.discover_and_create_all_services()
+                
+                # Если конфигурация системных ресурсов создана, инициализируем сервисы с кэшированием
+                if system_resources_config:
+                    await self._initialize_services_with_caching(system_resources_config)
+                    
             except Exception as e:
                 logger.warning(f"Ошибка регистрации сервисов: {str(e)}")
                 initialization_errors.append(f"Services registration failed: {str(e)}")
 
-            # 5. Автоматическая регистрация инструментов из директории
+            # 8. Автоматическая регистрация инструментов из директории
             try:
                 await self.provider_factory.discover_and_create_all_tools()
+                
+                # Если конфигурация системных ресурсов создана, инициализируем инструменты с кэшированием
+                if system_resources_config:
+                    await self._initialize_tools_with_caching(system_resources_config)
+                    
             except Exception as e:
                 logger.warning(f"Ошибка регистрации инструментов: {str(e)}")
                 initialization_errors.append(f"Tools registration failed: {str(e)}")
 
-            # 6. Автоматическая регистрация навыков из директории
+            # 9. Автоматическая регистрация навыков из директории
             try:
                 await self.provider_factory.discover_and_create_all_skills()
+                
+                # Если конфигурация системных ресурсов создана, инициализируем навыки с кэшированием
+                if system_resources_config:
+                    await self._initialize_skills_with_caching(system_resources_config)
+                    
             except Exception as e:
                 logger.warning(f"Ошибка регистрации навыков: {str(e)}")
                 initialization_errors.append(f"Skills registration failed: {str(e)}")
 
-            # 6. Инициализация всех компонентов
+            # 10. Инициализация всех компонентов
             try:
                 initialization_success = await self.lifecycle.initialize()
                 if not initialization_success:
@@ -335,7 +360,7 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации компонентов: {str(e)}")
                 initialization_errors.append(f"Components initialization failed: {str(e)}")
 
-            # 7. Проверка здоровья системы
+            # 11. Проверка здоровья системы
             try:
                 health_report = await self.lifecycle.check_health()
                 if health_report["status"] == "unhealthy":
@@ -354,7 +379,7 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка проверки здоровья системы: {str(e)}")
                 initialization_errors.append(f"Health check failed: {str(e)}")
 
-            # 8. Инициализация инфраструктурных сервисов
+            # 12. Инициализация инфраструктурных сервисов
             try:
                 await self._initialize_infrastructure_services()
             except Exception as e:
@@ -392,6 +417,50 @@ class SystemContext(BaseSystemContext):
                 correlation_id=self.id
             )
             return False
+
+    async def _initialize_services_with_caching(self, system_resources_config):
+        """Инициализация сервисов с кэшированием промптов и контрактов."""
+        for service_name, service in self.service_registry.items():
+            # Проверяем, поддерживает ли сервис кэширование
+            if hasattr(service, 'initialize_with_config'):
+                try:
+                    success = await service.initialize_with_config(system_resources_config)
+                    if not success:
+                        logger.warning(f"Сервис '{service_name}' не прошел инициализацию с кэшированием")
+                except Exception as e:
+                    logger.warning(f"Ошибка инициализации сервиса '{service_name}' с кэшированием: {str(e)}")
+
+    async def _initialize_tools_with_caching(self, system_resources_config):
+        """Инициализация инструментов с кэшированием промптов и контрактов."""
+        # Получаем инструменты из реестра
+        tools = self._get_resources_by_type(ResourceType.TOOL)
+        
+        for tool_name, tool_info in tools.items():
+            tool = tool_info.instance
+            # Проверяем, поддерживает ли инструмент кэширование
+            if hasattr(tool, 'initialize_with_config'):
+                try:
+                    success = await tool.initialize_with_config(system_resources_config)
+                    if not success:
+                        logger.warning(f"Инструмент '{tool_name}' не прошел инициализацию с кэшированием")
+                except Exception as e:
+                    logger.warning(f"Ошибка инициализации инструмента '{tool_name}' с кэшированием: {str(e)}")
+
+    async def _initialize_skills_with_caching(self, system_resources_config):
+        """Инициализация навыков с кэшированием промптов и контрактов."""
+        # Получаем навыки из реестра
+        skills = self._get_resources_by_type(ResourceType.SKILL)
+        
+        for skill_name, skill_info in skills.items():
+            skill = skill_info.instance
+            # Проверяем, поддерживает ли навык кэширование
+            if hasattr(skill, 'initialize_with_config'):
+                try:
+                    success = await skill.initialize_with_config(system_resources_config)
+                    if not success:
+                        logger.warning(f"Навык '{skill_name}' не прошел инициализацию с кэшированием")
+                except Exception as e:
+                    logger.warning(f"Ошибка инициализации навыка '{skill_name}' с кэшированием: {str(e)}")
         
     async def shutdown(self) -> None:
         """
@@ -1524,6 +1593,78 @@ class SystemContext(BaseSystemContext):
             correlation_id=request.correlation_id or str(uuid.uuid4())
         )
 
+    async def create_component_variant(
+        self,
+        base_component_name: str,
+        variant_config: ComponentConfig,
+        variant_name: Optional[str] = None
+    ) -> str:
+        """
+        Создание варианта компонента с кастомной конфигурацией версий.
+        
+        ВАЖНО: Все промпты и контракты загружаются единожды при инициализации варианта.
+        После этого экземпляр работает автономно без обращения к глобальным сервисам.
+        
+        :param base_component_name: Имя базового компонента ("planning", "book_library")
+        :param variant_config: Конфигурация версий (с разделением input/output контрактов)
+        :param variant_name: Уникальное имя варианта (формат "базовый@идентификатор")
+        :return: Имя зарегистрированного варианта
+        
+        Пример:
+            variant_name = await system_context.create_component_variant(
+                base_component_name="planning",
+                variant_config=ComponentConfig(
+                    prompt_versions={"planning.create_plan": "v1.0.0"},
+                    input_contract_versions={"planning.create_plan": "v1.0.0"},
+                    output_contract_versions={"planning.create_plan": "v1.0.0"},
+                    variant_id="beta-v1.0"
+                )
+            )
+            # variant_name = "planning@beta-v1.3"
+        """
+        # 1. Получаем базовый компонент для клонирования структуры
+        base_resource = self.registry.get_resource(base_component_name)
+        if not base_resource:
+            raise ValueError(f"Базовый компонент '{base_component_name}' не найден в реестре")
+        
+        # 2. Генерируем уникальное имя варианта
+        variant_id = variant_config.variant_id or f"variant-{int(datetime.now().timestamp())}"
+        variant_name = variant_name or f"{base_component_name}@{variant_id}"
+        
+        # 3. Создаём новый экземпляр компонента с ЛОКАЛЬНОЙ конфигурацией
+        component_class = type(base_resource.instance)
+        variant_instance = component_class(
+            name=variant_name,
+            system_context=self,
+            component_config=variant_config  # ← Передаём конфигурацию с разделением контрактов
+        )
+        
+        # 4. ИНИЦИАЛИЗАЦИЯ: загрузка ВСЕХ ресурсов (промпты + input/output контракты)
+        # После этого экземпляр НЕ будет обращаться к глобальным сервисам
+        await variant_instance.initialize()
+        
+        # 5. Регистрируем как вариант в реестре
+        variant_resource = ResourceInfo(
+            name=variant_name,
+            resource_type=base_resource.resource_type,
+            instance=variant_instance
+        )
+        
+        self.registry.register_resource(
+            variant_resource,
+            override=False,
+            variant_key=variant_name  # ← Ключ для вариантов
+        )
+        
+        logger.info(
+            f"[SystemContext] Создан вариант '{variant_name}' для компонента '{base_component_name}'. "
+            f"Конфигурация: промпты={list(variant_config.prompt_versions.keys())}, "
+            f"input-контракты={list(variant_config.input_contract_versions.keys())}, "
+            f"output-контракты={list(variant_config.output_contract_versions.keys())}"
+        )
+        
+        return variant_name
+
     async def _select_strategy_for_question(self, question: str) -> str:
         """
         Выбирает стратегию выполнения на основе типа вопроса.
@@ -1535,8 +1676,8 @@ class SystemContext(BaseSystemContext):
             session_context=SessionContext(),
             max_steps=1  # Минимальное значение для инициализации
         )
-        
+
         # Используем метод выбора стратегии из AgentRuntime
         selected_strategy = await temp_runtime._select_initial_strategy(question)
-        
+
         return selected_strategy
