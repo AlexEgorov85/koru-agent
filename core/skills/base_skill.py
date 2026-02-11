@@ -6,12 +6,8 @@
 2. Устранение дублирования метода run()
 3. Использование портов вместо прямых зависимостей
 4. Четкое разделение ответственности
-
-АРХИТЕКТУРНЫЕ ПРИНЦИПЫ:
-- Навык зависит ТОЛЬКО от абстракций (портов), а не от конкретных реализаций
-- Все внешние зависимости инжектируются через конструктор
-- Бизнес-логика полностью отделена от инфраструктуры
-- Поддержка тестирования через моки портов
+5. Кэширование промптов и контрактов при инициализации
+6. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
@@ -20,6 +16,8 @@ from core.session_context.model import ContextItemType
 from core.system_context.base_system_contex import BaseSystemContext
 from models.capability import Capability
 from models.execution import ExecutionResult
+from core.config.agent_config import AgentConfig
+from core.config.component_config import ComponentConfig
 
 class BaseSkill(ABC):
     """
@@ -49,12 +47,239 @@ class BaseSkill(ABC):
         """
         return strategy_name.lower() in [s.lower() for s in self.supported_strategies]
     
-    def __init__(self, name: str, system_context: BaseSystemContext, **kwargs):
+    def __init__(self, name: str, system_context: BaseSystemContext, component_config: Optional[ComponentConfig] = None, **kwargs):
         self.name = name
         self.system_context = system_context
         self.prompt_service = system_context.get_resource("prompt_service")  # Получение сервиса
+        self.contract_service = system_context.get_resource("contract_service")
+        self.component_config = component_config
         self.config = kwargs
+
+        # === КРИТИЧЕСКИ ВАЖНО: изолированные кэши инициализируются ПУСТЫМИ ===
+        # Попытка использования до initialize() вызовет ошибку
+        self._cached_prompts: Dict[str, str] = {}          # {capability_name: prompt_text}
+        self._cached_input_contracts: Dict[str, Dict] = {}  # {capability_name: contract_schema}
+        self._cached_output_contracts: Dict[str, Dict] = {} # {capability_name: contract_schema}
+        self._agent_config: Optional[AgentConfig] = None
     
+    # --------------------------------------------------
+    # Initialization API
+    # --------------------------------------------------
+    async def initialize(self, agent_config: Optional[AgentConfig] = None) -> bool:
+        """
+        Инициализация с единовременной загрузкой ВСЕХ ресурсов из локальной конфигурации.
+        После завершения метода компонент НЕ должен обращаться к внешним сервисам.
+        """
+        # === ШАГ 1: Загрузка из локальной конфигурации (приоритет) ===
+        if self.component_config:
+            # Загрузка промптов
+            for cap_name, version in self.component_config.prompt_versions.items():
+                prompt = await self.prompt_service.get_prompt(
+                    capability_name=cap_name,
+                    version=version,
+                    allow_inactive=False
+                )
+                self._cached_prompts[cap_name] = prompt
+            
+            # Загрузка ВХОДЯЩИХ контрактов
+            for cap_name, version in self.component_config.input_contract_versions.items():
+                contract = await self.contract_service.get_contract(
+                    capability_name=cap_name,
+                    version=version,
+                    direction="input"  # ← ЯВНО указываем направление
+                )
+                self._cached_input_contracts[cap_name] = contract
+            
+            # Загрузка ИСХОДЯЩИХ контрактов
+            for cap_name, version in self.component_config.output_contract_versions.items():
+                contract = await self.contract_service.get_contract(
+                    capability_name=cap_name,
+                    version=version,
+                    direction="output"  # ← ЯВНО указываем направление
+                )
+                self._cached_output_contracts[cap_name] = contract
+            
+            self.system_context.logger.info(
+                f"Навык '{self.name}' инициализирован с вариантом '{self.component_config.variant_key}'. "
+                f"Загружено: промпты={len(self._cached_prompts)}, "
+                f"input-контракты={len(self._cached_input_contracts)}, "
+                f"output-контракты={len(self._cached_output_contracts)}"
+            )
+            return True
+        
+        # === ШАГ 2: Обратная совместимость — загрузка из глобального agent_config ===
+        elif agent_config:
+            # 1. Сохраняем конфигурацию для внутреннего использования
+            self._agent_config = agent_config or AgentConfig.auto_resolve(self.system_context)
+
+            # 2. Загружаем ВСЕ промпты для capability навыка согласно конфигурации
+            # Это ЕДИНСТВЕННОЕ обращение к хранилищу промптов за жизненный цикл навыка
+            for capability_name in self.get_capability_names():
+                try:
+                    # Загрузка ТОЧНО указанной версии из конфигурации
+                    version = self._agent_config.prompt_versions.get(capability_name)
+
+                    prompt = await self.prompt_service.get_prompt(
+                        capability_name=capability_name,
+                        version=version,
+                        allow_inactive=self._agent_config.allow_inactive_resources
+                    )
+
+                    # Кэшируем промпт — больше обращений к хранилищу не будет
+                    self._cached_prompts[capability_name] = prompt
+
+                    self.system_context.logger.debug(
+                        f"Навык '{self.name}': загружен промпт {capability_name} v{version or 'active'}"
+                    )
+
+                except Exception as e:
+                    self.system_context.logger.error(
+                        f"Ошибка загрузки промпта {capability_name} для навыка '{self.name}': {e}"
+                    )
+                    return False
+
+            # 3. Загрузка контрактов (аналогично)
+            await self._load_contracts()
+
+            self.system_context.logger.info(
+                f"Навык '{self.name}' инициализирован. Загружено промптов: {len(self._cached_prompts)}"
+            )
+            return True
+        
+        else:
+            raise ValueError(
+                f"Навык '{self.name}' не может быть инициализирован: "
+                f"отсутствует и локальная конфигурация (component_config), "
+                f"и глобальная (agent_config)"
+            )
+
+    async def initialize_with_config(self, system_resources_config: Any) -> bool:
+        """
+        Инициализация навыка с ОДНОКРАТНОЙ загрузкой промптов и контрактов из конфигурации системных ресурсов.
+        Используется при инициализации системного контекста.
+        """
+        # 1. Сохраняем конфигурацию системных ресурсов для внутреннего использования
+        self._system_resources_config = system_resources_config
+        
+        # 2. Загружаем промпты, специфичные для навыка, из конфигурации системных ресурсов
+        await self._load_skill_prompts_from_system_config()
+        
+        # 3. Загрузка контрактов из конфигурации системных ресурсов
+        await self._load_skill_contracts_from_system_config()
+        
+        self.system_context.logger.info(
+            f"Навык '{self.name}' инициализирован с кэшированием системных ресурсов. Загружено промптов: {len(self._cached_prompts)}"
+        )
+        return True
+
+    async def _load_skill_prompts_from_system_config(self):
+        """Загрузка промптов для навыка из конфигурации системных ресурсов"""
+        if hasattr(self._system_resources_config, 'resource_prompt_versions'):
+            # Загрузка промптов для конкретных capability навыка
+            for capability_name in self.get_capability_names():
+                version = self._system_resources_config.resource_prompt_versions.get(capability_name)
+                
+                if version:
+                    prompt = await self.prompt_service.get_prompt(
+                        capability_name=capability_name,
+                        version=version,
+                        allow_inactive=self._system_resources_config.allow_inactive_resources
+                    )
+                    self._cached_prompts[capability_name] = prompt
+
+    async def _load_skill_contracts_from_system_config(self):
+        """Загрузка контрактов для навыка из конфигурации системных ресурсов"""
+        if not self.contract_service:
+            return
+        
+        # Логика загрузки контрактов для навыка из конфигурации системных ресурсов
+        # Пример для навыка планирования:
+        if self.name == "planning":
+            contract_name = "planning.create_plan.output"
+            version = self._system_resources_config.resource_contract_versions.get(contract_name)
+            
+            if version:
+                contract = await self.contract_service.get_contract(
+                    contract_name=contract_name,
+                    version=version,
+                    allow_inactive=self._system_resources_config.allow_inactive_resources
+                )
+                self._cached_contracts[contract_name] = contract
+
+    async def _load_contracts(self):
+        """Загрузка контрактов согласно конфигурации (аналогично промптам)"""
+        if not self.contract_service:
+            return
+        
+        # Логика загрузки контрактов для навыка (зависит от конкретного навыка)
+        # Пример для навыка планирования:
+        if self.name == "planning":
+            contract_name = "planning.create_plan.output"
+            version = self._agent_config.contract_versions.get(contract_name)
+            
+            if version:
+                contract = await self.contract_service.get_contract(
+                    contract_name=contract_name,
+                    version=version,
+                    allow_inactive=self._agent_config.allow_inactive_resources
+                )
+                self._cached_contracts[contract_name] = contract
+
+    def get_prompt(self, capability_name: str) -> str:
+        """Получение промпта ТОЛЬКО из изолированного кэша"""
+        if capability_name not in self._cached_prompts:
+            raise RuntimeError(
+                f"Промпт для capability '{capability_name}' не загружен в навык '{self.name}'. "
+                f"Возможно, не указана версия в component_config.prompt_versions."
+            )
+        return self._cached_prompts[capability_name]
+
+    def get_input_contract(self, capability_name: str) -> Dict:
+        """Получение входящего контракта ТОЛЬКО из кэша"""
+        if capability_name not in self._cached_input_contracts:
+            raise RuntimeError(
+                f"Входящий контракт для capability '{capability_name}' не загружен в навык '{self.name}'. "
+                f"Возможно, не указана версия в component_config.input_contract_versions."
+            )
+        return self._cached_input_contracts[capability_name]
+
+    def get_output_contract(self, capability_name: str) -> Dict:
+        """Получение исходящего контракта ТОЛЬКО из кэша"""
+        if capability_name not in self._cached_output_contracts:
+            raise RuntimeError(
+                f"Исходящий контракт для capability '{capability_name}' не загружен в навык '{self.name}'. "
+                f"Возможно, не указана версия в component_config.output_contract_versions."
+            )
+        return self._cached_output_contracts[capability_name]
+
+    def get_contract(self, contract_name: str) -> Any:
+        """Получение контракта из кэша (для обратной совместимости)"""
+        # Проверяем сначала в старом кэше для обратной совместимости
+        if contract_name in self._cached_contracts:
+            return self._cached_contracts[contract_name]
+        
+        # Если не найден, пробуем найти в новых кэшах
+        # Разделяем имя контракта на capability_name и направление
+        parts = contract_name.split('.')
+        if len(parts) >= 3:
+            direction = parts[-1]  # последняя часть - направление
+            capability_name = '.'.join(parts[:-1])  # всё остальное - имя capability
+            
+            if direction == "input":
+                return self.get_input_contract(capability_name)
+            elif direction == "output":
+                return self.get_output_contract(capability_name)
+        
+        # Если не найден ни в одном кэше
+        raise RuntimeError(
+            f"Контракт '{contract_name}' не загружен в навыке '{self.name}'."
+        )
+
+    def get_capability_names(self) -> list[str]:
+        """Возвращает список capability, поддерживаемых навыком"""
+        capabilities = self.get_capabilities()
+        return [cap.name for cap in capabilities]
+
     # --------------------------------------------------
     # Capability API
     # --------------------------------------------------
