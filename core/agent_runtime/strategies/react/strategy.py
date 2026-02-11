@@ -35,8 +35,9 @@ class ReActStrategy(AgentStrategyInterface):
     """
     name = "react"
 
-    def __init__(self):
+    def __init__(self, system_context=None):
         """Инициализация стратегии."""
+        super().__init__(system_context)
         self.reasoning_schema = ReasoningResult.model_json_schema()
         # Удаляем служебные поля из схемы
         self.reasoning_schema.pop('title', None)

@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
-from typing import Any, Dict
+import uuid
+from typing import Any, Dict, Optional
 from core.agent_runtime.strategies.base import AgentStrategyInterface
 from core.agent_runtime.strategies.evaluation import EvaluationStrategy
 from core.agent_runtime.strategies.fallback import FallbackStrategy
@@ -8,6 +9,7 @@ from core.agent_runtime.strategies.react.strategy import ReActStrategy
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata
 from core.system_context.base_system_contex import BaseSystemContext
+from core.config.agent_config import AgentConfig
 from .state import AgentState
 from .progress import ProgressScorer
 from .executor import ActionExecutor
@@ -29,12 +31,17 @@ class AgentRuntime:
         session_context: BaseSessionContext,
         policy: AgentPolicy = None,
         max_steps: int = 10,
-        strategy_name: str = "react"  # Новое поле для выбора стратегии
+        strategy_name: str = "react",  # Новое поле для выбора стратегии
+        agent_config: Optional[AgentConfig] = None,  # ← Новая зависимость
+        correlation_id: Optional[str] = None
     ):
         self.system = system_context
         self.session = session_context
         self.policy = policy or AgentPolicy()
         self.max_steps = max_steps
+        self.correlation_id = correlation_id or str(uuid.uuid4())
+        self._agent_config = agent_config  # ← Сохраняем конфигурацию
+        
         self.state = AgentState()
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
@@ -45,20 +52,20 @@ class AgentRuntime:
 
         # Регистрация всех доступных стратегий
         self._strategy_registry = {
-            "react": ReActStrategy(),
-            "plan_and_execute": ReActStrategy(),  # Используем ReAct как базу для plan_and_execute
+            "react": ReActStrategy(system_context),
+            "plan_and_execute": ReActStrategy(system_context),  # Используем ReAct как базу для plan_and_execute
             "chain_of_thought": None,  # Заглушка для будущей реализации
-            "evaluation": EvaluationStrategy(),
-            "fallback": FallbackStrategy()
+            "evaluation": EvaluationStrategy(system_context),
+            "fallback": FallbackStrategy(system_context)
         }
 
         # Ленивая инициализация PlanningStrategy для избежания циклического импорта
         if "planning" not in self._strategy_registry:
             from core.agent_runtime.strategies.planning.strategy import PlanningStrategy
-            self._strategy_registry["planning"] = PlanningStrategy()
+            self._strategy_registry["planning"] = PlanningStrategy(system_context)
 
         # Устанавливаем стратегию на основе переданного имени или по умолчанию
-        self.strategy = self._strategy_registry.get(strategy_name, ReActStrategy())
+        self.strategy = self._strategy_registry.get(strategy_name, ReActStrategy(system_context))
 
     async def _select_initial_strategy(self, goal: str) -> str:
         """
@@ -336,6 +343,21 @@ class AgentRuntime:
         # Возвращаем сессию с добавленной информацией о финальном ответе
         self.session.final_answer = final_answer_result
         return self.session
+
+    def get_agent_config_snapshot(self) -> Dict[str, Any]:
+        """Получение снапшота конфигурации для сохранения в отчёт бенчмарка"""
+        if not self._agent_config:
+            return {}
+        
+        return {
+            "config_id": self._agent_config.config_id,
+            "source": self._agent_config.source,
+            "prompt_versions": self._agent_config.prompt_versions,
+            "contract_versions": self._agent_config.contract_versions,
+            "max_steps": self._agent_config.max_steps,
+            "temperature": self._agent_config.temperature,
+            "created_at": self._agent_config.created_at.isoformat()
+        }
     
     async def _update_step_status_via_capability(
         self, 

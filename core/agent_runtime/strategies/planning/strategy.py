@@ -12,8 +12,9 @@ class PlanningStrategy(AgentStrategyInterface):
     """Стратегия иерархического планирования: создание плана → выполнение шагов → коррекция"""
     
     name = "planning"
-    
-    def __init__(self):
+
+    def __init__(self, system_context=None):
+        super().__init__(system_context)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     
     async def next_step(self, runtime: 'AgentRuntime') -> StrategyDecision:

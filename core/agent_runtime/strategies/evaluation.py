@@ -9,8 +9,9 @@ class EvaluationStrategy(AgentStrategyInterface):
     """
 
     name = "evaluation"
-    
-    def __init__(self):
+
+    def __init__(self, system_context=None):
+        super().__init__(system_context)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def next_step(self, runtime):
