@@ -33,7 +33,7 @@ def validate_component_versions(component: str, manifest: dict) -> list:
             if not is_prompt_compatible_with_contract(prompt_ver, contract_ver, "input"):
                 errors.append(
                     f"Несовместимость: промпт {cap_name}@{prompt_ver} "
-                    f"требует контракт input >= v1.1.0, но указан {contract_ver}"
+                    f"требует контракт input >= v1.0.0, но указан {contract_ver}"
                 )
         
         # Проверяем исходящий контракт
@@ -60,8 +60,8 @@ def is_prompt_compatible_with_contract(prompt_ver: str, contract_ver: str, direc
         prompt_v = version.parse(prompt_version_clean)
         contract_v = version.parse(contract_version_clean)
         
-        # Пример правила: промпт v1.1.0+ требует контракт input v1.0.0+
-        if prompt_v >= version.parse("1.1.0") and direction == "input" and contract_v < version.parse("1.0.0"):
+        # Пример правила: промпт v1.0.0+ требует контракт input v1.0.0+
+        if prompt_v >= version.parse("1.0.0") and direction == "input" and contract_v < version.parse("1.0.0"):
             return False
         return True
     except:
