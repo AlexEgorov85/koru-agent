@@ -207,7 +207,7 @@ def _validate_parameters(params: Any) -> Dict[str, Any]:
     if not isinstance(params, dict):
         logger.warning("Параметры не являются словарем, возвращаю пустой словарь")
         return {}
-    
+
     validated = {}
     for key, value in params.items():
         safe_key = _get_safe_string(str(key), max_length=50)
@@ -215,11 +215,33 @@ def _validate_parameters(params: Any) -> Dict[str, Any]:
         if isinstance(value, (str, int, float, bool)):
             validated[safe_key] = value
         elif isinstance(value, (list, dict)):
-            # Ограничиваем размер сложных структур
-            validated[safe_key] = json.loads(json.dumps(value)[:500] + "...") if json.dumps(value) else {}
+            # Ограничиваем размер сложных структур, но сохраняем валидный JSON
+            json_str = json.dumps(value, ensure_ascii=False)
+            if len(json_str) > 500:
+                # Обрезаем до 500 символов и пробуем распарсить обратно валидный JSON
+                # Для этого найдем ближайшую закрывающую скобку/скобочку
+                truncated = json_str[:500]
+                # Попробуем восстановить валидный JSON
+                for char in ['}', ']']:
+                    pos = truncated.rfind(char)
+                    if pos != -1:
+                        truncated = truncated[:pos+1]
+                        try:
+                            validated[safe_key] = json.loads(truncated)
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                else:
+                    # Если не удалось восстановить, используем упрощенную версию
+                    if isinstance(value, dict):
+                        validated[safe_key] = {k: str(v)[:100] for k, v in list(value.items())[:5]}
+                    elif isinstance(value, list):
+                        validated[safe_key] = [str(item)[:100] for item in value[:5]]
+            else:
+                validated[safe_key] = json.loads(json_str)
         else:
             validated[safe_key] = str(value)[:200]
-    
+
     return validated
 
 def _validate_types_and_values(result: Dict[str, Any]):

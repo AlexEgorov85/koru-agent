@@ -1,0 +1,112 @@
+version: "1.0.0"
+contract_type: "output"
+skill: "react"
+capability: "react.reasoning"
+schema:
+  type: "object"
+  required:
+    - "analysis"
+    - "needs_rollback"
+    - "recommended_action"
+  properties:
+    analysis:
+      type: "object"
+      required:
+        - "current_situation"
+        - "progress_assessment"
+        - "confidence"
+        - "errors_detected"
+        - "consecutive_errors"
+        - "has_plan"
+        - "plan_status"
+        - "execution_time"
+        - "no_progress_steps"
+        - "result_last_step"
+        - "param_last_step"
+      properties:
+        current_situation:
+          type: "string"
+          description: "Анализ текущей ситуации, контекста и выполненных шагов"
+          minLength: 10
+          maxLength: 1000
+        progress_assessment:
+          type: "string"
+          description: "Оценка прогресса в достижении цели"
+          minLength: 5
+          maxLength: 500
+        confidence:
+          type: "number"
+          description: "Уровень уверенности в текущем подходе (0.0 - нет уверенности, 1.0 - полная уверенность)"
+          minimum: 0.0
+          maximum: 1.0
+        errors_detected:
+          type: "boolean"
+          description: "Обнаружены ли ошибки в последних шагах"
+        consecutive_errors:
+          type: "integer"
+          description: "Количество последовательных ошибок"
+          minimum: 0
+        has_plan:
+          type: "boolean"
+          description: "Существует ли текущий план действий"
+        plan_status:
+          type: "string"
+          description: "Статус текущего плана (active/completed/failed)"
+        execution_time:
+          type: "number"
+          description: "Время выполнения сессии в секундах"
+          minimum: 0.0
+        no_progress_steps:
+          type: "integer"
+          description: "Количество шагов без значимого прогресса"
+          minimum: 0
+        result_last_step:
+          type: "string"
+          description: "Корректен результат на последнем шаге? Какие выводы можно из этого сделать?"
+          minLength: 5
+          maxLength: 500
+        param_last_step:
+          type: "string"
+          description: "Значения в параметрах вызова навыка соотвествуют описанию полей параметров?"
+          minLength: 5
+          maxLength: 500
+    needs_rollback:
+      type: "boolean"
+      description: "Требуется ли откат на предыдущие шаги"
+    rollback_steps:
+      type: "integer"
+      description: "Количество шагов для отката (только если needs_rollback=true)"
+      minimum: 1
+      maximum: 3
+      nullable: true
+    recommended_action:
+      type: "object"
+      required:
+        - "action_type"
+        - "reasoning"
+      properties:
+        action_type:
+          type: "string"
+          description: "Тип рекомендуемого действия"
+          enum: ["execute_capability", "rollback", "stop"]
+        capability_name:
+          type: "string"
+          description: "Имя capability для выполнения (только для action_type=execute_capability)"
+          nullable: true
+        parameters:
+          type: "object"
+          description: "Параметры для capability (только для action_type=execute_capability)"
+          additionalProperties: true
+          nullable: true
+        reasoning:
+          type: "string"
+          description: "Обоснование выбора действия"
+          minLength: 10
+      nullable: false
+    alternative_approaches:
+      type: "array"
+      items:
+        type: "string"
+      description: "Список альтернативных подходов"
+      maxItems: 5
+      default: []

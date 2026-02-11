@@ -1,0 +1,19 @@
+version: "1.0.0"
+contract_type: "input"
+skill: "book_library"
+capability: "book_library.search_by_author"
+schema:
+  type: "object"
+  properties:
+    name_author:
+      type: "string"
+      description: "Имя автора"
+      nullable: true
+    family_author:
+      type: "string"
+      description: "Фамилия автора"
+      nullable: true
+    author_id:
+      type: "integer"
+      description: "ID автора"
+      nullable: true

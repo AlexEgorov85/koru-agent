@@ -97,20 +97,56 @@ class ExecutionGateway:
                 error="SKILL_NOT_FOUND"
             )
 
-        # 2. Валидируем параметры действия, если есть валидатор
+        # 2. Валидируем параметры действия через ContractService (новое)
         validated_payload = action_payload
-        if self.action_validator:
+        contract_service = getattr(self.system_context, 'get_service', lambda name: None) and await self.system_context.get_service("contract_service")
+        if contract_service:
             try:
-                validated_payload = self.action_validator.validate(action_payload)
-            except Exception as e:
-                logger.error(f"Ошибка валидации параметров действия: {str(e)}")
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    result=None,
-                    observation_item_id=None,
-                    summary=f"Invalid action payload: {str(e)}",
-                    error="INVALID_INPUT"
+                validation_result = await contract_service.validate(
+                    capability_name=capability.name,
+                    data=action_payload,
+                    direction="input"
                 )
+                if not validation_result["is_valid"]:
+                    error_msg = f"Validation failed for {capability.name}: {validation_result['errors']}"
+                    logger.error(error_msg)
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        result=None,
+                        observation_item_id=None,
+                        summary=error_msg,
+                        error="VALIDATION_ERROR"
+                    )
+                validated_payload = validation_result["validated_data"]
+            except Exception as e:
+                logger.warning(f"Ошибка валидации через ContractService: {str(e)}, используем fallback")
+                # Fallback: используем старый валидатор, если есть
+                if self.action_validator:
+                    try:
+                        validated_payload = self.action_validator.validate(action_payload)
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback validation also failed: {str(fallback_error)}")
+                        return ExecutionResult(
+                            status=ExecutionStatus.FAILED,
+                            result=None,
+                            observation_item_id=None,
+                            summary=f"Validation failed: {str(fallback_error)}",
+                            error="VALIDATION_ERROR"
+                        )
+        else:
+            # Fallback: используем старый валидатор, если ContractService недоступен
+            if self.action_validator:
+                try:
+                    validated_payload = self.action_validator.validate(action_payload)
+                except Exception as e:
+                    logger.error(f"Ошибка валидации параметров действия: {str(e)}")
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        result=None,
+                        observation_item_id=None,
+                        summary=f"Invalid action payload: {str(e)}",
+                        error="INVALID_INPUT"
+                    )
 
         # 3. Записываем действие в контекст
         action_item_id = session.record_action(
@@ -135,15 +171,16 @@ class ExecutionGateway:
                 step_number=step_number
             )
 
-            # Регистрируем шаг
-            session.register_step(
-                step_number=step_number,
-                capability_name=capability.name,
-                skill_name=skill.name,
-                action_item_id=action_item_id,
-                observation_item_ids=[observation_id],
-                summary=capability.description
-            )
+            # Примечание: регистрация шага происходит на уровне runtime,
+            # чтобы обеспечить правильную нумерацию и обработку ошибок
+            # session.register_step(
+            #     step_number=step_number,
+            #     capability_name=capability.name,
+            #     skill_name=skill.name,
+            #     action_item_id=action_item_id,
+            #     observation_item_ids=[observation_id],
+            #     summary=capability.description
+            # )
 
             # Убедимся, что observation_item_id установлен в результате
             execution_result.observation_item_id = observation_id

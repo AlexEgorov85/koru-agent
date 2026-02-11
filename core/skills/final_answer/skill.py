@@ -15,13 +15,15 @@ logger = logging.getLogger(__name__)
 
 class FinalAnswerSkill(BaseSkill):
     """Навык для генерации финального ответа на основе всего контекста сессии."""
-    
+
     name = "final_answer"
     supported_strategies = ["react", "planning", "evaluation", "plan_and_execute", "chain_of_thought"]
 
     def __init__(self, name: str, system_context: Any, **kwargs):
         super().__init__(name, system_context, **kwargs)
         self.system_context = system_context
+        # Получение ContractService для работы со схемами
+        self.contract_service = system_context.get_resource("contract_service")
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список поддерживаемых capability для генерации финального ответа."""
@@ -29,29 +31,8 @@ class FinalAnswerSkill(BaseSkill):
             Capability(
                 name="final_answer.generate",
                 description="Генерация финального ответа на основе всего контекста сессии",
-                parameters_schema={
-                    "type": "object",
-                    "properties": {
-                        "include_steps": {
-                            "type": "boolean",
-                            "description": "Включать ли в ответ информацию о шагах выполнения",
-                            "default": True
-                        },
-                        "include_evidence": {
-                            "type": "boolean", 
-                            "description": "Включать ли в ответ доказательства и источники",
-                            "default": True
-                        },
-                        "format_type": {
-                            "type": "string",
-                            "enum": ["concise", "detailed", "structured"],
-                            "description": "Тип форматирования ответа",
-                            "default": "detailed"
-                        }
-                    },
-                    "required": []
-                },
-                parameters_class=None,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             )
@@ -62,9 +43,29 @@ class FinalAnswerSkill(BaseSkill):
         step_number = getattr(context, 'current_step', 0) + 1
         logger.debug(f"Генерация финального ответа на шаге {step_number}")
 
+        # Валидируем параметры через ContractService
+        validation_result = await self.contract_service.validate(
+            capability_name=capability.name,
+            data=parameters,
+            direction="input"
+        )
+        
+        if not validation_result["is_valid"]:
+            error_msg = f"Ошибка валидации параметров: {validation_result['errors']}"
+            logger.error(error_msg)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=error_msg,
+                error="INVALID_PARAMETERS"
+            )
+
+        validated_params = validation_result["validated_data"]
+        
         try:
             if capability.name == "final_answer.generate":
-                return await self._generate_final_answer(context, parameters, step_number)
+                return await self._generate_final_answer(context, validated_params, step_number)
             else:
                 error_msg = f"Неподдерживаемая capability: {capability.name}"
                 logger.error(error_msg)

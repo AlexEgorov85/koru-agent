@@ -1,15 +1,6 @@
 import time
 from typing import Any, Dict, List
 from core.skills.base_skill import BaseSkill
-from core.skills.planning.schema import (
-    CreatePlanInput, CreatePlanOutput,
-    UpdatePlanInput, UpdatePlanOutput,
-    GetNextStepInput, GetNextStepOutput,
-    UpdateStepStatusInput, UpdateStepStatusOutput,
-    DecomposeTaskInput, DecomposeTaskOutput,
-    MarkTaskCompletedInput, MarkTaskCompletedOutput,
-    ErrorAnalysisOutput, StepStatus
-)
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 
@@ -17,87 +8,108 @@ from models.execution import ExecutionResult, ExecutionStatus
 class PlanningSkill(BaseSkill):
     name = "planning"
     supported_strategies = ["planning", "react"]  # ← Поддержка нескольких стратегий
-    
+
     def __init__(self, name: str, system_context: Any, **kwargs):
         super().__init__(name, system_context, **kwargs)
         # Получение зависимостей через порты
         self.prompt_service = system_context.get_resource("prompt_service")
         # Используем новый SQLQueryService для безопасного выполнения SQL-запросов
         self.sql_query_service = system_context.get_resource("sql_query_service")
-        
+
         # Получение EventBus для публикации событий
         self.event_bus = system_context.get_resource("event_bus")
-        
+
+        # Получение ContractService для работы со схемами
+        self.contract_service = system_context.get_resource("contract_service")
+
         # Инициализация логгера
         import logging
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-    
+
     def get_capabilities(self) -> List[Capability]:
         return [
             Capability(
                 name="planning.create_plan",
                 description="Создание первичного плана действий",
-                parameters_schema=CreatePlanInput.model_json_schema(),
-                parameters_class=CreatePlanInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             ),
             Capability(
                 name="planning.update_plan",
                 description="Обновление существующего плана",
-                parameters_schema=UpdatePlanInput.model_json_schema(),
-                parameters_class=UpdatePlanInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             ),
             Capability(
                 name="planning.get_next_step",
                 description="Получение следующего шага из плана",
-                parameters_schema=GetNextStepInput.model_json_schema(),
-                parameters_class=GetNextStepInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             ),
             Capability(
                 name="planning.update_step_status",
                 description="Обновление статуса шага плана",
-                parameters_schema=UpdateStepStatusInput.model_json_schema(),
-                parameters_class=UpdateStepStatusInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             ),
             Capability(
                 name="planning.decompose_task",
                 description="Декомпозиция сложной задачи на подзадачи",
-                parameters_schema=DecomposeTaskInput.model_json_schema(),
-                parameters_class=DecomposeTaskInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             ),
             Capability(
                 name="planning.mark_task_completed",
                 description="Отметка задачи как завершенной",
-                parameters_schema=MarkTaskCompletedInput.model_json_schema(),
-                parameters_class=MarkTaskCompletedInput,
+                parameters_schema={},  # Будет загружаться через contract_service
+                parameters_class=None,  # Будет загружаться через contract_service
                 skill_name=self.name,
                 supported_strategies=self.supported_strategies
             )
         ]
-    
+
     async def execute(self, capability: "Capability", parameters: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
+        # Валидируем параметры через ContractService
+        validation_result = await self.contract_service.validate(
+            capability_name=capability.name,
+            data=parameters,
+            direction="input"
+        )
+        
+        if not validation_result["is_valid"]:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                result=None,
+                observation_item_id=None,
+                summary=f"Ошибка валидации параметров: {validation_result['errors']}",
+                error="INVALID_PARAMETERS"
+            )
+        
+        validated_params = validation_result["validated_data"]
+        
         # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
-            return await self._create_plan(CreatePlanInput(**parameters), context)
+            return await self._create_plan(validated_params, context)
         elif capability.name == "planning.update_plan":
-            return await self._update_plan(UpdatePlanInput(**parameters), context)
+            return await self._update_plan(validated_params, context)
         elif capability.name == "planning.get_next_step":
-            return await self._get_next_step(GetNextStepInput(**parameters), context)
+            return await self._get_next_step(validated_params, context)
         elif capability.name == "planning.update_step_status":
-            return await self._update_step_status(UpdateStepStatusInput(**parameters), context)
+            return await self._update_step_status(validated_params, context)
         elif capability.name == "planning.decompose_task":
-            return await self._decompose_task(DecomposeTaskInput(**parameters), context)
+            return await self._decompose_task(validated_params, context)
         elif capability.name == "planning.mark_task_completed":
-            return await self._mark_task_completed(MarkTaskCompletedInput(**parameters), context)
+            return await self._mark_task_completed(validated_params, context)
         else:
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
@@ -111,25 +123,25 @@ class PlanningSkill(BaseSkill):
         """Форматирует список capability для использования в промпте"""
         if not capabilities:
             return "Нет доступных capability"
-        
+
         formatted = []
         for cap in capabilities:
             formatted.append(f"- {cap.name}: {cap.description}")
         return "\n".join(formatted)
-    
-    async def _create_plan(self, input_data: CreatePlanInput, context: "BaseSessionContext") -> ExecutionResult:
+
+    async def _create_plan(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         try:
             # Публикуем событие начала создания плана
             if self.event_bus:
                 await self.event_bus.publish(
                     "PLANNING_START",
                     {
-                        "plan_goal": input_data.goal,
+                        "plan_goal": input_data.get('goal'),
                         "session_id": getattr(context, 'session_id', 'unknown'),
                         "timestamp": time.time()
                     }
                 )
-            
+
             # 1. Получение списка доступных capability для контекста промпта
             # Так как BaseSessionContext не имеет метода get_available_capabilities,
             # мы получаем их через системный контекст
@@ -139,84 +151,91 @@ class PlanningSkill(BaseSkill):
                 cap = self.system_context.get_capability(cap_name)
                 if cap and getattr(cap, 'visiable', True):  # используем 'visiable' как в react стратегии
                     available_capabilities.append(cap)
-            
+
             capabilities_list = self._format_capabilities_for_prompt(available_capabilities)
-            
+
             # 2. Рендеринг промпта через централизованный сервис
             prompt = await self.prompt_service.render(
                 capability_name="planning.create_plan",
                 variables={
-                    "goal": input_data.goal,
-                    "max_steps": input_data.max_steps,
+                    "goal": input_data.get('goal'),
+                    "max_steps": input_data.get('max_steps', 10),
                     "capabilities_list": capabilities_list,
-                    "context": input_data.context or context.get_summary()
+                    "context": input_data.get('context') or context.get_summary()
                 }
             )
-            
+
             # 3. Генерация структурированного плана через системный контекст
             from models.llm_types import LLMRequest, StructuredOutputConfig
+            
+            # Получаем выходную схему через ContractService
+            output_schema = await self.contract_service.get_contract_schema(
+                capability_name="planning.create_plan",
+                direction="output"
+            )
+            
             request = LLMRequest(
-                prompt=input_data.goal,
+                prompt=input_data.get('goal', ''),
                 system_prompt=prompt,
                 temperature=0.3,
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
                     output_model="CreatePlanOutput",  # Имя модели из реестра
-                    schema_def=CreatePlanOutput.model_json_schema(),
+                    schema_def=output_schema or {},  # Используем схему из ContractService
                     max_retries=3,
                     strict_mode=True
                 ),
-                correlation_id=f"plan_gen_{hash(input_data.goal)}",
+                correlation_id=f"plan_gen_{hash(input_data.get('goal', ''))}",
                 capability_name="planning.create_plan"
             )
-            
+
             # 4. Вызов LLM с ожиданием структурированного вывода
             response = await self.system_context.call_llm(request)
             llm_response = response.parsed_content  # Это уже валидный экземпляр CreatePlanOutput
-            
+
             # 5. Сохранение плана в контекст сессии
             plan_item_id = context.record_plan(
-                plan_data=llm_response.model_dump(),  # Используем model_dump вместо dict
+                plan_data=llm_response.model_dump() if hasattr(llm_response, 'model_dump') else llm_response,
                 plan_type="initial"
             )
             context.set_current_plan(plan_item_id)
-            
+
             # Публикуем событие успешного создания плана
             if self.event_bus:
                 await self.event_bus.publish(
                     "PLAN_CREATED",
                     {
                         "plan_id": plan_item_id,
-                        "plan_goal": input_data.goal,
-                        "steps_count": len(llm_response.steps),
+                        "plan_goal": input_data.get('goal'),
+                        "steps_count": len(llm_response.steps) if hasattr(llm_response, 'steps') else 0,
                         "session_id": getattr(context, 'session_id', 'unknown'),
                         "timestamp": time.time()
                     }
                 )
-            
+
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
-                result=llm_response.model_dump(),
+                result=llm_response.model_dump() if hasattr(llm_response, 'model_dump') else llm_response,
                 observation_item_id=plan_item_id,
-                summary=f"Создан план из {len(llm_response.steps)} шагов для цели: {input_data.goal[:50]}...",
+                summary=f"Создан план из {len(llm_response.steps) if hasattr(llm_response, 'steps') else 0} шагов для цели: {input_data.get('goal', '')[:50]}...",
                 error=None
             )
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
-            
+
             # Публикуем событие ошибки создания плана
             if self.event_bus:
                 await self.event_bus.publish(
                     "PLAN_CREATION_FAILED",
                     {
                         "error": str(e),
-                        "plan_goal": input_data.goal,
+                        "plan_goal": input_data.get('goal'),
                         "session_id": getattr(context, 'session_id', 'unknown'),
                         "timestamp": time.time()
                     }
                 )
-            
+
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 result=None,
@@ -339,7 +358,7 @@ class PlanningSkill(BaseSkill):
         # Если в подпланах больше нет шагов, возвращаем None
         return None
     
-    async def _update_step_status(self, input_data: UpdateStepStatusInput, context: "BaseSessionContext") -> ExecutionResult:
+    async def _update_step_status(self, input_data: Dict[str, Any], context: "BaseSessionContext") -> ExecutionResult:
         """
         Обновление статуса шага плана.
         При ошибке выполнения шага вызывает автоматическую коррекцию плана.
@@ -350,13 +369,13 @@ class PlanningSkill(BaseSkill):
                 await self.event_bus.publish(
                     "STEP_STATUS_UPDATE",
                     {
-                        "step_id": input_data.step_id,
-                        "new_status": input_data.status.value,
+                        "step_id": input_data.get('step_id'),
+                        "new_status": input_data.get('status', 'pending'),
                         "session_id": getattr(context, 'session_id', 'unknown'),
                         "timestamp": time.time()
                     }
                 )
-            
+
             # Получаем текущий план
             current_plan_item = context.get_current_plan()
             if not current_plan_item:
@@ -367,59 +386,59 @@ class PlanningSkill(BaseSkill):
                     summary="Нет текущего плана для обновления статуса шага",
                     error="NO_CURRENT_PLAN"
                 )
-            
+
             current_plan = current_plan_item.content
             steps = current_plan.get("steps", [])
-            
+
             # Находим шаг для обновления
             step_to_update = None
             step_index = -1
             for idx, step in enumerate(steps):
-                if step.get("step_id") == input_data.step_id:
+                if step.get("step_id") == input_data.get('step_id'):
                     step_to_update = step.copy()
                     step_index = idx
                     break
-            
+
             if not step_to_update:
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
                     result=None,
                     observation_item_id=None,
-                    summary=f"Шаг с ID {input_data.step_id} не найден в плане",
+                    summary=f"Шаг с ID {input_data.get('step_id')} не найден в плане",
                     error="STEP_NOT_FOUND"
                 )
-            
+
             # Обновляем статус шага
-            step_to_update["status"] = input_data.status.value
-            if input_data.result:
-                step_to_update["result"] = input_data.result
-            if input_data.error_message:
-                step_to_update["error_message"] = input_data.error_message
-            
+            step_to_update["status"] = input_data.get('status', 'pending')
+            if input_data.get('result'):
+                step_to_update["result"] = input_data.get('result')
+            if input_data.get('error_message'):
+                step_to_update["error_message"] = input_data.get('error_message')
+
             # Если статус - FAILED, запускаем коррекцию плана
-            if input_data.status == StepStatus.FAILED and input_data.error_message:
-                self.logger.info(f"Шаг {input_data.step_id} завершился с ошибкой, запускаем коррекцию плана")
-                
+            if input_data.get('status') == 'FAILED' and input_data.get('error_message'):
+                self.logger.info(f"Шаг {input_data.get('step_id')} завершился с ошибкой, запускаем коррекцию плана")
+
                 # Публикуем событие ошибки шага
                 if self.event_bus:
                     await self.event_bus.publish(
                         "STEP_FAILED",
                         {
-                            "step_id": input_data.step_id,
-                            "error_message": input_data.error_message,
+                            "step_id": input_data.get('step_id'),
+                            "error_message": input_data.get('error_message'),
                             "session_id": getattr(context, 'session_id', 'unknown'),
                             "timestamp": time.time()
                         }
                     )
-                
+
                 # Выполняем коррекцию плана
                 correction_result = await self._correct_plan_after_failure(
                     current_plan=current_plan,
                     failed_step=step_to_update,
-                    error_info=input_data.error_message,
+                    error_info=input_data.get('error_message'),
                     context=context
                 )
-                
+
                 if correction_result.status == ExecutionStatus.SUCCESS:
                     # Если коррекция прошла успешно, возвращаем результат коррекции
                     # Публикуем событие успешной коррекции плана
@@ -428,48 +447,48 @@ class PlanningSkill(BaseSkill):
                             "PLAN_CORRECTED",
                             {
                                 "plan_id": correction_result.observation_item_id,
-                                "step_id": input_data.step_id,
+                                "step_id": input_data.get('step_id'),
                                 "session_id": getattr(context, 'session_id', 'unknown'),
                                 "timestamp": time.time()
                             }
                         )
-                    
+
                     return correction_result
                 else:
                     # Если коррекция не удалась, продолжаем с обычным обновлением
                     self.logger.warning(f"Коррекция плана не удалась: {correction_result.summary}")
-                    
+
                     # Публикуем событие неудачной коррекции плана
                     if self.event_bus:
                         await self.event_bus.publish(
                             "PLAN_CORRECTION_FAILED",
                             {
-                                "step_id": input_data.step_id,
+                                "step_id": input_data.get('step_id'),
                                 "error_message": correction_result.summary,
                                 "session_id": getattr(context, 'session_id', 'unknown'),
                                 "timestamp": time.time()
                             }
                         )
-            
+
             # Обновляем шаг в плане
             updated_steps = steps.copy()
             updated_steps[step_index] = step_to_update
-            
+
             # Обновляем план в контексте
             updated_plan = current_plan.copy()
             updated_plan["steps"] = updated_steps
-            
+
             plan_item_id = context.record_plan(
                 plan_data=updated_plan,
                 plan_type="update"
             )
             context.set_current_plan(plan_item_id)
-            
+
             # Пытаемся получить следующий шаг
             next_step = None
             if step_index >= 0 and step_index + 1 < len(updated_steps):
                 next_step = updated_steps[step_index + 1]
-            
+
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
                 result={
@@ -477,25 +496,25 @@ class PlanningSkill(BaseSkill):
                     "next_step": next_step
                 },
                 observation_item_id=plan_item_id,
-                summary=f"Статус шага {input_data.step_id} обновлен на {input_data.status.value}",
+                summary=f"Статус шага {input_data.get('step_id')} обновлен на {input_data.get('status', 'pending')}",
                 error=None
             )
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
-            
+
             # Публикуем событие ошибки обновления статуса шага
             if self.event_bus:
                 await self.event_bus.publish(
                     "STEP_STATUS_UPDATE_FAILED",
                     {
-                        "step_id": input_data.step_id,
+                        "step_id": input_data.get('step_id'),
                         "error": str(e),
                         "session_id": getattr(context, 'session_id', 'unknown'),
                         "timestamp": time.time()
                     }
                 )
-            
+
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 result=None,

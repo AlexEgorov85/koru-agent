@@ -1,0 +1,28 @@
+version: "1.0.0"
+contract_type: "input"
+skill: "book_library"
+capability: "book_library.dynamic_sql"
+schema:
+  type: "object"
+  required:
+    - "user_question"
+  properties:
+    user_question:
+      type: "string"
+      description: "Вопрос пользователя для генерации SQL"
+    context_tables:
+      type: "array"
+      items:
+        type: "string"
+      description: "Таблицы для использования в запросе"
+      default: ["authors", "books", "chapters", "genres"]
+    max_rows:
+      type: "integer"
+      description: "Максимальное количество строк в результате"
+      minimum: 1
+      maximum: 100
+      default: 50
+    include_reasoning:
+      type: "boolean"
+      description: "Включать ли объяснение для запроса"
+      default: false

@@ -1,0 +1,35 @@
+version: "1.0.0"
+contract_type: "output"
+skill: "llm"
+capability: "llm.generate"
+schema:
+  type: "object"
+  required:
+    - "content"
+    - "model"
+    - "tokens_used"
+    - "generation_time"
+  properties:
+    content:
+      type: "string"
+      description: "Сгенерированный текст"
+    model:
+      type: "string"
+      description: "Название модели, которая сгенерировала ответ"
+    tokens_used:
+      type: "integer"
+      description: "Количество использованных токенов"
+      minimum: 0
+    generation_time:
+      type: "number"
+      description: "Время генерации в секундах"
+      minimum: 0.0
+    finish_reason:
+      type: "string"
+      description: "Причина завершения генерации"
+      default: "stop"
+    metadata:
+      type: "object"
+      description: "Дополнительные метаданные для анализа"
+      additionalProperties: true
+      default: {}

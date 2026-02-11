@@ -1,0 +1,30 @@
+version: "1.0.0"
+contract_type: "output"
+skill: "sql_generation"
+capability: "sql_generation.generate"
+schema:
+  type: "object"
+  required:
+    - "sql"
+    - "reasoning"
+    - "tables_used"
+  properties:
+    sql:
+      type: "string"
+      description: "Сгенерированный SQL-запрос (только параметризованный!)"
+    reasoning:
+      type: "string"
+      description: "Обоснование выбора запроса"
+      minLength: 20
+      maxLength: 1000
+    tables_used:
+      type: "array"
+      items:
+        type: "string"
+      minItems: 1
+      description: "Таблицы, использованные в запросе"
+    parameters:
+      type: "object"
+      description: "Параметры для параметризованного запроса"
+      additionalProperties: true
+      default: {}

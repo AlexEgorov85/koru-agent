@@ -1,0 +1,33 @@
+version: "1.0.0"
+contract_type: "input"
+skill: "sql_generation"
+capability: "sql_generation.generate"
+schema:
+  type: "object"
+  required:
+    - "user_question"
+    - "tables"
+  properties:
+    user_question:
+      type: "string"
+      description: "Вопрос пользователя для генерации запроса"
+      minLength: 5
+      maxLength: 1000
+    tables:
+      type: "array"
+      items:
+        type: "string"
+      minItems: 1
+      maxItems: 10
+      description: "Список таблиц для использования (формат: schema.table или table)"
+    context:
+      type: "string"
+      description: "Дополнительный контекст для генерации"
+      maxLength: 2000
+      nullable: true
+    max_rows:
+      type: "integer"
+      description: "Максимальное количество строк в результате"
+      minimum: 1
+      maximum: 1000
+      default: 100

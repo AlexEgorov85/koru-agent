@@ -151,7 +151,7 @@ class AgentRuntime:
                 break
 
             # Текущий номер шага (начинаем с 1)
-            current_step = len(self.session.step_context.steps) + 1
+            current_step = self.state.step + 1
 
             decision = await self.strategy.next_step(self)
 
@@ -222,12 +222,17 @@ class AgentRuntime:
                     )
 
                     # 3. Запись результата выполнения
+                    # execution_result.observation_item_id может быть как одиночным ID, так и списком
+                    obs_ids = execution_result.observation_item_id
+                    if not isinstance(obs_ids, list):
+                        obs_ids = [obs_ids] if obs_ids else []
+                    
                     self.session.register_step(
                         step_number=current_step,
                         capability_name=decision.capability.name,
                         skill_name = decision.capability.skill_name,
                         action_item_id = action_item_id,
-                        observation_item_ids = execution_result.observation_item_id,
+                        observation_item_ids = obs_ids,
                         summary=execution_result.summary,
                         status=execution_result.status.value
                     )
@@ -280,8 +285,7 @@ class AgentRuntime:
                             metadata=ContextItemMetadata(step_number=current_step)
                         )
 
-                    # Обновление состояния сессии - увеличиваем step только после успешного выполнения
-                    self.state.step += 1
+                    # Обновление состояния сессии
                     self.session.last_activity = datetime.now()
 
                 except Exception as e:
@@ -310,9 +314,11 @@ class AgentRuntime:
                         # Очищаем ID текущего шага после обновления
                         self.session.current_plan_step_id = None
 
-                    # Обновление состояния сессии - увеличиваем step даже при ошибке, чтобы избежать зацикливания
-                    self.state.step += 1
+                    # Обновление состояния сессии
                     self.session.last_activity = datetime.now()
+
+            # В любом случае увеличиваем номер текущего шага для следующей итерации
+            self.state.step += 1
         
         # Регистрация завершения сессии
         self.session.record_system_event(

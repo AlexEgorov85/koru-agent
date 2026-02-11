@@ -1,0 +1,23 @@
+version: "1.0.0"
+contract_type: "input"
+skill: "book_library"
+capability: "book_library.get_full_text"
+schema:
+  type: "object"
+  properties:
+    book_title:
+      type: "string"
+      description: "Название книги"
+      nullable: true
+    book_id:
+      type: "integer"
+      description: "ID книги"
+      nullable: true
+    include_metadata:
+      type: "boolean"
+      description: "Включать ли метаданные книги"
+      default: true
+    max_chapters:
+      type: "integer"
+      description: "Максимальное количество частей для извлечения"
+      nullable: true
