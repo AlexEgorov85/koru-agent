@@ -284,3 +284,40 @@ class ResourceRegistry:
         """
         with self._lock:
             return list(self._resources.values())
+
+    def verify_all_resources_preloaded(self) -> Dict[str, bool]:
+        """
+        Проверка готовности всех ресурсов (предзагрузка завершена).
+        
+        RETURNS:
+        - Dict[str, bool]: словарь с результатами проверки для каждого типа ресурсов
+        """
+        results = {
+            "resources_loaded": len(self._resources) > 0,
+            "capabilities_loaded": len(self._capabilities.all()) > 0,
+            "contracts_preloaded": hasattr(self, '_contracts_preloaded') and self._contracts_preloaded,
+            "prompts_preloaded": hasattr(self, '_prompts_preloaded') and self._prompts_preloaded,
+        }
+        
+        # Проверяем каждый ресурс на готовность
+        for resource_name, resource_info in self._resources.items():
+            if hasattr(resource_info.instance, 'is_preloaded'):
+                results[f"resource_{resource_name}_preloaded"] = resource_info.instance.is_preloaded()
+        
+        return results
+
+    def mark_contracts_as_preloaded(self):
+        """Отметить, что контракты были предзагружены"""
+        self._contracts_preloaded = True
+
+    def mark_prompts_as_preloaded(self):
+        """Отметить, что промпты были предзагружены"""
+        self._prompts_preloaded = True
+
+    def are_contracts_preloaded(self) -> bool:
+        """Проверить, были ли предзагружены контракты"""
+        return getattr(self, '_contracts_preloaded', False)
+
+    def are_prompts_preloaded(self) -> bool:
+        """Проверить, были ли предзагружены промпты"""
+        return getattr(self, '_prompts_preloaded', False)

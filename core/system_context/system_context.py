@@ -36,11 +36,11 @@ from pydantic.main import BaseModel as PydanticBaseModel
 import json
 
 # Импорты для инфраструктурных сервисов
-from core.infrastructure.service.base_service import BaseService
-from core.infrastructure.service.prompt_service import PromptService
-from core.infrastructure.service.sql_generation.service import SQLGenerationService
-from core.infrastructure.service.sql_query.service import SQLQueryService
-from core.infrastructure.service.sql_validator.service import SQLValidatorService
+from core.infrastructure.services.base_service import BaseService
+from core.infrastructure.services.prompt_service import PromptService
+from core.infrastructure.services.sql_generation.service import SQLGenerationService
+from core.infrastructure.services.sql_query.service import SQLQueryService
+from core.infrastructure.services.sql_validator.service import SQLValidatorService
 from typing import Type, Dict
 
 # Импорты для шины событий
@@ -112,6 +112,8 @@ class SystemContext(BaseSystemContext):
 
         # Настройка логирования (временно для совместимости)
         self._setup_logging()
+        # Создаем атрибут logger для совместимости с компонентами
+        self.logger = logging.getLogger(__name__)
 
         # Публикация события создания системного контекста (временно без await)
         # Так как __init__ не может быть async, мы не можем использовать await здесь
@@ -220,6 +222,9 @@ class SystemContext(BaseSystemContext):
 
             initialization_errors = []
 
+            # ПРОВЕРКА АРХИТЕКТУРЫ: все компоненты должны использовать ComponentConfig
+            await self._verify_components_use_modern_config()
+
             # 1. Автоматическая регистрация провайдеров из конфигурации
             try:
                 await self._register_providers_from_config()
@@ -229,10 +234,21 @@ class SystemContext(BaseSystemContext):
 
             # 2. Создание и регистрация PromptService
             try:
+                from core.config.component_config import ComponentConfig
+                # Создаем минимальный ComponentConfig для системных сервисов
+                prompt_service_config = ComponentConfig(
+                    variant_id="prompt_service_default",
+                    prompt_versions={},
+                    input_contract_versions={},
+                    output_contract_versions={}
+                )
+                
                 prompt_service = PromptService(
                     prompts_dir=getattr(self.config, 'prompts_dir', "prompts"),
                     default_version=getattr(self.config, 'prompts_default_version', "v1.0.0"),
-                    system_context=self
+                    name="prompt_service",
+                    system_context=self,
+                    component_config=prompt_service_config
                 )
                 await prompt_service.initialize()
 
@@ -249,7 +265,20 @@ class SystemContext(BaseSystemContext):
 
             # 3. Создание и регистрация SQLGenerationService
             try:
-                sql_generation_service = SQLGenerationService(self)
+                from core.config.component_config import ComponentConfig
+                # Создаем минимальный ComponentConfig для системных сервисов
+                sql_gen_service_config = ComponentConfig(
+                    variant_id="sql_generation_service_default",
+                    prompt_versions={},
+                    input_contract_versions={},
+                    output_contract_versions={}
+                )
+                
+                sql_generation_service = SQLGenerationService(
+                    system_context=self,
+                    name="sql_generation_service",
+                    component_config=sql_gen_service_config
+                )
                 await sql_generation_service.initialize()
 
                 resource_info = ResourceInfo(
@@ -268,7 +297,21 @@ class SystemContext(BaseSystemContext):
 
             # 4. Создание и регистрация SQLValidatorService
             try:
-                sql_validator_service = SQLValidatorService(self, allowed_operations=["SELECT"])
+                from core.config.component_config import ComponentConfig
+                # Создаем минимальный ComponentConfig для системных сервисов
+                sql_val_service_config = ComponentConfig(
+                    variant_id="sql_validator_service_default",
+                    prompt_versions={},
+                    input_contract_versions={},
+                    output_contract_versions={}
+                )
+                
+                sql_validator_service = SQLValidatorService(
+                    system_context=self,
+                    name="sql_validator_service",
+                    component_config=sql_val_service_config,
+                    allowed_operations=["SELECT"]
+                )
                 await sql_validator_service.initialize()
 
                 resource_info = ResourceInfo(
@@ -284,7 +327,20 @@ class SystemContext(BaseSystemContext):
 
             # 5. Создание и регистрация SQLQueryService
             try:
-                sql_query_service = SQLQueryService(self)
+                from core.config.component_config import ComponentConfig
+                # Создаем минимальный ComponentConfig для системных сервисов
+                sql_query_service_config = ComponentConfig(
+                    variant_id="sql_query_service_default",
+                    prompt_versions={},
+                    input_contract_versions={},
+                    output_contract_versions={}
+                )
+                
+                sql_query_service = SQLQueryService(
+                    system_context=self,
+                    name="sql_query_service",
+                    component_config=sql_query_service_config
+                )
                 await sql_query_service.initialize()
 
                 resource_info = ResourceInfo(
@@ -298,23 +354,16 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации SQLQueryService: {str(e)}")
                 initialization_errors.append(f"SQLQueryService initialization failed: {str(e)}")
 
-            # 6. Создание конфигурации для системных ресурсов (навыки, инструменты, сервисы)
-            try:
-                from core.system_context.system_resources_config import SystemResourcesConfig
-                system_resources_config = SystemResourcesConfig.auto_resolve(self)
-            except Exception as e:
-                logger.warning(f"Ошибка создания конфигурации для системных ресурсов: {str(e)}")
-                system_resources_config = None
-                initialization_errors.append(f"System resources config creation failed: {str(e)}")
+            # 6. В новой архитектуре конфигурация компонентов происходит через ComponentConfig
+            # Создание конфигурации для системных ресурсов больше не требуется
+            system_resources_config = None
 
             # 7. Автоматическая регистрация инфраструктурных сервисов из директории
             try:
                 await self.provider_factory.discover_and_create_all_services()
-                
-                # Если конфигурация системных ресурсов создана, инициализируем сервисы с кэшированием
-                if system_resources_config:
-                    await self._initialize_services_with_caching(system_resources_config)
-                    
+
+                # В новой архитектуре инициализация происходит автоматически при создании
+
             except Exception as e:
                 logger.warning(f"Ошибка регистрации сервисов: {str(e)}")
                 initialization_errors.append(f"Services registration failed: {str(e)}")
@@ -322,11 +371,9 @@ class SystemContext(BaseSystemContext):
             # 8. Автоматическая регистрация инструментов из директории
             try:
                 await self.provider_factory.discover_and_create_all_tools()
-                
-                # Если конфигурация системных ресурсов создана, инициализируем инструменты с кэшированием
-                if system_resources_config:
-                    await self._initialize_tools_with_caching(system_resources_config)
-                    
+
+                # В новой архитектуре инициализация происходит автоматически при создании
+
             except Exception as e:
                 logger.warning(f"Ошибка регистрации инструментов: {str(e)}")
                 initialization_errors.append(f"Tools registration failed: {str(e)}")
@@ -334,16 +381,40 @@ class SystemContext(BaseSystemContext):
             # 9. Автоматическая регистрация навыков из директории
             try:
                 await self.provider_factory.discover_and_create_all_skills()
-                
-                # Если конфигурация системных ресурсов создана, инициализируем навыки с кэшированием
-                if system_resources_config:
-                    await self._initialize_skills_with_caching(system_resources_config)
-                    
+
+                # В новой архитектуре инициализация происходит автоматически при создании
+
             except Exception as e:
                 logger.warning(f"Ошибка регистрации навыков: {str(e)}")
                 initialization_errors.append(f"Skills registration failed: {str(e)}")
 
-            # 10. Инициализация всех компонентов
+            # 10. ПРЕДЗАГРУЗКА всех контрактов и промптов ДО инициализации навыков
+            try:
+                # Получаем сервисы
+                prompt_service = self.get_resource("prompt_service")
+                contract_service = self.get_resource("contract_service")
+
+                if prompt_service and hasattr(prompt_service, 'preload_prompts'):
+                    # Используем agent_config для обратной совместимости, но в будущем нужно перейти на ComponentConfig
+                    # В новой архитектуре предзагрузка будет происходить через ComponentConfig каждого компонента
+                    if hasattr(self.config, 'agent_config') and self.config.agent_config:
+                        await prompt_service.preload_prompts(self.config.agent_config)
+                        self.registry.mark_prompts_as_preloaded()
+                        logger.info("Все промпты предзагружены")
+
+                if contract_service and hasattr(contract_service, 'preload_contracts'):
+                    # Используем agent_config для обратной совместимости, но в будущем нужно перейти на ComponentConfig
+                    # В новой архитектуре предзагрузка будет происходить через ComponentConfig каждого компонента
+                    if hasattr(self.config, 'agent_config') and self.config.agent_config:
+                        await contract_service.preload_contracts(self.config.agent_config)
+                        self.registry.mark_contracts_as_preloaded()
+                        logger.info("Все контракты предзагружены")
+
+            except Exception as e:
+                logger.warning(f"Ошибка предзагрузки ресурсов: {str(e)}")
+                initialization_errors.append(f"Resources preloading failed: {str(e)}")
+
+            # 11. Инициализация всех компонентов
             try:
                 initialization_success = await self.lifecycle.initialize()
                 if not initialization_success:
@@ -386,6 +457,9 @@ class SystemContext(BaseSystemContext):
                 logger.warning(f"Ошибка инициализации инфраструктурных сервисов: {str(e)}")
                 initialization_errors.append(f"Infrastructure services initialization failed: {str(e)}")
 
+            # 13. ФИНАЛЬНАЯ ПРОВЕРКА: все компоненты инициализированы с ComponentConfig
+            await self._verify_all_components_initialized()
+
             self.initialized = True
 
             # Публикация события успешной инициализации
@@ -418,49 +492,89 @@ class SystemContext(BaseSystemContext):
             )
             return False
 
+    async def _verify_components_use_modern_config(self):
+        """Гарантия архитектуры: проверка, что компоненты, которые должны использовать ComponentConfig, его используют"""
+        # Проверяем только компоненты, которые должны использовать ComponentConfig (навыки, инструменты, сервисы)
+        # Провайдеры и другие системные компоненты могут не использовать эту архитектуру
+        errors = []
+        for name, info in self.registry._resources.items():
+            # Проверяем только навыки, инструменты и сервисы
+            if info.resource_type in [ResourceType.SKILL, ResourceType.TOOL, ResourceType.SERVICE]:
+                if hasattr(info.instance, 'component_config') and info.instance.component_config:
+                    # Компонент использует ComponentConfig - это хорошо
+                    continue
+                elif hasattr(info.instance, 'component_config'):
+                    # Компонент имеет атрибут component_config, но он пустой или None
+                    errors.append(f"Компонент '{name}' имеет атрибут component_config, но он не инициализирован")
+                else:
+                    # Компонент не имеет атрибута component_config вообще
+                    errors.append(f"Компонент '{name}' не использует ComponentConfig (legacy-режим)")
+
+        if errors:
+            from core.errors.architecture_violation import ArchitectureViolationError
+            raise ArchitectureViolationError("\n".join(errors))
+
+    async def _verify_all_components_initialized(self):
+        """Финальная проверка: все компоненты инициализированы"""
+        uninitialized_components = []
+        for name, info in self.registry._resources.items():
+            # Проверяем, что компонент инициализирован (у него есть изолированные кэши)
+            if hasattr(info.instance, '_cached_prompts') and hasattr(info.instance, '_cached_input_contracts') and hasattr(info.instance, '_cached_output_contracts'):
+                # Проверяем, что кэши не пусты (или что компонент прошел инициализацию)
+                # Проверяем наличие атрибута _is_initialized и его значение
+                is_initialized = getattr(info.instance, '_is_initialized', False)
+                if not is_initialized:
+                    uninitialized_components.append(f"Компонент '{name}' не прошел полную инициализацию")
+            else:
+                # Компонент не имеет необходимых атрибутов, значит, не наследуется от BaseComponent
+                # Но это может быть нормально для некоторых компонентов (например, провайдеров)
+                # Поэтому не будем считать это ошибкой архитектуры
+                pass
+
+        if uninitialized_components:
+            from core.errors.architecture_violation import ArchitectureViolationError
+            raise ArchitectureViolationError("\n".join(uninitialized_components))
+
+    def is_fully_initialized(self) -> bool:
+        """
+        Проверка, полностью ли инициализирована система (все ресурсы предзагружены).
+
+        RETURNS:
+        - bool: True если система полностью готова к работе
+        """
+        if not self.initialized:
+            return False
+
+        # Проверяем статус предзагрузки через реестр
+        preload_status = self.registry.verify_all_resources_preloaded()
+
+        # Для новой архитектуры проверяем, что все критические компоненты загружены
+        # Но не требуем, чтобы все компоненты использовали новую архитектуру
+        required_checks = [
+            preload_status.get("resources_loaded", True),  # по умолчанию True
+            preload_status.get("prompts_preloaded", True),  # по умолчанию True
+            preload_status.get("contracts_preloaded", True),  # по умолчанию True
+        ]
+
+        return all(required_checks)
+
     async def _initialize_services_with_caching(self, system_resources_config):
         """Инициализация сервисов с кэшированием промптов и контрактов."""
-        for service_name, service in self.service_registry.items():
-            # Проверяем, поддерживает ли сервис кэширование
-            if hasattr(service, 'initialize_with_config'):
-                try:
-                    success = await service.initialize_with_config(system_resources_config)
-                    if not success:
-                        logger.warning(f"Сервис '{service_name}' не прошел инициализацию с кэшированием")
-                except Exception as e:
-                    logger.warning(f"Ошибка инициализации сервиса '{service_name}' с кэшированием: {str(e)}")
+        # В новой архитектуре инициализация происходит через ComponentConfig
+        # Этот метод больше не используется, так как каждый компонент инициализируется через BaseComponent
+        pass
 
     async def _initialize_tools_with_caching(self, system_resources_config):
         """Инициализация инструментов с кэшированием промптов и контрактов."""
-        # Получаем инструменты из реестра
-        tools = self._get_resources_by_type(ResourceType.TOOL)
-        
-        for tool_name, tool_info in tools.items():
-            tool = tool_info.instance
-            # Проверяем, поддерживает ли инструмент кэширование
-            if hasattr(tool, 'initialize_with_config'):
-                try:
-                    success = await tool.initialize_with_config(system_resources_config)
-                    if not success:
-                        logger.warning(f"Инструмент '{tool_name}' не прошел инициализацию с кэшированием")
-                except Exception as e:
-                    logger.warning(f"Ошибка инициализации инструмента '{tool_name}' с кэшированием: {str(e)}")
+        # В новой архитектуре инициализация происходит через ComponentConfig
+        # Этот метод больше не используется, так как каждый компонент инициализируется через BaseComponent
+        pass
 
     async def _initialize_skills_with_caching(self, system_resources_config):
         """Инициализация навыков с кэшированием промптов и контрактов."""
-        # Получаем навыки из реестра
-        skills = self._get_resources_by_type(ResourceType.SKILL)
-        
-        for skill_name, skill_info in skills.items():
-            skill = skill_info.instance
-            # Проверяем, поддерживает ли навык кэширование
-            if hasattr(skill, 'initialize_with_config'):
-                try:
-                    success = await skill.initialize_with_config(system_resources_config)
-                    if not success:
-                        logger.warning(f"Навык '{skill_name}' не прошел инициализацию с кэшированием")
-                except Exception as e:
-                    logger.warning(f"Ошибка инициализации навыка '{skill_name}' с кэшированием: {str(e)}")
+        # В новой архитектуре инициализация происходит через ComponentConfig
+        # Этот метод больше не используется, так как каждый компонент инициализируется через BaseComponent
+        pass
         
     async def shutdown(self) -> None:
         """
@@ -606,7 +720,7 @@ class SystemContext(BaseSystemContext):
                 success = await service.initialize()
                 if not success:
                     self.logger.warning(f"Service {service_name} failed to initialize properly")
-                
+
                 # Публикация события инициализации сервиса
                 await self.event_bus.publish(
                     EventType.SERVICE_INITIALIZED,
@@ -639,7 +753,7 @@ class SystemContext(BaseSystemContext):
         for service_name, service in self.service_registry.items():
             try:
                 await service.shutdown()
-                
+
                 # Публикация события завершения работы сервиса
                 await self.event_bus.publish(
                     EventType.SERVICE_SHUTDOWN,
@@ -1117,7 +1231,7 @@ class SystemContext(BaseSystemContext):
         try:
             # Добавляем ограничение на количество строк, если это SELECT-запрос
             if query.strip().upper().startswith('SELECT'):
-                # Проверяем, есть ли уже LIMIT в запросе
+                # Пр����веряем, есть ли уже LIMIT в запросе
                 if 'LIMIT' not in query.upper():
                     # Удаляем лишние пробелы и переносы строк в конце запроса перед добавлением LIMIT
                     query = query.rstrip().rstrip(';') + f" LIMIT {max_rows}"
@@ -1167,12 +1281,12 @@ class SystemContext(BaseSystemContext):
                 )
                 return result
             except Exception as e:
-                logger.warning(f"Ошибка выполнения запроса через SQLQueryService: {str(e)}, используем прямое выполнение")
+                logger.warning(f"Ошибка выполнения запроса через SQLQueryService: {str(e)}, используем прямое вы��олнение")
                 # В случае ошибки используем прямое выполнение как fallback
                 return await self._execute_raw_sql_query(query, params, db_provider_name)
         else:
             logger.warning("SQLQueryService недоступен, используем прямое выполнение запроса")
-            # Если сервис недоступен, используем прямое выполнение как fallback
+            # Если сервис ����едоступен, и��пользуем прямое выполнение как fallback
             return await self._execute_raw_sql_query(query, params, db_provider_name)
     
     async def call_llm_with_params(
@@ -1492,7 +1606,7 @@ class SystemContext(BaseSystemContext):
         РЕАЛИЗАЦИЯ: реестр моделей или динамический импорт из безопасного списка.
         """
         # Пример реализации через реестр
-        from core.infrastructure.service.sql_generation.schema import SQLGenerationOutput, SQLCorrectionOutput
+        from core.infrastructure.services.sql_generation.schema import SQLGenerationOutput, SQLCorrectionOutput
         
         registry = {
             "SQLGenerationOutput": SQLGenerationOutput,
@@ -1511,10 +1625,10 @@ class SystemContext(BaseSystemContext):
         try:
             # Попробуем импортировать из известных мест
             if model_name == "SQLGenerationOutput":
-                from core.infrastructure.service.sql_generation.schema import SQLGenerationOutput
+                from core.infrastructure.services.sql_generation.schema import SQLGenerationOutput
                 return SQLGenerationOutput
             elif model_name == "SQLCorrectionOutput":
-                from core.infrastructure.service.sql_generation.schema import SQLCorrectionOutput
+                from core.infrastructure.services.sql_generation.schema import SQLCorrectionOutput
                 return SQLCorrectionOutput
         except ImportError:
             pass
@@ -1601,15 +1715,15 @@ class SystemContext(BaseSystemContext):
     ) -> str:
         """
         Создание варианта компонента с кастомной конфигурацией версий.
-        
+
         ВАЖНО: Все промпты и контракты загружаются единожды при инициализации варианта.
         После этого экземпляр работает автономно без обращения к глобальным сервисам.
-        
+
         :param base_component_name: Имя базового компонента ("planning", "book_library")
         :param variant_config: Конфигурация версий (с разделением input/output контрактов)
         :param variant_name: Уникальное имя варианта (формат "базовый@идентификатор")
         :return: Имя зарегистрированного варианта
-        
+
         Пример:
             variant_name = await system_context.create_component_variant(
                 base_component_name="planning",
@@ -1622,48 +1736,12 @@ class SystemContext(BaseSystemContext):
             )
             # variant_name = "planning@beta-v1.3"
         """
-        # 1. Получаем базовый компонент для клонирования структуры
-        base_resource = self.registry.get_resource(base_component_name)
-        if not base_resource:
-            raise ValueError(f"Базовый компонент '{base_component_name}' не найден в реестре")
-        
-        # 2. Генерируем уникальное имя варианта
-        variant_id = variant_config.variant_id or f"variant-{int(datetime.now().timestamp())}"
-        variant_name = variant_name or f"{base_component_name}@{variant_id}"
-        
-        # 3. Создаём новый экземпляр компонента с ЛОКАЛЬНОЙ конфигурацией
-        component_class = type(base_resource.instance)
-        variant_instance = component_class(
-            name=variant_name,
-            system_context=self,
-            component_config=variant_config  # ← Передаём конфигурацию с разделением контрактов
+        # Делегируем создание варианта фабрике провайдеров
+        return await self.provider_factory.create_component_variant(
+            base_component_name=base_component_name,
+            variant_config=variant_config,
+            variant_name=variant_name
         )
-        
-        # 4. ИНИЦИАЛИЗАЦИЯ: загрузка ВСЕХ ресурсов (промпты + input/output контракты)
-        # После этого экземпляр НЕ будет обращаться к глобальным сервисам
-        await variant_instance.initialize()
-        
-        # 5. Регистрируем как вариант в реестре
-        variant_resource = ResourceInfo(
-            name=variant_name,
-            resource_type=base_resource.resource_type,
-            instance=variant_instance
-        )
-        
-        self.registry.register_resource(
-            variant_resource,
-            override=False,
-            variant_key=variant_name  # ← Ключ для вариантов
-        )
-        
-        logger.info(
-            f"[SystemContext] Создан вариант '{variant_name}' для компонента '{base_component_name}'. "
-            f"Конфигурация: промпты={list(variant_config.prompt_versions.keys())}, "
-            f"input-контракты={list(variant_config.input_contract_versions.keys())}, "
-            f"output-контракты={list(variant_config.output_contract_versions.keys())}"
-        )
-        
-        return variant_name
 
     async def _select_strategy_for_question(self, question: str) -> str:
         """
