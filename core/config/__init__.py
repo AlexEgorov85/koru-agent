@@ -4,6 +4,7 @@ from typing import Optional
 
 from core.config.models import SystemConfig
 from .config_loader import ConfigLoader
+from .agent_config import AgentConfig
 
 
 def get_config(profile: Optional[str] = None, config_dir: Optional[str] = None) -> SystemConfig:
