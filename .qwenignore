@@ -6,10 +6,6 @@
 tmp/
 temp/
 
-# Лог-файлы
-# logs/
-# *.log
-
 # Кэш-директории
 __pycache__/
 .pytest_cache/

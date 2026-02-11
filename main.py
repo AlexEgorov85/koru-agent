@@ -185,19 +185,33 @@ class Application:
 
             logger.info(f"Запуск агента с целью: {self.args.goal}")
 
-            # 2. Создание и запуск агента
-            agent = await self.system_context.create_agent()
-
-            # Устанавливаем цель для сессии агента, если она существует
-            if hasattr(agent, 'session'):
-                agent.session.set_goal(self.args.goal)
-            elif hasattr(self, 'session') and self.session:
-                self.session.set_goal(self.args.goal)
+            # 2. Создание фабрики агентов и создание агента с конфигурацией
+            from core.infrastructure.service.agent_factory import AgentFactory
+            agent_factory = AgentFactory(self.system_context)
+            
+            # Подготовка конфигурации агента на основе параметров
+            from core.config.agent_config import AgentConfig
+            agent_config_kwargs = {}
+            
+            # Применяем параметры из командной строки к конфигурации агента
+            if self.args.max_steps is not None:
+                agent_config_kwargs['max_steps'] = self.args.max_steps
+            if self.args.temperature is not None:
+                agent_config_kwargs['temperature'] = self.args.temperature
+            if self.args.strategy is not None:
+                agent_config_kwargs['default_strategy'] = self.args.strategy
+            
+            # Создаем конфигурацию агента (если параметры заданы - используем их, иначе авто-разрешение)
+            if agent_config_kwargs:
+                agent_config = AgentConfig(**agent_config_kwargs)
             else:
-                # Создаем сессию, если ни у агента, ни у приложения нет сессии
-                from core.session_context.session_context import SessionContext
-                self.session = SessionContext()
-                self.session.set_goal(self.args.goal)
+                agent_config = None  # Будет использовано авто-разрешение в фабрике
+
+            # Создание агента через фабрику с конфигурацией
+            agent = await agent_factory.create_agent(
+                goal=self.args.goal,
+                agent_config=agent_config
+            )
 
             # 3. Выполнение агента
             start_time = datetime.now()

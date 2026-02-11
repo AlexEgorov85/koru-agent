@@ -449,7 +449,7 @@ async def _create_plan(self, parameters: Dict[str, Any], context: BaseSessionCon
 ### **Формат файла промпта:**
 ```yaml
 # === МЕТАДАННЫЕ ===
-version: "1.2.0"              # Версия в метаданных (дублирует имя файла)
+version: "1.0.0"              # Версия в метаданных (дублирует имя файла)
 skill: "planning"             # Навык-владелец
 capability: "planning.create_plan"  # Capability для которой предназначен
 strategy: null                # null = для всех стратегий, или "react", "plan_and_execute"
