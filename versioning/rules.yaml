@@ -1,0 +1,53 @@
+# Правила определения типа изменения по изменённым файлам
+version_rules:
+  # Изменения кода навыков → инкремент версии кода
+  - pattern: "core/skills/**/*.py"
+    affects:
+      - code_version: "minor"  # Новые фичи в навыках = minor
+      - requires_prompt_review: true
+  
+  # Изменения промптов → инкремент версии промпта
+  - pattern: "prompts/skills/**/*.yaml"
+    affects:
+      - prompt_version: "auto"  # Агент сам определит тип по содержимому
+  
+  # Изменения контрактов с breaking_changes → major для контракта + требует обновления промптов
+  - pattern: "contracts/**/*.yaml"
+    condition: "contains_breaking_changes"
+    affects:
+      - contract_version: "major"
+      - requires_prompt_version_bump: "minor"
+  
+  # Изменения в корне проекта (pyproject.toml, main.py) → major для кода
+  - pattern: ["pyproject.toml", "main.py", "core/agent_runtime/**/*.py"]
+    affects:
+      - code_version: "major"
+      - requires_full_test: true
+
+# Семантические триггеры для анализа содержимого
+semantic_triggers:
+  breaking_changes:
+    - "удалено поле"
+    - "изменён тип"
+    - "требует изменения вызова"
+    - "не совмест им"
+    - "breaking change"
+    - "deprecated"
+    - "removed"
+    - "breaking"
+  
+  new_features:
+    - "добавлена поддержка"
+    - "новая возможность"
+    - "расширен функционал"
+    - "added support"
+    - "new feature"
+    - "implemented"
+  
+  fixes:
+    - "исправлен баг"
+    - "фикс ошибки"
+    - "улучшена стабильность"
+    - "bug fix"
+    - "fixed"
+    - "improved stability"

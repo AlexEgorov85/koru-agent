@@ -1,0 +1,49 @@
+name: Version Consistency Check
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'prompts/**'
+      - 'contracts/**'
+      - 'versioning/**'
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install pyyaml packaging
+      
+      - name: Анализ изменений
+        id: analyze
+        run: |
+          # Определяем измененные файлы
+          echo "Getting changed files..."
+          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} > /tmp/changed_files.txt
+          
+          # Показываем измененные файлы
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+          
+          # Запускаем анализ изменений
+          python scripts/versioning/analyze_commit.py $(cat /tmp/changed_files.txt) > /tmp/analysis.json
+          cat /tmp/analysis.json
+          
+          # Сохраняем результат в переменную окружения
+          ANALYSIS=$(cat /tmp/analysis.json)
+          echo "analysis=$ANALYSIS" >> $GITHUB_OUTPUT
+          echo "$ANALYSIS" > $GITHUB_STEP_SUMMARY
+      
+      - name: Валидация согласованности
+        run: |
+          python scripts/versioning/validate_consistency.py --analysis /tmp/analysis.json
+          # Проверяет: если контракт изменился с breaking_changes → промпт должен быть обновлён
