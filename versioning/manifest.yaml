@@ -1,6 +1,6 @@
-build_id: 2026.02.11-2026.02.11-2026.02.11-2026.02.11-2026.02.11-005
-created_at: '2026-02-11T15:00:00Z'
-code_version: 2.0.0
+build_id: 2026.02.12-2026.02.12-2026.02.12-2026.02.12-2026.02.12-001
+created_at: '2026-02-12T10:00:00Z'
+code_version: 2.0.1
 python_version: '3.11'
 components:
   planning:
@@ -24,4 +24,4 @@ version_dependencies:
   requires:
     contract_version_gte: v1.0.0
     code_version_gte: 1.0.0
-updated_at: '2026-02-11T08:38:17.466987'
+updated_at: '2026-02-12T10:00:00.000000'
