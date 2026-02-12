@@ -91,12 +91,11 @@ class SQLGenerationService(BaseService):
             if not self.table_description_service_instance:
                 self.logger.error("table_description_service не загружен (архитектурная ошибка)")
                 return False
-                
+
             if not self.prompt_service_instance:
                 self.logger.error("prompt_service не загружен (архитектурная ошибка)")
                 return False
 
-            self.logger.info("SQLGenerationService успешно инициализирован")
             return True
         except Exception as e:
             self.logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
@@ -191,7 +190,6 @@ class SQLGenerationService(BaseService):
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        self.logger.info("Завершение работы SQLGenerationService")
         # Здесь можно освободить ресурсы, закрыть соединения и т.д.
         # В данном случае у нас нет внешних ресурсов для освобождения
 
@@ -307,7 +305,6 @@ class SQLGenerationService(BaseService):
         3. Ограничение попыток (защита от зацикливания)
         """
         if attempt > self.max_correction_attempts:
-            self.logger.warning(f"Достигнут лимит попыток коррекции ({self.max_correction_attempts})")
             return None
             
         # 1. Анализ ошибки
@@ -391,7 +388,6 @@ class SQLGenerationService(BaseService):
             return result
 
         except Exception as e:
-            self.logger.warning(f"Попытка коррекции #{attempt} не удалась: {str(e)}")
             await self._publish_correction_event("correction_failed", str(e), attempt, error_analysis)
 
             # Рекурсивная попытка с увеличенным номером
@@ -458,7 +454,6 @@ class SQLGenerationService(BaseService):
             
             # 3. Коррекция (если есть попытки)
             if attempt < max_corrections:
-                self.logger.info(f"Попытка коррекции #{attempt + 1} после ошибки: {execution_error.message[:100]}")
                 corrected = await self.correct_query(
                     generation_result.sql,
                     generation_result.parameters,
@@ -466,15 +461,13 @@ class SQLGenerationService(BaseService):
                     context,
                     attempt + 1
                 )
-                
+
                 if corrected:
                     generation_result = corrected
                     continue
                 else:
-                    self.logger.error("Все попытки коррекции исчерпаны")
                     break
             else:
-                self.logger.error(f"Достигнут лимит коррекций ({max_corrections})")
                 break
         
         # Возврат ошибочного результата с метаданными для отладки

@@ -68,9 +68,19 @@ class ContractService(BaseService):
     def description(self) -> str:
         return "Сервис управления контрактами с версионированием и метаданными"
 
-    def __init__(self, system_context, name="contract_service"):
-        super().__init__(system_context, name)
-        self.contracts_dir = Path(system_context.config.data_dir) / "contracts" if hasattr(system_context, 'config') and hasattr(system_context.config, 'data_dir') else Path("contracts")
+    def __init__(self, system_context, name="contract_service", component_config=None):
+        from core.config.component_config import ComponentConfig
+        # Создаем минимальный ComponentConfig, если не передан
+        if component_config is None:
+            component_config = ComponentConfig(
+                variant_id="contract_service_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={}
+            )
+        super().__init__(name=name, system_context=system_context, component_config=component_config)
+        # Не инициализируем зависимости в __init__ - делаем это в initialize()
+        self.contracts_dir = None
         self._contract_cache: Dict[str, Dict[str, Any]] = {}  # {capability@version: schema}
         self._validator_cache: Dict[str, Draft202012Validator] = {}
         self._model_cache: Dict[str, Type[BaseModel]] = {}  # кэш для Pydantic моделей
@@ -78,8 +88,13 @@ class ContractService(BaseService):
 
     async def initialize(self) -> bool:
         """Инициализация: индексация контрактов из файловой системы"""
+        # Устанавливаем директорию контрактов при инициализации
+        self.contracts_dir = Path(self.system_context.config.data_dir) / "contracts" if hasattr(self.system_context, 'config') and hasattr(self.system_context.config, 'data_dir') else Path("contracts")
         await self._index_contracts()
-        return True
+        
+        # Вызываем родительскую инициализацию для правильной установки флага _initialized
+        parent_result = await super().initialize()
+        return parent_result
 
     async def preload_contracts(self, component_config) -> bool:
         """

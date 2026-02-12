@@ -117,6 +117,8 @@ class SecurityConfig(BaseModel):
             raise ValueError(f"Ошибка загрузки секретов из {self.secrets_path}: {str(e)}")
 
 
+from .agent_config import AgentConfig
+
 class SystemConfig(BaseModelConfig):
     """Корневая конфигурация системы"""
     # Конфигурация LLM провайдеров
@@ -141,6 +143,9 @@ class SystemConfig(BaseModelConfig):
         },
         description="Параметры агента"
     )
+
+    # Агентная конфигурация (для предзагрузки промптов и контрактов)
+    agent_config: Optional[AgentConfig] = Field(default=None, description="Конфигурация агента для предзагрузки ресурсов")
 
     # Безопасность
     security: SecurityConfig = Field(default_factory=SecurityConfig, description="Параметры безопасности")

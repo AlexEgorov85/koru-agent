@@ -1,0 +1,10 @@
+Config loaded: dev
+SystemContext created
+LLM providers in config: ['default_llm']
+DB providers in config: ['default_db']
+Skills in config: ['planning', 'book_library']
+Tools in config: ['SQLTool', 'file_tool']
+Agent config: {'max_steps': 10, 'max_retries': 3, 'temperature': 0.2, 'default_strategy': 'react', 'enable_self_reflection': True, 'enable_context_window_management': True}
+SystemContext configuration is compatible with architecture!
+
+Test result: True

@@ -22,6 +22,8 @@ from core.skills.base_skill import BaseSkill
 from core.system_context.base_system_contex import BaseSystemContext
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
+from core.security.user_context import UserContext
+from core.security.authorizer import RoleBasedAuthorizer, PermissionDeniedError
 
 logger = logging.getLogger(__name__)
 
@@ -43,26 +45,29 @@ class ExecutionGateway:
         self,
         system_context: Optional[BaseSystemContext] = None,
         retry_policy: Optional[RetryPolicy] = None,
-        action_validator=None  # Добавляем параметр для валидации действий
+        action_validator=None,  # Добавляем параметр для валидации действий
+        authorizer=None  # Добавляем параметр для авторизации
     ):
         self.system_context = system_context
         self.retry_policy = retry_policy
         self.action_validator = action_validator
-        logger.info("ExecutionGateway инициализирован")
+        self.authorizer = authorizer or RoleBasedAuthorizer()  # Используем RoleBasedAuthorizer по умолчанию
 
     async def execute_capability(
         self,
         capability: Capability,
         action_payload: Dict[str, Any],
         session: BaseSessionContext,
-        step_number: int
+        step_number: int,
+        user_context: Optional[UserContext] = None  # Добавляем контекст пользователя
     ) -> ExecutionResult:
         """
         Выполнение capability через соответствующий навык.
         ПРОЦЕДУРА:
-        1. Найти навык по capability
-        2. Вызвать execute() навыка
-        3. Вернуть результат
+        1. Проверить права доступа (если предоставлен user_context)
+        2. Найти навык по capability
+        3. Вызвать execute() навыка
+        4. Вернуть результат
         ВОЗВРАЩАЕТ:
         - ExecutionResult с результатом выполнения
         ИСКЛЮЧЕНИЯ:
@@ -70,7 +75,21 @@ class ExecutionGateway:
         - Не обрабатывает ошибки, не логирует детали
         """
 
-        # 1. Проверяем, что system_context доступен
+        # 1. Проверяем права доступа (если предоставлен user_context)
+        if user_context:
+            try:
+                await self.authorizer.authorize(user_context, capability, action_payload)
+            except PermissionDeniedError as e:
+                logger.error(f"Отказ в доступе для пользователя '{user_context.user_id}': {str(e)}")
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    result=None,
+                    observation_item_id=None,
+                    summary=str(e),
+                    error="PERMISSION_DENIED"
+                )
+
+        # 2. Проверяем, что system_context доступен
         if self.system_context is None:
             error_msg = f"System context недоступен для выполнения capability {capability.name}"
             logger.error(error_msg)
@@ -97,12 +116,12 @@ class ExecutionGateway:
                 error="SKILL_NOT_FOUND"
             )
 
-        # 2. Валидируем параметры действия через ContractService (новое)
+        # 3. Валидируем параметры действия через ContractService (новое)
         validated_payload = action_payload
         contract_service = getattr(self.system_context, 'get_service', lambda name: None) and await self.system_context.get_service("contract_service")
         if contract_service:
             try:
-                validation_result = await contract_services.validate(
+                validation_result = await contract_service.validate(
                     capability_name=capability.name,
                     data=action_payload,
                     direction="input"
@@ -148,14 +167,14 @@ class ExecutionGateway:
                         error="INVALID_INPUT"
                     )
 
-        # 3. Записываем действие в контекст
+        # 4. Записываем действие в контекст
         action_item_id = session.record_action(
             action_data=validated_payload,
             step_number=step_number,
             metadata=ContextItemMetadata(source=skill.name)
         )
 
-        # 4. Выполняем capability через навык
+        # 5. Выполняем capability через навык
         logger.debug(f"Выполнение capability '{capability.name}' через навык '{skill.name}'")
         try:
             execution_result = await skill.execute(

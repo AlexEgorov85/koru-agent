@@ -447,7 +447,7 @@ class ProviderFactory:
 
         service_classes = {}
 
-        services_dir = Path("core/infrastructure/service")
+        services_dir = Path("core/infrastructure/services")
 
         if not services_dir.exists():
             logger.warning(f"Директория сервисов не найдена: {services_dir}")

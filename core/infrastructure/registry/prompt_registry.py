@@ -4,6 +4,7 @@ import yaml
 from datetime import datetime, timezone
 from core.models.prompt import Prompt, PromptStatus
 from core.models.prompt_serialization import PromptSerializer
+from core.infrastructure.migrations.manager import MigrationManager
 
 
 class PromptRegistryEntry:
@@ -164,16 +165,48 @@ class PromptRegistry:
         """Возвращает активную версию промпта"""
         if capability not in self.active_prompts:
             return None
-        
+
         entry = self.active_prompts[capability]
         prompts_dir = self.registry_path.parent.parent  # поднимаемся на уровень выше, чтобы получить абсолютный путь
         prompt_path = prompts_dir / entry.file_path
-        
+
         try:
-            return PromptSerializer.from_yaml(prompt_path)
+            # Загружаем промпт
+            prompt = PromptSerializer.from_yaml(prompt_path)
+            
+            # Применяем миграции если необходимо
+            migrated_prompt = self._apply_prompt_migrations(prompt)
+            
+            return migrated_prompt
         except Exception as e:
             print(f"Ошибка при загрузке активного промпта {capability}: {e}")
             return None
+
+    def _apply_prompt_migrations(self, prompt: Prompt) -> Prompt:
+        """Применение миграций к промпту при загрузке."""
+        # Инициализируем менеджер миграций
+        migration_manager = MigrationManager()
+        
+        # Получаем данные промпта как словарь для миграции
+        prompt_dict = prompt.model_dump()  # Pydantic метод для получения словаря
+        
+        # Применяем миграции для промпта (предполагаем, что текущая версия 1.0.0, целевая 1.1.0)
+        # В реальной системе версия должна быть определена в метаданных промпта
+        current_version = getattr(prompt.metadata, 'version', '1.0.0')
+        target_version = '1.1.0'  # целевая версия
+        
+        if current_version != target_version:
+            migrated_dict = migration_manager.apply_migrations(
+                migration_type="prompt",
+                data=prompt_dict,
+                from_version=current_version,
+                to_version=target_version
+            )
+            
+            # Создаем новый объект Prompt из мигрированных данных
+            prompt = Prompt.model_validate(migrated_dict)  # Pydantic метод для валидации из словаря
+            
+        return prompt
 
     def get_prompt_by_capability_and_version(self, capability: str, version: str) -> Optional[Prompt]:
         """Возвращает промпт по capability и версии (может быть активным или архивным)"""

@@ -74,6 +74,9 @@ class EventType(Enum):
     # События ошибок
     RETRY_ATTEMPT = "retry.attempt"
     ERROR_OCCURRED = "error.occurred"
+    
+    # События метрик
+    METRIC_COLLECTED = "metric.collected"
 
 
 class EventBus:

@@ -67,17 +67,23 @@ class PromptService(BaseService):
         self.default_version = default_version
         self._index = {}
         self._metadata = {}
-        self.registry = PromptRegistry(Path(prompts_dir) / "registry.yaml")
-        self._prompt_objects: Dict[str, Dict[str, Prompt]] = {}  # capability → version → объект
+        # Не создаем registry в __init__ - делаем это в initialize()
+        self.registry = None
+        self._prompt_objects: Dict[str, Dict[str, Prompt]] = {}  # capability → version → object
 
     async def initialize(self) -> bool:
         """
         Index all prompts at startup and load prompt objects.
         """
         try:
+            # Создаем registry при инициализации, а не в __init__
+            self.registry = PromptRegistry(Path(self.prompts_dir) / "registry.yaml")
             await self._build_index()
             await self._load_prompt_objects()
-            return True
+            
+            # Вызываем родительскую инициализацию для правильной установки флага _initialized
+            parent_result = await super().initialize()
+            return parent_result
         except Exception as e:
             self.logger.error(f"Failed to initialize PromptService: {str(e)}")
             return False

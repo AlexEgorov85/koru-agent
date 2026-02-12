@@ -5,20 +5,25 @@ debug: true
 log_level: DEBUG
 log_dir: logs/dev
 data_dir: data/dev
+
+# Конфигурация LLM провайдеров
 llm_providers:
   default_llm:
     type_provider: llama_cpp
     model_name: qwen-4b
     enabled: true
+    fallback_providers: []
     parameters:
-      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
+      model_path: "./models/qwen3-4b-instruct-f16.gguf"  # Относительный путь для избежания проблем с кодировкой
+      n_ctx: 2048  # Уменьшено с 20480 до 2048 для разработки
       n_gpu_layers: 0
-      n_ctx: 20480
-      n_batch: 1024
+      n_batch: 512
       temperature: 0.2
-      max_tokens: 262100
+      max_tokens: 512  # Уменьшено с 262100 до 512 для разработки
       verbose: false
-      stop: ["<|im_end|>", "<|endoftext|>"]
+      stop: ["\"", "</s>"]  # Исправлены символы остановки
+
+# Конфигурация баз данных
 db_providers:
   default_db:
     type_provider: postgres
@@ -26,23 +31,90 @@ db_providers:
     parameters:
       host: "localhost"
       port: 5432
-      database: "postgres"
+      database: "agent_dev"
       username: "postgres"
-      password: "1"
-      sslmode: "disable"
+      password: "password"  # В продакшене должно быть в секрете
+      sslmode: "prefer"
       timeout: 30.0
       pool_size: 5
+
+# Конфигурация навыков
 skills:
   planning:
     enabled: true
+    parameters: {}
+    priority: 1
   book_library:
     enabled: true
     parameters:
       max_books_per_search: 10
+    priority: 1
+
+# Конфигурация инструментов
 tools:
   SQLTool:
     enabled: true
+    parameters: {}
+    dependencies: ["default_db"]
   file_tool:
     enabled: true
+    parameters: {}
+    dependencies: []
+
+# Параметры агента
+agent:
+  max_steps: 10
+  max_retries: 3
+  temperature: 0.2
+  default_strategy: "react"
+  enable_self_reflection: true
+  enable_context_window_management: true
+
+# Агентная конфигурация (для предзагрузки промптов и контрактов)
+agent_config:
+  config_id: "dev-agent-config"
+  source: "explicit"
+  prompt_versions:
+    "planning.create_plan": "latest"
+    "planning.update_plan": "latest"
+    "planning.get_next_step": "latest"
+    "planning.update_step_status": "latest"
+    "planning.decompose_task": "latest"
+    "planning.mark_task_completed": "latest"
+    "final_answer.generate": "latest"
+    "book_library.get_books_by_author": "latest"
+    "book_library.get_full_text": "latest"
+    "book_library.dynamic_sql_query": "latest"
+    "sql_generation.generate_safe_query": "latest"
+    "sql_generation.correct_query": "latest"
+  contract_versions:
+    "planning.create_plan.input": "latest"
+    "planning.create_plan.output": "latest"
+    "planning.update_plan.input": "latest"
+    "planning.update_plan.output": "latest"
+    "final_answer.generate.input": "latest"
+    "final_answer.generate.output": "latest"
+    "book_library.get_books_by_author.input": "latest"
+    "book_library.get_books_by_author.output": "latest"
+    "book_library.get_full_text.input": "latest"
+    "book_library.get_full_text.output": "latest"
+    "sql_generation.generate_safe_query.input": "latest"
+    "sql_generation.generate_safe_query.output": "latest"
+  max_steps: 10
+  temperature: 0.2
+  created_at: "2026-02-12T00:00:00Z"
+
+# Безопасность
 security:
-  secrets_path: config/secrets_dev.yaml
+  secrets_path: "core/config/defaults/secrets_dev.yaml"
+  token_expiry_minutes: 60
+
+# Дополнительные провайдеры
+providers:
+  cache:
+    enabled: true
+    type: "memory"
+    ttl: 300
+  monitoring:
+    enabled: true
+    endpoint: "http://localhost:9090"

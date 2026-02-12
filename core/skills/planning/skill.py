@@ -422,7 +422,6 @@ class PlanningSkill(BaseSkill):
 
             # Если статус - FAILED, запускаем коррекцию плана
             if input_data.get('status') == 'FAILED' and input_data.get('error_message'):
-                self.logger.info(f"Шаг {input_data.get('step_id')} завершился с ошибкой, запускаем коррекцию плана")
 
                 # Публикуем событие ошибки шага
                 if self.event_bus:
@@ -461,7 +460,6 @@ class PlanningSkill(BaseSkill):
                     return correction_result
                 else:
                     # Если коррекция не удалась, продолжаем с обычным обновлением
-                    self.logger.warning(f"Коррекция плана не удалась: {correction_result.summary}")
 
                     # Публикуем событие неудачной коррекции плана
                     if self.event_bus:
@@ -847,8 +845,7 @@ class PlanningSkill(BaseSkill):
             )
             
         except Exception as e:
-            self.logger.warning(f"Не удалось автоматически скорректировать план: {str(e)}")
-            
+
             # Публикуем событие ошибки коррекции плана
             if self.event_bus:
                 await self.event_bus.publish(
@@ -860,7 +857,7 @@ class PlanningSkill(BaseSkill):
                         "timestamp": time.time()
                     }
                 )
-            
+
             # Fallback: помечаем шаг как пропущенный, продолжаем выполнение
             return await self._skip_failed_step(failed_step, context)
 

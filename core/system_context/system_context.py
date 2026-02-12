@@ -29,7 +29,7 @@ from core.system_context.lifecycle_manager import LifecycleManager
 from core.infrastructure.providers.factory import ProviderFactory
 from models.capability import Capability
 from models.llm_types import LLMRequest, LLMResponse, RawLLMResponse, StructuredLLMResponse, StructuredOutputConfig
-from models.resource import ResourceType
+from models.resource import ResourceType, ResourceHealth
 from core.errors.structured_output import StructuredOutputError
 from pydantic import ValidationError
 from pydantic.main import BaseModel as PydanticBaseModel
@@ -41,23 +41,25 @@ from core.infrastructure.services.prompt_service import PromptService
 from core.infrastructure.services.sql_generation.service import SQLGenerationService
 from core.infrastructure.services.sql_query.service import SQLQueryService
 from core.infrastructure.services.sql_validator.service import SQLValidatorService
+from core.system_context.dependency_resolver import DependencyResolver, ServiceDescriptor
+from core.errors.architecture_violation import CircularDependencyError
 from typing import Type, Dict
 
 # Импорты для шины событий
 from core.events.event_bus import EventBus, EventType, get_event_bus, Event
-from core.events.event_handlers import LoggingEventHandler, MetricsEventHandler, AuditEventHandler
+from core.events.event_handlers import MetricsEventHandler, AuditEventHandler
 
 logger = logging.getLogger(__name__)
 
 class SystemContext(BaseSystemContext):
     """
     Cистемный контекст - центральный фасад системы.
-    
+
     АРХИТЕКТУРА:
     - Pattern: Facade
     - Инкапсулирует сложность внутренних подсистем
     - Предоставляет единую точку доступа ко всей системе
-    
+
     ВНУТРЕННИЕ КОМПОНЕНТЫ:
     - registry: Реестр ресурсов
     - capabilities: Реестр capability
@@ -65,13 +67,13 @@ class SystemContext(BaseSystemContext):
     - config: Конфигурация
     - agents: Фабрика агентов
     - provider_factory: Фабрика провайдеров
-    
+
     ИНИЦИАЛИЗАЦИЯ:
     1. Создание всех компонентов
     2. Регистрация стандартных ресурсов
     3. Инициализация через lifecycle manager
     """
-    
+
     def __init__(self, config: Optional[SystemConfig] = None):
         """
         Инициализация системного контекста.
@@ -124,7 +126,7 @@ class SystemContext(BaseSystemContext):
         #     source="SystemContext.__init__",
         #     correlation_id=self.id
         # )
-    
+
     @property
     def capabilities(self):
         """
@@ -134,38 +136,38 @@ class SystemContext(BaseSystemContext):
         """
         # Return the internal capability registry from the unified ResourceRegistry
         return self.registry._capabilities
-    
+
     def _setup_event_handlers(self):
         """
         Настройка обработчиков событий для замены логирования.
-        
+
         ОСОБЕННОСТИ:
         - Регистрация обработчиков событий
         - Настройка директорий для логов событий
         - Подписка на нужные типы событий
         """
         # Создание обработчиков событий
-        self.logging_handler = LoggingEventHandler(
-            log_dir=self.config.log_dir or "logs"
-        )
         self.metrics_handler = MetricsEventHandler()
         self.audit_handler = AuditEventHandler(
             audit_log_dir=os.path.join(self.config.log_dir or "logs", "audit")
         )
-        
+
         # Подписка обработчиков на события
         for event_type in EventType:
-            self.event_bus.subscribe(event_type, self.logging_handler.handle_event)
             self.event_bus.subscribe(event_type, self.metrics_handler.handle_event)
+
+        # Подписка AuditEventHandler только на аудит-события
+        from core.events.event_handlers import AUDIT_EVENTS
+        for event_type in AUDIT_EVENTS:
             self.event_bus.subscribe(event_type, self.audit_handler.handle_event)
-        
+
         # Также подписываемся на все события для общего обработчика
         self.event_bus.subscribe_all(lambda event: self._handle_system_event(event))
 
     def _handle_system_event(self, event: Event):
         """
         Общий обработчик системных событий.
-        
+
         ARGS:
         - event: событие для обработки
         """
@@ -202,295 +204,285 @@ class SystemContext(BaseSystemContext):
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         ))
         logging.getLogger().addHandler(file_handler)
-    
+
 
     async def initialize(self) -> bool:
-        """Инициализация системы."""
-        try:
-            # Публикация события создания и начала инициализации системного контекста
-            await self.event_bus.publish(
-                EventType.SYSTEM_INITIALIZED,
-                data={
-                    "system_id": self.id,
-                    "config_profile": self.config.profile,
-                    "profile": self.config.profile,
-                    "timestamp": datetime.now().isoformat()
-                },
-                source="SystemContext.initialize",
-                correlation_id=self.id
-            )
+        """2-фазная инициализация: граф + инициализация."""
+        import time
+        start_time = time.time()
+        
+        self.logger.info("=== Начало инициализации системы (2-фазная модель) ===")
 
-            initialization_errors = []
+        # === ФАЗА 1: Построение графа зависимостей (регистрация дескрипторов + топосорт за один проход) ===
+        self.logger.info("ФАЗА 1: Построение графа зависимостей...")
+        init_order = await self._build_init_graph()
+        self.logger.info(f"Порядок инициализации: {' → '.join(init_order)}")
 
-            # ПРОВЕРКА АРХИТЕКТУРЫ: все компоненты должны использовать ComponentConfig
-            await self._verify_components_use_modern_config()
-
-            # 1. Автоматическая регистрация провайдеров из конфигурации
-            try:
-                await self._register_providers_from_config()
-            except Exception as e:
-                logger.warning(f"Ошибка регистрации провайдеров: {str(e)}")
-                initialization_errors.append(f"Providers registration failed: {str(e)}")
-
-            # 2. Создание и регистрация PromptService
-            try:
-                from core.config.component_config import ComponentConfig
-                # Создаем минимальный ComponentConfig для системных сервисов
-                prompt_service_config = ComponentConfig(
-                    variant_id="prompt_service_default",
-                    prompt_versions={},
-                    input_contract_versions={},
-                    output_contract_versions={}
-                )
-                
-                prompt_service = PromptService(
-                    prompts_dir=getattr(self.config, 'prompts_dir', "prompts"),
-                    default_version=getattr(self.config, 'prompts_default_version', "v1.0.0"),
-                    name="prompt_service",
-                    system_context=self,
-                    component_config=prompt_service_config
-                )
-                await prompt_service.initialize()
-
-                resource_info = ResourceInfo(
-                    name="prompt_service",
-                    resource_type=ResourceType.SERVICE,
-                    instance=prompt_service
-                )
-                resource_info.is_default = True
-                self.registry.register_resource(resource_info)
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации PromptService: {str(e)}")
-                initialization_errors.append(f"PromptService initialization failed: {str(e)}")
-
-            # 3. Создание и регистрация SQLGenerationService
-            try:
-                from core.config.component_config import ComponentConfig
-                # Создаем минимальный ComponentConfig для системных сервисов
-                sql_gen_service_config = ComponentConfig(
-                    variant_id="sql_generation_service_default",
-                    prompt_versions={},
-                    input_contract_versions={},
-                    output_contract_versions={}
-                )
-                
-                sql_generation_service = SQLGenerationService(
-                    system_context=self,
-                    name="sql_generation_service",
-                    component_config=sql_gen_service_config
-                )
-                await sql_generation_service.initialize()
-
-                resource_info = ResourceInfo(
-                    name="sql_generation_service",
-                    resource_type=ResourceType.SERVICE,
-                    instance=sql_generation_service
-                )
-                resource_info.is_default = True
-                self.registry.register_resource(resource_info)
-
-                # Также регистрируем в service_registry для обратной совместимости
-                await self.register_service("sql_generation_service", sql_generation_service)
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации SQLGenerationService: {str(e)}")
-                initialization_errors.append(f"SQLGenerationService initialization failed: {str(e)}")
-
-            # 4. Создание и регистрация SQLValidatorService
-            try:
-                from core.config.component_config import ComponentConfig
-                # Создаем минимальный ComponentConfig для системных сервисов
-                sql_val_service_config = ComponentConfig(
-                    variant_id="sql_validator_service_default",
-                    prompt_versions={},
-                    input_contract_versions={},
-                    output_contract_versions={}
-                )
-                
-                sql_validator_service = SQLValidatorService(
-                    system_context=self,
-                    name="sql_validator_service",
-                    component_config=sql_val_service_config,
-                    allowed_operations=["SELECT"]
-                )
-                await sql_validator_service.initialize()
-
-                resource_info = ResourceInfo(
-                    name="sql_validator_service",
-                    resource_type=ResourceType.SERVICE,
-                    instance=sql_validator_service
-                )
-                resource_info.is_default = True
-                self.registry.register_resource(resource_info)
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации SQLValidatorService: {str(e)}")
-                initialization_errors.append(f"SQLValidatorService initialization failed: {str(e)}")
-
-            # 5. Создание и регистрация SQLQueryService
-            try:
-                from core.config.component_config import ComponentConfig
-                # Создаем минимальный ComponentConfig для системных сервисов
-                sql_query_service_config = ComponentConfig(
-                    variant_id="sql_query_service_default",
-                    prompt_versions={},
-                    input_contract_versions={},
-                    output_contract_versions={}
-                )
-                
-                sql_query_service = SQLQueryService(
-                    system_context=self,
-                    name="sql_query_service",
-                    component_config=sql_query_service_config
-                )
-                await sql_query_service.initialize()
-
-                resource_info = ResourceInfo(
-                    name="sql_query_service",
-                    resource_type=ResourceType.SERVICE,
-                    instance=sql_query_service
-                )
-                resource_info.is_default = True
-                self.registry.register_resource(resource_info)
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации SQLQueryService: {str(e)}")
-                initialization_errors.append(f"SQLQueryService initialization failed: {str(e)}")
-
-            # 6. В новой архитектуре конфигурация компонентов происходит через ComponentConfig
-            # Создание конфигурации для системных ресурсов больше не требуется
-            system_resources_config = None
-
-            # 7. Автоматическая регистрация инфраструктурных сервисов из директории
-            try:
-                await self.provider_factory.discover_and_create_all_services()
-
-                # В новой архитектуре инициализация происходит автоматически при создании
-
-            except Exception as e:
-                logger.warning(f"Ошибка регистрации сервисов: {str(e)}")
-                initialization_errors.append(f"Services registration failed: {str(e)}")
-
-            # 8. Автоматическая регистрация инструментов из директории
-            try:
-                await self.provider_factory.discover_and_create_all_tools()
-
-                # В новой архитектуре инициализация происходит автоматически при создании
-
-            except Exception as e:
-                logger.warning(f"Ошибка регистрации инструментов: {str(e)}")
-                initialization_errors.append(f"Tools registration failed: {str(e)}")
-
-            # 9. Автоматическая регистрация навыков из директории
-            try:
-                await self.provider_factory.discover_and_create_all_skills()
-
-                # В новой архитектуре инициализация происходит автоматически при создании
-
-            except Exception as e:
-                logger.warning(f"Ошибка регистрации навыков: {str(e)}")
-                initialization_errors.append(f"Skills registration failed: {str(e)}")
-
-            # 10. ПРЕДЗАГРУЗКА всех контрактов и промптов ДО инициализации навыков
-            try:
-                # Получаем сервисы
-                prompt_service = self.get_resource("prompt_service")
-                contract_service = self.get_resource("contract_service")
-
-                if prompt_service and hasattr(prompt_service, 'preload_prompts'):
-                    # Используем agent_config для обратной совместимости, но в будущем нужно перейти на ComponentConfig
-                    # В новой архитектуре предзагрузка будет происходить через ComponentConfig каждого компонента
-                    if hasattr(self.config, 'agent_config') and self.config.agent_config:
-                        await prompt_service.preload_prompts(self.config.agent_config)
-                        self.registry.mark_prompts_as_preloaded()
-                        logger.info("Все промпты предзагружены")
-
-                if contract_service and hasattr(contract_service, 'preload_contracts'):
-                    # Используем agent_config для обратной совместимости, но в будущем нужно перейти на ComponentConfig
-                    # В новой архитектуре предзагрузка будет происходить через ComponentConfig каждого компонента
-                    if hasattr(self.config, 'agent_config') and self.config.agent_config:
-                        await contract_service.preload_contracts(self.config.agent_config)
-                        self.registry.mark_contracts_as_preloaded()
-                        logger.info("Все контракты предзагружены")
-
-            except Exception as e:
-                logger.warning(f"Ошибка предзагрузки ресурсов: {str(e)}")
-                initialization_errors.append(f"Resources preloading failed: {str(e)}")
-
-            # 11. Инициализация всех компонентов
-            try:
-                initialization_success = await self.lifecycle.initialize()
-                if not initialization_success:
-                    await self.event_bus.publish(
-                        EventType.ERROR_OCCURRED,
-                        data={
-                            "error": "Not all components were initialized successfully",
-                            "system_id": self.id
-                        },
-                        source="SystemContext.initialize",
-                        correlation_id=self.id
-                    )
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации компонентов: {str(e)}")
-                initialization_errors.append(f"Components initialization failed: {str(e)}")
-
-            # 11. Проверка здоровья системы
-            try:
-                health_report = await self.lifecycle.check_health()
-                if health_report["status"] == "unhealthy":
-                    await self.event_bus.publish(
-                        EventType.SYSTEM_ERROR,
-                        data={
-                            "error": "System failed health check",
-                            "health_report": health_report,
-                            "system_id": self.id
-                        },
-                        source="SystemContext.initialize",
-                        correlation_id=self.id
-                    )
-                    # Не возвращаем False здесь, чтобы позволить системе работать с частичной неудачей
-            except Exception as e:
-                logger.warning(f"Ошибка проверки здоровья системы: {str(e)}")
-                initialization_errors.append(f"Health check failed: {str(e)}")
-
-            # 12. Инициализация инфраструктурных сервисов
-            try:
-                await self._initialize_infrastructure_services()
-            except Exception as e:
-                logger.warning(f"Ошибка инициализации инфраструктурных сервисов: {str(e)}")
-                initialization_errors.append(f"Infrastructure services initialization failed: {str(e)}")
-
-            # 13. ФИНАЛЬНАЯ ПРОВЕРКА: все компоненты инициализированы с ComponentConfig
-            await self._verify_all_components_initialized()
-
-            self.initialized = True
-
-            # Публикация события успешной инициализации
-            await self.event_bus.publish(
-                EventType.SYSTEM_INITIALIZED,
-                data={
-                    "system_id": self.id,
-                    "status": "initialized",
-                    "profile": self.config.profile,
-                    "initialization_errors": initialization_errors if initialization_errors else None
-                },
-                source="SystemContext.initialize_complete",
-                correlation_id=self.id
-            )
-
-            # Возвращаем True, если инициализация прошла успешно хотя бы частично
-            # Возвращаем False только если критические ошибки не позволяют системе работать
-            return True
-
-        except Exception as e:
-            await self.event_bus.publish(
-                EventType.SYSTEM_ERROR,
-                data={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "system_id": self.id
-                },
-                source="SystemContext.initialize",
-                correlation_id=self.id
-            )
+        # === ФАЗА 2: Параллельная инициализация сервисов ===
+        self.logger.info("ФАЗА 2: Параллельная инициализация сервисов...")
+        if not await self._atomic_init(init_order):
             return False
+
+        self.initialized = True
+        end_time = time.time()
+        duration = end_time - start_time
+        self.logger.info(f"=== Система успешно инициализирована за {duration:.2f} секунд ===")
+        
+        # Отправляем метрику времени инициализации
+        from core.events.event_bus import EventType
+        await self.event_bus.publish(
+            EventType.METRIC_COLLECTED,
+            data={
+                "metric_name": "system.initialization_time",
+                "value": duration,
+                "unit": "seconds",
+                "system_id": self.id
+            },
+            source="SystemContext.initialize",
+            correlation_id=self.id
+        )
+        
+        return True
+
+    async def _build_init_graph(self) -> list:
+        """Построение графа зависимостей: регистрация дескрипторов + топосорт за один проход."""
+        # 1. Обнаружение дескрипторов сервисов
+        service_descriptors = await self._discover_service_descriptors()
+
+        # Валидация дескрипторов
+        if not await self._validate_service_descriptors(service_descriptors):
+            return []
+
+        # Сохранение дескрипторов для последующих операций
+        self._service_descriptors = service_descriptors
+
+        # 2. Расчет порядка инициализации (топологическая сортировка)
+        try:
+            init_order = await DependencyResolver.calculate_initialization_order(service_descriptors)
+        except CircularDependencyError as e:
+            self.logger.critical(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
+            await self._dump_dependency_graph(service_descriptors)
+            return []
+
+        return init_order
+
+    async def _atomic_init(self, init_order: list) -> bool:
+        """Атомарная инициализация сервисов с предзагрузкой ресурсов."""
+        # Инициализация сервисов в заданном порядке
+        for service_name in init_order:
+            if not await self._instantiate_and_initialize_service(service_name, self._service_descriptors):
+                self.logger.error(f"Не удалось инициализировать сервис '{service_name}'")
+                return False
+
+        # Предзагрузка ресурсов (встроена в инициализацию, как указано в требованиях)
+        if not await self._preload_system_resources():
+            return False
+
+        # Проверка готовности (заменяет финальную верификацию)
+        if not await self._verify_system_readiness():
+            return False
+
+        return True
+
+    async def _discover_service_descriptors(self) -> Dict[str, ServiceDescriptor]:
+        """Обнаружение и регистрация дескрипторов сервисов (без создания экземпляров!)."""
+        descriptors = {}
+
+        # 1. Критические сервисы (регистрируем вручную для контроля порядка)
+        critical_services = {
+            "prompt_service": PromptService,
+        }
+
+        # Импортируем и добавляем другие критические сервисы
+        try:
+            from core.infrastructure.services.contract_service import ContractService
+            critical_services["contract_service"] = ContractService
+        except ImportError:
+            self.logger.warning("ContractService не найден")
+
+        try:
+            from core.infrastructure.services.table_description_service import TableDescriptionService
+            critical_services["table_description_service"] = TableDescriptionService
+        except ImportError:
+            self.logger.warning("TableDescriptionService не найден")
+
+        for name, cls in critical_services.items():
+            if cls is not None:
+                descriptors[name] = ServiceDescriptor(name=name, service_class=cls)
+
+        # 2. Автоматическое обнаружение остальных сервисов
+        discovered = await self.provider_factory._discover_services_from_directory()
+        for name, cls in discovered.items():
+            if name not in descriptors:  # Не перезаписываем критические
+                # Пропускаем отключённые в конфигурации
+                if not self._is_service_enabled(name):
+                    self.logger.debug(f"Сервис '{name}' отключён в конфигурации — пропускаем")
+                    continue
+                descriptors[name] = ServiceDescriptor(name=name, service_class=cls)
+
+        return descriptors
+
+    async def _instantiate_and_initialize_service(
+        self,
+        service_name: str,
+        descriptors: Dict[str, ServiceDescriptor]
+    ) -> bool:
+        """Создание экземпляра сервиса и его инициализация."""
+        descriptor = descriptors[service_name]
+
+        # 1. Создание экземпляра
+        try:
+            service = await self._create_service_instance(service_name, descriptor.service_class)
+        except Exception as e:
+            self.logger.exception(f"Ошибка создания экземпляра '{service_name}': {e}")
+            return False
+
+        # 2. Создание ResourceInfo с PENDING статусом
+        resource_info = ResourceInfo(
+            name=service_name,
+            resource_type=ResourceType.SERVICE,
+            instance=service
+        )
+        # Добавляем метаданные как атрибут
+        resource_info.metadata = {"class": descriptor.service_class.__name__}
+        resource_info.health = ResourceHealth.PENDING  # Устанавливаем статус PENDING
+        
+        # 3. Регистрация в реестре с PENDING статусом (чтобы зависимости могли его найти, но не использовать)
+        self.registry.register_resource(resource_info)
+
+        # 4. Инициализация
+        self.logger.debug(f"Инициализация сервиса '{service_name}'...")
+        if not await service.initialize():
+            self.logger.error(f"Сервис '{service_name}' не прошёл инициализацию")
+            # Отмена регистрации при ошибке
+            try:
+                self.registry.unregister_resource(service_name)
+            except KeyError:
+                pass  # Ресурс уже мог быть удален
+            return False
+
+        # 5. Обновление статуса на READY после успешной инициализации
+        resource_info.health = ResourceHealth.HEALTHY
+        self.logger.info(f"✓ Сервис '{service_name}' успешно инициализирован и зарегистрирован (статус=HEALTHY)")
+        return True
+
+    async def _create_service_instance(self, name: str, service_class: Type[BaseService]) -> BaseService:
+        """Создание экземпляра сервиса с правильной конфигурацией."""
+        # Получение конфигурации из системной конфигурации
+        service_config = self._get_service_config(name)
+        
+        # Создание ComponentConfig
+        component_config = ComponentConfig(
+            variant_id=service_config.get("variant_id", f"{name}_default"),
+            prompt_versions=service_config.get("prompt_versions", {}),
+            input_contract_versions=service_config.get("input_contract_versions", {}),
+            output_contract_versions=service_config.get("output_contract_versions", {})
+        )
+        
+        # Создание экземпляра
+        return service_class(
+            system_context=self,
+            name=name,
+            component_config=component_config
+        )
+
+    async def _preload_system_resources(self) -> bool:
+        """Предзагрузка всех промптов и контрактов после инициализации сервисов."""
+        prompt_service = await self.get_service("prompt_service")
+        contract_service = await self.get_service("contract_service")
+        
+        if not prompt_service or not contract_service:
+            self.logger.error("Не найдены критические сервисы для предзагрузки ресурсов")
+            return False
+        
+        # Предзагрузка через системную конфигурацию агента
+        agent_config = getattr(self.config, 'agent_config', None)
+        if not agent_config:
+            self.logger.warning("agent_config не найден в системной конфигурации — пропускаем предзагрузку")
+            return True
+        
+        # Предзагрузка промптов
+        await prompt_service.preload_prompts(agent_config)
+        self.registry.mark_prompts_as_preloaded()
+        
+        # Предзагрузка контрактов
+        await contract_service.preload_contracts(agent_config)
+        self.registry.mark_contracts_as_preloaded()
+        
+        self.logger.info("Все промпты и контракты предзагружены")
+        return True
+
+    async def _verify_system_readiness(self) -> bool:
+        """Финальная проверка готовности системы."""
+        # 1. Проверка всех сервисов
+        all_services = self._get_resources_by_type(ResourceType.SERVICE)
+        uninitialized = [
+            name for name, info in all_services.items()
+            if not getattr(info.instance, '_initialized', False)
+        ]
+        
+        if uninitialized:
+            self.logger.error(f"Неинициализированные сервисы: {uninitialized}")
+            return False
+        
+        # 2. Проверка предзагрузки ресурсов
+        # Проверяем, была ли попытка предзагрузки
+        # Если agent_config не найден, предзагрузка может быть пропущена, и это нормально
+        agent_config_exists = hasattr(self.config, 'agent_config') and self.config.agent_config is not None
+        
+        if agent_config_exists:
+            if not self.registry.are_prompts_preloaded():
+                self.logger.error("Промпты не предзагружены")
+                return False
+
+            if not self.registry.are_contracts_preloaded():
+                self.logger.error("Контракты не предзагружены")
+                return False
+        
+        # 3. Проверка критических сервисов
+        critical = ["prompt_service", "contract_service", "table_description_service"]
+        for name in critical:
+            if not await self.get_service(name):
+                self.logger.error(f"Критический сервис '{name}' недоступен")
+                return False
+        
+        self.logger.info("✓ Система полностью готова к работе")
+        return True
+
+    async def _dump_dependency_graph(self, descriptors: Dict[str, ServiceDescriptor]):
+        """Дамп графа зависимостей для диагностики."""
+        self.logger.info("=== Граф зависимостей ===")
+        for name, descriptor in descriptors.items():
+            deps = getattr(descriptor.service_class, 'DEPENDENCIES', [])
+            status = "✓" if deps else "•"
+            self.logger.info(f"{status} {name}: {deps or 'нет зависимостей'}")
+
+    async def _validate_service_descriptors(self, descriptors: Dict[str, ServiceDescriptor]) -> bool:
+        """Валидация дескрипторов сервисов."""
+        # Проверим, что все зависимости существуют
+        all_service_names = set(descriptors.keys())
+        for name, descriptor in descriptors.items():
+            deps = getattr(descriptor.service_class, 'DEPENDENCIES', [])
+            missing_deps = [dep for dep in deps if dep not in all_service_names]
+            if missing_deps:
+                self.logger.error(f"Сервис '{name}' имеет несуществующие зависимости: {missing_deps}")
+                return False
+        return True
+
+    def _is_service_enabled(self, service_name: str) -> bool:
+        """Проверка, включен ли сервис в конфигурации."""
+        # Пока возвращаем True, но в будущем можно добавить логику из конфигурации
+        return True
+
+    def _get_service_config(self, service_name: str) -> Dict[str, Any]:
+        """Получение конфигурации сервиса из системной конфигурации."""
+        # Возвращаем пустую конфигурацию по умолчанию
+        return {
+            "variant_id": f"{service_name}_default",
+            "prompt_versions": {},
+            "input_contract_versions": {},
+            "output_contract_versions": {}
+        }
 
     async def _verify_components_use_modern_config(self):
         """Гарантия архитектуры: проверка, что компоненты, которые должны использовать ComponentConfig, его используют"""
@@ -537,7 +529,7 @@ class SystemContext(BaseSystemContext):
 
     def is_fully_initialized(self) -> bool:
         """
-        Проверка, полностью ли инициализирована система (все ресурсы предзагружены).
+        Проверка, полностью ли инициализирована система (все ресурсы предзагружены и сервисы инициализированы).
 
         RETURNS:
         - bool: True если система полностью готова к работе
@@ -548,12 +540,26 @@ class SystemContext(BaseSystemContext):
         # Проверяем статус предзагрузки через реестр
         preload_status = self.registry.verify_all_resources_preloaded()
 
+        # Проверяем, что все сервисы инициализированы
+        all_services = self._get_resources_by_type(ResourceType.SERVICE)
+        uninitialized_services = [
+            name for name, info in all_services.items()
+            if not getattr(info.instance, '_initialized', False)
+        ]
+
+        # Проверяем, была ли попытка предзагрузки
+        # Если agent_config не найден, предзагрузка может быть пропущена, и это нормально
+        agent_config_exists = hasattr(self.config, 'agent_config') and self.config.agent_config is not None
+
         # Для новой архитектуры проверяем, что все критические компоненты загружены
         # Но не требуем, чтобы все компоненты использовали новую архитектуру
         required_checks = [
             preload_status.get("resources_loaded", True),  # по умолчанию True
-            preload_status.get("prompts_preloaded", True),  # по умолчанию True
-            preload_status.get("contracts_preloaded", True),  # по умолчанию True
+            # Если agent_config существует, проверяем, что промпты предзагружены, иначе пропускаем проверку
+            preload_status.get("prompts_preloaded", True) if agent_config_exists else True,
+            # Если agent_config существует, проверяем, что контракты предзагружены, иначе пропускаем проверку
+            preload_status.get("contracts_preloaded", True) if agent_config_exists else True,
+            len(uninitialized_services) == 0  # все сервисы должны быть инициализированы
         ]
 
         return all(required_checks)
@@ -663,53 +669,82 @@ class SystemContext(BaseSystemContext):
             )
             return False
 
-    async def get_service(self, service_name: str) -> Optional[BaseService]:
+    async def get_service(self, service_name: str, timeout: float = 5.0) -> Optional[BaseService]:
         """
         Получение инфраструктурного сервиса по имени.
         Сначала ищет в service_registry, затем в общем реестре ресурсов.
         Поддерживает алиасы для обеспечения обратной совместимости.
-
+        
         ARGS:
         - service_name: имя сервиса
+        - timeout: время ожидания готовности сервиса в секундах (по умолчанию 5.0)
 
         RETURNS:
-        - Экземпляр сервиса или None если сервис не найден
+        - Экземпляр сервиса или None если сервис не найден или не готов
         """
+        import asyncio
+        from core.errors.service_not_ready import ServiceNotReadyError
+
         # Карта алиасов для обратной совместимости
         service_aliases = {
             "TableDescriptionService": "table_description_service",
             "table_description_service": "table_description_service",
         }
-        
+
         # Нормализуем имя сервиса
         normalized_name = service_aliases.get(service_name, service_name)
-        
+
         # Сначала ищем в service_registry
         service = self.service_registry.get(normalized_name)
         if service:
             return service
-        
+
         # Затем ищем в общем реестре ресурсов
-        resource_info = self.registry.get_resource(normalized_name)
-        if resource_info:
-            # resource_info может быть самим сервисом или объектом с атрибутом instance
-            if hasattr(resource_info, 'instance'):
-                return resource_info.instance
-            else:
-                # Если resource_info не имеет атрибута instance, то это может быть сам сервис
-                return resource_info
-        
-        # Если не найден по нормальному имени, пробуем поискать по алиасам
-        for alias, actual_name in service_aliases.items():
-            if alias == service_name and alias != actual_name:
-                resource_info = self.registry.get_resource(actual_name)
-                if resource_info:
-                    if hasattr(resource_info, 'instance'):
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            resource_info = self.registry.get_resource(normalized_name)
+            if resource_info:
+                # Проверяем, что resource_info - это ResourceInfo объект, а не просто инстанс
+                if hasattr(resource_info, 'health') and hasattr(resource_info, 'instance'):
+                    # Проверяем статус: возвращаем только сервисы со статусом HEALTHY
+                    if resource_info.health == ResourceHealth.HEALTHY:
                         return resource_info.instance
+                    elif resource_info.health == ResourceHealth.PENDING:
+                        # Сервис еще не готов, ждем немного и пробуем снова
+                        await asyncio.sleep(0.1)
+                        continue
                     else:
-                        return resource_info
-        
-        return None
+                        # Сервис в нездоровом состоянии
+                        self.logger.warning(f"Сервис '{normalized_name}' в состоянии {resource_info.health}, доступ запрещен")
+                        return None
+                else:
+                    # resource_info может быть самим сервисом (старый формат)
+                    return resource_info
+
+            # Если ресурс не найден, пробуем поискать по алиасам
+            for alias, actual_name in service_aliases.items():
+                if alias == service_name and alias != actual_name:
+                    resource_info = self.registry.get_resource(actual_name)
+                    if resource_info:
+                        if hasattr(resource_info, 'health') and hasattr(resource_info, 'instance'):
+                            if resource_info.health == ResourceHealth.HEALTHY:
+                                return resource_info.instance
+                            elif resource_info.health == ResourceHealth.PENDING:
+                                # Сервис еще не готов, ждем немного и пробуем снова
+                                await asyncio.sleep(0.1)
+                                continue
+                            else:
+                                # Сервис в нездоровом состоянии
+                                self.logger.warning(f"Сервис '{normalized_name}' в состоянии {resource_info.health}, доступ запрещен")
+                                return None
+                        else:
+                            return resource_info
+
+            # Если не найден, ждем немного и пробуем снова
+            await asyncio.sleep(0.1)
+
+        # Если после таймаута сервис не готов, бросаем исключение
+        raise ServiceNotReadyError(f"Сервис '{service_name}' не стал готовым в течение {timeout} секунд")
 
     async def _initialize_infrastructure_services(self) -> None:
         """
@@ -897,20 +932,20 @@ class SystemContext(BaseSystemContext):
     def _get_resources_by_type(self, resource_type: ResourceType) -> Dict[str, ResourceInfo]:
         """
         Получение ресурсов заданного типа.
-        
+
         ПАРАМЕТРЫ:
         - resource_type: Тип ресурсов для получения
-        
+
         ВОЗВРАЩАЕТ:
         - Словарь {имя_ресурса: ResourceInfo} для ресурсов заданного типа
         """
         resources = {}
         all_resources = self.registry.all()
-        
-        for name, info in all_resources.items():
+
+        for info in all_resources:
             if info.resource_type == resource_type:
-                resources[name] = info
-        
+                resources[info.name] = info
+
         return resources
     
     def get_resource(self, name: str) -> Optional[Any]:
@@ -1158,7 +1193,17 @@ class SystemContext(BaseSystemContext):
             correlation_id=correlation_id
         )
 
-        agent = AgentRuntime(self, SessionContext(), **kwargs)
+        # Извлекаем специальные параметры из kwargs
+        agent_config = kwargs.pop('agent_config', None)
+        user_context = kwargs.pop('user_context', None)
+        
+        agent = AgentRuntime(
+            system_context=self, 
+            session_context=SessionContext(), 
+            agent_config=agent_config,
+            user_context=user_context,
+            **kwargs
+        )
         
         # Публикация события успешного создания агента
         await self.event_bus.publish(
@@ -1177,13 +1222,13 @@ class SystemContext(BaseSystemContext):
     
     async def create_agent_for_question(self, question: str, **kwargs):
         """
-        Создает агента, настроенного под конкретный вопрос.
+        Созда����т аген��а, настроенного под конкретный вопрос.
         
         Параметры:
         - question: вопрос/цель, которую должен решить агент
         - **kwargs: дополнительные параметры агента (max_steps, temperature и т.д.)
         
-        Возвращает:
+        Возвращ��ет:
         - Экземпляр агента, готовый к выполнению
         """
         # Выбор стратегии на основе типа вопроса
@@ -1200,23 +1245,29 @@ class SystemContext(BaseSystemContext):
             **{k: v for k, v in kwargs.items() if k not in ["max_steps"]}
         }
         
+        # Извлекаем специальные параметры из agent_params
+        agent_config = agent_params.pop('agent_config', None)
+        user_context = agent_params.pop('user_context', None)
+        
         # Создание агента
         return AgentRuntime(
-            system=self,
+            system_context=self,
             session_context=session_context,
+            agent_config=agent_config,
+            user_context=user_context,
             **agent_params
         )
     
     async def _execute_raw_sql_query(self, query: str, params: dict = {}, db_provider_name: str = "default_db", max_rows: int = 100):
         """
         Внутренний метод для выполнения SQL-запроса напрямую к базе данных.
-        Используется сервисами, которые сами обеспечивают безопасность и валидацию.
+        Используется сервисами, которые сами обеспечивают бе��опасность и валидацию.
 
         Параметры:
         - query: SQL-запрос
         - params: параметры запроса
-        - db_provider_name: имя провайдера БД
-        - max_rows: максимальное количество возвращаемых строк
+        - db_provider_name: имя провайде��а БД
+        - max_rows: максима��ьное количество возвращаемых строк
 
         Возвращает:
         - Результат выполнения в формате DBQueryResult
@@ -1248,7 +1299,7 @@ class SystemContext(BaseSystemContext):
                 provider_params = {}
             
             result = await db_provider.execute(query, provider_params)
-            logger.info(f"SQL запрос выполнен успешно. Затронуто строк: {result.rowcount}")
+            logger.info(f"SQL з��прос выполнен успешно. Затронуто строк: {result.rowcount}")
             return result
         except Exception as e:
             logger.error(f"Ошибка выполнения SQL запроса: {str(e)}")
@@ -1281,7 +1332,7 @@ class SystemContext(BaseSystemContext):
                 )
                 return result
             except Exception as e:
-                logger.warning(f"Ошибка выполнения запроса через SQLQueryService: {str(e)}, используем прямое вы��олнение")
+                logger.warning(f"Ошибка выполнения запроса через SQLQueryService: {str(e)}, используем пр����ое вы��олнение")
                 # В случае ошибки используем прямое выполнение как fallback
                 return await self._execute_raw_sql_query(query, params, db_provider_name)
         else:

@@ -54,37 +54,44 @@ class BaseService(BaseComponent):
         - system_context: системный контекст для доступа к ресурсам
         - component_config: конфигурация компонента
         """
-        # ЗАПРЕТ загрузки зависимостей в __init__
-        if not hasattr(self.__class__, '_dependency_check_disabled'):
-            frame = inspect.currentframe().f_back
-            if frame.f_code.co_name == '__init__':
-                raise ArchitectureViolationError(
-                    f"Сервис '{name}' пытается загружать зависимости в __init__! "
-                    "Загрузка зависимостей разрешена ТОЛЬКО в методе initialize()."
-                )
-        
         # Вызов конструктора родительского класса
         super().__init__(name, system_context, component_config)
+
+        self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
+
+        # Создаем логгер, наследуя его из BaseComponent или создавая новый
+        import logging
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
         
-        self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
-        self._initialized = False
-
         self.logger.info(f"Инициализирован сервис: {self.name}")
 
     async def initialize(self) -> bool:
         """
         Единая точка входа для инициализации с разрешением зависимостей.
         """
-        if self._initialized:
+        self.logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+        if getattr(self, '_initialized', False):
             self.logger.warning(f"Сервис '{self.name}' уже инициализирован")
             return True
-        
+
         # 1. Загрузка зависимостей
         if not await self._resolve_dependencies():
+            self.logger.error(f"Загрузка зависимостей не удалась для {self.name}")
             return False
-        
-        # 2. Специфичная инициализация потомка
+
+        # 2. Вызов родительской инициализации (BaseComponent)
+        try:
+            self.logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
+            base_result = await super().initialize()
+            self.logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
+            if not base_result:
+                self.logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                return False
+        except Exception as e:
+            self.logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
+            return False
+
+        # 3. Специфичная инициализация потомка
         try:
             if not await self._custom_initialize():
                 self.logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
@@ -92,16 +99,18 @@ class BaseService(BaseComponent):
         except Exception as e:
             self.logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
             return False
-        
-        # 3. Финальная проверка
+
+        # 4. Финальная проверка
         if not await self._verify_readiness():
             self.logger.error(f"Проверка готовности '{self.name}' не пройдена")
             return False
-        
+
+        # Устанавливаем флаг инициализации
         self._initialized = True
         self.logger.info(
             f"Сервис '{self.name}' инициализирован. "
-            f"Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}"
+            f"Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, "
+            f"_initialized flag set to: {self._initialized}"
         )
         return True
 
@@ -138,7 +147,7 @@ class BaseService(BaseComponent):
         Специфичная логика инициализации для каждого сервиса.
         """
         # Вызов родительской инициализации
-        return await super().initialize()
+        return True  # BaseComponent.initialize() теперь вызывается в основном initialize()
 
     async def _verify_readiness(self) -> bool:
         """

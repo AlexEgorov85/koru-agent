@@ -188,11 +188,17 @@ class Application:
             # 2. Создание фабрики агентов и создание агента с конфигурацией
             from core.infrastructure.services.agent_factory import AgentFactory
             agent_factory = AgentFactory(self.system_context)
-            
+
+            # Создание UserContext на основе user_id из аргументов
+            from core.security.user_context import UserContext, UserRole
+            # Определяем роль пользователя на основе user_id (в реальной системе это будет из базы данных или токена)
+            user_role = UserRole.ADMIN if self.args.user_id == "admin" else UserRole.USER if self.args.user_id != "anonymous" else UserRole.GUEST
+            user_context = UserContext(user_id=self.args.user_id, role=user_role)
+
             # Подготовка конфигурации агента на основе параметров
             from core.config.agent_config import AgentConfig
             agent_config_kwargs = {}
-            
+
             # Применяем параметры из командной строки к конфигурации агента
             if self.args.max_steps is not None:
                 agent_config_kwargs['max_steps'] = self.args.max_steps
@@ -200,17 +206,18 @@ class Application:
                 agent_config_kwargs['temperature'] = self.args.temperature
             if self.args.strategy is not None:
                 agent_config_kwargs['default_strategy'] = self.args.strategy
-            
+
             # Создаем конфигурацию агента (если параметры заданы - используем их, иначе авто-разрешение)
             if agent_config_kwargs:
                 agent_config = AgentConfig(**agent_config_kwargs)
             else:
                 agent_config = None  # Будет использовано авто-разрешение в фабрике
 
-            # Создание агента через фабрику с конфигурацией
+            # Создание агента через фабрику с конфигурацией и контекстом пользователя
             agent = await agent_factory.create_agent(
                 goal=self.args.goal,
-                agent_config=agent_config
+                agent_config=agent_config,
+                user_context=user_context  # Передаем контекст пользователя
             )
 
             # 3. Выполнение агента
@@ -349,6 +356,8 @@ def parse_arguments(args_list=None) -> argparse.Namespace:
                         help="Файл для сохранения результатов")
     parser.add_argument("--strategy", type=str, choices=["react", "plan_and_execute", "chain_of_thought"],
                         help="Стратегия рассуждений агента")
+    parser.add_argument("--user-id", type=str, default="anonymous",
+                        help="ID пользователя для авторизации (по умолчанию: anonymous)")
 
     # Возвращаем результаты парсинга аргументов
     if args_list is not None:

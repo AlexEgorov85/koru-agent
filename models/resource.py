@@ -40,19 +40,20 @@ class ResourceType(str, Enum):
 class ResourceHealth(str, Enum):
     """
     Состояния здоровья ресурсов.
-    
+
     СОСТОЯНИЯ:
     - HEALTHY: Ресурс работает нормально
     - DEGRADED: Ресурс работает с ограничениями
     - UNHEALTHY: Ресурс не функционирует
     - INITIALIZING: Ресурс находится в процессе инициализации
-    
+    - PENDING: Ресурс создан, но ожидает инициализации
+
     ИСПОЛЬЗОВАНИЕ:
     if resource.health == ResourceHealth.HEALTHY:
         proceed_with_operation()
     elif resource.health == ResourceHealth.DEGRADED:
         use_fallback_strategy()
-    
+
     ПРИМЕЧАНИЕ:
     - Состояние здоровья используется для принятия решений о маршрутизации запросов
     - Может влиять на стратегии повторных попыток и отказоустойчивости
@@ -61,3 +62,4 @@ class ResourceHealth(str, Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     INITIALIZING = "initializing"
+    PENDING = "pending"

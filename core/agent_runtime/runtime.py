@@ -33,7 +33,8 @@ class AgentRuntime:
         max_steps: int = 10,
         strategy_name: str = "react",  # Новое поле для выбора стратегии
         agent_config: Optional[AgentConfig] = None,  # ← Новая зависимость
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
+        user_context: Optional['UserContext'] = None  # Добавляем контекст пользователя
     ):
         self.system = system_context
         self.session = session_context
@@ -41,7 +42,8 @@ class AgentRuntime:
         self.max_steps = max_steps
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self._agent_config = agent_config  # ← Сохраняем конфигурацию
-        
+        self.user_context = user_context  # Сохраняем контекст пользователя
+
         self.state = AgentState()
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
@@ -154,7 +156,6 @@ class AgentRuntime:
         # Выбор начальной стратегии через стратегический менеджер
         initial_strategy_name = await self.strategy_manager.select_initial_strategy(goal)
         self.strategy = self.get_strategy(initial_strategy_name)
-        logger.info(f"Выбрана начальная стратегия: {initial_strategy_name}")
 
     async def _verify_readiness(self):
         """Проверка готовности агента к выполнению задачи."""
@@ -179,7 +180,6 @@ class AgentRuntime:
             if not service:
                 raise RuntimeError(f"Агент не готов к выполнению: отсутствует необходимый сервис '{service_name}'")
         
-        logger.info("Проверка готовности агента завершена успешно")
 
         for _ in range(self.max_steps):
             if self.state.finished:
@@ -215,7 +215,6 @@ class AgentRuntime:
                         from_strategy=self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
                     )
                     
-                    logger.info(f"Переключение стратегии на: {decision.next_strategy}")
                 except Exception as e:
                     logger.error(f"Ошибка переключения стратегии: {str(e)}. Используется fallback стратегия.")
                     self.strategy = self.get_strategy("fallback")
@@ -253,7 +252,8 @@ class AgentRuntime:
                     execution_result = await self.executor.execute_capability(
                         capability=decision.capability,
                         parameters=decision.payload,
-                        session_context=self.session
+                        session_context=self.session,
+                        user_context=self.user_context  # Передаем контекст пользователя
                     )
 
                     # 3. Запись результата выполнения
@@ -295,30 +295,27 @@ class AgentRuntime:
                         state_metrics=state_metrics
                     )
 
-                    if switch_decision:
-                        logger.info(f"Принято решение о переключении стратегии: {switch_decision.to_strategy}, причина: {switch_decision.reason}")
+                    # Получаем текущую стратегию для записи в историю
+                    current_strategy_name = self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
 
-                        # Получаем текущую стратегию для записи в историю
-                        current_strategy_name = self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
+                    # Выполняем переключение
+                    self.strategy = self.get_strategy(switch_decision.to_strategy)
 
-                        # Выполняем переключение
-                        self.strategy = self.get_strategy(switch_decision.to_strategy)
+                    # Записываем переключение в историю
+                    self.strategy_manager.record_strategy_switch(
+                        decision=switch_decision,
+                        from_strategy=current_strategy_name
+                    )
 
-                        # Записываем переключение в историю
-                        self.strategy_manager.record_strategy_switch(
-                            decision=switch_decision,
-                            from_strategy=current_strategy_name
-                        )
+                    # Обновляем метрики переключения стратегии
+                    self.state.increment_strategy_switches()
 
-                        # Обновляем метрики переключения стратегии
-                        self.state.increment_strategy_switches()
-
-                        # Регистрируем смену стратегии
-                        self.session.record_decision(
-                            decision_data="STRATEGY_SWITCH_BY_MANAGER",
-                            reasoning={"action": "auto_strategy_change", "to_strategy": switch_decision.to_strategy, "reason": switch_decision.reason},
-                            metadata=ContextItemMetadata(step_number=current_step)
-                        )
+                    # Регистрируем смену стратегии
+                    self.session.record_decision(
+                        decision_data="STRATEGY_SWITCH_BY_MANAGER",
+                        reasoning={"action": "auto_strategy_change", "to_strategy": switch_decision.to_strategy, "reason": switch_decision.reason},
+                        metadata=ContextItemMetadata(step_number=current_step)
+                    )
 
                     # Обновление состояния сессии
                     self.session.last_activity = datetime.now()
@@ -440,8 +437,8 @@ class AgentRuntime:
                 capability=capability,
                 parameters=parameters,
                 session_context=session,
-                system_context = self.system
-
+                system_context = self.system,
+                user_context=self.user_context  # Передаем контекст пользователя
             )
         
         except Exception as e:
@@ -450,38 +447,34 @@ class AgentRuntime:
     async def _generate_final_answer(self):
         """Генерация финального ответа при завершении сессии."""
         try:
-            logger.info("Генерация финального ответа...")
-            
             # Получение capability для генерации финального ответа
             capability = self.system.get_capability("final_answer.generate")
-            
+
             if not capability:
-                logger.warning("Capability 'final_answer.generate' не найдена, создаем фиктивную")
                 # Возвращаем резервный ответ
                 return {
                     "final_answer": self.session.get_summary().get("last_steps", [])[-1]["summary"] if self.session.get_summary().get("last_steps") else "Ответ сгенерирован",
                     "source": "backup_solution"
                 }
-            
+
             # Подготовка параметров для генерации финального ответа
             parameters = {
                 "include_steps": True,
                 "include_evidence": True,
                 "format_type": "detailed"
             }
-            
+
             # Выполнение capability для генерации финального ответа
             execution_result = await self.executor.execute_capability(
                 capability=capability,
                 parameters=parameters,
-                session_context=self.session
+                session_context=self.session,
+                user_context=self.user_context  # Передаем контекст пользователя
             )
-            
+
             if execution_result.status == ExecutionStatus.SUCCESS and execution_result.result:
-                logger.info("Финальный ответ успешно сгенерирован")
                 return execution_result.result
             else:
-                logger.warning(f"Capability для генерации финального ответа вернула статус: {execution_result.status}")
                 # Возвращаем резервный ответ на основе последнего шага
                 last_steps = self.session.get_summary().get("last_steps", [])
                 backup_answer = last_steps[-1]["summary"] if last_steps else "Ответ сгенерирован"

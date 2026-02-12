@@ -29,7 +29,10 @@ class BaseComponent(ABC):
         self.name = name
         self.system_context = system_context
         self.component_config = component_config
-        
+
+        # Инициализация флага инициализации
+        self._initialized = False
+
         # Изолированные кэши (инициализируются пустыми)
         self._cached_prompts: Dict[str, str] = {}
         self._cached_input_contracts: Dict[str, Dict] = {}
@@ -38,26 +41,39 @@ class BaseComponent(ABC):
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — предзагрузка ВСЕХ ресурсов.
-        
+
         RETURNS:
         - bool: True если инициализация прошла успешно
         """
-        # 1. Загрузка промптов
-        prompt_service = self.system_context.get_resource("prompt_service")
-        if prompt_service:
-            await prompt_service.preload_prompts(self.component_config)
-            for cap_name in self.component_config.prompt_versions:
-                self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
         
-        # 2. Загрузка контрактов
-        contract_service = self.system_context.get_resource("contract_service")
-        if contract_service:
-            await contract_service.preload_contracts(self.component_config)
-            for cap_name in self.component_config.input_contract_versions:
-                self._cached_input_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="input")
-            for cap_name in self.component_config.output_contract_versions:
-                self._cached_output_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="output")
-        
+        try:
+            # 1. Загрузка промптов
+            prompt_service = self.system_context.get_resource("prompt_service")
+            if prompt_service and hasattr(self.component_config, 'prompt_versions'):
+                await prompt_service.preload_prompts(self.component_config)
+                for cap_name in self.component_config.prompt_versions:
+                    self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
+
+            # 2. Загрузка контрактов
+            contract_service = self.system_context.get_resource("contract_service")
+            if contract_service and hasattr(self.component_config, 'input_contract_versions') and hasattr(self.component_config, 'output_contract_versions'):
+                await contract_service.preload_contracts(self.component_config)
+                for cap_name in self.component_config.input_contract_versions:
+                    self._cached_input_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="input")
+                for cap_name in self.component_config.output_contract_versions:
+                    self._cached_output_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="output")
+
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Ошибка в BaseComponent.initialize для {self.name}: {e}")
+            return False
+
+        # Устанавливаем флаг инициализации
+        self._initialized = True
+        logger.info(f"BaseComponent.initialize: {self.name} - _initialized flag set to: {self._initialized}")
         return True
     
     # Безопасные методы получения из кэша
