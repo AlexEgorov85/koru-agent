@@ -210,8 +210,12 @@ class SystemContext(BaseSystemContext):
         """2-фазная инициализация: граф + инициализация."""
         import time
         start_time = time.time()
-        
+
         self.logger.info("=== Начало инициализации системы (2-фазная модель) ===")
+
+        # Регистрация провайдеров из конфигурации до построения графа зависимостей
+        self.logger.info("Регистрация провайдеров из конфигурации...")
+        await self._register_providers_from_config()
 
         # === ФАЗА 1: Построение графа зависимостей (регистрация дескрипторов + топосорт за один проход) ===
         self.logger.info("ФАЗА 1: Построение графа зависимостей...")
@@ -273,6 +277,26 @@ class SystemContext(BaseSystemContext):
             if not await self._instantiate_and_initialize_service(service_name, self._service_descriptors):
                 self.logger.error(f"Не удалось инициализировать сервис '{service_name}'")
                 return False
+
+        # Создание и регистрация навыков на основе конфигурации
+        try:
+            await self.provider_factory.discover_and_create_all_skills()
+            self.logger.info("Навыки успешно обнаружены и зарегистрированы")
+        except Exception as e:
+            self.logger.error(f"Ошибка при создании навыков: {str(e)}")
+            # Не прерываем инициализацию, если навыки не удалось создать, т.к. это не критично
+
+        # Создание и регистрация инструментов на основе конфигурации
+        try:
+            await self.provider_factory.discover_and_create_all_tools()
+            
+            # Логирование зарегистрированных инструментов для отладки
+            registered_tools = self.registry.get_resources_by_type(ResourceType.TOOL)
+            tool_names = [resource.name for resource in registered_tools]
+            self.logger.info(f"Инструменты успешно обнаружены и зарегистрированы: {tool_names}")
+        except Exception as e:
+            self.logger.error(f"Ошибка при создании инструментов: {str(e)}")
+            # Не прерываем инициализацию, если инструменты не удалось создать, т.к. это не критично
 
         # Предзагрузка ресурсов (встроена в инициализацию, как указано в требованиях)
         if not await self._preload_system_resources():
@@ -1205,7 +1229,7 @@ class SystemContext(BaseSystemContext):
             **kwargs
         )
         
-        # Публикация события успешного создания агента
+        # Публикация с��бытия успешного создания агента
         await self.event_bus.publish(
             EventType.AGENT_CREATED,
             data={

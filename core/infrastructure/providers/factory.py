@@ -236,54 +236,71 @@ class ProviderFactory:
         
         logger.info(f"Успешно создано и зарегистрировано инструментов: {len(tools)}")
     
+    def _normalize_tool_name(self, class_name: str) -> str:
+        """Преобразование CamelCase имени класса в snake_case для конфигурации.
+        
+        ARGS:
+        - class_name: имя класса в формате CamelCase
+        
+        RETURNS:
+        - str: имя инструмента в формате snake_case
+        """
+        import re
+        # Добавляем пробел перед заглавными буквами, за которыми следуют строчные буквы
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', class_name)
+        # Добавляем пробел перед заглавными буквами, которые идут после строчных букв
+        s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+        # Приводим к нижнему регистру
+        return s2.lower()
+
     async def _discover_tools_from_directory(self) -> Dict[str, Type[BaseTool]]:
         """Обнаружение всех классов инструментов в директории.
-        
+
         ВОЗВРАЩАЕТ:
         - Словарь {имя_инструмента: класс_инструмента} для всех найденных инструментов
         """
         tool_classes = {}
-        
+
         if not self.tools_dir.exists():
             logger.warning(f"Директория инструментов не найдена: {self.tools_dir}")
             return tool_classes
-        
+
         logger.info(f"Сканирование директории инструментов: {self.tools_dir}")
-        
+
         # Получаем путь к модулю в формате Python
         tools_package_path = str(self.tools_dir).replace("/", ".").replace("\\", ".")
-        
+
         try:
             # Импортируем пакет инструментов
             tools_package = importlib.import_module(tools_package_path)
-            
+
             # Сканируем все модули в пакете
             for _, module_name, _ in pkgutil.iter_modules(tools_package.__path__):
                 full_module_name = f"{tools_package_path}.{module_name}"
-                
+
                 try:
                     # Динамически импортируем модуль
                     module = importlib.import_module(full_module_name)
-                    
+
                     # Ищем все классы в модуле, наследуемые от BaseTool
                     for name, obj in inspect.getmembers(module, inspect.isclass):
                         # Проверяем, что класс определен в этом модуле (а не импортирован)
                         if obj.__module__ != full_module_name:
                             continue
-                        
+
                         # Проверяем наследование от BaseTool
                         if issubclass(obj, BaseTool) and obj != BaseTool:
                             # Генерируем имя инструмента из имени класса
-                            # tool_name = self._normalize_tool_name(name)
-                            tool_classes[name] = obj
-                            logger.debug(f"Найден класс инструмента '{name}'")
-                
+                            tool_name = self._normalize_tool_name(name)
+                            tool_classes[tool_name] = obj
+                            logger.debug(f"Найден класс инструмента '{name}' -> '{tool_name}'")
+
                 except Exception as e:
                     logger.error(f"Ошибка при загрузке модуля '{full_module_name}': {str(e)}")
-        
+
         except Exception as e:
             logger.error(f"Ошибка при импорте пакета инструментов '{tools_package_path}': {str(e)}")
-        
+
         logger.info(f"Найдено классов инструментов: {len(tool_classes)}")
         return tool_classes
     
