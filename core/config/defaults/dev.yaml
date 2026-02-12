@@ -74,32 +74,8 @@ agent:
 agent_config:
   config_id: "dev-agent-config"
   source: "explicit"
-  prompt_versions:
-    "planning.create_plan": "latest"
-    "planning.update_plan": "latest"
-    "planning.get_next_step": "latest"
-    "planning.update_step_status": "latest"
-    "planning.decompose_task": "latest"
-    "planning.mark_task_completed": "latest"
-    "final_answer.generate": "latest"
-    "book_library.get_books_by_author": "latest"
-    "book_library.get_full_text": "latest"
-    "book_library.dynamic_sql_query": "latest"
-    "sql_generation.generate_safe_query": "latest"
-    "sql_generation.correct_query": "latest"
-  contract_versions:
-    "planning.create_plan.input": "latest"
-    "planning.create_plan.output": "latest"
-    "planning.update_plan.input": "latest"
-    "planning.update_plan.output": "latest"
-    "final_answer.generate.input": "latest"
-    "final_answer.generate.output": "latest"
-    "book_library.get_books_by_author.input": "latest"
-    "book_library.get_books_by_author.output": "latest"
-    "book_library.get_full_text.input": "latest"
-    "book_library.get_full_text.output": "latest"
-    "sql_generation.generate_safe_query.input": "latest"
-    "sql_generation.generate_safe_query.output": "latest"
+  prompt_versions: {}
+  contract_versions: {}
   max_steps: 10
   temperature: 0.2
   created_at: "2026-02-12T00:00:00Z"
