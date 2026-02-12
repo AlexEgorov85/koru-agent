@@ -9,7 +9,7 @@ data_dir: data/dev
 # Конфигурация LLM провайдеров
 llm_providers:
   default_llm:
-    type_provider: llama_cpp
+    provider_type: llama_cpp
     model_name: qwen-4b
     enabled: true
     fallback_providers: []
@@ -26,7 +26,7 @@ llm_providers:
 # Конфигурация баз данных
 db_providers:
   default_db:
-    type_provider: postgres
+    provider_type: postgres
     enabled: true
     parameters:
       host: "localhost"

@@ -9,32 +9,32 @@ data_dir: data/dev
 # Конфигурация LLM провайдеров
 llm_providers:
   default_llm:
-    type_provider: llama_cpp
+    provider_type: llama_cpp
     model_name: qwen-4b
     enabled: true
     fallback_providers: []
     parameters:
-      model_path: "./models/qwen3-4b-instruct-f16.gguf"  # Относительный путь для избежания проблем с кодировкой
-      n_ctx: 2048  # Уменьшено с 20480 до 2048 для разработки
+      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
+      n_ctx: 2048
       n_gpu_layers: 0
       n_batch: 512
       temperature: 0.2
-      max_tokens: 512  # Уменьшено с 262100 до 512 для разработки
+      max_tokens: 512
       verbose: false
-      stop: ["\"", "</s>"]  # Исправлены символы остановки
+      stop: ["\"", "</s>"]
 
 # Конфигурация баз данных
 db_providers:
   default_db:
-    type_provider: postgres
+    provider_type: postgres
     enabled: true
     parameters:
       host: "localhost"
       port: 5432
-      database: "agent_dev"
+      database: "postgres"
       username: "postgres"
-      password: "password"  # В продакшене должно быть в секрете
-      sslmode: "prefer"
+      password: "1"
+      sslmode: "disable"
       timeout: 30.0
       pool_size: 5
 
