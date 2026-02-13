@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Union
 from pathlib import Path
+from datetime import datetime
 import yaml
 import re
 from jinja2 import Environment, BaseLoader
@@ -94,25 +95,64 @@ class PromptSerializer:
                 data = yaml.safe_load(f)
         else:
             data = yaml.safe_load(yaml_content)
-        
+
+        # Проверяем, является ли это новым форматом (с metadata) или старым (плоские поля)
+        if 'metadata' in data:
+            # Это новый формат
+            prompt_data = data
+        else:
+            # Это старый формат, нужно преобразовать
+            # Определяем имя capability и version из данных или из имени файла
+            capability = data.get('capability', 'unknown')
+            version = data.get('version', 'v1.0.0')
+            
+            # Используем 'template' если 'content' не найден (для некоторых старых форматов)
+            content = data.get('content', data.get('template', ''))
+            
+            # Извлекаем переменные из контента
+            extracted_vars = PromptSerializer.extract_variables_from_content(content)
+            
+            # Подготовим метаданные
+            metadata_dict = {
+                'version': version,
+                'skill': data.get('skill', 'unknown'),
+                'capability': capability,
+                'strategy': data.get('strategy'),
+                'role': data.get('role', 'system'),
+                'language': data.get('language', 'ru'),
+                'tags': data.get('tags', []),
+                'variables': data.get('variables', extracted_vars),
+                'quality_metrics': data.get('quality_metrics'),
+                'created_at': datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.utcnow(),
+                'updated_at': datetime.fromisoformat(data['updated_at']) if data.get('updated_at') else datetime.utcnow(),
+                'author': data.get('author', 'system'),
+                'changelog': data.get('changelog', [])
+            }
+            
+            # Создаем объект Prompt
+            prompt_data = {
+                'metadata': PromptMetadata(**metadata_dict),
+                'content': content
+            }
+
         # Определяем статус из пути файла, если это Path
         if isinstance(yaml_content, Path):
             path_str = str(yaml_content)
-            
+
             # Если файл в папке archived/ → status=ARCHIVED
             if '/archived/' in path_str or '\\archived\\' in path_str:
-                data['metadata']['status'] = PromptStatus.ARCHIVED
-            
+                prompt_data['metadata'].status = PromptStatus.ARCHIVED
+
             # Если имя содержит _draft → status=DRAFT
             elif '_draft' in path_str.lower():
-                data['metadata']['status'] = PromptStatus.DRAFT
-        
+                prompt_data['metadata'].status = PromptStatus.DRAFT
+
         # Если статус не указан явно, устанавливаем ACTIVE по умолчанию
-        if 'status' not in data['metadata']:
-            data['metadata']['status'] = PromptStatus.ACTIVE
-        
+        if not hasattr(prompt_data['metadata'], 'status') or prompt_data['metadata'].status is None:
+            prompt_data['metadata'].status = PromptStatus.ACTIVE
+
         # Создаем объект Prompt
-        return Prompt(**data)
+        return Prompt(**prompt_data)
 
     @staticmethod
     def from_legacy_format(legacy_data: Dict[str, Any], capability: str, version: str, author: str) -> Prompt:

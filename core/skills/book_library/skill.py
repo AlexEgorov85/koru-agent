@@ -8,7 +8,7 @@
 """
 import logging
 from typing import Dict, Any, List, Optional
-from core.infrastructure.services.sql_generation.schema import SQLGenerationInput
+from core.application.services.sql_generation.schema import SQLGenerationInput
 from core.session_context.base_session_context import BaseSessionContext
 from core.skills.base_skill import BaseSkill
 from models.capability import Capability

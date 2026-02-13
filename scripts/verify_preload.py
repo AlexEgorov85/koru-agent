@@ -20,8 +20,8 @@ sys.path.insert(0, str(project_root))
 
 from core.config.models import SystemConfig
 from core.system_context.system_context import SystemContext
-from core.infrastructure.services.contract_service import ContractService
-from core.infrastructure.services.prompt_service import PromptService
+from core.application.services.contract_service import ContractService
+from core.application.services.prompt_service import PromptService
 from core.skills.base_skill import BaseSkill
 
 

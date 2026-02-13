@@ -1,11 +1,9 @@
 """
-Упрощенный системный контекст (SystemContext).
+Системный контекст - адаптер для новой архитектуры с разделением на InfrastructureContext и ApplicationContext.
 ОСОБЕННОСТИ:
-- Минимальная сложность
-- Отсутствие циклических зависимостей
-- Явный порядок инициализации
-- Простота понимания и поддержки
-- Интеграция с шиной событий для замены логирования
+- Обратная совместимость с существующим кодом
+- Использование новой архитектуры с изолированными контекстами
+- Постепенная миграция к новой архитектуре
 """
 import uuid
 import logging
@@ -18,9 +16,9 @@ logger = logging.getLogger(__name__)
 from core.agent_runtime.runtime import AgentRuntime
 from core.config.models import SystemConfig
 from core.config.component_config import ComponentConfig
-from core.session_context.base_session_context import BaseSessionContext
+from core.session.base_session_context import BaseSessionContext
 from core.session_context.session_context import SessionContext
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.application_context import ApplicationContext
 from core.system_context.execution_gateway import ExecutionGateway
 from core.system_context.resource_registry import ResourceRegistry, ResourceInfo
 from core.system_context.capability_registry import CapabilityRegistry
@@ -36,18 +34,23 @@ from pydantic.main import BaseModel as PydanticBaseModel
 import json
 
 # Импорты для инфраструктурных сервисов
-from core.infrastructure.services.base_service import BaseService
-from core.infrastructure.services.prompt_service import PromptService
-from core.infrastructure.services.sql_generation.service import SQLGenerationService
-from core.infrastructure.services.sql_query.service import SQLQueryService
-from core.infrastructure.services.sql_validator.service import SQLValidatorService
+from core.application.services.base_service import BaseService
+from core.application.services.prompt_service import PromptService
+from core.application.services.sql_generation.service import SQLGenerationService
+from core.application.services.sql_query.service import SQLQueryService
+from core.application.services.sql_validator.service import SQLValidatorService
 from core.system_context.dependency_resolver import DependencyResolver, ServiceDescriptor
 from core.errors.architecture_violation import CircularDependencyError
 from typing import Type, Dict
 
 # Импорты для шины событий
-from core.events.event_bus import EventBus, EventType, get_event_bus, Event
-from core.events.event_handlers import MetricsEventHandler, AuditEventHandler
+from core.infrastructure.event_bus.event_bus import EventBus, EventType, get_event_bus, Event
+from core.infrastructure.event_bus.event_handlers import MetricsEventHandler, AuditEventHandler
+
+# Импорты для новой архитектуры
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.application.context.application_context import ApplicationContext
+from core.infrastructure.context.agent_factory import AgentFactory, ProfileType
 
 logger = logging.getLogger(__name__)
 
@@ -76,34 +79,54 @@ class SystemContext(BaseSystemContext):
 
     def __init__(self, config: Optional[SystemConfig] = None):
         """
-        Инициализация системного контекста.
+        Инициализация системного контекста как адаптера к новой архитектуре.
 
         ПАРАМЕТРЫ:
         - config: Конфигурация приложения (опционально)
 
         СОЗДАВАЕМЫЕ КОМПОНЕНТЫ:
-        - registry: Реестр ресурсов
-        - capabilities: Реестр capability
-        - lifecycle: Менеджер жизненного цикла
+        - infrastructure_context: Инфраструктурный контекст (общие ресурсы)
+        - application_context: Прикладной контекст (изолированные кэши)
+        - agent_factory: Фабрика агентов с изоляцией
         - config: Конфигурация
-        - provider_factory: Фабрика провайдеров
         - event_bus: Шина событий
 
         ОСОБЕННОСТИ:
-        - Создает все необходимые внутренние компоненты
-        - Не выполняет их инициализацию (только создание)
-        - Готов к регистрации ресурсов сразу после создания
+        - Создает инфраструктурный контекст (один на всё приложение)
+        - Создает прикладной контекст по умолчанию (для обратной совместимости)
+        - Обеспечивает совместимость с существующим API
         """
         self.id = str(uuid.uuid4())
         self.config = config or SystemConfig()
-        # === ЕДИНСТВЕННЫЙ реестр для ВСЕХ компонентов ===
+        
+        # Создаем инфраструктурный контекст (один на всё приложение)
+        self.infrastructure_context = InfrastructureContext(self.config)
+        
+        # Создаем прикладной контекст по умолчанию (для обратной совместимости)
+        from core.config.models import AgentConfig
+        default_agent_config = AgentConfig(
+            prompt_versions={},
+            input_contract_versions={},
+            output_contract_versions={},
+            side_effects_enabled=True,
+            detailed_metrics=False
+        )
+        self.application_context = ApplicationContext(
+            infrastructure=self.infrastructure_context,
+            config=default_agent_config
+        )
+        
+        # Фабрика агентов для создания изолированных агентов
+        self.agent_factory = AgentFactory(self.infrastructure_context)
+        
+        # Для обратной совместимости - сохраняем старые атрибуты
         self.registry = ResourceRegistry()  # ← Теперь управляет и ресурсами, и capability
         self.lifecycle = LifecycleManager(self.registry)  # ← Передаём ЕДИНЫЙ реестр
         self.initialized = False
         self.execution_gateway = ExecutionGateway(system_context=self)
 
-        # Инициализация фабрики провайдеров
-        self.provider_factory = ProviderFactory(self)
+        # Инициализация фабрики провайдеров (для обратной совместимости)
+        self.provider_factory = ProviderFactory(self.infrastructure_context)
 
         # Инициализация реестра инфраструктурных сервисов
         self.service_registry = {}
@@ -116,16 +139,6 @@ class SystemContext(BaseSystemContext):
         self._setup_logging()
         # Создаем атрибут logger для совместимости с компонентами
         self.logger = logging.getLogger(__name__)
-
-        # Публикация события создания системного контекста (временно без await)
-        # Так как __init__ не может быть async, мы не можем использовать await здесь
-        # Это событие будет отправлено в асинхронном методе initialize
-        # await self.event_bus.publish(
-        #     EventType.SYSTEM_INITIALIZED,
-        #     data={"system_id": self.id, "config_profile": self.config.profile},
-        #     source="SystemContext.__init__",
-        #     correlation_id=self.id
-        # )
 
     @property
     def capabilities(self):
@@ -157,7 +170,7 @@ class SystemContext(BaseSystemContext):
             self.event_bus.subscribe(event_type, self.metrics_handler.handle_event)
 
         # Подписка AuditEventHandler только на аудит-события
-        from core.events.event_handlers import AUDIT_EVENTS
+        from core.infrastructure.event_bus.event_handlers import AUDIT_EVENTS
         for event_type in AUDIT_EVENTS:
             self.event_bus.subscribe(event_type, self.audit_handler.handle_event)
 
@@ -207,12 +220,19 @@ class SystemContext(BaseSystemContext):
 
 
     async def initialize(self) -> bool:
-        """2-фазная инициализация: граф + инициализация."""
+        """Инициализация системного контекста с использованием новой архитектуры."""
         import time
         start_time = time.time()
 
-        self.logger.info("=== Начало инициализации системы (2-фазная модель) ===")
+        self.logger.info("=== Начало инициализации системы (новая архитектура) ===")
 
+        # Инициализация инфраструктурного контекста (один на всё приложение)
+        await self.infrastructure_context.initialize()
+        
+        # Инициализация прикладного контекста по умолчанию (для обратной совместимости)
+        await self.application_context.initialize()
+
+        # Для обратной совместимости - также выполняем старую инициализацию
         # Регистрация провайдеров из конфигурации до построения графа зависимостей
         self.logger.info("Регистрация провайдеров из конфигурации...")
         await self._register_providers_from_config()
@@ -231,9 +251,9 @@ class SystemContext(BaseSystemContext):
         end_time = time.time()
         duration = end_time - start_time
         self.logger.info(f"=== Система успешно инициализирована за {duration:.2f} секунд ===")
-        
+
         # Отправляем метрику времени инициализации
-        from core.events.event_bus import EventType
+        from core.infrastructure.event_bus.event_bus import EventType
         await self.event_bus.publish(
             EventType.METRIC_COLLECTED,
             data={
@@ -245,7 +265,7 @@ class SystemContext(BaseSystemContext):
             source="SystemContext.initialize",
             correlation_id=self.id
         )
-        
+
         return True
 
     async def _build_init_graph(self) -> list:
@@ -319,13 +339,13 @@ class SystemContext(BaseSystemContext):
 
         # Импортируем и добавляем другие критические сервисы
         try:
-            from core.infrastructure.services.contract_service import ContractService
+            from core.application.services.contract_service import ContractService
             critical_services["contract_service"] = ContractService
         except ImportError:
             self.logger.warning("ContractService не найден")
 
         try:
-            from core.infrastructure.services.table_description_service import TableDescriptionService
+            from core.application.services.table_description_service import TableDescriptionService
             critical_services["table_description_service"] = TableDescriptionService
         except ImportError:
             self.logger.warning("TableDescriptionService не найден")
@@ -470,6 +490,99 @@ class SystemContext(BaseSystemContext):
                 self.logger.error(f"Критический сервис '{name}' недоступен")
                 return False
         
+    async def _validate_version_consistency(self) -> List[str]:
+        """
+        Проверяет:
+        - Все указанные в ComponentConfig версии существуют
+        - Промпт и контракт для одной capability семантически совместимы
+        - Нет "висячих" зависимостей (например, инструмент зависит от незарегистрированного БД-провайдера)
+        """
+        errors = []
+        
+        # Проверяем все компоненты с ComponentConfig
+        for name, info in self.registry._resources.items():
+            if hasattr(info.instance, 'component_config') and info.instance.component_config:
+                config = info.instance.component_config
+                
+                # Проверяем существование версий промптов
+                for capability, version in config.prompt_versions.items():
+                    prompt_service = await self.get_service("prompt_service")
+                    if prompt_service and hasattr(prompt_service, 'check_version_exists'):
+                        try:
+                            # Проверяем, что промпт с такой версией существует
+                            prompt_exists = await prompt_service.check_version_exists(capability, version)
+                            if not prompt_exists:
+                                errors.append(f"Промпт для capability '{capability}' версии '{version}' не существует (компонент: {name})")
+                        except Exception as e:
+                            errors.append(f"Ошибка проверки существования промпта '{capability}' версии '{version}': {str(e)} (компонент: {name})")
+                
+                # Проверяем существование версий входных контрактов
+                for capability, version in config.input_contract_versions.items():
+                    contract_service = await self.get_service("contract_service")
+                    if contract_service and hasattr(contract_service, 'check_version_exists'):
+                        try:
+                            # Проверяем, что контракт с такой версией существует
+                            contract_exists = await contract_service.check_version_exists(capability, version, "input")
+                            if not contract_exists:
+                                errors.append(f"Входной контракт для capability '{capability}' версии '{version}' не существует (компонент: {name})")
+                        except Exception as e:
+                            errors.append(f"Ошибка проверки существования входного контракта '{capability}' версии '{version}': {str(e)} (компонент: {name})")
+                
+                # Проверяем существование версий выходных контрактов
+                for capability, version in config.output_contract_versions.items():
+                    contract_service = await self.get_service("contract_service")
+                    if contract_service and hasattr(contract_service, 'check_version_exists'):
+                        try:
+                            # Проверяем, что контракт с такой версии существует
+                            contract_exists = await contract_service.check_version_exists(capability, version, "output")
+                            if not contract_exists:
+                                errors.append(f"Выходной контракт для capability '{capability}' версии '{version}' не существует (компонент: {name})")
+                        except Exception as e:
+                            errors.append(f"Ошибка проверки существования выходного контракта '{capability}' версии '{version}': {str(e)} (компонент: {name})")
+        
+        return errors
+
+    async def _verify_system_readiness(self) -> bool:
+        """Финальная проверка готовности системы."""
+        # 1. Проверка согласованности версий
+        version_errors = await self._validate_version_consistency()
+        if version_errors:
+            for error in version_errors:
+                self.logger.error(error)
+            return False
+
+        # 2. Проверка всех сервисов
+        all_services = self._get_resources_by_type(ResourceType.SERVICE)
+        uninitialized = [
+            name for name, info in all_services.items()
+            if not getattr(info.instance, '_initialized', False)
+        ]
+
+        if uninitialized:
+            self.logger.error(f"Неинициализированные сервисы: {uninitialized}")
+            return False
+
+        # 3. Проверка предзагрузки ресурсов
+        # Проверяем, была ли попытка предзагрузки
+        # Если agent_config не найден, предзагрузка может быть пропущена, и это нормально
+        agent_config_exists = hasattr(self.config, 'agent_config') and self.config.agent_config is not None
+
+        if agent_config_exists:
+            if not self.registry.are_prompts_preloaded():
+                self.logger.error("Промпты не предзагружены")
+                return False
+
+            if not self.registry.are_contracts_preloaded():
+                self.logger.error("Контракты не предзагружены")
+                return False
+
+        # 4. Проверка критических сервисов
+        critical = ["prompt_service", "contract_service", "table_description_service"]
+        for name in critical:
+            if not await self.get_service(name):
+                self.logger.error(f"Критический сервис '{name}' недоступен")
+                return False
+
         self.logger.info("✓ Система полностью готова к работе")
         return True
 
@@ -1052,7 +1165,7 @@ class SystemContext(BaseSystemContext):
         ПОВЕДЕНИЕ:
         - Если request.structured_output is None → возвращает RawLLMResponse
         - Если request.structured_output is not None → возвращает StructuredLLMResponse[T]
-          с гарантией валидности или выбрасывает StructuredOutputError
+          с гарантие���� валидности или выбрасывае���� StructuredOutputError
         
         АРХИТЕКТУРНЫЕ ГАРАНТИИ:
         1. Компоненты НЕ знают о ретраах — это скрыто внутри метода
@@ -1681,7 +1794,7 @@ class SystemContext(BaseSystemContext):
         РЕАЛИЗАЦИЯ: реестр моделей или динамический импорт из безопасного списка.
         """
         # Пример реализации через реестр
-        from core.infrastructure.services.sql_generation.schema import SQLGenerationOutput, SQLCorrectionOutput
+        from core.application.services.sql_generation.schema import SQLGenerationOutput, SQLCorrectionOutput
         
         registry = {
             "SQLGenerationOutput": SQLGenerationOutput,
@@ -1700,10 +1813,10 @@ class SystemContext(BaseSystemContext):
         try:
             # Попробуем импортировать из известных мест
             if model_name == "SQLGenerationOutput":
-                from core.infrastructure.services.sql_generation.schema import SQLGenerationOutput
+                from core.application.services.sql_generation.schema import SQLGenerationOutput
                 return SQLGenerationOutput
             elif model_name == "SQLCorrectionOutput":
-                from core.infrastructure.services.sql_generation.schema import SQLCorrectionOutput
+                from core.application.services.sql_generation.schema import SQLCorrectionOutput
                 return SQLCorrectionOutput
         except ImportError:
             pass
@@ -1834,3 +1947,51 @@ class SystemContext(BaseSystemContext):
         selected_strategy = await temp_runtime._select_initial_strategy(question)
 
         return selected_strategy
+
+    async def create_isolated_context(
+        self, 
+        variant_config: Dict[str, ComponentConfig],
+        profile: Literal["prod", "sandbox"] = "prod"
+    ) -> 'SystemContext':
+        """
+        Создаёт изолированный контекст с:
+        - Собственными экземплярами навыков/инструментов (через create_component_variant)
+        - Общими провайдерами (LLM, БД) — для эффективности
+        - Изолированными кэшами промптов/контрактов
+        """
+        from copy import deepcopy
+        from typing import Literal
+        
+        # Создаем новый экземпляр SystemContext с копией конфигурации
+        new_config = deepcopy(self.config)
+        
+        # Обновляем профиль, если указан
+        if profile == "sandbox":
+            new_config.profile = "sandbox"
+        
+        # Создаем новый контекст
+        isolated_context = SystemContext(config=new_config)
+        
+        # Копируем провайдеров (но не создаем новые соединения)
+        # Провайдеры будут общими для эффективности
+        for resource_info in self.registry.all():
+            if resource_info.resource_type in [ResourceType.LLM_PROVIDER, ResourceType.DATABASE]:
+                # Копируем ссылки на провайдеров, но не дублируем соединения
+                isolated_context.registry.register_resource(resource_info)
+        
+        # Инициализируем провайдеров в новом контексте
+        # Регистрируем провайдеров из конфигурации
+        await isolated_context._register_providers_from_config()
+        
+        # Инициализируем основные сервисы в изолированном контексте
+        await isolated_context.initialize()
+        
+        # Создаем изолированные компоненты (навыки, инструменты, сервисы) с вариантами
+        for component_name, component_config in variant_config.items():
+            # Создаем вариант компонента с изолированной конфигурацией
+            await isolated_context.create_component_variant(
+                base_component_name=component_name,
+                variant_config=component_config
+            )
+        
+        return isolated_context

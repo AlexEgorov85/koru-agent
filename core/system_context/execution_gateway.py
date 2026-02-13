@@ -16,10 +16,10 @@ from typing import Any, Dict, Optional
 
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from core.session_context.base_session_context import BaseSessionContext
+from core.session.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata, ContextItemType
-from core.skills.base_skill import BaseSkill
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.skills.base_skill import BaseSkill
+from core.application.context.application_context import ApplicationContext
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 from core.security.user_context import UserContext
@@ -43,12 +43,12 @@ class ExecutionGateway:
     """
     def __init__(
         self,
-        system_context: Optional[BaseSystemContext] = None,
+        application_context: Optional[ApplicationContext] = None,
         retry_policy: Optional[RetryPolicy] = None,
         action_validator=None,  # Добавляем параметр для валидации действий
         authorizer=None  # Добавляем параметр для авторизации
     ):
-        self.system_context = system_context
+        self.application_context = application_context
         self.retry_policy = retry_policy
         self.action_validator = action_validator
         self.authorizer = authorizer or RoleBasedAuthorizer()  # Используем RoleBasedAuthorizer по умолчанию
@@ -89,20 +89,20 @@ class ExecutionGateway:
                     error="PERMISSION_DENIED"
                 )
 
-        # 2. Проверяем, что system_context доступен
-        if self.system_context is None:
-            error_msg = f"System context недоступен для выполнения capability {capability.name}"
+        # 2. Проверяем, что application_context доступен
+        if self.application_context is None:
+            error_msg = f"Application context недоступен для выполнения capability {capability.name}"
             logger.error(error_msg)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 result=None,
                 observation_item_id=None,
                 summary=error_msg,
-                error="SYSTEM_CONTEXT_NOT_AVAILABLE"
+                error="APPLICATION_CONTEXT_NOT_AVAILABLE"
             )
 
         # Получаем навык для выполнения capability
-        skill = self.system_context.get_resource(capability.skill_name)
+        skill = self.application_context.get_resource(capability.skill_name)
 
         # Проверяем, что навык найден
         if skill is None:
@@ -118,7 +118,7 @@ class ExecutionGateway:
 
         # 3. Валидируем параметры действия через ContractService (новое)
         validated_payload = action_payload
-        contract_service = getattr(self.system_context, 'get_service', lambda name: None) and await self.system_context.get_service("contract_service")
+        contract_service = getattr(self.application_context, 'get_service', lambda name: None) and self.application_context.get_service("contract_service")
         if contract_service:
             try:
                 validation_result = await contract_service.validate(

@@ -186,7 +186,7 @@ class Application:
             logger.info(f"Запуск агента с целью: {self.args.goal}")
 
             # 2. Создание фабрики агентов и создание агента с конфигурацией
-            from core.infrastructure.services.agent_factory import AgentFactory
+            from core.infrastructure.context.agent_factory import AgentFactory
             agent_factory = AgentFactory(self.system_context)
 
             # Создание UserContext на основе user_id из аргументов

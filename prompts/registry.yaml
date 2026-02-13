@@ -1,5 +1,101 @@
-active_prompts: []
-archived_prompts: []
-author: system
-last_updated: '2026-02-11T05:40:19.191451'
+# Registry of all available prompts in the system
+# Generated automatically from individual prompt files
+
 registry_version: '1.0'
+author: system
+last_updated: '2026-02-12T00:00:00Z'
+
+active_prompts:
+  # Planning prompts
+  - capability: "planning.create_plan"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/create_plan_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "initial", "structured_output"]
+    
+  - capability: "planning.decompose_task"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/decompose_task_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "task_decomposition"]
+    
+  - capability: "planning.get_next_step"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/get_next_step_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "execution"]
+    
+  - capability: "planning.update_step_status"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/update_step_status_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "execution", "monitoring"]
+    
+  - capability: "planning.mark_task_completed"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/mark_task_completed_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "execution", "completion"]
+    
+  - capability: "planning.update_plan"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/update_plan_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "adaptation"]
+    
+  - capability: "planning.analyze_step_failure"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "planning"
+    file_path: "skills/planning/analyze_step_failure_v1.0.0.yaml"
+    dependencies: []
+    tags: ["planning", "error_handling", "debugging"]
+
+  # Book Library prompts
+  - capability: "book_library.get_books_by_author"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "book_library"
+    file_path: "skills/book_library/get_books_by_author_v1.0.0.yaml"
+    dependencies: []
+    tags: ["book_library", "search", "query"]
+
+  # ReAct Strategy prompts
+  - capability: "strategies.react.reasoning"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "reasoning"
+    file_path: "strategies/react/reasoning_v1.0.0.yaml"
+    dependencies: []
+    tags: ["reasoning", "react", "thought_process"]
+
+  # SQL Generation prompts
+  - capability: "sql_generation.generate_safe_query"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "sql_generation"
+    file_path: "sql_generation/generate_safe_query.yaml"
+    dependencies: []
+    tags: ["sql", "generation", "security"]
+
+  - capability: "sql_generation.correct_query"
+    current_version: "v1.0.0"
+    status: "active"
+    skill: "sql_generation"
+    file_path: "sql_generation/correct_query.yaml"
+    dependencies: []
+    tags: ["sql", "correction", "debugging"]
+
+archived_prompts: []

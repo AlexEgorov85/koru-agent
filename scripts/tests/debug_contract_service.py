@@ -12,7 +12,7 @@ import asyncio
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.infrastructure.services.contract_service import ContractService
+from core.application.services.contract_service import ContractService
 from models.capability import Capability
 
 

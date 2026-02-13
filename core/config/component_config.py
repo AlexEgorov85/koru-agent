@@ -20,6 +20,10 @@ class ComponentConfig(BaseModel):
     # Идентификатор варианта (для логирования)
     variant_id: Optional[str] = None  # "beta", "v1.0.0", "canary-2024-02"
 
+    # Флаги поведения компонента
+    side_effects_enabled: bool = Field(default=True, description="Разрешены ли побочные эффекты (запись, изменение данных)")
+    detailed_metrics: bool = Field(default=False, description="Сборить ли подробную метрику")
+
     # Метаданные для аудита
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_by: Optional[str] = None

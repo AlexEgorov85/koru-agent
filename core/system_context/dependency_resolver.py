@@ -3,7 +3,7 @@
 """
 from typing import Dict, List, Set, Tuple
 from collections import defaultdict, deque
-from core.infrastructure.services.base_service import BaseService
+from core.application.services.base_service import BaseService
 from core.system_context.resource_registry import ResourceInfo
 
 

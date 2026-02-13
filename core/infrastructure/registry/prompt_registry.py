@@ -167,7 +167,7 @@ class PromptRegistry:
             return None
 
         entry = self.active_prompts[capability]
-        prompts_dir = self.registry_path.parent.parent  # поднимаемся на уровень выше, чтобы получить абсолютный путь
+        prompts_dir = self.registry_path.parent  # используем родительскую папку реестра (prompts/)
         prompt_path = prompts_dir / entry.file_path
 
         try:
@@ -219,7 +219,7 @@ class PromptRegistry:
         # Затем проверяем архивные промпты
         if (capability, version) in self.archived_prompts:
             entry = self.archived_prompts[(capability, version)]
-            prompts_dir = self.registry_path.parent.parent  # поднимаемся на уровень выше, чтобы получить абсолютный путь
+            prompts_dir = self.registry_path.parent  # используем родительскую папку реестра (prompts/)
             prompt_path = prompts_dir / entry.file_path
             
             try:
@@ -302,7 +302,7 @@ class PromptRegistry:
             del self.active_prompts[capability]
             
             # Обновляем промпт в файле, установив ему статус архивного
-            prompts_dir = self.registry_path.parent.parent
+            prompts_dir = self.registry_path.parent  # используем родительскую папку реестра (prompts/)
             prompt_path = prompts_dir / active_entry.file_path
             if prompt_path.exists():
                 prompt = PromptSerializer.from_yaml(prompt_path)

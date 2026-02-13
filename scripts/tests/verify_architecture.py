@@ -4,9 +4,9 @@
 from core.config.agent_config import AgentConfig
 from core.skills.base_skill import BaseSkill
 from core.agent_runtime.strategies.base import AgentStrategyInterface
-from core.infrastructure.services.agent_factory import AgentFactory
-from core.infrastructure.tools.base_tool import BaseTool
-from core.infrastructure.services.cached_base_service import CachedBaseService
+from core.infrastructure.context.agent_factory import AgentFactory
+from core.application.tools.base_tool import BaseTool
+from core.application.services.cached_base_service import CachedBaseService
 
 print('Все основные компоненты архитектуры кэширования успешно импортированы!')
 print('Архитектура реализована для:')

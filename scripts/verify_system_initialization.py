@@ -101,11 +101,11 @@ async def verify_no_cycles():
     """Проверка отсутствия циклических зависимостей."""
     try:
         from core.system_context.dependency_resolver import DependencyResolver, ServiceDescriptor
-        from core.infrastructure.services.table_description_service import TableDescriptionService
-        from core.infrastructure.services.sql_generation.service import SQLGenerationService
-        from core.infrastructure.services.sql_query.service import SQLQueryService
-        from core.infrastructure.services.sql_validator.service import SQLValidatorService
-        from core.infrastructure.services.prompt_service import PromptService
+        from core.application.services.table_description_service import TableDescriptionService
+        from core.application.services.sql_generation.service import SQLGenerationService
+        from core.application.services.sql_query.service import SQLQueryService
+        from core.application.services.sql_validator.service import SQLValidatorService
+        from core.application.services.prompt_service import PromptService
         
         # Создаем дескрипторы сервисов
         descriptors = {
@@ -158,7 +158,7 @@ async def verify_e2e_execution():
     try:
         from core.system_context.system_context import SystemContext
         from core.config.models import SystemConfig
-        from core.infrastructure.services.agent_factory import AgentFactory
+        from core.infrastructure.context.agent_factory import AgentFactory
         
         # 1. Полная инициализация системы
         system = SystemContext(config=SystemConfig())

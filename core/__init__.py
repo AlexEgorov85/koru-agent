@@ -2,7 +2,7 @@
 Основные компоненты системы агентов.
 """
 # Импорты для событий
-from .events import EventBus, EventType, Event, get_event_bus
+from .infrastructure.event_bus.event_bus import EventBus, EventType, Event, get_event_bus
 
 __all__ = [
     'EventBus',

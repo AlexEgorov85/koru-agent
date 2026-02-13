@@ -13,7 +13,7 @@ from pydantic import BaseModel
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.infrastructure.services.contract_service import ContractService
+from core.application.services.contract_service import ContractService
 from models.capability import Capability
 
 

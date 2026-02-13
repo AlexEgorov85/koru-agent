@@ -19,10 +19,10 @@ from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvide
 from core.infrastructure.providers.llm.mock_provider import MockLLMProvider
 from core.infrastructure.providers.database.base_db import BaseDBProvider, DBConnectionConfig
 from core.infrastructure.providers.database.postgres_provider import PostgreSQLProvider
-from core.infrastructure.tools.base_tool import BaseTool
+from core.application.tools.base_tool import BaseTool
 from core.system_context.base_system_contex import BaseSystemContext
 from core.system_context.resource_registry import ResourceInfo
-from models.resource import ResourceType
+from core.models.resource import ResourceType
 from core.config.component_config import ComponentConfig
 
 
@@ -498,7 +498,7 @@ class ProviderFactory:
 
                         # Проверяем наследование от BaseService
                         try:
-                            from core.infrastructure.services.base_service import BaseService
+                            from core.application.services.base_service import BaseService
                             if issubclass(obj, BaseService) and obj != BaseService:
                                 # Исключаем PromptService из автоматической регистрации, 
                                 # так как он регистрируется вручную как системный сервис
@@ -864,7 +864,7 @@ class ProviderFactory:
 
         # 5. Регистрация варианта
         from core.system_context.resource_registry import ResourceInfo
-        from models.resource import ResourceType
+        from core.models.resource import ResourceType
         variant_resource = ResourceInfo(
             name=variant_name,
             resource_type=base_resource.resource_type,

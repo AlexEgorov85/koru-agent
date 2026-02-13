@@ -4,8 +4,9 @@ Mock LLM Provider для тестирования без реального LLM.
 import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
-from core.infrastructure.providers.llm.base_llm import BaseLLMProvider, LLMRequest, LLMResponse
-from models.execution import ExecutionStatus
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+from core.models.llm_types import LLMRequest, LLMResponse
+from core.models.execution import ExecutionStatus
 
 
 logger = logging.getLogger(__name__)
@@ -22,45 +23,48 @@ class MockLLMConfig(BaseModel):
 class MockLLMProvider(BaseLLMProvider):
     """Mock LLM провайдер для тестирования."""
 
-    def __init__(self, config: MockLLMConfig, name: str = None):
+    def __init__(self, config: MockLLMConfig, model_name: str = None):
         # Вызываем родительский конструктор с базовыми параметрами
-        model_name = getattr(config, 'model_name', 'mock-model')
-        super().__init__(config=config, model_name=model_name)
+        model_name = model_name or getattr(config, 'model_name', 'mock-model')
+        super().__init__(model_name=model_name, config=config.model_dump())
         self.config = config
         self.initialized = False
         logger.info(f"Создан MockLLMProvider для модели: {model_name}")
-    
-    async def health_check(self) -> bool:
-        """Проверка работоспособности провайдера."""
-        return True  # Mock всегда здоров
 
     async def initialize(self) -> bool:
         """Инициализация провайдера."""
         try:
-            logger.info(f"Mock LLM провайдер инициализирован для модели: {self.config.model_name}")
+            logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
             self.initialized = True
+            self.is_initialized = True
             return True
         except Exception as e:
             logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
             return False
 
-    async def generate(self, request: LLMRequest) -> LLMResponse:
-        """Генерация ответа (заглушка)."""
+    async def health_check(self) -> Dict[str, Any]:
+        """Проверка работоспособности провайдера."""
+        return {
+            "status": "healthy",
+            "model": self.model_name,
+            "is_initialized": self.is_initialized
+        }
+
+    async def execute(self, request: LLMRequest) -> LLMResponse:
+        """Выполнить запрос к LLM (заглушка)."""
         if not self.initialized:
             await self.initialize()
 
-        logger.debug(f"Mock генерация для запроса: {request.user_prompt[:50]}...")
+        logger.debug(f"Mock выполнение запроса: {request.prompt[:50]}...")
 
         # Создаем mock-ответ в зависимости от типа запроса
-        user_prompt = request.user_prompt.lower()
+        user_prompt = request.prompt.lower()
 
         if "какие книги" in user_prompt or "автор" in user_prompt or "написал" in user_prompt:
             # Ответ на вопросы о книгах
             mock_response = {
                 "choices": [{
-                    "message": {
-                        "content": '{"action_type": "execute_capability", "capability_name": "book_library.get_books_by_author", "parameters": {"author_name": "Александр Пушкин"}, "reasoning": "Поиск книг конкретного автора"}'
-                    }
+                    "text": '{"action_type": "execute_capability", "capability_name": "book_library.get_books_by_author", "parameters": {"author_name": "Александр Пушкин"}, "reasoning": "Поиск книг конкретного автора"}'
                 }],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60}
             }
@@ -68,9 +72,7 @@ class MockLLMProvider(BaseLLMProvider):
             # Ответ для генерации финального ответа
             mock_response = {
                 "choices": [{
-                    "message": {
-                        "content": '{"final_answer": "Александр Пушкин написал такие книги: \'Евгений Онегин\', \'Капитанская дочка\', \'Руслан и Людмила\', \'Борис Годунов\'.", "confidence": 0.95, "sources": ["book_library.get_books_by_author"]}'
-                    }
+                    "text": '{"final_answer": "Александр Пушкин написал такие книги: \'Евгений Онегин\', \'Капитанская дочка\', \'Руслан и Людмила\', \'Борис Годунов\'.", "confidence": 0.95, "sources": ["book_library.get_books_by_author"]}'
                 }],
                 "usage": {"prompt_tokens": 15, "completion_tokens": 80, "total_tokens": 95}
             }
@@ -78,55 +80,35 @@ class MockLLMProvider(BaseLLMProvider):
             # Общий ответ
             mock_response = {
                 "choices": [{
-                    "message": {
-                        "content": '{"action_type": "continue", "next_step": "Продолжить выполнение задачи", "confidence": 0.8}'
-                    }
+                    "text": '{"action_type": "continue", "next_step": "Продолжить выполнение задачи", "confidence": 0.8}'
                 }],
                 "usage": {"prompt_tokens": 8, "completion_tokens": 30, "total_tokens": 38}
             }
 
         return LLMResponse(
-            content=mock_response["choices"][0]["message"]["content"],
-            model=self.config.model_name,
+            text=mock_response["choices"][0]["text"],
             tokens_used=mock_response["usage"]["total_tokens"],
             generation_time=0.01,
-            finish_reason="stop",
-            metadata={}
-        )
-
-    async def generate_structured(self, user_prompt: str, output_schema: Dict[str, Any], system_prompt: str = None, temperature: float = 0.7, max_tokens: int = 512, **kwargs) -> LLMResponse:
-        """Генерация структурированного ответа (заглушка)."""
-        if not self.initialized:
-            await self.initialize()
-
-        logger.debug(f"Mock структурированная генерация для запроса: {user_prompt[:50]}...")
-        
-        # Возвращаем mock-ответ в соответствии со схемой
-        mock_content = {
-            "action_type": "execute_capability",
-            "capability_name": "book_library.get_books_by_author",
-            "parameters": {"author_name": "Александр Пушкин"},
-            "reasoning": "Поиск книг конкретного автора"
-        }
-        
-        # Если схема отличается, адаптируем ответ
-        if output_schema and "final_answer" in str(output_schema):
-            mock_content = {
-                "final_answer": "Александр Пушкин написал такие книги: \'Евгений Онегин\', \'Капитанская дочка\', \'Руслан и Людмила\', \'Борис Годунов\'.",
-                "confidence": 0.95,
-                "sources": ["book_library.get_books_by_author"]
-            }
-        
-        return LLMResponse(
-            content=mock_content,  # Возвращаем структурированные данные
-            model=self.config.model_name,
-            tokens_used=60,
-            generation_time=0.01,
-            finish_reason="stop",
-            metadata={}
+            model_name=self.model_name,
+            finish_reason="stop"
         )
 
     async def shutdown(self):
         """Завершение работы провайдера."""
         logger.info("Mock LLM провайдер завершает работу")
         self.initialized = False
+        self.is_initialized = False
+
+    async def generate(self, request: LLMRequest) -> LLMResponse:
+        """Генерация текста (совместимость с базовым интерфейсом)."""
+        return await self.execute(request)
+
+    async def generate_structured(self, request: LLMRequest) -> Dict[str, Any]:
+        """Генерация структурированных данных."""
+        response = await self.execute(request)
+        # Возвращаем структурированные данные
+        return {"raw_response": response.text, "tokens_used": response.tokens_used}
+
+
+# Alias для совместимости с фабрикой
+MockProvider = MockLLMProvider

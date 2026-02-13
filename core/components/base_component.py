@@ -10,7 +10,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from core.config.component_config import ComponentConfig
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.application_context import ApplicationContext
 from models.capability import Capability
 
 
@@ -20,14 +20,14 @@ class BaseComponent(ABC):
     Гарантирует: предзагрузка → кэш → выполнение без обращений к хранилищу.
     """
     
-    def __init__(self, name: str, system_context: BaseSystemContext, component_config: ComponentConfig):
+    def __init__(self, name: str, application_context: ApplicationContext, component_config: ComponentConfig):
         if not component_config or not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
                 "Legacy-режим (agent_config) больше не поддерживается."
             )
         self.name = name
-        self.system_context = system_context
+        self.application_context = application_context
         self.component_config = component_config
 
         # Инициализация флага инициализации
@@ -51,14 +51,14 @@ class BaseComponent(ABC):
         
         try:
             # 1. Загрузка промптов
-            prompt_service = self.system_context.get_resource("prompt_service")
+            prompt_service = self.application_context.get_resource("prompt_service")
             if prompt_service and hasattr(self.component_config, 'prompt_versions'):
                 await prompt_service.preload_prompts(self.component_config)
                 for cap_name in self.component_config.prompt_versions:
                     self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
 
             # 2. Загрузка контрактов
-            contract_service = self.system_context.get_resource("contract_service")
+            contract_service = self.application_context.get_resource("contract_service")
             if contract_service and hasattr(self.component_config, 'input_contract_versions') and hasattr(self.component_config, 'output_contract_versions'):
                 await contract_service.preload_contracts(self.component_config)
                 for cap_name in self.component_config.input_contract_versions:
@@ -76,54 +76,74 @@ class BaseComponent(ABC):
         logger.info(f"BaseComponent.initialize: {self.name} - _initialized flag set to: {self._initialized}")
         return True
     
+    def _ensure_initialized(self):
+        """
+        Проверяет, что компонент инициализирован перед использованием.
+        
+        RAISES:
+        - RuntimeError: если компонент не инициализирован
+        """
+        if not getattr(self, '_initialized', False):
+            import inspect
+            frame = inspect.currentframe().f_back
+            caller_info = f"{frame.f_code.co_filename}:{frame.f_lineno} in {frame.f_code.co_name}()"
+            raise RuntimeError(
+                f"Компонент '{self.name}' не инициализирован. "
+                f"Вызовите .initialize() перед использованием. "
+                f"Вызван из: {caller_info}"
+            )
+
     # Безопасные методы получения из кэша
     def get_prompt(self, capability_name: str) -> str:
         """
         Получение промпта ТОЛЬКО из изолированного кэша.
-        
+
         ARGS:
         - capability_name: имя capability для получения промпта
-        
+
         RETURNS:
         - str: текст промпта из кэша
-        
+
         RAISES:
-        - RuntimeError: если промпт не загружен в кэш
+        - RuntimeError: если компонент не инициализирован или промпт не загружен в кэш
         """
+        self._ensure_initialized()
         if capability_name not in self._cached_prompts:
             raise RuntimeError(f"Промпт для '{capability_name}' не загружен в компонент '{self.name}'")
         return self._cached_prompts[capability_name]
-    
+
     def get_input_contract(self, capability_name: str) -> Dict:
         """
         Получение входящего контракта ТОЛЬКО из кэша.
-        
+
         ARGS:
         - capability_name: имя capability для получения входящего контракта
-        
+
         RETURNS:
         - Dict: схема входящего контракта из кэша
-        
+
         RAISES:
-        - RuntimeError: если входящий контракт не загружен в кэш
+        - RuntimeError: если компонент не инициализирован или входящий контракт не загружен в кэш
         """
+        self._ensure_initialized()
         if capability_name not in self._cached_input_contracts:
             raise RuntimeError(f"Входящий контракт для '{capability_name}' не загружен в компонент '{self.name}'")
         return self._cached_input_contracts[capability_name]
-    
+
     def get_output_contract(self, capability_name: str) -> Dict:
         """
         Получение исходящего контракта ТОЛЬКО из кэша.
-        
+
         ARGS:
         - capability_name: имя capability для получения исходящего контракта
-        
+
         RETURNS:
         - Dict: схема исходящего контракта из кэша
-        
+
         RAISES:
-        - RuntimeError: если исходящий контракт не загружен в кэш
+        - RuntimeError: если компонент не инициализирован или исходящий контракт не загружен в кэш
         """
+        self._ensure_initialized()
         if capability_name not in self._cached_output_contracts:
             raise RuntimeError(f"Исходящий контракт для '{capability_name}' не загружен в компонент '{self.name}'")
         return self._cached_output_contracts[capability_name]

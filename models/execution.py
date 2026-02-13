@@ -1,55 +1,38 @@
-
-from dataclasses import dataclass
+"""
+Модели для выполнения задач.
+"""
 from enum import Enum
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(Enum):
     """
-    Перечисление возможных статусов выполнения действия.
-    
-    СТАТУСЫ:
-    - SUCCESS: Действие выполнено успешно
-    - FAILED: Действие завершилось с ошибкой
-    
-    ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-    if result.status == ExecutionStatus.SUCCESS:
-        process_result(result.observation_item_id)
-    elif result.status == ExecutionStatus.FAILED:
-        handle_error(result.error)
-    
-    ЗАМЕЧАНИЕ:
-    В будущем можно расширить перечисление дополнительными статусами,
-    например, PARTIAL_SUCCESS или TIMEOUT.
+    Статусы выполнения задачи.
     """
-    SUCCESS = "success"
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
+
 
 @dataclass
 class ExecutionResult:
     """
-    Класс для хранения результата выполнения действия.
+    Результат выполнения задачи.
     
-    ПОЛЯ:
-    - status: Статус выполнения (ExecutionStatus)
-    - observation_item_id: ID элемента с результатом наблюдения вDataContext
-    - summary: Краткое описание результата
-    - error: Описание ошибки (если есть)
-    
-    ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-    result = ExecutionResult(
-        status=ExecutionStatus.SUCCESS,
-        observation_item_id="obs_123",
-        summary="Запрос к базе данных выполнен успешно"
-    )
-    
-    ОСОБЕННОСТИ:
-    - observation_item_id может быть None при ошибке
-    - summary всегда содержит человекочитаемое описание
-    - error заполняется только при статусе FAILED
+    ATTRIBUTES:
+    - status: статус выполнения
+    - result: результат выполнения
+    - error: ошибка (если была)
+    - metadata: дополнительные метаданные
     """
     status: ExecutionStatus
-    result: Optional[Any]
-    observation_item_id: Optional[str]
-    summary: str
+    result: Optional[Any] = None
     error: Optional[str] = None
+    metadata: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}

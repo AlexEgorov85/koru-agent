@@ -4,7 +4,7 @@ profile: dev
 debug: true
 log_level: DEBUG
 log_dir: logs/dev
-data_dir: data/dev
+data_dir: prompts
 
 # Конфигурация LLM провайдеров
 llm_providers:
