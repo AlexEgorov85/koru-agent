@@ -6,7 +6,7 @@ import asyncio
 from core.config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
-from core.config.agent_config import AgentConfig
+from core.config.app_config import AppConfig
 
 
 async def demo_correct_usage():
@@ -44,7 +44,7 @@ async def demo_correct_usage():
         debug=True,
         log_level="INFO",
         log_dir="./logs",
-        data_dir="./",
+        data_dir="./data",
         llm_providers=llm_providers,
         db_providers=db_providers
     )
@@ -55,19 +55,19 @@ async def demo_correct_usage():
     await infra.initialize()
     print("   Инфраструктурный контекст успешно инициализирован\n")
     
-    # 3. Создаем конфигурацию агента с правильной версией промпта
-    print("3. Создание конфигурации агента...")
+    # 3. Создаем конфигурацию приложения с правильной версией промпта
+    print("3. Создание конфигурации приложения...")
     # Учитываем, что в YAML файле capability: "planning.create_plan"
-    agent_config = AgentConfig(
+    app_config = AppConfig(
         prompt_versions={"planning.create_plan": "v1.0.0"}
     )
-    print(f"   Конфигурация агента создана с промптом: {list(agent_config.prompt_versions.keys())[0]}@{list(agent_config.prompt_versions.values())[0]}\n")
+    print(f"   Конфигурация приложения создана с промптом: {list(app_config.prompt_versions.keys())[0]}@{list(app_config.prompt_versions.values())[0]}\n")
     
     # 4. Создаем и инициализируем прикладной контекст
     print("4. Инициализация прикладного контекста...")
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=agent_config
+        config=app_config
     )
     
     try:

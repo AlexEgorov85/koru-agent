@@ -4,7 +4,7 @@ profile: dev
 debug: true
 log_level: DEBUG
 log_dir: logs/dev
-data_dir: prompts
+data_dir: data
 
 # Конфигурация LLM провайдеров
 llm_providers:
@@ -70,15 +70,6 @@ agent:
   enable_self_reflection: true
   enable_context_window_management: true
 
-# Агентная конфигурация (для предзагрузки промптов и контрактов)
-agent_config:
-  config_id: "dev-agent-config"
-  source: "explicit"
-  prompt_versions: {}
-  contract_versions: {}
-  max_steps: 10
-  temperature: 0.2
-  created_at: "2026-02-12T00:00:00Z"
 
 # Безопасность
 security:

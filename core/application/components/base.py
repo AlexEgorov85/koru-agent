@@ -4,12 +4,12 @@
 АРХИТЕКТУРНЫЕ ГАРАНТИИ:
 - Предзагрузка → кэш → выполнение без обращений к хранилищу
 - Четкое разделение ответственностей: декларация ≠ данные ≠ реализация
-- Обязательная инициализация через ComponentConfig
+- Обязательная инициализация через AppConfig
 - Изолированные кэши для каждого экземпляра
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
-from core.config.component_config import ComponentConfig
+from core.config.app_config import AppConfig
 from core.models.capability import Capability
 
 
@@ -19,15 +19,15 @@ class BaseComponent(ABC):
     Гарантирует: предзагрузка → кэш → выполнение без обращений к хранилищу.
     """
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: ComponentConfig):
-        if not component_config or not hasattr(component_config, 'variant_id'):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Any):
+        if not app_config:
             raise ValueError(
-                f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
-                "Legacy-режим (agent_config) больше не поддерживается."
+                f"Компонент '{name}' требует полную конфигурацию. "
+                "Конфигурация не может быть None."
             )
         self.name = name
         self.application_context = application_context
-        self.component_config = component_config
+        self.app_config = app_config  # Единая конфигурация приложения (может быть AppConfig или ComponentConfig)
 
         # Инициализация флага инициализации
         self._initialized = False
@@ -51,18 +51,63 @@ class BaseComponent(ABC):
         try:
             # 1. Загрузка промптов
             prompt_service = self.application_context.get_resource("prompt_service")
-            if prompt_service and hasattr(self.component_config, 'prompt_versions'):
-                await prompt_service.preload_prompts(self.component_config)
-                for cap_name in self.component_config.prompt_versions:
+            
+            # Получаем версии промптов с учетом разных форматов конфигурации
+            if hasattr(self.app_config, 'prompt_versions'):
+                # Это AppConfig формат
+                prompt_versions = self.app_config.prompt_versions
+            elif hasattr(self.app_config, 'prompt_versions'):
+                # Это ComponentConfig формат
+                prompt_versions = self.app_config.prompt_versions
+            else:
+                # Нет информации о версиях промптов
+                prompt_versions = {}
+            
+            if prompt_service and prompt_versions:
+                # Создаем временный объект, совместимый с preload_prompts
+                temp_config = self._create_temp_config_for_preload(prompt_versions)
+                await prompt_service.preload_prompts(temp_config)
+                for cap_name in prompt_versions:
                     self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
 
             # 2. Загрузка контрактов
             contract_service = self.application_context.get_resource("contract_service")
-            if contract_service and hasattr(self.component_config, 'input_contract_versions') and hasattr(self.component_config, 'output_contract_versions'):
-                await contract_service.preload_contracts(self.component_config)
-                for cap_name in self.component_config.input_contract_versions:
+            
+            # Получаем версии контрактов с учетом разных форматов конфигурации
+            if hasattr(self.app_config, 'input_contract_versions') and hasattr(self.app_config, 'output_contract_versions'):
+                # Это ComponentConfig формат
+                input_contract_versions = self.app_config.input_contract_versions
+                output_contract_versions = self.app_config.output_contract_versions
+            elif hasattr(self.app_config, 'contract_versions'):
+                # Это AppConfig формат, разделяем на входные и выходные
+                all_contracts = self.app_config.contract_versions
+                input_contract_versions = {}
+                output_contract_versions = {}
+                
+                for capability, version in all_contracts.items():
+                    if "input" in capability.lower():
+                        input_contract_versions[capability] = version
+                    elif "output" in capability.lower():
+                        output_contract_versions[capability] = version
+                    else:
+                        # Если не указан тип, добавляем и туда и туда
+                        input_contract_versions[capability] = version
+                        output_contract_versions[capability] = version
+            else:
+                # Нет информации о контрактах
+                input_contract_versions = {}
+                output_contract_versions = {}
+            
+            if contract_service and input_contract_versions and output_contract_versions:
+                # Создаем временный объект, совместимый с preload_contracts
+                temp_config = self._create_temp_config_for_contracts(
+                    input_contract_versions,
+                    output_contract_versions
+                )
+                await contract_service.preload_contracts(temp_config)
+                for cap_name in input_contract_versions:
                     self._cached_input_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="input")
-                for cap_name in self.component_config.output_contract_versions:
+                for cap_name in output_contract_versions:
                     self._cached_output_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="output")
 
         except Exception as e:
@@ -74,6 +119,40 @@ class BaseComponent(ABC):
         self._initialized = True
         logger.info(f"BaseComponent.initialize: {self.name} - _initialized flag set to: {self._initialized}")
         return True
+
+    def _create_temp_config_for_preload(self, prompt_versions: Dict[str, str]):
+        """
+        Создание временного объекта конфигурации для предзагрузки промптов.
+        Используется для обратной совместимости с существующими сервисами.
+        """
+        # Создаем объект, совместимый с preload_prompts
+        # Используем ComponentConfig для обратной совместимости
+        from core.config.component_config import ComponentConfig
+        return ComponentConfig(
+            variant_id=f"temp_{self.name}",
+            prompt_versions=prompt_versions,
+            input_contract_versions={},
+            output_contract_versions={},
+            side_effects_enabled=getattr(self.app_config, 'side_effects_enabled', True),
+            detailed_metrics=getattr(self.app_config, 'detailed_metrics', False)
+        )
+
+    def _create_temp_config_for_contracts(self, input_contract_versions: Dict[str, str], output_contract_versions: Dict[str, str]):
+        """
+        Создание временного объекта конфигурации для предзагрузки контрактов.
+        Используется для обратной совместимости с существующими сервисами.
+        """
+        # Создаем объект, совместимый с preload_contracts
+        # Используем ComponentConfig для обратной совместимости
+        from core.config.component_config import ComponentConfig
+        return ComponentConfig(
+            variant_id=f"temp_{self.name}",
+            prompt_versions={},
+            input_contract_versions=input_contract_versions,
+            output_contract_versions=output_contract_versions,
+            side_effects_enabled=getattr(self.app_config, 'side_effects_enabled', True),
+            detailed_metrics=getattr(self.app_config, 'detailed_metrics', False)
+        )
 
     def _ensure_initialized(self):
         """

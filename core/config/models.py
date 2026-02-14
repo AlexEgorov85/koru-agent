@@ -42,14 +42,22 @@ class BaseModelConfig(BaseModel):
 class LLMProviderConfig(BaseModel):
     """Конфигурация LLM провайдера"""
     model_config = ConfigDict(validate_assignment=True)
-    
-    type_provider: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai)")
+
+    provider_type: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai)")
     model_name: str = Field(default="qwen-4b", description="Название модели")
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
     enabled: bool = Field(default=True, description="Включен ли провайдер")
     fallback_providers: List[str] = Field(default_factory=list, description="Резервные провайдеры")
+    # Поддержка обратной совместимости
+    type_provider: Optional[str] = Field(default=None, description="Устаревшее поле, используйте provider_type")
 
-    @field_validator('type_provider')
+    def __init__(self, **data):
+        # Обратная совместимость: если type_provider задан, но provider_type нет, используем type_provider
+        if 'type_provider' in data and 'provider_type' not in data:
+            data['provider_type'] = data['type_provider']
+        super().__init__(**data)
+
+    @field_validator('provider_type')
     @classmethod
     def validate_provider_type(cls, v):
         valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini']
@@ -68,10 +76,18 @@ class LLMProviderConfig(BaseModel):
 class DBProviderConfig(BaseModel):
     """Конфигурация базы данных"""
     model_config = ConfigDict(validate_assignment=True)
-    
-    type_provider: str = Field(default="postgres", description="Тип провайдера")
+
+    provider_type: str = Field(default="postgres", description="Тип провайдера")
     enabled: bool = Field(default=True, description="Включена ли база данных")
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
+    # Поддержка обратной совместимости
+    type_provider: Optional[str] = Field(default=None, description="Устаревшее поле, используйте provider_type")
+
+    def __init__(self, **data):
+        # Обратная совместимость: если type_provider задан, но provider_type нет, используем type_provider
+        if 'type_provider' in data and 'provider_type' not in data:
+            data['provider_type'] = data['type_provider']
+        super().__init__(**data)
 
 
 class SkillConfig(BaseModel):

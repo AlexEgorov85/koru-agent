@@ -6,6 +6,7 @@
 - Замена системы логирования
 """
 import asyncio
+import inspect
 import logging
 from typing import Any, Callable, Dict, List, Type, Union
 from datetime import datetime
@@ -190,12 +191,12 @@ class EventBus:
         tasks = []
         for handler in handlers_to_call:
             try:
-                if asyncio.iscoroutinefunction(handler):
+                if inspect.iscoroutinefunction(handler):
                     task = asyncio.create_task(handler(event_obj))
                 else:
                     # Обертка синхронной функции в асинхронную
                     task = asyncio.create_task(self._wrap_sync_handler(handler, event_obj))
-                
+
                 tasks.append(task)
             except Exception as e:
                 self._internal_logger.error(f"Ошибка при создании задачи для обработчика: {e}")

@@ -112,12 +112,15 @@ class ConfigLoader:
     def _merge_configs(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """Рекурсивное объединение конфигураций"""
         result = base.copy()
-        
+
         for key, value in override.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = self._merge_configs(result[key], value)
             else:
                 result[key] = value
+
+        # Нормализуем конфигурацию провайдеров после объединения
+        result = self._normalize_provider_config(result)
         
         return result
     
@@ -146,6 +149,33 @@ class ConfigLoader:
                     current[key] = {}
                 current = current[key]
     
+    def _normalize_provider_config(self, config_dict: Dict) -> Dict:
+        """Нормализация конфигурации провайдеров (поддержка обратной совместимости)"""
+        if isinstance(config_dict, dict):
+            # Обработка llm_providers
+            if "llm_providers" in config_dict:
+                for provider_name, provider_config in config_dict["llm_providers"].items():
+                    if isinstance(provider_config, dict):
+                        if "type_provider" in provider_config and "provider_type" not in provider_config:
+                            provider_config["provider_type"] = provider_config.pop("type_provider")
+                            print(  # Using print instead of logger since it might not be defined here
+                                f"Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
+                                f"Обновите конфигурацию."
+                            )
+            
+            # Обработка db_providers
+            if "db_providers" in config_dict:
+                for provider_name, provider_config in config_dict["db_providers"].items():
+                    if isinstance(provider_config, dict):
+                        if "type_provider" in provider_config and "provider_type" not in provider_config:
+                            provider_config["provider_type"] = provider_config.pop("type_provider")
+                            print(  # Using print instead of logger since it might not be defined here
+                                f"Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
+                                f"Обновите конфигурацию."
+                            )
+        
+        return config_dict
+
     def _create_default_config(self) -> Dict[str, Any]:
         """Создание конфигурации по умолчанию"""
         return {
@@ -156,7 +186,7 @@ class ConfigLoader:
             "data_dir": f"data/{self.profile}",
             "llm_providers": {
                 "default_llm": {
-                    "type_provider": "llama_cpp",
+                    "provider_type": "llama_cpp",  # Исправлено на provider_type
                     "model_name": "qwen-4b",
                     "enabled": True,
                     "parameters": {
@@ -170,6 +200,7 @@ class ConfigLoader:
             },
             "db_providers": {
                 "default_db": {
+                    "provider_type": "postgres",  # Исправлено на provider_type
                     "host": "localhost",
                     "port": 5432,
                     "database": "agent_db",

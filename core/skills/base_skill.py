@@ -374,7 +374,7 @@ class BaseSkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Новый экземпляр навыка из перезагруженного модуля
         """
-        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        from core.utils.module_reloader import safe_reload_component_with_module_reload
         if hasattr(self.system_context, 'logger'):
             self.system_context.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         else:

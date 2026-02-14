@@ -16,8 +16,7 @@ from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemType
 from models.capability import Capability
 from models.execution import ExecutionResult
-from core.config.agent_config import AgentConfig
-from core.config.component_config import ComponentConfig
+from core.config.app_config import AppConfig
 from core.application.components.base import BaseComponent
 
 class BaseSkill(BaseComponent):
@@ -48,9 +47,9 @@ class BaseSkill(BaseComponent):
         """
         return strategy_name.lower() in [s.lower() for s in self.supported_strategies]
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional[ComponentConfig] = None, **kwargs):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, **kwargs):
         # Вызов конструктора родительского класса
-        super().__init__(name, application_context, component_config)
+        super().__init__(name, application_context, app_config)
         self.config = kwargs
     
     # --------------------------------------------------
@@ -289,7 +288,7 @@ class BaseSkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Новый экземпляр навыка из перезагруженного модуля
         """
-        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        from core.utils.module_reloader import safe_reload_component_with_module_reload
         if hasattr(self.application_context, 'logger'):
             self.application_context.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         else:

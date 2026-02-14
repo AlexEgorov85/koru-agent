@@ -16,7 +16,7 @@ from core.infrastructure.providers.llm.factory import LLMProviderFactory
 from core.infrastructure.providers.database.factory import DBProviderFactory
 from core.infrastructure.storage.prompt_storage import PromptStorage
 from core.infrastructure.storage.contract_storage import ContractStorage
-from core.infrastructure.storage.capability_registry import CapabilityRegistry
+from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IContractStorage
 from core.infrastructure.event_bus.event_bus import EventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
@@ -45,20 +45,12 @@ class InfrastructureContext:
         # Фабрики провайдеров
         self.llm_provider_factory: Optional[LLMProviderFactory] = None
         self.db_provider_factory: Optional[DBProviderFactory] = None
-        # Общая фабрика для инструментов, навыков и сервисов
-        self.provider_factory: Optional['ProviderFactory'] = None
 
         # Инфраструктурные хранилища (только загрузка, без кэширования)
-        self.prompt_storage: Optional[PromptStorage] = None
-        self.contract_storage: Optional[ContractStorage] = None
-        self.capability_registry: Optional[CapabilityRegistry] = None
+        self.prompt_storage: Optional[IPromptStorage] = None
+        self.contract_storage: Optional[IContractStorage] = None
 
-        # Общие ресурсы (провайдеры)
-        self._providers: Dict[str, Any] = {}
-        # Инструменты
-        self._tools: Dict[str, Any] = {}
-        # Сервисы
-        self._services: Dict[str, Any] = {}
+        # Удаляем _tools, так как инструменты должны быть в прикладном контексте
 
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
@@ -88,23 +80,22 @@ class InfrastructureContext:
         self.llm_provider_factory = LLMProviderFactory()
         self.db_provider_factory = DBProviderFactory()
 
-        # Инициализация общей фабрики
-        from core.infrastructure.providers.factory import ProviderFactory
-        self.provider_factory = ProviderFactory(self)
-
         # Инициализация инфраструктурных хранилищ (только для загрузки, без кэширования)
         from pathlib import Path
-        
-        # Для PromptStorage используем директорию из конфигурации или по умолчанию "prompts"
-        prompts_dir = Path(self.config.data_dir) / "prompts" if hasattr(self.config, 'data_dir') and self.config.data_dir else Path("prompts")
+
+        # Используем директории из конфигурации
+        prompts_dir = Path(self.config.data_dir) / "prompts"
+        self.logger.info(f"Используем путь для промтов: {prompts_dir}")
+
         self.prompt_storage = PromptStorage(prompts_dir)
+        self.logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.prompts_dir}")
 
-        # Для ContractStorage используем директорию из конфигурации или по умолчанию "contracts"
-        contracts_dir = Path(self.config.data_dir) / "contracts" if hasattr(self.config, 'data_dir') and self.config.data_dir else Path("contracts")
+        # Для ContractStorage используем директорию из конфигурации
+        contracts_dir = Path(self.config.data_dir) / "contracts"
+        self.logger.info(f"Используем путь для контрактов: {contracts_dir}")
+
         self.contract_storage = ContractStorage(contracts_dir)
-
-        self.capability_registry = CapabilityRegistry()
-        await self.capability_registry.initialize()
+        self.logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.contracts_dir}")
 
         # Регистрация инициализаторов в менеджере жизненного цикла
         self.lifecycle_manager.register_initializer(self._register_providers_from_config)
@@ -126,19 +117,20 @@ class InfrastructureContext:
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
-                    if provider_config.type_provider == "mock":
+                    provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
+                    if provider_type == "mock":
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
                         config_obj = MockLLMConfig(**provider_config.parameters)
-                    elif provider_config.type_provider == "llama_cpp":
+                    elif provider_type == "llama_cpp":
                         from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
                         config_obj = MockLlamaCppConfig(**provider_config.parameters)
                     else:
                         # For other providers, try to create a generic config
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
                         config_obj = MockLLMConfig(**provider_config.parameters)
-                        
+
                     provider = self.llm_provider_factory.create_provider(
-                        provider_type=provider_config.type_provider,
+                        provider_type=provider_type,
                         config=config_obj
                     )
                     
@@ -159,7 +151,6 @@ class InfrastructureContext:
                         if not first_llm_registered:
                             first_llm_registered = True
                         self.resource_registry.register_resource(info_llm)
-                        self._providers[provider_name] = provider
                         self.logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
                     self.logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
@@ -169,11 +160,12 @@ class InfrastructureContext:
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
+                    provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
                     from core.models.db_types import DBConnectionConfig
                     config_obj = DBConnectionConfig(**provider_config.parameters)
-                    
+
                     provider = self.db_provider_factory.create_provider(
-                        provider_type=provider_config.type_provider,
+                        provider_type=provider_type,
                         config=config_obj
                     )
                     
@@ -191,14 +183,23 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
-                        self._providers[provider_name] = provider
                         self.logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
                     self.logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""
-        for provider_name, provider in self._providers.items():
+        # Получаем все провайдеры из реестра ресурсов
+        llm_providers = self.resource_registry.get_resources_by_type(ResourceType.LLM_PROVIDER)
+        db_providers = self.resource_registry.get_resources_by_type(ResourceType.DATABASE)
+        
+        # Объединяем все провайдеры
+        all_providers = llm_providers + db_providers
+        
+        for resource_info in all_providers:
+            provider = resource_info.instance
+            provider_name = resource_info.name
+            
             try:
                 if hasattr(provider, 'shutdown') and callable(provider.shutdown):
                     await provider.shutdown()
@@ -211,30 +212,15 @@ class InfrastructureContext:
             await self.prompt_storage.shutdown()
         if self.contract_storage and hasattr(self.contract_storage, 'shutdown'):
             await self.contract_storage.shutdown()
-        if self.capability_registry and hasattr(self.capability_registry, 'shutdown'):
-            await self.capability_registry.shutdown()
 
     def get_provider(self, name: str):
         """Получение провайдера по имени."""
-        return self._providers.get(name)
+        resource_info = self.resource_registry.get_resource(name)
+        if resource_info:
+            return resource_info.instance
+        return None
 
-    def register_tool(self, name: str, tool: Any):
-        """Регистрация инструмента."""
-        self._tools[name] = tool
-        self.logger.info(f"Инструмент '{name}' зарегистрирован")
 
-    def get_tool(self, name: str):
-        """Получение инструмента по имени."""
-        return self._tools.get(name)
-
-    def register_service(self, name: str, service: Any):
-        """Регистрация сервиса."""
-        self._services[name] = service
-        self.logger.info(f"Сервис '{name}' зарегистрирован")
-
-    def get_service(self, name: str):
-        """Получение сервиса по имени."""
-        return self._services.get(name)
 
     def get_resource(self, name: str):
         """Получение ресурса по имени."""
@@ -247,23 +233,16 @@ class InfrastructureContext:
             return self.prompt_storage
         elif name == "contract_storage":
             return self.contract_storage
-        elif name == "capability_registry":
-            return self.capability_registry
-        elif name in self._providers:
-            return self._providers[name]
-        elif name in self._tools:
-            return self._tools[name]
-        elif name in self._services:
-            return self._services[name]
+        # Убрали возврат инструментов и capability_registry, так как они должны быть в прикладном контексте
         return None
 
     # Методы для доступа из прикладного слоя
-    def get_prompt_storage(self) -> 'PromptStorage':
+    def get_prompt_storage(self) -> IPromptStorage:
         if not hasattr(self, 'prompt_storage'):
             raise RuntimeError("PromptStorage не инициализирован")
         return self.prompt_storage
 
-    def get_contract_storage(self) -> 'ContractStorage':
+    def get_contract_storage(self) -> IContractStorage:
         if not hasattr(self, 'contract_storage'):
             raise RuntimeError("ContractStorage не инициализирован")
         return self.contract_storage

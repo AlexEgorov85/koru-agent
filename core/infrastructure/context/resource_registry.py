@@ -10,8 +10,6 @@ class ResourceType(Enum):
     """Типы инфраструктурных ресурсов."""
     LLM_PROVIDER = "llm_provider"
     DATABASE = "database"
-    TOOL = "tool"
-    SERVICE = "service"
 
 
 class ResourceHealth(Enum):

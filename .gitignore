@@ -245,3 +245,8 @@ __pycache__/
 
 # Ignore any temporary notebook checkpoints
 Untitled.ipynb
+
+# Архитектурные документы"
+ARCHITECTURE.md
+ARCHITECTURE_DECISIONS.md
+ARCHITECTURE_CHECKLIST.md

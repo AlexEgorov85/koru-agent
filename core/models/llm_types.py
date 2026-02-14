@@ -85,6 +85,7 @@ class LLMRequest:
     top_p: float = 0.95
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    stop_sequences: Optional[List[str]] = None  # Последовательности для остановки генерации
     stream: bool = False
     structured_output: Optional[StructuredOutputConfig] = Field(
         default=None,

@@ -23,8 +23,8 @@ class PromptMetadata(BaseModel):
     variables: List[str] = Field(default_factory=list)
     status: PromptStatus = PromptStatus.DRAFT
     quality_metrics: Optional[Dict[str, float]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+    updated_at: datetime = Field(default_factory=lambda: datetime.now())
     author: str
     changelog: List[str] = Field(default_factory=list)
 

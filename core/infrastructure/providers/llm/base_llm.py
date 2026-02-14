@@ -94,7 +94,7 @@ class BaseLLMProvider(ABC):
         ВОЗВРАЩАЕТ:
         - Новый экземпляр провайдера из перезагруженного модуля
         """
-        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        from core.utils.module_reloader import safe_reload_component_with_module_reload
         logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для LLM провайдера {self.__class__.__name__}")
         return safe_reload_component_with_module_reload(self)
 

@@ -5,7 +5,7 @@ import logging
 import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, ClassVar, List
-from core.config.component_config import ComponentConfig
+from core.config.app_config import AppConfig
 from core.application.components.base import BaseComponent
 from core.errors.architecture_violation import ArchitectureViolationError
 
@@ -44,17 +44,44 @@ class BaseService(BaseComponent):
         """
         pass
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional[ComponentConfig] = None):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None):
         """
         Инициализация базового сервиса.
 
         ARGS:
         - name: имя сервиса
         - application_context: прикладной контекст для доступа к ресурсам
-        - component_config: конфигурация компонента
+        - app_config: конфигурация приложения (AppConfig)
         """
-        # Вызов конструктора родительского класса
+        # Для обратной совместимости с существующими сервисами, 
+        # преобразуем AppConfig в ComponentConfig
+        from core.config.component_config import ComponentConfig
+        if app_config is not None:
+            # Создаем ComponentConfig из AppConfig
+            component_config = ComponentConfig(
+                variant_id=getattr(app_config, 'config_id', f"service_{name}"),
+                prompt_versions=getattr(app_config, 'prompt_versions', {}),
+                input_contract_versions=getattr(app_config, 'input_contract_versions', {}),
+                output_contract_versions=getattr(app_config, 'output_contract_versions', {}),
+                side_effects_enabled=getattr(app_config, 'side_effects_enabled', True),
+                detailed_metrics=getattr(app_config, 'detailed_metrics', False)
+            )
+        else:
+            # Если app_config None, создаем пустой ComponentConfig
+            component_config = ComponentConfig(
+                variant_id=f"service_{name}",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={},
+                side_effects_enabled=True,
+                detailed_metrics=False
+            )
+        
+        # Вызов конструктора родительского класса с ComponentConfig
         super().__init__(name, application_context, component_config)
+
+        # Устанавливаем атрибут component_config для обратной совместимости с существующими сервисами
+        self.component_config = component_config
 
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
@@ -202,7 +229,7 @@ class BaseService(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Новый экземпляр сервиса из перезагруженного модуля
         """
-        from core.infrastructure.utils.module_reloader import safe_reload_component_with_module_reload
+        from core.utils.module_reloader import safe_reload_component_with_module_reload
         self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         return safe_reload_component_with_module_reload(self)
 
