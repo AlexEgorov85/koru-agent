@@ -188,7 +188,7 @@ class AppConfig(BaseModel):
         object.__setattr__(self, 'output_contract_versions', updated_versions)
 
     @classmethod
-    def from_registry(cls, profile: str = "prod", registry_path: str = "data/registry.yaml"):
+    def from_registry(cls, profile: str = "prod", registry_path: str = "registry.yaml"):
         """
         Загрузка AppConfig из реестра версий.
 
@@ -237,40 +237,39 @@ class AppConfig(BaseModel):
         tool_configs = {}
         strategy_configs = {}
 
-        # Создаем общую конфигурацию для всех сервисов
-        if active_prompts or input_contract_versions or output_contract_versions:
-            common_component_config = ComponentConfig(
-                variant_id=f"{profile}_common",
-                prompt_versions=active_prompts,
-                input_contract_versions=input_contract_versions,
-                output_contract_versions=output_contract_versions,
-                side_effects_enabled=(profile == "prod"),
-                detailed_metrics=False
-            )
-
-            # Пример: добавляем стандартные сервисы
-            service_configs = {
-                "prompt_service": common_component_config,
-                "contract_service": common_component_config,
-                "table_description_service": common_component_config,
-                "sql_generation_service": common_component_config,
-                "sql_query_service": common_component_config,
-                "sql_validator_service": common_component_config
-            }
+        # Загружаем конфигурации сервисов из реестра
+        services_section = registry_data.get('services', {})
+        for service_name, service_info in services_section.items():
+            if isinstance(service_info, dict) and 'enabled' in service_info and service_info['enabled']:
+                # Создаем конфигурацию для сервиса
+                # ВАЖНО: сервис получает ТОЛЬКО свои версии промптов/контрактов, а не глобальные!
+                service_config = ComponentConfig(
+                    variant_id=f"{service_name}_{profile}",
+                    prompt_versions=service_info.get('prompt_versions', {}),
+                    input_contract_versions=service_info.get('input_contract_versions', {}),
+                    output_contract_versions=service_info.get('output_contract_versions', {}),
+                    side_effects_enabled=service_info.get('side_effects_enabled', profile == "prod"),
+                    detailed_metrics=service_info.get('detailed_metrics', False),
+                    parameters=service_info.get('parameters', {}),
+                    dependencies=service_info.get('dependencies', [])
+                )
+                service_configs[service_name] = service_config
 
         # Загружаем конфигурации навыков из реестра
         skills_section = registry_data.get('skills', {})
         for skill_name, skill_info in skills_section.items():
             if isinstance(skill_info, dict) and 'enabled' in skill_info and skill_info['enabled']:
                 # Создаем конфигурацию для навыка
+                # ВАЖНО: навык получает ТОЛЬКО свои версии промптов, а не глобальные!
                 skill_config = ComponentConfig(
                     variant_id=f"{skill_name}_{profile}",
-                    prompt_versions=skill_info.get('prompt_versions', active_prompts),
-                    input_contract_versions=skill_info.get('input_contract_versions', input_contract_versions),
-                    output_contract_versions=skill_info.get('output_contract_versions', output_contract_versions),
+                    prompt_versions=skill_info.get('prompt_versions', {}),
+                    input_contract_versions=skill_info.get('input_contract_versions', {}),
+                    output_contract_versions=skill_info.get('output_contract_versions', {}),
                     side_effects_enabled=skill_info.get('side_effects_enabled', profile == "prod"),
                     detailed_metrics=skill_info.get('detailed_metrics', False),
-                    parameters=skill_info.get('parameters', {})
+                    parameters=skill_info.get('parameters', {}),
+                    dependencies=skill_info.get('dependencies', [])
                 )
                 skill_configs[skill_name] = skill_config
 
@@ -281,9 +280,9 @@ class AppConfig(BaseModel):
                 # Создаем конфигурацию для инструмента
                 tool_config = ComponentConfig(
                     variant_id=f"{tool_name}_{profile}",
-                    prompt_versions=tool_info.get('prompt_versions', active_prompts),
-                    input_contract_versions=tool_info.get('input_contract_versions', input_contract_versions),
-                    output_contract_versions=tool_info.get('output_contract_versions', output_contract_versions),
+                    prompt_versions=tool_info.get('prompt_versions', {}),  # ← ПУСТОЙ словарь по умолчанию!
+                    input_contract_versions=tool_info.get('input_contract_versions', {}),
+                    output_contract_versions=tool_info.get('output_contract_versions', {}),
                     side_effects_enabled=tool_info.get('side_effects_enabled', profile == "prod"),
                     detailed_metrics=tool_info.get('detailed_metrics', False),
                     parameters=tool_info.get('parameters', {}),
@@ -298,9 +297,9 @@ class AppConfig(BaseModel):
                 # Создаем конфигурацию для стратегии
                 strategy_config = ComponentConfig(
                     variant_id=f"{strategy_name}_{profile}",
-                    prompt_versions=strategy_info.get('prompt_versions', active_prompts),
-                    input_contract_versions=strategy_info.get('input_contract_versions', input_contract_versions),
-                    output_contract_versions=strategy_info.get('output_contract_versions', output_contract_versions),
+                    prompt_versions=strategy_info.get('prompt_versions', {}),  # ← ПУСТОЙ словарь по умолчанию!
+                    input_contract_versions=strategy_info.get('input_contract_versions', {}),
+                    output_contract_versions=strategy_info.get('output_contract_versions', {}),
                     side_effects_enabled=strategy_info.get('side_effects_enabled', profile == "prod"),
                     detailed_metrics=strategy_info.get('detailed_metrics', False),
                     parameters=strategy_info.get('parameters', {})

@@ -14,7 +14,7 @@ from typing import Dict, Optional, Any, Literal
 from datetime import datetime
 from enum import Enum
 
-from core.application.components.tool import BaseTool
+from core.application.tools.base_tool import BaseTool
 from core.config.app_config import AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.skills.base_skill import BaseSkill
@@ -29,6 +29,7 @@ class ComponentType(Enum):
     SKILL = "skill"          # PlanningSkill, BookLibrarySkill
     TOOL = "tool"            # SQLTool, FileTool
     STRATEGY = "strategy"    # ReActStrategy, PlanAndExecuteStrategy
+    BEHAVIOR = "behavior"    # ReActPattern, PlanningPattern, etc.
 
 
 class ComponentRegistry:
@@ -111,192 +112,47 @@ class ApplicationContext(BaseSystemContext):
 
     def _resolve_component_class(self, component_type: ComponentType, name: str) -> type:
         """Разрешение класса компонента по имени и типу (через фабрику или реестр)"""
-        import importlib
-        
-        # Временная реализация - в реальном проекте должна быть фабрика компонентов
-        if component_type == ComponentType.SERVICE:
-            if name == "prompt_service":
-                from core.application.services.prompt_service_new import PromptService
-                return PromptService
-            elif name == "contract_service":
-                from core.application.services.contract_service_new import ContractService
-                return ContractService
-            elif name == "table_description_service":
-                from core.application.services.table_description_service import TableDescriptionService
-                return TableDescriptionService
-            elif name == "sql_generation_service":
-                from core.application.services.sql_generation.service import SQLGenerationService
-                return SQLGenerationService
-            elif name == "sql_query_service":
-                from core.application.services.sql_query.service import SQLQueryService
-                return SQLQueryService
-            elif name == "sql_validator_service":
-                from core.application.services.sql_validator.service import SQLValidatorService
-                return SQLValidatorService
-            else:
-                # Попробуем динамический импорт
-                module_name = f"core.application.services.{name.replace('_', '')}_service"
-                class_name = f"{name.title().replace('_', '')}Service"
-                try:
-                    module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
-                except ImportError:
-                    # Попробуем другой вариант имени модуля
-                    try:
-                        module_name = f"core.application.services.{name}"
-                        class_name = f"{name.title().replace('_', '')}Service"
-                        module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
-                    except ImportError:
-                        raise ValueError(f"Сервис {name} не найден")
-        elif component_type == ComponentType.SKILL:
-            # Поддержка ОБОИХ вариантов структуры:
-            # Вариант 1: skills/{name}_skill.py
-            # Вариант 2: skills/{name}/skill.py (фактическая структура проекта)
-            try:
-                # Сначала пробуем поддиректорию (реальная структура)
-                module_name = f"core.application.skills.{name}.skill"
-                class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
-                module = importlib.import_module(module_name)
-                return getattr(module, class_name)
-            except ImportError:
-                # Fallback на старый формат
-                try:
-                    module_name = f"core.application.skills.{name}_skill"
-                    module = importlib.import_module(module_name)
-                    class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
-                    return getattr(module, class_name)
-                except ImportError:
-                    raise ValueError(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
-        elif component_type == ComponentType.TOOL:
-            # Проверяем специфичные инструменты
-            if name == "sql_tool":
-                from core.application.tools.sql_tool import SQLTool
-                return SQLTool
-            elif name == "file_tool":
-                from core.application.tools.file_tool import FileTool
-                return FileTool
-            else:
-                # Попробуем стандартный путь
-                module_name = f"core.application.tools.{name}_tool"
-                class_name = f"{name.title().replace('_', '')}Tool"
-                try:
-                    module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
-                except ImportError:
-                    # Попробуем другой вариант имени модуля
-                    try:
-                        module_name = f"core.application.tools.{name}"
-                        class_name = f"{name.title().replace('_', '')}Tool"
-                        module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
-                    except ImportError:
-                        raise ValueError(f"Инструмент {name} не найден")
-        elif component_type == ComponentType.STRATEGY:
-            module_name = f"core.application.strategies.{name}_strategy"
-            class_name = f"{name.title().replace('_', '')}Strategy"
-            try:
-                module = __import__(module_name, fromlist=[class_name])
-                return getattr(module, class_name)
-            except ImportError:
-                raise ValueError(f"Стратегия {name} не найдена")
-        else:
-            raise ValueError(f"Неизвестный тип компонента: {component_type}")
+        # Используем новую фабрику компонентов
+        from core.application.components.component_factory import ComponentFactory
+        factory = ComponentFactory()
+        return factory._resolve_component_class(component_type.value, name)
 
     async def _create_component(self, component_type: ComponentType, name: str, config: Any) -> 'BaseComponent':
         """
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
-        # 1. Получение класса компонента по имени и типу
-        component_class = self._resolve_component_class(component_type, name)
-
-        # 2. Создание экземпляра с ЕДИНЫМ контрактом конструктора
-        # Правильно различаем AppConfig и ComponentConfig
-        try:
-            # Если config является ComponentConfig (локальная конфигурация компонента), 
-            # передаем его как component_config
-            from core.config.component_config import ComponentConfig
-            if isinstance(config, ComponentConfig):
-                component = component_class(
-                    name=name,
-                    application_context=self,
-                    component_config=config  # передаем ComponentConfig как component_config
-                )
-            else:
-                # Если config - это AppConfig или другой тип, передаем как app_config
-                component = component_class(
-                    name=name,
-                    application_context=self,
-                    app_config=config
-                )
-        except TypeError:
-            # Если компонент не принимает component_config или app_config, пробуем оба варианта
-            try:
-                # Пробуем передать config как component_config (если это ComponentConfig)
-                from core.config.component_config import ComponentConfig
-                if isinstance(config, ComponentConfig):
-                    component = component_class(
-                        name=name,
-                        application_context=self,
-                        component_config=config
-                    )
-                else:
-                    # Если config не ComponentConfig, создаем минимальный ComponentConfig
-                    minimal_config = ComponentConfig(
-                        variant_id=f"{name}_default",
-                        prompt_versions={},
-                        input_contract_versions={},
-                        output_contract_versions={},
-                        side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
-                        detailed_metrics=getattr(self.config, 'detailed_metrics', False)
-                    )
-                    component = component_class(
-                        name=name,
-                        application_context=self,
-                        component_config=minimal_config
-                    )
-            except TypeError:
-                # Если ничего не работает, создаем с минимальными параметрами
-                from core.config.component_config import ComponentConfig
-                # Создаем минимальный ComponentConfig для случая, когда конфигурация отсутствует
-                if config is None:
-                    config = ComponentConfig(
-                        variant_id=f"{name}_default",
-                        prompt_versions={},
-                        input_contract_versions={},
-                        output_contract_versions={},
-                        side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
-                        detailed_metrics=getattr(self.config, 'detailed_metrics', False)
-                    )
-                
-                # Создаем экземпляр и вызываем инициализацию вручную
-                component = component_class.__new__(component_class)
-                
-                # Устанавливаем основные атрибуты
-                component.name = name
-                component.application_context = self
-                
-                # Пытаемся вызвать инициализацию с подходящим параметром конфигурации
-                # Сначала пробуем component_config (для нового архитектурного подхода)
-                try:
-                    component.__init__(name=name, application_context=self, component_config=config)
-                except TypeError:
-                    # Затем пробуем app_config (для обратной совместимости)
-                    try:
-                        component.__init__(name=name, application_context=self, app_config=config)
-                    except TypeError:
-                        # Если оба варианта не работают, используем минимальную конфигурацию
-                        minimal_config = ComponentConfig(
-                            variant_id=f"{name}_default",
-                            prompt_versions={},
-                            input_contract_versions={},
-                            output_contract_versions={},
-                            side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
-                            detailed_metrics=getattr(self.config, 'detailed_metrics', False)
-                        )
-                        component.__init__(name=name, application_context=self, component_config=minimal_config)
-
+        # Используем новую фабрику компонентов для создания и инициализации
+        from core.application.components.component_factory import ComponentFactory
+        from core.config.component_config import ComponentConfig
+        
+        factory = ComponentFactory()
+        
+        # Преобразуем ComponentType в строку для фабрики
+        component_type_str = component_type.value
+        
+        # Убедимся, что config - это ComponentConfig
+        if not isinstance(config, ComponentConfig):
+            # Если config не ComponentConfig, создаем минимальный ComponentConfig
+            config = ComponentConfig(
+                variant_id=f"{name}_default",
+                prompt_versions=getattr(config, 'prompt_versions', {}),
+                input_contract_versions=getattr(config, 'input_contract_versions', {}),
+                output_contract_versions=getattr(config, 'output_contract_versions', {}),
+                side_effects_enabled=getattr(config, 'side_effects_enabled', True),
+                detailed_metrics=getattr(config, 'detailed_metrics', False),
+                parameters=getattr(config, 'parameters', {}),
+                dependencies=getattr(config, 'dependencies', [])
+            )
+        
+        # Создание и инициализация компонента через фабрику
+        component = await factory.create_by_name(
+            component_type=component_type_str,
+            name=name,
+            application_context=self,
+            component_config=config
+        )
+        
         return component
 
     async def initialize(self) -> bool:
@@ -478,6 +334,9 @@ class ApplicationContext(BaseSystemContext):
     
     def get_strategy(self, name: str) -> Optional['BaseComponent']:
         return self.components.get(ComponentType.STRATEGY, name)
+
+    def get_behavior_pattern(self, name: str) -> Optional['BaseComponent']:
+        return self.components.get(ComponentType.BEHAVIOR, name)
 
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
         """Валидация статусов версий в зависимости от профиля"""
@@ -920,20 +779,6 @@ class ApplicationContext(BaseSystemContext):
         )
         await context.initialize()
         return context
-
-    def get_resource(self, name: str):
-        """
-        Получение ресурса по имени.
-        Возвращает изолированные сервисы приложения или обращается к инфраструктурному контексту.
-        """
-        # Возвращаем изолированные сервисы приложения
-        if name == "prompt_service":
-            return self.get_service("prompt_service")
-        elif name == "contract_service":
-            return self.get_service("contract_service")
-        else:
-            # Для других ресурсов обращаемся в инфраструктурный контекст
-            return self.infrastructure_context.get_resource(name)
 
     def get_service(self, name: str):
         """

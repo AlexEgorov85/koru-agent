@@ -18,7 +18,11 @@ from models.capability import Capability
 from models.execution import ExecutionResult
 from core.config.app_config import AppConfig
 from core.config.component_config import ComponentConfig
-from core.application.components.base import BaseComponent
+from core.components.base_component import BaseComponent
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
 
 class BaseSkill(BaseComponent):
     """

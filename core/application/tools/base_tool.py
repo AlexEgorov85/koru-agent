@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from core.application.context.application_context import ApplicationContext
+if TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.components.base_component import BaseComponent
 
@@ -22,7 +23,7 @@ class BaseTool(BaseComponent):
         """Описание назначения инструмента."""
         pass
 
-    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, **kwargs):
+    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional[ComponentConfig] = None, **kwargs):
         # Вызов конструктора родительского класса
         super().__init__(name, application_context, component_config)
         self.config = kwargs

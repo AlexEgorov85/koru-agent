@@ -51,41 +51,43 @@ class BaseComponent(ABC):
         logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
 
         try:
-            # 1. Загрузка промптов
+            # 1. Загрузка промптов ТОЛЬКО если они есть в конфигурации
             prompt_service = self.application_context.get_resource("prompt_service")
-            
+
             # Получаем версии промптов с учетом разных форматов конфигурации
-            if hasattr(self.app_config, 'prompt_versions'):
-                # Это AppConfig формат
+            if hasattr(self.app_config, 'prompt_versions') and self.app_config.prompt_versions:
+                # Это AppConfig или ComponentConfig формат с промптами
                 prompt_versions = self.app_config.prompt_versions
-            elif hasattr(self.app_config, 'prompt_versions'):
-                # Это ComponentConfig формат
-                prompt_versions = self.app_config.prompt_versions
+                if prompt_service:
+                    # Создаем временный объект, совместимый с preload_prompts
+                    temp_config = self._create_temp_config_for_preload(prompt_versions)
+                    await prompt_service.preload_prompts(temp_config)
+                    for cap_name in prompt_versions:
+                        try:
+                            self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
+                        except KeyError as e:
+                            logger.warning(
+                                f"Промпт {cap_name} не найден для компонента {self.name}. "
+                                f"Пропускаем. Ошибка: {e}"
+                            )
+                            # Не падаем — компонент может работать без некоторых промптов
             else:
-                # Нет информации о версиях промптов
-                prompt_versions = {}
-            
-            if prompt_service and prompt_versions:
-                # Создаем временный объект, совместимый с preload_prompts
-                temp_config = self._create_temp_config_for_preload(prompt_versions)
-                await prompt_service.preload_prompts(temp_config)
-                for cap_name in prompt_versions:
-                    self._cached_prompts[cap_name] = prompt_service.get_prompt_from_cache(cap_name)
+                logger.debug(f"Компонент {self.name} не имеет промптов для предзагрузки")
 
             # 2. Загрузка контрактов
             contract_service = self.application_context.get_resource("contract_service")
-            
+
             # Получаем версии контрактов с учетом разных форматов конфигурации
+            input_contract_versions = {}
+            output_contract_versions = {}
+
             if hasattr(self.app_config, 'input_contract_versions') and hasattr(self.app_config, 'output_contract_versions'):
                 # Это ComponentConfig формат
-                input_contract_versions = self.app_config.input_contract_versions
-                output_contract_versions = self.app_config.output_contract_versions
+                input_contract_versions = self.app_config.input_contract_versions or {}
+                output_contract_versions = self.app_config.output_contract_versions or {}
             elif hasattr(self.app_config, 'contract_versions'):
                 # Это AppConfig формат, разделяем на входные и выходные
-                all_contracts = self.app_config.contract_versions
-                input_contract_versions = {}
-                output_contract_versions = {}
-                
+                all_contracts = self.app_config.contract_versions or {}
                 for capability, version in all_contracts.items():
                     if "input" in capability.lower():
                         input_contract_versions[capability] = version
@@ -99,8 +101,8 @@ class BaseComponent(ABC):
                 # Нет информации о контрактах
                 input_contract_versions = {}
                 output_contract_versions = {}
-            
-            if contract_service and input_contract_versions and output_contract_versions:
+
+            if contract_service and (input_contract_versions or output_contract_versions):
                 # Создаем временный объект, совместимый с preload_contracts
                 temp_config = self._create_temp_config_for_contracts(
                     input_contract_versions,
@@ -108,18 +110,32 @@ class BaseComponent(ABC):
                 )
                 await contract_service.preload_contracts(temp_config)
                 for cap_name in input_contract_versions:
-                    self._cached_input_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="input")
+                    try:
+                        self._cached_input_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="input")
+                    except KeyError as e:
+                        logger.warning(
+                            f"Контракт {cap_name} (input) не найден для компонента {self.name}. "
+                            f"Пропускаем. Ошибка: {e}"
+                        )
                 for cap_name in output_contract_versions:
-                    self._cached_output_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="output")
+                    try:
+                        self._cached_output_contracts[cap_name] = contract_service.get_contract_schema_from_cache(cap_name, direction="output")
+                    except KeyError as e:
+                        logger.warning(
+                            f"Контракт {cap_name} (output) не найден для компонента {self.name}. "
+                            f"Пропускаем. Ошибка: {e}"
+                        )
+            else:
+                logger.debug(f"Компонент {self.name} не имеет контрактов для предзагрузки")
 
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Ошибка в BaseComponent.initialize для {self.name}: {e}")
             return False
 
-        # Устанавливаем флаг инициализации
+        # Устанавливаем флаг инициализации ДАЖЕ если ресурсов нет
         self._initialized = True
-        logger.info(f"BaseComponent.initialize: {self.name} - _initialized flag set to: {self._initialized}")
+        logger.info(f"BaseComponent.initialize: {self.name} успешно инициализирован")
         return True
 
     def _create_temp_config_for_preload(self, prompt_versions: Dict[str, str]):
