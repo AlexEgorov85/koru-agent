@@ -2,10 +2,6 @@ from datetime import datetime
 import logging
 import uuid
 from typing import Any, Dict, Optional
-from core.agent_runtime.strategies.base import AgentStrategyInterface
-from core.agent_runtime.strategies.evaluation import EvaluationStrategy
-from core.agent_runtime.strategies.fallback import FallbackStrategy
-from core.agent_runtime.strategies.react.strategy import ReActStrategy
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata
 from core.application.context.base_system_context import BaseSystemContext
@@ -54,11 +50,6 @@ class AgentRuntime:
         self.progress_metrics = ProgressMetrics()
 
 
-    def _is_strategy_available(self, strategy_name: str) -> bool:
-        """Проверяет, доступна ли стратегия (возможна ленивая инициализация)."""
-        if strategy_name == "planning":
-            return True  # Предполагаем, что планирующая стратегия может быть инициализирована
-        return strategy_name in self._strategy_registry
 
 
     async def run(self, goal: str):
@@ -72,7 +63,7 @@ class AgentRuntime:
         self.session.record_system_event("session_start", f"Starting session with goal: {goal}")
 
         # Инициализация менеджера поведения
-        await self.behavior_manager.initialize()
+        await self.behavior_manager.initialize(initial_pattern_id="react.v1.0.0")
 
     async def _verify_readiness(self):
         """Проверка готовности агента к выполнению задачи."""
@@ -89,7 +80,7 @@ class AgentRuntime:
                 "Агент не готов к выполнению: отсутствует конфигурация агента. "
                 "Конфигурация должна быть предоставлена при создании агента."
             )
-        
+
         # Проверяем, что все необходимые сервисы доступны
         required_services = ['prompt_service', 'contract_service']
         for service_name in required_services:
