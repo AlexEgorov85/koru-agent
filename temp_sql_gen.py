@@ -14,7 +14,7 @@ from core.infrastructure.services.sql_generation.schema import (
     SQLGenerationInput, SQLGenerationOutput,
     SQLCorrectionInput, SQLCorrectionOutput
 )
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.base_system_context import BaseSystemContext
 from models.db_types import DBQueryResult
 from models.llm_types import LLMRequest, StructuredOutputConfig
 import logging
