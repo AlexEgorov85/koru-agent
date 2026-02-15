@@ -12,7 +12,50 @@ from .executor import ActionExecutor
 from .policy import AgentPolicy
 from .model import StrategyDecisionType
 from .behavior_manager import BehaviorManager
-from .strategy_manager import ProgressMetrics
+
+# Определяем ProgressMetrics локально, так как старый файл удален
+from dataclasses import dataclass, field
+from typing import Dict, Optional
+
+
+@dataclass
+class ProgressMetrics:
+    """Класс для отслеживания метрик прогресса"""
+    step: int = 0
+    error_count: int = 0
+    consecutive_errors: int = 0
+    no_progress_steps: int = 0
+    strategy_switches: int = 0
+    plan_corrections: int = 0
+    strategy_effectiveness: Dict[str, float] = field(default_factory=dict)
+    last_strategy_switch_step: Optional[int] = None
+    strategy_confidence: float = 1.0
+
+    def update_strategy_effectiveness(self, strategy_name: str, success: bool):
+        """Обновление метрик эффективности стратегии"""
+        if strategy_name not in self.strategy_effectiveness:
+            self.strategy_effectiveness[strategy_name] = 0.5
+
+        # Экспоненциальное сглаживание
+        alpha = 0.3
+        current = self.strategy_effectiveness[strategy_name]
+        self.strategy_effectiveness[strategy_name] = (
+            alpha * (1.0 if success else 0.0) + (1 - alpha) * current
+        )
+
+    def get_state_metrics(self) -> Dict[str, Any]:
+        """Получить словарь с текущими метриками состояния"""
+        return {
+            "step": self.step,
+            "error_count": self.error_count,
+            "consecutive_errors": self.consecutive_errors,
+            "no_progress_steps": self.no_progress_steps,
+            "strategy_switches": self.strategy_switches,
+            "plan_corrections": self.plan_corrections,
+            "strategy_effectiveness": self.strategy_effectiveness.copy(),
+            "last_strategy_switch_step": self.last_strategy_switch_step,
+            "strategy_confidence": self.strategy_confidence
+        }
 from models.execution import ExecutionStatus
 
 logger = logging.getLogger(__name__)

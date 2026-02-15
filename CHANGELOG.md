@@ -21,8 +21,10 @@
 - Повышена изоляция между экземплярами паттернов
 
 ### Removed
-- Удален интерфейс `AgentStrategyInterface`, заменен на `BehaviorPatternInterface`
-- Удалены старые стратегии в `core.agent_runtime.strategies`
+- Полностью удалена устаревшая система стратегий на основе `AgentStrategyInterface`
+- Удалены все старые стратегии: ReAct, Planning, Evaluation, Fallback в `core.agent_runtime.strategies`
+- Удален легаси-код и адаптеры обратной совместимости
+- Удален устаревший `StrategyManager` и связанные компоненты
 
 ### Fixed
 - Циклические зависимости между стратегиями

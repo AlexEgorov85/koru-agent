@@ -10,7 +10,7 @@ class BehaviorManager:
     def __init__(self, application_context: 'ApplicationContext'):
         self._app_ctx = application_context
         self._current_pattern: Optional[BehaviorPatternInterface] = None
-        self._pattern_history: List['StrategySwitchRecord'] = []
+        self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None
 
     async def initialize(self, initial_pattern_id: str = "react.v1.0.0"):
@@ -78,6 +78,6 @@ class BehaviorManager:
             return self._current_pattern.pattern_id
         return None
 
-    def get_pattern_history(self) -> List['StrategySwitchRecord']:
+    def get_pattern_history(self) -> List[dict]:
         """Получить историю переключений паттернов"""
         return self._pattern_history.copy()
