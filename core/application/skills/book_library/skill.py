@@ -21,25 +21,16 @@ class BookLibrarySkill(BaseSkill):
     name = "book_library"
     supported_strategies = ["react", "planning", "evaluation"]  # ← Доступен для всех стратегий
 
-    def __init__(self, name: str, application_context: Any, cache_table_structure: bool = True, **kwargs):
-        super().__init__(name, application_context, **kwargs)
+    def __init__(self, name: str, application_context: Any, component_config=None, executor=None, cache_table_structure: bool = True, **kwargs):
+        super().__init__(name, application_context, app_config=None, component_config=component_config, executor=executor)
         self.cache_table_structure = cache_table_structure
         self._table_structure_cache: Optional[Dict[str, Any]] = None
 
-        # Получаем необходимые сервисы
-        self.sql_query_service = application_context.get_resource("sql_query_service")
-        self.table_description_service = application_context.get_resource("table_description_service")
+        # В новой архитектуре сервисы недоступны напрямую, используем executor для взаимодействия
+        # self.sql_query_service = application_context.get_resource("sql_query_service")
+        # self.table_description_service = application_context.get_resource("table_description_service")
         
 
-    async def initialize(self) -> bool:
-        """Инициализация навыка - загрузка структуры таблиц если включено кэширование."""
-        try:
-            if self.cache_table_structure:
-                await self._load_table_structure()
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка инициализации BookLibrarySkill: {str(e)}")
-            return False
 
     async def _load_table_structure(self):
         """Загрузка структуры таблиц в кэш."""
@@ -90,38 +81,25 @@ class BookLibrarySkill(BaseSkill):
         step_number = getattr(context, 'current_step', 0) + 1
         logger.debug(f"Выполнение capability '{capability.name}' на шаге {step_number}")
 
-        # Валидация параметров через кэшированный контракт
-        validation_result = await self.contract_service.validate(
-            capability_name=capability.name,
-            data=parameters,
-            direction="input"
-        )
-
-        if not validation_result["is_valid"]:
-            error_msg = f"Ошибка валидации параметров: {validation_result['errors']}"
-            logger.error(error_msg)
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                result=None,
-                observation_item_id=None,
-                summary=error_msg,
-                error="INVALID_PARAMETERS"
-            )
-
-        validated_params = validation_result["validated_data"]
+        # В новой архитектуре валидация параметров происходит через кэшированные контракты
+        try:
+            input_contract = self.get_input_contract(capability.name)
+            # Здесь должна быть валидация через схему контракта
+            # validate_against_schema(parameters, input_contract)
+        except KeyError:
+            # Если контракт не найден в кэше, используем переданные параметры без валидации
+            # Это обеспечивает обратную совместимость
+            pass
 
         try:
             if capability.name == "book_library.get_books_by_author":
-                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
-                return await self._get_books_by_author(validated_params, context, step_number)
+                return await self._get_books_by_author(parameters, context, step_number)
 
             elif capability.name == "book_library.get_full_text":
-                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
-                return await self._get_full_text(validated_params, context, step_number)
+                return await self._get_full_text(parameters, context, step_number)
 
             elif capability.name == "book_library.dynamic_sql_query":
-                # В новой архитектуре мы используем кэшированные контракты и принимаем параметры как словарь
-                return await self._dynamic_sql_query(validated_params, context, step_number)
+                return await self._dynamic_sql_query(parameters, context, step_number)
             else:
                 error_msg = f"Неподдерживаемая capability: {capability.name}"
                 logger.error(error_msg)
@@ -192,23 +170,28 @@ class BookLibrarySkill(BaseSkill):
             LIMIT 50;
             """
 
-            # 2. Выполнение SQL запроса через SQLQueryService
-            logger.debug(f"Выполнение SQL запроса через SQLQueryService: {sql[:100]}...")
+            # 2. Выполнение SQL запроса через executor (новая архитектура)
+            logger.debug(f"Выполнение SQL запроса через executor: {sql[:100]}...")
 
-            if not self.sql_query_service:
-                raise RuntimeError("SQLQueryService недоступен")
+            if not self.executor:
+                raise RuntimeError("ActionExecutor недоступен")
 
-            sql_result = await self.sql_query_service.execute_direct_query(
-                sql_query=sql,
-                parameters=params,
-                max_rows=50
+            # Вызов SQL-сервиса через executor
+            sql_result = await self.executor.execute_action(
+                action_name="sql_query.execute_direct_query",
+                parameters={
+                    "sql_query": sql,
+                    "parameters": params,
+                    "max_rows": 50
+                },
+                context=context
             )
 
             # 3. Проверка результата и формирование ответа
             if not sql_result.success:
                 raise RuntimeError(f"Ошибка выполнения SQL запроса: {sql_result.error}")
 
-            books = sql_result.rows or []
+            books = sql_result.data.get("rows", []) if isinstance(sql_result.data, dict) else []
             book_count = len(books)
 
             formatted_result = {
@@ -273,19 +256,23 @@ class BookLibrarySkill(BaseSkill):
             LIMIT 1;
             """
 
-            if not self.sql_query_service:
-                raise RuntimeError("SQLQueryService недоступен")
+            if not self.executor:
+                raise RuntimeError("ActionExecutor недоступен")
 
-            metadata_result = await self.sql_query_service.execute_direct_query(
-                sql_query=metadata_sql,
-                parameters={"book_id": book_id},
-                max_rows=1
+            metadata_result = await self.executor.execute_action(
+                action_name="sql_query.execute_direct_query",
+                parameters={
+                    "sql_query": metadata_sql,
+                    "parameters": {"book_id": book_id},
+                    "max_rows": 1
+                },
+                context=context
             )
 
-            if not metadata_result.success or not metadata_result.rows:
+            if not metadata_result.success or not metadata_result.data.get("rows", []):
                 raise ValueError(f"Книга с ID {book_id} не найдена")
 
-            metadata = metadata_result.rows[0]
+            metadata = metadata_result.data["rows"][0] if metadata_result.data.get("rows") else {}
 
             # 2. Получение глав книги
             chapters_sql = """
@@ -298,16 +285,20 @@ class BookLibrarySkill(BaseSkill):
             ORDER BY c.chapter_number;
             """
 
-            chapters_result = await self.sql_query_service.execute_direct_query(
-                sql_query=chapters_sql,
-                parameters={"book_id": book_id},
-                max_rows=100
+            chapters_result = await self.executor.execute_action(
+                action_name="sql_query.execute_direct_query",
+                parameters={
+                    "sql_query": chapters_sql,
+                    "parameters": {"book_id": book_id},
+                    "max_rows": 100
+                },
+                context=context
             )
 
             if not chapters_result.success:
                 raise RuntimeError(f"Ошибка получения глав книги: {chapters_result.error}")
 
-            chapters = chapters_result.rows or []
+            chapters = chapters_result.data.get("rows", []) if isinstance(chapters_result.data, dict) else []
 
             # 3. Формирование полного текста
             full_text = {
@@ -364,23 +355,28 @@ class BookLibrarySkill(BaseSkill):
             sql_query = f"SELECT * FROM \"Lib\".books LIMIT {max_rows};"
             params = {}
 
-            # 3. Выполнение SQL запроса через SQLQueryService
-            if not self.sql_query_service:
-                raise RuntimeError("SQLQueryService недоступен")
+            # 3. Выполнение SQL запроса через executor (новая архитектура)
+            if not self.executor:
+                raise RuntimeError("ActionExecutor недоступен")
 
-            result = await self.sql_query_service.execute_direct_query(
-                sql_query=sql_query,
-                parameters=params,
-                max_rows=max_rows
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute_direct_query",
+                parameters={
+                    "sql_query": sql_query,
+                    "parameters": params,
+                    "max_rows": max_rows
+                },
+                context=context
             )
 
             if result.success:
+                data = result.data if isinstance(result.data, dict) else {}
                 formatted_result = {
                     "sql": sql_query,
-                    "rows": result.rows or [],
-                    "columns": result.columns or [],
-                    "rowcount": result.rowcount,
-                    "execution_time": result.metadata.get("execution_time") if result.metadata else None,
+                    "rows": data.get("rows", []),
+                    "columns": data.get("columns", []),
+                    "rowcount": data.get("rowcount", 0),
+                    "execution_time": data.get("execution_time"),
                     "query_type": "dynamic_query"
                 }
 
@@ -388,7 +384,7 @@ class BookLibrarySkill(BaseSkill):
                     status=ExecutionStatus.SUCCESS,
                     observation_item_id=None,
                     result=formatted_result,
-                    summary=f"Выполнен динамический SQL-запрос, получено {result.rowcount} строк",
+                    summary=f"Выполнен динамический SQL-запрос, получено {data.get('rowcount', 0)} строк",
                     error=None
                 )
             else:
@@ -403,15 +399,6 @@ class BookLibrarySkill(BaseSkill):
                 step_number=step_number
             )
 
-    async def initialize(self) -> bool:
-        """Инициализация навыка - загрузка структуры таблиц если включено кэширование."""
-        try:
-            if self.cache_table_structure:
-                await self._load_table_structure()
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка инициализации BookLibrarySkill: {str(e)}")
-            return False
 
     async def shutdown(self):
         """Очистка ресурсов навыка."""

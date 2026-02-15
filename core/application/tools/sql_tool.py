@@ -38,8 +38,8 @@ class SQLTool(BaseTool):
     def description(self) -> str:
         return "Выполнение SQL-запросов к базе данных с поддержкой изолированных кэшей и sandbox режима"
 
-    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, **kwargs):
-        super().__init__(name, application_context, component_config, **kwargs)
+    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
+        super().__init__(name, application_context, component_config, executor, **kwargs)
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
@@ -58,7 +58,7 @@ class SQLTool(BaseTool):
                 return True
         return False
 
-    async def execute(self, input_data: SQLToolInput) -> SQLToolOutput:
+    async def execute_specific(self, input_data: SQLToolInput) -> SQLToolOutput:
         """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима."""
         start_time = time.time()
 
@@ -99,3 +99,25 @@ class SQLTool(BaseTool):
             rowcount=result.rowcount,
             execution_time=execution_time
         )
+    
+    # Also preserve the original execute method for backward compatibility
+    async def execute(self, input_data: SQLToolInput = None, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None):
+        """
+        Выполнение SQL-запроса - поддержка обоих интерфейсов.
+        """
+        # Если вызов происходит с новым интерфейсом
+        if capability is not None or parameters is not None or execution_context is not None:
+            input_data = self._convert_params_to_input(parameters or {})
+            return await self.execute_specific(input_data)
+        else:
+            # Это вызов старого интерфейса
+            return await self.execute_specific(input_data)
+    
+    def _convert_params_to_input(self, parameters: Dict[str, Any]) -> SQLToolInput:
+        """
+        Преобразование параметров нового интерфейса в SQLToolInput.
+        """
+        sql = parameters.get('sql', '')
+        parameters_dict = parameters.get('parameters', {})
+        max_rows = parameters.get('max_rows', 1000)
+        return SQLToolInput(sql=sql, parameters=parameters_dict, max_rows=max_rows)

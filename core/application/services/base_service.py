@@ -6,7 +6,7 @@ import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, ClassVar, List
 from core.config.app_config import AppConfig
-from core.application.components.base import BaseComponent
+from core.components.base_component import BaseComponent
 from core.errors.architecture_violation import ArchitectureViolationError
 
 
@@ -44,7 +44,7 @@ class BaseService(BaseComponent):
         """
         pass
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, executor=None):
         """
         Инициализация базового сервиса.
 
@@ -52,8 +52,9 @@ class BaseService(BaseComponent):
         - name: имя сервиса
         - application_context: прикладной контекст для доступа к ресурсам
         - app_config: конфигурация приложения (AppConfig)
+        - executor: ActionExecutor для взаимодействия между компонентами
         """
-        # Для обратной совместимости с существующими сервисами, 
+        # Для обратной совместимости с существующими сервисами,
         # преобразуем AppConfig в ComponentConfig
         from core.config.component_config import ComponentConfig
         if app_config is not None:
@@ -76,19 +77,19 @@ class BaseService(BaseComponent):
                 side_effects_enabled=True,
                 detailed_metrics=False
             )
-        
-        # Вызов конструктора родительского класса с ComponentConfig
-        super().__init__(name, application_context, component_config)
+
+        # Вызов конструктора родительского класса с ComponentConfig и executor
+        super().__init__(name, application_context, component_config, executor)
 
         # Устанавливаем атрибут component_config для обратной совместимости с существующими сервисами
         self.component_config = component_config
 
+        # Сохраняем executor как атрибут
+        self.executor = executor
+
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
-        # Создаем логгер, наследуя его из BaseComponent или создавая новый
-        import logging
-        self.logger = logging.getLogger(f"{__name__}.{self.name}")
-
+        # Логгер уже инициализирован в базовом классе
         self.logger.info(f"Инициализирован сервис: {self.name}")
 
     async def initialize(self) -> bool:
@@ -213,18 +214,33 @@ class BaseService(BaseComponent):
         
         return None
 
-    @abstractmethod
-    async def execute(self, input_data: ServiceInput) -> ServiceOutput:
+    def _convert_params_to_input(self, parameters: Dict[str, Any]) -> ServiceInput:
         """
-        Выполнение сервиса с четким контрактом входа/выхода.
-
-        ARGS:
-        - input_data: входные данные для сервиса
-
-        RETURNS:
-        - ServiceOutput: выходные данные сервиса
+        Преобразование параметров нового интерфейса в ServiceInput старого интерфейса.
         """
-        pass
+        raise NotImplementedError("_convert_params_to_input должен быть реализован в подклассе")
+
+    async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):
+        """
+        Универсальный метод выполнения, поддерживающий оба интерфейса.
+        """
+        # Если вызов происходит с новым интерфейсом (Capability, parameters, context)
+        if capability is not None or parameters is not None or execution_context is not None:
+            # Пытаемся преобразовать вызов к старому интерфейсу
+            input_data = self._convert_params_to_input(parameters or {})
+            return await self.execute_specific(input_data)
+        elif input_data is not None:
+            # Это вызов старого интерфейса
+            return await self.execute_specific(input_data)
+        else:
+            # Это вызов с явным input_data (старый интерфейс)
+            raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
+    
+    async def execute_specific(self, input_data: ServiceInput) -> ServiceOutput:
+        """
+        Специфичный метод выполнения для конкретных сервисов.
+        """
+        raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
 
     async def restart(self) -> bool:
         """

@@ -13,8 +13,8 @@ class BaseService(BaseComponent):
     Сервисы могут иметь изолированные кэши и долгоживущее состояние.
     """
     
-    def __init__(self, name: str, application_context, component_config):
-        super().__init__(name, application_context, component_config)
+    def __init__(self, name: str, application_context, component_config, executor):
+        super().__init__(name, application_context, component_config, executor)
         
     @abstractmethod
     async def execute(self, capability: Capability, parameters: Dict[str, Any], context: Any):

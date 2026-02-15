@@ -66,6 +66,7 @@ class AppConfig(BaseModel):
     service_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации сервисов: {service_name: ComponentConfig}")
     skill_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации навыков: {skill_name: ComponentConfig}")
     tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов: {tool_name: ComponentConfig}")
+    behavior_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации паттернов поведения: {behavior_name: ComponentConfig}")
 
     # Используем ConfigDict вместо класса Config для Pydantic v2+
     model_config = ConfigDict(
@@ -232,7 +233,7 @@ class AppConfig(BaseModel):
         service_configs = {}
         skill_configs = {}
         tool_configs = {}
-        strategy_configs = {}
+        behavior_configs = {}
 
         # Загружаем конфигурации сервисов из реестра
         services_section = registry_data.get('services', {})
@@ -287,21 +288,22 @@ class AppConfig(BaseModel):
                 )
                 tool_configs[tool_name] = tool_config
 
-        # Загружаем конфигурации стратегий из реестра
-        strategies_section = registry_data.get('strategies', {})
-        for strategy_name, strategy_info in strategies_section.items():
-            if isinstance(strategy_info, dict) and 'enabled' in strategy_info and strategy_info['enabled']:
-                # Создаем конфигурацию для стратегии
-                strategy_config = ComponentConfig(
-                    variant_id=f"{strategy_name}_{profile}",
-                    prompt_versions=strategy_info.get('prompt_versions', {}),  # ← ПУСТОЙ словарь по умолчанию!
-                    input_contract_versions=strategy_info.get('input_contract_versions', {}),
-                    output_contract_versions=strategy_info.get('output_contract_versions', {}),
-                    side_effects_enabled=strategy_info.get('side_effects_enabled', profile == "prod"),
-                    detailed_metrics=strategy_info.get('detailed_metrics', False),
-                    parameters=strategy_info.get('parameters', {})
+        # Загружаем конфигурации паттернов поведения из реестра
+        behaviors_section = registry_data.get('behaviors', {})
+        for behavior_name, behavior_info in behaviors_section.items():
+            if isinstance(behavior_info, dict) and 'enabled' in behavior_info and behavior_info['enabled']:
+                # Создаем конфигурацию для паттерна поведения
+                behavior_config = ComponentConfig(
+                    variant_id=f"{behavior_name}_{profile}",
+                    prompt_versions=behavior_info.get('prompt_versions', {}),  # ← ПУСТОЙ словарь по умолчанию!
+                    input_contract_versions=behavior_info.get('input_contract_versions', {}),
+                    output_contract_versions=behavior_info.get('output_contract_versions', {}),
+                    side_effects_enabled=behavior_info.get('side_effects_enabled', profile == "prod"),
+                    detailed_metrics=behavior_info.get('detailed_metrics', False),
+                    parameters=behavior_info.get('parameters', {}),
+                    dependencies=behavior_info.get('dependencies', [])
                 )
-                strategy_configs[strategy_name] = strategy_config
+                behavior_configs[behavior_name] = behavior_config
 
         # Загружаем параметры агента из реестра
         agent_config = registry_data.get('agent', {})
@@ -314,6 +316,7 @@ class AppConfig(BaseModel):
             service_configs=service_configs,
             skill_configs=skill_configs,
             tool_configs=tool_configs,
+            behavior_configs=behavior_configs,
             side_effects_enabled=agent_config.get('side_effects_enabled', profile == "prod"),
             detailed_metrics=agent_config.get('detailed_metrics', False),
             max_steps=agent_config.get('max_steps', 10),

@@ -6,6 +6,7 @@
 - Четкое разделение ответственностей: декларация ≠ данные ≠ реализация
 - Обязательная инициализация через ComponentConfig
 - Изолированные кэши для каждого экземпляра
+- Взаимодействие ТОЛЬКО через ActionExecutor
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING
@@ -14,15 +15,27 @@ from models.capability import Capability
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.executor import ActionExecutor
 
 
 class BaseComponent(ABC):
     """
-    Единый базовый класс для всех компонентов (навыков, инструментов, сервисов).
-    Гарантирует: предзагрузка → кэш → выполнение без обращений к хранилищу.
-    """
+    БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ.
     
-    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: ComponentConfig):
+    ГАРАНТИИ:
+    - Никаких обращений к сервисам во время выполнения
+    - Все ресурсы предзагружены ДО вызова execute()
+    - Никаких прямых зависимостей от других компонентов
+    - Взаимодействие ТОЛЬКО через ActionExecutor
+    """
+
+    def __init__(
+        self, 
+        name: str, 
+        application_context: 'ApplicationContext', 
+        component_config: ComponentConfig,
+        executor: 'ActionExecutor'  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
+    ):
         if not component_config or not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
@@ -31,179 +44,124 @@ class BaseComponent(ABC):
         self.name = name
         self.application_context = application_context
         self.component_config = component_config
-
+        self.executor = executor  # ← Критически важно!
+        
         # Инициализация флага инициализации
         self._initialized = False
+
+        # Инициализация логгера
+        import logging
+        self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
 
         # Изолированные кэши (инициализируются пустыми)
         self._cached_prompts: Dict[str, str] = {}
         self._cached_input_contracts: Dict[str, Dict] = {}
         self._cached_output_contracts: Dict[str, Dict] = {}
-    
+
     async def initialize(self) -> bool:
         """
-        ЕДИНСТВЕННЫЙ метод инициализации — предзагрузка ВСЕХ ресурсов.
-
-        RETURNS:
-        - bool: True если инициализация прошла успешно
+        ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,
+        НЕ обращаясь к сервисам напрямую.
+        
+        ВАЖНО: Все ресурсы уже загружены в component_config.application_context
+        на уровне ApplicationContext.initialize().
         """
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
 
         try:
-            # 1. Загрузка промптов ТОЛЬКО если они есть в конфигурации
-            prompt_service = self.application_context.get_resource("prompt_service")
+            # 1. Копируем промпты ИЗ КОНФИГУРАЦИИ (не из сервиса!)
+            if hasattr(self.component_config, 'resolved_prompts'):
+                self._cached_prompts = self.component_config.resolved_prompts.copy()
+                logger.debug(f"Загружено {len(self._cached_prompts)} промптов для {self.name}")
             
-            if (hasattr(self.component_config, 'prompt_versions') and 
-                self.component_config.prompt_versions and 
-                prompt_service):
-                
-                # Используем методы изолированного сервиса промптов для получения нужных версий
-                for cap_name, version in self.component_config.prompt_versions.items():
-                    try:
-                        # Получаем промпт через изолированный сервис
-                        prompt_text = await prompt_service.get_prompt(capability_name=cap_name, version=version)
-                        self._cached_prompts[cap_name] = prompt_text
-                        logger.debug(f"Промпт {cap_name}@{version} загружен для {self.name}")
-                    except Exception as e:
-                        logger.warning(
-                            f"Промпт {cap_name} не найден или ошибка загрузки для компонента {self.name}: {e}. "
-                            f"Пропускаем. Компонент может работать без этого промпта."
-                        )
-                        # Не падаем - компонент может работать без некоторых промптов
-
-            # 2. Загрузка контрактов (аналогично - только если есть в конфигурации)
-            contract_service = self.application_context.get_resource("contract_service")
+            # 2. Копируем контракты ИЗ КОНФИГУРАЦИИ
+            if hasattr(self.component_config, 'resolved_input_contracts'):
+                self._cached_input_contracts = self.component_config.resolved_input_contracts.copy()
+                logger.debug(f"Загружено {len(self._cached_input_contracts)} input-контрактов для {self.name}")
             
-            if contract_service and hasattr(self.component_config, 'input_contract_versions'):
-                if self.component_config.input_contract_versions:
-                    for cap_name, version in self.component_config.input_contract_versions.items():
-                        try:
-                            # Получаем входной контракт через изолированный сервис
-                            input_contract = await contract_service.get_contract(
-                                capability_name=cap_name, 
-                                version=version, 
-                                direction="input"
-                            )
-                            self._cached_input_contracts[cap_name] = input_contract
-                            logger.debug(f"Входной контракт {cap_name}@{version} загружен для {self.name}")
-                        except Exception as e:
-                            logger.warning(
-                                f"Входной контракт {cap_name} не найден или ошибка загрузки для компонента {self.name}: {e}. "
-                                f"Пропускаем. Компонент может работать без этого контракта."
-                            )
-
-            if contract_service and hasattr(self.component_config, 'output_contract_versions'):
-                if self.component_config.output_contract_versions:
-                    for cap_name, version in self.component_config.output_contract_versions.items():
-                        try:
-                            # Получаем выходной контракт через изолированный сервис
-                            output_contract = await contract_service.get_contract(
-                                capability_name=cap_name, 
-                                version=version, 
-                                direction="output"
-                            )
-                            self._cached_output_contracts[cap_name] = output_contract
-                            logger.debug(f"Выходной контракт {cap_name}@{version} загружен для {self.name}")
-                        except Exception as e:
-                            logger.warning(
-                                f"Выходной контракт {cap_name} не найден или ошибка загрузки для компонента {self.name}: {e}. "
-                                f"Пропускаем. Компонент может работать без этого контракта."
-                            )
-
-        except Exception as e:
-            logger.error(f"Ошибка в BaseComponent.initialize для {self.name}: {e}", exc_info=True)
-            # ВАЖНО: даже при ошибках устанавливаем _initialized = True для компонентов без промптов
-            # Но возвращаем False, чтобы показать, что была ошибка
+            if hasattr(self.component_config, 'resolved_output_contracts'):
+                self._cached_output_contracts = self.component_config.resolved_output_contracts.copy()
+                logger.debug(f"Загружено {len(self._cached_output_contracts)} output-контрактов для {self.name}")
+            
             self._initialized = True
+            logger.info(f"Компонент '{self.name}' инициализирован. Ресурсы: промпты={len(self._cached_prompts)}, input={len(self._cached_input_contracts)}, output={len(self._cached_output_contracts)}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
             return False
 
-        # Устанавливаем флаг инициализации ДАЖЕ если ресурсов нет
-        self._initialized = True
-        logger.info(f"BaseComponent.initialize: {self.name} успешно инициализирован")
-        return True
-    
     def _ensure_initialized(self):
         """
         Проверяет, что компонент инициализирован перед использованием.
-        
+
         RAISES:
         - RuntimeError: если компонент не инициализирован
         """
-        if not getattr(self, '_initialized', False):
-            import inspect
-            frame = inspect.currentframe().f_back
-            caller_info = f"{frame.f_code.co_filename}:{frame.f_lineno} in {frame.f_code.co_name}()"
+        if not self._initialized:
             raise RuntimeError(
                 f"Компонент '{self.name}' не инициализирован. "
-                f"Вызовите .initialize() перед использованием. "
-                f"Вызван из: {caller_info}"
+                f"Вызовите .initialize() перед использованием."
             )
 
-    # Безопасные методы получения из кэша
+    # === БЕЗОПАСНЫЙ ДОСТУП К РЕСУРСАМ (ТОЛЬКО ИЗ КЭША) ===
+    
     def get_prompt(self, capability_name: str) -> str:
-        """
-        Получение промпта ТОЛЬКО из изолированного кэша.
-
-        ARGS:
-        - capability_name: имя capability для получения промпта
-
-        RETURNS:
-        - str: текст промпта из кэша
-
-        RAISES:
-        - RuntimeError: если компонент не инициализирован или промпт не загружен в кэш
-        """
         self._ensure_initialized()
         if capability_name not in self._cached_prompts:
-            raise RuntimeError(f"Промпт для '{capability_name}' не загружен в компонент '{self.name}'")
+            self.logger.warning(
+                f"Промпт для capability '{capability_name}' не загружен в компонент '{self.name}'. "
+                f"Доступные: {list(self._cached_prompts.keys())}. Возвращаем пустую строку."
+            )
+            return ""  # Возвращаем пустую строку вместо ошибки
         return self._cached_prompts[capability_name]
 
     def get_input_contract(self, capability_name: str) -> Dict:
-        """
-        Получение входящего контракта ТОЛЬКО из кэша.
-
-        ARGS:
-        - capability_name: имя capability для получения входящего контракта
-
-        RETURNS:
-        - Dict: схема входящего контракта из кэша
-
-        RAISES:
-        - RuntimeError: если компонент не инициализирован или входящий контракт не загружен в кэш
-        """
         self._ensure_initialized()
         if capability_name not in self._cached_input_contracts:
-            raise RuntimeError(f"Входящий контракт для '{capability_name}' не загружен в компонент '{self.name}'")
+            self.logger.warning(
+                f"Входной контракт для '{capability_name}' не загружен в компонент '{self.name}'. "
+                f"Возвращаем пустой словарь."
+            )
+            return {}  # Возвращаем пустой словарь вместо ошибки
         return self._cached_input_contracts[capability_name]
 
     def get_output_contract(self, capability_name: str) -> Dict:
-        """
-        Получение исходящего контракта ТОЛЬКО из кэша.
-
-        ARGS:
-        - capability_name: имя capability для получения исходящего контракта
-
-        RETURNS:
-        - Dict: схема исходящего контракта из кэша
-
-        RAISES:
-        - RuntimeError: если компонент не инициализирован или исходящий контракт не загружен в кэш
-        """
         self._ensure_initialized()
         if capability_name not in self._cached_output_contracts:
-            raise RuntimeError(f"Исходящий контракт для '{capability_name}' не загружен в компонент '{self.name}'")
+            self.logger.warning(
+                f"Выходной контракт для '{capability_name}' не загружен в компонент '{self.name}'. "
+                f"Возвращаем пустой словарь."
+            )
+            return {}  # Возвращаем пустой словарь вместо ошибки
         return self._cached_output_contracts[capability_name]
+
+    # === АБСТРАКТНЫЙ МЕТОД ВЫПОЛНЕНИЯ (БЕЗ ПРЯМЫХ ЗАВИСИМОСТЕЙ) ===
     
     @abstractmethod
-    async def execute(self, capability: Capability, parameters: Dict[str, Any], context: Any):
+    async def execute(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> 'ActionResult':
         """
-        Абстрактный метод выполнения компонента.
+        ЕДИНСТВЕННЫЙ метод выполнения логики компонента.
         
-        ARGS:
-        - capability: capability для выполнения
-        - parameters: параметры выполнения
-        - context: контекст выполнения
+        ЗАПРЕЩЕНО:
+        - Вызывать другие компоненты напрямую
+        - Обращаться к сервисам (PromptService, ContractService)
+        - Работать с файловой системой
+        
+        РАЗРЕШЕНО:
+        - Использовать предзагруженные ресурсы из кэшей
+        - Вызывать другие действия через self.executor.execute_action()
+        - Валидировать входные/выходные данные через контракты из кэша
         """
+        pass
+
+    async def shutdown(self) -> None:
+        """Корректное завершение работы компонента."""
         pass

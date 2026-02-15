@@ -19,7 +19,7 @@ class BaseComponent(ABC):
     Гарантирует: предзагрузка → кэш → выполнение без обращений к хранилищу.
     """
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Any):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Any, executor=None):
         # Проверяем, что app_config не None
         # ComponentConfig может быть "истинным" значением даже если все поля пустые
         if app_config is None:
@@ -30,6 +30,7 @@ class BaseComponent(ABC):
         self.name = name
         self.application_context = application_context
         self.app_config = app_config  # Единая конфигурация приложения (может быть AppConfig или ComponentConfig)
+        self.executor = executor  # ActionExecutor для взаимодействия между компонентами
 
         # Инициализация флага инициализации
         self._initialized = False

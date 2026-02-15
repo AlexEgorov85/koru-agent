@@ -38,14 +38,15 @@ class BaseSkill(BaseComponent):
     #: Человекочитаемое имя навыка
     name: str = "base_skill"
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, component_config: Optional['ComponentConfig'] = None, **kwargs):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, component_config: Optional['ComponentConfig'] = None, executor=None, **kwargs):
         # Проверяем, какой тип конфигурации передан
         # Если передан component_config, используем его
         # Если нет, используем app_config для обратной совместимости
         config_to_use = component_config if component_config is not None else app_config
         # Вызов конструктора родительского класса
-        super().__init__(name, application_context, config_to_use)
+        super().__init__(name, application_context, config_to_use, executor)
         self.config = kwargs
+        self.executor = executor  # Сохраняем executor как атрибут
     
     # --------------------------------------------------
     # Initialization API

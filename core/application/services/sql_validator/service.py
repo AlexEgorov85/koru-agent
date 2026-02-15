@@ -50,7 +50,7 @@ class SQLValidatorService(BaseService):
     def description(self) -> str:
         return "Сервис для валидации SQL-запросов с проверкой безопасности и параметризацией"
 
-    def __init__(self, application_context: ApplicationContext, name: str = "sql_validator_service", component_config=None, allowed_operations: List[str] = None):
+    def __init__(self, application_context: ApplicationContext, name: str = "sql_validator_service", component_config=None, executor=None, allowed_operations: List[str] = None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -60,7 +60,7 @@ class SQLValidatorService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name, application_context, component_config)
+        super().__init__(name, application_context, component_config, executor)
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
         self.allowed_operations = set(allowed_operations or ["SELECT"])

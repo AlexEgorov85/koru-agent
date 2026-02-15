@@ -18,8 +18,8 @@ from core.application.tools.base_tool import BaseTool
 from core.config.app_config import AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.skills.base_skill import BaseSkill
-from core.application.services.prompt_service_new import PromptService
-from core.application.services.contract_service_new import ContractService
+from core.application.services.prompt_service import PromptService
+from core.application.services.contract_service import ContractService
 from core.application.context.base_system_context import BaseSystemContext
 
 
@@ -98,13 +98,15 @@ class ApplicationContext(BaseSystemContext):
         service_configs = getattr(self.config, 'service_configs', {})
         skill_configs = getattr(self.config, 'skill_configs', {})
         tool_configs = getattr(self.config, 'tool_configs', {})
+        behavior_configs = getattr(self.config, 'behavior_configs', {})
 
-        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}")
-        
+        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}, behaviors={len(behavior_configs)}")
+
         return {
             ComponentType.SERVICE: service_configs,
             ComponentType.SKILL: skill_configs,
             ComponentType.TOOL: tool_configs,
+            ComponentType.BEHAVIOR: behavior_configs,
         }
 
     def _resolve_component_class(self, component_type: ComponentType, name: str) -> type:
@@ -114,7 +116,7 @@ class ApplicationContext(BaseSystemContext):
         factory = ComponentFactory()
         return factory._resolve_component_class(component_type.value, name)
 
-    async def _create_component(self, component_type: ComponentType, name: str, config: Any) -> 'BaseComponent':
+    async def _create_component(self, component_type: ComponentType, name: str, config: Any, executor: 'ActionExecutor') -> 'BaseComponent':
         """
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
@@ -122,12 +124,12 @@ class ApplicationContext(BaseSystemContext):
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
-        
+
         factory = ComponentFactory()
-        
+
         # Преобразуем ComponentType в строку для фабрики
         component_type_str = component_type.value
-        
+
         # Убедимся, что config - это ComponentConfig
         if not isinstance(config, ComponentConfig):
             # Если config не ComponentConfig, создаем минимальный ComponentConfig
@@ -141,21 +143,22 @@ class ApplicationContext(BaseSystemContext):
                 parameters=getattr(config, 'parameters', {}),
                 dependencies=getattr(config, 'dependencies', [])
             )
-        
+
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
             component_type=component_type_str,
             name=name,
             application_context=self,
-            component_config=config
+            component_config=config,
+            executor=executor  # Передаем ActionExecutor
         )
-        
+
         return component
 
     async def initialize(self) -> bool:
         """
         ЕДИНЫЙ жизненный цикл инициализации для ВСЕХ компонентов:
-        1. Создание и регистрация → 2. Инициализация с учетом зависимостей → 3. Валидация
+        1. Загрузка ВСЕХ промптов/контрактов из хранилищ (один раз!) → 2. Создание и регистрация → 3. Инициализация с учетом зависимостей → 4. Валидация
         """
         if self._initialized:
             self.logger.warning("ApplicationContext уже инициализирован")
@@ -163,33 +166,52 @@ class ApplicationContext(BaseSystemContext):
 
         self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
 
-        # === ЭТАП 1: Создание и регистрация ВСЕХ компонентов (без инициализации) ===
+        # === ЭТАП 1: Централизованная загрузка ресурсов ===
+        all_prompts = await self._preload_all_prompts()
+        all_contracts = await self._preload_all_contracts()
+        
+        # === ЭТАП 2: Создание расширенных конфигураций с ресурсами ===
         component_configs = self._resolve_component_configs()
+        
+        for comp_type, configs in component_configs.items():
+            for name, base_config in configs.items():
+                # Создаем расширенную конфигурацию с предзагруженными ресурсами
+                enriched_config = self._enrich_config_with_resources(
+                    base_config, 
+                    all_prompts, 
+                    all_contracts
+                )
+                component_configs[comp_type][name] = enriched_config
+
+        # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами ===
+        # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
+        from core.application.agent.components.action_executor import ActionExecutor
+        executor = ActionExecutor(self)
         
         # Сначала создаем и регистрируем все компоненты
         for comp_type, configs in component_configs.items():
-            for name, config in configs.items():
+            for name, enriched_config in configs.items():
                 try:
-                    # ЕДИНЫЙ метод создания любого компонента
-                    component = await self._create_component(comp_type, name, config)
-                    
+                    # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
+                    component = await self._create_component(comp_type, name, enriched_config, executor)
+
                     # Регистрация компонента ДО инициализации
                     self.components.register(comp_type, name, component)
-                    
+
                     self.logger.debug(f"Компонент {comp_type.value}.{name} зарегистрирован")
-                    
+
                 except Exception as e:
                     self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}")
                     return False
 
-        # === ЭТАП 2: Инициализация компонентов с учетом зависимостей ===
+        # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
         # Инициализируем компоненты в правильном порядке
         success = await self._initialize_components_with_dependencies()
         if not success:
             self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
             return False
 
-        # === ЭТАП 3: Валидация готовности системы ===
+        # === ЭТАП 5: Валидация готовности системы ===
         if not await self._verify_readiness():
             return False
 
@@ -197,6 +219,105 @@ class ApplicationContext(BaseSystemContext):
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
+
+    async def _preload_all_prompts(self) -> Dict[tuple, str]:
+        """Загружает ВСЕ промпты из хранилища ОДИН РАЗ"""
+        storage = self.infrastructure_context.get_prompt_storage()
+        prompts = {}
+        
+        # Собираем все уникальные (capability, version) из всех конфигов
+        unique_prompts = set()
+        for comp_type, configs in self._resolve_component_configs().items():
+            for config in configs.values():
+                for cap, ver in getattr(config, 'prompt_versions', {}).items():
+                    unique_prompts.add((cap, ver))
+        
+        # Загружаем ОДИН РАЗ через инфраструктурное хранилище
+        for capability, version in unique_prompts:
+            try:
+                prompt_obj = await storage.load(capability, version)
+                prompts[(capability, version)] = prompt_obj.content
+            except Exception as e:
+                self.logger.warning(f"Промпт {capability}@{version} не найден или ошибка загрузки: {e}. Пропускаем.")
+                # Добавляем пустую строку для отсутствующего промпта, чтобы не было KeyError позже
+                prompts[(capability, version)] = ""
+        
+        self.logger.info(f"Предзагружено {len(prompts)} промптов")
+        return prompts
+
+    async def _preload_all_contracts(self) -> Dict[tuple, Dict]:
+        """Загружает ВСЕ контракты из хранилища ОДИН РАЗ"""
+        storage = self.infrastructure_context.get_contract_storage()
+        contracts = {}
+        
+        # Собираем все уникальные (capability, version, direction) из всех конфигов
+        unique_contracts = set()
+        for comp_type, configs in self._resolve_component_configs().items():
+            for config in configs.values():
+                # Входные контракты
+                for cap, ver in getattr(config, 'input_contract_versions', {}).items():
+                    unique_contracts.add((cap, ver, "input"))
+                
+                # Выходные контракты
+                for cap, ver in getattr(config, 'output_contract_versions', {}).items():
+                    unique_contracts.add((cap, ver, "output"))
+        
+        # Загружаем ОДИН РАЗ через инфраструктурное хранилище
+        for capability, version, direction in unique_contracts:
+            try:
+                contract_obj = await storage.load(capability, version, direction)
+                contracts[(capability, version, direction)] = contract_obj.schema_data
+            except Exception as e:
+                self.logger.warning(f"Не удалось загрузить контракт {capability}@{version} ({direction}): {e}")
+                # Добавляем пустой словарь для отсутствующего контракта, чтобы не было KeyError позже
+                contracts[(capability, version, direction)] = {}
+        
+        self.logger.info(f"Предзагружено {len(contracts)} контрактов")
+        return contracts
+
+    def _enrich_config_with_resources(
+        self,
+        base_config: 'ComponentConfig',
+        all_prompts: Dict[tuple, str],
+        all_contracts: Dict[tuple, Dict]
+    ) -> 'ComponentConfig':
+        """Добавляет предзагруженные ресурсы в конфигурацию"""
+        from copy import deepcopy
+        enriched = deepcopy(base_config)
+        
+        # Заполняем промпты
+        enriched.resolved_prompts = {}
+        for cap, ver in base_config.prompt_versions.items():
+            key = (cap, ver)
+            if key in all_prompts:
+                enriched.resolved_prompts[cap] = all_prompts[key]
+            else:
+                # Если промпт не найден, всё равно добавляем его с пустой строкой
+                enriched.resolved_prompts[cap] = ""
+                self.logger.warning(f"Промпт {key} не найден в предзагруженных ресурсах")
+        
+        # Заполняем контракты
+        enriched.resolved_input_contracts = {}
+        for cap, ver in base_config.input_contract_versions.items():
+            key = (cap, ver, "input")
+            if key in all_contracts:
+                enriched.resolved_input_contracts[cap] = all_contracts[key]
+            else:
+                # Если контракт не найден, всё равно добавляем его с пустым словарем
+                enriched.resolved_input_contracts[cap] = {}
+                self.logger.warning(f"Входной контракт {key} не найден в предзагруженных ресурсах")
+        
+        enriched.resolved_output_contracts = {}
+        for cap, ver in base_config.output_contract_versions.items():
+            key = (cap, ver, "output")
+            if key in all_contracts:
+                enriched.resolved_output_contracts[cap] = all_contracts[key]
+            else:
+                # Если контракт не найден, всё равно добавляем его с пустым словарем
+                enriched.resolved_output_contracts[cap] = {}
+                self.logger.warning(f"Выходной контракт {key} не найден в предзагруженных ресурсах")
+        
+        return enriched
 
     async def _initialize_components_with_dependencies(self) -> bool:
         """
@@ -212,7 +333,8 @@ class ApplicationContext(BaseSystemContext):
         services = []
         tools = []
         skills = []
-        
+        behaviors = []
+
         for component in all_components:
             # Определяем тип компонента по его положению в реестре
             found = False
@@ -224,16 +346,18 @@ class ApplicationContext(BaseSystemContext):
                         tools.append(component)
                     elif comp_type == ComponentType.SKILL:
                         skills.append(component)
+                    elif comp_type == ComponentType.BEHAVIOR:
+                        behaviors.append(component)
                     found = True
                     break
-            
+
             if not found:
                 # Если тип не найден, добавляем в общий список
                 services.append(component)  # по умолчанию
-        
+
         # Инициализируем компоненты в правильном порядке:
         # 1. Сервисы (они нужны инструментам и другим компонентам)
-        # 2. Инструменты, навыки (они могут зависеть от сервисов)
+        # 2. Инструменты, навыки, паттерны поведения (они могут зависеть от сервисов)
         
         initialized_components = set()
         
@@ -255,10 +379,10 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.error(f"Ошибка при инициализации сервиса {component.name}: {e}")
                 return False
         
-        # Затем инициализируем инструменты и навыки
-        other_components = tools + skills
+        # Затем инициализируем инструменты, навыки и паттерны поведения
+        other_components = tools + skills + behaviors
         self.logger.info(f"Инициализация других компонентов: {len(other_components)}")
-        
+
         for component in other_components:
             try:
                 if hasattr(component, 'initialize') and callable(component.initialize):
@@ -274,7 +398,8 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.warning(f"Ошибка при инициализации компонента {component.name}: {e}")
                 # Не возвращаем False, так как это может быть не критично для инструментов
-        
+                continue
+
         # Проверяем, все ли компоненты были инициализированы
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):

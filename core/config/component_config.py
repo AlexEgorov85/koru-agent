@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from datetime import datetime, timezone
 
 
@@ -17,6 +17,11 @@ class ComponentConfig(BaseModel):
     # Версии ИСХОДЯЩИХ контрактов: {capability_name: version}
     output_contract_versions: Dict[str, str] = Field(default_factory=dict)
 
+    # ← КРИТИЧЕСКИ ВАЖНО: предзагруженные ресурсы
+    resolved_prompts: Dict[str, str] = Field(default_factory=dict)
+    resolved_input_contracts: Dict[str, Dict] = Field(default_factory=dict)
+    resolved_output_contracts: Dict[str, Dict] = Field(default_factory=dict)
+
     # Идентификатор варианта (для логирования)
     variant_id: Optional[str] = None  # "beta", "v1.0.0", "canary-2024-02"
 
@@ -24,15 +29,19 @@ class ComponentConfig(BaseModel):
     side_effects_enabled: bool = Field(default=True, description="Разрешены ли побочные эффекты (запись, изменение данных)")
     detailed_metrics: bool = Field(default=False, description="Сборить ли подробную метрику")
 
+    # Параметры выполнения
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list)
+
     # Метаданные для аудита
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_by: Optional[str] = None
-    
+
     @property
     def variant_key(self) -> str:
         """Уникальный ключ варианта: 'planning@beta'"""
         return f"{self.variant_id or 'default'}"
-    
+
     def get_full_contract_key(self, capability_name: str, direction: str) -> str:
         """
         Формирует полный ключ контракта для внутреннего кэширования.

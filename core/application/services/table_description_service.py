@@ -40,7 +40,7 @@ class TableDescriptionService(BaseService):
     def description(self) -> str:
         return "Сервис для получения описания таблицы с метаданными"
 
-    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None):
+    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None):
         """
         Инициализация сервиса получения описания таблицы.
 
@@ -48,6 +48,7 @@ class TableDescriptionService(BaseService):
         - application_context: прикладной контекст для выполнения SQL-запросов
         - name: имя сервиса (опционально)
         - component_config: конфигурация компонента
+        - executor: ActionExecutor для взаимодействия между компонентами
         """
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
@@ -58,7 +59,7 @@ class TableDescriptionService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name or "table_description_service", application_context, component_config)
+        super().__init__(name or "table_description_service", application_context, component_config, executor)
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
 
     async def _custom_initialize(self) -> bool:
