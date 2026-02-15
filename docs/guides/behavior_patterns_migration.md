@@ -144,9 +144,9 @@ decision = await self.behavior_manager.generate_next_decision(
 
 ## Чек-лист миграции
 
-- [ ] Удалена старая система стратегий на основе `AgentStrategyInterface`
-- [ ] Заменен интерфейс с `AgentStrategyInterface` на `BehaviorPatternInterface`
-- [ ] Удален прямой доступ к `runtime.system.*`
+- [x] Удалена старая система стратегий на основе `AgentStrategyInterface`
+- [x] Заменен интерфейс с `AgentStrategyInterface` на `BehaviorPatternInterface`
+- [x] Удален прямой доступ к `runtime.system.*`
 - [ ] Создан файл метаданных паттерна в `data/behaviors/`
 - [ ] Обновлены все зависимости и импорты
 - [ ] Проверена изоляция состояния паттерна
@@ -167,5 +167,5 @@ decision = await self.behavior_manager.generate_next_decision(
 
 ## Поддержка
 
-Все старые стратегии полностью удалены из системы. При миграции необходимо полностью перейти на новую систему паттернов поведения. 
+Все старые стратегии полностью удалены из системы. Система теперь использует только паттерны поведения. 
 Если у вас возникли вопросы по миграции, обратитесь в #architecture-team или создайте тикет в JIRA с меткой `behavior-pattern-migration`.
