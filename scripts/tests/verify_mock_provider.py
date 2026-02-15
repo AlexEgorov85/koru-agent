@@ -8,9 +8,10 @@ import os
 # Добавляем путь к проекту
 sys.path.insert(0, os.path.abspath('.'))
 
-from core.system_context.system_context import SystemContext
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.application.context.application_context import ApplicationContext
 from core.config import get_config
-from core.skills.final_answer.skill import FinalAnswerSkill
+from core.application.skills.final_answer.skill import FinalAnswerSkill
 from core.session_context.session_context import SessionContext
 
 
@@ -24,38 +25,46 @@ async def test_mock_provider_and_final_answer():
     # Обновляем конфигурацию для использования mock-провайдера
     # (в реальной системе это будет сделано через конфигурационный файл)
     
-    # Создаем системный контекст
-    system_context = SystemContext(config)
-    
+    # Создаем инфраструктурный контекст
+    infrastructure_context = InfrastructureContext(config)
+
     try:
-        # Инициализируем системный контекст
-        await system_context.initialize()
-        
-        print("✓ Системный контекст успешно инициализирован")
-        
+        # Инициализируем инфраструктурный контекст
+        await infrastructure_context.initialize()
+
+        print("✓ Инфраструктурный контекст успешно инициализирован")
+
+        # Создаем прикладной контекст
+        application_context = await ApplicationContext.create_from_registry(
+            infrastructure_context=infrastructure_context,
+            profile="prod"
+        )
+
+        print("✓ Прикладной контекст успешно создан")
+
         # Проверяем, что провайдер зарегистрирован
-        llm_provider = system_context.get_resource("default_llm")
+        llm_provider = infrastructure_context.get_resource("default_llm")
         if llm_provider:
             print(f"✓ LLM провайдер успешно зарегистрирован: {type(llm_provider).__name__}")
         else:
             print("⚠ LLM провайдер не найден, но это нормально для mock-сценария")
-        
+
         # Создаем навык финального ответа
         final_answer_skill = FinalAnswerSkill(
-            name="final_answer_test", 
-            system_context=system_context
+            name="final_answer_test",
+            application_context=application_context  # Используем application_context вместо system_context
         )
-        
+
         print("✓ Навык финального ответа успешно создан")
-        
+
         # Проверяем capability навыка
         capabilities = final_answer_skill.get_capabilities()
         print(f"✓ Доступные capability: {[cap.name for cap in capabilities]}")
-        
+
         # Создаем сессию для теста
         session = SessionContext()
         session.set_goal("Какие книги написал Александр Пушкин?")
-        
+
         # Добавляем тестовые данные в сессию
         session.record_observation(
             observation_data={
@@ -71,13 +80,13 @@ async def test_mock_provider_and_final_answer():
             source="book_library",
             step_number=1
         )
-        
+
         print("✓ Тестовые данные добавлены в сессию")
-        
+
         # Выполняем capability генерации финального ответа
         if capabilities:
             final_answer_capability = capabilities[0]
-            
+
             result = await final_answer_skill.execute(
                 capability=final_answer_capability,
                 parameters={
@@ -87,21 +96,21 @@ async def test_mock_provider_and_final_answer():
                 },
                 context=session
             )
-            
+
             print(f"✓ Capability выполнено успешно")
             print(f"  Статус: {result.status}")
             print(f"  Результат: {result.result}")
             print(f"  Сводка: {result.summary}")
-        
+
         print("\n=== Тест завершен успешно ===")
-        
+
     except Exception as e:
-        print(f"❌ Ошибка при тестировании: {e}")
+        print(f"❌ Ошибка при тестирования: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        # Завершаем работу системного контекста
-        await system_context.shutdown()
+        # Завершаем работу инфраструктурного контекста
+        await infrastructure_context.shutdown()
 
 
 if __name__ == "__main__":

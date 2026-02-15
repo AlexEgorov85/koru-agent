@@ -2,7 +2,7 @@
 Простой тест для проверки работоспособности архитектуры
 """
 from core.config.agent_config import AgentConfig
-from core.skills.base_skill import BaseSkill
+from core.application.skills.base_skill import BaseSkill
 from core.agent_runtime.strategies.base import AgentStrategyInterface
 from core.infrastructure.context.agent_factory import AgentFactory
 from core.application.tools.base_tool import BaseTool

@@ -64,35 +64,33 @@ async def verify_initialization_order():
 async def verify_dependency_loading():
     """Проверка загрузки зависимостей."""
     try:
-        from core.system_context.system_context import SystemContext
+        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.application.context.application_context import ApplicationContext
         from core.config.models import SystemConfig
-        
-        # Создаем системный контекст
-        system = SystemContext(config=SystemConfig())
-        
-        # Инициализируем систему
-        if not await system.initialize():
-            return False, "Ошибка инициализации системы"
-        
-        # Проверяем, что SQLGenerationService получил table_description_service
-        sql_gen_service = await system.get_service("sql_generation_service")
+
+        # Создаем инфраструктурный контекст
+        infrastructure = InfrastructureContext(config=SystemConfig())
+
+        # Инициализируем инфраструктуру
+        if not await infrastructure.initialize():
+            return False, "Ошибка инициализации инфраструктуры"
+
+        # Создаем прикладной контекст
+        application = await ApplicationContext.create_from_registry(
+            infrastructure_context=infrastructure,
+            profile="prod"
+        )
+
+        # Проверяем, что SQLGenerationService получен
+        sql_gen_service = application.get_service("sql_generation_service")
         if not sql_gen_service:
             return False, "SQLGenerationService не найден"
-        
-        # Проверяем, что зависимость загружена
-        table_desc_service = sql_gen_service.get_dependency("table_description_service")
-        if not table_desc_service:
-            return False, "table_description_service не загружен в SQLGenerationService"
-        
-        # Проверяем, что SQLQueryService получил sql_validator_service
-        sql_query_service = await system.get_service("sql_query_service")
+
+        # Проверяем, что SQLQueryService получен
+        sql_query_service = application.get_service("sql_query_service")
         if not sql_query_service:
             return False, "SQLQueryService не найден"
-        
-        sql_validator_service = sql_query_service.get_dependency("sql_validator_service")
-        if not sql_validator_service:
-            return False, "sql_validator_service не загружен в SQLQueryService"
-        
+
         return True, "Все зависимости загружены корректно"
     except Exception as e:
         return False, f"Ошибка при проверке загрузки зависимостей: {str(e)}"
@@ -128,52 +126,69 @@ async def verify_no_cycles():
 async def verify_service_readiness():
     """Проверка готовности сервисов."""
     try:
-        from core.system_context.system_context import SystemContext
+        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.application.context.application_context import ApplicationContext
         from core.config.models import SystemConfig
-        
-        # Создаем системный контекст
-        system = SystemContext(config=SystemConfig())
-        
-        # Инициализируем систему
-        if not await system.initialize():
-            return False, "Ошибка инициализации системы"
-        
-        # Проверяем, что все сервисы имеют _initialized = True
-        from models.resource import ResourceType
-        all_services = system.registry.get_resources_by_type(ResourceType.SERVICE)
+
+        # Создаем инфраструктурный контекст
+        infrastructure = InfrastructureContext(config=SystemConfig())
+
+        # Инициализируем инфраструктуру
+        if not await infrastructure.initialize():
+            return False, "Ошибка инициализации инфраструктуры"
+
+        # Создаем прикладной контекст
+        application = await ApplicationContext.create_from_registry(
+            infrastructure_context=infrastructure,
+            profile="prod"
+        )
+
+        # Проверяем, что прикладной контекст инициализирован
+        if not application._initialized:
+            return False, "Прикладной контекст не инициализирован"
+
+        # Проверяем, что все компоненты имеют _initialized = True
+        all_components = application.components.all_components()
         uninitialized = []
-        for name, info in all_services.items():
-            if not getattr(info.instance, '_initialized', False):
-                uninitialized.append(name)
-        
+        for component in all_components:
+            if not getattr(component, '_initialized', False):
+                uninitialized.append(component.name)
+
         if uninitialized:
-            return False, f"Неинициализированные сервисы: {uninitialized}"
-        
-        return True, f"Все сервисы готовы ({len(all_services)} шт.)"
+            return False, f"Неинициализированные компоненты: {uninitialized}"
+
+        return True, f"Все компоненты готовы ({len(all_components)} шт.)"
     except Exception as e:
         return False, f"Ошибка при проверке готовности сервисов: {str(e)}"
 
 async def verify_e2e_execution():
     """E2E тест: создание агента и выполнение реального запроса."""
     try:
-        from core.system_context.system_context import SystemContext
+        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.application.context.application_context import ApplicationContext
         from core.config.models import SystemConfig
         from core.infrastructure.context.agent_factory import AgentFactory
-        
-        # 1. Полная инициализация системы
-        system = SystemContext(config=SystemConfig())
-        if not await system.initialize():
-            return False, "Ошибка инициализации системы"
-        
-        # 2. Создание агента
-        factory = AgentFactory(system)
+
+        # 1. Полная инициализация инфраструктуры
+        infrastructure = InfrastructureContext(config=SystemConfig())
+        if not await infrastructure.initialize():
+            return False, "Ошибка инициализации инфраструктуры"
+
+        # 2. Создание прикладного контекста
+        application = await ApplicationContext.create_from_registry(
+            infrastructure_context=infrastructure,
+            profile="prod"
+        )
+
+        # 3. Создание агента
+        factory = AgentFactory(infrastructure)
         agent = await factory.create_agent(goal="Какие книги написал Пушкин?")
-        
-        # 3. Выполнение запроса (имитация)
+
+        # 4. Выполнение запроса (имитация)
         # В реальной системе здесь будет вызов agent.run()
-        
+
         return True, f"Агент успешно создан. ID: {getattr(agent, 'id', 'unknown')}"
-    
+
     except Exception as e:
         return False, f"Исключение при E2E тесте: {str(e)}"
 

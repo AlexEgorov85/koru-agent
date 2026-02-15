@@ -58,8 +58,11 @@ async def demo_correct_usage():
     # 3. Создаем конфигурацию приложения с правильной версией промпта
     print("3. Создание конфигурации приложения...")
     # Учитываем, что в YAML файле capability: "planning.create_plan"
+    from core.config.app_config import AppConfig
     app_config = AppConfig(
-        prompt_versions={"planning.create_plan": "v1.0.0"}
+        prompt_versions={"planning.create_plan": "v1.0.0"},
+        side_effects_enabled=True,
+        detailed_metrics=False
     )
     print(f"   Конфигурация приложения создана с промптом: {list(app_config.prompt_versions.keys())[0]}@{list(app_config.prompt_versions.values())[0]}\n")
     
@@ -67,7 +70,7 @@ async def demo_correct_usage():
     print("4. Инициализация прикладного контекста...")
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=app_config
+        config=None  # Теперь может быть None для продакшена
     )
     
     try:

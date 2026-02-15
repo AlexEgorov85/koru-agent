@@ -18,7 +18,8 @@ from datetime import datetime
 
 # Импорт из core
 from core.config import get_config
-from core.system_context.system_context import SystemContext
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.application.context.application_context import ApplicationContext
 
 # Настройка корневого логгера
 def setup_logging(config: Any) -> None:
@@ -82,16 +83,16 @@ class AgentRuntimeError(CustomException):
 class Application:
     """
     Основной класс приложения, инкапсулирующий всю логику инициализации и выполнения.
-    Предназначен для последующего переноса в SystemContext.
     """
-    
+
     def __init__(self, args: argparse.Namespace):
         """
         Инициализация приложения с аргументами командной строки.
         """
         self.args = args
         self.config = None
-        self.system_context = None
+        self.infrastructure_context = None
+        self.application_context = None
         self.session = None  # Добавляем атрибут session
 
     async def initialize(self) -> None:
@@ -100,26 +101,34 @@ class Application:
         """
         # 1. Загрузка конфигурации
         self.config = get_config(profile=self.args.profile)
-        
+
         # 2. Применение переопределений из аргументов
         self._apply_config_overrides()
-        
+
         # 3. Настройка логирования
         setup_logging(self.config)
-        
+
         logger = logging.getLogger("main")
-        logger.info("Создание системного контекста...")
-        
-        # 4. Создание системного контекста
-        self.system_context = SystemContext(self.config)
-        
-        # 5. Инициализация системного контекста
-        logger.info("Инициализация системного контекста...")
-        success = await self.system_context.initialize()
+        logger.info("Создание инфраструктурного контекста...")
+
+        # 4. Создание инфраструктурного контекста (один на всё приложение)
+        self.infrastructure_context = InfrastructureContext(self.config)
+
+        # 5. Инициализация инфраструктурного контекста
+        logger.info("Инициализация инфраструктурного контекста...")
+        success = await self.infrastructure_context.initialize()
         if not success:
-            logger.error("Ошибка инициализации системного контекста")
-            raise ConfigurationError("Не удалось инициализировать систему")
-        
+            logger.error("Ошибка инициализации инфраструктурного контекста")
+            raise ConfigurationError("Не удалось инициализировать инфраструктуру")
+
+        logger.info("Создание прикладного контекста...")
+
+        # 6. Создание прикладного контекста для агента (изолированный)
+        self.application_context = await ApplicationContext.create_from_registry(
+            infrastructure_context=self.infrastructure_context,
+            profile="prod"
+        )
+
         logger.info("Система успешно инициализирована")
     
     def _apply_config_overrides(self) -> None:
@@ -187,7 +196,7 @@ class Application:
 
             # 2. Создание фабрики агентов и создание агента с конфигурацией
             from core.infrastructure.context.agent_factory import AgentFactory
-            agent_factory = AgentFactory(self.system_context)
+            agent_factory = AgentFactory(self.infrastructure_context)
 
             # Создание UserContext на основе user_id из аргументов
             from core.security.user_context import UserContext, UserRole
@@ -271,9 +280,9 @@ class Application:
         """
         logger = logging.getLogger("main")
 
-        if self.system_context:
-            logger.info("Завершение работы системного контекста...")
-            await self.system_context.shutdown()
+        if self.infrastructure_context:
+            logger.info("Завершение работы инфраструктурного контекста...")
+            await self.infrastructure_context.shutdown()
     
     def save_results(self, result: Dict[str, Any]) -> None:
         """

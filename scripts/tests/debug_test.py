@@ -5,7 +5,7 @@ import asyncio
 from unittest.mock import Mock, AsyncMock
 
 from core.config.agent_config import AgentConfig
-from core.skills.base_skill import BaseSkill
+from core.application.skills.base_skill import BaseSkill
 from models.capability import Capability
 from models.execution import ExecutionResult, ExecutionStatus
 
