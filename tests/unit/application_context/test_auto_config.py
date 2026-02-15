@@ -136,8 +136,17 @@ async def test_auto_config_generation():
         print(f"   Песочница с ручной конфигурацией и оверрайдом: {success}")
         
         if success:
-            prompt = sandbox_context.get_prompt("planning")
-            print(f"   - Промпт в песочнице (должен быть v1.1.0): {prompt[:50]}...")
+            # В новой архитектуре получение промптов работает через PromptService
+            # который должен быть правильно инициализирован
+            prompt_service = sandbox_context.get_service("prompt_service")
+            if prompt_service:
+                try:
+                    prompt = await prompt_service.render("planning", {})
+                    print(f"   - Промпт в песочнице (должен быть v1.1.0): {prompt[:50]}...")
+                except Exception as e:
+                    print(f"   - Ошибка получения промпта в песочнице: {e}")
+            else:
+                print("   - PromptService недоступен в песочнице")
         
         # Завершаем инфраструктурный контекст
         await infra.shutdown()

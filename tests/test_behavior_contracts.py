@@ -20,9 +20,9 @@ async def test_behavior_contracts_validation():
     mock_session_context = Mock()
     mock_capability = Mock()
     mock_capability.name = "test.capability"
-    mock_capability.skill_name = "test_skill"
+    mock_capability.skill_name = "book_library"  # Должен соответствовать required_skills в _filter_capabilities
     mock_capability.supported_strategies = ["react"]
-    
+
     available_capabilities = [mock_capability]
     
     # Тестируем analyze_context
@@ -46,7 +46,7 @@ async def test_behavior_contracts_validation():
     mock_session_context.get_goal.return_value = "test goal"
     
     # Создаем mock для валидации параметров
-    from core.agent_runtime.strategies.react.schema_validator import SchemaValidator
+    from core.application.agent.strategies.react.schema_validator import SchemaValidator
     validator = SchemaValidator()
     
     # Проверяем, что паттерн может обработать различные типы входных данных

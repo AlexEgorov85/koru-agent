@@ -239,9 +239,8 @@ class PlanningPattern(BehaviorPatternInterface):
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,
             capability_name=capability.name,
-            parameters=parameters,
-            reason=f"executing_plan_step_{step_id}",
-            parameters={"step_id": step_id, "plan_id": context_analysis["current_plan"].item_id}
+            parameters={**parameters, "step_id": step_id, "plan_id": context_analysis["current_plan"].item_id},
+            reason=f"executing_plan_step_{step_id}"
         )
 
     def _are_dependencies_met(self, dependencies: List[str], session: SessionContext) -> bool:

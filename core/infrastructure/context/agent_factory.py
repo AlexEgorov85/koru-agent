@@ -12,7 +12,7 @@ from enum import Enum
 
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
-from core.agent_runtime.runtime import AgentRuntime
+from core.application.agent.runtime import AgentRuntime
 from core.config.models import AgentConfig
 from core.config.app_config import AppConfig
 
@@ -74,10 +74,9 @@ class AgentFactory:
         await app_context.initialize()
 
         # 3. Создание агента
-        from core.session_context.session_context import SessionContext
         agent = AgentRuntime(
-            system_context=app_context,  # ApplicationContext как системный контекст
-            session_context=SessionContext(),
+            application_context=app_context,
+            goal=goal,
             max_steps=10  # по умолчанию
         )
 
@@ -167,10 +166,9 @@ class AgentFactory:
         )
 
         # Создание агента
-        from core.session_context.session_context import SessionContext
         agent = AgentRuntime(
-            system_context=app_context,  # ApplicationContext как системный контекст
-            session_context=SessionContext(),
+            application_context=app_context,
+            goal=goal,
             max_steps=10  # по умолчанию
         )
 

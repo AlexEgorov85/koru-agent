@@ -7,7 +7,7 @@ from core.application.behaviors.react.pattern import ReActPattern
 from core.application.behaviors.planning.pattern import PlanningPattern
 from core.application.behaviors.evaluation.pattern import EvaluationPattern
 from core.application.behaviors.fallback.pattern import FallbackPattern
-from core.agent_runtime.behavior_manager import BehaviorManager
+from core.application.agent.components.behavior_manager import BehaviorManager
 
 
 @pytest.mark.asyncio
