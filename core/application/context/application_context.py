@@ -28,7 +28,6 @@ class ComponentType(Enum):
     SERVICE = "service"      # PromptService, ContractService
     SKILL = "skill"          # PlanningSkill, BookLibrarySkill
     TOOL = "tool"            # SQLTool, FileTool
-    STRATEGY = "strategy"    # ReActStrategy, PlanAndExecuteStrategy
     BEHAVIOR = "behavior"    # ReActPattern, PlanningPattern, etc.
 
 
@@ -99,15 +98,13 @@ class ApplicationContext(BaseSystemContext):
         service_configs = getattr(self.config, 'service_configs', {})
         skill_configs = getattr(self.config, 'skill_configs', {})
         tool_configs = getattr(self.config, 'tool_configs', {})
-        strategy_configs = getattr(self.config, 'strategy_configs', {})
-        
-        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}, strategies={len(strategy_configs)}")
+
+        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}")
         
         return {
             ComponentType.SERVICE: service_configs,
             ComponentType.SKILL: skill_configs,
             ComponentType.TOOL: tool_configs,
-            ComponentType.STRATEGY: strategy_configs,
         }
 
     def _resolve_component_class(self, component_type: ComponentType, name: str) -> type:
@@ -215,7 +212,6 @@ class ApplicationContext(BaseSystemContext):
         services = []
         tools = []
         skills = []
-        strategies = []
         
         for component in all_components:
             # Определяем тип компонента по его положению в реестре
@@ -228,8 +224,6 @@ class ApplicationContext(BaseSystemContext):
                         tools.append(component)
                     elif comp_type == ComponentType.SKILL:
                         skills.append(component)
-                    elif comp_type == ComponentType.STRATEGY:
-                        strategies.append(component)
                     found = True
                     break
             
@@ -239,7 +233,7 @@ class ApplicationContext(BaseSystemContext):
         
         # Инициализируем компоненты в правильном порядке:
         # 1. Сервисы (они нужны инструментам и другим компонентам)
-        # 2. Инструменты, навыки, стратегии (они могут зависеть от сервисов)
+        # 2. Инструменты, навыки (они могут зависеть от сервисов)
         
         initialized_components = set()
         
@@ -261,8 +255,8 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.error(f"Ошибка при инициализации сервиса {component.name}: {e}")
                 return False
         
-        # Затем инициализируем инструменты, навыки и стратегии
-        other_components = tools + skills + strategies
+        # Затем инициализируем инструменты и навыки
+        other_components = tools + skills
         self.logger.info(f"Инициализация других компонентов: {len(other_components)}")
         
         for component in other_components:
@@ -332,8 +326,6 @@ class ApplicationContext(BaseSystemContext):
     def get_tool(self, name: str) -> Optional['BaseComponent']:
         return self.components.get(ComponentType.TOOL, name)
     
-    def get_strategy(self, name: str) -> Optional['BaseComponent']:
-        return self.components.get(ComponentType.STRATEGY, name)
 
     def get_behavior_pattern(self, name: str) -> Optional['BaseComponent']:
         return self.components.get(ComponentType.BEHAVIOR, name)
@@ -694,10 +686,6 @@ class ApplicationContext(BaseSystemContext):
             if skill:
                 return skill
                 
-            # Затем ищем среди стратегий
-            strategy = self.components.get(ComponentType.STRATEGY, name)
-            if strategy:
-                return strategy
             
             # Для других ресурсов обращаемся в инфраструктурный контекст
             return self.infrastructure_context.get_resource(name)
