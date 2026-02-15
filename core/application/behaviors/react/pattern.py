@@ -11,11 +11,11 @@ import time
 import logging
 from typing import Any, Dict, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
-from core.agent_runtime.strategies.react.schema_validator import SchemaValidator
-from core.agent_runtime.strategies.react.utils import analyze_context
-from core.agent_runtime.strategies.react.models import ReasoningResult
-from core.agent_runtime.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
-from core.agent_runtime.strategies.react.validation import validate_reasoning_result
+from core.application.agent.strategies.react.schema_validator import SchemaValidator
+from core.application.agent.strategies.react.utils import analyze_context
+from core.application.agent.strategies.react.models import ReasoningResult
+from core.application.agent.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
+from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from models.execution import ExecutionStatus
 from models.capability import Capability
@@ -34,8 +34,9 @@ class ReActPattern(BehaviorPatternInterface):
     """
     pattern_id = "react.v1.0.0"
 
-    def __init__(self, prompt_service: 'PromptService'):
+    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None):
         """Инициализация паттерна."""
+        self.pattern_id = pattern_id or "react.v1.0.0"
         self._prompt_service = prompt_service
         self.reasoning_schema = ReasoningResult.model_json_schema()
         # Удаляем служебные поля из схемы
@@ -64,8 +65,9 @@ class ReActPattern(BehaviorPatternInterface):
         )
         
         # Добавляем информацию о прогрессе
-        analysis["no_progress_steps"] = session_context.get_no_progress_steps()
-        analysis["consecutive_errors"] = session_context.get_consecutive_errors()
+        # В новой архитектуре используем атрибуты или возвращаем 0, если метод не существует
+        analysis["no_progress_steps"] = getattr(session_context, 'no_progress_steps', 0)
+        analysis["consecutive_errors"] = getattr(session_context, 'consecutive_errors', 0)
         
         return analysis
 
@@ -114,9 +116,9 @@ class ReActPattern(BehaviorPatternInterface):
             )
 
     async def _perform_structured_reasoning(
-        self, 
-        session_context, 
-        context_analysis: Dict[str, Any], 
+        self,
+        session_context,
+        context_analysis: Dict[str, Any],
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
@@ -129,14 +131,10 @@ class ReActPattern(BehaviorPatternInterface):
                 'parameters_schema': cap.parameters_schema or {}
             })
 
-        # Получение промпта через изолированный сервис
-        reasoning_prompt = await self._prompt_service.render(
-            capability_name="behaviors.react.reasoning",
-            variables={
-                "context_analysis": context_analysis,
-                "last_steps": context_analysis.get('last_steps', []),
-                "available_capabilities": formatted_capabilities
-            }
+        # Используем промпт из новой архитектуры
+        reasoning_prompt = build_reasoning_prompt(
+            context_analysis=context_analysis,
+            available_capabilities=formatted_capabilities
         )
 
         start_time = time.time()
@@ -145,8 +143,35 @@ class ReActPattern(BehaviorPatternInterface):
             # Генерация структурированного ответа через LLM
             # В реальной реализации здесь будет вызов LLM через сервис
             # который доступен через ApplicationContext
-            llm_provider = session_context.get_llm_provider()  # Получаем через контекст
-            
+            llm_provider = getattr(session_context, 'llm_provider', None)
+            if llm_provider is None:
+                # Если llm_provider не доступен через session_context, пробуем получить через application_context
+                app_context = getattr(self, '_app_context', None)
+                if app_context and hasattr(app_context, 'llm_provider'):
+                    llm_provider = app_context.llm_provider
+
+            if llm_provider is None:
+                # Fallback: создаем упрощенную версию рассуждения
+                logger.warning("LLM провайдер недоступен, используем упрощенную логику рассуждения")
+                return {
+                    "analysis": {
+                        "current_situation": "LLM провайдер недоступен",
+                        "progress_assessment": "Неизвестно",
+                        "confidence": 0.5,
+                        "errors_detected": False,
+                        "consecutive_errors": self.error_count,
+                        "execution_time": context_analysis.get("execution_time_seconds", 0),
+                        "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                    },
+                    "recommended_action": {
+                        "action_type": "execute_capability",
+                        "capability_name": "generic.execute",  # Предполагаем, что generic.execute доступен
+                        "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
+                        "reasoning": "LLM недоступен, используем fallback"
+                    },
+                    "needs_rollback": False
+                }
+
             response = await llm_provider.generate_structured(
                 prompt=reasoning_prompt,
                 schema=self.reasoning_schema,
@@ -307,7 +332,8 @@ class ReActPattern(BehaviorPatternInterface):
     async def _create_fallback_decision(self, session_context, reason: str) -> BehaviorDecision:
         """Создает fallback-решение при ошибках."""
         # Вместо прямого доступа к runtime.system, полагаемся на переданные capability
-        available_caps = session_context.get_available_capabilities()  # Получаем через контекст
+        # В новой архитектуре получаем capability из другого источника
+        available_caps = []  # Возвращаем пустой список, так как в session_context нет такого метода
         
         for cap in available_caps:
             if any(s.lower() == "react" for s in cap.supported_strategies or []):

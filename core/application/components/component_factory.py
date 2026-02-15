@@ -68,7 +68,7 @@ class ComponentFactory:
         Разрешение класса компонента по имени и типу.
 
         ARGS:
-        - component_type: тип компонента ('skill', 'tool', 'service', 'strategy')
+        - component_type: тип компонента ('skill', 'tool', 'service', 'behavior')
         - name: имя компонента
 
         RETURNS:
@@ -154,14 +154,11 @@ class ComponentFactory:
                         return getattr(module, class_name)
                     except ImportError:
                         raise ValueError(f"Инструмент {name} не найден")
-        elif component_type == "strategy":
-            module_name = f"core.application.strategies.{name}_strategy"
-            class_name = f"{name.title().replace('_', '')}Strategy"
             try:
                 module = __import__(module_name, fromlist=[class_name])
                 return getattr(module, class_name)
             except ImportError:
-                raise ValueError(f"Стратегия {name} не найдена")
+                raise ValueError(f"Компонент {name} не найден")
         else:
             raise ValueError(f"Неизвестный тип компонента: {component_type}")
 
@@ -176,7 +173,7 @@ class ComponentFactory:
         Создание компонента по имени и типу.
 
         ARGS:
-        - component_type: тип компонента ('skill', 'tool', 'service', 'strategy')
+        - component_type: тип компонента ('skill', 'tool', 'service', 'behavior')
         - name: имя компонента
         - application_context: контекст приложения
         - component_config: конфигурация компонента

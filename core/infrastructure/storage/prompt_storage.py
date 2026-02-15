@@ -47,8 +47,6 @@ class PromptStorage(IPromptStorage):
                 standard_subdirs = ['skills']
             elif component_type == ComponentType.SERVICE:
                 standard_subdirs = ['services']
-            elif component_type == ComponentType.STRATEGY:
-                standard_subdirs = ['strategies']
             elif component_type == ComponentType.TOOL:
                 standard_subdirs = ['tools']
             elif component_type == ComponentType.SQL_GENERATION:
@@ -57,10 +55,10 @@ class PromptStorage(IPromptStorage):
                 standard_subdirs = ['contracts']
             else:
                 # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'strategies', 'sql_generation', 'contracts']
+                standard_subdirs = ['skills', 'sql_generation', 'contracts']
         else:
             # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'strategies', 'sql_generation', 'contracts']
+            standard_subdirs = ['skills', 'sql_generation', 'contracts']
 
         # Разбиваем capability_name на части
         parts = capability_name.split('.')
@@ -185,8 +183,6 @@ class PromptStorage(IPromptStorage):
                 standard_subdirs = ['skills']
             elif component_type == ComponentType.SERVICE:
                 standard_subdirs = ['services']
-            elif component_type == ComponentType.STRATEGY:
-                standard_subdirs = ['strategies']
             elif component_type == ComponentType.TOOL:
                 standard_subdirs = ['tools']
             elif component_type == ComponentType.SQL_GENERATION:
@@ -195,10 +191,10 @@ class PromptStorage(IPromptStorage):
                 standard_subdirs = ['contracts']
             else:
                 # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'strategies', 'sql_generation', 'contracts']
+                standard_subdirs = ['skills', 'sql_generation', 'contracts']
         else:
             # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'strategies', 'sql_generation', 'contracts']
+            standard_subdirs = ['skills', 'sql_generation', 'contracts']
 
         # Определяем возможные подкаталоги для поиска
         parts = capability_name.split('.')
@@ -264,7 +260,6 @@ class PromptStorage(IPromptStorage):
                 save_dir = self.prompts_dir / 'skills'
             elif component_type == ComponentType.SERVICE:
                 save_dir = self.prompts_dir / 'services'
-            elif component_type == ComponentType.STRATEGY:
                 save_dir = self.prompts_dir / 'strategies'
             elif component_type == ComponentType.TOOL:
                 save_dir = self.prompts_dir / 'tools'

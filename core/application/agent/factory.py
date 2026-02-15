@@ -64,10 +64,24 @@ class AgentFactory:
                 raise VersionValidationError("\n".join(errors))
 
         # 2. Создание изолированного прикладного контекста
+        # Преобразуем AgentConfig в AppConfig для ApplicationContext
+        from core.config.app_config import AppConfig
+        app_config = AppConfig(
+            config_id=config.config_id if config else "default_app_config",
+            created_at=getattr(config, 'created_at', None),
+            source=getattr(config, 'source', 'auto_resolved'),
+            prompt_versions=getattr(config, 'prompt_versions', {}),
+            contract_versions=getattr(config, 'contract_versions', {}),
+            max_steps=getattr(config, 'max_steps', 10),
+            max_retries=getattr(config, 'max_retries', 3),
+            temperature=getattr(config, 'temperature', 0.7),
+            allow_inactive_resources=getattr(config, 'allow_inactive_resources', False)
+        )
+
         app_context = ApplicationContext(
-            agent_config=config or await self._resolve_default_config(),
             infrastructure_context=self.infrastructure,
-            correlation_id=correlation_id
+            config=app_config,
+            profile="prod"  # или использовать profile из config, если он там есть
         )
 
         await app_context.initialize()
@@ -79,9 +93,8 @@ class AgentFactory:
         )
 
         self.logger.info(
-            f"Создан агент с ID {app_context.correlation_id}. "
-            f"Версии: навыки={list(config.skills.keys()) if config else 'default'}, "
-            f"инструменты={list(config.tools.keys()) if config else 'default'}"
+            f"Создан агент с ID {app_context.id}. "
+            f"Версии: из конфигурации"
         )
 
         return agent
@@ -101,28 +114,23 @@ class AgentFactory:
         # Проверка промптов через инфраструктурное хранилище
         prompt_storage = self.infrastructure.get_resource("prompt_storage")
         if prompt_storage:
-            for skill_name, skill_config in config.skills.items():
-                if hasattr(skill_config, 'prompt_versions'):
-                    for capability, version in skill_config.prompt_versions.items():
-                        exists = await prompt_storage.check_version_exists(capability, version)
-                        if not exists:
-                            errors.append(f"Промпт {capability}@{version} не существует")
+            for capability, version in config.prompt_versions.items():
+                exists = await prompt_storage.check_version_exists(capability, version)
+                if not exists:
+                    errors.append(f"Промпт {capability}@{version} не существует")
 
         # Проверка контрактов через инфраструктурное хранилище
         contract_storage = self.infrastructure.get_resource("contract_storage")
         if contract_storage:
-            for skill_name, skill_config in config.skills.items():
-                if hasattr(skill_config, 'input_contract_versions'):
-                    for capability, version in skill_config.input_contract_versions.items():
-                        exists = await contract_storage.check_version_exists(capability, version, "input")
-                        if not exists:
-                            errors.append(f"Input-контракт {capability}@{version} не существует")
+            for contract_name, version in config.contract_versions.items():
+                # Проверяем как input, так и output контракты
+                input_exists = await contract_storage.check_version_exists(contract_name, version, "input")
+                output_exists = await contract_storage.check_version_exists(contract_name, version, "output")
                 
-                if hasattr(skill_config, 'output_contract_versions'):
-                    for capability, version in skill_config.output_contract_versions.items():
-                        exists = await contract_storage.check_version_exists(capability, version, "output")
-                        if not exists:
-                            errors.append(f"Output-контракт {capability}@{version} не существует")
+                if not input_exists:
+                    errors.append(f"Input-контракт {contract_name}@{version} не существует")
+                if not output_exists:
+                    errors.append(f"Output-контракт {contract_name}@{version} не существует")
 
         return errors
 
@@ -136,12 +144,10 @@ class AgentFactory:
         # В реальной системе это может загружаться из конфигурационного файла
         # или из реестра по умолчанию
         return AgentConfig(
-            agent_id="default_agent",
-            name="default_agent",
-            description="Default agent configuration",
-            skills={},
-            tools={},
-            services={},
-            parameters={},
-            enabled=True
+            prompt_versions={},
+            contract_versions={},
+            max_steps=10,
+            max_retries=3,
+            temperature=0.7,
+            allow_inactive_resources=False
         )

@@ -16,7 +16,6 @@ class PromptMetadata(BaseModel):
     version: str = Field(..., pattern=r"^v?\d+\.\d+\.\d+$")
     skill: str
     capability: str
-    strategy: Optional[str] = None  # null = все стратегии
     role: Literal["system", "user", "assistant"] = "system"
     language: str = "ru"
     tags: List[str] = Field(default_factory=list)

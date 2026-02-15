@@ -14,7 +14,8 @@ class FallbackPattern(BehaviorPatternInterface):
 
     pattern_id = "fallback.v1.0.0"
 
-    def __init__(self, prompt_service: 'PromptService'):
+    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None):
+        self.pattern_id = pattern_id or "fallback.v1.0.0"
         self._prompt_service = prompt_service
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 

@@ -59,7 +59,6 @@ async def test_config_loading():
     print(f"- Сервисов: {len(app_config.service_configs)}")
     print(f"- Инструментов: {len(app_config.tool_configs)}")
     print(f"- Навыков: {len(app_config.skill_configs)}")
-    print(f"- Стратегий: {len(app_config.strategy_configs)}")
     
     # Создаем фейковый инфраструктурный контекст
     class FakeInfraContext:
@@ -135,7 +134,6 @@ async def test_config_loading():
             services = app_context.components.all_of_type(ComponentType.SERVICE)
             tools = app_context.components.all_of_type(ComponentType.TOOL)
             skills = app_context.components.all_of_type(ComponentType.SKILL)
-            strategies = app_context.components.all_of_type(ComponentType.STRATEGY)
             
             print(f"\nКоличество компонентов после инициализации:")
             print(f"- Сервисов: {len(services)}")

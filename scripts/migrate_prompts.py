@@ -101,7 +101,6 @@ def migrate_prompt(file_path: Path, data: dict, backup_dir: Path):
         'version': version,
         'skill': skill,
         'capability': capability,
-        'strategy': data.get('strategy'),
         'role': data.get('role', 'system'),
         'language': data.get('language', 'ru'),
         'tags': data.get('tags', []),

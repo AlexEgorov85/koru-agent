@@ -9,7 +9,6 @@ from models.execution import ExecutionResult, ExecutionStatus
 
 class PlanningSkill(BaseSkill):
     name = "planning"
-    supported_strategies = ["planning", "react"]  # ← Поддержка нескольких стратегий
 
     def __init__(self, name: str, application_context: Any, component_config=None, **kwargs):
         super().__init__(name, application_context, component_config)
@@ -34,42 +33,36 @@ class PlanningSkill(BaseSkill):
                 name="planning.create_plan",
                 description="Создание первичного плана действий",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             ),
             Capability(
                 name="planning.update_plan",
                 description="Обновление существующего плана",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             ),
             Capability(
                 name="planning.get_next_step",
                 description="Получение следующего шага из плана",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             ),
             Capability(
                 name="planning.update_step_status",
                 description="Обновление статуса шага плана",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             ),
             Capability(
                 name="planning.decompose_task",
                 description="Декомпозиция сложной задачи на подзадачи",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             ),
             Capability(
                 name="planning.mark_task_completed",
                 description="Отметка задачи как завершенной",
                 skill_name=self.name,
-                supported_strategies=self.supported_strategies,
                 visiable=True
             )
         ]
@@ -625,7 +618,6 @@ class PlanningSkill(BaseSkill):
                     "goal": description,
                     "max_steps": min(3, len(description.split('.'))),  # Максимум 3 шага на подзадачу
                     "context": f"Подзадача {subtask_id} родительской задачи {input_data.task_id}",
-                    "strategy": "iterative"
                 }
                 sub_plan_result = await self._create_plan(sub_plan_params, context)
                 

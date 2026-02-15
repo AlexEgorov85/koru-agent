@@ -26,7 +26,6 @@ class AgentConfig(BaseModel):
     max_steps: int = Field(10, ge=1, le=50)
     max_retries: int = Field(3, ge=0, le=10)
     temperature: float = Field(0.7, ge=0.0, le=1.0)
-    default_strategy: str = Field("react")
     
     # Флаги для тестирования
     allow_inactive_resources: bool = Field(False)

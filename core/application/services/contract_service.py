@@ -28,7 +28,6 @@ class ContractMeta:
         self.contract_type = kwargs.get('contract_type', 'capability_input')
         self.skill = kwargs.get('skill', '')
         self.capability = kwargs.get('capability', '')
-        self.strategy = kwargs.get('strategy')
         self.language = kwargs.get('language', 'ru')
         self.tags = kwargs.get('tags', [])
         self.created_at = kwargs.get('created_at', datetime.now().isoformat())

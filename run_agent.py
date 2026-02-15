@@ -6,7 +6,7 @@ import asyncio
 from core.config import get_config
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
-from core.infrastructure.context.agent_factory import AgentFactory
+from core.application.agent.factory import AgentFactory  # Обновленный путь к фабрике
 from core.config.agent_config import AgentConfig
 
 async def run_agent_with_question():
@@ -23,21 +23,23 @@ async def run_agent_with_question():
         profile="prod"
     )
 
-    # Создание фабрики агентов
+    # Создание фабрики агентов (обновленный путь)
     agent_factory = AgentFactory(infrastructure_context)
 
     # Создание агента с минимальной конфигурацией
     agent_config = AgentConfig(
         max_steps=5,
-        default_strategy="react"
-    )
+        )
 
     # Создание агента
-    agent = await agent_factory.create_agent(agent_config=agent_config)
+    agent = await agent_factory.create_agent(
+        goal="Какие книги написал Александр Пушкин?",
+        config=agent_config
+    )
 
     # Запуск агента с вопросом
     question = "Какие книги написал Александр Пушкин?"
-    result = await agent.run(goal=question)
+    result = await agent.run()
 
     return result
 

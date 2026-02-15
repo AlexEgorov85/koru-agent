@@ -12,7 +12,8 @@ class PlanningPattern(BehaviorPatternInterface):
     
     pattern_id = "planning.v1.0.0"
 
-    def __init__(self, prompt_service: 'PromptService', contract_service: 'ContractService'):
+    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None, contract_service: 'ContractService' = None):
+        self.pattern_id = pattern_id or "planning.v1.0.0"
         self._prompt_service = prompt_service
         self._contract_service = contract_service
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")

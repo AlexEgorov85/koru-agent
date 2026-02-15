@@ -70,7 +70,6 @@ def create_prompt(args):
         version=args.version,
         skill=args.capability.split('.')[0] if '.' in args.capability else 'general',
         capability=args.capability,
-        strategy=None,
         role="system",
         language="ru",
         tags=[args.template] if args.template else ["general"],

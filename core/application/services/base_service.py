@@ -210,9 +210,6 @@ class BaseService(BaseComponent):
             if tool:
                 return tool
                 
-            strategy = self.application_context.get_strategy(name)
-            if strategy:
-                return strategy
         
         return None
 

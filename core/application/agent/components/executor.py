@@ -1,4 +1,6 @@
-
+"""
+Исполнитель действий агента для новой архитектуры
+"""
 from typing import Optional
 from core.application.context.base_system_context import BaseSystemContext
 from models.capability import Capability
@@ -6,12 +8,13 @@ from core.session_context.base_session_context import BaseSessionContext
 from models.execution import ExecutionResult
 from core.security.user_context import UserContext
 
+
 class ActionExecutor:
     """Единственная ответственность — выполнение capability."""
-    
+
     def __init__(self, system_context: BaseSystemContext):
         self.system = system_context
-        
+
     async def execute_capability(
         self,
         capability: Capability,

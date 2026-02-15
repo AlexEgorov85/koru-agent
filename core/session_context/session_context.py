@@ -265,7 +265,7 @@ class SessionContext(BaseSessionContext):
     def record_decision(self, decision_data, reasoning=None, metadata=None):
         """Запись решения стратегии в контекст"""
         meta = metadata or ContextItemMetadata(
-            source="strategy",
+            source="behavior",
             confidence=0.85
         )
         content = {

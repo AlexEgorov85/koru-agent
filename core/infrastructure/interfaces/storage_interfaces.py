@@ -18,7 +18,6 @@ class ComponentType(Enum):
     """Тип компонента для качественного поиска."""
     SKILL = "skill"
     SERVICE = "service"
-    STRATEGY = "strategy"
     TOOL = "tool"
     SQL_GENERATION = "sql_generation"
     CONTRACT = "contract"

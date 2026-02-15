@@ -176,12 +176,6 @@ class Application:
                         self.config.agent.parameters.max_tokens = self.args.max_tokens
                 logger.info(f"Максимальное количество токенов установлено в {self.args.max_tokens}")
 
-            if self.args.strategy:
-                if isinstance(self.config.agent, dict):
-                    self.config.agent["default_strategy"] = self.args.strategy
-                else:
-                    self.config.agent.default_strategy = self.args.strategy
-                logger.info(f"Стратегия установлена в {self.args.strategy}")
     
     async def run(self) -> Dict[str, Any]:
         """
@@ -195,7 +189,7 @@ class Application:
             logger.info(f"Запуск агента с целью: {self.args.goal}")
 
             # 2. Создание фабрики агентов и создание агента с конфигурацией
-            from core.infrastructure.context.agent_factory import AgentFactory
+            from core.application.agent.factory import AgentFactory  # Обновленный путь к фабрике
             agent_factory = AgentFactory(self.infrastructure_context)
 
             # Создание UserContext на основе user_id из аргументов
@@ -213,8 +207,6 @@ class Application:
                 agent_config_kwargs['max_steps'] = self.args.max_steps
             if self.args.temperature is not None:
                 agent_config_kwargs['temperature'] = self.args.temperature
-            if self.args.strategy is not None:
-                agent_config_kwargs['default_strategy'] = self.args.strategy
 
             # Создаем конфигурацию агента (если параметры заданы - используем их, иначе авто-разрешение)
             if agent_config_kwargs:
@@ -363,8 +355,6 @@ def parse_arguments(args_list=None) -> argparse.Namespace:
                         help="Температура генерации (0.0-1.0)")
     parser.add_argument("--output", type=str,
                         help="Файл для сохранения результатов")
-    parser.add_argument("--strategy", type=str, choices=["react", "plan_and_execute", "chain_of_thought"],
-                        help="Стратегия рассуждений агента")
     parser.add_argument("--user-id", type=str, default="anonymous",
                         help="ID пользователя для авторизации (по умолчанию: anonymous)")
 

@@ -87,7 +87,6 @@ async def test_application_context_structure():
     assert hasattr(app_context, 'get_service'), "Должен быть метод get_service"
     assert hasattr(app_context, 'get_skill'), "Должен быть метод get_skill"
     assert hasattr(app_context, 'get_tool'), "Должен быть метод get_tool"
-    assert hasattr(app_context, 'get_strategy'), "Должен быть метод get_strategy"
     
     print("Структура ApplicationContext корректна")
     print("=== Тестирование структуры ApplicationContext завершено ===")
@@ -103,13 +102,11 @@ def test_component_type_enum():
     assert hasattr(ComponentType, 'SERVICE'), "Должен быть тип SERVICE"
     assert hasattr(ComponentType, 'SKILL'), "Должен быть тип SKILL"
     assert hasattr(ComponentType, 'TOOL'), "Должен быть тип TOOL"
-    assert hasattr(ComponentType, 'STRATEGY'), "Должен быть тип STRATEGY"
-    
+
     # Проверяем значения
     assert ComponentType.SERVICE.value == "service"
     assert ComponentType.SKILL.value == "skill"
     assert ComponentType.TOOL.value == "tool"
-    assert ComponentType.STRATEGY.value == "strategy"
     
     print("ComponentType enum корректен")
     print("=== Тестирование ComponentType enum завершено ===")

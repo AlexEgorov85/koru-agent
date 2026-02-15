@@ -133,7 +133,6 @@ async def test_full_loading():
             services = app_context.components.all_of_type(ComponentType.SERVICE)
             tools = app_context.components.all_of_type(ComponentType.TOOL)
             skills = app_context.components.all_of_type(ComponentType.SKILL)
-            strategies = app_context.components.all_of_type(ComponentType.STRATEGY)
             
             print(f"\nКоличество компонентов после инициализации:")
             print(f"- Сервисов: {len(services)}")

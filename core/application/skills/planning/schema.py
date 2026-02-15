@@ -38,14 +38,12 @@ class CreatePlanInput(BaseModel):
     goal: str
     max_steps: int = 10
     context: Optional[str] = None
-    strategy: str = "iterative"  # iterative, sequential, etc.
 
 
 class CreatePlanOutput(BaseModel):
     plan_id: str
     goal: str
     steps: List[PlanStep]
-    strategy: str
     metadata: Dict[str, Any] = {}
 
 

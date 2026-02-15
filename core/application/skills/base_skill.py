@@ -37,20 +37,6 @@ class BaseSkill(BaseComponent):
     """
     #: Человекочитаемое имя навыка
     name: str = "base_skill"
-    #: Список стратегий, поддерживаемых навыком
-    supported_strategies: List[str] = ["react"]  # По умолчанию только для ReAct
-
-    def supports_strategy(self, strategy_name: str) -> bool:
-        """
-        Проверяет, поддерживает ли навык указанную стратегию.
-
-        ПАРАМЕТРЫ:
-        - strategy_name: имя стратегии для проверки
-
-        ВОЗВРАЩАЕТ:
-        - bool: True если стратегия поддерживается, иначе False
-        """
-        return strategy_name.lower() in [s.lower() for s in self.supported_strategies]
 
     def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, component_config: Optional['ComponentConfig'] = None, **kwargs):
         # Проверяем, какой тип конфигурации передан

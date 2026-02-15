@@ -51,8 +51,6 @@ class AppConfig(BaseModel):
     # Температура модели
     temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура модели")
 
-    # Стратегия по умолчанию
-    default_strategy: str = Field(default="react", description="Стратегия по умолчанию")
 
     # Включить саморефлексию
     enable_self_reflection: bool = Field(default=True, description="Включить саморефлексию")
@@ -68,7 +66,6 @@ class AppConfig(BaseModel):
     service_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации сервисов: {service_name: ComponentConfig}")
     skill_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации навыков: {skill_name: ComponentConfig}")
     tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов: {tool_name: ComponentConfig}")
-    strategy_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации стратегий: {strategy_name: ComponentConfig}")
 
     # Используем ConfigDict вместо класса Config для Pydantic v2+
     model_config = ConfigDict(
@@ -308,7 +305,7 @@ class AppConfig(BaseModel):
 
         # Загружаем параметры агента из реестра
         agent_config = registry_data.get('agent', {})
-        
+
         return cls(
             config_id=f"app_config_{profile}",
             prompt_versions=active_prompts,
@@ -317,13 +314,11 @@ class AppConfig(BaseModel):
             service_configs=service_configs,
             skill_configs=skill_configs,
             tool_configs=tool_configs,
-            strategy_configs=strategy_configs,
             side_effects_enabled=agent_config.get('side_effects_enabled', profile == "prod"),
             detailed_metrics=agent_config.get('detailed_metrics', False),
             max_steps=agent_config.get('max_steps', 10),
             max_retries=agent_config.get('max_retries', 3),
             temperature=agent_config.get('temperature', 0.7),
-            default_strategy=agent_config.get('default_strategy', 'react'),
             enable_self_reflection=agent_config.get('enable_self_reflection', True),
             enable_context_window_management=agent_config.get('enable_context_window_management', True),
             profile=profile  # Добавляем поле профиля

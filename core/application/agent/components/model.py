@@ -1,3 +1,6 @@
+"""
+Модели решений агента для новой архитектуры
+"""
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Type

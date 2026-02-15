@@ -28,10 +28,9 @@ class VersionNotFoundError(Exception):
 
 class PromptServiceInput(ServiceInput):
     """Входные данные для Promptservices."""
-    def __init__(self, capability_name: str, variables: Dict[str, Any] = None, strategy: Optional[str] = None, version: Optional[str] = None):
+    def __init__(self, capability_name: str, variables: Dict[str, Any] = None, version: Optional[str] = None):
         self.capability_name = capability_name
         self.variables = variables or {}
-        self.strategy = strategy
         self.version = version
 
 
@@ -197,8 +196,7 @@ class PromptService(BaseService):
                     'path': file_path,
                     'data': prompt_data,
                     'skill': prompt_data.get('skill'),
-                    'strategy': prompt_data.get('strategy'),
-                    'role': prompt_data.get('role'),
+                        'role': prompt_data.get('role'),
                     'language': prompt_data.get('language', 'ru'),
                     'variables': prompt_data.get('variables', []),
                     'content': prompt_data.get('content', ''),
@@ -237,13 +235,11 @@ class PromptService(BaseService):
             rendered_prompt = await self.render(
                 capability_name=input_data.capability_name,
                 variables=input_data.variables,
-                strategy=input_data.strategy,
                 version=input_data.version
             )
 
             metadata = {
                 'capability_name': input_data.capability_name,
-                'strategy': input_data.strategy,
                 'version': input_data.version
             }
 
@@ -324,7 +320,6 @@ class PromptService(BaseService):
                 'version': version or latest_version,
                 'skill': prompt_info.get('skill', 'unknown'),
                 'capability': capability,
-                'strategy': prompt_info.get('strategy'),
                 'role': prompt_info.get('role', 'system'),
                 'language': prompt_info.get('language', 'ru'),
                 'tags': prompt_info['data'].get('tags', []),
@@ -347,7 +342,6 @@ class PromptService(BaseService):
             'version': version,
             'skill': metadata.get('skill', 'unknown'),
             'capability': capability,
-            'strategy': metadata.get('strategy'),
             'role': metadata.get('role', 'system'),
             'language': metadata.get('language', 'ru'),
             'tags': metadata.get('tags', []),
@@ -393,8 +387,7 @@ class PromptService(BaseService):
                         'version': version,
                         'skill': prompt_data.get('skill', 'unknown'),
                         'capability': capability,
-                        'strategy': prompt_data.get('strategy'),
-                        'role': prompt_data.get('role', 'system'),
+                                'role': prompt_data.get('role', 'system'),
                         'language': prompt_data.get('language', 'ru'),
                         'tags': prompt_data.get('tags', []),
                         'variables': prompt_data.get('variables', []),
@@ -431,7 +424,6 @@ class PromptService(BaseService):
     async def get_prompt(
         self,
         capability_name: str,
-        strategy: Optional[str] = None,
         version: Optional[str] = None
     ) -> str:
         """
@@ -440,9 +432,6 @@ class PromptService(BaseService):
         try:
             prompt_obj = await self.get_prompt_object(capability_name, version)
             
-            # Применяем фильтрацию по стратегии, если указана
-            if strategy and prompt_obj.metadata.strategy and prompt_obj.metadata.strategy != strategy:
-                raise PromptNotFoundError(f"Capability '{capability_name}' not available for strategy '{strategy}'")
             
             return prompt_obj.content
         except (PromptNotFoundError, VersionNotFoundError):
@@ -472,9 +461,6 @@ class PromptService(BaseService):
             # Get the prompt data
             prompt_info = self._index[capability_name][version]
 
-            # Apply strategy filtering if needed
-            if strategy and prompt_info['strategy'] and prompt_info['strategy'] != strategy:
-                raise PromptNotFoundError(f"Capability '{capability_name}' not available for strategy '{strategy}'")
 
             return prompt_info['content']
 
@@ -530,7 +516,6 @@ class PromptService(BaseService):
         self,
         capability_name: str,
         variables: Dict[str, Any],
-        strategy: Optional[str] = None,
         version: Optional[str] = None,
         **kwargs
     ) -> str:
@@ -538,7 +523,7 @@ class PromptService(BaseService):
         Старый метод — работает без изменений через объектную модель
         """
         # Get the raw prompt
-        raw_prompt = await self.get_prompt(capability_name, strategy, version)
+        raw_prompt = await self.get_prompt(capability_name, version)
 
         # Get required variables for validation
         if capability_name in self._index:
@@ -596,7 +581,6 @@ class PromptService(BaseService):
                 # Apply filters
                 if 'skill' in filters and prompt_info['skill'] != filters['skill']:
                     continue
-                if 'strategy' in filters and prompt_info['strategy'] != filters['strategy']:
                     continue
                 if 'tags' in filters:
                     prompt_tags = prompt_info['data'].get('tags', [])
@@ -607,8 +591,7 @@ class PromptService(BaseService):
                     'capability': capability,
                     'version': version,
                     'skill': prompt_info['skill'],
-                    'strategy': prompt_info['strategy'],
-                    'role': prompt_info['role'],
+                        'role': prompt_info['role'],
                     'language': prompt_info['language'],
                     'tags': prompt_info['data'].get('tags', []),
                     'path': str(prompt_info['path'])
