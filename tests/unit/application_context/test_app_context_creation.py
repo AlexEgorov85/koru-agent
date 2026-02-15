@@ -40,16 +40,19 @@ async def test_application_context_creation():
     success = await app_context.initialize()
     print(f'ApplicationContext инициализирован: {success}')
     
-    # Проверим, что у нас есть изолированные сервисы
-    print(f'PromptService создан: {app_context._prompt_service is not None}')
-    print(f'ContractService создан: {app_context._contract_service is not None}')
-    
-    # Проверим, что у нас есть изолированные инструменты
-    print(f'Инструменты созданы: {len(app_context._tools)}')
-    
+    # Проверим, что у нас есть изолированные сервисы через новый API
+    prompt_service = app_context.get_service("prompt_service")
+    contract_service = app_context.get_service("contract_service")
+    print(f'PromptService создан: {prompt_service is not None}')
+    print(f'ContractService создан: {contract_service is not None}')
+
+    # Проверим, что у нас есть изолированные инструменты через новый API
+    from core.application.context.application_context import ComponentType
+    tools = app_context.components.all_of_type(ComponentType.TOOL)
+    print(f'Инструменты созданы: {len(tools)}')
+
     # Проверим, что кэши изолированы
-    ps1 = app_context._prompt_service
-    print(f'PromptService кэш изолирован: {hasattr(ps1, "_cached_prompts")}')
+    print(f'PromptService кэш изолирован: {hasattr(prompt_service, "_cached_prompts") if prompt_service else False}')
     
     print('Тест создания ApplicationContext завершен успешно!')
 

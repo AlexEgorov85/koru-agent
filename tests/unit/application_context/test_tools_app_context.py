@@ -42,11 +42,12 @@ async def test_tools_in_app_context():
     success = await app_context.initialize()
     print(f'ApplicationContext инициализирован: {success}')
     
-    # Проверим, что у нас есть поле _tools
-    print(f'Поле _tools существует: {hasattr(app_context, "_tools")}')
-    print(f'Количество инструментов: {len(app_context._tools)}')
-    
-    # Проверим метод get_tool
+    # Проверим, что у нас есть компоненты инструментов через новый API
+    from core.application.context.application_context import ComponentType
+    tools = app_context.components.all_of_type(ComponentType.TOOL)
+    print(f'Количество инструментов: {len(tools)}')
+
+    # Проверим метод get_tool (он теперь использует новый API)
     try:
         tool = app_context.get_tool('nonexistent_tool')
         print(f'Получение несуществующего инструмента: {tool}')

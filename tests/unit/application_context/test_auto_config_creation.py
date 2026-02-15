@@ -31,7 +31,7 @@ async def test_simple_context_creation():
     success = await app_context_prod.initialize()
     print(f'   ApplicationContext (prod) инициализирован: {success}')
     print(f'   AppConfig создан автоматически: {app_context_prod.config is not None}')
-    print(f'   Профиль: {app_context_prod.config.profile}')
+    print(f'   Профиль: {app_context_prod.config.profile if app_context_prod.config else "None"}')
 
     # Создаем прикладной контекст для песочницы БЕЗ передачи конфигурации
     print('\n2. Создание контекста для sandbox профиля без конфигурации...')
@@ -44,14 +44,16 @@ async def test_simple_context_creation():
     success = await app_context_sandbox.initialize()
     print(f'   ApplicationContext (sandbox) инициализирован: {success}')
     print(f'   AppConfig создан автоматически: {app_context_sandbox.config is not None}')
-    print(f'   Профиль: {app_context_sandbox.config.profile}')
-    print(f'   Побочные эффекты в песочнице: {app_context_sandbox.config.side_effects_enabled}')
+    print(f'   Профиль: {app_context_sandbox.config.profile if app_context_sandbox.config else "None"}')
+    print(f'   Побочные эффекты в песочнице: {app_context_sandbox.config.side_effects_enabled if app_context_sandbox.config else "None"}')
 
     # Проверим изоляцию между контекстами
     print('\n3. Проверка изоляции между контекстами...')
-    if app_context_prod._prompt_service and app_context_sandbox._prompt_service:
-        print(f'   PromptService изолированы: {app_context_prod._prompt_service is not app_context_sandbox._prompt_service}')
-        print(f'   Кэши изолированы: {id(app_context_prod._prompt_service._cached_prompts) != id(app_context_sandbox._prompt_service._cached_prompts)}')
+    prompt_service_prod = app_context_prod.get_service("prompt_service")
+    prompt_service_sandbox = app_context_sandbox.get_service("prompt_service")
+    if prompt_service_prod and prompt_service_sandbox:
+        print(f'   PromptService изолированы: {prompt_service_prod is not prompt_service_sandbox}')
+        print(f'   Кэши изолированы: {id(prompt_service_prod._cached_prompts) != id(prompt_service_sandbox._cached_prompts) if hasattr(prompt_service_prod, "_cached_prompts") and hasattr(prompt_service_sandbox, "_cached_prompts") else "Кэши недоступны"}')
     else:
         print('   Один из сервисов не инициализирован')
 

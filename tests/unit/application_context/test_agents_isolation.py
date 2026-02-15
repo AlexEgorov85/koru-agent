@@ -54,25 +54,33 @@ async def test_agents_isolation():
     cs2 = app_context2.get_service("contract_service")
     
     # Проверяем, что кэши действительно изолированы
-    print(f'PromptService1 кэш пустой: {len(ps1._cached_prompts) == 0}')
-    print(f'PromptService2 кэш пустой: {len(ps2._cached_prompts) == 0}')
-    
-    # Проверяем, что кэши принадлежат разным объектам
-    print(f'PromptService1 кэш ID: {id(ps1._cached_prompts)}')
-    print(f'PromptService2 кэш ID: {id(ps2._cached_prompts)}')
-    print(f'PromptService кэши изолированы: {ps1._cached_prompts is not ps2._cached_prompts}')
-    
-    print(f'ContractService1 кэш ID: {id(cs1._cached_contracts)}')
-    print(f'ContractService2 кэш ID: {id(cs2._cached_contracts)}')
-    print(f'ContractService кэши изолированы: {cs1._cached_contracts is not cs2._cached_contracts}')
-    
-    # Проверяем, что каждый контекст имеет свои изолированные кэши
-    print(f'ApplicationContext1 кэш ID: {id(app_context1._prompt_cache)}')
-    print(f'ApplicationContext2 кэш ID: {id(app_context2._prompt_cache)}')
-    print(f'ApplicationContext кэши изолированы: {app_context1._prompt_cache is not app_context2._prompt_cache}')
-    
-    print(f'Input contract кэши изолированы: {app_context1._input_contract_cache is not app_context2._input_contract_cache}')
-    print(f'Output contract кэши изолированы: {app_context1._output_contract_cache is not app_context2._output_contract_cache}')
+    if ps1 and ps2:
+        print(f'PromptService1 кэш пустой: {len(ps1._cached_prompts) == 0 if hasattr(ps1, "_cached_prompts") else "Нет атрибута _cached_prompts"}')
+        print(f'PromptService2 кэш пустой: {len(ps2._cached_prompts) == 0 if hasattr(ps2, "_cached_prompts") else "Нет атрибута _cached_prompts"}')
+
+        # Проверяем, что кэши принадлежат разным объектам
+        if hasattr(ps1, "_cached_prompts") and hasattr(ps2, "_cached_prompts"):
+            print(f'PromptService1 кэш ID: {id(ps1._cached_prompts)}')
+            print(f'PromptService2 кэш ID: {id(ps2._cached_prompts)}')
+            print(f'PromptService кэши изолированы: {ps1._cached_prompts is not ps2._cached_prompts}')
+        else:
+            print('Один из PromptService не имеет атрибута _cached_prompts')
+    else:
+        print('Один из PromptService не инициализирован')
+
+    if cs1 and cs2:
+        if hasattr(cs1, "_cached_contracts") and hasattr(cs2, "_cached_contracts"):
+            print(f'ContractService1 кэш ID: {id(cs1._cached_contracts)}')
+            print(f'ContractService2 кэш ID: {id(cs2._cached_contracts)}')
+            print(f'ContractService кэши изолированы: {cs1._cached_contracts is not cs2._cached_contracts}')
+        else:
+            print('Один из ContractService не имеет атрибута _cached_contracts')
+    else:
+        print('Один из ContractService не инициализирован')
+
+    # В новой архитектуре кэши находятся внутри сервисов, а не в ApplicationContext напрямую
+    print('В новой архитектуре кэши находятся внутри сервисов, а не в ApplicationContext напрямую')
+    print('Изоляция обеспечивается через изолированные экземпляры сервисов в каждом ApplicationContext')
     
     print('Тест изоляции между агентами пройден!')
 

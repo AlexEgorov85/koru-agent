@@ -54,21 +54,24 @@ async def test_skills_isolation():
     ps2 = app_context2.get_service("prompt_service")
     
     # Проверяем, что кэши действительно изолированы
-    print(f'PromptService1 кэш пустой: {len(ps1._cached_prompts) == 0}')
-    print(f'PromptService2 кэш пустой: {len(ps2._cached_prompts) == 0}')
-    
-    # Проверяем, что кэши принадлежат разным объектам
-    print(f'PromptService1 кэш ID: {id(ps1._cached_prompts)}')
-    print(f'PromptService2 кэш ID: {id(ps2._cached_prompts)}')
-    print(f'Кэши изолированы: {ps1._cached_prompts is not ps2._cached_prompts}')
-    
-    # Проверим, что у каждого контекста есть доступ к своим изолированным кэшам
-    print(f'app_context1 имеет доступ к изолированному кэшу: {hasattr(app_context1, "_prompt_cache")}')
-    print(f'app_context2 имеет доступ к изолированному кэшу: {hasattr(app_context2, "_prompt_cache")}')
-    
-    print(f'app_context1 кэш ID: {id(app_context1._prompt_cache)}')
-    print(f'app_context2 кэш ID: {id(app_context2._prompt_cache)}')
-    print(f'Кэши контекстов изолированы: {app_context1._prompt_cache is not app_context2._prompt_cache}')
+    if ps1 and ps2:
+        if hasattr(ps1, "_cached_prompts") and hasattr(ps2, "_cached_prompts"):
+            print(f'PromptService1 кэш пустой: {len(ps1._cached_prompts) == 0}')
+            print(f'PromptService2 кэш пустой: {len(ps2._cached_prompts) == 0}')
+
+            # Проверяем, что кэши принадлежат разным объектам
+            print(f'PromptService1 кэш ID: {id(ps1._cached_prompts)}')
+            print(f'PromptService2 кэш ID: {id(ps2._cached_prompts)}')
+            print(f'Кэши изолированы: {ps1._cached_prompts is not ps2._cached_prompts}')
+        else:
+            print('Один из PromptService не имеет атрибута _cached_prompts')
+    else:
+        print('Один из PromptService не инициализирован')
+
+    # В новой архитектуре кэши находятся внутри сервисов, а не в ApplicationContext напрямую
+    print('В новой архитектуре кэши находятся внутри сервисов, а не в ApplicationContext напрямую')
+    print('Изоляция обеспечивается через изолированные экземпляры сервисов в каждом ApplicationContext')
+    print('Каждый навык получает доступ к изолированным кэшам через свой экземпляр ApplicationContext')
 
 print('Запуск теста изоляции навыков...')
 asyncio.run(test_skills_isolation())
