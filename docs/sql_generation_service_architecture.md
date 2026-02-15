@@ -109,7 +109,7 @@ result = await sql_services.execute_with_auto_correction(
 ## Интеграция с системой
 
 ### Регистрация сервиса
-Сервис автоматически регистрируется в SystemContext при инициализации системы.
+Сервис автоматически регистрируется в InfrastructureContext при инициализации системы.
 
 ### Зависимости
 - PromptService: для генерации через LLM

@@ -33,13 +33,18 @@ project/
 ├── core/                           # Ядро системы
 │   ├── agent_runtime/              # Runtime агента
 │   │   └── runtime.py              # Reasoning-цикл
-│   ├── system_context/             # Системный контекст
-│   │   ├── system_context.py       # Основной фасад системы
-│   │   ├── base_system_contex.py   # Базовый класс системного контекста
-│   │   ├── resource_registry.py    # Реестр ресурсов
-│   │   ├── capability_registry.py  # Реестр capability
-│   │   ├── execution_gateway.py    # Шлюз выполнения
-│   │   └── lifecycle_manager.py    # Менеджер жизненного цикла
+│   ├── application/                # Прикладной слой
+│   │   ├── context/               # Контекст приложения
+│   │   │   ├── application_context.py # Прикладной контекст
+│   │   │   └── base_system_context.py # Базовый класс системного контекста
+│   │   ├── services/              # Прикладные сервисы
+│   │   └── tools/                 # Инструменты
+│   ├── infrastructure/             # Инфраструктурный слой
+│   │   ├── context/               # Контекст инфраструктуры
+│   │   │   ├── infrastructure_context.py # Инфраструктурный контекст
+│   │   │   └── agent_factory.py   # Фабрика агентов
+│   │   ├── providers/             # Провайдеры (LLM, DB, etc.)
+│   │   └── storage/               # Хранилища
 │   ├── session_context/            # Контекст сессии
 │   │   ├── session_context.py      # Контекст сессии
 │   │   └── base_session_context.py # Базовый класс контекста сессии
@@ -55,7 +60,6 @@ project/
 │       └── structured_output.py    # Ошибки структурированного вывода
 ├── models/                         # Типы данных
 │   └── llm_types.py                # Типы LLM (LLMRequest, LLMResponse, etc.)
-├── skills/                         # Навыки агента
 ├── tools/                          # Инструменты для I/O
 ├── providers/                      # Адаптеры для внешних сервисов
 ├── config/                         # Конфигурационные файлы
@@ -95,7 +99,7 @@ python main.py "Проанализируй данные" --config-path=./configs
 ### Структурированный вывод
 Система поддерживает два режима обработки структурированного вывода:
 - **Нативная валидация провайдером** - когда LLM-провайдер поддерживает `generate_structured` (например, OpenAI с response_format)
-- **Системная валидация** - резервный режим с ретраями и коррекцией через централизованный `SystemContext`
+- **Системная валидация** - резервный режим с ретраями и коррекцией через централизованный `InfrastructureContext`
 
 ### Типизированные модели
 - `StructuredOutputConfig` - конфигурация структурированного вывода
@@ -113,16 +117,21 @@ SessionContext
  └── current_plan_item_id  # ссылка
 
 
-SystemContext (Facade / Composition Root)
+InfrastructureContext (Общий для всех агентов)
 │
+├── ProviderFactory (фабрика провайдеров)
 ├── ResourceRegistry (данные о ресурсах)
 ├── LifecycleManager (init / shutdown)
-├── HealthManager (health checks)
-├── CapabilityRegistry (capabilities)
-├── AgentFactory (создание агентов)
-├── ProviderFactory (фабрика провайдеров)
 ├── Event Bus (система событий)
 └── Config (SystemConfig)
+
+
+ApplicationContext (Изолированный на агента)
+│
+├── ComponentRegistry (сервисы, навыки, инструменты)
+├── Isolated caches (промпты, контракты)
+├── Config (AppConfig → ComponentConfig для компонентов)
+└── Links to InfrastructureContext (только для чтения)
 
 
 AgentRuntime
@@ -205,3 +214,12 @@ agent:
   max_steps: 10
   timeout: 300
 ```
+
+### Разделение конфигурации
+
+Система использует два типа конфигурации для четкого разделения ответственности:
+
+- **AppConfig** - глобальная конфигурация приложения, содержит общие параметры для всей системы
+- **ComponentConfig** - локальная конфигурация компонента, содержит специфичные версии промптов и контрактов для каждого компонента
+
+AppConfig загружается из `data/registry.yaml` и используется для настройки системы в целом, в то время как ComponentConfig создается для каждого компонента отдельно и обеспечивает изоляцию между агентами.

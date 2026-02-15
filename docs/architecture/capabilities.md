@@ -43,23 +43,25 @@ class Capability(BaseModel):
 - **Предзагрузка**: Все промпты и контракты загружаются при инициализации
 - **Кэширование**: Навыки используют изолированные кэши для доступа к ресурсам
 - **Без обращений к ФС**: После инициализации навыки не обращаются к файловой системе
+- **ComponentConfig**: Навыки получают `ComponentConfig` с конкретными версиями промптов и контрактов
 
 ## Жизненный цикл инициализации
 
 ### Этапы инициализации:
 
-1. **Создание SystemContext**
-2. **Инициализация сервисов** (ContractService, PromptService)
-3. **ПРЕДЗАГРУЗКА всех контрактов** через `contract_service.preload_contracts(agent_config)`
-4. **ПРЕДЗАГРУЗКА всех промптов** через `prompt_service.preload_prompts(agent_config)`
-5. **Инициализация навыков** (уже с заполненными кэшами)
-6. **Проверка готовности** через `registry.verify_all_resources_preloaded()`
+1. **Создание InfrastructureContext** (один на всё приложение)
+2. **Создание ApplicationContext** (на агента/сессию)
+3. **Инициализация инфраструктурных сервисов** (ContractService, PromptService)
+4. **ПРЕДЗАГРУЗКА всех контрактов** через `contract_service.preload_contracts(agent_config)`
+5. **ПРЕДЗАГРУЗКА всех промптов** через `prompt_service.preload_prompts(agent_config)`
+6. **Инициализация навыков** (уже с заполненными кэшами)
+7. **Проверка готовности** через `registry.verify_all_resources_preloaded()`
 
 ### Проверка готовности:
 
 ```python
-# В SystemContext
-if not system_context.is_fully_initialized():
+# В ApplicationContext
+if not application_context.is_fully_initialized():
     raise InitializationError(
         "Система не готова: не все ресурсы предзагружены"
     )
