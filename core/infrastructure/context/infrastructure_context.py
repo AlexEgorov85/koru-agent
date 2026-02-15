@@ -20,7 +20,7 @@ from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IC
 from core.infrastructure.event_bus.event_bus import EventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
-from core.models.resource import ResourceType, ResourceHealth
+from core.models.resource import ResourceType, ResourceHealth, ResourceInfo
 
 
 class InfrastructureContext:
@@ -252,6 +252,29 @@ class InfrastructureContext:
         if hasattr(self, '_initialized') and self._initialized and name != '_initialized':
             raise AttributeError(f"InfrastructureContext is immutable after initialization")
         super().__setattr__(name, value)
+
+    async def call_llm(self, request):
+        """Вызов LLM через инфраструктурный контекст."""
+        # Получаем провайдер LLM
+        default_llm = None
+        for info in self.resource_registry.all():
+            if info.resource_type == ResourceType.LLM_PROVIDER and info.is_default:
+                default_llm = info.instance
+                break
+
+        if default_llm is None:
+            # Используем первый доступный LLM провайдер
+            for info in self.resource_registry.all():
+                if info.resource_type == ResourceType.LLM_PROVIDER:
+                    default_llm = info.instance
+                    break
+
+        if default_llm is None:
+            raise ValueError("Нет доступных LLM провайдеров")
+
+        # Вызов провайдера
+        response = await default_llm.generate(request)
+        return response
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""

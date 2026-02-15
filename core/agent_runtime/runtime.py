@@ -8,7 +8,7 @@ from core.agent_runtime.strategies.fallback import FallbackStrategy
 from core.agent_runtime.strategies.react.strategy import ReActStrategy
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemMetadata
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.base_system_context import BaseSystemContext
 from core.config.agent_config import AgentConfig
 from .state import AgentState
 from .progress import ProgressScorer

@@ -145,7 +145,7 @@ class BaseService(BaseComponent):
         Загрузка всех декларированных зависимостей.
         """
         for dep_name in self.DEPENDENCIES:
-            dependency = self.application_context.get_service(dep_name)
+            dependency = self.get_dependency(dep_name)
             if not dependency:
                 self.logger.error(
                     f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. "
@@ -155,17 +155,17 @@ class BaseService(BaseComponent):
                     f"  3. Ошибка в декларации зависимостей"
                 )
                 return False
-            
+
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
                 self.logger.warning(
                     f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. "
                     "Это допустимо при топологической сортировке, но требует осторожности."
                 )
-            
+
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
-        
+
         return True
 
     async def _custom_initialize(self) -> bool:
@@ -188,8 +188,33 @@ class BaseService(BaseComponent):
     def get_dependency(self, name: str) -> Optional[Any]:
         """
         Безопасное получение зависимости по имени.
+        Сначала ищем в локальном кэше, затем в прикладном контексте.
         """
-        return self._dependencies.get(name)
+        # Сначала ищем в локальном кэше
+        if name in self._dependencies:
+            return self._dependencies[name]
+        
+        # Затем ищем в прикладном контексте
+        if self.application_context:
+            # Пытаемся получить сервис из прикладного контекста
+            service = self.application_context.get_service(name)
+            if service:
+                return service
+            
+            # Если не сервис, пробуем другие типы компонентов
+            skill = self.application_context.get_skill(name)
+            if skill:
+                return skill
+                
+            tool = self.application_context.get_tool(name)
+            if tool:
+                return tool
+                
+            strategy = self.application_context.get_strategy(name)
+            if strategy:
+                return strategy
+        
+        return None
 
     @abstractmethod
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:

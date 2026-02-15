@@ -17,6 +17,7 @@ from core.session_context.model import ContextItemType
 from models.capability import Capability
 from models.execution import ExecutionResult
 from core.config.app_config import AppConfig
+from core.config.component_config import ComponentConfig
 from core.application.components.base import BaseComponent
 
 class BaseSkill(BaseComponent):
@@ -47,9 +48,13 @@ class BaseSkill(BaseComponent):
         """
         return strategy_name.lower() in [s.lower() for s in self.supported_strategies]
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, **kwargs):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, component_config: Optional['ComponentConfig'] = None, **kwargs):
+        # Проверяем, какой тип конфигурации передан
+        # Если передан component_config, используем его
+        # Если нет, используем app_config для обратной совместимости
+        config_to_use = component_config if component_config is not None else app_config
         # Вызов конструктора родительского класса
-        super().__init__(name, application_context, app_config)
+        super().__init__(name, application_context, config_to_use)
         self.config = kwargs
     
     # --------------------------------------------------

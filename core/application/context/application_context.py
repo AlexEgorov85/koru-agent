@@ -12,6 +12,7 @@ import uuid
 import logging
 from typing import Dict, Optional, Any, Literal
 from datetime import datetime
+from enum import Enum
 
 from core.application.components.tool import BaseTool
 from core.config.app_config import AppConfig
@@ -19,9 +20,42 @@ from core.infrastructure.context.infrastructure_context import InfrastructureCon
 from core.application.skills.base_skill import BaseSkill
 from core.application.services.prompt_service_new import PromptService
 from core.application.services.contract_service_new import ContractService
+from core.application.context.base_system_context import BaseSystemContext
 
 
-class ApplicationContext:
+class ComponentType(Enum):
+    """Типы компонентов прикладного уровня"""
+    SERVICE = "service"      # PromptService, ContractService
+    SKILL = "skill"          # PlanningSkill, BookLibrarySkill
+    TOOL = "tool"            # SQLTool, FileTool
+    STRATEGY = "strategy"    # ReActStrategy, PlanAndExecuteStrategy
+
+
+class ComponentRegistry:
+    """Единый реестр ВСЕХ компонентов прикладного контекста"""
+    
+    def __init__(self):
+        # {component_type: {component_name: component_instance}}
+        self._components: Dict[ComponentType, Dict[str, 'BaseComponent']] = {
+            t: {} for t in ComponentType
+        }
+    
+    def register(self, component_type: ComponentType, name: str, component: 'BaseComponent'):
+        if name in self._components[component_type]:
+            raise ValueError(f"Компонент {component_type.value}.{name} уже зарегистрирован")
+        self._components[component_type][name] = component
+    
+    def get(self, component_type: ComponentType, name: str) -> Optional['BaseComponent']:
+        return self._components[component_type].get(name)
+    
+    def all_of_type(self, component_type: ComponentType) -> list['BaseComponent']:
+        return list(self._components[component_type].values())
+    
+    def all_components(self) -> list['BaseComponent']:
+        return [comp for comps in self._components.values() for comp in comps.values()]
+
+
+class ApplicationContext(BaseSystemContext):
     """Версионируемый контекст приложения. Создаётся на сессию/агента."""
 
     def __init__(
@@ -45,38 +79,230 @@ class ApplicationContext:
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
         self._initialized = False  # Защита от раннего доступа
 
-        # Изолированные кэши
-        self._prompt_cache: Dict[str, str] = {}  # capability_name -> prompt_text
-        self._input_contract_cache: Dict[str, Dict[str, Any]] = {}  # capability_name -> schema
-        self._output_contract_cache: Dict[str, Dict[str, Any]] = {}  # capability_name -> schema
-
-        # Изолированные сервисы
-        self._prompt_service: Optional[PromptService] = None
-        self._contract_service: Optional[ContractService] = None
-        self._table_description_service: Optional[Any] = None  # Будет установлено позже
-        self._sql_generation_service: Optional[Any] = None  # Будет установлено позже
-        self._sql_query_service: Optional[Any] = None  # Будет установлено позже
-        self._sql_validator_service: Optional[Any] = None  # Будет установлено позже
-
-        # Инструменты с изолированными кэшами
-        self._tools: Dict[str, BaseTool] = {}
-        
-        # Навыки с изолированными кэшами
-        self._skills: Dict[str, BaseSkill] = {}
+        # ЕДИНСТВЕННОЕ место хранения всех компонентов
+        self.components = ComponentRegistry()
 
         # Флаги конфигурации из AppConfig
-        self.side_effects_enabled = config.side_effects_enabled
-        self.detailed_metrics = config.detailed_metrics
+        self.side_effects_enabled = getattr(config, 'side_effects_enabled', True)
+        self.detailed_metrics = getattr(config, 'detailed_metrics', False)
 
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
 
+    def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
+        """
+        ЕДИНЫЙ источник конфигурации для всех компонентов.
+        Конфигурация берётся из ЕДИНСТВЕННОГО источника — AppConfig.
+        """
+        # Используем getattr с пустым словарем по умолчанию для безопасности
+        service_configs = getattr(self.config, 'service_configs', {})
+        skill_configs = getattr(self.config, 'skill_configs', {})
+        tool_configs = getattr(self.config, 'tool_configs', {})
+        strategy_configs = getattr(self.config, 'strategy_configs', {})
+        
+        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}, strategies={len(strategy_configs)}")
+        
+        return {
+            ComponentType.SERVICE: service_configs,
+            ComponentType.SKILL: skill_configs,
+            ComponentType.TOOL: tool_configs,
+            ComponentType.STRATEGY: strategy_configs,
+        }
+
+    def _resolve_component_class(self, component_type: ComponentType, name: str) -> type:
+        """Разрешение класса компонента по имени и типу (через фабрику или реестр)"""
+        import importlib
+        
+        # Временная реализация - в реальном проекте должна быть фабрика компонентов
+        if component_type == ComponentType.SERVICE:
+            if name == "prompt_service":
+                from core.application.services.prompt_service_new import PromptService
+                return PromptService
+            elif name == "contract_service":
+                from core.application.services.contract_service_new import ContractService
+                return ContractService
+            elif name == "table_description_service":
+                from core.application.services.table_description_service import TableDescriptionService
+                return TableDescriptionService
+            elif name == "sql_generation_service":
+                from core.application.services.sql_generation.service import SQLGenerationService
+                return SQLGenerationService
+            elif name == "sql_query_service":
+                from core.application.services.sql_query.service import SQLQueryService
+                return SQLQueryService
+            elif name == "sql_validator_service":
+                from core.application.services.sql_validator.service import SQLValidatorService
+                return SQLValidatorService
+            else:
+                # Попробуем динамический импорт
+                module_name = f"core.application.services.{name.replace('_', '')}_service"
+                class_name = f"{name.title().replace('_', '')}Service"
+                try:
+                    module = __import__(module_name, fromlist=[class_name])
+                    return getattr(module, class_name)
+                except ImportError:
+                    # Попробуем другой вариант имени модуля
+                    try:
+                        module_name = f"core.application.services.{name}"
+                        class_name = f"{name.title().replace('_', '')}Service"
+                        module = __import__(module_name, fromlist=[class_name])
+                        return getattr(module, class_name)
+                    except ImportError:
+                        raise ValueError(f"Сервис {name} не найден")
+        elif component_type == ComponentType.SKILL:
+            # Поддержка ОБОИХ вариантов структуры:
+            # Вариант 1: skills/{name}_skill.py
+            # Вариант 2: skills/{name}/skill.py (фактическая структура проекта)
+            try:
+                # Сначала пробуем поддиректорию (реальная структура)
+                module_name = f"core.application.skills.{name}.skill"
+                class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
+                module = importlib.import_module(module_name)
+                return getattr(module, class_name)
+            except ImportError:
+                # Fallback на старый формат
+                try:
+                    module_name = f"core.application.skills.{name}_skill"
+                    module = importlib.import_module(module_name)
+                    class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
+                    return getattr(module, class_name)
+                except ImportError:
+                    raise ValueError(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
+        elif component_type == ComponentType.TOOL:
+            # Проверяем специфичные инструменты
+            if name == "sql_tool":
+                from core.application.tools.sql_tool import SQLTool
+                return SQLTool
+            elif name == "file_tool":
+                from core.application.tools.file_tool import FileTool
+                return FileTool
+            else:
+                # Попробуем стандартный путь
+                module_name = f"core.application.tools.{name}_tool"
+                class_name = f"{name.title().replace('_', '')}Tool"
+                try:
+                    module = __import__(module_name, fromlist=[class_name])
+                    return getattr(module, class_name)
+                except ImportError:
+                    # Попробуем другой вариант имени модуля
+                    try:
+                        module_name = f"core.application.tools.{name}"
+                        class_name = f"{name.title().replace('_', '')}Tool"
+                        module = __import__(module_name, fromlist=[class_name])
+                        return getattr(module, class_name)
+                    except ImportError:
+                        raise ValueError(f"Инструмент {name} не найден")
+        elif component_type == ComponentType.STRATEGY:
+            module_name = f"core.application.strategies.{name}_strategy"
+            class_name = f"{name.title().replace('_', '')}Strategy"
+            try:
+                module = __import__(module_name, fromlist=[class_name])
+                return getattr(module, class_name)
+            except ImportError:
+                raise ValueError(f"Стратегия {name} не найдена")
+        else:
+            raise ValueError(f"Неизвестный тип компонента: {component_type}")
+
+    async def _create_component(self, component_type: ComponentType, name: str, config: Any) -> 'BaseComponent':
+        """
+        ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
+        Устраняет дублирование логики между _create_services/_create_skills/_create_tools
+        """
+        # 1. Получение класса компонента по имени и типу
+        component_class = self._resolve_component_class(component_type, name)
+
+        # 2. Создание экземпляра с ЕДИНЫМ контрактом конструктора
+        # Правильно различаем AppConfig и ComponentConfig
+        try:
+            # Если config является ComponentConfig (локальная конфигурация компонента), 
+            # передаем его как component_config
+            from core.config.component_config import ComponentConfig
+            if isinstance(config, ComponentConfig):
+                component = component_class(
+                    name=name,
+                    application_context=self,
+                    component_config=config  # передаем ComponentConfig как component_config
+                )
+            else:
+                # Если config - это AppConfig или другой тип, передаем как app_config
+                component = component_class(
+                    name=name,
+                    application_context=self,
+                    app_config=config
+                )
+        except TypeError:
+            # Если компонент не принимает component_config или app_config, пробуем оба варианта
+            try:
+                # Пробуем передать config как component_config (если это ComponentConfig)
+                from core.config.component_config import ComponentConfig
+                if isinstance(config, ComponentConfig):
+                    component = component_class(
+                        name=name,
+                        application_context=self,
+                        component_config=config
+                    )
+                else:
+                    # Если config не ComponentConfig, создаем минимальный ComponentConfig
+                    minimal_config = ComponentConfig(
+                        variant_id=f"{name}_default",
+                        prompt_versions={},
+                        input_contract_versions={},
+                        output_contract_versions={},
+                        side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
+                        detailed_metrics=getattr(self.config, 'detailed_metrics', False)
+                    )
+                    component = component_class(
+                        name=name,
+                        application_context=self,
+                        component_config=minimal_config
+                    )
+            except TypeError:
+                # Если ничего не работает, создаем с минимальными параметрами
+                from core.config.component_config import ComponentConfig
+                # Создаем минимальный ComponentConfig для случая, когда конфигурация отсутствует
+                if config is None:
+                    config = ComponentConfig(
+                        variant_id=f"{name}_default",
+                        prompt_versions={},
+                        input_contract_versions={},
+                        output_contract_versions={},
+                        side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
+                        detailed_metrics=getattr(self.config, 'detailed_metrics', False)
+                    )
+                
+                # Создаем экземпляр и вызываем инициализацию вручную
+                component = component_class.__new__(component_class)
+                
+                # Устанавливаем основные атрибуты
+                component.name = name
+                component.application_context = self
+                
+                # Пытаемся вызвать инициализацию с подходящим параметром конфигурации
+                # Сначала пробуем component_config (для нового архитектурного подхода)
+                try:
+                    component.__init__(name=name, application_context=self, component_config=config)
+                except TypeError:
+                    # Затем пробуем app_config (для обратной совместимости)
+                    try:
+                        component.__init__(name=name, application_context=self, app_config=config)
+                    except TypeError:
+                        # Если оба варианта не работают, используем минимальную конфигурацию
+                        minimal_config = ComponentConfig(
+                            variant_id=f"{name}_default",
+                            prompt_versions={},
+                            input_contract_versions={},
+                            output_contract_versions={},
+                            side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
+                            detailed_metrics=getattr(self.config, 'detailed_metrics', False)
+                        )
+                        component.__init__(name=name, application_context=self, component_config=minimal_config)
+
+        return component
+
     async def initialize(self) -> bool:
         """
-        Инициализация прикладного контекста:
-        1. Создание изолированных сервисов
-        2. Загрузка промптов/контрактов в изолированные кэши
-        3. Создание навыков с изолированными кэшами
+        ЕДИНЫЙ жизненный цикл инициализации для ВСЕХ компонентов:
+        1. Создание и регистрация → 2. Инициализация с учетом зависимостей → 3. Валидация
         """
         if self._initialized:
             self.logger.warning("ApplicationContext уже инициализирован")
@@ -84,28 +310,174 @@ class ApplicationContext:
 
         self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
 
-        # 1. Создание изолированных сервисов
-        success = await self._create_isolated_services()
+        # === ЭТАП 1: Создание и регистрация ВСЕХ компонентов (без инициализации) ===
+        component_configs = self._resolve_component_configs()
+        
+        # Сначала создаем и регистрируем все компоненты
+        for comp_type, configs in component_configs.items():
+            for name, config in configs.items():
+                try:
+                    # ЕДИНЫЙ метод создания любого компонента
+                    component = await self._create_component(comp_type, name, config)
+                    
+                    # Регистрация компонента ДО инициализации
+                    self.components.register(comp_type, name, component)
+                    
+                    self.logger.debug(f"Компонент {comp_type.value}.{name} зарегистрирован")
+                    
+                except Exception as e:
+                    self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}")
+                    return False
+
+        # === ЭТАП 2: Инициализация компонентов с учетом зависимостей ===
+        # Инициализируем компоненты в правильном порядке
+        success = await self._initialize_components_with_dependencies()
         if not success:
-            self.logger.error(f"Ошибка создания изолированных сервисов для ApplicationContext {self.id}")
+            self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
             return False
 
-        # 2. Загрузка промптов в изолированный кэш
-        await self._preload_prompts()
-
-        # 3. Загрузка контрактов в изолированный кэш
-        await self._preload_contracts()
-
-        # 4. Создание навыков с изолированными кэшами
-        await self._create_skills_with_isolated_caches()
-
-        # 5. Создание инструментов с изолированными кэшами
-        await self._create_tools_with_isolated_caches()
+        # === ЭТАП 3: Валидация готовности системы ===
+        if not await self._verify_readiness():
+            return False
 
         self._initialized = True
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
+
+    async def _initialize_components_with_dependencies(self) -> bool:
+        """
+        Инициализация компонентов с учетом зависимостей.
+        Инициализирует сначала сервисы, затем инструменты, навыки и стратегии.
+        """
+        from core.application.context.application_context import ComponentType
+
+        # Получаем все компоненты и группируем по типам
+        all_components = self.components.all_components()
+        
+        # Разделяем компоненты по типам для инициализации в правильном порядке
+        services = []
+        tools = []
+        skills = []
+        strategies = []
+        
+        for component in all_components:
+            # Определяем тип компонента по его положению в реестре
+            found = False
+            for comp_type in self.components._components:
+                if component.name in self.components._components[comp_type]:
+                    if comp_type == ComponentType.SERVICE:
+                        services.append(component)
+                    elif comp_type == ComponentType.TOOL:
+                        tools.append(component)
+                    elif comp_type == ComponentType.SKILL:
+                        skills.append(component)
+                    elif comp_type == ComponentType.STRATEGY:
+                        strategies.append(component)
+                    found = True
+                    break
+            
+            if not found:
+                # Если тип не найден, добавляем в общий список
+                services.append(component)  # по умолчанию
+        
+        # Инициализируем компоненты в правильном порядке:
+        # 1. Сервисы (они нужны инструментам и другим компонентам)
+        # 2. Инструменты, навыки, стратегии (они могут зависеть от сервисов)
+        
+        initialized_components = set()
+        
+        # Сначала инициализируем сервисы
+        self.logger.info(f"Инициализация сервисов: {len(services)}")
+        for component in services:
+            try:
+                if hasattr(component, 'initialize') and callable(component.initialize):
+                    if await component.initialize():
+                        initialized_components.add(component.name)
+                        self.logger.debug(f"Сервис {component.name} инициализирован")
+                    else:
+                        self.logger.error(f"Сервис {component.name} не смог инициализироваться")
+                        return False
+                else:
+                    initialized_components.add(component.name)
+                    self.logger.debug(f"Сервис {component.name} не требует инициализации")
+            except Exception as e:
+                self.logger.error(f"Ошибка при инициализации сервиса {component.name}: {e}")
+                return False
+        
+        # Затем инициализируем инструменты, навыки и стратегии
+        other_components = tools + skills + strategies
+        self.logger.info(f"Инициализация других компонентов: {len(other_components)}")
+        
+        for component in other_components:
+            try:
+                if hasattr(component, 'initialize') and callable(component.initialize):
+                    if await component.initialize():
+                        initialized_components.add(component.name)
+                        self.logger.debug(f"Компонент {component.name} инициализирован")
+                    else:
+                        self.logger.warning(f"Компонент {component.name} не смог инициализироваться")
+                        # Не возвращаем False, так как это может быть не критично
+                else:
+                    initialized_components.add(component.name)
+                    self.logger.debug(f"Компонент {component.name} не требует инициализации")
+            except Exception as e:
+                self.logger.warning(f"Ошибка при инициализации компонента {component.name}: {e}")
+                # Не возвращаем False, так как это может быть не критично для инструментов
+        
+        # Проверяем, все ли компоненты были инициализированы
+        all_names = {comp.name for comp in all_components}
+        if len(initialized_components) != len(all_names):
+            uninitialized = all_names - initialized_components
+            self.logger.warning(f"Не все компоненты были инициализированы: {uninitialized}")
+            # Возвращаем True, если инициализированы все сервисы, так как они наиболее важны
+            service_names = {s.name for s in services}
+            initialized_services = service_names.intersection(initialized_components)
+            if len(initialized_services) != len(service_names):
+                self.logger.error("Не все сервисы были инициализированы")
+                return False
+        
+        self.logger.info(f"Компоненты успешно инициализированы (сервисы: {len(services)}, другие: {len(other_components)})")
+        return True
+
+    async def _verify_readiness(self) -> bool:
+        """Валидация, что ВСЕ компоненты готовы к работе"""
+        # Проверка, что все компоненты, которые были объявлены в конфигурации, инициализированы
+        
+        # Получаем все компоненты, которые должны быть загружены
+        declared_components = self._resolve_component_configs()
+        
+        for comp_type, names in declared_components.items():
+            for name in names:
+                component = self.components.get(comp_type, name)
+                if component is None:
+                    self.logger.error(f"Компонент {comp_type.value}.{name} был объявлен в конфигурации, но не загружен")
+                    return False
+                # Проверяем, что компонент инициализирован
+                if hasattr(component, '_initialized'):
+                    if not component._initialized:
+                        self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
+                        return False
+                elif hasattr(component, 'is_ready') and callable(component.is_ready):
+                    if not component.is_ready():
+                        self.logger.error(f"Компонент {component.name} не готов к работе")
+                        return False
+        
+        return True
+
+    # === ЕДИНЫЕ точки доступа к компонентам ===
+    
+    def get_service(self, name: str) -> Optional['BaseComponent']:
+        return self.components.get(ComponentType.SERVICE, name)
+    
+    def get_skill(self, name: str) -> Optional['BaseComponent']:
+        return self.components.get(ComponentType.SKILL, name)
+    
+    def get_tool(self, name: str) -> Optional['BaseComponent']:
+        return self.components.get(ComponentType.TOOL, name)
+    
+    def get_strategy(self, name: str) -> Optional['BaseComponent']:
+        return self.components.get(ComponentType.STRATEGY, name)
 
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
         """Валидация статусов версий в зависимости от профиля"""
@@ -355,201 +727,27 @@ class ApplicationContext:
         # Заменяем конфигурацию
         self.config = new_config
 
-    async def _create_isolated_services(self):
-        """Создание изолированных сервисов с изолированными кэшами."""
-        # Используем версии из AppConfig с безопасным доступом
-        # Для обратной совместимости с сервисами, которые ожидают ComponentConfig
-        # извлекаем версии из единой конфигурации (AppConfig)
-        
-        # Используем прямой доступ к версиям из AppConfig
-        input_contract_versions = self.config.input_contract_versions
-        output_contract_versions = self.config.output_contract_versions
-        
-        # Применяем оверрайды версий промптов, если они есть (только для песочницы)
-        prompt_versions = getattr(self.config, 'prompt_versions', {}).copy()
-        if self.profile == "sandbox":
-            prompt_versions.update(self._prompt_overrides)
+    def get_prompt_service(self):
+        """Получение изолированного сервиса промптов."""
+        if not self._initialized:
+            raise RuntimeError(
+                f"ApplicationContext не инициализирован. "
+                f"Вызовите .initialize() перед использованием."
+            )
+        return self.get_service("prompt_service")
 
-        # Валидируем версии в зависимости от профиля перед созданием компонентов
-        if not await self._validate_versions_by_profile(prompt_versions, input_contract_versions, output_contract_versions):
-            self.logger.error(f"Валидация версий не пройдена для профиля {self.profile}")
-            return False
+    def get_contract_service(self):
+        """Получение изолированного сервиса контрактов."""
+        if not self._initialized:
+            raise RuntimeError(
+                f"ApplicationContext не инициализирован. "
+                f"Вызовите .initialize() перед использованием."
+            )
+        return self.get_service("contract_service")
 
-        # Создаем ComponentConfig из единой конфигурации (AppConfig) для обратной совместимости
-        from core.config.component_config import ComponentConfig
-        component_config = ComponentConfig(
-            variant_id=f"app_context_{self.id[:8]}",
-            prompt_versions=prompt_versions,
-            input_contract_versions=input_contract_versions,
-            output_contract_versions=output_contract_versions,
-            side_effects_enabled=getattr(self.config, 'side_effects_enabled', True),
-            detailed_metrics=getattr(self.config, 'detailed_metrics', False)
-        )
-
-        # Создание изолированного PromptService (новая архитектура)
-        self._prompt_service = PromptService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        success = await self._prompt_service.initialize()
-        if not success:
-            self.logger.error("Ошибка инициализации PromptService")
-            raise RuntimeError("Не удалось инициализировать PromptService")
-
-        # Создание изолированного ContractService (новая архитектура)
-        self._contract_service = ContractService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        success = await self._contract_service.initialize()
-        if not success:
-            self.logger.error("Ошибка инициализации ContractService")
-            raise RuntimeError("Не удалось инициализировать ContractService")
-
-        # Создание изолированного TableDescriptionService
-        from core.application.services.table_description_service import TableDescriptionService
-        self._table_description_service = TableDescriptionService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        await self._table_description_service.initialize()
-
-        # Создание изолированных сервисов-зависимостей
-        from core.application.services.sql_generation.service import SQLGenerationService
-        from core.application.services.sql_validator.service import SQLValidatorService
-
-        self._sql_generation_service = SQLGenerationService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        success = await self._sql_generation_service.initialize()
-        if not success:
-            self.logger.error("Ошибка инициализации SQLGenerationService")
-            raise RuntimeError("Не удалось инициализировать SQLGenerationService")
-
-        self._sql_validator_service = SQLValidatorService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        success = await self._sql_validator_service.initialize()
-        if not success:
-            self.logger.error("Ошибка инициализации SQLValidatorService")
-            raise RuntimeError("Не удалось инициализировать SQLValidatorService")
-
-        # Создание изолированного SQLQueryService (после зависимостей)
-        from core.application.services.sql_query.service import SQLQueryService
-        self._sql_query_service = SQLQueryService(
-            application_context=self,  # ApplicationContext как прикладной контекст
-            component_config=component_config
-        )
-        success = await self._sql_query_service.initialize()
-        if not success:
-            self.logger.error("Ошибка инициализации SQLQueryService")
-            raise RuntimeError("Не удалось инициализировать SQLQueryService")
-
-        self.logger.info("Изолированные сервисы созданы и инициализированы")
-
-        return True
-
-    async def _preload_prompts(self):
-        """Предзагрузка промптов в изолированный кэш."""
-        # Используем прямой доступ к версиям из AppConfig
-        prompt_versions = self.config.prompt_versions
-        
-        if not prompt_versions:
-            self.logger.info("Нет конфигурации промптов для предзагрузки")
-            return
-
-        # В новой архитектуре промпты уже предзагружены в изолированный кэш сервиса
-        # Мы можем скопировать их в кэш прикладного контекста для обратной совместимости
-        for capability_name in prompt_versions.keys():
-            try:
-                # Получаем промпт из изолированного сервиса
-                prompt_text = self._prompt_service.get_prompt(capability_name)
-
-                # Сохраняем в изолированный кэш прикладного контекста
-                self._prompt_cache[capability_name] = prompt_text
-                self.logger.debug(f"Предзагружен промпт {capability_name} в изолированный кэш")
-            except Exception as e:
-                self.logger.error(f"Ошибка предзагрузки промпта {capability_name}: {e}")
-
-    async def _preload_contracts(self):
-        """Предзагрузка контрактов в изолированный кэш."""
-        # Используем прямой доступ к версиям из AppConfig
-        input_contract_versions = self.config.input_contract_versions
-        output_contract_versions = self.config.output_contract_versions
-        
-        if not input_contract_versions and not output_contract_versions:
-            self.logger.info("Нет конфигурации контрактов для предзагрузки")
-            return
-
-        # В новой архитектуре контракты уже предзагружены в изолированный кэш сервиса
-        # Мы можем скопировать их в кэш прикладного контекста для обратной совместимости
-        for capability_name in input_contract_versions.keys():
-            try:
-                # Получаем входной контракт из изолированного сервиса
-                input_schema = self._contract_service.get_contract(capability_name, "input")
-
-                # Сохраняем в изолированный кэш прикладного контекста
-                self._input_contract_cache[capability_name] = input_schema
-                self.logger.debug(f"Предзагружен входной контракт {capability_name} в изолированный кэш")
-            except Exception as e:
-                self.logger.error(f"Ошибка предзагрузки входного контракта {capability_name}: {e}")
-
-        for capability_name in output_contract_versions.keys():
-            try:
-                # Получаем выходной контракт из изолированного сервиса
-                output_schema = self._contract_service.get_contract(capability_name, "output")
-
-                # Сохраняем в изолированный кэш прикладного контекста
-                self._output_contract_cache[capability_name] = output_schema
-                self.logger.debug(f"Предзагружен выходной контракт {capability_name} в изолированный кэш")
-            except Exception as e:
-                self.logger.error(f"Ошибка предзагрузки выходного контракта {capability_name}: {e}")
-
-    async def _create_skills_with_isolated_caches(self):
-        """Создание навыков с изолированными кэшами."""
-        # В текущей архитектуре навыки должны быть обнаружены и созданы с изолированными кэшами
-        # Для простоты в этом этапе просто инициализируем пустой словарь навыков
-        # В реальной реализации здесь будет логика обнаружения и создания навыков с изолированными кэшами
-        self._skills = {}
-        self.logger.info("Создание навыков с изолированными кэшами пропущено (реализация в следующем этапе)")
-
-    async def _create_tools_with_isolated_caches(self):
-        """Создание инструментов с изолированными кэшами."""
-        # В новой архитектуре инструменты создаются с изолированными кэшами в каждом прикладном контексте
-        # Получаем конфигурацию инструментов из AppConfig
-        tool_configs = getattr(self.config, 'tool_configs', {})
-        
-        for tool_name, tool_config in tool_configs.items():
-            try:
-                # Создаем инструмент с изолированным контекстом приложения
-                # В реальной системе здесь будет логика фабрики инструментов
-                tool_class = self._get_tool_class_by_name(tool_name)
-                if tool_class:
-                    tool = tool_class(
-                        name=tool_name,
-                        application_context=self,  # ApplicationContext как прикладной контекст
-                        component_config=tool_config
-                    )
-                    
-                    # Инициализируем инструмент
-                    if hasattr(tool, 'initialize') and callable(tool.initialize):
-                        success = await tool.initialize()
-                        if success:
-                            self._tools[tool_name] = tool
-                            self.logger.info(f"Инструмент '{tool_name}' создан с изолированным контекстом")
-                        else:
-                            self.logger.error(f"Не удалось инициализировать инструмент '{tool_name}'")
-                    else:
-                        self._tools[tool_name] = tool
-                        self.logger.info(f"Инструмент '{tool_name}' создан (без инициализации)")
-                else:
-                    self.logger.warning(f"Класс инструмента '{tool_name}' не найден")
-            except Exception as e:
-                self.logger.error(f"Ошибка создания инструмента '{tool_name}': {e}")
-        
-        self.logger.info(f"Создано инструментов с изолированными кэшами: {len(self._tools)}")
+    def get_skill(self, skill_name: str) -> Optional[BaseSkill]:
+        """Получение навыка по имени."""
+        return self.components.get(ComponentType.SKILL, skill_name)
 
     def get_prompt(self, capability_name: str, version: Optional[str] = None) -> str:
         """
@@ -564,7 +762,10 @@ class ApplicationContext:
             )
 
         # В новой архитектуре мы получаем промпт из изолированного сервиса
-        return self._prompt_service.get_prompt(capability_name)
+        prompt_service = self.get_service("prompt_service")
+        if prompt_service is None:
+            raise RuntimeError("PromptService не инициализирован")
+        return prompt_service.get_prompt(capability_name)
 
     def get_input_contract(self, capability_name: str, version: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -579,7 +780,10 @@ class ApplicationContext:
             )
 
         # В новой архитектуре мы получаем контракт из изолированного сервиса
-        return self._contract_service.get_contract(capability_name, "input")
+        contract_service = self.get_service("contract_service")
+        if contract_service is None:
+            raise RuntimeError("ContractService не инициализирован")
+        return contract_service.get_contract(capability_name, "input")
 
     def get_output_contract(self, capability_name: str, version: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -594,72 +798,48 @@ class ApplicationContext:
             )
 
         # В новой архитектуре мы получаем контракт из изолированного сервиса
-        return self._contract_service.get_contract(capability_name, "output")
-
-    def get_skill(self, skill_name: str) -> Optional[BaseSkill]:
-        """Получение навыка по имени."""
-        return self._skills.get(skill_name)
+        contract_service = self.get_service("contract_service")
+        if contract_service is None:
+            raise RuntimeError("ContractService не инициализирован")
+        return contract_service.get_contract(capability_name, "output")
 
     def get_provider(self, name: str):
         """Получение провайдера через инфраструктурный контекст."""
         return self.infrastructure_context.get_provider(name)
 
     def get_tool(self, name: str):
-        """Получение инструмента через инфраструктурный контекст."""
-        return self.infrastructure_context.get_tool(name)
-
-    def get_service(self, name: str):
-        """Получение сервиса из изолированного контекста приложения."""
-        if name == "prompt_service":
-            return self._prompt_service
-        elif name == "contract_service":
-            return self._contract_service
-        elif name == "table_description_service":
-            return self._table_description_service
-        elif name == "sql_generation_service":
-            return self._sql_generation_service
-        elif name == "sql_query_service":
-            return self._sql_query_service
-        elif name == "sql_validator_service":
-            return self._sql_validator_service
-        else:
-            # Для других сервисов, которые могут быть общими, обращаемся в инфраструктурный контекст
-            return self.infrastructure_context.get_service(name)
-
-    def get_prompt_service(self):
-        """Получение изолированного сервиса промптов."""
-        if not self._initialized:
-            raise RuntimeError(
-                f"ApplicationContext не инициализирован. "
-                f"Вызовите .initialize() перед использованием."
-            )
-        return self._prompt_service
-
-    def get_contract_service(self):
-        """Получение изолированного сервиса контрактов."""
-        if not self._initialized:
-            raise RuntimeError(
-                f"ApplicationContext не инициализирован. "
-                f"Вызовите .initialize() перед использованием."
-            )
-        return self._contract_service
+        """Получение инструмента через изолированный контекст приложения."""
+        return self.components.get(ComponentType.TOOL, name)
 
     def get_resource(self, name: str):
         """Получение ресурса - возвращает изолированные сервисы или обращается к инфраструктурному контексту."""
-        # Возвращаем изолированные сервисы приложения
+        # Возвращаем изолированные сервисы приложения через новый реестр компонентов
         if name == "prompt_service":
-            return self._prompt_service
+            return self.get_service("prompt_service")
         elif name == "contract_service":
-            return self._contract_service
-        elif name == "table_description_service":
-            return self._table_description_service
-        elif name == "sql_generation_service":
-            return self._sql_generation_service
-        elif name == "sql_query_service":
-            return self._sql_query_service
-        elif name == "sql_validator_service":
-            return self._sql_validator_service
+            return self.get_service("contract_service")
         else:
+            # Проверяем, может быть это имя компонента в новом реестре
+            # Сначала ищем среди сервисов
+            service = self.components.get(ComponentType.SERVICE, name)
+            if service:
+                return service
+            
+            # Затем ищем среди инструментов
+            tool = self.components.get(ComponentType.TOOL, name)
+            if tool:
+                return tool
+                
+            # Затем ищем среди навыков
+            skill = self.components.get(ComponentType.SKILL, name)
+            if skill:
+                return skill
+                
+            # Затем ищем среди стратегий
+            strategy = self.components.get(ComponentType.STRATEGY, name)
+            if strategy:
+                return strategy
+            
             # Для других ресурсов обращаемся в инфраструктурный контекст
             return self.infrastructure_context.get_resource(name)
 
@@ -740,3 +920,29 @@ class ApplicationContext:
         )
         await context.initialize()
         return context
+
+    def get_resource(self, name: str):
+        """
+        Получение ресурса по имени.
+        Возвращает изолированные сервисы приложения или обращается к инфраструктурному контексту.
+        """
+        # Возвращаем изолированные сервисы приложения
+        if name == "prompt_service":
+            return self.get_service("prompt_service")
+        elif name == "contract_service":
+            return self.get_service("contract_service")
+        else:
+            # Для других ресурсов обращаемся в инфраструктурный контекст
+            return self.infrastructure_context.get_resource(name)
+
+    def get_service(self, name: str):
+        """
+        Получение сервиса по имени.
+        """
+        return self.components.get(ComponentType.SERVICE, name)
+
+    def is_fully_initialized(self) -> bool:
+        """
+        Проверка, полностью ли инициализирована система.
+        """
+        return self._initialized

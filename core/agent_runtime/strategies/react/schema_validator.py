@@ -12,7 +12,7 @@ import logging
 from typing import Dict, Any, Optional, Type
 import uuid
 from pydantic import create_model, Field, BaseModel, ValidationError
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.base_system_context import BaseSystemContext
 logger = logging.getLogger(__name__)
 
 class SchemaValidator:

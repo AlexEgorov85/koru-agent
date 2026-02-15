@@ -20,7 +20,9 @@ class BaseComponent(ABC):
     """
 
     def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Any):
-        if not app_config:
+        # Проверяем, что app_config не None
+        # ComponentConfig может быть "истинным" значением даже если все поля пустые
+        if app_config is None:
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию. "
                 "Конфигурация не может быть None."

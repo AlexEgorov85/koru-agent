@@ -1,6 +1,6 @@
 
 from typing import Optional
-from core.system_context.base_system_contex import BaseSystemContext
+from core.application.context.base_system_context import BaseSystemContext
 from models.capability import Capability
 from core.session_context.base_session_context import BaseSessionContext
 from models.execution import ExecutionResult
