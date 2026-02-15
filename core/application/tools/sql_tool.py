@@ -9,7 +9,7 @@
 from asyncio.log import logger
 import time
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Dict, Optional, Any
 
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
@@ -43,7 +43,9 @@ class SQLTool(BaseTool):
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
-        return True
+        # Вызываем родительскую инициализацию для правильной установки флага _initialized
+        result = await super().initialize()
+        return result
 
     async def shutdown(self) -> None:
         """Корректное завершение работы (базовая реализация)."""

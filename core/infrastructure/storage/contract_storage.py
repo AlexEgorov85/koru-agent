@@ -59,12 +59,12 @@ class ContractStorage(IContractStorage):
 
         # Разбиваем capability_name на части
         parts = capability_name.split('.')
+        subdir_specific_files = []  # Инициализируем здесь, чтобы избежать ошибки UnboundLocalError
         if len(parts) >= 2:
             category = parts[0]  # например, "planning"
             specific = parts[1]  # например, "create_plan"
 
             # Проверяем в компонент-специфичных подкаталогах
-            subdir_specific_files = []
             for subdir in standard_subdirs:
                 # Используем оба формата: {category}_{specific}_{direction}_{version}.yaml и {category}_{specific}_{version}.yaml
                 # Формат 1: {category}_{specific}_{direction}_{version}.yaml (например, planning_create_plan_input_v1.0.0.yaml)
@@ -79,17 +79,11 @@ class ContractStorage(IContractStorage):
             # Если только одна часть, используем как есть
             category = capability_name  # например, "planning"
             specific = ""  # нет конкретного подтипа
-            subdir_specific_files = []
 
         # Проверяем в подкаталоге категории (например, planning/ если он существует)
-        if specific:
-            category_specific_json = self.contracts_dir / category / f"{specific}_{direction}_{version}.json"
-            category_specific_yaml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yaml"
-            category_specific_yml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yml"
-        else:
-            category_specific_json = self.contracts_dir / category / f"{direction}_{version}.json"
-            category_specific_yaml = self.contracts_dir / category / f"{direction}_{version}.yaml"
-            category_specific_yml = self.contracts_dir / category / f"{direction}_{version}.yml"
+        category_specific_json = self.contracts_dir / category / f"{specific}_{direction}_{version}.json" if specific else self.contracts_dir / category / f"{direction}_{version}.json"
+        category_specific_yaml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yaml" if specific else self.contracts_dir / category / f"{direction}_{version}.yaml"
+        category_specific_yml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yml" if specific else self.contracts_dir / category / f"{direction}_{version}.yml"
 
         # Проверяем сначала JSON файлы в основном пути (по умолчанию не используется, но оставим для совместимости)
         # Используем capability_name с точками как путь к поддиректории
@@ -120,7 +114,9 @@ class ContractStorage(IContractStorage):
         files_to_check.extend(subdir_specific_files)
 
         # Добавляем файлы из подкаталога категории (например, planning/ если он существует)
-        if category_specific_json:
+        if specific and category_specific_json:
+            files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
+        elif not specific and 'category_specific_json' in locals() and category_specific_json:
             files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
 
         contract_file = None
@@ -136,13 +132,18 @@ class ContractStorage(IContractStorage):
                 break
 
         if contract_file is None:
+            # Определяем значение для логирования в случае ошибки
+            cat_spec_json = category_specific_json if 'category_specific_json' in locals() else 'N/A'
+            cat_spec_yaml = category_specific_yaml if 'category_specific_yaml' in locals() else 'N/A'
+            cat_spec_yml = category_specific_yml if 'category_specific_yml' in locals() else 'N/A'
+            
             raise VersionNotFoundError(
                 f"Контракт не найден: capability={capability_name}, version={version}, "
                 f"direction={direction}, component_type={component_type}\n"
                 f"Проверьте пути:\n  1. {contract_file_json}\n  2. {contract_file_yaml}\n  3. {contract_file_yml}\n"
                 f"  4. {alt_file_json}\n  5. {alt_file_yaml}\n  6. {alt_file_yml}\n"
                 f"  7+ Component-specific subdirectory files ({', '.join(standard_subdirs)})\n"
-                f"  8. {category_specific_json or 'N/A'}\n  9. {category_specific_yaml or 'N/A'}\n 10. {category_specific_yml or 'N/A'}"
+                f"  8. {cat_spec_json}\n  9. {cat_spec_yaml}\n 10. {cat_spec_yml}"
             )
 
         try:
@@ -154,7 +155,7 @@ class ContractStorage(IContractStorage):
                     import yaml
                     data = yaml.safe_load(f)
 
-            # Проверяем, является ли файл новым форматом (с полной информацией) или старым (только схема)
+            # Проверяем, является ли файл новым форматом (с полной информацией) или старым (с метаданными)
             if isinstance(data, dict) and all(key in data for key in ['capability_name', 'version', 'direction', 'schema']):
                 # Новый формат: файл содержит полный объект Contract
                 return Contract(
@@ -164,12 +165,14 @@ class ContractStorage(IContractStorage):
                     schema_data=data['schema']
                 )
             else:
-                # Старый формат: файл содержит только схему
+                # Старый формат: файл содержит метаданные и схему (schema поле внутри)
+                # Извлекаем только схему, игнорируя другие метаданные
+                schema_data = data.get('schema', data) if isinstance(data, dict) else data
                 return Contract(
                     capability_name=capability_name,
                     version=version,
                     direction=direction,
-                    schema_data=data
+                    schema_data=schema_data
                 )
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Ошибка парсинга JSON контракта {capability_name}@{version} ({direction}): {e}")
@@ -226,14 +229,9 @@ class ContractStorage(IContractStorage):
             subdir_specific_files = []
 
         # Проверяем в подкаталоге категории (например, planning/ если он существует)
-        if specific:
-            category_specific_json = self.contracts_dir / category / f"{specific}_{direction}_{version}.json"
-            category_specific_yaml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yaml"
-            category_specific_yml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yml"
-        else:
-            category_specific_json = self.contracts_dir / category / f"{direction}_{version}.json"
-            category_specific_yaml = self.contracts_dir / category / f"{direction}_{version}.yaml"
-            category_specific_yml = self.contracts_dir / category / f"{direction}_{version}.yml"
+        category_specific_json = self.contracts_dir / category / f"{specific}_{direction}_{version}.json" if specific else self.contracts_dir / category / f"{direction}_{version}.json"
+        category_specific_yaml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yaml" if specific else self.contracts_dir / category / f"{direction}_{version}.yaml"
+        category_specific_yml = self.contracts_dir / category / f"{specific}_{direction}_{version}.yml" if specific else self.contracts_dir / category / f"{direction}_{version}.yml"
 
         # Проверяем сначала JSON файлы в основном пути (по умолчанию не используется, но оставим для совместимости)
         # Используем capability_name с точками как путь к поддиректории
@@ -264,11 +262,13 @@ class ContractStorage(IContractStorage):
         files_to_check.extend(subdir_specific_files)
 
         # Добавляем файлы из подкаталога категории (например, planning/ если он существует)
-        if category_specific_json:
+        if specific and category_specific_json:
+            files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
+        elif not specific and 'category_specific_json' in locals() and category_specific_json:
             files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
 
         result = any(file_path.exists() for file_path in files_to_check if file_path)
-        
+
         return result
 
     async def save(self, capability_name: str, version: str, direction: str, contract: Contract, component_type: Optional['ComponentType'] = None) -> None:

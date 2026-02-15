@@ -40,12 +40,14 @@ class FileTool(BaseTool):
     def description(self) -> str:
         return "Файловый инструмент - операции с файловой системой с поддержкой изолированных кэшей и sandbox режима"
 
-    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, **kwargs):
-        super().__init__(name, application_context, component_config, **kwargs)
+    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
+        super().__init__(name, application_context, component_config, executor, **kwargs)
 
     async def initialize(self) -> bool:
         """Инициализация инструмента."""
-        return True
+        # Вызываем родительскую инициализацию для правильной установки флага _initialized
+        result = await super().initialize()
+        return result
 
     def _is_write_operation(self, operation: str) -> bool:
         """Проверяет, является ли операция write-операцией."""

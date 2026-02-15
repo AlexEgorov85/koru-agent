@@ -73,10 +73,32 @@ class SQLQueryService(BaseService):
                 self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
-            # Дополнительная валидация
-            if not hasattr(self, 'sql_validator_service_instance') or not self.sql_validator_service_instance:
-                self.logger.error("sql_validator_service не загружен (архитектурная ошибка)")
-                return False
+            # Дополнительная валидация - проверяем зависимости
+            # Они должны быть установлены методом _resolve_dependencies родительского класса
+            validator_service = getattr(self, 'sql_validator_service_instance', None)
+            generation_service = getattr(self, 'sql_generation_service_instance', None)
+
+            if not validator_service:
+                self.logger.warning("sql_validator_service не загружен, пытаемся получить напрямую")
+                # Попробуем получить зависимость напрямую из контекста
+                validator_service = self.application_context.get_service('sql_validator_service')
+                if validator_service:
+                    self.logger.info("sql_validator_service получен из контекста, устанавливаем вручную")
+                    setattr(self, 'sql_validator_service_instance', validator_service)
+                    if not hasattr(self, '_dependencies'):
+                        self._dependencies = {}
+                    self._dependencies['sql_validator_service'] = validator_service
+
+            if not generation_service:
+                self.logger.warning("sql_generation_service не загружен, пытаемся получить напрямую")
+                # Попробуем получить зависимость напрямую из контекста
+                generation_service = self.application_context.get_service('sql_generation_service')
+                if generation_service:
+                    self.logger.info("sql_generation_service получен из контекста, устанавливаем вручную")
+                    setattr(self, 'sql_generation_service_instance', generation_service)
+                    if not hasattr(self, '_dependencies'):
+                        self._dependencies = {}
+                    self._dependencies['sql_generation_service'] = generation_service
 
             self.logger.info("SQLQueryService успешно инициализирован")
             return True

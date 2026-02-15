@@ -10,7 +10,7 @@ services:
   prompt_service:
     enabled: true
     dependencies: []
-  
+
   contract_service:
     enabled: true
     dependencies: []
@@ -22,6 +22,12 @@ services:
   sql_generation_service:
     enabled: true
     dependencies: ["default_db"]
+    prompt_versions:
+      sql_generation.generate_query: "v1.0.0"
+    input_contract_versions:
+      sql_generation.generate_query: "v1.0.0"
+    output_contract_versions:
+      sql_generation.generate_query: "v1.0.0"
 
   sql_query_service:
     enabled: true
@@ -75,3 +81,36 @@ strategies:
     dependencies: []
     parameters:
       max_thoughts: 5
+
+behaviors:
+  react_pattern:
+    enabled: true
+    dependencies: []
+    parameters:
+      max_thoughts: 5
+    prompt_versions:
+      behavior.react.think: "v1.0.0"
+      behavior.react.act: "v1.0.0"
+      behavior.react.observe: "v1.0.0"
+    input_contract_versions:
+      behavior.react.think: "v1.0.0"
+      behavior.react.act: "v1.0.0"
+      behavior.react.observe: "v1.0.0"
+    output_contract_versions:
+      behavior.react.think: "v1.0.0"
+      behavior.react.act: "v1.0.0"
+      behavior.react.observe: "v1.0.0"
+      
+  planning_pattern:
+    enabled: true
+    dependencies: []
+    parameters: {}
+    prompt_versions:
+      behavior.planning.decompose: "v1.0.0"
+      behavior.planning.sequence: "v1.0.0"
+    input_contract_versions:
+      behavior.planning.decompose: "v1.0.0"
+      behavior.planning.sequence: "v1.0.0"
+    output_contract_versions:
+      behavior.planning.decompose: "v1.0.0"
+      behavior.planning.sequence: "v1.0.0"

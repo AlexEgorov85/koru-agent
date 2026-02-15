@@ -84,3 +84,26 @@ providers:
   monitoring:
     enabled: true
     endpoint: "http://localhost:9090"
+
+# Конфигурация приложения
+app_config:
+  prompt_versions:
+    "planning.create_plan": "v1.0.0"
+    "book_library.search_books": "v1.0.0"
+    "sql_generation.generate_query": "v1.0.0"
+  input_contract_versions:
+    "planning.create_plan": "v1.0.0"
+    "book_library.search_books": "v1.0.0"
+    "sql_generation.generate_query": "v1.0.0"
+  output_contract_versions:
+    "planning.create_plan": "v1.0.0"
+    "book_library.search_books": "v1.0.0"
+    "sql_generation.generate_query": "v1.0.0"
+  side_effects_enabled: true
+  detailed_metrics: false
+  max_steps: 10
+  max_retries: 3
+  temperature: 0.7
+  default_strategy: "react"
+  enable_self_reflection: true
+  enable_context_window_management: true

@@ -105,10 +105,19 @@ class PromptStorage(IPromptStorage):
         ]
 
         # Добавляем файлы из подкаталогов (компонент-специфичные)
+        # Исправляем ошибку: нужно создать список subdir_specific_files
+        subdir_specific_files = []
+        for subdir in standard_subdirs:
+            subdir_path = self.prompts_dir / subdir / capability_path
+            subdir_specific_files.extend([
+                subdir_path / f"{version}.json",
+                subdir_path / f"{version}.yaml", 
+                subdir_path / f"{version}.yml"
+            ])
         files_to_check.extend(subdir_specific_files)
 
         # Добавляем файлы из подкаталога категории (например, planning/ если он существует)
-        if category_specific_json:
+        if specific:
             files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
 
         prompt_file = None

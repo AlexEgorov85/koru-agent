@@ -257,22 +257,27 @@ class ApplicationContext(BaseSystemContext):
                 # Входные контракты
                 for cap, ver in getattr(config, 'input_contract_versions', {}).items():
                     unique_contracts.add((cap, ver, "input"))
-                
+
                 # Выходные контракты
                 for cap, ver in getattr(config, 'output_contract_versions', {}).items():
                     unique_contracts.add((cap, ver, "output"))
+
+        self.logger.info(f"Найдено {len(unique_contracts)} уникальных контрактов для предзагрузки")
         
         # Загружаем ОДИН РАЗ через инфраструктурное хранилище
+        loaded_count = 0
         for capability, version, direction in unique_contracts:
             try:
                 contract_obj = await storage.load(capability, version, direction)
                 contracts[(capability, version, direction)] = contract_obj.schema_data
+                loaded_count += 1
+                self.logger.debug(f"Загружен контракт {capability}@{version} ({direction}) (поля: {len(contract_obj.schema_data)})")
             except Exception as e:
                 self.logger.warning(f"Не удалось загрузить контракт {capability}@{version} ({direction}): {e}")
                 # Добавляем пустой словарь для отсутствующего контракта, чтобы не было KeyError позже
                 contracts[(capability, version, direction)] = {}
-        
-        self.logger.info(f"Предзагружено {len(contracts)} контрактов")
+
+        self.logger.info(f"Предзагружено {loaded_count} из {len(unique_contracts)} контрактов успешно, {len(unique_contracts) - loaded_count} пропущено")
         return contracts
 
     def _enrich_config_with_resources(
@@ -322,106 +327,120 @@ class ApplicationContext(BaseSystemContext):
     async def _initialize_components_with_dependencies(self) -> bool:
         """
         Инициализация компонентов с учетом зависимостей.
-        Инициализирует сначала сервисы, затем инструменты, навыки и стратегии.
+        Использует топологическую сортировку для правильного порядка инициализации.
         """
         from core.application.context.application_context import ComponentType
+        from collections import defaultdict, deque
 
-        # Получаем все компоненты и группируем по типам
+        # Получаем все компоненты
         all_components = self.components.all_components()
         
-        # Разделяем компоненты по типам для инициализации в правильном порядке
-        services = []
-        tools = []
-        skills = []
-        behaviors = []
+        # Создаем маппинг имени компонента к объекту
+        component_map = {comp.name: comp for comp in all_components}
 
+        # Создаем граф зависимостей
+        dependency_graph = defaultdict(list)  # component -> [dependencies]
+        dependents_graph = defaultdict(list)  # dependency -> [components that depend on it]
+
+        # Собираем зависимости для каждого компонента
         for component in all_components:
-            # Определяем тип компонента по его положению в реестре
-            found = False
-            for comp_type in self.components._components:
-                if component.name in self.components._components[comp_type]:
-                    if comp_type == ComponentType.SERVICE:
-                        services.append(component)
-                    elif comp_type == ComponentType.TOOL:
-                        tools.append(component)
-                    elif comp_type == ComponentType.SKILL:
-                        skills.append(component)
-                    elif comp_type == ComponentType.BEHAVIOR:
-                        behaviors.append(component)
-                    found = True
-                    break
+            # Проверяем, есть ли у компонента атрибут DEPENDENCIES (как у BaseService)
+            deps = []
+            if hasattr(component, 'DEPENDENCIES'):
+                deps = getattr(component, 'DEPENDENCIES', [])
+            elif hasattr(component, 'dependencies'):
+                deps = getattr(component, 'dependencies', [])
+            else:
+                deps = []
+            
+            dependency_graph[component.name] = deps[:]
+            
+            # Заполняем обратный граф зависимостей
+            for dep in deps:
+                dependents_graph[dep].append(component.name)
 
-            if not found:
-                # Если тип не найден, добавляем в общий список
-                services.append(component)  # по умолчанию
-
-        # Инициализируем компоненты в правильном порядке:
-        # 1. Сервисы (они нужны инструментам и другим компонентам)
-        # 2. Инструменты, навыки, паттерны поведения (они могут зависеть от сервисов)
+        # Топологическая сортировка с использованием алгоритма Кана
+        # Подсчитываем количество входящих зависимостей (in-degree) для каждого компонента
+        in_degree = {comp.name: 0 for comp in all_components}
         
+        for component_name in dependency_graph:
+            for dep_name in dependency_graph[component_name]:
+                if dep_name in in_degree:  # Убедимся, что зависимость существует в системе
+                    in_degree[component_name] += 1
+
+        # Инициализируем очередь компонентов без зависимостей (in-degree = 0)
+        queue = deque([name for name, degree in in_degree.items() if degree == 0])
+        initialization_order = []
+        
+        # Процесс топологической сортировки
+        while queue:
+            current_component_name = queue.popleft()
+            initialization_order.append(current_component_name)
+            
+            # Уменьшаем in-degree для всех компонентов, зависящих от текущего
+            for dependent_name in dependents_graph[current_component_name]:
+                if dependent_name in in_degree:
+                    in_degree[dependent_name] -= 1
+                    # Если in-degree стал 0, добавляем в очередь
+                    if in_degree[dependent_name] == 0:
+                        queue.append(dependent_name)
+
+        # Проверяем, были ли инициализированы все компоненты (отсутствие циклических зависимостей)
+        if len(initialization_order) != len(all_components):
+            # Обнаружена циклическая зависимость
+            remaining_components = set(in_degree.keys()) - set(initialization_order)
+            self.logger.error(f"Обнаружена циклическая зависимость между компонентами: {remaining_components}")
+            
+            # Попробуем инициализировать оставшиеся компоненты в любом порядке
+            all_initialized_names = set(initialization_order)
+            for comp in all_components:
+                if comp.name not in all_initialized_names:
+                    initialization_order.append(comp.name)
+
+        # Инициализируем компоненты в порядке топологической сортировки
         initialized_components = set()
-        
-        # Сначала инициализируем сервисы
-        self.logger.info(f"Инициализация сервисов: {len(services)}")
-        for component in services:
-            try:
-                if hasattr(component, 'initialize') and callable(component.initialize):
-                    if await component.initialize():
-                        initialized_components.add(component.name)
-                        self.logger.debug(f"Сервис {component.name} инициализирован")
-                    else:
-                        self.logger.error(f"Сервис {component.name} не смог инициализироваться")
-                        return False
-                else:
-                    initialized_components.add(component.name)
-                    self.logger.debug(f"Сервис {component.name} не требует инициализации")
-            except Exception as e:
-                self.logger.error(f"Ошибка при инициализации сервиса {component.name}: {e}")
-                return False
-        
-        # Затем инициализируем инструменты, навыки и паттерны поведения
-        other_components = tools + skills + behaviors
-        self.logger.info(f"Инициализация других компонентов: {len(other_components)}")
 
-        for component in other_components:
+        self.logger.info(f"Инициализация компонентов в порядке зависимостей: {initialization_order}")
+        
+        for component_name in initialization_order:
+            if component_name not in component_map:
+                self.logger.warning(f"Компонент {component_name} не найден в карте компонентов")
+                continue
+                
+            component = component_map[component_name]
+            
             try:
                 if hasattr(component, 'initialize') and callable(component.initialize):
                     if await component.initialize():
                         initialized_components.add(component.name)
                         self.logger.debug(f"Компонент {component.name} инициализирован")
                     else:
-                        self.logger.warning(f"Компонент {component.name} не смог инициализироваться")
-                        # Не возвращаем False, так как это может быть не критично
+                        self.logger.error(f"Компонент {component.name} не смог инициализироваться")
+                        return False
                 else:
                     initialized_components.add(component.name)
                     self.logger.debug(f"Компонент {component.name} не требует инициализации")
             except Exception as e:
-                self.logger.warning(f"Ошибка при инициализации компонента {component.name}: {e}")
-                # Не возвращаем False, так как это может быть не критично для инструментов
-                continue
+                self.logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
+                return False
 
         # Проверяем, все ли компоненты были инициализированы
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
-            self.logger.warning(f"Не все компоненты были инициализированы: {uninitialized}")
-            # Возвращаем True, если инициализированы все сервисы, так как они наиболее важны
-            service_names = {s.name for s in services}
-            initialized_services = service_names.intersection(initialized_components)
-            if len(initialized_services) != len(service_names):
-                self.logger.error("Не все сервисы были инициализированы")
-                return False
-        
-        self.logger.info(f"Компоненты успешно инициализированы (сервисы: {len(services)}, другие: {len(other_components)})")
+            self.logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
+            return False
+
+        self.logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
         return True
 
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе"""
         # Проверка, что все компоненты, которые были объявлены в конфигурации, инициализированы
-        
+
         # Получаем все компоненты, которые должны быть загружены
         declared_components = self._resolve_component_configs()
-        
+
         for comp_type, names in declared_components.items():
             for name in names:
                 component = self.components.get(comp_type, name)
@@ -437,8 +456,95 @@ class ApplicationContext(BaseSystemContext):
                     if not component.is_ready():
                         self.logger.error(f"Компонент {component.name} не готов к работе")
                         return False
-        
+
         return True
+
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Проверка работоспособности контекста и всех компонентов.
+        
+        RETURNS:
+        - Dict: Отчет о здоровье системы с деталями по каждому компоненту
+        """
+        import time
+        start_time = time.time()
+        
+        health_report = {
+            'context_id': self.id,
+            'timestamp': time.time(),
+            'profile': self.profile,
+            'overall_status': 'healthy',
+            'components_health': {},
+            'metrics': {
+                'total_components': 0,
+                'healthy_components': 0,
+                'unhealthy_components': 0,
+                'initialization_time': 0
+            },
+            'details': {}
+        }
+        
+        # Проверяем статус самого контекста
+        context_healthy = self._initialized
+        health_report['context_healthy'] = context_healthy
+        
+        if not context_healthy:
+            health_report['overall_status'] = 'unhealthy'
+            health_report['details']['context_error'] = 'ApplicationContext не инициализирован'
+        
+        # Проверяем каждый компонент
+        all_components = self.components.all_components()
+        health_report['metrics']['total_components'] = len(all_components)
+        
+        for component in all_components:
+            comp_health = {
+                'name': component.name,
+                'type': type(component).__name__,
+                'initialized': getattr(component, '_initialized', False),
+                'ready': True,
+                'resource_status': {
+                    'prompts_loaded': len(getattr(component, '_cached_prompts', {})),
+                    'input_contracts_loaded': len(getattr(component, '_cached_input_contracts', {})),
+                    'output_contracts_loaded': len(getattr(component, '_cached_output_contracts', {}))
+                }
+            }
+            
+            # Проверяем статус инициализации
+            if hasattr(component, '_initialized'):
+                comp_health['initialized'] = component._initialized
+                comp_health['ready'] = component._initialized
+            else:
+                comp_health['ready'] = True  # Если нет флага инициализации, считаем готовым
+            
+            # Добавляем информацию о зависимостях если они есть
+            if hasattr(component, '_dependencies'):
+                comp_health['dependencies_count'] = len(component._dependencies)
+                comp_health['dependencies'] = list(component._dependencies.keys())
+            
+            # Определяем статус компонента
+            if not comp_health['ready']:
+                comp_health['status'] = 'unhealthy'
+                health_report['overall_status'] = 'unhealthy'
+                health_report['metrics']['unhealthy_components'] += 1
+            else:
+                comp_health['status'] = 'healthy'
+                health_report['metrics']['healthy_components'] += 1
+            
+            health_report['components_health'][component.name] = comp_health
+        
+        # Обновляем общее состояние
+        if health_report['metrics']['unhealthy_components'] > 0:
+            health_report['overall_status'] = 'degraded' if health_report['metrics']['unhealthy_components'] < health_report['metrics']['total_components'] else 'unhealthy'
+        elif health_report['metrics']['healthy_components'] == 0:
+            health_report['overall_status'] = 'unhealthy'
+        
+        # Добавляем время выполнения проверки
+        health_report['metrics']['check_duration'] = time.time() - start_time
+        
+        self.logger.info(f"Health check completed: {health_report['overall_status']}, "
+                         f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} components healthy")
+        
+        return health_report
 
     # === ЕДИНЫЕ точки доступа к компонентам ===
     

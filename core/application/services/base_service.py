@@ -145,17 +145,21 @@ class BaseService(BaseComponent):
         """
         Загрузка всех декларированных зависимостей.
         """
+        missing_deps = []
         for dep_name in self.DEPENDENCIES:
             dependency = self.get_dependency(dep_name)
             if not dependency:
-                self.logger.error(
+                self.logger.warning(
                     f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. "
                     f"Возможные причины:\n"
-                    f"  1. Циклическая зависимость в графе сервисов\n"
-                    f"  2. Сервис '{dep_name}' отключён в конфигурации\n"
-                    f"  3. Ошибка в декларации зависимостей"
+                    f"  1. Зависимость еще не инициализирована\n"
+                    f"  2. Циклическая зависимость в графе сервисов\n"
+                    f"  3. Сервис '{dep_name}' отключён в конфигурации\n"
+                    f"  4. Ошибка в декларации зависимостей"
                 )
-                return False
+                missing_deps.append(dep_name)
+                # Continue instead of returning False immediately
+                continue
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
@@ -167,6 +171,15 @@ class BaseService(BaseComponent):
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
 
+        # Return False only if ALL dependencies are missing
+        if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
+            self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            return False
+        
+        # Log warning if some dependencies are missing
+        if missing_deps:
+            self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+        
         return True
 
     async def _custom_initialize(self) -> bool:

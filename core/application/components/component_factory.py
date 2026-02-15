@@ -199,21 +199,15 @@ class ComponentFactory:
         elif component_type == "behavior":
             # Обработка паттернов поведения
             # Проверяем специфичные паттерны поведения
-            if name == "react":
-                from core.application.behaviors.react.pattern import ReActPattern
+            if name == "react_pattern":
+                from core.application.behaviors.react_pattern import ReActPattern
                 return ReActPattern
-            elif name == "planning":
-                from core.application.behaviors.planning.pattern import PlanningPattern
+            elif name == "planning_pattern":
+                from core.application.behaviors.planning_pattern import PlanningPattern
                 return PlanningPattern
-            elif name == "evaluation":
-                from core.application.behaviors.evaluation.pattern import EvaluationPattern
-                return EvaluationPattern
-            elif name == "fallback":
-                from core.application.behaviors.fallback.pattern import FallbackPattern
-                return FallbackPattern
             else:
                 # Попробуем стандартный путь для паттернов поведения
-                module_name = f"core.application.behaviors.{name}.pattern"
+                module_name = f"core.application.behaviors.{name}_pattern"
                 class_name = f"{name.title().replace('_', '')}Pattern"
                 try:
                     module = __import__(module_name, fromlist=[class_name])
@@ -221,43 +215,7 @@ class ComponentFactory:
                 except ImportError:
                     # Попробуем другой вариант имени модуля
                     try:
-                        module_name = f"core.application.behaviors.{name}_pattern"
-                        class_name = f"{name.title().replace('_', '')}Pattern"
-                        module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
-                    except ImportError:
-                        raise ValueError(f"Паттерн поведения {name} не найден")
-            try:
-                module = __import__(module_name, fromlist=[class_name])
-                return getattr(module, class_name)
-            except ImportError:
-                raise ValueError(f"Компонент {name} не найден")
-        elif component_type == "behavior":
-            # Обработка паттернов поведения
-            # Проверяем специфичные паттерны поведения
-            if name == "react":
-                from core.application.behaviors.react.pattern import ReActPattern
-                return ReActPattern
-            elif name == "planning":
-                from core.application.behaviors.planning.pattern import PlanningPattern
-                return PlanningPattern
-            elif name == "evaluation":
-                from core.application.behaviors.evaluation.pattern import EvaluationPattern
-                return EvaluationPattern
-            elif name == "fallback":
-                from core.application.behaviors.fallback.pattern import FallbackPattern
-                return FallbackPattern
-            else:
-                # Попробуем стандартный путь для паттернов поведения
-                module_name = f"core.application.behaviors.{name}.pattern"
-                class_name = f"{name.title().replace('_', '')}Pattern"
-                try:
-                    module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
-                except ImportError:
-                    # Попробуем другой вариант имени модуля
-                    try:
-                        module_name = f"core.application.behaviors.{name}_pattern"
+                        module_name = f"core.application.behaviors.{name}.pattern"
                         class_name = f"{name.title().replace('_', '')}Pattern"
                         module = __import__(module_name, fromlist=[class_name])
                         return getattr(module, class_name)
