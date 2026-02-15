@@ -38,29 +38,6 @@ db_providers:
       timeout: 30.0
       pool_size: 5
 
-# Конфигурация навыков
-skills:
-  planning:
-    enabled: true
-    parameters: {}
-    priority: 1
-  book_library:
-    enabled: true
-    parameters:
-      max_books_per_search: 10
-    priority: 1
-
-# Конфигурация инструментов
-tools:
-  SQLTool:
-    enabled: true
-    parameters: {}
-    dependencies: ["default_db"]
-  file_tool:
-    enabled: true
-    parameters: {}
-    dependencies: []
-
 # Параметры агента
 agent:
   max_steps: 10
@@ -69,7 +46,6 @@ agent:
   default_strategy: "react"
   enable_self_reflection: true
   enable_context_window_management: true
-
 
 # Безопасность
 security:

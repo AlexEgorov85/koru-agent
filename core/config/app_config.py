@@ -13,7 +13,7 @@
 """
 import yaml
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
 from enum import Enum
@@ -62,6 +62,13 @@ class AppConfig(BaseModel):
 
     # Профиль (prod/sandbox)
     profile: str = Field(default="prod", description="Профиль работы (prod или sandbox)")
+
+    # Конфигурации компонентов для новых архитектурных требований
+    # Используем строковые аннотации для избежания циклических зависимостей
+    service_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации сервисов: {service_name: ComponentConfig}")
+    skill_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации навыков: {skill_name: ComponentConfig}")
+    tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов: {tool_name: ComponentConfig}")
+    strategy_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации стратегий: {strategy_name: ComponentConfig}")
 
     # Используем ConfigDict вместо класса Config для Pydantic v2+
     model_config = ConfigDict(
@@ -223,12 +230,102 @@ class AppConfig(BaseModel):
                 # Если версия указана напрямую, считаем её входной
                 input_contract_versions[capability] = versions
 
+        # Создаем конфигурации для компонентов
+        from core.config.component_config import ComponentConfig
+        service_configs = {}
+        skill_configs = {}
+        tool_configs = {}
+        strategy_configs = {}
+
+        # Создаем общую конфигурацию для всех сервисов
+        if active_prompts or input_contract_versions or output_contract_versions:
+            common_component_config = ComponentConfig(
+                variant_id=f"{profile}_common",
+                prompt_versions=active_prompts,
+                input_contract_versions=input_contract_versions,
+                output_contract_versions=output_contract_versions,
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False
+            )
+
+            # Пример: добавляем стандартные сервисы
+            service_configs = {
+                "prompt_service": common_component_config,
+                "contract_service": common_component_config,
+                "table_description_service": common_component_config,
+                "sql_generation_service": common_component_config,
+                "sql_query_service": common_component_config,
+                "sql_validator_service": common_component_config
+            }
+
+        # Загружаем конфигурации навыков из реестра
+        skills_section = registry_data.get('skills', {})
+        for skill_name, skill_info in skills_section.items():
+            if isinstance(skill_info, dict) and 'enabled' in skill_info and skill_info['enabled']:
+                # Создаем конфигурацию для навыка
+                skill_config = ComponentConfig(
+                    variant_id=f"{skill_name}_{profile}",
+                    prompt_versions=skill_info.get('prompt_versions', active_prompts),
+                    input_contract_versions=skill_info.get('input_contract_versions', input_contract_versions),
+                    output_contract_versions=skill_info.get('output_contract_versions', output_contract_versions),
+                    side_effects_enabled=skill_info.get('side_effects_enabled', profile == "prod"),
+                    detailed_metrics=skill_info.get('detailed_metrics', False),
+                    parameters=skill_info.get('parameters', {})
+                )
+                skill_configs[skill_name] = skill_config
+
+        # Загружаем конфигурации инструментов из реестра
+        tools_section = registry_data.get('tools', {})
+        for tool_name, tool_info in tools_section.items():
+            if isinstance(tool_info, dict) and 'enabled' in tool_info and tool_info['enabled']:
+                # Создаем конфигурацию для инструмента
+                tool_config = ComponentConfig(
+                    variant_id=f"{tool_name}_{profile}",
+                    prompt_versions=tool_info.get('prompt_versions', active_prompts),
+                    input_contract_versions=tool_info.get('input_contract_versions', input_contract_versions),
+                    output_contract_versions=tool_info.get('output_contract_versions', output_contract_versions),
+                    side_effects_enabled=tool_info.get('side_effects_enabled', profile == "prod"),
+                    detailed_metrics=tool_info.get('detailed_metrics', False),
+                    parameters=tool_info.get('parameters', {}),
+                    dependencies=tool_info.get('dependencies', [])
+                )
+                tool_configs[tool_name] = tool_config
+
+        # Загружаем конфигурации стратегий из реестра
+        strategies_section = registry_data.get('strategies', {})
+        for strategy_name, strategy_info in strategies_section.items():
+            if isinstance(strategy_info, dict) and 'enabled' in strategy_info and strategy_info['enabled']:
+                # Создаем конфигурацию для стратегии
+                strategy_config = ComponentConfig(
+                    variant_id=f"{strategy_name}_{profile}",
+                    prompt_versions=strategy_info.get('prompt_versions', active_prompts),
+                    input_contract_versions=strategy_info.get('input_contract_versions', input_contract_versions),
+                    output_contract_versions=strategy_info.get('output_contract_versions', output_contract_versions),
+                    side_effects_enabled=strategy_info.get('side_effects_enabled', profile == "prod"),
+                    detailed_metrics=strategy_info.get('detailed_metrics', False),
+                    parameters=strategy_info.get('parameters', {})
+                )
+                strategy_configs[strategy_name] = strategy_config
+
+        # Загружаем параметры агента из реестра
+        agent_config = registry_data.get('agent', {})
+        
         return cls(
             config_id=f"app_config_{profile}",
             prompt_versions=active_prompts,
             input_contract_versions=input_contract_versions,
             output_contract_versions=output_contract_versions,
-            side_effects_enabled=(profile == "prod"),  # В проде включены побочные эффекты
-            detailed_metrics=False,
+            service_configs=service_configs,
+            skill_configs=skill_configs,
+            tool_configs=tool_configs,
+            strategy_configs=strategy_configs,
+            side_effects_enabled=agent_config.get('side_effects_enabled', profile == "prod"),
+            detailed_metrics=agent_config.get('detailed_metrics', False),
+            max_steps=agent_config.get('max_steps', 10),
+            max_retries=agent_config.get('max_retries', 3),
+            temperature=agent_config.get('temperature', 0.7),
+            default_strategy=agent_config.get('default_strategy', 'react'),
+            enable_self_reflection=agent_config.get('enable_self_reflection', True),
+            enable_context_window_management=agent_config.get('enable_context_window_management', True),
             profile=profile  # Добавляем поле профиля
         )
