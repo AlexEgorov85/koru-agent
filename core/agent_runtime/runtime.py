@@ -15,7 +15,8 @@ from .progress import ProgressScorer
 from .executor import ActionExecutor
 from .policy import AgentPolicy
 from .model import StrategyDecisionType
-from .strategy_manager import StrategyManager, ProgressMetrics
+from .behavior_manager import BehaviorManager
+from .strategy_manager import ProgressMetrics
 from models.execution import ExecutionStatus
 
 logger = logging.getLogger(__name__)
@@ -48,65 +49,10 @@ class AgentRuntime:
         self.progress = ProgressScorer()
         self.executor = ActionExecutor(system_context)
 
-        # Инициализация стратегического менеджера
-        self.strategy_manager = StrategyManager()
+        # Инициализация менеджера поведения
+        self.behavior_manager = BehaviorManager(application_context=system_context.application_context)
         self.progress_metrics = ProgressMetrics()
 
-        # Регистрация всех доступных стратегий
-        self._strategy_registry = {
-            "react": ReActStrategy(system_context),
-            "plan_and_execute": ReActStrategy(system_context),  # Используем ReAct как базу для plan_and_execute
-            "chain_of_thought": None,  # Заглушка для будущей реализации
-            "evaluation": EvaluationStrategy(system_context),
-            "fallback": FallbackStrategy(system_context)
-        }
-
-        # Ленивая инициализация PlanningStrategy для избежания циклического импорта
-        if "planning" not in self._strategy_registry:
-            from core.agent_runtime.strategies.planning.strategy import PlanningStrategy
-            self._strategy_registry["planning"] = PlanningStrategy(system_context)
-
-        # Устанавливаем стратегию на основе переданного имени или по умолчанию
-        self.strategy = self._strategy_registry.get(strategy_name, ReActStrategy(system_context))
-
-    async def _select_initial_strategy(self, goal: str) -> str:
-        """
-        Выбор начальной стратегии на основе анализа цели пользователя.
-        Использует простой анализ ключевых слов + эвристики сложности.
-        """
-        goal_lower = goal.lower().strip()
-
-        # Ключевые слова, указывающие на необходимость планирования
-        planning_indicators = [
-            # Декомпозиция задач
-            "запланируй", "план", "шаги", "этапы", "последовательность", "алгоритм",
-            "расписание", "график", "маршрут", "по порядку", "сначала", "потом", "затем",
-            # Множественные действия
-            "и затем", "после этого", "в итоге", "в конце",
-            # Временные рамки
-            "на завтра", "на неделю", "ежедневно", "каждый день"
-        ]
-
-        # Эвристика сложности: длинные цели часто требуют планирования
-        is_complex = len(goal.split()) > 15 or goal.count("?") > 1 or goal.count(".") > 2
-
-        # Проверка ключевых слов
-        requires_planning = any(indicator in goal_lower for indicator in planning_indicators)
-
-        # Решение на основе анализа
-        if requires_planning or is_complex:
-            # Дополнительная проверка: есть ли доступные планировочные capability
-            planning_caps = [
-                cap for cap in self.system.list_capabilities()
-                if "planning" in [s.lower() for s in cap.supported_strategies]
-            ]
-            if planning_caps:
-                # Проверяем, что стратегия планирования доступна
-                if "planning" in self._strategy_registry or self._is_strategy_available("planning"):
-                    return "planning"
-
-        # По умолчанию — реактивная стратегия
-        return self.system.config.agent.get("default_strategy", "react") if hasattr(self.system, 'config') and hasattr(self.system.config, 'agent') else "react"
 
     def _is_strategy_available(self, strategy_name: str) -> bool:
         """Проверяет, доступна ли стратегия (возможна ленивая инициализация)."""
@@ -114,48 +60,19 @@ class AgentRuntime:
             return True  # Предполагаем, что планирующая стратегия может быть инициализирована
         return strategy_name in self._strategy_registry
 
-    def get_strategy(self, strategy_name: str) -> AgentStrategyInterface:
-        """Получение стратегии по имени.
-
-        ПАРАМЕТРЫ:
-        - strategy_name: имя стратегии
-
-        ВОЗВРАЩАЕТ:
-        - экземпляр стратегии
-
-        ИСКЛЮЧЕНИЯ:
-        - ValueError если стратегия не найдена
-        """
-        strategy_name = strategy_name.lower()
-        
-        # Если запрашивается планирующая стратегия, но она еще не инициализирована
-        if strategy_name == "planning" and strategy_name not in self._strategy_registry:
-            from core.agent_runtime.strategies.planning.strategy import PlanningStrategy
-            self._strategy_registry["planning"] = PlanningStrategy()
-        
-        if strategy_name not in self._strategy_registry:
-            raise ValueError(f"Стратегия '{strategy_name}' не найдена. Доступные: {list(self._strategy_registry.keys())}")
-
-        strategy = self._strategy_registry[strategy_name]
-        if strategy is None:
-            raise ValueError(f"Стратегия '{strategy_name}' зарегистрирована, но не реализована")
-
-        logger.debug(f"Получена стратегия: {strategy_name} -> {strategy.__class__.__name__}")
-        return strategy
 
     async def run(self, goal: str):
         """Главный execution loop агента."""
         # 1. Проверка готовности перед началом выполнения
         await self._verify_readiness()
-        
+
         self.session.goal = goal
 
         # Запись системного события
         self.session.record_system_event("session_start", f"Starting session with goal: {goal}")
 
-        # Выбор начальной стратегии через стратегический менеджер
-        initial_strategy_name = await self.strategy_manager.select_initial_strategy(goal)
-        self.strategy = self.get_strategy(initial_strategy_name)
+        # Инициализация менеджера поведения
+        await self.behavior_manager.initialize()
 
     async def _verify_readiness(self):
         """Проверка готовности агента к выполнению задачи."""
@@ -181,6 +98,9 @@ class AgentRuntime:
                 raise RuntimeError(f"Агент не готов к выполнению: отсутствует необходимый сервис '{service_name}'")
         
 
+        # Получаем доступные capability для использования в паттернах поведения
+        available_caps = self.system.list_capabilities()
+
         for _ in range(self.max_steps):
             if self.state.finished:
                 break
@@ -188,9 +108,13 @@ class AgentRuntime:
             # Текущий номер шага (начинаем с 1)
             current_step = self.state.step + 1
 
-            decision = await self.strategy.next_step(self)
+            # Получаем решение от менеджера поведения
+            decision = await self.behavior_manager.generate_next_decision(
+                session_context=self.session,
+                available_capabilities=available_caps
+            )
 
-            # Запись решения стратегии
+            # Запись решения паттерна поведения
             if decision:
                 self.session.record_decision(decision.action.value, reasoning=decision.reason)
 
@@ -204,37 +128,21 @@ class AgentRuntime:
                 )
                 break
 
-            if decision.action == StrategyDecisionType.SWITCH:
-                try:
-                    # Используем новый метод для получения стратегии
-                    self.strategy = self.get_strategy(decision.next_strategy)
-                    
-                    # Записываем переключение в историю
-                    self.strategy_manager.record_strategy_switch(
-                        decision=decision,
-                        from_strategy=self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
-                    )
-                    
-                except Exception as e:
-                    logger.error(f"Ошибка переключения стратегии: {str(e)}. Используется fallback стратегия.")
-                    self.strategy = self.get_strategy("fallback")
-
-                # Регистрируем смену стратегии
-                self.session.record_decision(
-                    decision_data="SWITCH",
-                    reasoning={"action": "strategy_change", "to_strategy": decision.next_strategy},
-                    metadata=ContextItemMetadata(step_number=current_step)
-                )
-                continue
-            
             if decision.action == StrategyDecisionType.ACT:
                 try:
+                    # Получаем capability по имени из решения
+                    capability = self.system.get_capability(decision.capability_name)
+                    
+                    if not capability:
+                        logger.error(f"Capability '{decision.capability_name}' не найдена")
+                        continue
+
                     # 1. Создаем элемент действия в контексте перед выполнением
                     action_content = {
-                        "capability": decision.capability.name,
-                        "parameters": decision.payload,
+                        "capability": capability.name,
+                        "parameters": decision.parameters,
                         "reason": decision.reason,
-                        "skill": decision.capability.skill_name,
+                        "skill": capability.skill_name,
                         "step_number": current_step
                     }
 
@@ -250,8 +158,8 @@ class AgentRuntime:
 
                     # 2. Выполняем capability
                     execution_result = await self.executor.execute_capability(
-                        capability=decision.capability,
-                        parameters=decision.payload,
+                        capability=capability,
+                        parameters=decision.parameters,
                         session_context=self.session,
                         user_context=self.user_context  # Передаем контекст пользователя
                     )
@@ -261,11 +169,11 @@ class AgentRuntime:
                     obs_ids = execution_result.observation_item_id
                     if not isinstance(obs_ids, list):
                         obs_ids = [obs_ids] if obs_ids else []
-                    
+
                     self.session.register_step(
                         step_number=current_step,
-                        capability_name=decision.capability.name,
-                        skill_name = decision.capability.skill_name,
+                        capability_name=capability.name,
+                        skill_name = capability.skill_name,
                         action_item_id = action_item_id,
                         observation_item_ids = obs_ids,
                         summary=execution_result.summary,
@@ -287,35 +195,6 @@ class AgentRuntime:
                     # 4. Оценка прогресса и обновление состояния
                     progressed = self.progress.evaluate(self.session)
                     self.state.register_progress(progressed)
-
-                    # 5. ПОСЛЕ выполнения — оценка необходимости переключения стратегии
-                    state_metrics = self.progress_metrics.get_state_metrics()
-                    switch_decision = await self.strategy_manager.should_switch_strategy(
-                        current_strategy=self.strategy.name if hasattr(self.strategy, 'name') else 'unknown',
-                        state_metrics=state_metrics
-                    )
-
-                    # Получаем текущую стратегию для записи в историю
-                    current_strategy_name = self.strategy.name if hasattr(self.strategy, 'name') else 'unknown'
-
-                    # Выполняем переключение
-                    self.strategy = self.get_strategy(switch_decision.to_strategy)
-
-                    # Записываем переключение в историю
-                    self.strategy_manager.record_strategy_switch(
-                        decision=switch_decision,
-                        from_strategy=current_strategy_name
-                    )
-
-                    # Обновляем метрики переключения стратегии
-                    self.state.increment_strategy_switches()
-
-                    # Регистрируем смену стратегии
-                    self.session.record_decision(
-                        decision_data="STRATEGY_SWITCH_BY_MANAGER",
-                        reasoning={"action": "auto_strategy_change", "to_strategy": switch_decision.to_strategy, "reason": switch_decision.reason},
-                        metadata=ContextItemMetadata(step_number=current_step)
-                    )
 
                     # Обновление состояния сессии
                     self.session.last_activity = datetime.now()

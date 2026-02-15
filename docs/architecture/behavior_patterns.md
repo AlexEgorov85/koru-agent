@@ -116,7 +116,7 @@ class BehaviorPatternInterface(ABC):
 
 ## Миграция со старых стратегий
 
-С версии 5.1.0 устаревает интерфейс `AgentStrategyInterface` в пользу `BehaviorPatternInterface`. 
+С версии 5.1.0 интерфейс `AgentStrategyInterface` заменен на `BehaviorPatternInterface`. 
 Ключевые различия:
 
 | Старый интерфейс | Новый интерфейс |
@@ -126,5 +126,5 @@ class BehaviorPatternInterface(ABC):
 | Отсутствие версионирования | Версионирование как у промптов |
 | Циклические зависимости | Четкие границы между паттернами |
 
-Для плавной миграции используйте [миграционный гайд](../guides/behavior_patterns_migration.md).
+Для миграции используйте [миграционный гайд](../guides/behavior_patterns_migration.md).
 ```
