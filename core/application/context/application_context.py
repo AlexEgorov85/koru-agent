@@ -376,8 +376,6 @@ class ApplicationContext(BaseSystemContext):
         Предзагрузка ресурсов через новый репозиторий.
         Компоненты будут получать готовые объекты при инициализации.
         """
-        self.logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
-        self.logger.info(f"service_configs: {list(self.config.service_configs.keys())}")
         # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
         self._prompt_cache = {}  # Dict[(capability, version), Prompt]
 
@@ -385,10 +383,8 @@ class ApplicationContext(BaseSystemContext):
             try:
                 prompt_obj = self.data_repository.get_prompt(cap, ver)
                 self._prompt_cache[(cap, ver)] = prompt_obj
-                self.logger.debug(f"Загружен промпт: {cap}@{ver} (тип: {prompt_obj.component_type.value})")
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
-                # Не прерываем инициализацию — компонент сам обработает ошибку
 
         # Также загружаем промпты из компонентных конфигураций
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
@@ -401,7 +397,6 @@ class ApplicationContext(BaseSystemContext):
                                 try:
                                     prompt_obj = self.data_repository.get_prompt(cap, ver)
                                     self._prompt_cache[(cap, ver)] = prompt_obj
-                                    self.logger.debug(f"Загружен промпт из компонента {comp_name}: {cap}@{ver} (тип: {prompt_obj.component_type.value})")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
 
@@ -409,91 +404,63 @@ class ApplicationContext(BaseSystemContext):
         self._input_contract_schema_cache = {}  # Dict[(capability, version), Type[BaseModel]]
         self._output_contract_schema_cache = {}
 
-        # Глобальные контракты из AppConfig (могут быть с суффиксами .input/.output или без)
+        # Глобальные контракты из AppConfig
         for cap_key, ver in self.config.input_contract_versions.items():
-            # Определяем capability: если ключ заканчивается на .input, удаляем суффикс
-            if cap_key.endswith('.input'):
-                cap = cap_key.rsplit('.', 1)[0]
-            else:
-                cap = cap_key  # Ключ уже без суффикса
+            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.input') else cap_key
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                 self._input_contract_schema_cache[(cap, ver)] = schema_cls
-                self.logger.debug(f"Загружена входная схема: {cap}@{ver}")
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
         for cap_key, ver in self.config.output_contract_versions.items():
-            # Определяем capability: если ключ заканчивается на .output, удаляем суффикс
-            if cap_key.endswith('.output'):
-                cap = cap_key.rsplit('.', 1)[0]
-            else:
-                cap = cap_key  # Ключ уже без суффикса
+            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.output') else cap_key
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                 self._output_contract_schema_cache[(cap, ver)] = schema_cls
-                self.logger.debug(f"Загружена выходная схема: {cap}@{ver}")
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
-        # Также загружаем контракты из компонентных конфигураций
+        # Загружаем контракты из компонентных конфигураций и заполняем resolved_*
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
                 for comp_name, comp_config in comp_configs.items():
                     if hasattr(comp_config, 'input_contract_versions'):
-                        self.logger.info(f"=== Обработка input_contract_versions для {comp_name}: {comp_config.input_contract_versions}")
                         for cap_key, ver in comp_config.input_contract_versions.items():
-                            # Определяем capability: если ключ заканчивается на .input, удаляем суффикс
-                            if cap_key.endswith('.input'):
-                                cap = cap_key.rsplit('.', 1)[0]
-                            else:
-                                cap = cap_key  # Ключ уже без суффикса
+                            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.input') else cap_key
                             
-                            self.logger.debug(f"  Загрузка {cap}@{ver} (input) из {cap_key}")
-                            
-                            # Загружаем схему в кэш, если ещё не загружена
+                            # Загружаем схему в кэш
                             if (cap, ver) not in self._input_contract_schema_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                                     self._input_contract_schema_cache[(cap, ver)] = schema_cls
-                                    self.logger.debug(f"  Загружен входной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
                             
-                            # Заполняем resolved_input_contracts в компонентной конфигурации (всегда!)
+                            # Заполняем resolved_input_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "input")
                                 comp_config.resolved_input_contracts[cap] = contract.schema_data
-                                self.logger.debug(f"  resolved_input_contracts[{cap}] = загружено")
                             except Exception as e:
                                 self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
 
                     if hasattr(comp_config, 'output_contract_versions'):
-                        self.logger.debug(f"Загрузка контрактов для {comp_name}: output={comp_config.output_contract_versions}")
                         for cap_key, ver in comp_config.output_contract_versions.items():
-                            # Определяем capability: если ключ заканчивается на .output, удаляем суффикс
-                            if cap_key.endswith('.output'):
-                                cap = cap_key.rsplit('.', 1)[0]
-                            else:
-                                cap = cap_key  # Ключ уже без суффикса
+                            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.output') else cap_key
                             
-                            self.logger.debug(f"  Загрузка {cap}@{ver} (output) из {cap_key}")
-                            
-                            # Загружаем схему в кэш, если ещё не загружена
+                            # Загружаем схему в кэш
                             if (cap, ver) not in self._output_contract_schema_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                                     self._output_contract_schema_cache[(cap, ver)] = schema_cls
-                                    self.logger.debug(f"  Загружен выходной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
                             
-                            # Заполняем resolved_output_contracts в компонентной конфигурации (всегда!)
+                            # Заполняем resolved_output_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "output")
                                 comp_config.resolved_output_contracts[cap] = contract.schema_data
-                                self.logger.debug(f"  resolved_output_contracts[{cap}] = загружено")
                             except Exception as e:
                                 self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output) для {comp_name}: {e}")
 
