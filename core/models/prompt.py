@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, field_validator
+"""
+Типизированная модель промпта с полной валидацией.
+"""
+from pydantic import BaseModel, Field, validator, root_validator, ConfigDict
+from typing import List, Optional, Dict
 from enum import Enum
-from typing import List, Optional, Dict, Literal
-from datetime import datetime
 import re
 
 
@@ -12,51 +14,105 @@ class PromptStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class PromptMetadata(BaseModel):
-    version: str = Field(..., pattern=r"^v?\d+\.\d+\.\d+$")
-    skill: str
-    capability: str
-    role: Literal["system", "user", "assistant"] = "system"
-    language: str = "ru"
-    tags: List[str] = Field(default_factory=list)
-    variables: List[str] = Field(default_factory=list)
-    status: PromptStatus = PromptStatus.DRAFT
-    quality_metrics: Optional[Dict[str, float]] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now())
-    updated_at: datetime = Field(default_factory=lambda: datetime.now())
-    author: str
-    changelog: List[str] = Field(default_factory=list)
+class ComponentType(str, Enum):
+    SKILL = "skill"
+    TOOL = "tool"
+    SERVICE = "service"
+    BEHAVIOR = "behavior"
 
-    @field_validator('version')
-    @classmethod
-    def validate_version_format(cls, v):
-        if not re.match(r"^v?\d+\.\d+\.\d+$", v):
-            raise ValueError("Version must follow semantic versioning format (e.g., '1.0.0' or 'v1.0.0')")
-        return v
+
+class PromptVariable(BaseModel):
+    """Метаданные переменной промпта"""
+    model_config = ConfigDict(validate_assignment=True)
+
+    name: str = Field(..., min_length=1, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+    description: str = Field(..., min_length=5)
+    required: bool = Field(default=True)
+    default_value: Optional[str] = None
 
 
 class Prompt(BaseModel):
-    metadata: PromptMetadata
-    content: str = Field(..., min_length=10)
+    """
+    Полноценный типизированный объект промпта.
+    Все поля валидируются при создании объекта.
+    """
+    model_config = ConfigDict(frozen=True)  # Иммутабельность для безопасности кэширования
 
-    @field_validator('content')
-    @classmethod
-    def validate_content_variables(cls, v, values):
-        """Проверяет, что все переменные в content соответствуют объявленным в metadata.variables"""
-        if 'metadata' in values.data:
-            metadata = values.data['metadata']
-            if metadata and metadata.variables:
-                # Ищем все переменные в формате {{ variable }}
-                content_vars = re.findall(r'\{\{\s*(\w+)\s*\}\}', v)
+    capability: str = Field(
+        ...,
+        description="Имя capability (например, 'planning.create_plan')",
+        min_length=3,
+        pattern=r"^[a-z_]+(\.[a-z_]+)*$"  # Allow single names or compound names with dots (e.g., behavior or behavior.planning.decompose)
+    )
 
-                # Проверяем, что все переменные в content объявлены в metadata.variables
-                for var in content_vars:
-                    if var not in metadata.variables:
-                        raise ValueError(f"Variable '{var}' used in content but not declared in metadata.variables")
+    version: str = Field(
+        ...,
+        description="Семантическая версия",
+        pattern=r"^v\d+\.\d+\.\d+$"  # v1.0.0
+    )
 
-                # Проверяем, что все объявленные переменные используются в content
-                for var in metadata.variables:
-                    if not re.search(r'\{\{\s*' + re.escape(var) + r'\s*\}\}', v):
-                        raise ValueError(f"Declared variable '{var}' is not used in content")
+    status: PromptStatus = Field(
+        ...,
+        description="Статус версии (только 'active' разрешён в prod)"
+    )
 
-        return v
+    component_type: ComponentType = Field(
+        ...,
+        description="Тип компонента (явно объявлен в конфигурации)"
+    )
+
+    content: str = Field(
+        ...,
+        description="Текст промпта с шаблонными переменными",
+        min_length=20
+    )
+
+    variables: List[PromptVariable] = Field(
+        default_factory=list,
+        description="Список переменных, используемых в шаблоне"
+    )
+
+    metadata: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Дополнительные метаданные (автор, дата создания и т.д.)"
+    )
+
+    # === Валидация шаблона ===
+    @root_validator(skip_on_failure=True)
+    def validate_template_variables(cls, values):
+        """Проверяем, что все переменные в шаблоне объявлены в списке variables"""
+        content = values.get('content', '')
+        declared_vars = {v.name for v in values.get('variables', [])}
+
+        # Извлекаем переменные из шаблона: {variable_name}
+        template_vars = set(re.findall(r'\{([a-zA-Z_][a-zA-Z0-9_]*)\}', content))
+
+        # Проверяем необъявленные переменные
+        undeclared = template_vars - declared_vars
+        if undeclared:
+            raise ValueError(
+                f"Необъявленные переменные в шаблоне: {sorted(undeclared)}\n"
+                f"Объявленные переменные: {sorted(declared_vars)}\n"
+                f"Шаблон: {content[:100]}..."
+            )
+
+        # Проверяем объявленные, но неиспользуемые переменные (предупреждение)
+        unused = declared_vars - template_vars
+        if unused:
+            print(f"⚠️  Предупреждение: объявленные, но неиспользуемые переменные: {sorted(unused)}")
+
+        return values
+
+    def render(self, **kwargs) -> str:
+        """Безопасный рендеринг шаблона с валидацией переменных"""
+        # Проверяем обязательные переменные
+        required_vars = {v.name for v in self.variables if v.required}
+        missing = required_vars - set(kwargs.keys())
+        if missing:
+            raise ValueError(f"Отсутствуют обязательные переменные: {missing}")
+
+        # Рендерим шаблон
+        try:
+            return self.content.format(**kwargs)
+        except KeyError as e:
+            raise ValueError(f"Ошибка рендеринга: неизвестная переменная {e}")

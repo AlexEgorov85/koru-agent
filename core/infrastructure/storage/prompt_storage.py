@@ -7,7 +7,7 @@ from typing import Optional
 import json
 import yaml
 import logging
-from core.models.prompt import Prompt, PromptMetadata
+from core.models.prompt import Prompt
 from core.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
 
@@ -145,30 +145,29 @@ class PromptStorage(IPromptStorage):
             with open(prompt_file, "r", encoding="utf-8") as f:
                 if file_format == 'json':
                     data = json.load(f)
-                    # Для JSON формата ожидаем структуру с вложенным metadata
+                    # Для JSON формата используем поля из модели Prompt
                     result = Prompt(
-                        content=data["content"],
-                        metadata=PromptMetadata(**{
-                            **data,
-                            "version": version  # Убедимся, что версия установлена правильно
-                        })
+                        capability=data.get('capability', capability_name),
+                        version=data.get('version', version),
+                        status=data.get('status', 'draft'),
+                        component_type=data.get('component_type', 'service'),  # по умолчанию
+                        content=data.get('content', ''),
+                        variables=data.get('variables', []),
+                        metadata=data.get('metadata', {})
                     )
                     return result
                 elif file_format == 'yaml':
                     data = yaml.safe_load(f)
 
-                    # Для YAML формата структура немного отличается
-                    # content находится на верхнем уровне, а остальные поля - метаданные
-                    content = data.pop('content', '')
-
-                    # Убедимся, что capability и version установлены правильно
-                    data['capability'] = capability_name
-                    if 'version' not in data:
-                        data['version'] = version
-
+                    # Для YAML формата используем поля из модели Prompt
                     result = Prompt(
-                        content=content,
-                        metadata=PromptMetadata(**data)
+                        capability=data.get('capability', capability_name),
+                        version=data.get('version', version),
+                        status=data.get('status', 'draft'),
+                        component_type=data.get('component_type', 'service'),  # по умолчанию
+                        content=data.get('content', ''),
+                        variables=data.get('variables', []),
+                        metadata=data.get('metadata', {})
                     )
                     return result
         except json.JSONDecodeError as e:

@@ -1,418 +1,198 @@
-"""Навык работы с библиотекой книг с использованием новой архитектуры и кэшированием структуры таблиц.
-
-ОСНОВНЫЕ ИЗМЕНЕНИЯ:
-1. Использование SQLQueryService для безопасного выполнения SQL-запросов
-2. Кэширование структуры таблиц для многократного использования
-3. Интеграция с новыми сервисами (SQLQueryService, SQLValidatorService)
-4. Соответствие современной архитектуре проекта
+#!/usr/bin/env python3
 """
-import logging
-from typing import Dict, Any, List, Optional
-from core.session_context.base_session_context import BaseSessionContext
-from core.application.skills.base_skill import BaseSkill
-from models.capability import Capability
-from models.execution import ExecutionResult, ExecutionStatus
+Полноценный класс Skill для book_library с промптами и контрактами.
+"""
+import sys
+from typing import Dict, Any, List
+from pathlib import Path
 
-logger = logging.getLogger(__name__)
+# Добавим путь к корню проекта
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 
-class BookLibrarySkill(BaseSkill):
-    """Навык для работы с библиотекой книг через новую архитектуру."""
-    name = "book_library"
-    supported_strategies = ["react", "planning", "evaluation"]  # ← Доступен для всех стратегий
+from core.components.base_component import BaseComponent
+from core.config.component_config import ComponentConfig
+# Импорты типов через строковые аннотации для избежания циклических зависимостей
+from typing import TYPE_CHECKING
 
-    def __init__(self, name: str, application_context: Any, component_config=None, executor=None, cache_table_structure: bool = True, **kwargs):
-        super().__init__(name, application_context, app_config=None, component_config=component_config, executor=executor)
-        self.cache_table_structure = cache_table_structure
-        self._table_structure_cache: Optional[Dict[str, Any]] = None
+if TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.action_executor import ActionExecutor
+from core.models.prompt import Prompt
+from pydantic import BaseModel, Field
+from typing import Optional
 
-        # В новой архитектуре сервисы недоступны напрямую, используем executor для взаимодействия
-        # self.sql_query_service = application_context.get_resource("sql_query_service")
-        # self.table_description_service = application_context.get_resource("table_description_service")
+
+class BookSearchInput(BaseModel):
+    """Входная схема для поиска книг"""
+    query: str = Field(..., description="Поисковый запрос")
+    max_results: Optional[int] = Field(default=10, description="Максимальное количество результатов")
+
+
+class BookItem(BaseModel):
+    """Модель книги"""
+    title: str = Field(..., description="Название книги")
+    author: str = Field(..., description="Автор книги")
+    year: Optional[int] = Field(default=None, description="Год публикации")
+    isbn: Optional[str] = Field(default=None, description="ISBN")
+
+
+class BookSearchOutput(BaseModel):
+    """Выходная схема для поиска книг"""
+    results: List[BookItem] = Field(..., description="Результаты поиска")
+    total_found: int = Field(..., description="Общее количество найденных книг")
+
+
+class BookLibrarySkill(BaseComponent):
+    """
+    Навык для работы с библиотекой книг.
+    
+    Этот навык предоставляет возможность поиска книг по различным критериям.
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        application_context: 'ApplicationContext',
+        component_config: ComponentConfig,
+        executor: 'ActionExecutor'
+    ):
+        super().__init__(name, application_context, component_config, executor)
         
+        # Регистрируем capability, которые использует этот навык
+        self.supported_capabilities = {
+            "book_library.search_books": self._search_books
+        }
+    
+    async def initialize(self) -> bool:
+        """Инициализация навыка с предзагрузкой необходимых ресурсов"""
+        success = await super().initialize()
+        if not success:
+            return False
+        
+        # Проверяем, что все необходимые промпты и контракты загружены
+        required_capability = "book_library.search_books"
+        
+        # Проверяем наличие промпта
+        if required_capability not in self._cached_prompts:
+            self.logger.error(f"Промпт для {required_capability} не загружен")
+            return False
+        
+        # Проверяем наличие входной схемы
+        if required_capability not in self._cached_input_schemas:
+            self.logger.error(f"Входная схема для {required_capability} не загружена")
+            return False
 
+        # Проверяем наличие выходной схемы
+        if required_capability not in self._cached_output_schemas:
+            self.logger.error(f"Выходная схема для {required_capability} не загружена")
+            return False
+        
+        self.logger.info(f"BookLibrarySkill инициализирован с capability: {required_capability}")
+        return True
+    
+    async def execute(self, capability: str, parameters: Dict[str, Any], execution_context: Any) -> Dict[str, Any]:
+        """
+        Выполнение действия навыка.
+        
+        Args:
+            capability: название capability для выполнения
+            parameters: параметры действия
+            execution_context: контекст выполнения
+            
+        Returns:
+            Dict[str, Any]: результат выполнения
+        """
+        if capability not in self.supported_capabilities:
+            raise ValueError(f"Навык не поддерживает capability: {capability}")
+        
+        # Выполняем действие
+        result = await self.supported_capabilities[capability](parameters)
+        return result
+    
+    async def _search_books(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Внутренний метод для поиска книг.
+        
+        Args:
+            params: параметры поиска
+            
+        Returns:
+            Dict[str, Any]: результаты поиска
+        """
+        # Валидируем входные параметры через кэшированную схему
+        input_schema = self.get_cached_input_schema_safe("book_library.search_books")
+        if input_schema:
+            try:
+                validated_params = input_schema.model_validate(params)
+            except Exception as e:
+                self.logger.error(f"Ошибка валидации параметров: {e}")
+                return {"error": f"Неверные параметры: {str(e)}", "results": []}
+        else:
+            validated_params = BookSearchInput(**params)
 
-    async def _load_table_structure(self):
-        """Загрузка структуры таблиц в кэш."""
-        if not self.table_description_service:
-            logger.warning("table_description_service недоступен, пропускаем загрузку структуры таблиц")
-            return
+        # Получаем промпт
+        prompt_content = self.get_cached_prompt_safe("book_library.search_books")
+        if not prompt_content:
+            return {"error": "Промпт для поиска книг не найден", "results": []}
 
+        # Рендерим промпт с параметрами (используем метод из BaseComponent)
         try:
-            # Загружаем структуру таблиц
-            structure = await self.table_description_service.get_tables_structure(["books", "authors", "chapters"])
-            self._table_structure_cache = structure
+            rendered_prompt = self.render_prompt("book_library.search_books", **vars(validated_params))
         except Exception as e:
-            logger.error(f"Ошибка загрузки структуры таблиц: {str(e)}")
-            # Не вызываем исключение, так как это не критично для работы навыка
-
-    def get_table_structure(self) -> Optional[Dict[str, Any]]:
-        """Получение закэшированной структуры таблиц."""
-        return self._table_structure_cache
-
-    def get_capabilities(self) -> List[Capability]:
-        """Возвращает список поддерживаемых capability для работы с библиотекой."""
-        return [
-            Capability(
-                name="book_library.get_books_by_author",
-                description="Получение информации о книгах по автору",
-                skill_name=self.name,
-                supported_strategies=self.supported_strategies,
-                visiable=True
-            ),
-            Capability(
-                name="book_library.get_full_text",
-                description="Получение полного текста книги",
-                skill_name=self.name,
-                supported_strategies=self.supported_strategies,
-                visiable=True
-            ),
-            Capability(
-                name="book_library.dynamic_sql_query",
-                description="Генерация и выполнение SQL запроса для сложных вопросов",
-                skill_name=self.name,
-                supported_strategies=self.supported_strategies,
-                visiable=True
-            )
+            self.logger.error(f"Ошибка рендеринга промпта: {e}")
+            return {"error": f"Ошибка рендеринга промпта: {str(e)}", "results": []}
+        
+        # Здесь должна быть логика вызова LLM или поиска в базе данных
+        # Для демонстрации возвращаем фиктивные результаты
+        fake_results = [
+            BookItem(title="Искусственный интеллект", author="Стюарт Рассел", year=2020),
+            BookItem(title="Глубокое обучение", author="Ян Гудфеллоу", year=2016),
+            BookItem(title="Машинное обучение", author="Том Митчелл", year=1997)
         ]
-
-    async def execute(self, capability: Capability, parameters: Dict[str, Any], context: BaseSessionContext) -> ExecutionResult:
-        """Выполнение capability навыка библиотеки книг."""
-        step_number = getattr(context, 'current_step', 0) + 1
-        logger.debug(f"Выполнение capability '{capability.name}' на шаге {step_number}")
-
-        # В новой архитектуре валидация параметров происходит через кэшированные контракты
-        try:
-            input_contract = self.get_input_contract(capability.name)
-            # Здесь должна быть валидация через схему контракта
-            # validate_against_schema(parameters, input_contract)
-        except KeyError:
-            # Если контракт не найден в кэше, используем переданные параметры без валидации
-            # Это обеспечивает обратную совместимость
-            pass
-
-        try:
-            if capability.name == "book_library.get_books_by_author":
-                return await self._get_books_by_author(parameters, context, step_number)
-
-            elif capability.name == "book_library.get_full_text":
-                return await self._get_full_text(parameters, context, step_number)
-
-            elif capability.name == "book_library.dynamic_sql_query":
-                return await self._dynamic_sql_query(parameters, context, step_number)
-            else:
-                error_msg = f"Неподдерживаемая capability: {capability.name}"
-                logger.error(error_msg)
-                return self._build_error_result(
-                    context=context,
-                    error_message=error_msg,
-                    error_type="UNSUPPORTED_CAPABILITY",
-                    step_number=step_number
-                )
-        except Exception as e:
-            logger.error(f"Неожиданная ошибка при выполнении capability {capability.name}: {str(e)}", exc_info=True)
-            return self._build_error_result(
-                context=context,
-                error_message=f"Внутренняя ошибка при выполнении: {str(e)}",
-                error_type="INTERNAL_ERROR",
-                step_number=step_number
-            )
-
-    async def _get_books_by_author(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Получение книг по автору с использованием SQLQueryservices."""
-        try:
-            # 1. Построение SQL запроса
-            where_clauses = []
-            params = {}
-
-            # Проверяем, является ли input_data Pydantic моделью или словарем
-            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
-                # Это может быть Pydantic модель или словарь
-                if hasattr(input_data, 'author_id'):
-                    author_id = input_data.author_id
-                    name_author = getattr(input_data, 'name_author', None)
-                    family_author = getattr(input_data, 'family_author', None)
-                else:
-                    # Это словарь
-                    author_id = input_data.get('author_id')
-                    name_author = input_data.get('name_author')
-                    family_author = input_data.get('family_author')
-            else:
-                raise ValueError("input_data должен быть Pydantic моделью или словарем")
-
-            if author_id:
-                where_clauses.append("a.id = $author_id")
-                params["author_id"] = author_id
-            elif name_author or family_author:
-                if name_author:
-                    where_clauses.append("a.first_name ILIKE $name_author")
-                    params["name_author"] = f"%{name_author}%"
-                if family_author:
-                    where_clauses.append("a.last_name ILIKE $family_author")
-                    params["family_author"] = f"%{family_author}%"
-            else:
-                raise ValueError("Необходимо указать author_id, name_author или family_author")
-
-            where_clause = " AND ".join(where_clauses)
-            sql = f"""
-            SELECT
-                b.id as book_id,
-                b.title as book_title,
-                b.isbn,
-                b.publication_date,
-                a.id as author_id,
-                a.first_name,
-                a.last_name,
-                a.birth_date
-            FROM "Lib".books b
-            JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE {where_clause}
-            LIMIT 50;
-            """
-
-            # 2. Выполнение SQL запроса через executor (новая архитектура)
-            logger.debug(f"Выполнение SQL запроса через executor: {sql[:100]}...")
-
-            if not self.executor:
-                raise RuntimeError("ActionExecutor недоступен")
-
-            # Вызов SQL-сервиса через executor
-            sql_result = await self.executor.execute_action(
-                action_name="sql_query.execute_direct_query",
-                parameters={
-                    "sql_query": sql,
-                    "parameters": params,
-                    "max_rows": 50
-                },
-                context=context
-            )
-
-            # 3. Проверка результата и формирование ответа
-            if not sql_result.success:
-                raise RuntimeError(f"Ошибка выполнения SQL запроса: {sql_result.error}")
-
-            books = sql_result.data.get("rows", []) if isinstance(sql_result.data, dict) else []
-            book_count = len(books)
-
-            formatted_result = {
-                "author": {
-                    "first_name": name_author,
-                    "last_name": family_author,
-                    "author_id": author_id,
-                },
-                "books": books,
-                "total_books": book_count,
-                "query_type": "author_search"
+        
+        # Валидируем результаты через выходную схему
+        output_schema = self.get_cached_output_schema_safe("book_library.search_books")
+        if output_schema:
+            try:
+                result = output_schema.model_validate({
+                    "results": [item.model_dump() for item in fake_results],
+                    "total_found": len(fake_results)
+                })
+                return result.model_dump()
+            except Exception as e:
+                self.logger.error(f"Ошибка валидации результата: {e}")
+                return {"error": f"Ошибка валидации результата: {str(e)}", "results": []}
+        else:
+            return {
+                "results": [item.model_dump() for item in fake_results],
+                "total_found": len(fake_results)
             }
 
-            return ExecutionResult(
-                status=ExecutionStatus.SUCCESS,
-                observation_item_id=None,
-                result=formatted_result,
-                summary=f"Найдено {book_count} книг",
-                error=None
-            )
 
-        except Exception as e:
-            logger.error(f"Ошибка получения книг по автору: {str(e)}")
-            return self._build_error_result(
-                context=context,
-                error_message=str(e),
-                error_type="AUTHOR_SEARCH_ERROR",
-                step_number=step_number
-            )
+# Функция для создания экземпляра навыка (фабричный метод)
+def create_book_library_skill(
+    name: str,
+    application_context: ApplicationContext,
+    component_config: ComponentConfig,
+    executor: ActionExecutor
+) -> 'BookLibrarySkill':
+    """
+    Фабричный метод для создания экземпляра BookLibrarySkill.
 
-    async def _get_full_text(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Получение полного текста книги с использованием SQLQueryservices."""
-        try:
-            # 1. Получение метаданных книги
-            # Проверяем, является ли input_data Pydantic моделью или словарем
-            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
-                # Это может быть Pydantic модель или словарь
-                if hasattr(input_data, 'book_id'):
-                    book_id = input_data.book_id
-                else:
-                    # Это словарь
-                    book_id = input_data.get('book_id')
-            else:
-                raise ValueError("input_data должен быть Pydantic моделью или словарем")
-            
-            if not book_id:
-                raise ValueError("Необходимо указать book_id для получения полного текста книги")
-            
-            metadata_sql = """
-            SELECT
-                b.id as book_id,
-                b.title as book_title,
-                b.isbn,
-                b.publication_date,
-                a.id as author_id,
-                a.first_name,
-                a.last_name,
-                a.birth_date
-            FROM "Lib".books b
-            JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.id = $book_id
-            LIMIT 1;
-            """
+    Args:
+        name: имя навыка
+        application_context: контекст приложения
+        component_config: конфигурация компонента
+        executor: исполнитель действий
 
-            if not self.executor:
-                raise RuntimeError("ActionExecutor недоступен")
-
-            metadata_result = await self.executor.execute_action(
-                action_name="sql_query.execute_direct_query",
-                parameters={
-                    "sql_query": metadata_sql,
-                    "parameters": {"book_id": book_id},
-                    "max_rows": 1
-                },
-                context=context
-            )
-
-            if not metadata_result.success or not metadata_result.data.get("rows", []):
-                raise ValueError(f"Книга с ID {book_id} не найдена")
-
-            metadata = metadata_result.data["rows"][0] if metadata_result.data.get("rows") else {}
-
-            # 2. Получение глав книги
-            chapters_sql = """
-            SELECT
-                c.chapter_number,
-                c.title as chapter_title,
-                c.content
-            FROM "Lib".chapters c
-            WHERE c.book_id = $book_id
-            ORDER BY c.chapter_number;
-            """
-
-            chapters_result = await self.executor.execute_action(
-                action_name="sql_query.execute_direct_query",
-                parameters={
-                    "sql_query": chapters_sql,
-                    "parameters": {"book_id": book_id},
-                    "max_rows": 100
-                },
-                context=context
-            )
-
-            if not chapters_result.success:
-                raise RuntimeError(f"Ошибка получения глав книги: {chapters_result.error}")
-
-            chapters = chapters_result.data.get("rows", []) if isinstance(chapters_result.data, dict) else []
-
-            # 3. Формирование полного текста
-            full_text = {
-                "metadata": metadata,
-                "chapters": chapters,
-                "full_content": " ".join([chapter.get("content", "") for chapter in chapters]),
-                "total_chapters": len(chapters)
-            }
-
-            return ExecutionResult(
-                status=ExecutionStatus.SUCCESS,
-                observation_item_id=None,
-                result=full_text,
-                summary=f"Получен полный текст книги '{metadata.get('title', 'Без названия')}'",
-                error=None
-            )
-
-        except Exception as e:
-            logger.error(f"Ошибка получения полного текста книги: {str(e)}")
-            return self._build_error_result(
-                context=context,
-                error_message=str(e),
-                error_type="FULL_TEXT_ERROR",
-                step_number=step_number
-            )
-
-    async def _dynamic_sql_query(self, input_data: Any, context: BaseSessionContext, step_number: int) -> ExecutionResult:
-        """Генерация и выполнение SQL запроса с использованием SQLQueryService."""
-        try:
-            # 1. Валидация параметров
-            # Проверяем, является ли input_data Pydantic моделью или словарем
-            if hasattr(input_data, '__dict__') or isinstance(input_data, dict):
-                # Это может быть Pydantic модель или словарь
-                if hasattr(input_data, 'user_question'):
-                    user_question = input_data.user_question
-                    context_tables = getattr(input_data, 'context_tables', ["authors", "books", "chapters", "genres"])
-                    max_rows = getattr(input_data, 'max_rows', 50)
-                else:
-                    # Это словарь
-                    user_question = input_data.get('user_question')
-                    context_tables = input_data.get('context_tables', ["authors", "books", "chapters", "genres"])
-                    max_rows = input_data.get('max_rows', 50)
-            else:
-                raise ValueError("input_data должен быть Pydantic моделью или словарем")
-
-            if not user_question:
-                raise ValueError("Необходимо указать user_question для динамического SQL запроса")
-
-            logger.debug(f"Валидация параметров успешна: user_question={user_question}, max_rows={max_rows}")
-
-            # 2. Вместо генерации SQL через несуществующий сервис, используем прямой запрос
-            # В реальной реализации здесь должен быть вызов сервиса генерации SQL
-            # Но для тестирования просто выполним простой запрос
-            sql_query = f"SELECT * FROM \"Lib\".books LIMIT {max_rows};"
-            params = {}
-
-            # 3. Выполнение SQL запроса через executor (новая архитектура)
-            if not self.executor:
-                raise RuntimeError("ActionExecutor недоступен")
-
-            result = await self.executor.execute_action(
-                action_name="sql_query.execute_direct_query",
-                parameters={
-                    "sql_query": sql_query,
-                    "parameters": params,
-                    "max_rows": max_rows
-                },
-                context=context
-            )
-
-            if result.success:
-                data = result.data if isinstance(result.data, dict) else {}
-                formatted_result = {
-                    "sql": sql_query,
-                    "rows": data.get("rows", []),
-                    "columns": data.get("columns", []),
-                    "rowcount": data.get("rowcount", 0),
-                    "execution_time": data.get("execution_time"),
-                    "query_type": "dynamic_query"
-                }
-
-                return ExecutionResult(
-                    status=ExecutionStatus.SUCCESS,
-                    observation_item_id=None,
-                    result=formatted_result,
-                    summary=f"Выполнен динамический SQL-запрос, получено {data.get('rowcount', 0)} строк",
-                    error=None
-                )
-            else:
-                raise RuntimeError(f"Ошибка выполнения SQL запроса: {result.error}")
-
-        except Exception as e:
-            logger.error(f"Ошибка динамического SQL запроса: {str(e)}")
-            return self._build_error_result(
-                context=context,
-                error_message=str(e),
-                error_type="DYNAMIC_SQL_ERROR",
-                step_number=step_number
-            )
+    Returns:
+        BookLibrarySkill: экземпляр навыка
+    """
+    return BookLibrarySkill(name, application_context, component_config, executor)
 
 
-    async def shutdown(self):
-        """Очистка ресурсов навыка."""
-        # Очистка кэша структуры таблиц
-        self._table_structure_cache = None
-        logger.info("BookLibrarySkill остановлен")
-
-    def _build_error_result(self, context: BaseSessionContext, error_message: str, error_type: str, step_number: int) -> ExecutionResult:
-        """Построение результата ошибки."""
-        logger.error(f"Ошибка на шаге {step_number}: {error_type} - {error_message}")
-        return ExecutionResult(
-            status=ExecutionStatus.FAILED,
-            observation_item_id=None,
-            result=None,
-            summary=f"Ошибка: {error_message}",
-            error=error_type
-        )
+if __name__ == "__main__":
+    # Тестирование навыка
+    print("BookLibrarySkill класс создан и готов к использованию")
+    print("Поддерживаемые capabilities:", list(BookLibrarySkill(None, None, None, None).supported_capabilities.keys()))

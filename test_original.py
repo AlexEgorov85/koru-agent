@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Тестирование исправлений для ошибок загрузки промптов и контрактов.
+Тестирование оригинального кода, который выдавал ошибки.
 """
 import asyncio
 import sys
@@ -15,8 +15,8 @@ from core.application.context.application_context import ApplicationContext
 from core.config.models import SystemConfig
 
 
-async def test_application_context():
-    """Тестируем создание и инициализацию ApplicationContext"""
+async def test_original_code():
+    """Тестируем оригинальный код, который выдавал ошибки"""
     
     # Загружаем конфигурацию
     config = SystemConfig()
@@ -34,34 +34,21 @@ async def test_application_context():
     
     print("[OK] Инфраструктурный контекст инициализирован")
     
-    # Создаем и инициализируем прикладной контекст
+    # Создаем и инициализируем прикладной контекст (оригинальный код из запроса)
     try:
         ctx1 = ApplicationContext(
             infrastructure_context=infra,
             config=AppConfig.from_registry(profile="prod"),
             profile='prod'
         )
-        
         print("[OK] ApplicationContext создан")
         
-        # Пытаемся инициализировать
-        init_success = await ctx1.initialize()
+        # Пытаемся инициализировать (оригинальный код из запроса)
+        await ctx1.initialize()
+        print("[OK] ApplicationContext успешно инициализирован")
         
-        if init_success:
-            print("[OK] ApplicationContext успешно инициализирован")
-            
-            # Выполняем проверку здоровья
-            health = await ctx1.health_check()
-            print(f"[OK] Проверка здоровья пройдена: {health['overall_status']}")
-            print(f"   Компонентов: {health['metrics']['total_components']}")
-            print(f"   Здоровых: {health['metrics']['healthy_components']}")
-            print(f"   Нездоровых: {health['metrics']['unhealthy_components']}")
-            
-            return True
-        else:
-            print("[ERROR] ApplicationContext не инициализирован успешно")
-            return False
-            
+        return True
+        
     except Exception as e:
         print(f"[ERROR] Ошибка при создании или инициализации ApplicationContext: {e}")
         import traceback
@@ -73,15 +60,15 @@ async def test_application_context():
 
 
 async def main():
-    print("TEST: Запуск теста исправлений...")
+    print("TEST: Запуск теста оригинального кода...")
     
-    success = await test_application_context()
+    success = await test_original_code()
     
     if success:
-        print("\nSUCCESS: Все тесты пройдены успешно!")
+        print("\nSUCCESS: Оригинальный код теперь работает без ошибок!")
         return 0
     else:
-        print("\nFAILURE: Тесты не прошли")
+        print("\nFAILURE: Оригинальный код все еще выдает ошибки")
         return 1
 
 

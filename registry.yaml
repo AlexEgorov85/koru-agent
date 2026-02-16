@@ -1,116 +1,124 @@
-profile: prod
-
-# === ГЛОБАЛЬНЫЕ ВЕРСИИ ТОЛЬКО ДЛЯ АГЕНТА ===
-active_prompts: {}
-
 active_contracts: {}
-
-# === КОНФИГУРАЦИЯ КОМПОНЕНТОВ (изолированная!) ===
-services:
-  prompt_service:
-    enabled: true
-    dependencies: []
-
-  contract_service:
-    enabled: true
-    dependencies: []
-
-  table_description_service:
-    enabled: true
-    dependencies: ["default_db"]
-
-  sql_generation_service:
-    enabled: true
-    dependencies: ["default_db"]
-    prompt_versions:
-      sql_generation.generate_query: "v1.0.0"
-    input_contract_versions:
-      sql_generation.generate_query: "v1.0.0"
-    output_contract_versions:
-      sql_generation.generate_query: "v1.0.0"
-
-  sql_query_service:
-    enabled: true
-    dependencies: ["default_db", "sql_validator_service"]  # Указываем зависимость
-
-  sql_validator_service:
-    enabled: true
-    dependencies: []
-
-skills:
-  planning:
-    enabled: true
-    prompt_versions:
-      planning.create_plan: "v1.0.0"
-    input_contract_versions:
-      planning.create_plan: "v1.0.0"
-    output_contract_versions:
-      planning.create_plan: "v1.0.0"
-    dependencies: []
-    parameters:
-      max_iterations: 5
-  
-  book_library:
-    enabled: true
-    prompt_versions:
-      book_library.search_books: "v1.0.0"
-    input_contract_versions:
-      book_library.search_books: "v1.0.0"
-    output_contract_versions:
-      book_library.search_books: "v1.0.0"
-    dependencies: ["default_db"]
-    parameters:
-      max_results: 10
-
-tools:
-  sql_tool:
-    enabled: true
-    dependencies: ["default_db"]
-    parameters:
-      max_rows: 1000
-  
-  file_tool:
-    enabled: true
-    dependencies: []
-    parameters:
-      allowed_extensions: [".txt", ".pdf", ".docx"]
-
-strategies:
-  react:
-    enabled: true
-    dependencies: []
-    parameters:
-      max_thoughts: 5
-
+active_prompts: {}
 behaviors:
-  react_pattern:
-    enabled: true
-    dependencies: []
-    parameters:
-      max_thoughts: 5
-    prompt_versions:
-      behavior.react.think: "v1.0.0"
-      behavior.react.act: "v1.0.0"
-      behavior.react.observe: "v1.0.0"
-    input_contract_versions:
-      behavior.react.think: "v1.0.0"
-      behavior.react.act: "v1.0.0"
-      behavior.react.observe: "v1.0.0"
-    output_contract_versions:
-      behavior.react.think: "v1.0.0"
-      behavior.react.act: "v1.0.0"
-      behavior.react.observe: "v1.0.0"
-      
   planning_pattern:
-    enabled: true
     dependencies: []
+    enabled: true
+    input_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    output_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
     parameters: {}
     prompt_versions:
-      behavior.planning.decompose: "v1.0.0"
-      behavior.planning.sequence: "v1.0.0"
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+  react_pattern:
+    dependencies: []
+    enabled: true
     input_contract_versions:
-      behavior.planning.decompose: "v1.0.0"
-      behavior.planning.sequence: "v1.0.0"
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
     output_contract_versions:
-      behavior.planning.decompose: "v1.0.0"
-      behavior.planning.sequence: "v1.0.0"
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+    parameters:
+      max_thoughts: 5
+    prompt_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+capability_types:
+  behavior.planning: behavior
+  behavior.planning.decompose: behavior
+  behavior.planning.sequence: behavior
+  behavior.react: behavior
+  behavior.react.act: behavior
+  behavior.react.observe: behavior
+  behavior.react.think: behavior
+  book_library.search_books: tool
+  planning.create_plan: skill
+  sql_generation.generate_query: service
+  # Missing capability types
+  behavior: behavior
+  sql_generation: service
+  planning: skill
+  book_library: skill  # Changed to skill to match the skills section
+profile: prod
+services:
+  contract_service:
+    dependencies: []
+    enabled: true
+  prompt_service:
+    dependencies: []
+    enabled: true
+  sql_generation_service:
+    dependencies:
+    - default_db
+    enabled: true
+    input_contract_versions:
+      sql_generation.generate_query.input: v1.0.0
+    output_contract_versions:
+      sql_generation.generate_query.output: v1.0.0
+    prompt_versions:
+      sql_generation.generate_query: v1.0.0
+  sql_query_service:
+    dependencies:
+    - default_db
+    - sql_validator_service
+    enabled: true
+  sql_validator_service:
+    dependencies: []
+    enabled: true
+  table_description_service:
+    dependencies:
+    - default_db
+    enabled: true
+skills:
+  book_library:
+    dependencies:
+    - default_db
+    enabled: true
+    input_contract_versions:
+      book_library.search_books.input: v1.0.0
+    output_contract_versions:
+      book_library.search_books.output: v1.0.0
+    parameters:
+      max_results: 10
+    prompt_versions:
+      book_library.search_books: v1.0.0
+  planning:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      planning.create_plan.input: v1.0.0
+    output_contract_versions:
+      planning.create_plan.output: v1.0.0
+    parameters:
+      max_iterations: 5
+    prompt_versions:
+      planning.create_plan: v1.0.0
+strategies:
+  react:
+    dependencies: []
+    enabled: true
+    parameters:
+      max_thoughts: 5
+tools:
+  file_tool:
+    dependencies: []
+    enabled: true
+    parameters:
+      allowed_extensions:
+      - .txt
+      - .pdf
+      - .docx
+  sql_tool:
+    dependencies:
+    - default_db
+    enabled: true
+    parameters:
+      max_rows: 1000

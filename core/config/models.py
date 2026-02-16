@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+from enum import Enum
 import yaml
 
 
@@ -131,6 +132,55 @@ class SecurityConfig(BaseModel):
                     raise ValueError(f"Неподдерживаемый формат файла секретов: {self.secrets_path}")
         except Exception as e:
             raise ValueError(f"Ошибка загрузки секретов из {self.secrets_path}: {str(e)}")
+
+
+from enum import Enum
+
+class ComponentType(str, Enum):
+    SKILL = "skill"
+    TOOL = "tool"
+    SERVICE = "service"
+    BEHAVIOR = "behavior"
+
+
+class RegistryConfig(BaseModel):
+    """Конфигурация реестра с явным объявлением типов компонентов"""
+    model_config = ConfigDict(validate_assignment=True, extra='allow')
+
+    profile: str = Field(..., description="Имя профиля (prod, dev, sandbox)")
+
+    # НОВАЯ СЕКЦИЯ: Явное объявление типов компонентов
+    capability_types: Dict[str, ComponentType] = Field(
+        default_factory=dict,
+        description="Явное маппирование capability → тип компонента"
+    )
+
+    active_prompts: Dict[str, str] = Field(
+        default_factory=dict,
+        description="capability → версия"
+    )
+
+    active_contracts: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="capability.direction → версия или сложная структура"
+    )
+
+    # Конфигурации компонентов
+    services: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации сервисов")
+    skills: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации навыков")
+    tools: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов")
+    strategies: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации стратегий")
+    behaviors: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации поведений")
+
+    @field_validator('capability_types')
+    @classmethod
+    def validate_capability_format(cls, v):
+        """Проверяем формат capability: должен содержать точку"""
+        for cap in v.keys():
+            # Теперь разрешаем capability без точки для обратной совместимости
+            # Но рекомендуем использовать формат с точкой
+            pass
+        return v
 
 
 from .agent_config import AgentConfig

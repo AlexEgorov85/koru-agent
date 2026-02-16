@@ -1,0 +1,26 @@
+Capability Inventory
+====================
+- analyze_step_failure
+- behavior.planning
+- behavior.planning.decompose
+- behavior.planning.sequence
+- behavior.react
+- behavior.react.act
+- behavior.react.observe
+- behavior.react.think
+- book_library
+- book_library.search_books
+- correct_query
+- create_plan
+- decompose_task
+- generate_safe_query
+- get_books_by_author
+- get_next_step
+- mark_task_completed
+- planning
+- planning.create_plan
+- reasoning
+- sql_generation
+- sql_generation.generate_query
+- update_plan
+- update_step_status

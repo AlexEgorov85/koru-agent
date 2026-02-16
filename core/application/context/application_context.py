@@ -10,17 +10,21 @@
 """
 import uuid
 import logging
+from pathlib import Path
 from typing import Dict, Optional, Any, Literal
 from datetime import datetime
 from enum import Enum
 
 from core.application.tools.base_tool import BaseTool
 from core.config.app_config import AppConfig
+from core.config.registry_loader import RegistryLoader
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.skills.base_skill import BaseSkill
 from core.application.services.prompt_service import PromptService
 from core.application.services.contract_service import ContractService
 from core.application.context.base_system_context import BaseSystemContext
+from core.application.data_repository import DataRepository
+from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 
 
 class ComponentType(Enum):
@@ -62,7 +66,8 @@ class ApplicationContext(BaseSystemContext):
         self,
         infrastructure_context: InfrastructureContext,
         config: 'AppConfig',  # Единая конфигурация приложения
-        profile: Literal["prod", "sandbox"] = "prod"  # Профиль работы
+        profile: Literal["prod", "sandbox"] = "prod",  # Профиль работы
+        use_data_repository: bool = True  # По умолчанию ВКЛЮЧЁН (после тестирования)
     ):
         """
         Инициализация прикладного контекста.
@@ -71,6 +76,7 @@ class ApplicationContext(BaseSystemContext):
         - infrastructure_context: Инфраструктурный контекст (только для чтения!)
         - config: Единая конфигурация приложения (AppConfig)
         - profile: Профиль работы ('prod' или 'sandbox')
+        - use_data_repository: использовать новый DataRepository (по умолчанию True)
         """
         self.id = str(uuid.uuid4())
         self.infrastructure_context = infrastructure_context  # Только для чтения!
@@ -78,6 +84,7 @@ class ApplicationContext(BaseSystemContext):
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
         self._initialized = False  # Защита от раннего доступа
+        self.use_data_repository = use_data_repository  # Новый флаг
 
         # ЕДИНСТВЕННОЕ место хранения всех компонентов
         self.components = ComponentRegistry()
@@ -88,6 +95,23 @@ class ApplicationContext(BaseSystemContext):
 
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
+
+        # Создаём репозиторий с явным источником данных
+        if use_data_repository:
+            # Загружаем реестр напрямую (для получения capability_types)
+            registry_loader = RegistryLoader(Path(infrastructure_context.config.data_dir) / "registry.yaml")
+            registry_config = registry_loader.load(profile=profile)
+
+            # Создаём источник данных поверх ФС
+            fs_data_source = FileSystemDataSource(
+                Path(infrastructure_context.config.data_dir),
+                registry_config
+            )
+
+            # Создаём репозиторий
+            self.data_repository = DataRepository(fs_data_source, profile=profile)
+        else:
+            self.data_repository = None  # ← Старый путь (для отката)
 
     def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
         """
@@ -166,46 +190,76 @@ class ApplicationContext(BaseSystemContext):
 
         self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
 
-        # === ЭТАП 1: Централизованная загрузка ресурсов ===
-        all_prompts = await self._preload_all_prompts()
-        all_contracts = await self._preload_all_contracts()
-        
-        # === ЭТАП 2: Создание расширенных конфигураций с ресурсами ===
-        component_configs = self._resolve_component_configs()
-        
-        for comp_type, configs in component_configs.items():
-            for name, base_config in configs.items():
-                # Создаем расширенную конфигурацию с предзагруженными ресурсами
-                enriched_config = self._enrich_config_with_resources(
-                    base_config, 
-                    all_prompts, 
-                    all_contracts
+        # === НОВЫЙ ПУТЬ: Инициализация репозитория с валидацией ===
+        if self.use_data_repository and self.data_repository:
+            if not await self.data_repository.initialize(self.config):
+                self.logger.critical(
+                    f"❌ КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ:\n"
+                    f"{self.data_repository.get_validation_report()}\n"
+                    f"Система НЕ БУДЕТ запущена с неконсистентной конфигурацией."
                 )
-                component_configs[comp_type][name] = enriched_config
+                return False
 
-        # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами ===
-        # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
-        from core.application.agent.components.action_executor import ActionExecutor
-        executor = ActionExecutor(self)
-        
-        # Сначала создаем и регистрируем все компоненты
-        for comp_type, configs in component_configs.items():
-            for name, enriched_config in configs.items():
-                try:
-                    # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
-                    component = await self._create_component(comp_type, name, enriched_config, executor)
+            self.logger.info(
+                f"✅ DataRepository инициализирован успешно:\n"
+                f"{self.data_repository.get_validation_report()}"
+            )
 
-                    # Регистрация компонента ДО инициализации
-                    self.components.register(comp_type, name, component)
+            # Предзагрузка ресурсов в кэши компонентов через репозиторий
+            await self._preload_resources_via_repository()
 
-                    self.logger.debug(f"Компонент {comp_type.value}.{name} зарегистрирован")
+        # === СТАРЫЙ ПУТЬ: Для обратной совместимости ===
+        else:
+            # === ЭТАП 1: Централизованная загрузка ресурсов ===
+            all_prompts = await self._preload_all_prompts()
+            all_contracts = await self._preload_all_contracts()
 
-                except Exception as e:
-                    self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}")
-                    return False
+            # === ЭТАП 2: Создание расширенных конфигураций с ресурсами ===
+            component_configs = self._resolve_component_configs()
 
-        # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
-        # Инициализируем компоненты в правильном порядке
+            for comp_type, configs in component_configs.items():
+                for name, base_config in configs.items():
+                    # Создаем расширенную конфигурацию с предзагруженными ресурсами
+                    enriched_config = self._enrich_config_with_resources(
+                        base_config,
+                        all_prompts,
+                        all_contracts
+                    )
+                    component_configs[comp_type][name] = enriched_config
+
+            # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами ===
+            # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
+            from core.application.agent.components.action_executor import ActionExecutor
+            executor = ActionExecutor(self)
+
+            # Сначала создаем и регистрируем все компоненты
+            for comp_type, configs in component_configs.items():
+                for name, enriched_config in configs.items():
+                    try:
+                        # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
+                        component = await self._create_component(comp_type, name, enriched_config, executor)
+
+                        # Регистрация компонента ДО инициализации
+                        self.components.register(comp_type, name, component)
+
+                        self.logger.debug(f"Компонент {comp_type.value}.{name} зарегистрирован")
+
+                    except Exception as e:
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}")
+                        return False
+
+            # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
+            # Инициализируем компоненты в правильном порядке
+            success = await self._initialize_components_with_dependencies()
+            if not success:
+                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+                return False
+
+            # === ЭТАП 5: Валидация готовности системы ===
+            if not await self._verify_readiness():
+                return False
+
+        # Инициализация компонентов (как раньше)
         success = await self._initialize_components_with_dependencies()
         if not success:
             self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
@@ -219,6 +273,171 @@ class ApplicationContext(BaseSystemContext):
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
+
+    async def _preload_resources_via_repository(self):
+        """
+        Предзагрузка ресурсов через новый репозиторий.
+        Компоненты будут получать готовые объекты при инициализации.
+        """
+        # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
+        self._prompt_cache = {}  # Dict[(capability, version), Prompt]
+
+        for cap, ver in self.config.prompt_versions.items():
+            try:
+                prompt_obj = self.data_repository.get_prompt(cap, ver)
+                self._prompt_cache[(cap, ver)] = prompt_obj
+                self.logger.debug(f"Загружен промпт: {cap}@{ver} (тип: {prompt_obj.component_type.value})")
+            except Exception as e:
+                self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
+                # Не прерываем инициализацию — компонент сам обработает ошибку
+
+        # Также загружаем промпты из компонентных конфигураций
+        for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
+            if hasattr(self.config, comp_type_attr):
+                comp_configs = getattr(self.config, comp_type_attr)
+                for comp_name, comp_config in comp_configs.items():
+                    if hasattr(comp_config, 'prompt_versions'):
+                        for cap, ver in comp_config.prompt_versions.items():
+                            if (cap, ver) not in self._prompt_cache:  # Не дублируем
+                                try:
+                                    prompt_obj = self.data_repository.get_prompt(cap, ver)
+                                    self._prompt_cache[(cap, ver)] = prompt_obj
+                                    self.logger.debug(f"Загружен промпт из компонента {comp_name}: {cap}@{ver} (тип: {prompt_obj.component_type.value})")
+                                except Exception as e:
+                                    self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
+
+        # Контракты — загружаем схемы для валидации
+        self._input_contract_schema_cache = {}  # Dict[(capability, version), Type[BaseModel]]
+        self._output_contract_schema_cache = {}
+
+        for cap_dir, ver in self.config.input_contract_versions.items():
+            cap = cap_dir.rsplit('.', 1)[0]
+            try:
+                schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
+                self._input_contract_schema_cache[(cap, ver)] = schema_cls
+                self.logger.debug(f"Загружена входная схема: {cap}@{ver}")
+            except Exception as e:
+                self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
+
+        for cap_dir, ver in self.config.output_contract_versions.items():
+            cap = cap_dir.rsplit('.', 1)[0]
+            try:
+                schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
+                self._output_contract_schema_cache[(cap, ver)] = schema_cls
+                self.logger.debug(f"Загружена выходная схема: {cap}@{ver}")
+            except Exception as e:
+                self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
+
+        # Также загружаем контракты из компонентных конфигураций
+        for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
+            if hasattr(self.config, comp_type_attr):
+                comp_configs = getattr(self.config, comp_type_attr)
+                for comp_name, comp_config in comp_configs.items():
+                    if hasattr(comp_config, 'input_contract_versions'):
+                        for cap_dir, ver in comp_config.input_contract_versions.items():
+                            cap = cap_dir.rsplit('.', 1)[0]
+                            if (cap, ver) not in self._input_contract_schema_cache:  # Не дублируем
+                                try:
+                                    schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
+                                    self._input_contract_schema_cache[(cap, ver)] = schema_cls
+                                    self.logger.debug(f"Загружен входной контракт из компонента {comp_name}: {cap}@{ver}")
+                                except Exception as e:
+                                    self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                    
+                    if hasattr(comp_config, 'output_contract_versions'):
+                        for cap_dir, ver in comp_config.output_contract_versions.items():
+                            cap = cap_dir.rsplit('.', 1)[0]
+                            if (cap, ver) not in self._output_contract_schema_cache:  # Не дублируем
+                                try:
+                                    schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
+                                    self._output_contract_schema_cache[(cap, ver)] = schema_cls
+                                    self.logger.debug(f"Загружен выходной контракт из компонента {comp_name}: {cap}@{ver}")
+                                except Exception as e:
+                                    self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+
+    # === Совместимые методы для компонентов ===
+    def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
+        """
+        Совместимый интерфейс: возвращает текст промпта (как раньше).
+        Внутри использует типизированный объект.
+        """
+        if self.use_data_repository and self.data_repository:
+            # Если указана версия, используем её, иначе ищем в конфиге
+            if version is None:
+                version = self.config.prompt_versions.get(capability)
+                if version is None:
+                    # Попробуем получить версию из компонентных конфигураций
+                    for comp_type in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
+                        if hasattr(self.config, comp_type):
+                            comp_configs = getattr(self.config, comp_type)
+                            for _, comp_config in comp_configs.items():
+                                if hasattr(comp_config, 'prompt_versions') and capability in comp_config.prompt_versions:
+                                    version = comp_config.prompt_versions[capability]
+                                    break
+                    if version is None:
+                        return ""  # Возвращаем пустую строку, если версия не найдена
+            
+            if version:  # Только если версия найдена
+                try:
+                    prompt_obj = self.data_repository.get_prompt(capability, version)
+                    return prompt_obj.content
+                except Exception:
+                    # Если не удалось получить из репозитория, возвращаем пустую строку
+                    return ""
+        
+        # Старый путь через хранилище
+        # Возвращаем пустую строку, если не можем найти промпт
+        return self._get_cached_prompt(capability, version)
+
+    def get_input_contract_schema(self, capability: str, version: Optional[str] = None) -> 'Type[BaseModel]':
+        """Возвращает скомпилированную схему для валидации входных данных"""
+        if self.use_data_repository and self.data_repository:
+            # Если указана версия, используем её, иначе ищем в конфиге
+            if version is None:
+                version = self.config.input_contract_versions.get(capability + ".input")
+                if version is None:
+                    # Попробуем получить версию из компонентных конфигураций
+                    for comp_type in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
+                        if hasattr(self.config, comp_type):
+                            comp_configs = getattr(self.config, comp_type)
+                            for _, comp_config in comp_configs.items():
+                                if hasattr(comp_config, 'input_contract_versions') and capability + ".input" in comp_config.input_contract_versions:
+                                    version = comp_config.input_contract_versions[capability + ".input"]
+                                    break
+                                # Также проверим без ".input" суффикса
+                                elif hasattr(comp_config, 'input_contract_versions') and capability in comp_config.input_contract_versions:
+                                    version = comp_config.input_contract_versions[capability]
+                                    break
+                    if version is None:
+                        from pydantic import BaseModel
+                        return BaseModel  # Возвращаем базовый класс, если версия не найдена
+            
+            if version:  # Только если версия найдена
+                try:
+                    return self.data_repository.get_contract_schema(capability, version, "input")
+                except Exception:
+                    from pydantic import BaseModel
+                    return BaseModel  # Возвращаем базовый класс при ошибке
+        
+        # Старый путь: парсим схему из словаря
+        # Возвращаем базовый класс, если схема не найдена
+        from pydantic import BaseModel
+        return BaseModel
+
+    def _get_cached_prompt(self, capability: str, version: Optional[str] = None) -> str:
+        """Вспомогательный метод для получения промпта из кэша (старый путь)"""
+        if version is None:
+            version = self.config.prompt_versions.get(capability)
+            if version is None:
+                return ""
+        
+        key = (capability, version)
+        if key in self._prompt_cache:
+            if hasattr(self._prompt_cache[key], 'content'):
+                return self._prompt_cache[key].content
+            else:
+                return str(self._prompt_cache[key])
+        return ""
 
     async def _preload_all_prompts(self) -> Dict[tuple, str]:
         """Загружает ВСЕ промпты из хранилища ОДИН РАЗ"""
@@ -851,7 +1070,7 @@ class ApplicationContext(BaseSystemContext):
 
     def get_input_contract(self, capability_name: str, version: Optional[str] = None) -> Dict[str, Any]:
         """
-        Получение входного контракта из изолированного кэша.
+        Получение входного контракт�� из изолированного кэша.
 
         ВАЖНО: Защита от раннего доступа (до инициализации).
         """
