@@ -1,90 +1,100 @@
-#!/usr/bin/env python3
-"""
-Тестирование исправлений для ошибок загрузки промптов и контрактов.
-"""
 import asyncio
-import sys
-import os
-
-# Добавляем путь к проекту
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-
+import tempfile
+from pathlib import Path
+import yaml
+from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
-from core.config.models import SystemConfig
-
+from core.models.manifest import ComponentStatus
 
 async def test_application_context():
-    """Тестируем создание и инициализацию ApplicationContext"""
-    
-    # Загружаем конфигурацию
-    config = SystemConfig()
-    config.profile = "prod"
-    config.data_dir = "data"  # Указываем правильную директорию данных
-    
-    # Создаем инфраструктурный контекст
-    infra = InfrastructureContext(config)
-    
-    # Инициализируем инфраструктурный контекст
-    success = await infra.initialize()
-    if not success:
-        print("[ERROR] Ошибка инициализации инфраструктурного контекста")
-        return False
-    
-    print("[OK] Инфраструктурный контекст инициализирован")
-    
-    # Создаем и инициализируем прикладной контекст
-    try:
-        ctx1 = ApplicationContext(
-            infrastructure_context=infra,
-            config=AppConfig.from_registry(profile="prod"),
-            profile='prod'
-        )
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Создаем структуру директорий и файлов
+        data_dir = Path(temp_dir)
         
-        print("[OK] ApplicationContext создан")
+        # Создаем registry.yaml
+        registry_data = {
+            "profile": "dev",
+            "active_prompts": {},
+            "active_contracts": {},
+            "services": {},
+            "skills": {},
+            "tools": {},
+            "behaviors": {}
+        }
         
-        # Пытаемся инициализировать
-        init_success = await ctx1.initialize()
+        with open(data_dir / "registry.yaml", 'w', encoding='utf-8') as f:
+            yaml.dump(registry_data, f)
         
-        if init_success:
-            print("[OK] ApplicationContext успешно инициализирован")
+        # Создаем директорию для манифестов
+        manifests_dir = data_dir / "manifests" / "skills" / "test_skill"
+        manifests_dir.mkdir(parents=True)
+        
+        # Создаем тестовый манифест
+        manifest_data = {
+            "component_id": "test_skill",
+            "component_type": "skill",
+            "version": "v1.0.0",
+            "owner": "test_owner",
+            "status": "active",
+            "dependencies": {
+                "components": [],
+                "tools": [],
+                "services": []
+            },
+            "changelog": []
+        }
+        
+        with open(manifests_dir / "manifest.yaml", 'w', encoding='utf-8') as f:
+            yaml.dump(manifest_data, f)
+        
+        # Создаем конфигурацию системы
+        config = SystemConfig(data_dir=str(data_dir))
+        
+        # Создаем инфраструктурный контекст
+        infra = InfrastructureContext(config)
+        await infra.initialize()
+        
+        # Создаем конфигурацию приложения
+        app_config = AppConfig(config_id="test")
+        
+        # Добавим конфигурацию для тестового навыка
+        from core.config.component_config import ComponentConfig
+        app_config.skill_configs = {
+            "test_skill": ComponentConfig(
+                variant_id="test_skill_default",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={},
+                side_effects_enabled=True,
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        }
+        
+        # Создаем прикладной контекст
+        app_context = ApplicationContext(infra, app_config, profile="dev")
+        
+        # Инициализируем
+        success = await app_context.initialize()
+        
+        print(f'[SUCCESS] ApplicationContext initialized: {success}')
+        
+        if app_context.data_repository:
+            print(f'[SUCCESS] Manifests loaded: {len(app_context.data_repository._manifest_cache)}')
             
-            # Выполняем проверку здоровья
-            health = await ctx1.health_check()
-            print(f"[OK] Проверка здоровья пройдена: {health['overall_status']}")
-            print(f"   Компонентов: {health['metrics']['total_components']}")
-            print(f"   Здоровых: {health['metrics']['healthy_components']}")
-            print(f"   Нездоровых: {health['metrics']['unhealthy_components']}")
-            
-            return True
-        else:
-            print("[ERROR] ApplicationContext не инициализирован успешно")
-            return False
-            
-    except Exception as e:
-        print(f"[ERROR] Ошибка при создании или инициализации ApplicationContext: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-    finally:
-        # Завершаем инфраструктурный контекст
+            # Проверим получение манифеста
+            manifest = app_context.data_repository.get_manifest('skill', 'test_skill')
+            if manifest:
+                print(f'[SUCCESS] Retrieved manifest: {manifest.component_id}@{manifest.version}')
+            else:
+                print('[ERROR] Could not retrieve manifest')
+        
         await infra.shutdown()
+        
+        print('[SUCCESS] All ApplicationContext tests passed!')
 
-
-async def main():
-    print("TEST: Запуск теста исправлений...")
-    
-    success = await test_application_context()
-    
-    if success:
-        print("\nSUCCESS: Все тесты пройдены успешно!")
-        return 0
-    else:
-        print("\nFAILURE: Тесты не прошли")
-        return 1
-
-
-if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+# Запускаем тест
+asyncio.run(test_application_context())

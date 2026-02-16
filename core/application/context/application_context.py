@@ -102,11 +102,14 @@ class ApplicationContext(BaseSystemContext):
             registry_loader = RegistryLoader(Path(infrastructure_context.config.data_dir) / "registry.yaml")
             registry_config = registry_loader.load(profile=profile)
 
-            # Создаём источник данных поверх ФС
+            # Создаём источник данных поверх ФС (новая архитектурно-правильная реализация)
             fs_data_source = FileSystemDataSource(
                 Path(infrastructure_context.config.data_dir),
                 registry_config
             )
+
+            # Инициализируем источник данных (строгая валидация по архитектурным требованиям)
+            fs_data_source.initialize()
 
             # Создаём репозиторий
             self.data_repository = DataRepository(fs_data_source, profile=profile)
@@ -204,6 +207,33 @@ class ApplicationContext(BaseSystemContext):
                 f"✅ DataRepository инициализирован успешно:\n"
                 f"{self.data_repository.get_validation_report()}"
             )
+
+            # === ЭТАП: Загрузка и валидация манифестов ===
+            if self.data_repository:
+                await self.data_repository.load_manifests()
+                
+                validation_report = await self._validate_manifests_by_profile()
+                
+                if validation_report['critical_errors'] and self.profile == "prod":
+                    self.logger.critical(
+                        f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
+                        f"{chr(10).join(validation_report['error_details'])}\n"  # chr(10) = \n
+                        f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
+                    )
+                    return False
+                
+                if validation_report['warnings']:
+                    self.logger.warning(
+                        f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
+                        f"{chr(10).join(validation_report['warning_details'])}"  # chr(10) = \n
+                    )
+                
+                self.logger.info(
+                    f"✅ Валидация манифестов завершена:\n"
+                    f"  - Проверено: {validation_report['total_manifests']}\n"
+                    f"  - Критических ошибок: {validation_report['critical_errors']}\n"
+                    f"  - Предупреждений: {validation_report['warnings']}"
+                )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
             await self._preload_resources_via_repository()
@@ -653,6 +683,51 @@ class ApplicationContext(BaseSystemContext):
         self.logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
         return True
 
+    async def _validate_manifests_by_profile(self) -> Dict[str, Any]:
+        """Валидация всех манифестов по профилю"""
+        report = {
+            'total_manifests': 0,
+            'critical_errors': 0,
+            'warnings': 0,
+            'error_details': [],
+            'warning_details': []
+        }
+        
+        component_configs = self._resolve_component_configs()
+        
+        for comp_type, configs in component_configs.items():
+            for comp_name, config in configs.items():
+                report['total_manifests'] += 1
+                
+                manifest = self.data_repository.get_manifest(comp_type.value, comp_name)
+                
+                if not manifest:
+                    if self.profile == "prod":
+                        report['critical_errors'] += 1
+                        report['error_details'].append(
+                            f"[PROD] Манифест не найден для {comp_type.value}.{comp_name} (из конфигурации)"
+                        )
+                    else:
+                        report['warnings'] += 1
+                        report['warning_details'].append(
+                            f"[SANDBOX] Манифест не найден для {comp_type.value}.{comp_name} (из конфигурации)"
+                        )
+                    continue
+                
+                manifest_errors = self.data_repository.validate_manifest_by_profile(
+                    manifest, self.profile
+                )
+                
+                for error in manifest_errors:
+                    if self.profile == "prod":
+                        report['critical_errors'] += 1
+                        report['error_details'].append(f"[PROD] {comp_type.value}.{comp_name}: {error}")
+                    else:
+                        report['warnings'] += 1
+                        report['warning_details'].append(f"[SANDBOX] {comp_type.value}.{comp_name}: {error}")
+        
+        return report
+
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе"""
         # Проверка, что все компоненты, которые были объявлены в конфигурации, инициализированы
@@ -1062,7 +1137,7 @@ class ApplicationContext(BaseSystemContext):
                 f"Вызовите .initialize() перед использованием."
             )
 
-        # В новой архитектуре мы получаем промпт из изолированного сервиса
+        # В новой архитектуре мы получаем промпт из изолир��ванного сервиса
         prompt_service = self.get_service("prompt_service")
         if prompt_service is None:
             raise RuntimeError("PromptService не инициализирован")

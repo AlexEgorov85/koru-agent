@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, validator, root_validator, ConfigDict
 from typing import List, Optional, Dict
 from enum import Enum
 import re
+from .base_template_validator import TemplateValidatorMixin
 
 
 class PromptStatus(str, Enum):
@@ -31,7 +32,7 @@ class PromptVariable(BaseModel):
     default_value: Optional[str] = None
 
 
-class Prompt(BaseModel):
+class Prompt(TemplateValidatorMixin, BaseModel):
     """
     Полноценный типизированный объект промпта.
     Все поля валидируются при создании объекта.
@@ -84,24 +85,39 @@ class Prompt(BaseModel):
         content = values.get('content', '')
         declared_vars = {v.name for v in values.get('variables', [])}
 
-        # Извлекаем переменные из шаблона: {variable_name}
-        template_vars = set(re.findall(r'\{([a-zA-Z_][a-zA-Z0-9_]*)\}', content))
+        # Используем унифицированный метод валидации
+        _, warnings = cls.validate_jinja_template(
+            template_content=content,
+            declared_variables=declared_vars,
+            component_info=f"prompt {values.get('capability', 'unknown')}@{values.get('version', 'unknown')}",
+            template_field="template"
+        )
 
-        # Проверяем необъявленные переменные
-        undeclared = template_vars - declared_vars
-        if undeclared:
-            raise ValueError(
-                f"Необъявленные переменные в шаблоне: {sorted(undeclared)}\n"
-                f"Объявленные переменные: {sorted(declared_vars)}\n"
-                f"Шаблон: {content[:100]}..."
-            )
-
-        # Проверяем объявленные, но неиспользуемые переменные (предупреждение)
-        unused = declared_vars - template_vars
-        if unused:
-            print(f"⚠️  Предупреждение: объявленные, но неиспользуемые переменные: {sorted(unused)}")
+        # Выводим предупреждения
+        for warning in warnings:
+            print(warning.encode('ascii', 'replace').decode('ascii') if isinstance(warning, str) else warning)
 
         return values
+
+    def validate_templates(self) -> List[str]:
+        """
+        Валидация всех шаблонов в промпте.
+        
+        Returns:
+            list: список предупреждений
+        """
+        warnings = []
+        declared_vars = {v.name for v in self.variables}
+        
+        _, template_warnings = self.validate_jinja_template(
+            template_content=self.content,
+            declared_variables=declared_vars,
+            component_info=f"prompt {self.capability}@{self.version}",
+            template_field="template"
+        )
+        
+        warnings.extend(template_warnings)
+        return warnings
 
     def render(self, **kwargs) -> str:
         """Безопасный рендеринг шаблона с валидацией переменных"""

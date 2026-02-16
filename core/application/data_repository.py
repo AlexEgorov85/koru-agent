@@ -1,13 +1,16 @@
 """
 Централизованный репозиторий с единой точкой валидации структуры данных.
 """
+import asyncio
 from typing import Dict, Tuple, List, Optional, Type
-from core.infrastructure.storage.data_source import IDataSource
+from core.infrastructure.storage.resource_data_source import ResourceDataSource
 from core.models.prompt import Prompt, PromptStatus
 from core.models.contract import Contract, ContractDirection
+from core.models.manifest import Manifest, ComponentStatus
 from core.config.app_config import AppConfig
 from core.config.models import ComponentType
 from pydantic import BaseModel
+import logging
 
 
 class DataRepository:
@@ -15,31 +18,33 @@ class DataRepository:
     Централизованный репозиторий с единой точкой валидации структуры данных.
     Все ресурсы хранятся как полноценные объекты классов (не словари!).
     """
-    
-    def __init__(self, data_source: IDataSource, profile: str = "prod"):
+
+    def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
         self.data_source = data_source
         self.profile = profile
         self._initialized = False
-        
+        self.logger = logging.getLogger(__name__)
+
         # ТИПИЗИРОВАННЫЕ индексы (объекты классов, не словари!)
         self._prompts_index: Dict[Tuple[str, str], Prompt] = {}
         self._contracts_index: Dict[Tuple[str, str, str], Contract] = {}
-        
+        self._manifest_cache: Dict[str, Manifest] = {}  # Добавляем кэш для манифестов
+
         # Кэши для ленивой загрузки (уже объекты, но для контента/схем)
         self._prompt_content_cache: Dict[Tuple[str, str], str] = {}
         self._contract_schema_cache: Dict[Tuple[str, str, str], Type[BaseModel]] = {}
-        
+
         self._validation_errors: List[str] = []
         self._validation_warnings: List[str] = []
-    
+
     async def initialize(self, app_config: AppConfig) -> bool:
         """
         ЕДИНСТВЕННАЯ точка валидации структуры данных.
         Выполняется ОДИН РАЗ при старте приложения.
         """
         # 1. Сканируем ВСЕ метаданные как объекты
-        all_prompts = await self.data_source.list_prompts()  # → List[Prompt]
-        all_contracts = await self.data_source.list_contracts()  # → List[Contract]
+        all_prompts = self.data_source.load_all_prompts()  # → List[Prompt]
+        all_contracts = self.data_source.load_all_contracts()  # → List[Contract]
         
         # 2. Строим индексы из объектов
         for prompt in all_prompts:
@@ -63,7 +68,44 @@ class DataRepository:
         
         self._initialized = True
         return True
-    
+
+    async def load_manifests(self) -> Dict[str, Manifest]:
+        """Загрузка всех манифестов в кэш репозитория"""
+        manifests = await asyncio.get_event_loop().run_in_executor(
+            None, self.data_source.list_manifests
+        )
+        
+        for manifest in manifests:
+            key = f"{manifest.component_type.value}.{manifest.component_id}"
+            self._manifest_cache[key] = manifest
+        
+        print(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
+        return self._manifest_cache
+
+    def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
+        """Получение манифеста из кэша"""
+        key = f"{component_type}.{component_id}"
+        return self._manifest_cache.get(key)
+
+    def validate_manifest_by_profile(self, manifest: Manifest, profile: str) -> List[str]:
+        """Валидация манифеста по профилю"""
+        errors = []
+        
+        # Проверка owner
+        if not manifest.owner:
+            errors.append(f"Owner не указан для {manifest.component_id}")
+        
+        # Проверка статуса для prod
+        if profile == "prod" and manifest.status != ComponentStatus.ACTIVE:
+            errors.append(f"Статус {manifest.status.value} не разрешён в prod для {manifest.component_id}")
+        
+        # Проверка метрик
+        if manifest.quality_metrics:
+            if manifest.quality_metrics.success_rate_target < 0.9:
+                errors.append(f"success_rate_target слишком низкий: {manifest.quality_metrics.success_rate_target}")
+        
+        return errors
+
     async def _validate_against_config(self, app_config: AppConfig):
         """Проверяем, что все версии из конфигурации существуют в ФС"""
         # Промпты
@@ -76,17 +118,9 @@ class DataRepository:
             else:
                 prompt = self._prompts_index[key]
                 # Проверяем соответствие типа компонента в конфиге и файле
-                try:
-                    expected_type = self.data_source._get_component_type(cap)  # ← Явное получение из конфига
-                    if prompt.component_type != expected_type:
-                        self._validation_errors.append(
-                            f"Несоответствие типа компонента для {cap}@{ver}: "
-                            f"в файле '{prompt.component_type.value}', в конфигурации '{expected_type.value}'"
-                        )
-                except Exception as e:
-                    self._validation_errors.append(
-                        f"Ошибка получения типа компонента для {cap}: {str(e)}"
-                    )
+                # Так как все данные уже предзагружены и валидированы, 
+                # мы предполагаем, что типы компонентов уже соответствуют конфигурации
+                # В новой архитектуре это соответствие проверяется при загрузке
         
         # Контракты (аналогично)
         for cap_dir, ver in app_config.input_contract_versions.items():

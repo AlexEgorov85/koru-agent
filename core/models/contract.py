@@ -6,6 +6,7 @@ from typing import Dict, Optional, Type, Any
 from enum import Enum
 import json
 from jsonschema import validate as jsonschema_validate, ValidationError as JsonSchemaError
+from .base_template_validator import TemplateValidatorMixin
 
 
 class ContractDirection(str, Enum):
@@ -27,7 +28,7 @@ class ComponentType(str, Enum):
     BEHAVIOR = "behavior"
 
 
-class Contract(BaseModel):
+class Contract(TemplateValidatorMixin, BaseModel):
     """
     Типизированный объект контракта с ленивой компиляцией в Pydantic-схему.
     """
@@ -157,3 +158,14 @@ class Contract(BaseModel):
                 f"Данные не соответствуют контракту {self.capability}@{self.version} "
                 f"({self.direction.value}): {e}"
             )
+
+    def validate_templates(self) -> list[str]:
+        """
+        Валидация всех шаблонов в контракте.
+        Сейчас контракты не содержат шаблонов, но метод предусмотрен для унификации.
+        
+        Returns:
+            list: список предупреждений
+        """
+        # Контракты не содержат шаблонов, поэтому возвращаем пустой список
+        return []

@@ -49,12 +49,14 @@ capability_types:
   book_library: skill  # Changed to skill to match the skills section
 profile: prod
 services:
-  contract_service:
-    dependencies: []
-    enabled: true
   prompt_service:
-    dependencies: []
     enabled: true
+    manifest_path: data/manifests/services/prompt_service/manifest.yaml
+    dependencies: []
+  contract_service:
+    enabled: true
+    manifest_path: data/manifests/services/contract_service/manifest.yaml
+    dependencies: []
   sql_generation_service:
     dependencies:
     - default_db
@@ -65,23 +67,34 @@ services:
       sql_generation.generate_query.output: v1.0.0
     prompt_versions:
       sql_generation.generate_query: v1.0.0
+    manifest_path: data/manifests/services/sql_generation_service/manifest.yaml
   sql_query_service:
     dependencies:
     - default_db
     - sql_validator_service
     enabled: true
+    manifest_path: data/manifests/services/sql_query_service/manifest.yaml
   sql_validator_service:
     dependencies: []
     enabled: true
+    manifest_path: data/manifests/services/sql_validator_service/manifest.yaml
   table_description_service:
     dependencies:
     - default_db
     enabled: true
+    manifest_path: data/manifests/services/table_description_service/manifest.yaml
 skills:
+  planning:
+    enabled: true
+    manifest_path: data/manifests/skills/planning/manifest.yaml
+    prompt_versions:
+      planning.create_plan: v1.0.0
+    dependencies: []
   book_library:
     dependencies:
     - default_db
     enabled: true
+    manifest_path: data/manifests/skills/book_library/manifest.yaml
     input_contract_versions:
       book_library.search_books.input: v1.0.0
     output_contract_versions:
@@ -90,24 +103,21 @@ skills:
       max_results: 10
     prompt_versions:
       book_library.search_books: v1.0.0
-  planning:
-    dependencies: []
-    enabled: true
-    input_contract_versions:
-      planning.create_plan.input: v1.0.0
-    output_contract_versions:
-      planning.create_plan.output: v1.0.0
-    parameters:
-      max_iterations: 5
-    prompt_versions:
-      planning.create_plan: v1.0.0
 strategies:
   react:
     dependencies: []
     enabled: true
     parameters:
       max_thoughts: 5
+    manifest_path: data/manifests/strategies/react/manifest.yaml
 tools:
+  sql_tool:
+    dependencies:
+    - default_db
+    enabled: true
+    parameters:
+      max_rows: 1000
+    manifest_path: data/manifests/tools/sql_tool/manifest.yaml
   file_tool:
     dependencies: []
     enabled: true
@@ -116,9 +126,36 @@ tools:
       - .txt
       - .pdf
       - .docx
-  sql_tool:
-    dependencies:
-    - default_db
+    manifest_path: data/manifests/tools/file_tool/manifest.yaml
+behaviors:
+  react_pattern:
     enabled: true
+    manifest_path: data/manifests/behaviors/react_pattern/manifest.yaml
+    prompt_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+    input_contract_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+    output_contract_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
     parameters:
-      max_rows: 1000
+      max_thoughts: 5
+    dependencies: []
+  planning_pattern:
+    enabled: true
+    manifest_path: data/manifests/behaviors/planning_pattern/manifest.yaml
+    prompt_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    input_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    output_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    dependencies: []
