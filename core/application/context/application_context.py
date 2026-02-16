@@ -11,9 +11,11 @@
 import uuid
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Any, Literal
+from typing import Dict, Optional, Any, Literal, Type
 from datetime import datetime
 from enum import Enum
+
+from pydantic import BaseModel
 
 from core.application.tools.base_tool import BaseTool
 from core.config.app_config import AppConfig
@@ -419,7 +421,7 @@ class ApplicationContext(BaseSystemContext):
         # Возвращаем пустую строку, если не можем найти промпт
         return self._get_cached_prompt(capability, version)
 
-    def get_input_contract_schema(self, capability: str, version: Optional[str] = None) -> 'Type[BaseModel]':
+    def get_input_contract_schema(self, capability: str, version: Optional[str] = None) -> Type[BaseModel]:
         """Возвращает скомпилированную схему для валидации входных данных"""
         if self.use_data_repository and self.data_repository:
             # Если указана версия, используем её, иначе ищем в конфиге
