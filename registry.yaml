@@ -79,16 +79,11 @@ services:
   sql_query_service:
     enabled: true
     manifest_path: data/manifests/services/sql_query_service/manifest.yaml
-    dependencies:
-      - sql_tool
-      - prompt_service
-      - contract_service
+    dependencies: []
   sql_validator_service:
     enabled: true
     manifest_path: data/manifests/services/sql_validator_service/manifest.yaml
     dependencies: []
-    prompt_versions:
-      sql_generation.validate_query: v1.0.0
 skills:
   planning:
     enabled: true
