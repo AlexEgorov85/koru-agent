@@ -2,7 +2,7 @@
 Промпты для ReAct стратегии в новой архитектуре
 """
 from typing import Dict, Any, List
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 def build_system_prompt_for_reasoning() -> str:

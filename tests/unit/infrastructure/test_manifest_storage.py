@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.manifest import ComponentStatus
+from core.models.data.manifest import ComponentStatus
 
 
 @pytest.fixture

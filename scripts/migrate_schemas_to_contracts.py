@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.application.services.contract_service import ContractService
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 def find_pydantic_models_in_file(file_path: Path):

@@ -6,7 +6,7 @@ from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
-from core.models.manifest import ComponentStatus
+from core.models.data.manifest import ComponentStatus
 
 async def test_application_context():
     with tempfile.TemporaryDirectory() as temp_dir:

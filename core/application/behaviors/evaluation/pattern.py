@@ -1,6 +1,7 @@
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
-from models.capability import Capability
-from models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
 import logging
 from typing import List, Dict, Any
@@ -13,9 +14,8 @@ class EvaluationPattern(BehaviorPatternInterface):
 
     pattern_id = "evaluation.v1.0.0"
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None):
+    def __init__(self, pattern_id: str = None, metadata: dict = None):
         self.pattern_id = pattern_id or "evaluation.v1.0.0"
-        self._prompt_service = prompt_service
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def analyze_context(
@@ -80,14 +80,13 @@ class EvaluationPattern(BehaviorPatternInterface):
         goal = context_analysis["goal"]
         context_summary = context_analysis["context_summary"]
 
-        # Получение промпта для оценки через сервис
-        evaluation_prompt = await self._prompt_service.render(
-            capability_name="behaviors.evaluation.assess_goal",
-            variables={
-                "goal": goal,
-                "context_summary": context_summary
-            }
-        )
+        # Получение кэшированного промпта из компонента
+        assessment_prompt = self.get_cached_prompt_safe("behaviors.evaluation.assess_goal")
+        
+        # Заменяем переменные в кэшированном промпте
+        evaluation_prompt = assessment_prompt
+        evaluation_prompt = evaluation_prompt.replace("{goal}", str(goal))
+        evaluation_prompt = evaluation_prompt.replace("{context_summary}", str(context_summary))
 
         try:
             # Вызов LLM для оценки через сервис, доступный через контекст

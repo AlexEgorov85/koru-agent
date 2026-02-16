@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
-from core.models.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
+from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 
 
 logger = logging.getLogger(__name__)

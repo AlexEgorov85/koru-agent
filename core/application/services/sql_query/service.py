@@ -1,9 +1,9 @@
 from typing import Dict, Any, List, Optional
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
-from core.models.db_types import DBQueryResult
+from core.models.types.db_types import DBQueryResult
 from core.application.services.sql_generation.error_analyzer import SQLErrorAnalyzer
 from core.application.context.base_system_context import BaseSystemContext
-from .schema import SQLQueryInput, SQLQueryOutput
+from core.models.schemas.sql_query_schemas import SQLQueryInput, SQLQueryOutput
 from core.application.context.application_context import ApplicationContext
 import logging
 
@@ -263,7 +263,7 @@ class SQLQueryService(BaseService):
                 )
 
             # Подготовка входных данных для SQLGenerationService
-            from core.application.services.sql_generation.schema import SQLGenerationInput
+            from core.models.schemas.sql_generation_schemas import SQLGenerationInput
             generation_input = SQLGenerationInput(
                 user_question=user_question,
                 tables=tables,

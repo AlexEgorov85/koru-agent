@@ -1,4 +1,4 @@
-from core.models.manifest import Manifest, ComponentType, ComponentStatus, QualityMetrics
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus, QualityMetrics
 
 # Тест валидного манифеста
 m = Manifest(

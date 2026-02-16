@@ -1,5 +1,5 @@
 import pytest
-from core.models.manifest import Manifest, ComponentType, ComponentStatus, QualityMetrics
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus, QualityMetrics
 
 
 class TestManifestModels:

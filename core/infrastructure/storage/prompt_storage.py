@@ -7,8 +7,8 @@ from typing import Optional
 import json
 import yaml
 import logging
-from core.models.prompt import Prompt
-from core.errors.version_not_found import VersionNotFoundError
+from core.models.data.prompt import Prompt
+from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
 
 

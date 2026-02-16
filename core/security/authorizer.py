@@ -3,7 +3,7 @@
 """
 from typing import List
 from core.security.user_context import UserContext
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 class PermissionDeniedError(Exception):

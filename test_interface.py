@@ -1,5 +1,5 @@
 from core.infrastructure.storage.mock_database_resource_data_source import MockDatabaseResourceDataSource
-from core.models.manifest import Manifest, ComponentType, ComponentStatus
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus
 
 # Тест создания mock-источника данных
 ds = MockDatabaseResourceDataSource()

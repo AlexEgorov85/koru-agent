@@ -134,13 +134,7 @@ class SecurityConfig(BaseModel):
             raise ValueError(f"Ошибка загрузки секретов из {self.secrets_path}: {str(e)}")
 
 
-from enum import Enum
-
-class ComponentType(str, Enum):
-    SKILL = "skill"
-    TOOL = "tool"
-    SERVICE = "service"
-    BEHAVIOR = "behavior"
+from core.models.enums.common_enums import ComponentType
 
 
 class RegistryConfig(BaseModel):

@@ -14,8 +14,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemType
-from models.capability import Capability
-from models.execution import ExecutionResult
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
 from core.config.app_config import AppConfig
 from core.config.component_config import ComponentConfig
 from core.components.base_component import BaseComponent
@@ -103,7 +103,7 @@ class BaseSkill(BaseComponent):
     def get_required_capabilities(self) -> List[Dict[str, Any]]:
         """
         Возвращает список необходимых capability с их ресурсами для загрузки.
-        
+
         ВОЗВРАЩАЕТ:
         - List[Dict]: Список словарей с информацией о необходимых ресурсах для каждой capability
           Каждый словарь содержит:
@@ -114,7 +114,7 @@ class BaseSkill(BaseComponent):
         """
         capabilities = self.get_capabilities()
         required_resources = []
-        
+
         for cap in capabilities:
             # Для каждой capability определяем необходимые ресурсы
             required_resources.append({
@@ -123,8 +123,48 @@ class BaseSkill(BaseComponent):
                 'input_contract_versions': {cap.name: 'v1.0.0'},
                 'output_contract_versions': {cap.name: 'v1.0.0'}
             })
-        
+
         return required_resources
+
+    def _get_component_type(self) -> str:
+        """Возвращает тип компонента для манифеста."""
+        return "skill"
+    
+    async def _validate_loaded_resources(self) -> bool:
+        """Расширенная валидация для навыков."""
+        # Вызываем базовую валидацию
+        if not await super()._validate_loaded_resources():
+            return False
+        
+        # ← НОВОЕ: Валидация capability навыков
+        if hasattr(self, 'capabilities'):
+            for cap in self.capabilities:
+                cap_name = f"{self.name}.{cap.name}"
+                
+                # Проверка наличия промпта для capability
+                if cap_name not in self._cached_prompts:
+                    self.logger.warning(
+                        f"{self.name}: Capability '{cap.name}' не имеет промпта"
+                    )
+                
+                # Проверка наличия контрактов для capability
+                if cap_name not in self._cached_input_contracts:
+                    self.logger.warning(
+                        f"{self.name}: Capability '{cap.name}' не имеет input контракта"
+                    )
+                
+                if cap_name not in self._cached_output_contracts:
+                    self.logger.warning(
+                        f"{self.name}: Capability '{cap.name}' не имеет output контракта"
+                    )
+        
+        return True
+    
+    def get_required_capabilities_from_manifest(self) -> List[str]:
+        """Возвращает список required capabilities из манифеста."""
+        if self.component_config and self.component_config.constraints:
+            return self.component_config.constraints.get('required_capabilities', [])
+        return []
 
 
     # --------------------------------------------------

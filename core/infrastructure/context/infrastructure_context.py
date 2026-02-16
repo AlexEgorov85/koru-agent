@@ -20,7 +20,8 @@ from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IC
 from core.infrastructure.event_bus.event_bus import EventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
-from core.models.resource import ResourceType, ResourceHealth, ResourceInfo
+from core.models.data.resource import ResourceInfo
+from core.models.enums.common_enums import ResourceType
 
 
 class InfrastructureContext:
@@ -140,7 +141,6 @@ class InfrastructureContext:
                     
                     if provider:
                         # Регистрация LLM провайдера в системе
-                        from core.infrastructure.context.resource_registry import ResourceInfo
                         info_llm = ResourceInfo(
                             name=provider_name,
                             resource_type=ResourceType.LLM_PROVIDER,
@@ -161,7 +161,7 @@ class InfrastructureContext:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    from core.models.db_types import DBConnectionConfig
+                    from core.models.types.db_types import DBConnectionConfig
                     config_obj = DBConnectionConfig(**provider_config.parameters)
 
                     provider = self.db_provider_factory.create_provider(
@@ -175,7 +175,6 @@ class InfrastructureContext:
                     
                     if provider:
                         # Регистрация DB провайдера в системе
-                        from core.infrastructure.context.resource_registry import ResourceInfo
                         info_db = ResourceInfo(
                             name=provider_name,
                             resource_type=ResourceType.DATABASE,

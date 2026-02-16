@@ -4,7 +4,7 @@
 from typing import Dict, Optional, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.config.component_config import ComponentConfig
-from core.errors.version_not_found import VersionNotFoundError
+from core.models.errors.version_not_found import VersionNotFoundError
 
 
 class PromptService(BaseService):
@@ -30,42 +30,37 @@ class PromptService(BaseService):
         self._cached_prompts: Dict[str, Dict[str, Any]] = {}  # ← Изолированный кэш!
     
     async def initialize(self) -> bool:
-        """Предзагрузка промптов из инфраструктурного хранилища."""
+        """Инициализация PromptService с использованием предзагруженных ресурсов из ComponentConfig."""
         try:
-            # Получаем хранилище из инфраструктуры
-            storage = self.application_context.infrastructure_context.get_prompt_storage()
-
-            # Предзагружаем ВСЕ промпты из конфигурации
-            prompt_versions = self.component_config.prompt_versions
-            if not prompt_versions:
-                self.logger.warning("Конфигурация не содержит версий промптов. Кэш будет пустым.")
-                self._initialized = True
-                return True
-
-            for capability, version in prompt_versions.items():
-                # Проверяем существование версии ДО загрузки
-                if not await storage.exists(capability, version):
-                    raise VersionNotFoundError(
-                        f"Промпт {capability}@{version} указан в конфигурации, "
-                        f"но отсутствует в хранилище"
+            # Используем предзагруженные промпты из ComponentConfig
+            # Они уже были загружены в ComponentConfig через DataRepository
+            for capability, version in self.component_config.prompt_versions.items():
+                # Получаем промпт из resolved_prompts в ComponentConfig (предзагруженные ресурсы)
+                if capability in self.component_config.resolved_prompts:
+                    prompt_text = self.component_config.resolved_prompts[capability]
+                    # Создаем объект промпта для совместимости
+                    from core.models.data.prompt import Prompt, PromptStatus, ComponentType
+                    prompt_obj = Prompt(
+                        capability=capability,
+                        version=version,
+                        status=PromptStatus.ACTIVE,
+                        component_type=ComponentType.SERVICE,
+                        content=prompt_text,
+                        variables=[],
+                        metadata={}
                     )
-
-                # Загружаем и кэшируем
-                prompt = await storage.load(capability, version)
-                
-                # Инициализируем вложенный словарь, если он не существует
-                if capability not in self._cached_prompts:
-                    self._cached_prompts[capability] = {}
                     
-                self._cached_prompts[capability][version] = prompt
-                self.logger.debug(f"Загружен промпт: {capability}@{version} (длина: {len(prompt.content)})")
+                    if capability not in self._cached_prompts:
+                        self._cached_prompts[capability] = {}
+                    self._cached_prompts[capability][version] = prompt_obj
+                else:
+                    self.logger.warning(f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
 
             self._initialized = True
             self.logger.info(
                 f"PromptService инициализирован: загружено {len(self._cached_prompts)} промптов"
             )
             return True
-
         except Exception as e:
             self.logger.error(f"Ошибка инициализации PromptService: {e}")
             return False

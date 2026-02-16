@@ -2,32 +2,9 @@
 Реестр ресурсов инфраструктуры.
 """
 from typing import Dict, Optional, Any
-from dataclasses import dataclass
-from enum import Enum
 
-
-class ResourceType(Enum):
-    """Типы инфраструктурных ресурсов."""
-    LLM_PROVIDER = "llm_provider"
-    DATABASE = "database"
-
-
-class ResourceHealth(Enum):
-    """Состояния здоровья ресурса."""
-    HEALTHY = "healthy"
-    UNHEALTHY = "unhealthy"
-    UNKNOWN = "unknown"
-
-
-@dataclass
-class ResourceInfo:
-    """Информация о зарегистрированном ресурсе."""
-    name: str
-    resource_type: ResourceType
-    instance: Any
-    is_default: bool = False
-    health: ResourceHealth = ResourceHealth.UNKNOWN
-    metadata: Dict[str, Any] = None
+from core.models.data.resource import ResourceInfo
+from core.models.enums.common_enums import ResourceType
 
 
 class ResourceRegistry:

@@ -47,9 +47,12 @@ class ComponentFactory:
         import inspect
         sig = inspect.signature(component_class.__init__)
         params = sig.parameters
-        
+
+        self.logger.info(f"Параметры конструктора {component_class.__name__}: {list(params.keys())}")
+
         if 'executor' in params:
             # Если класс принимает executor, передаем его
+            self.logger.info(f"Конструктор {component_class.__name__} принимает executor")
             component = component_class(
                 name=name,
                 application_context=application_context,
@@ -60,6 +63,7 @@ class ComponentFactory:
             # Проверяем, является ли третий параметр app_config или component_config
             param_names = list(params.keys())
             if 'app_config' in param_names:
+                self.logger.info(f"Конструктор {component_class.__name__} принимает app_config")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -67,6 +71,7 @@ class ComponentFactory:
                     executor=executor  # Передаем executor даже если класс не ожидает его явно
                 )
             elif 'component_config' in param_names:
+                self.logger.info(f"Конструктор {component_class.__name__} принимает component_config")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -75,6 +80,7 @@ class ComponentFactory:
                 )
             else:
                 # По умолчанию используем component_config
+                self.logger.info(f"Конструктор {component_class.__name__} использует component_config по умолчанию")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -83,14 +89,19 @@ class ComponentFactory:
                 )
         else:
             # Для старых классов без executor
+            self.logger.info(f"Конструктор {component_class.__name__} не принимает executor")
             component = component_class(
                 name=name,
                 application_context=application_context,
                 component_config=component_config
             )
 
+        self.logger.info(f"Компонент {name} создан, начинаем инициализацию...")
+
         # Инициализация компонента (загрузка промптов и контрактов в кэш)
         init_success = await component.initialize()
+
+        self.logger.info(f"Результат инициализации компонента {name}: {init_success}")
 
         if not init_success:
             self.logger.warning(f"Компонент {name} не смог полностью инициализироваться, но продолжает работу")
@@ -116,13 +127,18 @@ class ComponentFactory:
         RETURNS:
         - Type[BaseComponent]: класс компонента
         """
+        self.logger.info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
+        
         import importlib
 
         if component_type == "service":
+            self.logger.info(f"Поиск сервиса: {name}")
             if name == "prompt_service":
+                self.logger.info("Найден PromptService")
                 from core.application.services.prompt_service import PromptService
                 return PromptService
             elif name == "contract_service":
+                self.logger.info("Найден ContractService")
                 from core.application.services.contract_service import ContractService
                 return ContractService
             elif name == "table_description_service":
@@ -143,15 +159,20 @@ class ComponentFactory:
                 class_name = f"{name.title().replace('_', '')}Service"
                 try:
                     module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
+                    result = getattr(module, class_name)
+                    self.logger.info(f"Динамически найден сервис: {result}")
+                    return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
                     try:
                         module_name = f"core.application.services.{name}"
                         class_name = f"{name.title().replace('_', '')}Service"
                         module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
+                        result = getattr(module, class_name)
+                        self.logger.info(f"Динамически найден сервис (вариант 2): {result}")
+                        return result
                     except ImportError:
+                        self.logger.error(f"Сервис {name} не найден")
                         raise ValueError(f"Сервис {name} не найден")
         elif component_type == "skill":
             # Поддержка ОБОИХ вариантов структуры:
@@ -162,15 +183,20 @@ class ComponentFactory:
                 module_name = f"core.application.skills.{name}.skill"
                 class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
                 module = importlib.import_module(module_name)
-                return getattr(module, class_name)
+                result = getattr(module, class_name)
+                self.logger.info(f"Найден навык: {result}")
+                return result
             except ImportError:
                 # Fallback на старый формат
                 try:
                     module_name = f"core.application.skills.{name}_skill"
                     module = importlib.import_module(module_name)
                     class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
-                    return getattr(module, class_name)
+                    result = getattr(module, class_name)
+                    self.logger.info(f"Найден навык (старый формат): {result}")
+                    return result
                 except ImportError:
+                    self.logger.error(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
                     raise ValueError(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
         elif component_type == "tool":
             # Проверяем специфичные инструменты
@@ -186,15 +212,20 @@ class ComponentFactory:
                 class_name = f"{name.title().replace('_', '')}Tool"
                 try:
                     module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
+                    result = getattr(module, class_name)
+                    self.logger.info(f"Найден инструмент: {result}")
+                    return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
                     try:
                         module_name = f"core.application.tools.{name}"
                         class_name = f"{name.title().replace('_', '')}Tool"
                         module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
+                        result = getattr(module, class_name)
+                        self.logger.info(f"Найден инструмент (вариант 2): {result}")
+                        return result
                     except ImportError:
+                        self.logger.error(f"Инструмент {name} не найден")
                         raise ValueError(f"Инструмент {name} не найден")
         elif component_type == "behavior":
             # Обработка паттернов поведения
@@ -211,17 +242,23 @@ class ComponentFactory:
                 class_name = f"{name.title().replace('_', '')}Pattern"
                 try:
                     module = __import__(module_name, fromlist=[class_name])
-                    return getattr(module, class_name)
+                    result = getattr(module, class_name)
+                    self.logger.info(f"Найден паттерн поведения: {result}")
+                    return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
                     try:
                         module_name = f"core.application.behaviors.{name}.pattern"
                         class_name = f"{name.title().replace('_', '')}Pattern"
                         module = __import__(module_name, fromlist=[class_name])
-                        return getattr(module, class_name)
+                        result = getattr(module, class_name)
+                        self.logger.info(f"Найден паттерн поведения (вариант 2): {result}")
+                        return result
                     except ImportError:
+                        self.logger.error(f"Паттерн поведения {name} не найден")
                         raise ValueError(f"Паттерн поведения {name} не найден")
         else:
+            self.logger.error(f"Неизвестный тип компонента: {component_type}")
             raise ValueError(f"Неизвестный тип компонента: {component_type}")
 
     async def create_by_name(
@@ -245,11 +282,15 @@ class ComponentFactory:
         RETURNS:
         - BaseComponent: созданный и инициализированный компонент
         """
+        self.logger.info(f"ComponentFactory: создание компонента {name} типа {component_type}")
         component_class = self._resolve_component_class(component_type, name)
-        return await self.create_and_initialize(
+        self.logger.info(f"ComponentFactory: найден класс {component_class.__name__} для {name}")
+        result = await self.create_and_initialize(
             component_class=component_class,
             name=name,
             application_context=application_context,
             component_config=component_config,
             executor=executor  # Передаем ActionExecutor
         )
+        self.logger.info(f"ComponentFactory: компонент {name} успешно создан и инициализирован")
+        return result

@@ -1,6 +1,7 @@
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
-from models.capability import Capability
-from models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
 import logging
 from typing import List, Dict, Any
@@ -14,9 +15,8 @@ class FallbackPattern(BehaviorPatternInterface):
 
     pattern_id = "fallback.v1.0.0"
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None):
+    def __init__(self, pattern_id: str = None, metadata: dict = None):
         self.pattern_id = pattern_id or "fallback.v1.0.0"
-        self._prompt_service = prompt_service
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def analyze_context(

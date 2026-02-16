@@ -2,7 +2,7 @@ import asyncio
 import sys
 sys.path.insert(0, r'c:\Users\Алексей\Documents\WORK\Agent_v5')
 
-from core.models.llm_types import LLMRequest
+from core.models.types.llm_types import LLMRequest
 
 async def test_llm_request():
     """Тестирование исправленного LLMRequest"""

@@ -3,8 +3,8 @@
 """
 from abc import ABC, abstractmethod
 from typing import List
-from core.models.prompt import Prompt
-from core.models.contract import Contract
+from core.models.data.prompt import Prompt
+from core.models.data.contract import Contract
 
 
 class IDataSource(ABC):

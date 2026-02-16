@@ -7,8 +7,9 @@ import logging
 from typing import Dict, Any, List
 from core.session_context.base_session_context import BaseSessionContext
 from core.application.skills.base_skill import BaseSkill
-from models.capability import Capability
-from models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,6 @@ class FinalAnswerSkill(BaseSkill):
     def __init__(self, name: str, application_context: Any, **kwargs):
         super().__init__(name, application_context, **kwargs)
         self.application_context = application_context
-        # Получение ContractService для работы со схемами
-        self.contract_service = application_context.get_resource("contract_service")
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список поддерживаемых capability для генерации финального ответа."""
@@ -42,15 +41,21 @@ class FinalAnswerSkill(BaseSkill):
         step_number = getattr(context, 'current_step', 0) + 1
         logger.debug(f"Генерация финального ответа на шаге {step_number}")
 
-        # Валидируем параметры через ContractService
-        validation_result = await self.contract_service.validate(
-            capability_name=capability.name,
-            data=parameters,
-            direction="input"
-        )
-        
-        if not validation_result["is_valid"]:
-            error_msg = f"Ошибка валидации параметров: {validation_result['errors']}"
+        # Валидируем параметры через кэшированную схему из компонента
+        try:
+            # Получаем схему валидации из кэша компонента
+            input_schema = self.get_cached_input_schema_safe(capability.name)
+            
+            if input_schema and input_schema != {}:
+                # Создаем экземпляр схемы и валидируем параметры
+                validated_params = input_schema.model_validate(parameters)
+                validated_params = validated_params.model_dump()  # Преобразуем обратно в словарь
+            else:
+                # Если схема не найдена, используем переданные параметры без валидации
+                validated_params = parameters
+                logger.warning(f"Схема валидации для capability '{capability.name}' не найдена, пропускаем валидацию")
+        except Exception as e:
+            error_msg = f"Ошибка валидации параметров: {str(e)}"
             logger.error(error_msg)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
@@ -59,8 +64,6 @@ class FinalAnswerSkill(BaseSkill):
                 summary=error_msg,
                 error="INVALID_PARAMETERS"
             )
-
-        validated_params = validation_result["validated_data"]
         
         try:
             if capability.name == "final_answer.generate":
@@ -199,7 +202,7 @@ class FinalAnswerSkill(BaseSkill):
         
         try:
             # Подготовка запроса к LLM
-            from models.llm_types import LLMRequest
+            from core.models.types.llm_types import LLMRequest
             request = LLMRequest(
                 prompt=full_prompt,
                 system_prompt="Ты помощник, который генерирует финальные ответы на основе собранной информации. Отвечай точно, структурировано и вежливо.",

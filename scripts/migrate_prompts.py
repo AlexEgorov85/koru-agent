@@ -13,8 +13,8 @@ import hashlib
 # Добавляем путь к корню проекта для импорта модулей
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.models.prompt import Prompt, PromptStatus, PromptMetadata
-from core.models.prompt_serialization import PromptSerializer
+from core.models.data.prompt import Prompt, PromptStatus, PromptMetadata
+from core.models.data.prompt_serialization import PromptSerializer
 from core.infrastructure.registry.prompt_registry import PromptRegistry
 
 

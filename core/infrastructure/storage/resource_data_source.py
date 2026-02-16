@@ -3,9 +3,9 @@
 """
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
-from core.models.prompt import Prompt
-from core.models.contract import Contract
-from core.models.manifest import Manifest  # ← Добавить
+from core.models.data.prompt import Prompt
+from core.models.data.contract import Contract
+from core.models.data.manifest import Manifest  # ← Добавить
 
 
 class ResourceDataSource(ABC):

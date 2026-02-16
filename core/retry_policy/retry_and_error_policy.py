@@ -50,7 +50,8 @@ else:
 """
 import random
 
-from models.retry_policy import ErrorCategory, ExecutionErrorInfo, RetryDecision, RetryResult
+from core.models.types.retry_policy import ExecutionErrorInfo, RetryResult
+from core.models.enums.common_enums import ErrorCategory, RetryDecision
 
 
 # ==========================================================

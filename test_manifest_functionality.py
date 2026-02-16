@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.manifest import Manifest
+from core.models.data.manifest import Manifest
 
 async def test_manifest_loading():
     with tempfile.TemporaryDirectory() as tmp_dir:

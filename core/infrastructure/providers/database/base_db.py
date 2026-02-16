@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, Union
 
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from core.models.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
+from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 
 logger = logging.getLogger(__name__)
 

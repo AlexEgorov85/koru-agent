@@ -4,9 +4,9 @@
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
-from core.models.prompt import Prompt, PromptStatus, ComponentType as PromptComponentType
-from core.models.contract import Contract, ContractDirection
-from core.models.manifest import Manifest, ComponentType as ManifestComponentType, ComponentStatus
+from core.models.data.prompt import Prompt, PromptStatus, ComponentType as PromptComponentType
+from core.models.data.contract import Contract, ContractDirection
+from core.models.data.manifest import Manifest, ComponentType as ManifestComponentType, ComponentStatus
 from core.config.models import ComponentType, RegistryConfig
 import yaml
 import re
@@ -32,7 +32,9 @@ class FileSystemDataSource(ResourceDataSource):
         ManifestComponentType.SKILL: "skills",
         ManifestComponentType.TOOL: "tools",
         ManifestComponentType.SERVICE: "services",
-        ManifestComponentType.BEHAVIOR: "behaviors"
+        ManifestComponentType.BEHAVIOR: "behaviors",
+        ManifestComponentType.PROMPT_SERVICE: "prompt_services",
+        ManifestComponentType.CONTRACT_SERVICE: "contract_services"
     }
 
     def __init__(self, base_dir: Path, registry_config: RegistryConfig):

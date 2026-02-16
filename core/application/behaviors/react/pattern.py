@@ -13,12 +13,12 @@ from typing import Any, Dict, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
 from core.application.agent.strategies.react.schema_validator import SchemaValidator
 from core.application.agent.strategies.react.utils import analyze_context
-from core.application.agent.strategies.react.models import ReasoningResult
+from core.models.schemas.react_models import ReasoningResult
 from core.application.agent.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from models.execution import ExecutionStatus
-from models.capability import Capability
+from core.models.enums.common_enums import ExecutionStatus
+from core.models.data.capability import Capability
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,9 @@ class ReActPattern(BehaviorPatternInterface):
     """
     pattern_id = "react.v1.0.0"
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None, prompt_service: 'PromptService' = None):
+    def __init__(self, pattern_id: str = None, metadata: dict = None):
         """Инициализация паттерна."""
         self.pattern_id = pattern_id or "react.v1.0.0"
-        self._prompt_service = prompt_service
         self.reasoning_schema = ReasoningResult.model_json_schema()
         # Удаляем служебные поля из схемы
         self.reasoning_schema.pop('title', None)

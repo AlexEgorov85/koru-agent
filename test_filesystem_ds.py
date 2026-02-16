@@ -1,7 +1,7 @@
 from pathlib import Path
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.manifest import Manifest, ComponentType, ComponentStatus
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus
 
 # Создаем тестовую директорию
 import tempfile

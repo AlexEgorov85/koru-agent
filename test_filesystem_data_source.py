@@ -8,8 +8,8 @@ import json
 import pytest
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.prompt import Prompt, PromptStatus, ComponentType
-from core.models.contract import Contract, ContractDirection
+from core.models.data.prompt import Prompt, PromptStatus, ComponentType
+from core.models.data.contract import Contract, ContractDirection
 
 
 def test_empty_directory_initialize():

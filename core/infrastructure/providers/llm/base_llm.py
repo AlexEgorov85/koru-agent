@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from core.models.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
+from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
 
 logger = logging.getLogger(__name__)
 

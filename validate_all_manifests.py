@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from core.models.manifest import Manifest
+from core.models.data.manifest import Manifest
 
 manifests_dir = Path('data/manifests')
 errors = []

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
+from pathlib import Path
 from datetime import datetime, timezone
 
 
@@ -23,7 +24,19 @@ class ComponentConfig(BaseModel):
     resolved_output_contracts: Dict[str, Dict] = Field(default_factory=dict)
 
     # Идентификатор варианта (для логирования)
-    variant_id: Optional[str] = None  # "beta", "v1.0.0", "canary-2024-02"
+    variant_id: str = Field(..., description="Уникальный ID варианта компонента")
+
+    # ← НОВОЕ: Путь к манифесту
+    manifest_path: Optional[Path] = Field(None, description="Путь к манифесту компонента")
+    
+    # ← НОВОЕ: Ограничения из манифеста
+    constraints: Optional[Dict[str, Any]] = Field(None, description="Ограничения из манифеста")
+    
+    # ← НОВОЕ: Владелец из манифеста
+    owner: Optional[str] = Field(None, description="Владелец компонента из манифеста")
+
+    # ← НОВОЕ: Критические ресурсы
+    critical_resources: Dict[str, bool] = Field(default_factory=dict, description="Критические ресурсы, которые должны быть загружены")
 
     # Флаги поведения компонента
     side_effects_enabled: bool = Field(default=True, description="Разрешены ли побочные эффекты (запись, изменение данных)")
@@ -31,7 +44,7 @@ class ComponentConfig(BaseModel):
 
     # Параметры выполнения
     parameters: Dict[str, Any] = Field(default_factory=dict)
-    dependencies: list[str] = Field(default_factory=list)
+    dependencies: List[str] = Field(default_factory=list)
 
     # Метаданные для аудита
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

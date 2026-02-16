@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.application.services.contract_service import ContractService
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 class MockSystemContext:

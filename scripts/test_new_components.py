@@ -10,8 +10,8 @@ import yaml
 from core.config.registry_loader import RegistryLoader
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.application.data_repository import DataRepository
-from core.models.prompt import Prompt, PromptStatus, ComponentType
-from core.models.contract import Contract, ContractDirection
+from core.models.data.prompt import Prompt, PromptStatus, ComponentType
+from core.models.data.contract import Contract, ContractDirection
 
 
 def test_basic_functionality():

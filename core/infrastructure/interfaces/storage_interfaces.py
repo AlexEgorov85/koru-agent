@@ -9,19 +9,9 @@
 from abc import ABC, abstractmethod
 from typing import Protocol, TypeVar, Generic, Optional
 from pathlib import Path
-from enum import Enum
-from core.models.prompt import Prompt
-from core.models.contract import Contract
-
-
-class ComponentType(Enum):
-    """Тип компонента для качественного поиска."""
-    SKILL = "skill"
-    SERVICE = "service"
-    TOOL = "tool"
-    SQL_GENERATION = "sql_generation"
-    CONTRACT = "contract"
-    DEFAULT = "default"  # для случаев, когда тип неизвестен
+from core.models.data.prompt import Prompt
+from core.models.data.contract import Contract
+from core.models.enums.common_enums import ComponentType
 
 
 class IStorageResult(ABC):

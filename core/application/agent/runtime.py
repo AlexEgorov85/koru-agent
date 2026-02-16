@@ -16,7 +16,8 @@ import uuid
 from core.application.context.application_context import ApplicationContext
 from core.execution.gateway import ExecutionGateway
 from core.session.step_context import StepContext
-from core.models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 
 # Импорт компонентов из новой архитектуры
 from .components import (

@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.models.llm_types import LLMRequest, LLMResponse, LLMHealthStatus, StructuredOutputConfig
+from core.models.types.llm_types import LLMRequest, LLMResponse, LLMHealthStatus, StructuredOutputConfig
 from pydantic import BaseModel, Field
 
 

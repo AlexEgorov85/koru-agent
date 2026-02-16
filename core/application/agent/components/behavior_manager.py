@@ -3,7 +3,7 @@
 """
 from typing import Optional, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
-from models.capability import Capability
+from core.models.data.capability import Capability
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
 
 

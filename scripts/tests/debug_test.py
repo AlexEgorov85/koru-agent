@@ -6,8 +6,9 @@ from unittest.mock import Mock, AsyncMock
 
 from core.config.agent_config import AgentConfig
 from core.application.skills.base_skill import BaseSkill
-from models.capability import Capability
-from models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 
 
 class MockPromptService:

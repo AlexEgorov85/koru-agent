@@ -8,8 +8,8 @@
 - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
 """
 from typing import Dict, Any, Optional
-from models.execution import ExecutionResult
-from models.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.data.capability import Capability
 from core.application.context.application_context import ApplicationContext
 
 
@@ -158,7 +158,7 @@ class ActionExecutor:
         # из реестра capability по имени действия
         
         # Для простоты создаем capability с именем действия
-        from models.capability import Capability
+        from core.models.data.capability import Capability
         return Capability(
             name=action_name,
             description=f"Capability для действия {action_name}",

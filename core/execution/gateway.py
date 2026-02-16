@@ -12,7 +12,8 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 
 from core.application.context.application_context import ApplicationContext
-from core.models.execution import ExecutionResult, ExecutionStatus
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 
 
 class ExecutionGateway:

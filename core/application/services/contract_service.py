@@ -4,7 +4,7 @@
 from typing import Dict, Tuple, Optional, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.config.component_config import ComponentConfig
-from core.errors.version_not_found import VersionNotFoundError
+from core.models.errors.version_not_found import VersionNotFoundError
 
 
 class ContractService(BaseService):
@@ -30,37 +30,38 @@ class ContractService(BaseService):
         self._cached_contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
     
     async def initialize(self) -> bool:
-        """Предзагрузка контрактов из инфраструктурного хранилища."""
+        """Инициализация ContractService с использованием предзагруженных ресурсов из ComponentConfig."""
         try:
-            storage = self.application_context.infrastructure_context.get_contract_storage()
+            # Используем предзагруженные контракты из ComponentConfig
+            # Они уже были загружены в ComponentConfig через DataRepository
             
-            # Предзагружаем входные контракты
+            # Загружаем входные контракты
             input_versions = self.component_config.input_contract_versions
             for capability, version in input_versions.items():
-                if not await storage.exists(capability, version, "input"):
-                    raise VersionNotFoundError(
-                        f"Input-контракт {capability}@{version} отсутствует в хранилище"
-                    )
-                contract = await storage.load(capability, version, "input")
-                self._cached_contracts[(capability, "input")] = contract.schema_data
-            
-            # Предзагружаем выходные контракты
+                # Получаем схему контракта из resolved_input_contracts в ComponentConfig (предзагруженные ресурсы)
+                if capability in self.component_config.resolved_input_contracts:
+                    schema = self.component_config.resolved_input_contracts[capability]
+                    self._cached_contracts[(capability, "input")] = schema
+                else:
+                    self.logger.warning(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+
+            # Загружаем выходные контракты
             output_versions = self.component_config.output_contract_versions
             for capability, version in output_versions.items():
-                if not await storage.exists(capability, version, "output"):
-                    raise VersionNotFoundError(
-                        f"Output-контракт {capability}@{version} отсутствует в хранилище"
-                    )
-                contract = await storage.load(capability, version, "output")
-                self._cached_contracts[(capability, "output")] = contract.schema_data
-            
+                # Получаем схему контракта из resolved_output_contracts в ComponentConfig (предзагруженные ресурсы)
+                if capability in self.component_config.resolved_output_contracts:
+                    schema = self.component_config.resolved_output_contracts[capability]
+                    self._cached_contracts[(capability, "output")] = schema
+                else:
+                    self.logger.warning(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+
             self._initialized = True
             self.logger.info(
                 f"ContractService инициализирован: "
                 f"загружено {len(self._cached_contracts)} контрактов"
             )
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка инициализации ContractService: {e}")
             return False

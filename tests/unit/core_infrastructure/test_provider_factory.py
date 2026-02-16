@@ -54,7 +54,7 @@ def test_db_provider_factory_creates_postgres_provider():
     factory = DBProviderFactory()
     
     # Создаем провайдер с правильной конфигурацией
-    from core.models.db_types import DBConnectionConfig
+    from core.models.types.db_types import DBConnectionConfig
     config = DBConnectionConfig(host='localhost', database='test', username='user', password='pass')
     provider = factory.create_provider('postgres', config=config)
     
@@ -68,7 +68,7 @@ def test_db_provider_factory_creates_sqlite_provider():
     factory = DBProviderFactory()
     
     # Создаем провайдер с правильной конфигурацией
-    from core.models.db_types import DBConnectionConfig
+    from core.models.types.db_types import DBConnectionConfig
     config = DBConnectionConfig(host='localhost', database='test', username='user', password='pass')
     provider = factory.create_provider('sqlite', config=config)
     
@@ -109,7 +109,7 @@ def test_db_provider_factory_passes_parameters_correctly():
     factory = DBProviderFactory()
     
     # Создаем провайдер с параметрами
-    from core.models.db_types import DBConnectionConfig
+    from core.models.types.db_types import DBConnectionConfig
     params = {
         'host': 'localhost',
         'database': 'test_db',

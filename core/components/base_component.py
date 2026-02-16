@@ -11,8 +11,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig
-from models.capability import Capability
-from core.models.prompt import Prompt
+from core.models.data.capability import Capability
+from core.models.data.prompt import Prompt
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
@@ -83,6 +83,104 @@ class BaseComponent(ABC):
         logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
 
         try:
+            # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
+            if not await self._validate_manifest():
+                self.logger.error(f"{self.name}: Валидация манифеста не пройдена")
+                return False
+
+            # === ЭТАП 2: Предзагрузка ресурсов ===
+            if not await self._preload_resources(current_time):
+                self.logger.error(f"{self.name}: Предзагрузка ресурсов не удалась")
+                return False
+
+            # === ЭТАП 3: Валидация загруженных ресурсов ===
+            if not await self._validate_loaded_resources():
+                self.logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
+                return False
+
+            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self._cached_prompts)}, input_schemas={len(self._cached_input_schemas)}, output_schemas={len(self._cached_output_schemas)}")
+            self._initialized = True
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
+            self._initialized = False
+            return False
+
+    async def _validate_manifest(self) -> bool:
+        """
+        Валидация манифеста компонента при инициализации.
+        
+        Проверяет:
+        1. Наличие манифеста (если указан в config)
+        2. Статус манифеста (active для prod)
+        3. Owner указан
+        4. Зависимости доступны
+        """
+        if not self.component_config or not self.component_config.manifest_path:
+            # Манифест опционален для обратной совместимости
+            self.logger.debug(f"{self.name}: Манифест не указан, пропускаем валидацию")
+            return True
+        
+        # Получаем манифест из кэша ApplicationContext
+        manifest = self.application_context.data_repository.get_manifest(
+            self._get_component_type(),
+            self.name
+        )
+        
+        if not manifest:
+            self.logger.warning(f"{self.name}: Манифест не найден в кэше")
+            return True  # Не блокируем, но логируем
+        
+        # Проверка статуса для prod
+        if self.application_context.profile == "prod":
+            if manifest.status.value != "active":
+                self.logger.error(
+                    f"{self.name}: Статус '{manifest.status.value}' не разрешён в prod"
+                )
+                return False
+        
+        # Проверка owner
+        if not manifest.owner:
+            self.logger.warning(f"{self.name}: Owner не указан в манифесте")
+        
+        # Проверка зависимостей
+        if manifest.dependencies:
+            deps_valid = await self._validate_dependencies(manifest.dependencies)
+            if not deps_valid:
+                return False
+        
+        return True
+
+    async def _validate_dependencies(self, dependencies: Dict[str, list]) -> bool:
+        """Валидация зависимостей компонента."""
+        errors = []
+        
+        # Проверка зависимостей-компонентов
+        for dep_name in dependencies.get("components", []):
+            if not self.application_context.components.get(dep_name):
+                errors.append(f"Зависимость компонента '{dep_name}' не найдена")
+        
+        # Проверка зависимостей-инструментов
+        for dep_name in dependencies.get("tools", []):
+            if not self.application_context.components.get(dep_name):
+                errors.append(f"Зависимость инструмента '{dep_name}' не найдена")
+        
+        # Проверка зависимостей-сервисов
+        for dep_name in dependencies.get("services", []):
+            if not self.application_context.get_service(dep_name):
+                errors.append(f"Зависимость сервиса '{dep_name}' не найдена")
+        
+        if errors:
+            for error in errors:
+                self.logger.error(f"{self.name}: {error}")
+            return False
+        
+        return True
+
+    async def _preload_resources(self, current_time: float) -> bool:
+        """Предзагрузка ресурсов компонента."""
+        try:
             # Загрузка промптов как объектов
             for cap_name, version in self.component_config.prompt_versions.items():
                 try:
@@ -90,7 +188,7 @@ class BaseComponent(ABC):
                     if hasattr(self.application_context, 'data_repository') and self.application_context.data_repository:
                         prompt_obj: Prompt = self.application_context.data_repository.get_prompt(cap_name, version)
                         self._cached_prompts[cap_name] = prompt_obj
-                        
+
                         self.logger.debug(
                             f"Загружен промпт '{cap_name}' v{version} "
                             f"(тип: {prompt_obj.component_type.value}, статус: {prompt_obj.status.value})"
@@ -99,7 +197,7 @@ class BaseComponent(ABC):
                         # Старый путь: получаем из кэша контекста
                         prompt_text = self.application_context.get_prompt(cap_name, version)
                         # Создаем минимальный объект Prompt для совместимости
-                        from core.models.prompt import Prompt, PromptStatus, ComponentType
+                        from core.models.data.prompt import Prompt, PromptStatus, ComponentType
                         prompt_obj = Prompt(
                             capability=cap_name,
                             version=version,
@@ -111,10 +209,11 @@ class BaseComponent(ABC):
                         )
                         self._cached_prompts[cap_name] = prompt_obj
                         self.logger.warning(f"Используется совместимый режим для промпта {cap_name}")
-                        
+
                 except Exception as e:
                     self.logger.error(f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
-                    if self.component_config.critical_resources.get('prompts', False):
+                    # Используем безопасный способ проверки критических ресурсов
+                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('prompts', False):
                         self.logger.critical(f"Критический промпт {cap_name} не загружен")
                         return False
 
@@ -132,10 +231,11 @@ class BaseComponent(ABC):
                         schema_cls = self.application_context.get_input_contract_schema(cap_name, version)
                         self._cached_input_schemas[cap_name] = schema_cls
                         self.logger.warning(f"Используется совместимый режим для входной схемы {cap_name}")
-                        
+
                 except Exception as e:
                     self.logger.error(f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
-                    if self.component_config.critical_resources.get('input_contracts', False):
+                    # Используем безопасный способ проверки критических ресурсов
+                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('input_contracts', False):
                         return False
 
             # Загрузка выходных схем
@@ -151,10 +251,11 @@ class BaseComponent(ABC):
                         # Старый путь: используем базовый класс
                         self._cached_output_schemas[cap_name] = BaseModel
                         self.logger.warning(f"Используется совместимый режим для выходной схемы {cap_name}")
-                        
+
                 except Exception as e:
                     self.logger.error(f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
-                    if self.component_config.critical_resources.get('output_contracts', False):
+                    # Используем безопасный способ проверки критических ресурсов
+                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
                         return False
 
             # Устанавливаем временные метки для всех загруженных ресурсов
@@ -165,14 +266,73 @@ class BaseComponent(ABC):
             for schema_key in self._cached_output_schemas:
                 self._output_schema_timestamps[schema_key] = current_time
 
-            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self._cached_prompts)}, input_schemas={len(self._cached_input_schemas)}, output_schemas={len(self._cached_output_schemas)}")
-            self._initialized = True
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
-            self._initialized = False
+            self.logger.error(f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
             return False
+
+    async def _validate_loaded_resources(self) -> bool:
+        """
+        Валидация загруженных ресурсов.
+        
+        Проверяет:
+        1. Все промпты из component_config загружены
+        2. Все контракты из component_config загружены
+        3. Нет дублирования версий
+        4. Input/output контракты согласованы
+        """
+        errors = []
+        
+        if not self.component_config:
+            return True
+        
+        # Проверка промптов
+        for capability, version in self.component_config.prompt_versions.items():
+            if capability not in self._cached_prompts:
+                errors.append(f"Промпт '{capability}@{version}' не загружен")
+            elif not self._cached_prompts[capability]:
+                errors.append(f"Промпт '{capability}' пустой")
+        
+        # Проверка входных контрактов
+        for capability, version in self.component_config.input_contract_versions.items():
+            if capability not in self._cached_input_schemas:
+                errors.append(f"Входной контракт '{capability}@{version}' не загружен")
+            elif not self._cached_input_schemas[capability]:
+                errors.append(f"Входной контракт '{capability}' пустой")
+        
+        # Проверка выходных контрактов
+        for capability, version in self.component_config.output_contract_versions.items():
+            if capability not in self._cached_output_schemas:
+                errors.append(f"Выходной контракт '{capability}@{version}' не загружен")
+            elif not self._cached_output_schemas[capability]:
+                errors.append(f"Выходной контракт '{capability}' пустой")
+        
+        # Проверка согласованности input/output
+        input_caps = set(self.component_config.input_contract_versions.keys())
+        output_caps = set(self.component_config.output_contract_versions.keys())
+        
+        # Capability должны иметь и input, и output контракты
+        missing_input = output_caps - input_caps
+        missing_output = input_caps - output_caps
+        
+        if missing_input:
+            errors.append(f"Отсутствуют input контракты для: {missing_input}")
+        if missing_output:
+            errors.append(f"Отсутствуют output контракты для: {missing_output}")
+        
+        if errors:
+            for error in errors:
+                self.logger.error(f"{self.name}: {error}")
+            return False
+        
+        self.logger.info(f"{self.name}: Все ресурсы валидированы успешно")
+        return True
+
+    def _get_component_type(self) -> str:
+        """Определяет тип компонента (skill/tool/service/behavior)."""
+        # Переопределяется в наследниках
+        return "component"
 
     def _ensure_initialized(self):
         """

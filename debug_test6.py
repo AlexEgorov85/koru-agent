@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.prompt import Prompt, PromptStatus, ComponentType
+from core.models.data.prompt import Prompt, PromptStatus, ComponentType
 
 # Test 6: Duplicate prompt error
 with tempfile.TemporaryDirectory() as tmp_dir:

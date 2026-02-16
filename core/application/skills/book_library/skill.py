@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
     from core.application.agent.components.action_executor import ActionExecutor
-from core.models.prompt import Prompt
+
+# Для использования в аннотациях типов вне блока TYPE_CHECKING
+from core.application.context.application_context import ApplicationContext
+from core.application.agent.components.action_executor import ActionExecutor
 from pydantic import BaseModel, Field
 from typing import Optional
 

@@ -1,4 +1,4 @@
-from core.models.prompt import Prompt, PromptVariable, PromptStatus, ComponentType
+from core.models.data.prompt import Prompt, PromptVariable, PromptStatus, ComponentType
 
 # Тест создания промпта
 try:

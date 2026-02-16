@@ -3,9 +3,9 @@ Mock-реализация ResourceDataSource с использованием б�
 """
 from typing import List, Optional
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
-from core.models.prompt import Prompt
-from core.models.contract import Contract
-from core.models.manifest import Manifest, ComponentType, ComponentStatus
+from core.models.data.prompt import Prompt
+from core.models.data.contract import Contract
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus
 
 
 class MockDatabaseResourceDataSource(ResourceDataSource):

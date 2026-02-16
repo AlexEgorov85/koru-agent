@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
-from core.models.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
+from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 
 
 logger = logging.getLogger(__name__)

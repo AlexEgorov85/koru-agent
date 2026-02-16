@@ -29,12 +29,7 @@ from core.application.data_repository import DataRepository
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 
 
-class ComponentType(Enum):
-    """Типы компонентов прикладного уровня"""
-    SERVICE = "service"      # PromptService, ContractService
-    SKILL = "skill"          # PlanningSkill, BookLibrarySkill
-    TOOL = "tool"            # SQLTool, FileTool
-    BEHAVIOR = "behavior"    # ReActPattern, PlanningPattern, etc.
+from core.models.enums.common_enums import ComponentType
 
 
 class ComponentRegistry:
@@ -150,6 +145,8 @@ class ApplicationContext(BaseSystemContext):
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
+        self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
+        
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
@@ -173,6 +170,8 @@ class ApplicationContext(BaseSystemContext):
                 dependencies=getattr(config, 'dependencies', [])
             )
 
+        self.logger.info(f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}")
+
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
             component_type=component_type_str,
@@ -181,6 +180,8 @@ class ApplicationContext(BaseSystemContext):
             component_config=config,
             executor=executor  # Передаем ActionExecutor
         )
+
+        self.logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
 
         return component
 
@@ -213,9 +214,9 @@ class ApplicationContext(BaseSystemContext):
             # === ЭТАП: Загрузка и валидация манифестов ===
             if self.data_repository:
                 await self.data_repository.load_manifests()
-                
+
                 validation_report = await self._validate_manifests_by_profile()
-                
+
                 if validation_report['critical_errors'] and self.profile == "prod":
                     self.logger.critical(
                         f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
@@ -223,13 +224,13 @@ class ApplicationContext(BaseSystemContext):
                         f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
                     )
                     return False
-                
+
                 if validation_report['warnings']:
                     self.logger.warning(
                         f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
                         f"{chr(10).join(validation_report['warning_details'])}"  # chr(10) = \n
                     )
-                
+
                 self.logger.info(
                     f"✅ Валидация манифестов завершена:\n"
                     f"  - Проверено: {validation_report['total_manifests']}\n"
@@ -237,8 +238,65 @@ class ApplicationContext(BaseSystemContext):
                     f"  - Предупреждений: {validation_report['warnings']}"
                 )
 
+            # === ЭТАП: Валидация дублирования и целостности схем ===
+            from core.application.services.manifest_validation_service import ManifestValidationService
+            
+            validation_service = ManifestValidationService(self.data_repository)
+            
+            # Валидация дублирования
+            duplicate_report = await validation_service.validate_no_duplicates()
+            if not duplicate_report['is_valid']:
+                self.logger.error(
+                    f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
+                    f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
+                    f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
+                    f"- Конфликты версий: {len(duplicate_report['version_conflicts'])}"
+                )
+                if self.profile == "prod":
+                    return False
+            
+            # Валидация целостности схем
+            schema_report = await validation_service.validate_schema_integrity()
+            if not schema_report['is_valid']:
+                self.logger.error(
+                    f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
+                    f"- Missing input: {len(schema_report['missing_input'])}\n"
+                    f"- Missing output: {len(schema_report['missing_output'])}"
+                )
+                if self.profile == "prod":
+                    return False
+            
+            self.logger.info(
+                f"✅ Валидация целостности завершена:\n"
+                f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
+                f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
+            )
+
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
             await self._preload_resources_via_repository()
+
+            # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
+            # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
+            from core.application.agent.components.action_executor import ActionExecutor
+            executor = ActionExecutor(self)
+
+            # Сначала создаем и регистрируем все компоненты
+            component_configs = self._resolve_component_configs()
+            for comp_type, configs in component_configs.items():
+                for name, enriched_config in configs.items():
+                    self.logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")
+                    try:
+                        # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
+                        component = await self._create_component(comp_type, name, enriched_config, executor)
+
+                        # Регистрация компонента ДО инициализации
+                        self.components.register(comp_type, name, component)
+
+                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован (новый путь)")
+
+                    except Exception as e:
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name} (новый путь): {e}", exc_info=True)
+                        return False
 
         # === СТАРЫЙ ПУТЬ: Для обратной совместимости ===
         else:
@@ -267,6 +325,7 @@ class ApplicationContext(BaseSystemContext):
             # Сначала создаем и регистрируем все компоненты
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
+                    self.logger.info(f"Создание компонента {comp_type.value}.{name}")
                     try:
                         # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                         component = await self._create_component(comp_type, name, enriched_config, executor)
@@ -274,10 +333,10 @@ class ApplicationContext(BaseSystemContext):
                         # Регистрация компонента ДО инициализации
                         self.components.register(comp_type, name, component)
 
-                        self.logger.debug(f"Компонент {comp_type.value}.{name} зарегистрирован")
+                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован")
 
                     except Exception as e:
-                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}")
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
                         return False
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
@@ -291,7 +350,8 @@ class ApplicationContext(BaseSystemContext):
             if not await self._verify_readiness():
                 return False
 
-        # Инициализация компонентов (как раньше)
+        # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
+        # Инициализируем компоненты в правильном порядке
         success = await self._initialize_components_with_dependencies()
         if not success:
             self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
@@ -737,22 +797,35 @@ class ApplicationContext(BaseSystemContext):
         # Получаем все компоненты, которые должны быть загружены
         declared_components = self._resolve_component_configs()
 
+        self.logger.info(f"Проверка готовности компонентов: {[(k.value, list(v.keys())) for k, v in declared_components.items()]}")
+
         for comp_type, names in declared_components.items():
             for name in names:
+                self.logger.debug(f"Проверка компонента: {comp_type.value}.{name}")
                 component = self.components.get(comp_type, name)
                 if component is None:
                     self.logger.error(f"Компонент {comp_type.value}.{name} был объявлен в конфигурации, но не загружен")
+                    # Дополнительная диагностика
+                    all_registered_components = {}
+                    for ct in self.components._components:
+                        all_registered_components[ct.value] = list(self.components._components[ct].keys())
+                    self.logger.error(f"Все зарегистрированные компоненты: {all_registered_components}")
                     return False
                 # Проверяем, что компонент инициализирован
                 if hasattr(component, '_initialized'):
                     if not component._initialized:
                         self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
                         return False
+                    else:
+                        self.logger.debug(f"Компонент {comp_type.value}.{name} инициализирован успешно")
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
                         self.logger.error(f"Компонент {component.name} не готов к работе")
                         return False
+                else:
+                    self.logger.warning(f"Компонент {component.name} не имеет атрибута _initialized или метода is_ready")
 
+        self.logger.info("Все компоненты успешно проверены")
         return True
 
     async def health_check(self) -> Dict[str, Any]:
@@ -982,7 +1055,7 @@ class ApplicationContext(BaseSystemContext):
                         if self.profile == "prod":
                             return False
             except Exception:
-                # Если хранилище контрактов не существует или недоступно, пропускаем валидацию
+                # Если хранилище контрактов не сущест��ует или недоступно, пропускаем валидацию
                 self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию выходных контрактов")
                 pass
 
@@ -1048,7 +1121,7 @@ class ApplicationContext(BaseSystemContext):
                             # Если не удалось загрузить или проверить статус, пропускаем
                             continue
         
-        # Сканируем директории контрактов для определения доступных capability
+        # Скан��руем директории контрактов для определения доступных capability
         contracts_dir = Path(contract_storage.contracts_dir)
         if contracts_dir.exists():
             for category_dir in contracts_dir.iterdir():

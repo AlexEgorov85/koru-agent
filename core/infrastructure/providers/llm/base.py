@@ -3,7 +3,7 @@
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-from core.models.llm_types import LLMRequest, LLMResponse
+from core.models.types.llm_types import LLMRequest, LLMResponse
 
 
 class BaseLLMProvider(ABC):

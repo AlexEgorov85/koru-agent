@@ -52,32 +52,9 @@ services:
   prompt_service:
     enabled: true
     manifest_path: data/manifests/services/prompt_service/manifest.yaml
-    dependencies: []
-  contract_service:
-    enabled: true
-    manifest_path: data/manifests/services/contract_service/manifest.yaml
-    dependencies: []
   sql_generation_service:
-    dependencies:
-    - default_db
     enabled: true
-    input_contract_versions:
-      sql_generation.generate_query.input: v1.0.0
-    output_contract_versions:
-      sql_generation.generate_query.output: v1.0.0
-    prompt_versions:
-      sql_generation.generate_query: v1.0.0
     manifest_path: data/manifests/services/sql_generation_service/manifest.yaml
-  sql_query_service:
-    dependencies:
-    - default_db
-    - sql_validator_service
-    enabled: true
-    manifest_path: data/manifests/services/sql_query_service/manifest.yaml
-  sql_validator_service:
-    dependencies: []
-    enabled: true
-    manifest_path: data/manifests/services/sql_validator_service/manifest.yaml
   table_description_service:
     dependencies:
     - default_db

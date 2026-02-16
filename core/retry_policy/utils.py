@@ -1,6 +1,7 @@
 
 import asyncio
-from src.domain.retry_policy import RetryDecision, RetryResult
+from core.models.enums.common_enums import RetryDecision
+from core.models.types.retry_policy import RetryResult
 
 
 async def apply_retry_delay(result: RetryResult):

@@ -4,7 +4,7 @@
 import time
 from typing import Any, Dict, List
 from core.components.base_component import BaseComponent
-from models.capability import Capability
+from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext, ActionResult
 
 

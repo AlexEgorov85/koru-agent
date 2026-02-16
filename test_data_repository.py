@@ -5,7 +5,7 @@ import yaml
 from core.application.data_repository import DataRepository
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.config.models import RegistryConfig
-from core.models.manifest import Manifest, ComponentType, ComponentStatus
+from core.models.data.manifest import Manifest, ComponentType, ComponentStatus
 
 async def test_data_repository():
     # Создаем тестовую директорию

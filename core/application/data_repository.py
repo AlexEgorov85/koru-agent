@@ -4,9 +4,9 @@
 import asyncio
 from typing import Dict, Tuple, List, Optional, Type
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
-from core.models.prompt import Prompt, PromptStatus
-from core.models.contract import Contract, ContractDirection
-from core.models.manifest import Manifest, ComponentStatus
+from core.models.data.prompt import Prompt, PromptStatus
+from core.models.data.contract import Contract, ContractDirection
+from core.models.data.manifest import Manifest, ComponentStatus
 from core.config.app_config import AppConfig
 from core.config.models import ComponentType
 from pydantic import BaseModel

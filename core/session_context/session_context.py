@@ -16,7 +16,7 @@ from core.session_context.model import (
     ContextItemMetadata, AgentStep
 )
 from core.session_context.step_context import StepContext
-from models.execution import ExecutionStatus
+from core.models.enums.common_enums import ExecutionStatus
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, ClassVar, List
 from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
-from core.errors.architecture_violation import ArchitectureViolationError
+from core.models.errors.architecture_violation import ArchitectureViolationError
+from core.models.enums.common_enums import ComponentType
 
 
 class ServiceInput(ABC):
@@ -145,8 +146,11 @@ class BaseService(BaseComponent):
         """
         Загрузка всех декларированных зависимостей.
         """
+        self.logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+        
         missing_deps = []
         for dep_name in self.DEPENDENCIES:
+            self.logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
             dependency = self.get_dependency(dep_name)
             if not dependency:
                 self.logger.warning(
@@ -157,9 +161,12 @@ class BaseService(BaseComponent):
                     f"  3. Сервис '{dep_name}' отключён в конфигурации\n"
                     f"  4. Ошибка в декларации зависимостей"
                 )
+                self.logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
                 missing_deps.append(dep_name)
                 # Continue instead of returning False immediately
                 continue
+            else:
+                self.logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
@@ -167,6 +174,8 @@ class BaseService(BaseComponent):
                     f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. "
                     "Это допустимо при топологической сортировке, но требует осторожности."
                 )
+            else:
+                self.logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
@@ -175,11 +184,13 @@ class BaseService(BaseComponent):
         if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
             self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
-        
+
         # Log warning if some dependencies are missing
         if missing_deps:
             self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
-        
+        else:
+            self.logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+
         return True
 
     async def _custom_initialize(self) -> bool:
@@ -204,27 +215,45 @@ class BaseService(BaseComponent):
         Безопасное получение зависимости по имени.
         Сначала ищем в локальном кэше, затем в прикладном контексте.
         """
+        self.logger.debug(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
+        
         # Сначала ищем в локальном кэше
         if name in self._dependencies:
+            self.logger.debug(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
             return self._dependencies[name]
-        
+
         # Затем ищем в прикладном контексте
         if self.application_context:
             # Пытаемся получить сервис из прикладного контекста
             service = self.application_context.get_service(name)
             if service:
+                self.logger.debug(f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return service
-            
+            else:
+                self.logger.debug(f"get_dependency: сервис '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+                # Дополнительная диагностика - проверим, что есть в компонентах
+                all_services = list(self.application_context.components.all_of_type(ComponentType.SERVICE))
+                self.logger.debug(f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
+
             # Если не сервис, пробуем другие типы компонентов
             skill = self.application_context.get_skill(name)
             if skill:
+                self.logger.debug(f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return skill
-                
+            else:
+                self.logger.debug(f"get_dependency: навык '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+
             tool = self.application_context.get_tool(name)
             if tool:
+                self.logger.debug(f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return tool
-                
-        
+            else:
+                self.logger.debug(f"get_dependency: инструмент '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+
+        else:
+            self.logger.error(f"get_dependency: application_context отсутствует для компонента '{self.name}'")
+
+        self.logger.debug(f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
         return None
 
     def _convert_params_to_input(self, parameters: Dict[str, Any]) -> ServiceInput:
@@ -317,3 +346,36 @@ class BaseService(BaseComponent):
         if sanitized != data:
             self.logger.warning("Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
         return sanitized
+
+    def _get_component_type(self) -> str:
+        """Возвращает тип компонента для манифеста."""
+        return "service"
+    
+    async def _validate_loaded_resources(self) -> bool:
+        """Расширенная валидация для сервисов."""
+        if not await super()._validate_loaded_resources():
+            return False
+        
+        # ← НОВОЕ: Валидация методов сервиса
+        if hasattr(self, 'methods'):
+            for method_name in self.methods:
+                cap_name = f"{self.name}.{method_name}"
+                
+                # Проверка наличия контрактов для метода
+                if cap_name not in self._cached_input_contracts:
+                    self.logger.warning(
+                        f"{self.name}: Метод '{method_name}' не имеет input контракта"
+                    )
+                
+                if cap_name not in self._cached_output_contracts:
+                    self.logger.warning(
+                        f"{self.name}: Метод '{method_name}' не имеет output контракта"
+                    )
+        
+        return True
+    
+    def get_timeout_seconds(self) -> int:
+        """Возвращает timeout из манифеста."""
+        if self.component_config and self.component_config.constraints:
+            return self.component_config.constraints.get('timeout_seconds', 30)
+        return 30

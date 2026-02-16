@@ -3,7 +3,7 @@
 """
 import logging
 from typing import Any, Dict, List
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 def analyze_context(session_context: 'SessionContext') -> Dict[str, Any]:

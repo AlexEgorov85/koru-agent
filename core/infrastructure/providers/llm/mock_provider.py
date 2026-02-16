@@ -5,8 +5,8 @@ import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.models.llm_types import LLMRequest, LLMResponse
-from core.models.execution import ExecutionStatus
+from core.models.types.llm_types import LLMRequest, LLMResponse
+from core.models.enums.common_enums import ExecutionStatus
 
 
 logger = logging.getLogger(__name__)

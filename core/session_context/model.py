@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional, List
 
-from models.execution import ExecutionStatus
+from core.models.enums.common_enums import ExecutionStatus
 
 class ContextItemType(str, Enum):
     """

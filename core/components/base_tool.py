@@ -8,7 +8,7 @@
 """
 from abc import abstractmethod
 from typing import Dict, Any, Optional
-from core.application.components.base import BaseComponent
+from core.components.base_component import BaseComponent
 from core.models.capability import Capability
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig

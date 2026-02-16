@@ -4,7 +4,7 @@ import os
 # Установим кодировку для вывода
 sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
 
-from core.models.prompt import Prompt, PromptVariable, PromptStatus, ComponentType
+from core.models.data.prompt import Prompt, PromptVariable, PromptStatus, ComponentType
 
 # Тест создания промпта
 try:

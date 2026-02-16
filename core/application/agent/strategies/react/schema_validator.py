@@ -2,7 +2,7 @@
 Валидатор схемы для ReAct стратегии в новой архитектуре
 """
 from typing import Dict, Any, Optional
-from models.capability import Capability
+from core.models.data.capability import Capability
 
 
 class SchemaValidator:
