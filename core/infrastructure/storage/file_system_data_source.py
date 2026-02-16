@@ -32,9 +32,7 @@ class FileSystemDataSource(ResourceDataSource):
         ManifestComponentType.SKILL: "skills",
         ManifestComponentType.TOOL: "tools",
         ManifestComponentType.SERVICE: "services",
-        ManifestComponentType.BEHAVIOR: "behaviors",
-        ManifestComponentType.PROMPT_SERVICE: "prompt_services",
-        ManifestComponentType.CONTRACT_SERVICE: "contract_services"
+        ManifestComponentType.BEHAVIOR: "behaviors"
     }
 
     def __init__(self, base_dir: Path, registry_config: RegistryConfig):

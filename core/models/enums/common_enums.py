@@ -10,7 +10,7 @@ from typing import Union
 class ComponentType(str, Enum):
     """
     Типы компонентов системы.
-    
+
     ИСПОЛЬЗОВАНИЕ:
     component_type = ComponentType.SKILL
     if component_type == ComponentType.TOOL:
@@ -20,8 +20,6 @@ class ComponentType(str, Enum):
     TOOL = "tool"
     SERVICE = "service"
     BEHAVIOR = "behavior"
-    PROMPT_SERVICE = "prompt_service"
-    CONTRACT_SERVICE = "contract_service"
 
 
 class ComponentStatus(str, Enum):
@@ -70,8 +68,6 @@ class ResourceType(str, Enum):
     CACHE = "cache"
     CONFIG = "config"
     SERVICE = "service"
-    PROMPT_SERVICE = "prompt_service"
-    CONTRACT_SERVICE = "contract_service"
 
 
 class ResourceHealth(str, Enum):
