@@ -448,6 +448,9 @@ class ApplicationContext(BaseSystemContext):
                                     self.logger.debug(f"Загружен входной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                            # Заполняем resolved_input_contracts в компонентной конфигурации
+                            contract = self.data_repository.get_contract(cap, ver, "input")
+                            comp_config.resolved_input_contracts[cap] = contract.schema_data
 
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap_key, ver in comp_config.output_contract_versions.items():
@@ -463,6 +466,9 @@ class ApplicationContext(BaseSystemContext):
                                     self.logger.debug(f"Загружен выходной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                            # Заполняем resolved_output_contracts в компонентной конфигурации
+                            contract = self.data_repository.get_contract(cap, ver, "output")
+                            comp_config.resolved_output_contracts[cap] = contract.schema_data
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
@@ -1046,7 +1052,7 @@ class ApplicationContext(BaseSystemContext):
                             return False
             except Exception:
                 # Если хранилище контрактов не существует или недос��упно, пропускаем валидацию
-                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию входных контрактов")
+                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию в��одных контрактов")
                 pass
 
         # Валидация выходных контрактов
