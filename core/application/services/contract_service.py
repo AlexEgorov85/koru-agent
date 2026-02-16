@@ -34,16 +34,18 @@ class ContractService(BaseService):
         try:
             # Используем предзагруженные контракты из ComponentConfig
             # Они уже были загружены в ComponentConfig через DataRepository
-            
+
             # Загружаем входные контракты
             input_versions = self.component_config.input_contract_versions
+            missing_contracts = []
             for capability, version in input_versions.items():
                 # Получаем схему контракта из resolved_input_contracts в ComponentConfig (предзагруженные ресурсы)
                 if capability in self.component_config.resolved_input_contracts:
                     schema = self.component_config.resolved_input_contracts[capability]
                     self._cached_contracts[(capability, "input")] = schema
                 else:
-                    self.logger.warning(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+                    self.logger.error(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+                    missing_contracts.append(f"{capability}@{version} (input)")
 
             # Загружаем выходные контракты
             output_versions = self.component_config.output_contract_versions
@@ -53,7 +55,14 @@ class ContractService(BaseService):
                     schema = self.component_config.resolved_output_contracts[capability]
                     self._cached_contracts[(capability, "output")] = schema
                 else:
-                    self.logger.warning(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+                    self.logger.error(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
+                    missing_contracts.append(f"{capability}@{version} (output)")
+
+            # Проверяем, все ли контракты загружены
+            if missing_contracts:
+                self.logger.error(f"ContractService: отсутствуют критические контракты: {missing_contracts}")
+                self._initialized = False
+                return False
 
             self._initialized = True
             self.logger.info(

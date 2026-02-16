@@ -441,16 +441,22 @@ class ApplicationContext(BaseSystemContext):
                                 cap = cap_key.rsplit('.', 1)[0]
                             else:
                                 cap = cap_key  # Ключ уже без суффикса
-                            if (cap, ver) not in self._input_contract_schema_cache:  # Не дублируем
+                            
+                            # Загружаем схему в кэш, если ещё не загружена
+                            if (cap, ver) not in self._input_contract_schema_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                                     self._input_contract_schema_cache[(cap, ver)] = schema_cls
                                     self.logger.debug(f"Загружен входной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
-                            # Заполняем resolved_input_contracts в компонентной конфигурации
-                            contract = self.data_repository.get_contract(cap, ver, "input")
-                            comp_config.resolved_input_contracts[cap] = contract.schema_data
+                            
+                            # Заполняем resolved_input_contracts в компонентной конфигурации (всегда!)
+                            try:
+                                contract = self.data_repository.get_contract(cap, ver, "input")
+                                comp_config.resolved_input_contracts[cap] = contract.schema_data
+                            except Exception as e:
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
 
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap_key, ver in comp_config.output_contract_versions.items():
@@ -459,16 +465,22 @@ class ApplicationContext(BaseSystemContext):
                                 cap = cap_key.rsplit('.', 1)[0]
                             else:
                                 cap = cap_key  # Ключ уже без суффикса
-                            if (cap, ver) not in self._output_contract_schema_cache:  # Не дублируем
+                            
+                            # Загружаем схему в кэш, если ещё не загружена
+                            if (cap, ver) not in self._output_contract_schema_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                                     self._output_contract_schema_cache[(cap, ver)] = schema_cls
                                     self.logger.debug(f"Загружен выходной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
-                            # Заполняем resolved_output_contracts в компонентной конфигурации
-                            contract = self.data_repository.get_contract(cap, ver, "output")
-                            comp_config.resolved_output_contracts[cap] = contract.schema_data
+                            
+                            # Заполняем resolved_output_contracts в компонентной конфигурации (всегда!)
+                            try:
+                                contract = self.data_repository.get_contract(cap, ver, "output")
+                                comp_config.resolved_output_contracts[cap] = contract.schema_data
+                            except Exception as e:
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output) для {comp_name}: {e}")
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
