@@ -55,11 +55,17 @@ services:
   sql_generation_service:
     enabled: true
     manifest_path: data/manifests/services/sql_generation_service/manifest.yaml
+    dependencies: []
+    prompt_versions:
+      sql_generation.generate_query: v1.0.0
+    input_contract_versions:
+      sql_generation.generate_query: v1.0.0
+    output_contract_versions:
+      sql_generation.generate_query: v1.0.0
   table_description_service:
-    dependencies:
-    - default_db
     enabled: true
     manifest_path: data/manifests/services/table_description_service/manifest.yaml
+    dependencies: []
 skills:
   planning:
     enabled: true
@@ -73,9 +79,9 @@ skills:
     enabled: true
     manifest_path: data/manifests/skills/book_library/manifest.yaml
     input_contract_versions:
-      book_library.search_books.input: v1.0.0
+      book_library.search_books: v1.0.0
     output_contract_versions:
-      book_library.search_books.output: v1.0.0
+      book_library.search_books: v1.0.0
     parameters:
       max_results: 10
     prompt_versions:

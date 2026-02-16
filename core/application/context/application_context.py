@@ -42,12 +42,23 @@ class ComponentRegistry:
         }
     
     def register(self, component_type: ComponentType, name: str, component: 'BaseComponent'):
+        # Отладочное логирование
+        import logging
+        logger = logging.getLogger(f"{__name__}.ComponentRegistry")
+        logger.debug(f"ComponentRegistry.register: type={component_type}, name={name}, component.name={getattr(component, 'name', 'N/A')}")
         if name in self._components[component_type]:
             raise ValueError(f"Компонент {component_type.value}.{name} уже зарегистрирован")
         self._components[component_type][name] = component
+        logger.debug(f"ComponentRegistry.register: компонент зарегистрирован, keys={list(self._components[component_type].keys())}")
     
     def get(self, component_type: ComponentType, name: str) -> Optional['BaseComponent']:
-        return self._components[component_type].get(name)
+        # Отладочное логирование
+        import logging
+        logger = logging.getLogger(f"{__name__}.ComponentRegistry")
+        logger.debug(f"ComponentRegistry.get: type={component_type}, name={name}, keys={list(self._components[component_type].keys())}")
+        result = self._components[component_type].get(name)
+        logger.debug(f"ComponentRegistry.get: result={result}")
+        return result
     
     def all_of_type(self, component_type: ComponentType) -> list['BaseComponent']:
         return list(self._components[component_type].values())
@@ -402,8 +413,13 @@ class ApplicationContext(BaseSystemContext):
         self._input_contract_schema_cache = {}  # Dict[(capability, version), Type[BaseModel]]
         self._output_contract_schema_cache = {}
 
-        for cap_dir, ver in self.config.input_contract_versions.items():
-            cap = cap_dir.rsplit('.', 1)[0]
+        # Глобальные контракты из AppConfig (могут быть с суффиксами .input/.output или без)
+        for cap_key, ver in self.config.input_contract_versions.items():
+            # Определяем capability: если ключ заканчивается на .input, удаляем суффикс
+            if cap_key.endswith('.input'):
+                cap = cap_key.rsplit('.', 1)[0]
+            else:
+                cap = cap_key  # Ключ уже без суффикса
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                 self._input_contract_schema_cache[(cap, ver)] = schema_cls
@@ -411,8 +427,12 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
-        for cap_dir, ver in self.config.output_contract_versions.items():
-            cap = cap_dir.rsplit('.', 1)[0]
+        for cap_key, ver in self.config.output_contract_versions.items():
+            # Определяем capability: если ключ заканчивается на .output, удаляем суффикс
+            if cap_key.endswith('.output'):
+                cap = cap_key.rsplit('.', 1)[0]
+            else:
+                cap = cap_key  # Ключ уже без суффикса
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                 self._output_contract_schema_cache[(cap, ver)] = schema_cls
@@ -426,8 +446,12 @@ class ApplicationContext(BaseSystemContext):
                 comp_configs = getattr(self.config, comp_type_attr)
                 for comp_name, comp_config in comp_configs.items():
                     if hasattr(comp_config, 'input_contract_versions'):
-                        for cap_dir, ver in comp_config.input_contract_versions.items():
-                            cap = cap_dir.rsplit('.', 1)[0]
+                        for cap_key, ver in comp_config.input_contract_versions.items():
+                            # Определяем capability: если ключ заканчивается на .input, удаляем суффикс
+                            if cap_key.endswith('.input'):
+                                cap = cap_key.rsplit('.', 1)[0]
+                            else:
+                                cap = cap_key  # Ключ уже без суффикса
                             if (cap, ver) not in self._input_contract_schema_cache:  # Не дублируем
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
@@ -435,10 +459,14 @@ class ApplicationContext(BaseSystemContext):
                                     self.logger.debug(f"Загружен входной контракт из компонента {comp_name}: {cap}@{ver}")
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
-                    
+
                     if hasattr(comp_config, 'output_contract_versions'):
-                        for cap_dir, ver in comp_config.output_contract_versions.items():
-                            cap = cap_dir.rsplit('.', 1)[0]
+                        for cap_key, ver in comp_config.output_contract_versions.items():
+                            # Определяем capability: если ключ заканчивается на .output, удаляем суффикс
+                            if cap_key.endswith('.output'):
+                                cap = cap_key.rsplit('.', 1)[0]
+                            else:
+                                cap = cap_key  # Ключ уже без суффикса
                             if (cap, ver) not in self._output_contract_schema_cache:  # Не дублируем
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
@@ -486,31 +514,37 @@ class ApplicationContext(BaseSystemContext):
         if self.use_data_repository and self.data_repository:
             # Если указана версия, используем её, иначе ищем в конфиге
             if version is None:
-                version = self.config.input_contract_versions.get(capability + ".input")
+                # Сначала пробуем найти без суффикса (предпочтительный формат)
+                version = self.config.input_contract_versions.get(capability)
+                # Если не найдено, пробуем с суффиксом .input (для обратной совместимости)
+                if version is None:
+                    version = self.config.input_contract_versions.get(capability + ".input")
                 if version is None:
                     # Попробуем получить версию из компонентных конфигураций
                     for comp_type in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
                         if hasattr(self.config, comp_type):
                             comp_configs = getattr(self.config, comp_type)
                             for _, comp_config in comp_configs.items():
-                                if hasattr(comp_config, 'input_contract_versions') and capability + ".input" in comp_config.input_contract_versions:
-                                    version = comp_config.input_contract_versions[capability + ".input"]
-                                    break
-                                # Также проверим без ".input" суффикса
-                                elif hasattr(comp_config, 'input_contract_versions') and capability in comp_config.input_contract_versions:
-                                    version = comp_config.input_contract_versions[capability]
-                                    break
+                                if hasattr(comp_config, 'input_contract_versions'):
+                                    # Сначала без суффикса
+                                    if capability in comp_config.input_contract_versions:
+                                        version = comp_config.input_contract_versions[capability]
+                                        break
+                                    # Затем с суффиксом .input
+                                    elif capability + ".input" in comp_config.input_contract_versions:
+                                        version = comp_config.input_contract_versions[capability + ".input"]
+                                        break
                     if version is None:
                         from pydantic import BaseModel
                         return BaseModel  # Возвращаем базовый класс, если версия не найдена
-            
+
             if version:  # Только если версия найдена
                 try:
                     return self.data_repository.get_contract_schema(capability, version, "input")
                 except Exception:
                     from pydantic import BaseModel
                     return BaseModel  # Возвращаем базовый класс при ошибке
-        
+
         # Старый путь: парсим схему из словаря
         # Возвращаем базовый класс, если схема не найдена
         from pydantic import BaseModel
@@ -1022,7 +1056,7 @@ class ApplicationContext(BaseSystemContext):
                         if self.profile == "prod":
                             return False
             except Exception:
-                # Если хранилище контрактов не существует или недоступно, пропускаем валидацию
+                # Если хранилище контрактов не существует или недос��упно, пропускаем валидацию
                 self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию входных контрактов")
                 pass
 
@@ -1041,7 +1075,7 @@ class ApplicationContext(BaseSystemContext):
                             )
                             return False
                         
-                        # Загружаем через хранилище, чтобы получить правильный объект Contract
+                        # Загружаем через хранилище, чтобы по��учить правильный объект Contract
                         contract_obj = await contract_repository.load(capability, version, "output")
                         
                         # Для контрактов пока не проверяем статус, но можно добавить в будущем

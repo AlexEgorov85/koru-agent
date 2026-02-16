@@ -96,23 +96,10 @@ class ComponentFactory:
                 component_config=component_config
             )
 
-        self.logger.info(f"Компонент {name} создан, начинаем инициализацию...")
+        self.logger.info(f"Компонент {name} создан (инициализация будет выполнена позже через топологическую сортировку)")
 
-        # Инициализация компонента (загрузка промптов и контрактов в кэш)
-        init_success = await component.initialize()
-
-        self.logger.info(f"Результат инициализации компонента {name}: {init_success}")
-
-        if not init_success:
-            self.logger.warning(f"Компонент {name} не смог полностью инициализироваться, но продолжает работу")
-        else:
-            self.logger.info(f"Компонент {name} успешно инициализирован")
-
-        # Проверка, что компонент действительно инициализирован
-        if not component._initialized:
-            self.logger.warning(f"Компонент {name} имеет _initialized=False после инициализации")
-        else:
-            self.logger.debug(f"Компонент {name}: _initialized=True, кэши заполнены")
+        # НЕ вызываем initialize() здесь! Инициализация будет выполнена в _initialize_components_with_dependencies()
+        # Это гарантирует, что все зависимости уже зарегистрированы в контексте
 
         return component
 
@@ -292,5 +279,5 @@ class ComponentFactory:
             component_config=component_config,
             executor=executor  # Передаем ActionExecutor
         )
-        self.logger.info(f"ComponentFactory: компонент {name} успешно создан и инициализирован")
+        self.logger.info(f"ComponentFactory: компонент {name} успешно создан (инициализация будет выполнена позже)")
         return result
