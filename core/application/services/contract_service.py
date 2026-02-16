@@ -32,6 +32,8 @@ class ContractService(BaseService):
     async def initialize(self) -> bool:
         """Инициализация ContractService с использованием предзагруженных ресурсов из ComponentConfig."""
         try:
+            self.logger.info(f"ContractService.initialize: resolved_input_contracts={self.component_config.resolved_input_contracts.keys()}")
+            self.logger.info(f"ContractService.initialize: input_contract_versions={self.component_config.input_contract_versions}")
             # Используем предзагруженные контракты из ComponentConfig
             # Они уже были загружены в ComponentConfig через DataRepository
 
