@@ -42,23 +42,12 @@ class ComponentRegistry:
         }
     
     def register(self, component_type: ComponentType, name: str, component: 'BaseComponent'):
-        # Отладочное логирование
-        import logging
-        logger = logging.getLogger(f"{__name__}.ComponentRegistry")
-        logger.debug(f"ComponentRegistry.register: type={component_type}, name={name}, component.name={getattr(component, 'name', 'N/A')}")
         if name in self._components[component_type]:
             raise ValueError(f"Компонент {component_type.value}.{name} уже зарегистрирован")
         self._components[component_type][name] = component
-        logger.debug(f"ComponentRegistry.register: компонент зарегистрирован, keys={list(self._components[component_type].keys())}")
     
     def get(self, component_type: ComponentType, name: str) -> Optional['BaseComponent']:
-        # Отладочное логирование
-        import logging
-        logger = logging.getLogger(f"{__name__}.ComponentRegistry")
-        logger.debug(f"ComponentRegistry.get: type={component_type}, name={name}, keys={list(self._components[component_type].keys())}")
-        result = self._components[component_type].get(name)
-        logger.debug(f"ComponentRegistry.get: result={result}")
-        return result
+        return self._components[component_type].get(name)
     
     def all_of_type(self, component_type: ComponentType) -> list['BaseComponent']:
         return list(self._components[component_type].values())
