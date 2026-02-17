@@ -249,4 +249,8 @@ Untitled.ipynb
 # Архитектурные документы"
 ARCHITECTURE.md
 ARCHITECTURE_DECISIONS.md
-ARCHITECTURE_CHECKLIST.md
+ARCHITECTURE_CHECKLIST.md  
+# DataAnalysisSkill exceptions  
+!data/manifests/skills/data_analysis/  
+!data/contracts/skill/data_analysis/  
+!data/prompts/skill/data_analysis/ 
