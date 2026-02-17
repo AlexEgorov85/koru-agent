@@ -1,0 +1,47 @@
+capability: data_analysis.analyze_step_data
+version: v1.0.0
+status: active
+component_type: skill
+direction: output
+description: Output contract for step data analysis
+
+schema_data:
+  type: object
+  properties:
+    answer:
+      type: string
+      description: Direct answer to the question
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Confidence score in the answer
+    evidence:
+      type: array
+      items:
+        type: object
+        properties:
+          source:
+            type: string
+            description: Source reference (chunk/line)
+          excerpt:
+            type: string
+            description: Relevant data excerpt
+          relevance_score:
+            type: number
+            minimum: 0
+            maximum: 1
+    metadata:
+      type: object
+      properties:
+        chunks_processed:
+          type: integer
+        total_tokens:
+          type: integer
+        processing_time_ms:
+          type: number
+        data_size_mb:
+          type: number
+  required:
+    - answer
+    - confidence

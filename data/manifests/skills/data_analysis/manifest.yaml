@@ -1,0 +1,39 @@
+component_id: data_analysis
+component_type: skill
+version: v1.0.0
+owner: team-analytics
+status: active
+
+contract:
+  input: data_analysis.analyze_step_data.input.v1.0.0
+  output: data_analysis.analyze_step_data.output.v1.0.0
+
+constraints:
+  max_data_size_mb: 100
+  chunk_size_tokens: 2000
+  max_chunks: 50
+  timeout_seconds: 300
+
+quality_metrics:
+  success_rate_target: 0.95
+  avg_execution_time_ms: 1500
+  error_rate_threshold: 0.05
+
+dependencies:
+  components: []
+  tools:
+    - file_tool
+    - sql_tool
+  services:
+    - prompt_service
+    - contract_service
+    - sql_generation_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-17"
+    author: system
+    changes:
+      - "Initial release"
+      - "Поддержка анализа данных с чанкингом"
+      - "4 стратегии агрегации: summary/statistical/extractive/generative"
