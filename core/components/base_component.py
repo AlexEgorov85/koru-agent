@@ -55,15 +55,15 @@ class BaseComponent(ABC):
         import logging
         self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
 
-        # НОВЫЕ кэши для типизированных объектов
-        self._cached_prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
-        self._cached_input_schemas: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
-        self._cached_output_schemas: Dict[str, Type[BaseModel]] = {}
+        # НОВЫЕ кэши для типизированных объектов (без приставки _cached)
+        self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
+        self.input_schemas: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
+        self.output_schemas: Dict[str, Type[BaseModel]] = {}
 
         # Временные метки кэша для возможности инвалидации
-        self._prompt_timestamps: Dict[str, float] = {}
-        self._input_schema_timestamps: Dict[str, float] = {}
-        self._output_schema_timestamps: Dict[str, float] = {}
+        self.prompt_timestamps: Dict[str, float] = {}
+        self.input_schema_timestamps: Dict[str, float] = {}
+        self.output_schema_timestamps: Dict[str, float] = {}
 
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
@@ -98,7 +98,7 @@ class BaseComponent(ABC):
                 self.logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
                 return False
 
-            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self._cached_prompts)}, input_schemas={len(self._cached_input_schemas)}, output_schemas={len(self._cached_output_schemas)}")
+            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_schemas={len(self.input_schemas)}, output_schemas={len(self.output_schemas)}")
             self._initialized = True
             return True
 
@@ -187,7 +187,7 @@ class BaseComponent(ABC):
                     # Получаем ПОЛНОЦЕННЫЙ объект из репозитория
                     if hasattr(self.application_context, 'data_repository') and self.application_context.data_repository:
                         prompt_obj: Prompt = self.application_context.data_repository.get_prompt(cap_name, version)
-                        self._cached_prompts[cap_name] = prompt_obj
+                        self.prompts[cap_name] = prompt_obj
 
                         self.logger.debug(
                             f"Загружен промпт '{cap_name}' v{version} "
@@ -207,7 +207,7 @@ class BaseComponent(ABC):
                             variables=[],
                             metadata={}
                         )
-                        self._cached_prompts[cap_name] = prompt_obj
+                        self.prompts[cap_name] = prompt_obj
                         self.logger.warning(f"Используется совместимый режим для промпта {cap_name}")
 
                 except Exception as e:
@@ -225,11 +225,11 @@ class BaseComponent(ABC):
                             self.application_context.data_repository
                             .get_contract_schema(cap_name, version, "input")
                         )
-                        self._cached_input_schemas[cap_name] = schema_cls
+                        self.input_schemas[cap_name] = schema_cls
                     else:
                         # Старый путь: получаем из контекста
                         schema_cls = self.application_context.get_input_contract_schema(cap_name, version)
-                        self._cached_input_schemas[cap_name] = schema_cls
+                        self.input_schemas[cap_name] = schema_cls
                         self.logger.warning(f"Используется совместимый режим для входной схемы {cap_name}")
 
                 except Exception as e:
@@ -246,10 +246,10 @@ class BaseComponent(ABC):
                             self.application_context.data_repository
                             .get_contract_schema(cap_name, version, "output")
                         )
-                        self._cached_output_schemas[cap_name] = schema_cls
+                        self.output_schemas[cap_name] = schema_cls
                     else:
                         # Старый путь: используем базовый класс
-                        self._cached_output_schemas[cap_name] = BaseModel
+                        self.output_schemas[cap_name] = BaseModel
                         self.logger.warning(f"Используется совместимый режим для выходной схемы {cap_name}")
 
                 except Exception as e:
@@ -259,12 +259,12 @@ class BaseComponent(ABC):
                         return False
 
             # Устанавливаем временные метки для всех загруженных ресурсов
-            for prompt_key in self._cached_prompts:
-                self._prompt_timestamps[prompt_key] = current_time
-            for schema_key in self._cached_input_schemas:
-                self._input_schema_timestamps[schema_key] = current_time
-            for schema_key in self._cached_output_schemas:
-                self._output_schema_timestamps[schema_key] = current_time
+            for prompt_key in self.prompts:
+                self.prompt_timestamps[prompt_key] = current_time
+            for schema_key in self.input_schemas:
+                self.input_schema_timestamps[schema_key] = current_time
+            for schema_key in self.output_schemas:
+                self.output_schema_timestamps[schema_key] = current_time
 
             return True
 
@@ -289,23 +289,23 @@ class BaseComponent(ABC):
         
         # Проверка промптов
         for capability, version in self.component_config.prompt_versions.items():
-            if capability not in self._cached_prompts:
+            if capability not in self.prompts:
                 errors.append(f"Промпт '{capability}@{version}' не загружен")
-            elif not self._cached_prompts[capability]:
+            elif not self.prompts[capability]:
                 errors.append(f"Промпт '{capability}' пустой")
-        
+
         # Проверка входных контрактов
         for capability, version in self.component_config.input_contract_versions.items():
-            if capability not in self._cached_input_schemas:
+            if capability not in self.input_schemas:
                 errors.append(f"Входной контракт '{capability}@{version}' не загружен")
-            elif not self._cached_input_schemas[capability]:
+            elif not self.input_schemas[capability]:
                 errors.append(f"Входной контракт '{capability}' пустой")
-        
+
         # Проверка выходных контрактов
         for capability, version in self.component_config.output_contract_versions.items():
-            if capability not in self._cached_output_schemas:
+            if capability not in self.output_schemas:
                 errors.append(f"Выходной контракт '{capability}@{version}' не загружен")
-            elif not self._cached_output_schemas[capability]:
+            elif not self.output_schemas[capability]:
                 errors.append(f"Выходной контракт '{capability}' пустой")
         
         # Проверка согласованности input/output
@@ -360,33 +360,33 @@ class BaseComponent(ABC):
 
         if cache_type is None or cache_type == 'prompts':
             if key:
-                if key in self._cached_prompts:
-                    del self._cached_prompts[key]
-                if key in self._prompt_timestamps:
-                    del self._prompt_timestamps[key]
+                if key in self.prompts:
+                    del self.prompts[key]
+                if key in self.prompt_timestamps:
+                    del self.prompt_timestamps[key]
             else:
-                self._cached_prompts.clear()
-                self._prompt_timestamps.clear()
+                self.prompts.clear()
+                self.prompt_timestamps.clear()
 
         if cache_type is None or cache_type == 'input_schemas':
             if key:
-                if key in self._cached_input_schemas:
-                    del self._cached_input_schemas[key]
-                if key in self._input_schema_timestamps:
-                    del self._input_schema_timestamps[key]
+                if key in self.input_schemas:
+                    del self.input_schemas[key]
+                if key in self.input_schema_timestamps:
+                    del self.input_schema_timestamps[key]
             else:
-                self._cached_input_schemas.clear()
-                self._input_schema_timestamps.clear()
+                self.input_schemas.clear()
+                self.input_schema_timestamps.clear()
 
         if cache_type is None or cache_type == 'output_schemas':
             if key:
-                if key in self._cached_output_schemas:
-                    del self._cached_output_schemas[key]
-                if key in self._output_schema_timestamps:
-                    del self._output_schema_timestamps[key]
+                if key in self.output_schemas:
+                    del self.output_schemas[key]
+                if key in self.output_schema_timestamps:
+                    del self.output_schema_timestamps[key]
             else:
-                self._cached_output_schemas.clear()
-                self._output_schema_timestamps.clear()
+                self.output_schemas.clear()
+                self.output_schema_timestamps.clear()
 
     def _is_cache_expired(self, cache_type: str, key: str) -> bool:
         """
@@ -405,9 +405,9 @@ class BaseComponent(ABC):
             return False  # Если TTL не установлен, кэш не истекает
 
         timestamps = {
-            'prompts': self._prompt_timestamps,
-            'input_schemas': self._input_schema_timestamps,
-            'output_schemas': self._output_schema_timestamps
+            'prompts': self.prompt_timestamps,
+            'input_schemas': self.input_schema_timestamps,
+            'output_schemas': self.output_schema_timestamps
         }.get(cache_type)
 
         if not timestamps or key not in timestamps:
@@ -427,7 +427,7 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
 
-        if capability_name not in self._cached_prompts:
+        if capability_name not in self.prompts:
             return ""
 
         # Проверяем, не истек ли срок действия кэша
@@ -437,7 +437,7 @@ class BaseComponent(ABC):
             return ""
 
         # Безопасное извлечение через атрибут объекта
-        prompt_obj = self._cached_prompts[capability_name]
+        prompt_obj = self.prompts[capability_name]
         if hasattr(prompt_obj, 'content'):
             return prompt_obj.content
         return str(prompt_obj)
@@ -454,7 +454,7 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
 
-        if capability_name not in self._cached_input_schemas:
+        if capability_name not in self.input_schemas:
             return BaseModel
 
         # Проверяем, не истек ли срок действия кэша
@@ -463,7 +463,7 @@ class BaseComponent(ABC):
             self.invalidate_cache('input_schemas', capability_name)
             return BaseModel
 
-        return self._cached_input_schemas[capability_name]
+        return self.input_schemas[capability_name]
 
     def get_cached_output_schema_safe(self, capability_name: str) -> Type[BaseModel]:
         """
@@ -477,7 +477,7 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
 
-        if capability_name not in self._cached_output_schemas:
+        if capability_name not in self.output_schemas:
             return BaseModel
 
         # Проверяем, не истек ли срок действия кэша
@@ -486,7 +486,7 @@ class BaseComponent(ABC):
             self.invalidate_cache('output_schemas', capability_name)
             return BaseModel
 
-        return self._cached_output_schemas[capability_name]
+        return self.output_schemas[capability_name]
 
     # === БЕЗОПАСНЫЙ ДОСТУП К РЕСУРСАМ (ТОЛЬКО ИЗ КЭША) ===
 
@@ -496,15 +496,15 @@ class BaseComponent(ABC):
         но храним и используем полноценный объект.
         """
         self._ensure_initialized()
-        if capability_name not in self._cached_prompts:
+        if capability_name not in self.prompts:
             self.logger.warning(
                 f"Промпт для capability '{capability_name}' не загружен в компонент '{self.name}'. "
-                f"Доступные: {list(self._cached_prompts.keys())}. Возвращаем пустую строку."
+                f"Доступные: {list(self.prompts.keys())}. Возвращаем пустую строку."
             )
             return ""  # Возвращаем пустую строку вместо ошибки
-        
+
         # Безопасное извлечение через атрибут объекта
-        return self._cached_prompts[capability_name].content
+        return self.prompts[capability_name].content
 
     def get_input_contract(self, capability_name: str) -> Dict:
         """
@@ -512,14 +512,14 @@ class BaseComponent(ABC):
         но используем типизированный объект.
         """
         self._ensure_initialized()
-        if capability_name not in self._cached_input_schemas:
+        if capability_name not in self.input_schemas:
             self.logger.warning(
                 f"Входная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self._cached_input_schemas.keys())}. Возвращаем пустой словарь."
+                f"Доступные: {list(self.input_schemas.keys())}. Возвращаем пустой словарь."
             )
             return {}  # Возвращаем пустой словарь вместо ошибки
-        
-        schema_cls = self._cached_input_schemas[capability_name]
+
+        schema_cls = self.input_schemas[capability_name]
         # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
@@ -529,14 +529,14 @@ class BaseComponent(ABC):
         но используем типизированный объект.
         """
         self._ensure_initialized()
-        if capability_name not in self._cached_output_schemas:
+        if capability_name not in self.output_schemas:
             self.logger.warning(
                 f"Выходная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self._cached_output_schemas.keys())}. Возвращаем пустой словарь."
+                f"Доступные: {list(self.output_schemas.keys())}. Возвращаем пустой словарь."
             )
             return {}  # Возвращаем пустой словарь вместо ошибки
-        
-        schema_cls = self._cached_output_schemas[capability_name]
+
+        schema_cls = self.output_schemas[capability_name]
         # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
@@ -544,11 +544,11 @@ class BaseComponent(ABC):
         """
         Типобезопасная валидация через скомпилированную схему.
         """
-        if capability_name not in self._cached_input_schemas:
+        if capability_name not in self.input_schemas:
             self.logger.warning(f"Схема для {capability_name} не загружена, пропускаем валидацию")
             return True
-        
-        schema_cls = self._cached_input_schemas[capability_name]
+
+        schema_cls = self.input_schemas[capability_name]
         try:
             # Pydantic автоматически валидирует и конвертирует типы
             validated = schema_cls.model_validate(data)
@@ -561,10 +561,10 @@ class BaseComponent(ABC):
         """
         Безопасный рендеринг шаблона с валидацией переменных.
         """
-        if capability_name not in self._cached_prompts:
+        if capability_name not in self.prompts:
             raise ValueError(f"Промпт '{capability_name}' не загружен")
-        
-        prompt_obj: Prompt = self._cached_prompts[capability_name]
+
+        prompt_obj: Prompt = self.prompts[capability_name]
         
         # Используем встроенный метод рендеринга с валидацией
         try:

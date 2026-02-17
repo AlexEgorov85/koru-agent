@@ -94,15 +94,45 @@ class SQLValidatorService(BaseService):
     async def execute(self, input_data: SQLValidatorServiceInput) -> SQLValidatorServiceOutput:
         """
         Выполнение валидации SQL-запроса.
-        
+
         ARGS:
         - input_data: SQLValidatorServiceInput - содержит SQL-запрос и параметры
-        
+
         RETURNS:
         - SQLValidatorServiceOutput: результат валидации
         """
-        result = await self.validate_query(input_data.sql_query, input_data.parameters)
+        # === ЭТАП 1: Валидация входных данных через схему ===
+        input_schema = self.get_cached_input_schema_safe("sql_validator_service.validate")
+        if input_schema:
+            try:
+                # Валидируем входные данные через схему
+                input_schema.model_validate({
+                    "sql": input_data.sql_query,
+                    "parameters": input_data.parameters
+                })
+            except Exception as e:
+                self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                return SQLValidatorServiceOutput(
+                    is_valid=False,
+                    validation_errors=[f"Ошибка входных данных: {str(e)}"]
+                )
         
+        # === ЭТАП 2: Основная валидация SQL ===
+        result = await self.validate_query(input_data.sql_query, input_data.parameters)
+
+        # === ЭТАП 3: Валидация выходных данных через схему ===
+        output_schema = self.get_cached_output_schema_safe("sql_validator_service.validate")
+        if output_schema:
+            try:
+                output_schema.model_validate({
+                    "is_valid": result.is_valid,
+                    "validation_errors": result.validation_errors,
+                    "sanitized_query": result.sql,
+                    "parameters": result.parameters
+                })
+            except Exception as e:
+                self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+
         return SQLValidatorServiceOutput(
             is_valid=result.is_valid,
             validation_errors=result.validation_errors,

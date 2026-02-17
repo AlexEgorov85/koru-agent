@@ -154,17 +154,15 @@ class DataRepository:
                                 )
                     
                     if hasattr(comp_config, 'input_contract_versions'):
-                        for cap_dir, ver in comp_config.input_contract_versions.items():
-                            cap = cap_dir.rsplit('.', 1)[0]
+                        for cap, ver in comp_config.input_contract_versions.items():
                             key = (cap, ver, "input")
                             if key not in self._contracts_index:
                                 self._validation_warnings.append(
                                     f"Входной контракт {cap}@{ver} из компонента {comp_name} отсутствует в файловой системе"
                                 )
-                    
+
                     if hasattr(comp_config, 'output_contract_versions'):
-                        for cap_dir, ver in comp_config.output_contract_versions.items():
-                            cap = cap_dir.rsplit('.', 1)[0]
+                        for cap, ver in comp_config.output_contract_versions.items():
                             key = (cap, ver, "output")
                             if key not in self._contracts_index:
                                 self._validation_warnings.append(

@@ -64,7 +64,7 @@ class BaseSkill(BaseComponent):
             if hasattr(self.application_context, 'logger'):
                 self.application_context.logger.info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
-                    f"Загружено: промпты={len(self._cached_prompts)}, "
+                    f"Загружено: промпты={len(self.prompts)}, "
                     f"input-контракты={len(self._cached_input_contracts)}, "
                     f"output-контракты={len(self._cached_output_contracts)}"
                 )
@@ -72,7 +72,7 @@ class BaseSkill(BaseComponent):
                 import logging
                 logging.getLogger(__name__).info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
-                    f"Загружено: промпты={len(self._cached_prompts)}, "
+                    f"Загружено: промпты={len(self.prompts)}, "
                     f"input-контракты={len(self._cached_input_contracts)}, "
                     f"output-контракты={len(self._cached_output_contracts)}"
                 )
@@ -142,7 +142,7 @@ class BaseSkill(BaseComponent):
                 cap_name = f"{self.name}.{cap.name}"
                 
                 # Проверка наличия промпта для capability
-                if cap_name not in self._cached_prompts:
+                if cap_name not in self.prompts:
                     self.logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет промпта"
                     )

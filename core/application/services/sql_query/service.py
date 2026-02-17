@@ -140,7 +140,7 @@ class SQLQueryService(BaseService):
         max_rows: int = 50
     ) -> DBQueryResult:
         """
-        Безопасное выполнение готового SQL-запроса с валидацией.
+        Безопасное выполнение готового SQL-запроса через SQLTool.
 
         ПАРАМЕТРЫ:
         - sql_query: готовый SQL-запрос для выполнения
@@ -150,8 +150,30 @@ class SQLQueryService(BaseService):
         ВОЗВРАЩАЕТ:
         - DBQueryResult: результат выполнения запроса
         """
+        from core.models.data.execution import ExecutionContext
+        from core.application.tools.sql_tool import SQLToolInput
+        
         try:
-            # Валидация SQL-запроса через централизованный SQLValidatorService
+            # === ЭТАП 1: Валидация входных данных через схему ===
+            input_schema = self.get_cached_input_schema_safe("sql_query_service.execute")
+            if input_schema:
+                try:
+                    input_schema.model_validate({
+                        "sql": sql_query,
+                        "parameters": parameters,
+                        "max_rows": max_rows
+                    })
+                except Exception as e:
+                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                    return DBQueryResult(
+                        success=False,
+                        rows=[],
+                        columns=[],
+                        rowcount=0,
+                        error=f"Ошибка входных данных: {str(e)}"
+                    )
+
+            # === ЭТАП 2: Валидация SQL через SQLValidatorService ===
             if not hasattr(self, 'sql_validator_service_instance') or not self.sql_validator_service_instance:
                 return DBQueryResult(
                     success=False,
@@ -161,65 +183,65 @@ class SQLQueryService(BaseService):
                     error="SQLValidatorService не доступен"
                 )
 
-            # Проверяем, являются ли параметры списком или кортежем
-            if isinstance(parameters, (list, tuple)):
-                # Если параметры переданы как список/кортеж, создаем временный словарь для валидации
-                # используя индекс как имя параметра (это безопасно для валидации)
-                temp_params_dict = {f"param_{i}": val for i, val in enumerate(parameters)}
-                validation_result = await self.sql_validator_service_instance.validate_query(
-                    sql_query,
-                    temp_params_dict
-                )
+            # Валидируем запрос
+            validation_result = await self.sql_validator_service_instance.validate_query(
+                sql_query,
+                parameters or {}
+            )
 
-                # После валидации используем оригинальные позиционные параметры
-                validated_query = validation_result.sql
-                positional_params = list(parameters)  # преобразуем в список для единообразия
-            else:
-                # Если параметры уже в формате словаря, используем их напрямую
-                validation_result = await self.sql_validator_service_instance.validate_query(
-                    sql_query,
-                    parameters or {}
-                )
-
-                if not validation_result.is_valid:
-                    return DBQueryResult(
-                        success=False,
-                        rows=[],
-                        columns=[],
-                        rowcount=0,
-                        error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
-                    )
-
-                # Преобразуем именованные параметры в позиционные для PostgreSQL
-                positional_params = []
-                validated_query = validation_result.sql
-
-                # Заменяем именованные параметры ($param) на позиционные ($1, $2, ...)
-                param_names = list(validation_result.parameters.keys())
-                for i, param_name in enumerate(param_names):
-                    validated_query = validated_query.replace(f"${param_name}", f"${i+1}")
-
-                # Создаем позиционный список параметров
-                positional_params = [validation_result.parameters[name] for name in param_names]
-
-            # Выполнение безопасного запроса через DB провайдер из infrastructure_context
-            db_provider = self.application_context.infrastructure_context.get_provider("default_db")
-            if not db_provider:
+            if not validation_result.is_valid:
                 return DBQueryResult(
                     success=False,
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error="DB провайдер не доступен"
+                    error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
                 )
 
-            execution_result = await db_provider.execute(
-                query=validated_query,
-                params=positional_params,
-                max_rows=max_rows
+            # === ЭТАП 3: Выполнение через SQLTool через ActionExecutor ===
+            # Используем executor для вызова инструмента
+            exec_context = ExecutionContext()
+            
+            tool_result = await self.executor.execute_action(
+                action_name="sql_tool.execute_query",
+                parameters={
+                    "sql": validation_result.sql,
+                    "parameters": parameters,
+                    "max_rows": max_rows
+                },
+                context=exec_context
             )
 
-            return execution_result
+            # === ЭТАП 4: Валидация выходных данных через схему ===
+            output_schema = self.get_cached_output_schema_safe("sql_query_service.execute")
+            if output_schema and tool_result.success and tool_result.data:
+                try:
+                    output_schema.model_validate({
+                        "rows": tool_result.data.get('rows', []),
+                        "columns": tool_result.data.get('columns', []),
+                        "rowcount": tool_result.data.get('rowcount', 0),
+                        "execution_time": tool_result.data.get('execution_time', 0)
+                    })
+                except Exception as e:
+                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+
+            # Преобразуем результат в DBQueryResult
+            if tool_result.success and tool_result.data:
+                return DBQueryResult(
+                    success=True,
+                    rows=tool_result.data.get('rows', []),
+                    columns=tool_result.data.get('columns', []),
+                    rowcount=tool_result.data.get('rowcount', 0),
+                    execution_time=tool_result.data.get('execution_time', 0)
+                )
+            else:
+                return DBQueryResult(
+                    success=False,
+                    rows=[],
+                    columns=[],
+                    rowcount=0,
+                    error=tool_result.error or "Неизвестная ошибка при выполнении запроса"
+                )
 
         except Exception as e:
             self.logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)

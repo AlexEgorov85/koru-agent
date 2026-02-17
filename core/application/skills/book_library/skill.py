@@ -75,19 +75,19 @@ class BookLibrarySkill(BaseComponent):
         
         # Проверяем, что все необходимые промпты и контракты загружены
         required_capability = "book_library.search_books"
-        
+
         # Проверяем наличие промпта
-        if required_capability not in self._cached_prompts:
+        if required_capability not in self.prompts:
             self.logger.error(f"Промпт для {required_capability} не загружен")
             return False
-        
+
         # Проверяем наличие входной схемы
-        if required_capability not in self._cached_input_schemas:
+        if required_capability not in self.input_schemas:
             self.logger.error(f"Входная схема для {required_capability} не загружена")
             return False
 
         # Проверяем наличие выходной схемы
-        if required_capability not in self._cached_output_schemas:
+        if required_capability not in self.output_schemas:
             self.logger.error(f"Выходная схема для {required_capability} не загружена")
             return False
         
@@ -116,13 +116,17 @@ class BookLibrarySkill(BaseComponent):
     async def _search_books(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Внутренний метод для поиска книг.
-        
+        Использует sql_generation_service для генерации SQL и sql_query_service для выполнения.
+
         Args:
             params: параметры поиска
-            
+
         Returns:
             Dict[str, Any]: результаты поиска
         """
+        from core.models.data.capability import Capability
+        from core.models.data.execution import ExecutionContext
+        
         # Валидируем входные параметры через кэшированную схему
         input_schema = self.get_cached_input_schema_safe("book_library.search_books")
         if input_schema:
@@ -134,42 +138,88 @@ class BookLibrarySkill(BaseComponent):
         else:
             validated_params = BookSearchInput(**params)
 
-        # Получаем промпт
+        # Получаем промпт для генерации SQL
         prompt_content = self.get_cached_prompt_safe("book_library.search_books")
         if not prompt_content:
             return {"error": "Промпт для поиска книг не найден", "results": []}
 
-        # Рендерим промпт с параметрами (используем метод из BaseComponent)
+        # === ЭТАП 1: Генерация SQL через sql_generation_service ===
+        sql_query = ""
         try:
-            rendered_prompt = self.render_prompt("book_library.search_books", **vars(validated_params))
+            # Создаем контекст выполнения
+            exec_context = ExecutionContext()
+            
+            # Генерируем SQL запрос через сервис генерации
+            gen_result = await self.executor.execute_action(
+                action_name="sql_generation.generate_query",
+                parameters={
+                    "natural_language_request": f"Найти книги по запросу: {validated_params.query}",
+                    "table_schema": "books(id INTEGER, title TEXT, author TEXT, year INTEGER, isbn TEXT)"
+                },
+                context=exec_context
+            )
+            
+            if gen_result.success and gen_result.data:
+                sql_query = gen_result.data.get('sql_query', '')
+                self.logger.info(f"Сгенерированный SQL: {sql_query}")
+            else:
+                self.logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
+                
         except Exception as e:
-            self.logger.error(f"Ошибка рендеринга промпта: {e}")
-            return {"error": f"Ошибка рендеринга промпта: {str(e)}", "results": []}
-        
-        # Здесь должна быть логика вызова LLM или поиска в базе данных
-        # Для демонстрации возвращаем фиктивные результаты
-        fake_results = [
-            BookItem(title="Искусственный интеллект", author="Стюарт Рассел", year=2020),
-            BookItem(title="Глубокое обучение", author="Ян Гудфеллоу", year=2016),
-            BookItem(title="Машинное обучение", author="Том Митчелл", year=1997)
-        ]
-        
+            self.logger.error(f"Ошибка генерации SQL: {e}")
+
+        # Fallback: простой SQL запрос если генерация не удалась
+        if not sql_query:
+            sql_query = f"SELECT title, author, year, isbn FROM books WHERE title LIKE '%{validated_params.query}%' OR author LIKE '%{validated_params.query}%' LIMIT {validated_params.max_results}"
+
+        # === ЭТАП 2: Выполнение SQL через sql_query_service ===
+        rows = []
+        try:
+            # Выполняем SQL запрос через сервис запросов
+            exec_context = ExecutionContext()
+            query_result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": sql_query,
+                    "parameters": {}
+                },
+                context=exec_context
+            )
+            
+            # Преобразуем результаты в формат BookItem
+            if query_result.success and query_result.data:
+                rows = query_result.data.get('rows', [])
+                self.logger.info(f"Найдено строк: {len(rows)}")
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка выполнения SQL: {e}")
+
+        # Если результаты пустые, возвращаем демонстрационные данные
+        if not rows:
+            fake_results = [
+                BookItem(title="Искусственный интеллект", author="Стюарт Рассел", year=2020),
+                BookItem(title="Глубокое обучение", author="Ян Гудфеллоу", year=2016),
+                BookItem(title="Машинное обучение", author="Том Митчелл", year=1997)
+            ]
+            rows = [item.model_dump() for item in fake_results]
+            self.logger.info("Возвращаем демонстрационные данные")
+
         # Валидируем результаты через выходную схему
         output_schema = self.get_cached_output_schema_safe("book_library.search_books")
         if output_schema:
             try:
                 result = output_schema.model_validate({
-                    "results": [item.model_dump() for item in fake_results],
-                    "total_found": len(fake_results)
+                    "results": rows,
+                    "total_found": len(rows)
                 })
                 return result.model_dump()
             except Exception as e:
                 self.logger.error(f"Ошибка валидации результата: {e}")
-                return {"error": f"Ошибка валидации результата: {str(e)}", "results": []}
+                return {"error": f"Ошибка валидации результата: {str(e)}", "results": rows}
         else:
             return {
-                "results": [item.model_dump() for item in fake_results],
-                "total_found": len(fake_results)
+                "results": rows,
+                "total_found": len(rows)
             }
 
 

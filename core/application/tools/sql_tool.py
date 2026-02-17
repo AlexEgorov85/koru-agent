@@ -62,6 +62,24 @@ class SQLTool(BaseTool):
 
     async def execute_specific(self, input_data: SQLToolInput) -> SQLToolOutput:
         """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима."""
+        # === ЭТАП 1: Валидация входных данных через схему ===
+        input_schema = self.get_cached_input_schema_safe("sql_tool.execute_query")
+        if input_schema:
+            try:
+                input_schema.model_validate({
+                    "sql": input_data.sql,
+                    "parameters": input_data.parameters,
+                    "max_rows": input_data.max_rows
+                })
+            except Exception as e:
+                self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                return SQLToolOutput(
+                    rows=[],
+                    columns=[],
+                    rowcount=0,
+                    execution_time=0
+                )
+        
         start_time = time.time()
 
         # Запрашиваем зависимости из инфраструктуры при выполнении
@@ -95,12 +113,27 @@ class SQLTool(BaseTool):
 
         execution_time = time.time() - start_time
 
-        return SQLToolOutput(
+        output = SQLToolOutput(
             rows=result.rows,
             columns=result.columns,
             rowcount=result.rowcount,
             execution_time=execution_time
         )
+
+        # === ЭТАП 2: Валидация выходных данных через схему ===
+        output_schema = self.get_cached_output_schema_safe("sql_tool.execute_query")
+        if output_schema:
+            try:
+                output_schema.model_validate({
+                    "rows": output.rows,
+                    "columns": output.columns,
+                    "rowcount": output.rowcount,
+                    "execution_time": output.execution_time
+                })
+            except Exception as e:
+                self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+
+        return output
     
     # Also preserve the original execute method for backward compatibility
     async def execute(self, input_data: SQLToolInput = None, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None):
