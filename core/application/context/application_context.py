@@ -146,7 +146,7 @@ class ApplicationContext(BaseSystemContext):
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
         self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
-        
+
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
@@ -376,6 +376,7 @@ class ApplicationContext(BaseSystemContext):
         Предзагрузка ресурсов через новый репозиторий.
         Компоненты будут получать готовые объекты при инициализации.
         """
+        self.logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
         # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
         self._prompt_cache = {}  # Dict[(capability, version), Prompt]
 
@@ -422,14 +423,18 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
         # Загружаем контракты из компонентных конфигураций и заполняем resolved_*
+        self.logger.info(f"_preload_resources_via_repository: Начало загрузки контрактов из компонентных конфигураций")
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
+            self.logger.info(f"_preload_resources_via_repository: Обработка {comp_type_attr}")
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
+                self.logger.info(f"_preload_resources_via_repository: {comp_type_attr} содержит {len(comp_configs)} компонентов: {list(comp_configs.keys())}")
                 for comp_name, comp_config in comp_configs.items():
+                    self.logger.info(f"_preload_resources_via_repository: Обработка {comp_name}, input_contract_versions={getattr(comp_config, 'input_contract_versions', {})}")
                     if hasattr(comp_config, 'input_contract_versions'):
                         for cap_key, ver in comp_config.input_contract_versions.items():
                             cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.input') else cap_key
-                            
+
                             # Загружаем схему в кэш
                             if (cap, ver) not in self._input_contract_schema_cache:
                                 try:
@@ -437,11 +442,12 @@ class ApplicationContext(BaseSystemContext):
                                     self._input_contract_schema_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
-                            
+
                             # Заполняем resolved_input_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "input")
                                 comp_config.resolved_input_contracts[cap] = contract.schema_data
+                                self.logger.info(f"Загружен входной контракт {cap}@{ver} для {comp_name}")
                             except Exception as e:
                                 self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
 
@@ -663,6 +669,7 @@ class ApplicationContext(BaseSystemContext):
         Инициализация компонентов с учетом зависимостей.
         Использует топологическую сортировку для правильного порядка инициализации.
         """
+        self.logger.info("=== НАЧАЛО _initialize_components_with_dependencies ===")
         from core.application.context.application_context import ComponentType
         from collections import defaultdict, deque
 
@@ -1033,15 +1040,15 @@ class ApplicationContext(BaseSystemContext):
                         # Загружаем через хранилище, чтобы получить правильный объект Contract
                         contract_obj = await contract_repository.load(capability, version, "input")
                         
-                        # Для контрактов пока не проверяем статус, но можно добавить в будущем
-                        # В продакшне можно добавить проверки на соответствие определенным критериям
+                        # Для контрактов пока не про��еряем статус, но можно добавить в буду��ем
+                        # В продакшне можно добавить проверки на соответствие определенным критер��ям
                         
                     except Exception as e:
                         self.logger.error(
                             f"Не удалось загрузить входной контракт {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
-                        # Если не удалось загрузить контракт, в проде - не разрешаем
+                        # Если не удалось ��агрузить контракт, в проде - не разрешаем
                         if self.profile == "prod":
                             return False
             except Exception:
@@ -1049,7 +1056,7 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию в��одных контрактов")
                 pass
 
-        # Валидация выходных контрактов
+        # Валидация выходных ко��тра��тов
         if output_contract_versions:
             try:
                 contract_repository = self.infrastructure_context.get_contract_storage()

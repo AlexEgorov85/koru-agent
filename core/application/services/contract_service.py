@@ -24,8 +24,13 @@ class ContractService(BaseService):
         component_config: ComponentConfig = None,
         executor = None  # Добавляем executor для совместимости с новой архитектурой
     ):
-        # Call the parent constructor with proper parameters
-        super().__init__(name, application_context, component_config, executor)
+        # Call the parent constructor with proper parameters - передаём component_config явно
+        super().__init__(
+            name=name,
+            application_context=application_context,
+            component_config=component_config,  # ← Передаём напрямую!
+            executor=executor
+        )
         # Кэш: {(capability, direction): schema}
         self._cached_contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
     

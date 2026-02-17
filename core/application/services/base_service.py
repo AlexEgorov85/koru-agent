@@ -45,21 +45,27 @@ class BaseService(BaseComponent):
         """
         pass
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, executor=None):
+    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, executor=None, component_config: Optional['ComponentConfig'] = None):
         """
         Инициализация базового сервиса.
 
         ARGS:
         - name: имя сервиса
         - application_context: прикладной контекст для доступа к ресурсам
-        - app_config: конфигурация приложения (AppConfig)
+        - app_config: конфигурация приложения (AppConfig) [устаревший параметр]
         - executor: ActionExecutor для взаимодействия между компонентами
+        - component_config: конфигурация компонента (ComponentConfig) [новый параметр]
         """
         # Для обратной совместимости с существующими сервисами,
         # преобразуем AppConfig в ComponentConfig
         from core.config.component_config import ComponentConfig
-        if app_config is not None:
-            # Создаем ComponentConfig из AppConfig
+        
+        # Новый путь: используем переданный component_config напрямую
+        if component_config is not None and isinstance(component_config, ComponentConfig):
+            # Используем существующий component_config (новый путь)
+            pass
+        elif app_config is not None:
+            # Создаем ComponentConfig из AppConfig (старый путь)
             component_config = ComponentConfig(
                 variant_id=getattr(app_config, 'config_id', f"service_{name}"),
                 prompt_versions=getattr(app_config, 'prompt_versions', {}),
