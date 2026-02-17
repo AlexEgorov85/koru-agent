@@ -1,1 +1,332 @@
-# 🚀 Руководство по развёртыванию Agent_v5> **Версия:** 5.1.0> **Дата обновления:** 2026-02-17> **Статус:** approved> **Владелец:** @system---## 📋 Оглавление- [Обзор](#-обзор)- [Требования](#-требования)- [Установка](#-установка)- [Конфигурация](#-конфигурация)- [Запуск](#-запуск)- [Развёртывание в production](#-развёртывание-в-production)- [Мониторинг](#-мониторинг)- [Масштабирование](#-масштабирование)---## 🔍 ОбзорРуководство описывает процесс развёртывания Agent_v5 в различных окружениях: от локальной разработки до production-кластера.### Назначение- **Локальная разработка**: Быстрый старт для разработчиков- **Тестирование**: Развёртывание тестового окружения- **Production**: Надёжное развёртывание с мониторингом### Ключевые возможности- ✅ **Docker**: Контейнеризация для консистентности- ✅ **Профили**: Разные конфигурации для dev/test/prod- ✅ **Масштабирование**: Горизонтальное масштабирование агентов- ✅ **Мониторинг**: Метрики, логи, трейсинг---## 📦 Требования### Минимальные требования| Компонент | Требование ||-----------|------------|| **CPU** | 4 ядра || **RAM** | 8 ГБ || **Disk** | 10 ГБ || **Python** | 3.10+ |### Рекомендуемые требования| Компонент | Требование ||-----------|------------|| **CPU** | 8+ ядер || **RAM** | 16+ ГБ || **Disk** | 50+ ГБ SSD || **GPU** | NVIDIA с 8+ ГБ VRAM (опционально) |### Зависимости```bash# Python зависимостиpython >= 3.10pip >= 22.0# Системные зависимости (Ubuntu/Debian)build-essentiallibpq-devpython3-devlibsqlite3-dev# Для LLM провайдеровcmakecuda-toolkit (опционально)```---## 🛠️ Установка### Клонирование репозитория```bashgit clone <repository_url>cd Agent_v5```### Создание виртуального окружения```bash# Созданиеpython -m venv venv# Активация (Linux/macOS)source venv/bin/activate# Активация (Windows)venv\Scripts\activate```### Установка зависимостей```bash# Базовые зависимостиpip install -r requirements.txt# Зависимости для разработкиpip install -r requirements-dev.txt# Зависимости для productionpip install -r requirements-prod.txt```### Структура зависимостей```txt# requirements.txtpydantic>=2.0.0pyyaml>=6.0aiohttp>=3.8.0sqlalchemy>=2.0.0psycopg2-binary>=2.9.0# requirements-dev.txt-r requirements.txtpytest>=7.0.0pytest-asyncio>=0.21.0pytest-cov>=4.0.0black>=23.0.0ruff>=0.1.0mypy>=1.0.0# requirements-prod.txt-r requirements.txtgunicorn>=21.0.0uvicorn>=0.23.0prometheus-client>=0.17.0structlog>=23.0.0```---## ⚙️ Конфигурация### Базовая настройка```bash# Копирование шаблона конфигурацииcp .env.example .env# Редактирование конфигурацииnano .env```### Пример .env```bash# .env# Профиль окруженияAGENT_PROFILE=prod# База данныхDB_HOST=localhostDB_PORT=5432DB_NAME=agent_dbDB_USER=agentDB_PASSWORD=secure_password_here# LLM провайдерLLM_PROVIDER_TYPE=vllmLLM_MODEL=mistral-7b-instruct-v0.2LLM_API_KEY=your_api_key# ЛогированиеLOG_LEVEL=INFOLOG_DIR=/var/log/agent# БезопасностьSECRET_KEY=generate_secure_random_stringSANDBOX_MODE=false```### Конфигурация профилей```bash# Developmentcp core/config/defaults/dev.yaml core/config/defaults/local.yaml# Productioncp core/config/defaults/prod.yaml core/config/defaults/production.yaml```### Валидация конфигурации```bash# Проверка registry.yamlpython scripts/validate_registry.py# Проверка манифестовpython scripts/validate_all_manifests.py# Проверка YAML-синтаксисаpython scripts/check_yaml_syntax.py```---## ▶️ Запуск### Локальный запуск```bash# Базовый запускpython main.py# Запуск с вопросомpython main.py "Проанализируй рынок ИИ"# Запуск с профилемpython main.py --profile=dev# Запуск с отладкойpython main.py --debug --log-level=DEBUG# Запуск с ограничением шаговpython main.py --max-steps=5```### Запуск через скрипт```bash# Скрипт запуска агентаpython run_agent.py# С кастомной конфигурациейpython run_agent.py --config=./configs/production.yaml```### Запуск тестов```bash# Все тестыpython -m pytest tests/ -v# Юнит-тестыpython -m pytest tests/unit/ -v# Интеграционные тестыpython -m pytest tests/integration/ -v# С покрытиемpython -m pytest tests/ --cov=core --cov-report=html```### Docker запуск```bash# Сборка образаdocker build -t agent_v5:latest .# Запуск контейнераdocker run -it --rm \  -e AGENT_PROFILE=prod \  -e DB_HOST=db \  -e DB_PASSWORD=secret \  agent_v5:latest# С томами для данныхdocker run -it --rm \  -v $(pwd)/data:/app/data \  -v $(pwd)/logs:/app/logs \  agent_v5:latest```### Docker Compose```yaml# docker-compose.yamlversion: '3.8'services:  agent:    build: .    environment:      - AGENT_PROFILE=prod      - DB_HOST=db      - DB_PASSWORD=${DB_PASSWORD}    volumes:      - ./data:/app/data      - ./logs:/app/logs    depends_on:      - db  db:    image: postgres:15    environment:      - POSTGRES_DB=agent_db      - POSTGRES_USER=agent      - POSTGRES_PASSWORD=${DB_PASSWORD}    volumes:      - postgres_data:/var/lib/postgresql/datavolumes:  postgres_data:``````bash# Запуск через docker-composedocker-compose up -d# Просмотр логовdocker-compose logs -f agent# Остановкаdocker-compose down```---## 🌐 Развёртывание в production### Подготовка сервера```bash# Обновление системыsudo apt update && sudo apt upgrade -y# Установка зависимостейsudo apt install -y python3.10 python3.10-venv python3-pipsudo apt install -y postgresql-client libpq-devsudo apt install -y nginx supervisor# Создание пользователяsudo useradd -m -s /bin/bash agentsudo su - agent```### Установка приложения```bash# Клонированиеgit clone <repository_url> ~/agent_v5cd ~/agent_v5# Виртуальное окружениеpython3 -m venv venvsource venv/bin/activate# Установка зависимостейpip install -r requirements-prod.txt```### Настройка базы данных```bash# Создание БДsudo -u postgres psql << EOFCREATE DATABASE agent_db;CREATE USER agent WITH PASSWORD 'secure_password';GRANT ALL PRIVILEGES ON DATABASE agent_db TO agent;EOF```### Настройка supervisor```ini# /etc/supervisor/conf.d/agent.conf[program:agent]command=/home/agent/agent_v5/venv/bin/python /home/agent/agent_v5/main.pydirectory=/home/agent/agent_v5user=agentautostart=trueautorestart=trueredirect_stderr=truestdout_logfile=/var/log/agent/agent.out.logstderr_logfile=/var/log/agent/agent.err.logenvironment=AGENT_PROFILE="prod",DB_HOST="localhost"``````bash# Перезапуск supervisorsudo supervisorctl rereadsudo supervisorctl updatesudo supervisorctl start agent```### Настройка nginx```nginx# /etc/nginx/sites-available/agentserver {    listen 80;    server_name agent.example.com;    location / {        proxy_pass http://127.0.0.1:8000;        proxy_set_header Host $host;        proxy_set_header X-Real-IP $remote_addr;        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;    }    location /health {        return 200 'OK';        add_header Content-Type text/plain;    }}``````bash# Включение конфигурацииsudo ln -s /etc/nginx/sites-available/agent /etc/nginx/sites-enabled/sudo nginx -tsudo systemctl reload nginx```### SSL/TLS настройка```bash# Установка certbotsudo apt install -y certbot python3-certbot-nginx# Получение сертификатаsudo certbot --nginx -d agent.example.com# Автообновлениеsudo systemctl enable certbot.timer```---## 📊 Мониторинг### Логирование```python# Структурированное логированиеimport structloglogger = structlog.get_logger()logger.info(    "agent_step_executed",    step_id=step_id,    capability=capability,    duration_ms=duration)```### Настройка логирования```yaml# logging.yamlversion: 1formatters:  json:    class: pythonjsonlogger.jsonlogger.JsonFormatter    format: "%(asctime)s %(name)s %(levelname)s %(message)s"handlers:  console:    class: logging.StreamHandler    formatter: json    level: INFO  file:    class: logging.handlers.RotatingFileHandler    formatter: json    level: DEBUG    filename: /var/log/agent/agent.log    maxBytes: 10485760    backupCount: 5root:  level: INFO  handlers: [console, file]```### Метрики```pythonfrom prometheus_client import Counter, Histogram, Gauge# МетрикиAGENT_STEPS = Counter('agent_steps_total', 'Total agent steps', ['capability'])STEP_DURATION = Histogram('agent_step_duration_seconds', 'Step duration')ACTIVE_AGENTS = Gauge('active_agents', 'Number of active agents')# Обновление метрик@STEP_DURATION.time()async def execute_step(capability: str):    AGENT_STEPS.labels(capability=capability).inc()    # ... логика шага```### Health checks```pythonfrom fastapi import FastAPIapp = FastAPI()@app.get("/health")async def health_check():    return {        "status": "healthy",        "version": "5.1.0",        "profile": config.profile    }@app.get("/ready")async def readiness_check():    # Проверка зависимостей    db_ok = await check_database()    llm_ok = await check_llm_provider()    return {        "ready": db_ok and llm_ok,        "database": db_ok,        "llm": llm_ok    }```---## 📈 Масштабирование### Горизонтальное масштабирование```mermaidgraph LR    LB[Load Balancer]    LB --> A1[Agent Instance 1]    LB --> A2[Agent Instance 2]    LB --> A3[Agent Instance 3]    A1 --> DB[(Shared Database)]    A2 --> DB    A3 --> DB    A1 --> Redis[(Shared Cache)]    A2 --> Redis    A3 --> Redis```### Kubernetes развёртывание```yaml# k8s/deployment.yamlapiVersion: apps/v1kind: Deploymentmetadata:  name: agent-v5spec:  replicas: 3  selector:    matchLabels:      app: agent-v5  template:    metadata:      labels:        app: agent-v5    spec:      containers:      - name: agent        image: agent_v5:latest        env:        - name: AGENT_PROFILE          value: "prod"        - name: DB_HOST          valueFrom:            secretKeyRef:              name: db-secret              key: host        resources:          requests:            memory: "1Gi"            cpu: "500m"          limits:            memory: "2Gi"            cpu: "1000m"        livenessProbe:          httpGet:            path: /health            port: 8000          initialDelaySeconds: 30          periodSeconds: 10``````yaml# k8s/service.yamlapiVersion: v1kind: Servicemetadata:  name: agent-v5-servicespec:  selector:    app: agent-v5  ports:  - port: 80    targetPort: 8000  type: LoadBalancer```### Автоскейлинг```yaml# k8s/hpa.yamlapiVersion: autoscaling/v2kind: HorizontalPodAutoscalermetadata:  name: agent-v5-hpaspec:  scaleTargetRef:    apiVersion: apps/v1    kind: Deployment    name: agent-v5  minReplicas: 2  maxReplicas: 10  metrics:  - type: Resource    resource:      name: cpu      target:        type: Utilization        averageUtilization: 70  - type: Resource    resource:      name: memory      target:        type: Utilization        averageUtilization: 80```---## 🔧 Troubleshooting### Частые проблемы| Проблема | Решение ||----------|---------|| **Ошибка подключения к БД** | Проверьте переменные окружения DB_* || **Модель LLM не загружается** | Проверьте путь к модели и доступную память || **Агент не отвечает** | Проверьте логи в /var/log/agent/ || **Высокое потребление памяти** | Уменьшите n_ctx или увеличьте лимиты |### Диагностика```bash# Проверка статусаsudo supervisorctl status agent# Просмотр логовtail -f /var/log/agent/agent.log# Проверка портовnetstat -tlnp | grep :8000# Проверка памятиps aux | grep agent# Проверка БДpsql -h localhost -U agent -d agent_db -c "SELECT 1"```---## 🔗 Ссылки### Документы- [Конфигурация](./CONFIGURATION_MANUAL.md)- [Устранение неполадок](./TROUBLESHOOTING.md)- [Масштабируемость](./architecture/scalability.md)### Код- [main.py](../main.py)- [run_agent.py](../run_agent.py)- [config_loader.py](../core/config/config_loader.py)### Скрипты- [validate_registry.py](../scripts/validate_registry.py)---*Документ автоматически сгенерирован. Не редактируйте вручную.*
+# 🚀 Руководство по развёртыванию Agent_v5
+
+> **Версия:** 5.1.0
+> **Дата обновления:** 2026-02-17
+> **Статус:** approved
+> **Владелец:** @system
+
+---
+
+## 📋 Оглавление
+
+- [Обзор](#-обзор)
+- [Требования](#-требования)
+- [Установка](#-установка)
+- [Конфигурация](#-конфигурация)
+- [Запуск](#-запуск)
+- [Docker](#-docker)
+- [Production](#-production)
+- [Мониторинг](#-мониторинг)
+
+---
+
+## 🔍 Обзор
+
+Руководство по развёртыванию Agent_v5 в различных окружениях.
+
+---
+
+## 📦 Требования
+
+### Минимальные
+
+| Компонент | Требование |
+|-----------|------------|
+| **CPU** | 4 ядра |
+| **RAM** | 8 ГБ |
+| **Disk** | 10 ГБ |
+| **Python** | 3.10+ |
+
+### Рекомендуемые
+
+| Компонент | Требование |
+|-----------|------------|
+| **CPU** | 8+ ядер |
+| **RAM** | 16+ ГБ |
+| **Disk** | 50+ ГБ SSD |
+| **GPU** | NVIDIA 8+ ГБ VRAM (опционально) |
+
+---
+
+## 🛠️ Установка
+
+### Клонирование
+
+```bash
+git clone <repository_url>
+cd Agent_v5
+```
+
+### Виртуальное окружение
+
+```bash
+# Создание
+python -m venv venv
+
+# Активация (Linux/macOS)
+source venv/bin/activate
+
+# Активация (Windows)
+venv\Scripts\activate
+```
+
+### Зависимости
+
+```bash
+# Базовые
+pip install -r requirements.txt
+
+# Для разработки
+pip install -r requirements-dev.txt
+```
+
+---
+
+## ⚙️ Конфигурация
+
+### Базовая настройка
+
+```bash
+# Копирование шаблона
+cp .env.example .env
+
+# Редактирование
+nano .env
+```
+
+### Пример .env
+
+```bash
+# Профиль
+AGENT_PROFILE=prod
+
+# База данных
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=agent_db
+DB_USER=agent
+DB_PASSWORD=secure_password
+
+# LLM
+LLM_PROVIDER_TYPE=vllm
+LLM_MODEL=mistral-7b-instruct-v0.2
+
+# Логирование
+LOG_LEVEL=INFO
+LOG_DIR=/var/log/agent
+```
+
+### Валидация
+
+```bash
+python scripts/validate_registry.py
+python scripts/validate_all_manifests.py
+```
+
+---
+
+## ▶️ Запуск
+
+### Локальный
+
+```bash
+# Базовый
+python main.py
+
+# С вопросом
+python main.py "Проанализируй рынок ИИ"
+
+# С профилем
+python main.py --profile=dev
+
+# С отладкой
+python main.py --debug
+```
+
+### Тесты
+
+```bash
+# Все тесты
+python -m pytest tests/ -v
+
+# С покрытием
+python -m pytest tests/ --cov=core
+```
+
+---
+
+## 🐳 Docker
+
+### Сборка образа
+
+```bash
+docker build -t agent_v5:latest .
+```
+
+### Запуск контейнера
+
+```bash
+docker run -it --rm \
+  -e AGENT_PROFILE=prod \
+  -e DB_HOST=db \
+  -e DB_PASSWORD=secret \
+  agent_v5:latest
+```
+
+### Docker Compose
+
+```yaml
+# docker-compose.yaml
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    environment:
+      - AGENT_PROFILE=prod
+      - DB_HOST=db
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - db
+  
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=agent_db
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```bash
+# Запуск
+docker-compose up -d
+
+# Логи
+docker-compose logs -f agent
+```
+
+---
+
+## 🌐 Production
+
+### Подготовка сервера (Ubuntu)
+
+```bash
+# Обновление
+sudo apt update && sudo apt upgrade -y
+
+# Зависимости
+sudo apt install -y python3.10 python3.10-venv python3-pip
+sudo apt install -y postgresql-client nginx supervisor
+
+# Пользователь
+sudo useradd -m -s /bin/bash agent
+```
+
+### Установка приложения
+
+```bash
+# Клонирование
+git clone <repository_url> ~/agent_v5
+cd ~/agent_v5
+
+# Виртуальное окружение
+python3 -m venv venv
+source venv/bin/activate
+
+# Зависимости
+pip install -r requirements-prod.txt
+```
+
+### Настройка supervisor
+
+```ini
+# /etc/supervisor/conf.d/agent.conf
+[program:agent]
+command=/home/agent/agent_v5/venv/bin/python /home/agent/agent_v5/main.py
+directory=/home/agent/agent_v5
+user=agent
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/agent/agent.out.log
+```
+
+```bash
+# Перезапуск
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start agent
+```
+
+---
+
+## 📊 Мониторинг
+
+### Логирование
+
+```bash
+# Просмотр логов
+tail -f /var/log/agent/agent.log
+
+# Поиск ошибок
+grep -i error /var/log/agent/agent.log
+```
+
+### Health checks
+
+```python
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "version": "5.1.0"}
+```
+
+### Метрики
+
+```python
+from prometheus_client import Counter, Histogram
+
+AGENT_STEPS = Counter('agent_steps_total', 'Total steps', ['capability'])
+STEP_DURATION = Histogram('agent_step_duration_seconds', 'Step duration')
+```
+
+---
+
+## 🔧 Troubleshooting
+
+| Проблема | Решение |
+|----------|---------|
+| Ошибка подключения к БД | Проверьте переменные DB_* |
+| Модель LLM не загружается | Проверьте путь и память |
+| Агент не отвечает | Проверьте логи |
+| Высокое потребление памяти | Уменьшите n_ctx |
+
+### Диагностика
+
+```bash
+# Статус
+sudo supervisorctl status agent
+
+# Логи
+tail -f /var/log/agent/agent.log
+
+# Проверка БД
+psql -h localhost -U agent -d agent_db -c "SELECT 1"
+```
+
+---
+
+## 🔗 Ссылки
+
+- [Конфигурация](./CONFIGURATION_MANUAL.md)
+- [Устранение неполадок](./TROUBLESHOOTING.md)
+- [main.py](../main.py)
+
+---
+
+*Документ автоматически сгенерирован. Не редактируйте вручную.*

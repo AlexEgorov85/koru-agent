@@ -1,1 +1,286 @@
-# 🧩 Руководство по компонентам Agent_v5> **Версия:** 5.1.0> **Дата обновления:** 2026-02-17> **Статус:** approved> **Владелец:** @system---## 📋 Оглавление- [Обзор](#-обзор)- [Типы компонентов](#-типы-компонентов)- [Создание компонентов](#-создание-компонентов)- [Конфигурация](#-конфигурация)- [Ресурсы](#-ресурсы)- [Тестирование](#-тестирование)- [Справочник компонентов](#-справочник-компонентов)---## 🔍 ОбзорКомпоненты — строительные блоки системы Agent_v5. Каждый компонент инкапсулирует определённую функциональность и следует принципам изоляции, предзагрузки ресурсов и контрактной валидации.### Назначение- **Модульность**: Независимая разработка и тестирование- **Повторное использование**: Компоненты используются в разных агентах- **Версионирование**: Поддержка A/B тестирования и канареечных релизов- **Изоляция**: Каждый компонент имеет собственные кэши ресурсов### Ключевые возможности- ✅ **Базовый класс**: `BaseComponent` с предзагрузкой ресурсов- ✅ **Изолированные кэши**: Промпты и контракты на компонент- ✅ **Контрактная валидация**: Автоматическая проверка входных/выходных данных- ✅ **Горячая перезагрузка**: Обновление без перезапуска агента---## 📐 Типы компонентов### Сервисы (Services)**Назначение**: Бизнес-логика, интеграции с внешними системами```pythonfrom core.application.services.base_service import BaseServiceclass SQLGenerationService(BaseService):    """Генерация SQL-запросов по естественному языку"""    async def generate_query(        self,        natural_language: str,        schema: Dict    ) -> SQLQueryResult:        pass```**Примеры**:- `PromptService` — управление промптами- `ContractService` — управление контрактами- `SQLGenerationService` — генерация SQL- `SQLQueryService` — выполнение запросов- `TableDescriptionService` — описание таблиц### Навыки (Skills)**Назначение**: Высокоуровневые способности агента```pythonfrom core.application.skills.base_skill import BaseSkillclass PlanningSkill(BaseSkill):    """Создание планов выполнения задач"""    async def create_plan(        self,        goal: str,        context: Dict    ) -> Plan:        pass```**Примеры**:- `PlanningSkill` — планирование- `BookLibrarySkill` — работа с библиотекой книг- `FinalAnswerSkill` — формирование финального ответа- `DataAnalysisSkill` — анализ данных### Инструменты (Tools)**Назначение**: I/O операции, работа с внешними системами```pythonfrom core.application.tools.base_tool import BaseToolclass FileTool(BaseTool):    """Чтение/запись файлов"""    async def read_file(self, path: str) -> str:        pass    async def write_file(self, path: str, content: str) -> None:        pass```**Примеры**:- `FileTool` — файловые операции- `SQLTool` — выполнение SQL-запросов### Паттерны поведения (Behavior Patterns)**Назначение**: Логика поведения агента```pythonfrom core.application.behaviors.base_behavior import BehaviorPatternclass ReActPattern(BehaviorPattern):    """ReAct-цикл: think → act → observe"""    async def think(self, context: Dict) -> Thought:        pass    async def act(self, thought: Thought) -> Action:        pass    async def observe(self, action: Action) -> Observation:        pass```**Примеры**:- `ReActPattern` — цикл рассуждений- `PlanningPattern` — планирование- `EvaluationPattern` — оценка результатов- `FallbackPattern` — резервное поведение---## 🛠️ Создание компонентов### Шаг 1: Наследование от базового класса```pythonfrom core.components.base_component import BaseComponentfrom core.application.context.application_context import ApplicationContextfrom core.config.component_config import ComponentConfigclass MyComponent(BaseComponent):    """Мой компонент"""    def __init__(        self,        config: ComponentConfig,        application_context: ApplicationContext    ):        super().__init__(config, application_context)        # Дополнительная инициализация```### Шаг 2: Переопределение метода initialize```pythonasync def initialize(self) -> None:    """Предзагрузка ресурсов"""    await super().initialize()    # Дополнительная предзагрузка    self._custom_cache = await self._load_custom_data()```### Шаг 3: Реализация логики```pythonasync def execute(self, params: Dict) -> Dict:    """Выполнение компонента"""    # 1. Валидация входного контракта    self.validate_input(params)    # 2. Получение промта из кэша    prompt = self.get_prompt("my_component.execute")    # 3. Выполнение логики    result = await self._process(prompt, params)    # 4. Валидация выходного контракта    self.validate_output(result)    return result```### Шаг 4: Регистрация в реестре```yaml# registry.yamlservices:  my_service:    enabled: true    dependencies: []    prompt_versions:      my_service.execute: v1.0.0    input_contract_versions:      my_service.execute: v1.0.0    output_contract_versions:      my_service.execute: v1.0.0    manifest_path: data/manifests/services/my_service/manifest.yaml```---## ⚙️ Конфигурация### ComponentConfigКонфигурация компонента содержит версии ресурсов:```pythonclass ComponentConfig:    prompt_versions: Dict[str, str]    input_contract_versions: Dict[str, str]    output_contract_versions: Dict[str, str]    parameters: Dict[str, Any]    base_path: str  # Для изоляции файлового доступа```### Получение конфигурации```python# Внутри компонентаconfig = self.config# Доступ к параметрамmax_retries = self.config.parameters.get("max_retries", 3)base_path = self.config.base_path# Доступ к версиям ресурсовprompt_version = self.config.prompt_versions["my_component.execute"]```### Переопределение конфигурации```yaml# registry.yamlservices:  my_service:    parameters:      max_retries: 5      timeout: 30    # Переопределение версий (только для sandbox)    prompt_versions:      my_service.execute: v2.0.0-draft  # A/B тестирование```---## 📦 Ресурсы### Промпты```python# Получение промта из кэшаprompt_text = self.get_prompt("my_component.execute")# Безопасное получение с проверкойprompt_text = self.get_cached_prompt_safe("my_component.execute")```### Контракты```python# Входной контрактinput_schema = self.get_input_contract("my_component.execute")# Выходной контрактoutput_schema = self.get_output_contract("my_component.execute")# Валидацияself.validate_input(params)  # Проверка входных данныхself.validate_output(result)  # Проверка выходных данных```### Структура манифеста```yaml# data/manifests/services/my_service/manifest.yamlname: my_serviceversion: v1.0.0status: activedescription: Описание сервисаprompts:  - name: my_service.execute    version: v1.0.0    path: prompts/services/my_service/execute.txtcontracts:  input:    - name: my_service.execute      version: v1.0.0      path: contracts/services/my_service/input.json  output:    - name: my_service.execute      version: v1.0.0      path: contracts/services/my_service/output.json```---## 🧪 Тестирование### Юнит-тесты```pythonimport pytestfrom core.application.services.my_service import MyServicefrom core.config.component_config import ComponentConfig@pytest.mark.asyncioasync def test_my_service():    # Создание конфигурации    config = ComponentConfig(        prompt_versions={"my_service.execute": "v1.0.0"},        input_contract_versions={"my_service.execute": "v1.0.0"},        output_contract_versions={"my_service.execute": "v1.0.0"}    )    # Создание компонента    service = MyService(config, application_context)    await service.initialize()    # Выполнение теста    result = await service.execute({"param": "value"})    # Проверка результата    assert result is not None    assert "expected_field" in result```### Интеграционные тесты```python@pytest.mark.asyncioasync def test_my_service_integration():    # Создание ApplicationContext с реальными зависимостями    app_context = await create_test_application_context()    # Создание компонента    config = app_context.get_component_config("my_service")    service = MyService(config, app_context)    await service.initialize()    # Интеграционный тест    result = await service.execute({"query": "SELECT * FROM table"})    assert len(result) > 0```### Тесты изоляции```python@pytest.mark.asyncioasync def test_component_isolation():    # Создание двух компонентов с разными конфигурациями    config1 = ComponentConfig(base_path="/path1")    config2 = ComponentConfig(base_path="/path2")    component1 = MyService(config1, app_context1)    component2 = MyService(config2, app_context2)    await component1.initialize()    await component2.initialize()    # Проверка изоляции кэшей    assert component1._cached_prompts != component2._cached_prompts    # Проверка изоляции base_path    assert component1.config.base_path != component2.config.base_path```---## 📚 Справочник компонентов### Инфраструктурные компоненты| Компонент | Модуль | Описание ||-----------|--------|----------|| `InfrastructureContext` | `core.infrastructure.context` | Общий контекст инфраструктуры || `ProviderFactory` | `core.infrastructure.providers` | Фабрика провайдеров || `ResourceRegistry` | `core.infrastructure.storage` | Реестр ресурсов || `EventBus` | `core.infrastructure.event_bus` | Шина событий |### Прикладные компоненты| Компонент | Модуль | Описание ||-----------|--------|----------|| `ApplicationContext` | `core.application.context` | Контекст приложения || `ComponentRegistry` | `core.application.components` | Реестр компонентов || `BehaviorManager` | `core.application.agent.components` | Управление поведениями |### Сервисы| Компонент | Модуль | Описание ||-----------|--------|----------|| `PromptService` | `core.application.services` | Управление промптами || `ContractService` | `core.application.services` | Управление контрактами || `SQLGenerationService` | `core.application.services.sql_generation` | Генерация SQL || `SQLQueryService` | `core.application.services.sql_query` | Выполнение SQL || `SQLValidatorService` | `core.application.services.sql_validator` | Валидация SQL || `TableDescriptionService` | `core.application.services` | Описание таблиц |### Навыки| Компонент | Модуль | Описание ||-----------|--------|----------|| `PlanningSkill` | `core.application.skills.planning` | Планирование || `BookLibrarySkill` | `core.application.skills.book_library` | Библиотека книг || `FinalAnswerSkill` | `core.application.skills.final_answer` | Финальный ответ || `DataAnalysisSkill` | `core.application.skills.data_analysis` | Анализ данных |### Инструменты| Компонент | Модуль | Описание ||-----------|--------|----------|| `FileTool` | `core.application.tools` | Файловые операции || `SQLTool` | `core.application.tools` | SQL-запросы |### Паттерны поведения| Компонент | Модуль | Описание ||-----------|--------|----------|| `ReActPattern` | `core.application.behaviors.react` | ReAct-цикл || `PlanningPattern` | `core.application.behaviors.planning` | Планирование || `EvaluationPattern` | `core.application.behaviors.evaluation` | Оценка || `FallbackPattern` | `core.application.behaviors.fallback` | Резервное поведение |---## 🔗 Ссылки### Документы- [Обзор архитектуры](./ARCHITECTURE_OVERVIEW.md)- [Конфигурация](./CONFIGURATION_MANUAL.md)- [API Reference](./API_REFERENCE.md)### Код- [BaseComponent](../core/components/base_component.py)- [BaseService](../core/application/services/base_service.py)- [BaseSkill](../core/application/skills/base_skill.py)- [BaseTool](../core/application/tools/base_tool.py)### Примеры- [Примеры компонентов](../examples/)- [Тесты компонентов](../tests/)---*Документ автоматически сгенерирован. Не редактируйте вручную.*
+# 🧩 Руководство по компонентам Agent_v5
+
+> **Версия:** 5.1.0
+> **Дата обновления:** 2026-02-17
+> **Статус:** approved
+> **Владелец:** @system
+
+---
+
+## 📋 Оглавление
+
+- [Обзор](#-обзор)
+- [Типы компонентов](#-типы-компонентов)
+- [Создание компонентов](#-создание-компонентов)
+- [Конфигурация](#-конфигурация)
+- [Ресурсы](#-ресурсы)
+- [Тестирование](#-тестирование)
+- [Справочник компонентов](#-справочник-компонентов)
+
+---
+
+## 🔍 Обзор
+
+Компоненты — строительные блоки системы Agent_v5.
+
+### Назначение
+
+- **Модульность**: Независимая разработка и тестирование
+- **Повторное использование**: Компоненты в разных агентах
+- **Версионирование**: Поддержка A/B тестирования
+- **Изоляция**: Собственные кэши ресурсов
+
+---
+
+## 📐 Типы компонентов
+
+### Сервисы (Services)
+
+Бизнес-логика, интеграции с внешними системами.
+
+```python
+from core.application.services.base_service import BaseService
+
+class SQLGenerationService(BaseService):
+    async def generate_query(self, natural_language: str, schema: Dict) -> SQLQueryResult:
+        pass
+```
+
+**Примеры**: `PromptService`, `ContractService`, `SQLGenerationService`, `SQLQueryService`
+
+### Навыки (Skills)
+
+Высокоуровневые способности агента.
+
+```python
+from core.application.skills.base_skill import BaseSkill
+
+class PlanningSkill(BaseSkill):
+    async def create_plan(self, goal: str, context: Dict) -> Plan:
+        pass
+```
+
+**Примеры**: `PlanningSkill`, `BookLibrarySkill`, `FinalAnswerSkill`, `DataAnalysisSkill`
+
+### Инструменты (Tools)
+
+I/O операции, работа с внешними системами.
+
+```python
+from core.application.tools.base_tool import BaseTool
+
+class FileTool(BaseTool):
+    async def read_file(self, path: str) -> str:
+        pass
+```
+
+**Примеры**: `FileTool`, `SQLTool`
+
+### Паттерны поведения (Behavior Patterns)
+
+Логика поведения агента.
+
+```python
+from core.application.behaviors.base_behavior import BehaviorPattern
+
+class ReActPattern(BehaviorPattern):
+    async def think(self, context: Dict) -> Thought:
+        pass
+```
+
+**Примеры**: `ReActPattern`, `PlanningPattern`, `EvaluationPattern`, `FallbackPattern`
+
+---
+
+## 🛠️ Создание компонентов
+
+### Шаг 1: Наследование
+
+```python
+from core.components.base_component import BaseComponent
+
+class MyComponent(BaseComponent):
+    def __init__(self, config: ComponentConfig, application_context: ApplicationContext):
+        super().__init__(config, application_context)
+```
+
+### Шаг 2: Инициализация
+
+```python
+async def initialize(self) -> None:
+    await super().initialize()
+    # Дополнительная предзагрузка
+```
+
+### Шаг 3: Логика
+
+```python
+async def execute(self, params: Dict) -> Dict:
+    self.validate_input(params)
+    prompt = self.get_prompt("my_component.execute")
+    result = await self._process(prompt, params)
+    self.validate_output(result)
+    return result
+```
+
+### Шаг 4: Регистрация
+
+```yaml
+# registry.yaml
+services:
+  my_service:
+    enabled: true
+    dependencies: []
+    prompt_versions:
+      my_service.execute: v1.0.0
+    manifest_path: data/manifests/services/my_service/manifest.yaml
+```
+
+---
+
+## ⚙️ Конфигурация
+
+### ComponentConfig
+
+```python
+class ComponentConfig:
+    prompt_versions: Dict[str, str]
+    input_contract_versions: Dict[str, str]
+    output_contract_versions: Dict[str, str]
+    parameters: Dict[str, Any]
+    base_path: str  # Для изоляции файлового доступа
+```
+
+### Получение конфигурации
+
+```python
+# Внутри компонента
+config = self.config
+max_retries = self.config.parameters.get("max_retries", 3)
+prompt_version = self.config.prompt_versions["my_component.execute"]
+```
+
+---
+
+## 📦 Ресурсы
+
+### Промпты
+
+```python
+prompt_text = self.get_prompt("my_component.execute")
+```
+
+### Контракты
+
+```python
+input_schema = self.get_input_contract("my_component.execute")
+output_schema = self.get_output_contract("my_component.execute")
+self.validate_input(params)
+self.validate_output(result)
+```
+
+---
+
+## 🧪 Тестирование
+
+### Юнит-тесты
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_my_service():
+    config = ComponentConfig(
+        prompt_versions={"my_service.execute": "v1.0.0"}
+    )
+    service = MyService(config, application_context)
+    await service.initialize()
+    
+    result = await service.execute({"param": "value"})
+    assert result is not None
+```
+
+### Тесты изоляции
+
+```python
+@pytest.mark.asyncio
+async def test_component_isolation():
+    config1 = ComponentConfig(base_path="/path1")
+    config2 = ComponentConfig(base_path="/path2")
+    
+    component1 = MyService(config1, app_context1)
+    component2 = MyService(config2, app_context2)
+    
+    await component1.initialize()
+    await component2.initialize()
+    
+    assert component1._cached_prompts != component2._cached_prompts
+```
+
+---
+
+## 📚 Справочник компонентов
+
+### Инфраструктурные
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `InfrastructureContext` | `core.infrastructure.context` | Общий контекст |
+| `ProviderFactory` | `core.infrastructure.providers` | Фабрика провайдеров |
+| `ResourceRegistry` | `core.infrastructure.storage` | Реестр ресурсов |
+
+### Прикладные
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `ApplicationContext` | `core.application.context` | Контекст приложения |
+| `ComponentRegistry` | `core.application.components` | Реестр компонентов |
+| `BehaviorManager` | `core.application.agent.components` | Управление поведениями |
+
+### Сервисы
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `PromptService` | `core.application.services` | Управление промптами |
+| `ContractService` | `core.application.services` | Управление контрактами |
+| `SQLGenerationService` | `core.application.services.sql_generation` | Генерация SQL |
+| `SQLQueryService` | `core.application.services.sql_query` | Выполнение SQL |
+| `SQLValidatorService` | `core.application.services.sql_validator` | Валидация SQL |
+
+### Навыки
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `PlanningSkill` | `core.application.skills.planning` | Планирование |
+| `BookLibrarySkill` | `core.application.skills.book_library` | Библиотека книг |
+| `FinalAnswerSkill` | `core.application.skills.final_answer` | Финальный ответ |
+| `DataAnalysisSkill` | `core.application.skills.data_analysis` | Анализ данных |
+
+### Инструменты
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `FileTool` | `core.application.tools` | Файловые операции |
+| `SQLTool` | `core.application.tools` | SQL-запросы |
+
+### Паттерны поведения
+
+| Компонент | Модуль | Описание |
+|-----------|--------|----------|
+| `ReActPattern` | `core.application.behaviors.react` | ReAct-цикл |
+| `PlanningPattern` | `core.application.behaviors.planning` | Планирование |
+| `EvaluationPattern` | `core.application.behaviors.evaluation` | Оценка |
+| `FallbackPattern` | `core.application.behaviors.fallback` | Резервное поведение |
+
+---
+
+## 🔗 Ссылки
+
+- [Обзор архитектуры](./ARCHITECTURE_OVERVIEW.md)
+- [Конфигурация](./CONFIGURATION_MANUAL.md)
+- [API Reference](./API_REFERENCE.md)
+- [BaseComponent](../core/components/base_component.py)
+
+---
+
+*Документ автоматически сгенерирован. Не редактируйте вручную.*

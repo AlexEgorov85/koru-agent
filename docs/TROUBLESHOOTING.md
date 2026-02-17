@@ -1,1 +1,289 @@
-# 🐛 Устранение неполадок Agent_v5> **Версия:** 5.1.0> **Дата обновления:** 2026-02-17> **Статус:** approved> **Владелец:** @system---## 📋 Оглавление- [Обзор](#-обзор)- [Диагностика](#-диагностика)- [Частые ошибки](#-частые-ошибки)- [Проблемы конфигурации](#-проблемы-конфигурации)- [Проблемы компонентов](#-проблемы-компонентов)- [Проблемы производительности](#-проблемы-производительности)- [Восстановление](#-восстановление)---## 🔍 ОбзорРуководство по диагностике и устранению распространённых проблем в Agent_v5.### Назначение- **Быстрая диагностика**: Определение корневой причины проблемы- **Пошаговые решения**: Конкретные шаги для устранения- **Профилактика**: Предотвращение повторения проблем### Ключевые возможности- ✅ **Диагностические скрипты**: Автоматическая проверка состояния- ✅ **Структурированные логи**: JSON-логи для анализа- ✅ **Health checks**: Проверка работоспособности компонентов- ✅ **Метрики**: Мониторинг производительности---## 🔬 Диагностика### Быстрая проверка```bash# Проверка конфигурацииpython scripts/validate_registry.py# Проверка манифестовpython scripts/validate_all_manifests.py# Проверка зависимостейpip check# Проверка версии Pythonpython --version  # Должно быть 3.10+```### Диагностика через логи```bash# Включение отладочного логированияexport LOG_LEVEL=DEBUGpython main.py --debug# Просмотр логов в реальном времениtail -f logs/agent_*.log# Поиск ошибокgrep -i error logs/agent_*.log# Анализ JSON-логовcat logs/agent_*.log | python -m json.tool```### Диагностика через метрики```python# Проверка метрикfrom prometheus_client import generate_latestmetrics = generate_latest()print(metrics.decode())```### Диагностический скрипт```bashpython scripts/diagnose.py```---## ❌ Частые ошибки### Ошибка: `ConfigurationError`**Симптом**:```ConfigurationError: Invalid configuration: missing required field 'provider_type'```**Причины**:- Отсутствует обязательное поле в конфигурации- Неправильный формат YAML- Переменная окружения не установлена**Решение**:```bash# Проверка registry.yamlpython scripts/check_yaml_syntax.py registry.yaml# Проверка переменных окруженияenv | grep DB_env | grep LLM_# Исправление конфигурации# Убедитесь, что все provider_type указаны корректно```### Ошибка: `ComponentNotInitializedError`**Симптом**:```ComponentNotInitializedError: Component 'sql_generation_service' not initialized```**Причины**:- Компонент используется до вызова `initialize()`- Ошибка при инициализации компонента**Решение**:```python# Правильный порядок инициализацииcomponent = MyComponent(config, app_context)await component.initialize()  # Обязательно перед использованиемresult = await component.execute(params)```### Ошибка: `PromptNotFound`**Симптом**:```PromptNotFound: Prompt 'planning.create_plan' not found in cache```**Причины**:- Промпт не указан в `prompt_versions` конфигурации- Манифест компонента отсутствует- Версия промта не существует**Решение**:```yaml# registry.yaml - добавьте prompt_versionsskills:  planning:    enabled: true    prompt_versions:      planning.create_plan: v1.0.0  # Добавьте эту строку    manifest_path: data/manifests/skills/planning/manifest.yaml``````bash# Проверка существования манифестаls -la data/manifests/skills/planning/manifest.yaml# Проверка промтаls -la data/prompts/skills/planning/```### Ошибка: `ContractValidationError`**Симптом**:```ContractValidationError: Input validation failed: missing required field 'query'```**Причины**:- Входные данные не соответствуют схеме контракта- Изменилась схема контракта, но код не обновлён**Решение**:```python# Проверка схемы контрактаschema = component.get_input_contract("my_component.execute")print(schema)# Исправление входных данныхparams = {    "query": "SELECT * FROM table",  # Обязательное поле    "limit": 100  # Опциональное поле}```### Ошибка: `ProviderNotAvailable`**Симптом**:```ProviderNotAvailable: LLM provider 'vllm' is not available```**Причины**:- Провайдер не установлен в requirements- Ошибка инициализации провайдера- Неправильный `provider_type`**Решение**:```bash# Проверка установленных пакетовpip list | grep vllm# Установка провайдераpip install vllm# Проверка конфигурации# Убедитесь, что provider_type указан корректно``````yaml# core/config/defaults/prod.yamlproviders:  llm:    provider_type: vllm  # Проверьте это значение```### Ошибка: `PathTraversalError`**Симптом**:```PathTraversalError: Attempted path traversal detected: ../../../etc/passwd```**Причины**:- Попытка доступа к файлу вне разрешённой директории- Неправильный `base_path` в конфигурации**Решение**:```python# Проверка base_pathprint(component.config.base_path)# Использование безопасных путейfrom pathlib import Pathbase = Path(component.config.base_path).resolve()target = (base / user_path).resolve()if not str(target).startswith(str(base)):    raise PathTraversalError()```---## ⚙️ Проблемы конфигурации### Проблема: Неправильный профиль**Симптом**: Агент использует dev-конфигурацию в production**Диагностика**:```bash# Проверка текущего профиляpython -c "from core.config import get_config; print(get_config().profile)"```**Решение**:```bash# Установка правильного профиляexport AGENT_PROFILE=prodpython main.py# Или через аргументpython main.py --profile=prod```### Проблема: Переменные окружения не загружаются**Симптом**:```EnvironmentError: Required variable 'DB_PASSWORD' is not set```**Диагностика**:```bash# Проверка переменныхenv | grep DB_# Проверка .env файлаcat .env```**Решение**:```bash# Создание .env файлаcp .env.example .env# Редактированиеnano .env# Загрузка переменныхsource .envexport $(cat .env | xargs)```### Проблема: Версии ресурсов не совпадают**Симптом**:```VersionMismatch: Prompt version 'v2.0.0' not found in manifests```**Диагностика**:```bash# Проверка версий в registry.yamlgrep -A5 "prompt_versions" registry.yaml# Проверка существующих версийfind data/manifests -name "*.yaml" -exec grep -l "v2.0.0" {} \;```**Решение**:```yaml# Исправление версий в registry.yamlservices:  my_service:    prompt_versions:      my_service.execute: v1.0.0  # Измените на существующую версию```---## 🧩 Проблемы компонентов### Проблема: Компонент не загружает промпты**Симптом**: Пустой кэш промптов после инициализации**Диагностика**:```python# Проверка кэша компонентаprint(component._cached_prompts)# Проверка конфигурацииprint(component.config.prompt_versions)```**Решение**:```python# Принудительная перезагрузка промптовawait component.reload_prompts()# Проверка манифестаmanifest = load_manifest(component.config.manifest_path)print(manifest.prompts)```### Проблема: Зависимости компонента не доступны**Симптом**:```DependencyError: Required component 'prompt_service' is not enabled```**Диагностика**:```bash# Проверка зависимостейgrep -A10 "dependencies" registry.yaml```**Решение**:```yaml# registry.yaml - включите зависимостьservices:  prompt_service:    enabled: true  # Включите сервис  my_service:    enabled: true    dependencies:      - prompt_service  # Зависимость будет доступна```### Проблема: Кэши не изолированы**Симптом**: Данные одного агента видны другому**Диагностика**:```python# Проверка изоляции кэшейprint(f"Agent 1 prompts: {id(agent1._cached_prompts)}")print(f"Agent 2 prompts: {id(agent2._cached_prompts)}")# ID должны быть разными```**Решение**:```python# Убедитесь, что каждый агент имеет свой ApplicationContextapp_context1 = ApplicationContext(infrastructure_context)app_context2 = ApplicationContext(infrastructure_context)component1 = MyComponent(config1, app_context1)component2 = MyComponent(config2, app_context2)```---## 📊 Проблемы производительности### Проблема: Высокое потребление памяти**Симптом**: >4 ГБ памяти на 10 агентов**Диагностика**:```bash# Проверка памятиps aux | grep agent | awk '{print $6}'# Профилирование памятиpython -m memory_profiler main.py```**Решение**:```yaml# Уменьшение размера контекстаproviders:  llm:    parameters:      n_ctx: 2048  # Вместо 8192``````python# Очистка кэшейimport gcfor agent in agents:    agent.clear_unused_caches()gc.collect()```### Проблема: Медленная инициализация**Симптом**: >1 секунды на инициализацию агента**Диагностика**:```bash# Профилирование инициализацииpython -m cProfile -o profile.stats main.pypython -m pstats profile.stats```**Решение**:```python# Предзагрузка ресурсов при старте приложенияfrom core.infrastructure.context.infrastructure_context import InfrastructureContext# Инициализация при стартеinfrastructure_context = await InfrastructureContext.create()# Ресурсы предзагружены# Быстрое создание агентовagent = await create_agent(infrastructure_context)  # ~100 мс```### Проблема: Блокирующие I/O операции**Симптом**: Агент «зависает» во время выполнения**Диагностика**:```python# Включение отладки I/Oimport asyncioasyncio.get_event_loop().set_debug(True)```**Решение**:```python# Использование асинхронных операцийasync def execute(self, params: Dict) -> Dict:    # Вместо blocking_call()    result = await async_call()    # Для CPU-интенсивных операций    from concurrent.futures import ThreadPoolExecutor    loop = asyncio.get_event_loop()    with ThreadPoolExecutor() as executor:        result = await loop.run_in_executor(executor, cpu_intensive_func)```---## 🔄 Восстановление### Восстановление после сбоя```bash# Остановка агентаsudo supervisorctl stop agent# Очистка кэшейrm -rf /var/cache/agent/*# Проверка конфигурацииpython scripts/validate_registry.py# Запускsudo supervisorctl start agent# Проверка статусаsudo supervisorctl status agent```### Откат конфигурации```bash# Резервное копирование текущей конфигурацииcp data/registry.yaml data/registry.yaml.backup# Восстановление предыдущей версииgit checkout HEAD~1 -- data/registry.yaml# Перезагрузкаsudo supervisorctl restart agent```### Восстановление базы данных```bash# Создание бэкапаpg_dump -h localhost -U agent agent_db > backup.sql# Восстановлениеpsql -h localhost -U agent agent_db < backup.sql```### Аварийный режим```bash# Запуск в sandbox-режиме (без побочных эффектов)export AGENT_PROFILE=sandboxpython main.py --sandbox# Запуск с минимальной конфигурациейpython main.py --config=minimal_registry.yaml```---## 📞 Поддержка### Сбор диагностической информации```bash# Скрипт сбора информацииpython scripts/collect_diagnostics.py# Создаст архив с:# - Логами# - Конфигурацией# - Метриками# - Версиями зависимостей```### Контакты| Канал | Описание ||-------|----------|| **GitHub Issues** | Баг-репорты и фичи || **Discussions** | Вопросы и обсуждения || **Email** | Экстренная поддержка |---## 🔗 Ссылки### Документы- [Развёртывание](./DEPLOYMENT_GUIDE.md)- [Конфигурация](./CONFIGURATION_MANUAL.md)- [Мониторинг](./DEPLOYMENT_GUIDE.md#мониторинг)### Скрипты- [validate_registry.py](../scripts/validate_registry.py)- [validate_all_manifests.py](../scripts/validate_all_manifests.py)- [diagnose.py](../scripts/diagnose.py)### Логи- [Расположение логов](./DEPLOYMENT_GUIDE.md#логирование)---*Документ автоматически сгенерирован. Не редактируйте вручную.*
+# 🐛 Устранение неполадок Agent_v5
+
+> **Версия:** 5.1.0
+> **Дата обновления:** 2026-02-17
+> **Статус:** approved
+> **Владелец:** @system
+
+---
+
+## 📋 Оглавление
+
+- [Обзор](#-обзор)
+- [Диагностика](#-диагностика)
+- [Частые ошибки](#-частые-ошибки)
+- [Проблемы конфигурации](#-проблемы-конфигурации)
+- [Проблемы компонентов](#-проблемы-компонентов)
+- [Восстановление](#-восстановление)
+
+---
+
+## 🔍 Обзор
+
+Руководство по диагностике и устранению проблем в Agent_v5.
+
+---
+
+## 🔬 Диагностика
+
+### Быстрая проверка
+
+```bash
+# Конфигурация
+python scripts/validate_registry.py
+
+# Манифесты
+python scripts/validate_all_manifests.py
+
+# Зависимости
+pip check
+
+# Python версия
+python --version  # Должно быть 3.10+
+```
+
+### Диагностика через логи
+
+```bash
+# Отладочное логирование
+export LOG_LEVEL=DEBUG
+python main.py --debug
+
+# Просмотр логов
+tail -f logs/agent_*.log
+
+# Поиск ошибок
+grep -i error logs/agent_*.log
+```
+
+---
+
+## ❌ Частые ошибки
+
+### ConfigurationError
+
+**Симптом**:
+```
+ConfigurationError: Invalid configuration: missing required field 'provider_type'
+```
+
+**Решение**:
+```bash
+# Проверка registry.yaml
+python scripts/check_yaml_syntax.py registry.yaml
+
+# Проверка переменных
+env | grep DB_
+env | grep LLM_
+```
+
+### ComponentNotInitializedError
+
+**Симптом**:
+```
+ComponentNotInitializedError: Component 'sql_generation_service' not initialized
+```
+
+**Решение**:
+```python
+# Правильный порядок
+component = MyComponent(config, app_context)
+await component.initialize()  # Обязательно!
+result = await component.execute(params)
+```
+
+### PromptNotFound
+
+**Симптом**:
+```
+PromptNotFound: Prompt 'planning.create_plan' not found in cache
+```
+
+**Решение**:
+```yaml
+# registry.yaml - добавьте prompt_versions
+skills:
+  planning:
+    enabled: true
+    prompt_versions:
+      planning.create_plan: v1.0.0
+```
+
+```bash
+# Проверка манифеста
+ls -la data/manifests/skills/planning/manifest.yaml
+```
+
+### ContractValidationError
+
+**Симптом**:
+```
+ContractValidationError: Input validation failed: missing required field 'query'
+```
+
+**Решение**:
+```python
+# Проверка схемы
+schema = component.get_input_contract("my_component.execute")
+print(schema)
+
+# Исправление входных данных
+params = {
+    "query": "SELECT * FROM table",  # Обязательно
+    "limit": 100
+}
+```
+
+### ProviderNotAvailable
+
+**Симптом**:
+```
+ProviderNotAvailable: LLM provider 'vllm' is not available
+```
+
+**Решение**:
+```bash
+# Проверка пакетов
+pip list | grep vllm
+
+# Установка
+pip install vllm
+```
+
+### PathTraversalError
+
+**Симптом**:
+```
+PathTraversalError: Attempted path traversal detected
+```
+
+**Решение**:
+```python
+# Проверка base_path
+print(component.config.base_path)
+
+# Безопасные пути
+from pathlib import Path
+base = Path(component.config.base_path).resolve()
+target = (base / user_path).resolve()
+
+if not str(target).startswith(str(base)):
+    raise PathTraversalError()
+```
+
+---
+
+## ⚙️ Проблемы конфигурации
+
+### Неправильный профиль
+
+**Диагностика**:
+```bash
+python -c "from core.config import get_config; print(get_config().profile)"
+```
+
+**Решение**:
+```bash
+export AGENT_PROFILE=prod
+python main.py --profile=prod
+```
+
+### Переменные окружения
+
+**Симптом**:
+```
+EnvironmentError: Required variable 'DB_PASSWORD' is not set
+```
+
+**Решение**:
+```bash
+cp .env.example .env
+nano .env
+source .env
+```
+
+---
+
+## 🧩 Проблемы компонентов
+
+### Компонент не загружает промпты
+
+**Диагностика**:
+```python
+print(component._cached_prompts)
+print(component.config.prompt_versions)
+```
+
+**Решение**:
+```python
+await component.reload_prompts()
+```
+
+### Зависимости не доступны
+
+**Решение**:
+```yaml
+services:
+  prompt_service:
+    enabled: true  # Включите сервис
+  
+  my_service:
+    dependencies:
+      - prompt_service
+```
+
+---
+
+## 🔄 Восстановление
+
+### После сбоя
+
+```bash
+# Остановка
+sudo supervisorctl stop agent
+
+# Очистка кэшей
+rm -rf /var/cache/agent/*
+
+# Проверка
+python scripts/validate_registry.py
+
+# Запуск
+sudo supervisorctl start agent
+```
+
+### Откат конфигурации
+
+```bash
+# Бэкап
+cp data/registry.yaml data/registry.yaml.backup
+
+# Восстановление
+git checkout HEAD~1 -- data/registry.yaml
+
+# Перезагрузка
+sudo supervisorctl restart agent
+```
+
+### Аварийный режим
+
+```bash
+# Sandbox (без побочных эффектов)
+export AGENT_PROFILE=sandbox
+python main.py --sandbox
+
+# Минимальная конфигурация
+python main.py --config=minimal_registry.yaml
+```
+
+---
+
+## 🔗 Ссылки
+
+- [Развёртывание](./DEPLOYMENT_GUIDE.md)
+- [Конфигурация](./CONFIGURATION_MANUAL.md)
+- [validate_registry.py](../scripts/validate_registry.py)
+
+---
+
+*Документ автоматически сгенерирован. Не редактируйте вручную.*
