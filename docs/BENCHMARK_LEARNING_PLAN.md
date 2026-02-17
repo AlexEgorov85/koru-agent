@@ -1,8 +1,9 @@
 # 📋 План внедрения системы Benchmark + Learning для Agent_v5
 
-> **Версия:** 1.0.0  
-> **Дата создания:** 2026-02-17  
-> **Статус:** approved  
+> **Версия:** 1.1.0
+> **Дата создания:** 2026-02-17
+> **Дата обновления:** 2026-02-17
+> **Статус:** approved
 > **Владелец:** @system
 
 ---
@@ -13,11 +14,13 @@
 - [Текущая архитектура](#-текущая-архитектура)
 - [Новые компоненты](#-новые-компоненты)
 - [Размещение компонентов](#-размещение-компонентов)
+- [Модели данных](#-модели-данных)
 - [Сбор метрик](#-сбор-метрик)
 - [Сбор логов](#-сбор-логов)
 - [Цикл обучения](#-цикл-обучения)
 - [План внедрения](#-план-внедрения)
 - [Интеграция с существующими компонентами](#-интеграция-с-существующими-компонентами)
+- [Изменение существующих компонентов](#-изменение-существующих-компонентов)
 - [Тестирование](#-тестирование)
 - [Риски и митигация](#-риски-и-митигация)
 
@@ -57,22 +60,37 @@ project/
 │   │   ├── event_bus/
 │   │   │   ├── event_bus.py                   # Шина событий ✅
 │   │   │   └── event_handlers.py              # Обработчики событий ✅
-│   │   └── storage/
-│   │       ├── prompt_storage.py              # Хранилище промптов
-│   │       └── contract_storage.py            # Хранилище контрактов
+│   │   ├── storage/
+│   │   │   ├── prompt_storage.py              # Хранилище промптов
+│   │   │   └── contract_storage.py            # Хранилище контрактов
+│   │   └── interfaces/                        # Интерфейсы
+│   │   └── providers/                         # Провайдеры
 │   │
 │   └── application/
 │       ├── context/
 │       │   └── application_context.py         # Прикладной контекст ✅
 │       ├── services/
-│       │   ├── prompt_service.py              # Сервис промптов
-│       │   └── contract_service.py            # Сервис контрактов
-│       └── behaviors/
-│           └── base_behavior.py               # Базовый паттерн поведения
+│       │   ├── prompt_service.py              # Сервис промптов ✅
+│       │   ├── contract_service.py            # Сервис контрактов ✅
+│       │   └── manifest_validation_service.py # Валидация манифестов ✅
+│       ├── behaviors/
+│       │   └── base_behavior.py               # Базовый паттерн поведения
+│       └── skills/
+│           └── base_skill.py                  # Базовый навык ✅
+│
+├── core/models/
+│   ├── data/
+│   │   ├── prompt.py                          # Модель промпта ✅
+│   │   ├── contract.py                        # Модель контракта ✅
+│   │   ├── manifest.py                        # Модель манифеста ✅
+│   │   └── execution.py                       # Модель выполнения ✅
+│   └── enums/
+│       └── common_enums.py                    # Общие enum ✅
 │
 └── data/
     ├── prompts/                               # Промпты
     ├── contracts/                             # Контракты
+    ├── manifests/                             # Манифесты
     └── registry.yaml                          # Реестр версий ✅
 ```
 
@@ -94,40 +112,45 @@ project/
 
 **Назначение:** Централизованный сбор метрик со всех агентов
 
-```python
-# core/infrastructure/metrics/metrics_collector.py
+**Файл:** `core/infrastructure/metrics_collector.py`
 
+```python
 class MetricsCollector:
     """
     Сбор метрик через EventBus.
-    
+
     ИНТЕГРАЦИЯ:
     - Подписывается на события выполнения
     - Извлекает метрики из event.data
     - Агрегирует и сохраняет в хранилище
     """
-    
-    DEPENDENCIES = ['event_bus', 'metrics_storage']
-    
+
+    def __init__(self, event_bus: EventBus, storage: MetricsStorage):
+        self.event_bus = event_bus
+        self.storage = storage
+        self._initialized = False
+
     async def initialize(self):
         # Подписка на события
         self.event_bus.subscribe(EventType.SKILL_EXECUTED, self._on_skill_executed)
         self.event_bus.subscribe(EventType.CAPABILITY_SELECTED, self._on_capability_selected)
         self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error)
-    
+        self._initialized = True
+
     async def _on_skill_executed(self, event: Event):
         """Извлечение метрик из события выполнения навыка"""
-        metric_data = {
-            'agent_id': event.data.get('agent_id'),
-            'capability': event.data.get('capability'),
-            'execution_time_ms': event.data.get('execution_time_ms'),
-            'success': event.data.get('success'),
-            'tokens_used': event.data.get('tokens_used'),
-            'timestamp': event.timestamp.isoformat()
-        }
-        
-        await self.metrics_storage.record(metric_data)
-    
+        metric_data = MetricRecord(
+            agent_id=event.data.get('agent_id'),
+            capability=event.data.get('capability'),
+            execution_time_ms=event.data.get('execution_time_ms', 0),
+            success=event.data.get('success', False),
+            tokens_used=event.data.get('tokens_used', 0),
+            timestamp=event.timestamp,
+            session_id=event.data.get('session_id'),
+            correlation_id=event.correlation_id
+        )
+        await self.storage.record(metric_data)
+
     async def get_aggregated_metrics(
         self,
         capability: str,
@@ -135,89 +158,110 @@ class MetricsCollector:
         time_range: Tuple[datetime, datetime]
     ) -> AggregatedMetrics:
         """Агрегация метрик для бенчмарка"""
-        pass
+        records = await self.storage.get_records(
+            capability=capability,
+            version=version,
+            time_range=time_range
+        )
+        return self._aggregate(records)
 ```
 
 ### 2. LogCollector (Infrastructure)
 
 **Назначение:** Централизованный сбор структурированных логов
 
-```python
-# core/infrastructure/logging/log_collector.py
+**Файл:** `core/infrastructure/log_collector.py`
 
+```python
 class LogCollector:
     """
     Централизованный сбор логов для обучения.
-    
+
     ОТЛИЧИЯ ОТ ОБЫЧНОГО ЛОГИРОВАНИЯ:
     - Структурированные логи (JSON)
     - Корреляция по agent_id, session_id, capability
     - Сохранение в хранилище для анализа
     - Фильтрация по уровню важности для обучения
     """
-    
-    DEPENDENCIES = ['event_bus', 'log_storage']
-    
+
+    def __init__(self, event_bus: EventBus, storage: LogStorage):
+        self.event_bus = event_bus
+        self.storage = storage
+        self._initialized = False
+
     async def initialize(self):
         # Подписка на события с деталями выполнения
         self.event_bus.subscribe(EventType.CAPABILITY_SELECTED, self._on_capability_selected)
         self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error)
         self.event_bus.subscribe(EventType.BENCHMARK_STARTED, self._on_benchmark_start)
-    
+        self._initialized = True
+
     async def _on_capability_selected(self, event: Event):
         """Логирование выбора capability для анализа решений агента"""
-        log_entry = {
-            'timestamp': event.timestamp.isoformat(),
-            'agent_id': event.data.get('agent_id'),
-            'session_id': event.data.get('session_id'),
-            'capability': event.data.get('capability'),
-            'parameters': event.data.get('parameters'),
-            'reasoning': event.data.get('reasoning'),  # ← Важно для обучения!
-            'pattern_id': event.data.get('pattern_id'),
-            'correlation_id': event.correlation_id
-        }
-        
-        await self.log_storage.save('capability_selection', log_entry)
-    
+        log_entry = LogEntry(
+            timestamp=event.timestamp,
+            agent_id=event.data.get('agent_id'),
+            session_id=event.data.get('session_id'),
+            log_type='capability_selection',
+            data={
+                'capability': event.data.get('capability'),
+                'parameters': event.data.get('parameters'),
+                'reasoning': event.data.get('reasoning'),  # ← Важно для обучения!
+                'pattern_id': event.data.get('pattern_id'),
+            },
+            correlation_id=event.correlation_id
+        )
+        await self.storage.save(log_entry)
+
     async def get_session_logs(
         self,
         agent_id: str,
         session_id: str,
         limit: int = 1000
-    ) -> List[Dict]:
+    ) -> List[LogEntry]:
         """Получение логов сессии для анализа"""
-        pass
+        return await self.storage.get_by_session(agent_id, session_id, limit)
 ```
 
 ### 3. BenchmarkService (Application)
 
 **Назначение:** Оркестрация бенчмарков для оценки качества агента
 
-```python
-# core/application/services/benchmark_service.py
+**Файл:** `core/application/services/benchmark_service.py`
 
+```python
 class BenchmarkService(BaseService):
     """
     Оркестрация бенчмарков для оценки качества агента.
-    
+
     ФУНКЦИИ:
     - Запуск бенчмарков по сценариям
     - Сбор метрик выполнения
     - Сравнение версий промптов/контрактов
     - Автоматическое продвижение версий при улучшении метрик
     """
-    
-    DEPENDENCIES = ['metrics_collector', 'prompt_service', 'contract_service']
-    
+
+    def __init__(
+        self,
+        metrics_collector: MetricsCollector,
+        prompt_service: PromptService,
+        contract_service: ContractService,
+        data_repository: DataRepository
+    ):
+        self.metrics_collector = metrics_collector
+        self.prompt_service = prompt_service
+        self.contract_service = contract_service
+        self.data_repository = data_repository
+
     async def run_benchmark(
         self,
         scenario: BenchmarkScenario,
-        agent_config: AgentConfig,
+        agent_config: AppConfig,
         baseline_version: str = None
     ) -> BenchmarkResult:
         """Запуск бенчмарка по сценарию"""
         pass
-    
+
     async def compare_versions(
         self,
         capability: str,
@@ -227,7 +271,7 @@ class BenchmarkService(BaseService):
     ) -> VersionComparison:
         """Сравнение двух версий промпта/контракта"""
         pass
-    
+
     async def auto_promote_if_better(
         self,
         capability: str,
@@ -243,9 +287,9 @@ class BenchmarkService(BaseService):
 
 **Назначение:** Оркестратор обучения — создание тестовых контекстов
 
-```python
-# core/application/services/learning_orchestrator.py
+**Файл:** `core/application/services/learning_orchestrator.py`
 
+```python
 class LearningOrchestratorService(BaseService):
     """
     Оркестратор обучения — единственный компонент, который может:
@@ -253,9 +297,15 @@ class LearningOrchestratorService(BaseService):
     - Запускать агентов с разными версиями промптов
     - Собирать метрики и сравнивать результаты
     """
-    
-    DEPENDENCIES = ['benchmark_service', 'metrics_collector']
-    
+
+    def __init__(
+        self,
+        benchmark_service: BenchmarkService,
+        metrics_collector: MetricsCollector
+    ):
+        self.benchmark_service = benchmark_service
+        self.metrics_collector = metrics_collector
+
     async def create_test_context(
         self,
         base_config: AppConfig,
@@ -263,50 +313,50 @@ class LearningOrchestratorService(BaseService):
         profile: str = "sandbox"
     ) -> ApplicationContext:
         """Создаёт изолированный тестовый контекст"""
-        
+
         # 1. Клонируем конфигурацию с новыми версиями
         test_config = await self._clone_config_with_overrides(
-            base_config, 
+            base_config,
             prompt_overrides
         )
-        
+
         # 2. Создаём НОВЫЙ InfrastructureContext (или используем общий)
         test_infra = await self._create_test_infrastructure()
-        
+
         # 3. Создаём ApplicationContext с тестовой конфигурацией
         test_ctx = ApplicationContext(
             infrastructure_context=test_infra,
             config=test_config,
             profile=profile  # sandbox = разрешены draft версии
         )
-        
+
         await test_ctx.initialize()
-        
+
         return test_ctx
-    
+
     async def run_benchmark_iteration(
         self,
         scenario: BenchmarkScenario,
         candidate_versions: Dict[str, str]
     ) -> BenchmarkResult:
         """Запускает одну итерацию бенчмарка"""
-        
+
         # Создаём тестовый контекст
         test_ctx = await self.create_test_context(
             base_config=self._base_config,
             prompt_overrides=candidate_versions
         )
-        
+
         # Создаём агента для теста
         agent = await self._create_test_agent(test_ctx, scenario.goal)
-        
+
         # Запускаем и собираем метрики
         result = await agent.run(scenario.goal)
         metrics = await self._collect_metrics(test_ctx, result)
-        
+
         # Очищаем ресурсы
         await test_ctx.infrastructure_context.shutdown()
-        
+
         return BenchmarkResult(
             scenario_id=scenario.id,
             versions=candidate_versions,
@@ -319,17 +369,19 @@ class LearningOrchestratorService(BaseService):
 
 **Назначение:** Генерация новых версий промптов и контрактов
 
-```python
-# core/application/services/prompt_contract_generator.py
+**Файл:** `core/application/services/prompt_contract_generator.py`
 
+```python
 class PromptContractGenerator(BaseService):
     """
     Генерация новых версий промптов и контрактов.
     Имеет доступ на запись в data/ директорию.
     """
-    
-    DEPENDENCIES = ['llm_provider', 'file_tool']
-    
+
+    def __init__(self, llm_provider: Any, file_tool: Any):
+        self.llm_provider = llm_provider
+        self.file_tool = file_tool
+
     async def generate_prompt_variant(
         self,
         capability: str,
@@ -338,13 +390,13 @@ class PromptContractGenerator(BaseService):
         failure_analysis: FailureAnalysis
     ) -> str:
         """Генерирует новую версию промпта"""
-        
-        # 1. Загружаем текущий промпт
-        current_prompt = await self._load_prompt(capability, base_version)
-        
+
+        # 1. Загружаем текущий промпт через DataRepository
+        current_prompt = self.data_repository.get_prompt(capability, base_version)
+
         # 2. Анализируем неудачи
         failure_patterns = await self._analyze_failures(failure_analysis)
-        
+
         # 3. Генерируем новый промпт через LLM
         new_content = await self.llm_provider.generate(
             prompt=self._build_generation_prompt(
@@ -353,10 +405,10 @@ class PromptContractGenerator(BaseService):
                 optimization_goal=optimization_goal
             )
         )
-        
+
         # 4. Создаём новую версию (draft)
         new_version = self._calculate_next_version(base_version, 'minor')
-        
+
         new_prompt = Prompt(
             capability=capability,
             version=new_version,
@@ -371,13 +423,13 @@ class PromptContractGenerator(BaseService):
                 'generated_at': datetime.now().isoformat()
             }
         )
-        
+
         # 5. Сохраняем в файловую систему
         await self._save_prompt(new_prompt)
-        
+
         # 6. Генерируем соответствующий контракт (если нужно)
         await self._generate_matching_contract(new_prompt)
-        
+
         return new_version
 ```
 
@@ -391,32 +443,25 @@ class PromptContractGenerator(BaseService):
 project/
 ├── core/
 │   ├── infrastructure/
-│   │   ├── metrics/                        ← НОВОЕ
-│   │   │   ├── metrics_collector.py        # Сбор метрик (Infrastructure)
-│   │   │   └── metrics_storage.py          # Хранилище метрик
-│   │   │
-│   │   ├── logging/                        ← НОВОЕ
-│   │   │   ├── log_collector.py            # Сбор логов (Infrastructure)
-│   │   │   └── log_storage.py              # Хранилище логов
-│   │   │
-│   │   └── event_bus/
-│   │       └── event_bus.py                # + новые EventType
+│   │   ├── metrics_collector.py           ← НОВОЕ: Сбор метрик
+│   │   ├── metrics_storage.py             ← НОВОЕ: Хранилище метрик
+│   │   ├── log_collector.py               ← НОВОЕ: Сбор логов
+│   │   └── log_storage.py                 ← НОВОЕ: Хранилище логов
 │   │
 │   └── application/
 │       ├── services/
-│       │   ├── learning_orchestrator.py    # Оркестратор (Application)
-│       │   ├── benchmark_service.py        # Бенчмарк (Application)
-│       │   ├── optimization_service.py     # Оптимизация (Application)
-│       │   └── prompt_contract_generator.py # Генерация промптов
-│       │
+│       │   ├── learning_orchestrator.py   ← НОВОЕ: Оркестратор обучения
+│       │   ├── benchmark_service.py       ← НОВОЕ: Бенчмарк сервис
+│       │   ├── optimization_service.py    ← НОВОЕ: Оптимизация
+│       │   └── prompt_contract_generator.py ← НОВОЕ: Генерация промптов
 │       └── behaviors/
-│           └── learning_pattern.py         # Паттерн обучения
+│           └── learning_pattern.py        ← НОВОЕ: Паттерн обучения
 │
 └── data/
-    ├── benchmarks/                         # Сценарии бенчмарков
+    ├── benchmarks/                        ← НОВОЕ: Сценарии бенчмарков
     │   ├── scenarios/
     │   └── datasets/
-    └── metrics/                            # История метрик
+    └── metrics/                           ← НОВОЕ: История метрик
 ```
 
 ### Почему так?
@@ -437,18 +482,181 @@ Application = анализ и оптимизация (пер-агент)
 
 ---
 
+## 📊 Модели данных
+
+### AggregatedMetrics
+
+**Файл:** `core/models/data/metrics.py` (новый)
+
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+
+
+class MetricType(str, Enum):
+    """Типы метрик"""
+    GAUGE = "gauge"       # Точечное значение (accuracy, success_rate)
+    COUNTER = "counter"   # Счётчик (tokens_used, cost)
+    HISTOGRAM = "histogram"  # Распределение (latency)
+
+
+@dataclass
+class MetricRecord:
+    """
+    Отдельная запись метрики.
+    """
+    agent_id: str
+    capability: str
+    execution_time_ms: float
+    success: bool
+    tokens_used: int
+    timestamp: datetime
+    session_id: Optional[str] = None
+    correlation_id: str = ""
+    version: Optional[str] = None
+    metadata: Dict[str, any] = field(default_factory=dict)
+
+
+@dataclass
+class AggregatedMetrics:
+    """
+    Агрегированные метрики для capability/версии.
+    """
+    capability: str
+    version: str
+    time_range: Tuple[datetime, datetime]
+    
+    # Основные метрики
+    accuracy: float = 0.0           # Точность ответов
+    success_rate: float = 0.0       # Процент успешных выполнений
+    latency_ms: float = 0.0         # Среднее время выполнения
+    latency_p95_ms: float = 0.0     # 95-й перцентиль
+    latency_p99_ms: float = 0.0     # 99-й перцентиль
+    tokens_used: int = 0            # Всего токенов
+    total_executions: int = 0       # Всего выполнений
+    error_rate: float = 0.0         # Процент ошибок
+    
+    # Дополнительные метрики
+    cost: float = 0.0               # Стоимость выполнения
+    retry_count: int = 0            # Количество повторных попыток
+    
+    def is_better_than(self, other: 'AggregatedMetrics', threshold: float = 0.05) -> bool:
+        """Проверяет, лучше ли текущие метрики чем другие"""
+        return (
+            self.accuracy >= other.accuracy + threshold and
+            self.success_rate >= other.success_rate + threshold and
+            self.latency_ms <= other.latency_ms * 0.9  # На 10% быстрее
+        )
+```
+
+### Benchmark Models
+
+**Файл:** `core/models/data/benchmark.py` (новый)
+
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+from enum import Enum
+
+
+class OptimizationMode(str, Enum):
+    """Режимы оптимизации"""
+    MANUAL = "manual"           # Ручная оптимизация по запросу
+    AUTOMATIC = "automatic"     # Автоматический цикл при ухудшении
+    TARGET = "target"           # Стремление к целевой метрике
+
+
+@dataclass
+class BenchmarkScenario:
+    """
+    Сценарий бенчмарка — описание тестовой задачи.
+    """
+    id: str
+    name: str
+    description: str
+    goal: str                    # Цель, которую должен достичь агент
+    input_data: Dict[str, Any]   # Входные данные
+    expected_output: Dict[str, Any]  # Ожидаемый результат
+    success_criteria: Dict[str, Any]  # Критерии успеха
+    timeout_seconds: int = 300
+    allowed_capabilities: List[str] = field(default_factory=list)
+
+
+@dataclass
+class BenchmarkResult:
+    """
+    Результат запуска бенчмарка.
+    """
+    scenario_id: str
+    versions: Dict[str, str]     # {capability: version}
+    metrics: AggregatedMetrics
+    success: bool
+    execution_time_ms: float
+    timestamp: datetime
+    agent_id: str
+    session_id: str
+    error_message: Optional[str] = None
+    details: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class VersionComparison:
+    """
+    Сравнение двух версий capability.
+    """
+    capability: str
+    version_a: str
+    version_b: str
+    scenarios_run: int
+    improvement: float           # Процент улучшения
+    best_version: str
+    metrics_a: AggregatedMetrics
+    metrics_b: AggregatedMetrics
+    recommendation: str          # "promote", "reject", "needs_more_testing"
+
+
+@dataclass
+class FailureAnalysis:
+    """
+    Анализ неудач для генерации улучшений.
+    """
+    capability: str
+    version: str
+    failure_count: int
+    total_executions: int
+    error_patterns: List[Dict[str, Any]]
+    common_failure_scenarios: List[str]
+    suggested_fixes: List[str]
+
+
+@dataclass
+class TargetMetric:
+    """
+    Целевая метрика для оптимизации.
+    """
+    name: str                    # Например, "accuracy"
+    target_value: float          # Целевое значение
+    current_value: float         # Текущее значение
+    tolerance: float = 0.02      # Допустимое отклонение
+```
+
+---
+
 ## 📊 Сбор метрик
 
 ### Через EventBus (рекомендуется)
 
-```python
-# core/infrastructure/event_bus/event_bus.py
+**Файл:** `core/infrastructure/event_bus/event_bus.py` (расширить)
 
+```python
 class EventType(Enum):
     # ... существующие ...
-    
-    # НОВЫЕ для benchmark/learning:
-    METRIC_RECORDED = "metric.recorded"
+
+    # ← НОВЫЕ для benchmark/learning:
+    # Используем существующее METRIC_COLLECTED вместо METRIC_RECORDED
     BENCHMARK_STARTED = "benchmark.started"
     BENCHMARK_COMPLETED = "benchmark.completed"
     OPTIMIZATION_CYCLE_STARTED = "optimization.cycle_started"
@@ -459,20 +667,20 @@ class EventType(Enum):
 
 ### Инструментирование компонентов
 
-```python
-# core/application/skills/base_skill.py
+**Файл:** `core/application/skills/base_skill.py` (расширить)
 
+```python
 class BaseSkill(BaseComponent):
     async def execute(self, capability, parameters, context):
         start_time = time.time()
         success = False
-        
+
         try:
             # ← Существующая логика
             result = await self._execute_impl(capability, parameters, context)
             success = True
             return result
-            
+
         finally:
             # ← Публикация метрик (всегда, даже при ошибке)
             await self._publish_metrics(
@@ -481,7 +689,7 @@ class BaseSkill(BaseComponent):
                 success=success,
                 context=context
             )
-    
+
     async def _publish_metrics(self, capability, execution_time_ms, success, context):
         """Публикация метрик в EventBus"""
         await self.application_context.infrastructure_context.event_bus.publish(
@@ -515,83 +723,88 @@ class BaseSkill(BaseComponent):
 
 ### Централизованный LogCollector
 
-```python
-# core/infrastructure/logging/log_collector.py
+**Файл:** `core/infrastructure/log_collector.py`
 
+```python
 class LogCollector:
     async def _on_capability_selected(self, event: Event):
         """Логирование выбора capability для анализа решений агента"""
-        log_entry = {
-            'timestamp': event.timestamp.isoformat(),
-            'agent_id': event.data.get('agent_id'),
-            'session_id': event.data.get('session_id'),
-            'capability': event.data.get('capability'),
-            'parameters': event.data.get('parameters'),
-            'reasoning': event.data.get('reasoning'),  # ← Важно для обучения!
-            'pattern_id': event.data.get('pattern_id'),
-            'correlation_id': event.correlation_id
-        }
-        
-        await self.log_storage.save('capability_selection', log_entry)
-    
+        log_entry = LogEntry(
+            timestamp=event.timestamp,
+            agent_id=event.data.get('agent_id'),
+            session_id=event.data.get('session_id'),
+            log_type='capability_selection',
+            data={
+                'capability': event.data.get('capability'),
+                'parameters': event.data.get('parameters'),
+                'reasoning': event.data.get('reasoning'),  # ← Важно для обучения!
+                'pattern_id': event.data.get('pattern_id'),
+            },
+            correlation_id=event.correlation_id
+        )
+        await self.storage.save(log_entry)
+
     async def _on_error(self, event: Event):
         """Логирование ошибок для анализа неудач"""
-        log_entry = {
-            'timestamp': event.timestamp.isoformat(),
-            'agent_id': event.data.get('agent_id'),
-            'session_id': event.data.get('session_id'),
-            'capability': event.data.get('capability'),
-            'error_type': event.data.get('error_type'),
-            'error_message': event.data.get('error_message'),
-            'stack_trace': event.data.get('stack_trace'),
-            'step_number': event.data.get('step_number'),
-            'context_snapshot': event.data.get('context_snapshot')
-        }
-        
-        await self.log_storage.save('errors', log_entry)
+        log_entry = LogEntry(
+            timestamp=event.timestamp,
+            agent_id=event.data.get('agent_id'),
+            session_id=event.data.get('session_id'),
+            log_type='error',
+            data={
+                'capability': event.data.get('capability'),
+                'error_type': event.data.get('error_type'),
+                'error_message': event.data.get('error_message'),
+                'stack_trace': event.data.get('stack_trace'),
+                'step_number': event.data.get('step_number'),
+                'context_snapshot': event.data.get('context_snapshot')
+            },
+            correlation_id=event.correlation_id
+        )
+        await self.storage.save(log_entry)
 ```
 
 ### Контекст выполнения для обучения
 
-```python
-# core/models/data/learning.py
+**Файл:** `core/models/data/execution.py` (расширить)
 
+```python
 @dataclass
 class ExecutionContextSnapshot:
     """
     Снимок контекста выполнения для анализа.
-    
+
     СОХРАНЯЕТСЯ В ЛОГИ ДЛЯ ОБУЧЕНИЯ:
     - Какие capability были доступны
     - Какой паттерн поведения использовался
     - Какие решения принимал агент
     - Какие ошибки возникали
     """
-    
+
     agent_id: str
     session_id: str
     step_number: int
     timestamp: datetime
-    
+
     # Контекст решения
     available_capabilities: List[str]
     selected_capability: str
     behavior_pattern: str
     reasoning: str
-    
+
     # Параметры выполнения
     input_parameters: Dict[str, Any]
     output_result: Optional[Dict[str, Any]]
-    
+
     # Метрики
     execution_time_ms: float
     tokens_used: int
     success: bool
-    
+
     # Ошибки
     error_type: Optional[str]
     error_message: Optional[str]
-    
+
     # Версии ресурсов
     prompt_version: str
     contract_version: str
@@ -603,37 +816,67 @@ class ExecutionContextSnapshot:
 
 ### Архитектурный поток
 
-```mermaid
-flowchart TD
-    A[Start Optimization] --> B{Mode?}
-    B -->|Manual| C[Run Benchmark]
-    B -->|Automatic| D[Monitor Metrics]
-    B -->|Target| E[Check Target Metric]
-    
-    D -->|Metrics Degraded| C
-    D -->|Metrics OK| F[Continue Monitoring]
-    
-    E -->|Below Target| C
-    E -->|Target Met| G[Stop Optimization]
-    
-    C --> H[Analyze Failures]
-    H --> I[Generate Candidate Prompt]
-    I --> J[Run A/B Test]
-    J --> K{Better Metrics?}
-    
-    K -->|Yes| L[Promote Version]
-    K -->|No| M[Discard Candidate]
-    
-    L --> N[Update Registry]
-    M --> O{Max Iterations?}
-    
-    O -->|No| C
-    O -->|Yes| P[End Optimization]
-    N --> P
-    
-    style A fill:#e1f5fe
-    style L fill:#c8e6c9
-    style P fill:#fff9c4
+```
+Start Optimization
+       │
+       ▼
+  ┌─────────┐
+  │ Mode?   │
+  └────┬────┘
+       ├─────────────┬─────────────┐
+       ▼             ▼             ▼
+  ┌────────┐   ┌──────────┐  ┌──────────┐
+  │ Manual │   │Automatic │  │  Target  │
+  └───┬────┘   └────┬─────┘  └────┬─────┘
+      │            │              │
+      │            ▼              │
+      │     Metrics Degraded?     │
+      │        ┌──┴──┐            │
+      │        │     │            │
+      │        ▼     ▼            │
+      │      Yes    No            │
+      │       │     │             │
+      │       ▼     └─────────────┤
+      │    Run Benchmark          │
+      │                           │
+      └───────────┬───────────────┘
+                  ▼
+         ┌────────────────┐
+         │Analyze Failures│
+         └───────┬────────┘
+                 ▼
+         ┌──────────────────┐
+         │Generate Candidate│
+         │    Prompt        │
+         └───────┬──────────┘
+                 ▼
+         ┌────────────────┐
+         │  Run A/B Test  │
+         └───────┬────────┘
+                 ▼
+         ┌───────────────┐
+         │Better Metrics?│
+         └───────┬───────┘
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+      Yes                No
+        │                 │
+        ▼                 ▼
+  ┌──────────┐     ┌──────────┐
+  │  Promote │     │ Discard  │
+  │ Version  │     │ Candidate│
+  └────┬─────┘     └────┬─────┘
+       │                │
+       ▼                ▼
+  ┌──────────┐   ┌──────────────┐
+  │  Update  │   │Max Iterations│
+  │ Registry │   │   Reached?   │
+  └────┬─────┘   └──────┬───────┘
+       │                │
+       └────────────────┤
+                        ▼
+                  End Optimization
 ```
 
 ### Режимы обучения
@@ -653,10 +896,10 @@ async def main():
     # 1. Инициализация
     infra = await InfrastructureContext.create(config)
     app_ctx = await ApplicationContext.create_from_registry(infra, profile="prod")
-    
+
     # 2. Получение сервисов обучения
     optimization_service = app_ctx.get_service("optimization_service")
-    
+
     # 3. Запуск цикла оптимизации
     result = await optimization_service.start_optimization_cycle(
         capability="planning.create_plan",
@@ -668,7 +911,7 @@ async def main():
         ),
         max_iterations=20
     )
-    
+
     # 4. Отчёт
     print(f"Оптимизация завершена: {result.status}")
     print(f"Лучшая версия: {result.best_version}")
@@ -686,14 +929,15 @@ async def main():
 | Создать модели метрик | `core/models/data/metrics.py` | 🔴 | ⬜ |
 | Создать модели бенчмарков | `core/models/data/benchmark.py` | 🔴 | ⬜ |
 | Расширить EventBus | `core/infrastructure/event_bus/event_bus.py` | 🔴 | ⬜ |
-| Создать BenchmarkStorage | `core/infrastructure/storage/benchmark_storage.py` | 🔴 | ⬜ |
+| Создать MetricsStorage | `core/infrastructure/metrics_storage.py` | 🔴 | ⬜ |
+| Создать LogStorage | `core/infrastructure/log_storage.py` | 🔴 | ⬜ |
 
 ### Этап 2: Сервисы (2-3 недели)
 
 | Задача | Файлы | Приоритет | Статус |
 |--------|-------|-----------|--------|
-| MetricsCollector Service | `core/infrastructure/metrics/metrics_collector.py` | 🔴 | ⬜ |
-| LogCollector Service | `core/infrastructure/logging/log_collector.py` | 🔴 | ⬜ |
+| MetricsCollector Service | `core/infrastructure/metrics_collector.py` | 🔴 | ⬜ |
+| LogCollector Service | `core/infrastructure/log_collector.py` | 🔴 | ⬜ |
 | BenchmarkService | `core/application/services/benchmark_service.py` | 🔴 | ⬜ |
 | Интеграция с EventBus | Все сервисы | 🟠 | ⬜ |
 
@@ -710,8 +954,8 @@ async def main():
 
 | Задача | Файлы | Приоритет | Статус |
 |--------|-------|-----------|--------|
-| Расширить ApplicationContext | `core/application/context/application_context.py` | 🟡 | ⬜ |
-| Расширить Manifest | Все манифесты | 🟡 | ⬜ |
+| Расширить Manifest | `core/models/data/manifest.py` | 🟡 | ⬜ |
+| Расширить BaseSkill | `core/application/skills/base_skill.py` | 🟡 | ⬜ |
 | Скрипты запуска | `scripts/run_benchmark.py` | 🟡 | ⬜ |
 | Документация | `docs/learning_system.md` | 🟡 | ⬜ |
 
@@ -721,17 +965,17 @@ async def main():
 
 ### EventBus (Расширить)
 
-```python
-# core/infrastructure/event_bus/event_bus.py
+**Файл:** `core/infrastructure/event_bus/event_bus.py`
 
+```python
 class EventType(Enum):
     # Существующие события
     SYSTEM_INITIALIZED = "system.initialized"
     AGENT_CREATED = "agent.created"
     SKILL_EXECUTED = "skill.executed"
-    
+    METRIC_COLLECTED = "metric.collected"  # ← Уже существует, используем
+
     # ← НОВЫЕ для benchmark/learning:
-    METRIC_RECORDED = "metric.recorded"
     BENCHMARK_STARTED = "benchmark.started"
     BENCHMARK_COMPLETED = "benchmark.completed"
     OPTIMIZATION_CYCLE_STARTED = "optimization.cycle_started"
@@ -740,57 +984,86 @@ class EventType(Enum):
     VERSION_REJECTED = "version.rejected"
 ```
 
-### ApplicationContext (Доработать)
-
-```python
-# core/application/context/application_context.py
-
-class ApplicationContext(BaseSystemContext):
-    def __init__(
-        self,
-        infrastructure_context: InfrastructureContext,
-        config: AppConfig,
-        profile: Literal["prod", "sandbox"] = "prod",
-        mode: AgentMode = AgentMode.PRODUCTION  # ← НОВОЕ
-    ):
-        self.mode = mode  # PRODUCTION | BENCHMARK | LEARNING
-        
-    async def initialize(self):
-        # В режиме LEARNING подключать LearningPattern
-        if self.mode == AgentMode.LEARNING:
-            await self._initialize_learning_components()
-```
-
 ### DataRepository (Расширить)
 
-```python
-# core/application/data_repository.py
+**Файл:** `core/application/data_repository.py`
 
+```python
 class DataRepository:
-    async def get_prompt_versions(self, capability: str) -> List[PromptVersion]:
+    async def get_prompt_versions(self, capability: str) -> List[Prompt]:
         """Получить все версии промпта для capability"""
-        pass
-    
+        versions = []
+        for (cap, ver), prompt in self._prompts_index.items():
+            if cap == capability:
+                versions.append(prompt)
+        return sorted(versions, key=lambda p: p.version)
+
     async def compare_prompts(
         self,
         capability: str,
         version_a: str,
         version_b: str
-    ) -> PromptComparison:
+    ) -> Dict[str, Any]:
         """Сравнить две версии промпта"""
-        pass
-    
+        prompt_a = self.get_prompt(capability, version_a)
+        prompt_b = self.get_prompt(capability, version_b)
+        
+        return {
+            'version_a': version_a,
+            'version_b': version_b,
+            'content_length_a': len(prompt_a.content),
+            'content_length_b': len(prompt_b.content),
+            'variables_a': [v.name for v in prompt_a.variables],
+            'variables_b': [v.name for v in prompt_b.variables],
+            'metadata_diff': self._compare_metadata(prompt_a, prompt_b)
+        }
+
     async def promote_version(
         self,
         capability: str,
         from_version: str,
         to_version: str
     ) -> bool:
-        """Продвинуть версию в active статус"""
-        pass
+        """
+        Продвинуть версию в active статус.
+        ПРИМЕЧАНИЕ: Требует изменения статуса в файловой системе.
+        """
+        # Получаем промпт
+        prompt = self.get_prompt(capability, to_version)
+        
+        # В реальной реализации:
+        # 1. Найти файл промпта
+        # 2. Обновить статус на ACTIVE
+        # 3. Обновить registry.yaml
+        # 4. Перезагрузить DataRepository
+        
+        raise NotImplementedError("Требуется реализация через FileSystemDataSource")
 ```
 
-### Manifest (Добавить метрики)
+### Manifest (Расширить)
+
+**Файл:** `core/models/data/manifest.py` (расширить)
+
+```python
+@dataclass
+class PerformanceMetrics:
+    """Секция метрик производительности в манифесте"""
+    accuracy_target: float = 0.95
+    latency_target_ms: int = 1000
+    success_rate_target: float = 0.98
+    auto_optimize: bool = False
+    optimization_mode: str = "manual"  # manual | automatic | target
+
+
+@dataclass
+class Manifest:
+    # ... существующие поля ...
+    
+    # ← НОВОЕ: секция метрик
+    performance_metrics: Optional[PerformanceMetrics] = None
+```
+
+**Пример манифеста:**
 
 ```yaml
 # data/manifests/skills/planning/manifest.yaml
@@ -799,6 +1072,7 @@ component_id: planning
 component_type: skill
 version: v1.0.0
 status: active
+owner: alexey
 
 # ← ДОБАВИТЬ секцию метрик:
 performance_metrics:
@@ -807,7 +1081,7 @@ performance_metrics:
   success_rate_target: 0.98
   auto_optimize: true
   optimization_mode: target  # manual | automatic | target
-  
+
 changelog:
   - version: v1.0.0
     date: "2026-02-17"
@@ -819,18 +1093,64 @@ changelog:
 
 ---
 
+## 🔧 Изменение существующих компонентов
+
+### 1. Расширение Manifest
+
+**Файл:** `core/models/data/manifest.py`
+
+**Изменения:**
+- Добавить класс `PerformanceMetrics`
+- Добавить поле `performance_metrics` в `Manifest`
+
+### 2. Расширение BaseSkill
+
+**Файл:** `core/application/skills/base_skill.py`
+
+**Изменения:**
+- Добавить метод `_publish_metrics()`
+- Вызывать в `execute()` после выполнения
+
+### 3. Расширение EventBus
+
+**Файл:** `core/infrastructure/event_bus/event_bus.py`
+
+**Изменения:**
+- Добавить новые `EventType` для бенчмарков
+
+### 4. Расширение DataRepository
+
+**Файл:** `core/application/data_repository.py`
+
+**Изменения:**
+- Добавить методы для работы с версиями
+- Добавить методы сравнения и продвижения
+
+---
+
 ## 🧪 Тестирование
 
 ### Юнит-тесты
 
+**Файл:** `tests/unit/test_metrics_collector.py`
+
 ```python
-# tests/unit/test_metrics_collector.py
+import pytest
+from datetime import datetime
+from core.infrastructure.metrics_collector import MetricsCollector
+from core.infrastructure.metrics_storage import MetricsStorage
+from core.infrastructure.event_bus.event_bus import EventBus, EventType
+
 
 @pytest.mark.asyncio
 async def test_metrics_collector_records_skill_execution():
+    """Тест: MetricsCollector записывает метрики выполнения навыка"""
+    event_bus = EventBus()
+    storage = MetricsStorage()  # Mock или in-memory
     collector = MetricsCollector(event_bus, storage)
-    await collector.initialize()
     
+    await collector.initialize()
+
     # Публикуем событие
     await event_bus.publish(
         EventType.SKILL_EXECUTED,
@@ -838,55 +1158,141 @@ async def test_metrics_collector_records_skill_execution():
             'agent_id': 'test_agent',
             'capability': 'planning.create_plan',
             'execution_time_ms': 150,
-            'success': True
+            'success': True,
+            'tokens_used': 100
         }
     )
-    
+
     # Проверяем, что метрика записана
     metrics = await storage.get_metrics('planning.create_plan')
     assert len(metrics) == 1
-    assert metrics[0]['execution_time_ms'] == 150
+    assert metrics[0].execution_time_ms == 150
+    assert metrics[0].success == True
+
+
+@pytest.mark.asyncio
+async def test_aggregated_metrics_calculation():
+    """Тест: Агрегация метрик работает корректно"""
+    from core.models.data.metrics import AggregatedMetrics, MetricRecord
+    
+    records = [
+        MetricRecord(
+            agent_id='test',
+            capability='test.cap',
+            execution_time_ms=100,
+            success=True,
+            tokens_used=50,
+            timestamp=datetime.now()
+        ),
+        MetricRecord(
+            agent_id='test',
+            capability='test.cap',
+            execution_time_ms=200,
+            success=False,
+            tokens_used=60,
+            timestamp=datetime.now()
+        ),
+    ]
+    
+    aggregated = AggregatedMetrics(
+        capability='test.cap',
+        version='v1.0.0',
+        time_range=(datetime.now(), datetime.now()),
+        total_executions=2,
+        success_rate=0.5,  # 1 из 2 успешно
+        latency_ms=150.0,  # среднее
+        tokens_used=110
+    )
+    
+    assert aggregated.success_rate == 0.5
+    assert aggregated.latency_ms == 150.0
 ```
 
 ### Интеграционные тесты
 
+**Файл:** `tests/integration/test_benchmark_service.py`
+
 ```python
-# tests/integration/test_benchmark_service.py
+import pytest
+from core.application.services.benchmark_service import BenchmarkService
+from core.models.data.benchmark import BenchmarkScenario, VersionComparison
+
 
 @pytest.mark.asyncio
 async def test_benchmark_service_compares_versions():
-    benchmark_service = BenchmarkService(...)
-    
+    """Тест: BenchmarkService сравнивает версии"""
+    benchmark_service = BenchmarkService(
+        metrics_collector=mock_metrics_collector,
+        prompt_service=mock_prompt_service,
+        contract_service=mock_contract_service,
+        data_repository=mock_data_repository
+    )
+
+    scenario = BenchmarkScenario(
+        id='test_scenario_1',
+        name='Test Planning',
+        description='Test planning scenario',
+        goal='Create a plan for task X',
+        input_data={'task': 'test'},
+        expected_output={'plan': ['step1', 'step2']},
+        success_criteria={'min_steps': 2}
+    )
+
     result = await benchmark_service.compare_versions(
         capability='planning.create_plan',
         version_a='v1.0.0',
         version_b='v1.1.0-draft',
-        scenarios=[test_scenario]
+        scenarios=[scenario]
     )
-    
-    assert result.improvement > 0
-    assert result.best_version == 'v1.1.0-draft'
+
+    assert isinstance(result, VersionComparison)
+    assert result.scenarios_run == 1
 ```
 
 ### E2E тесты
 
+**Файл:** `tests/e2e/test_learning_cycle.py`
+
 ```python
-# tests/e2e/test_learning_cycle.py
+import pytest
+from core.application.services.learning_orchestrator import LearningOrchestratorService
+from core.application.services.optimization_service import OptimizationService
+from core.models.data.benchmark import OptimizationMode, TargetMetric
+
 
 @pytest.mark.asyncio
 async def test_full_learning_cycle():
+    """Тест: Полный цикл обучения"""
     # 1. Запускаем бенчмарк
-    benchmark_result = await benchmark_service.run_benchmark(...)
-    
+    benchmark_result = await benchmark_service.run_benchmark(
+        scenario=test_scenario,
+        agent_config=test_config
+    )
+
     # 2. Генерируем новую версию
-    new_version = await generator.generate_prompt_variant(...)
-    
+    new_version = await generator.generate_prompt_variant(
+        capability='planning.create_plan',
+        base_version='v1.0.0',
+        optimization_goal='improve accuracy',
+        failure_analysis=failure_analysis
+    )
+
     # 3. Сравниваем версии
-    comparison = await benchmark_service.compare_versions(...)
-    
+    comparison = await benchmark_service.compare_versions(
+        capability='planning.create_plan',
+        version_a='v1.0.0',
+        version_b=new_version,
+        scenarios=[test_scenario]
+    )
+
     # 4. Продвигаем если лучше
-    if comparison.improvement > threshold:
-        promoted = await benchmark_service.auto_promote_if_better(...)
+    if comparison.improvement > 0.05:  # 5% улучшение
+        promoted = await benchmark_service.auto_promote_if_better(
+            capability='planning.create_plan',
+            candidate_version=new_version,
+            current_version='v1.0.0',
+            metric_threshold=0.05
+        )
         assert promoted == True
 ```
 
@@ -938,20 +1344,21 @@ async def test_full_learning_cycle():
 - [ ] Написать интеграционные тесты
 
 ### Неделя 4
-- [ ] Расширить `ApplicationContext` для режимов
-- [ ] Обновить манифесты с метриками
+- [ ] Расширить `Manifest` с `performance_metrics`
+- [ ] Расширить `BaseSkill` с `_publish_metrics()`
 - [ ] Создать скрипты запуска бенчмарков
 
 ---
 
 ## 🔗 Ссылки
 
-- [Архитектурный чек-лист](./docs/architecture/checklist.md)
-- [Идеальная архитектура](./docs/architecture/ideal.md)
-- [Руководство по компонентам](./docs/COMPONENTS_GUIDE.md)
-- [API Reference](./docs/API_REFERENCE.md)
+- [Архитектурный чек-лист](./architecture/checklist.md)
+- [Идеальная архитектура](./architecture/ideal.md)
+- [Руководство по компонентам](./COMPONENTS_GUIDE.md)
+- [API Reference](./API_REFERENCE.md)
+- [Troubleshooting](./TROUBLESHOOTING.md)
 
 ---
 
-*Документ автоматически поддерживается в актуальном состоянии*  
+*Документ автоматически поддерживается в актуальном состоянии*
 *Последнее обновление: 2026-02-17*
