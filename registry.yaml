@@ -43,7 +43,10 @@ capability_types:
   behavior.react.think: behavior
   book_library: skill
   book_library.search_books: tool
+  data_analysis.analyze_step_data: skill
   file_tool.read_write: tool
+  final_answer: skill
+  final_answer.generate: skill
   planning: skill
   planning.create_plan: skill
   prompt_service.get_prompt: service
@@ -120,6 +123,36 @@ skills:
       max_results: 10
     prompt_versions:
       book_library.search_books: v1.0.0
+  data_analysis:
+    dependencies:
+    - file_tool
+    - sql_tool
+    enabled: true
+    input_contract_versions:
+      data_analysis.analyze_step_data: v1.0.0
+    manifest_path: data/manifests/skills/data_analysis/manifest.yaml
+    output_contract_versions:
+      data_analysis.analyze_step_data: v1.0.0
+    parameters:
+      default_chunk_size: 2000
+      default_aggregation: summary
+      max_response_tokens: 2000
+    prompt_versions:
+      data_analysis.analyze_step_data: v1.0.0
+  final_answer:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      final_answer.generate: v1.0.0
+    manifest_path: data/manifests/skills/final_answer/manifest.yaml
+    output_contract_versions:
+      final_answer.generate: v1.0.0
+    parameters:
+      include_evidence: true
+      max_confidence_threshold: 0.7
+      default_format_type: detailed
+    prompt_versions:
+      final_answer.generate: v1.0.0
   planning:
     dependencies: []
     enabled: true
