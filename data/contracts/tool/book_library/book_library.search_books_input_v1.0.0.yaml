@@ -1,0 +1,18 @@
+capability: book_library.search_books
+component_type: tool
+description: Input contract for book_library.search_books - динамический поиск книг через LLM
+direction: input
+schema_data:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Естественный язык запроса для поиска книг (например, "Найти все книги Пушкина")
+    max_results:
+      type: integer
+      description: Максимальное количество результатов
+      default: 10
+  required:
+    - query
+status: active
+version: v1.0.0

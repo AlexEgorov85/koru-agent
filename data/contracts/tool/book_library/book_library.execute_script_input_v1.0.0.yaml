@@ -1,0 +1,40 @@
+capability: book_library.execute_script
+component_type: tool
+description: Input contract for book_library.execute_script - выполнение заготовленного SQL-скрипта
+direction: input
+schema_data:
+  type: object
+  properties:
+    script_name:
+      type: string
+      description: Имя заготовленного скрипта для выполнения
+    parameters:
+      type: object
+      description: Параметры для скрипта
+      properties:
+        author:
+          type: string
+          description: Имя автора
+        genre:
+          type: string
+          description: Жанр книги
+        year_from:
+          type: integer
+          description: Начальный год диапазона
+        year_to:
+          type: integer
+          description: Конечный год диапазона
+        book_id:
+          type: integer
+          description: ID книги
+        title_pattern:
+          type: string
+          description: Шаблон названия (для LIKE поиска)
+        max_rows:
+          type: integer
+          description: Максимальное количество результатов
+          default: 100
+  required:
+    - script_name
+status: active
+version: v1.0.0

@@ -1,0 +1,167 @@
+active_contracts: {}
+active_prompts: {}
+behaviors:
+  planning_pattern:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    manifest_path: data/manifests/behaviors/planning_pattern/manifest.yaml
+    output_contract_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+    prompt_versions:
+      behavior.planning.decompose: v1.0.0
+      behavior.planning.sequence: v1.0.0
+  react_pattern:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+    manifest_path: data/manifests/behaviors/react_pattern/manifest.yaml
+    output_contract_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+    parameters:
+      max_thoughts: 5
+    prompt_versions:
+      behavior.react.act: v1.0.0
+      behavior.react.observe: v1.0.0
+      behavior.react.think: v1.0.0
+capability_types:
+  behavior: behavior
+  behavior.planning: behavior
+  behavior.planning.decompose: behavior
+  behavior.planning.sequence: behavior
+  behavior.react: behavior
+  behavior.react.act: behavior
+  behavior.react.observe: behavior
+  behavior.react.think: behavior
+  book_library: skill
+  book_library.search_books: tool
+  book_library.execute_script: tool
+  book_library.list_scripts: tool
+  file_tool.read_write: tool
+  planning: skill
+  planning.create_plan: skill
+  prompt_service.get_prompt: service
+  sql_generation: service
+  sql_generation.generate_query: service
+  sql_query_service.execute: service
+  sql_tool.execute_query: tool
+  sql_validator_service.validate: service
+  table_description_service.get_table: service
+profile: prod
+services:
+  contract_service:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      contract.service: v1.0.0
+    manifest_path: data/manifests/services/contract_service/manifest.yaml
+    output_contract_versions:
+      contract.service: v1.0.0
+    prompt_versions:
+      contract.service: v1.0.0
+  prompt_service:
+    enabled: true
+    input_contract_versions:
+      prompt_service.get_prompt: v1.0.0
+    manifest_path: data/manifests/services/prompt_service/manifest.yaml
+    output_contract_versions:
+      prompt_service.get_prompt: v1.0.0
+  sql_generation_service:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      sql_generation.generate_query: v1.0.0
+    manifest_path: data/manifests/services/sql_generation_service/manifest.yaml
+    output_contract_versions:
+      sql_generation.generate_query: v1.0.0
+    prompt_versions:
+      sql_generation.generate_query: v1.0.0
+  sql_query_service:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      sql_query_service.execute: v1.0.0
+    manifest_path: data/manifests/services/sql_query_service/manifest.yaml
+    output_contract_versions:
+      sql_query_service.execute: v1.0.0
+  sql_validator_service:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      sql_validator_service.validate: v1.0.0
+    manifest_path: data/manifests/services/sql_validator_service/manifest.yaml
+    output_contract_versions:
+      sql_validator_service.validate: v1.0.0
+  table_description_service:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      table_description_service.get_table: v1.0.0
+    manifest_path: data/manifests/services/table_description_service/manifest.yaml
+    output_contract_versions:
+      table_description_service.get_table: v1.0.0
+skills:
+  book_library:
+    dependencies:
+    - default_db
+    enabled: true
+    input_contract_versions:
+      book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
+      book_library.list_scripts: v1.0.0
+    manifest_path: data/manifests/skills/book_library/manifest.yaml
+    output_contract_versions:
+      book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
+      book_library.list_scripts: v1.0.0
+    parameters:
+      max_results: 10
+    prompt_versions:
+      book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
+  planning:
+    dependencies: []
+    enabled: true
+    manifest_path: data/manifests/skills/planning/manifest.yaml
+    prompt_versions:
+      planning.create_plan: v1.0.0
+strategies:
+  react:
+    dependencies: []
+    enabled: true
+    manifest_path: data/manifests/strategies/react/manifest.yaml
+    parameters:
+      max_thoughts: 5
+tools:
+  file_tool:
+    dependencies: []
+    enabled: true
+    input_contract_versions:
+      file_tool.read_write: v1.0.0
+    manifest_path: data/manifests/tools/file_tool/manifest.yaml
+    output_contract_versions:
+      file_tool.read_write: v1.0.0
+    parameters:
+      allowed_extensions:
+      - .txt
+      - .pdf
+      - .docx
+  sql_tool:
+    dependencies:
+    - default_db
+    enabled: true
+    input_contract_versions:
+      sql_tool.execute_query: v1.0.0
+    manifest_path: data/manifests/tools/sql_tool/manifest.yaml
+    output_contract_versions:
+      sql_tool.execute_query: v1.0.0
+    parameters:
+      max_rows: 1000

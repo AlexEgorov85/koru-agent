@@ -1,0 +1,13 @@
+capability: book_library.search_books
+component_type: tool
+content: 'Default prompt for book_library: {input}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Default prompt for book_library
+status: active
+variables:
+- description: Main input for book_library
+  name: input
+  required: true
+version: v1.0.0
