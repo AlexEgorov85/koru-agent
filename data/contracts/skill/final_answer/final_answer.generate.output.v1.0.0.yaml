@@ -1,0 +1,48 @@
+capability: final_answer.generate
+component_type: skill
+description: Выходной контракт для генерации финального ответа агента
+direction: output
+schema_data:
+  type: object
+  properties:
+    final_answer:
+      type: string
+      description: Основной финальный ответ пользователю, сформированный на основе всего контекста сессии
+    sources:
+      type: array
+      items:
+        type: string
+      description: Список источников информации, использованных для формирования ответа
+    confidence_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Уровень уверенности в корректности ответа (0.0 - низкая, 1.0 - высокая)
+    remaining_questions:
+      type: array
+      items:
+        type: string
+      description: Список нерешённых вопросов, которые требуют дополнительного исследования
+    summary_of_steps:
+      type: string
+      description: Краткое резюме выполненных шагов для достижения результата
+    metadata:
+      type: object
+      properties:
+        total_observations:
+          type: integer
+          description: Общее количество наблюдений, обработанных при генерации
+        total_steps:
+          type: integer
+          description: Общее количество выполненных шагов
+        generation_time_ms:
+          type: number
+          description: Время генерации ответа в миллисекундах
+        format_type:
+          type: string
+          description: Использованный формат вывода (concise/detailed/structured)
+  required:
+    - final_answer
+    - confidence_score
+status: active
+version: v1.0.0

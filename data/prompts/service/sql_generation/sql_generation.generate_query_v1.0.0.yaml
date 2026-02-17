@@ -1,0 +1,26 @@
+capability: sql_generation.generate_query
+component_type: service
+content: 'Generate a SQL query for the following request:
+
+  {{ natural_language_request }}
+
+
+  Using the database schema:
+
+  {{ table_schema }}
+
+
+  Return only the SQL query without any explanation.'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for sql_generation.generate_query
+status: active
+variables:
+- description: Request in natural language
+  name: natural_language_request
+  required: true
+- description: Database schema
+  name: table_schema
+  required: true
+version: v1.0.0

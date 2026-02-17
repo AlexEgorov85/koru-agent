@@ -1,0 +1,40 @@
+﻿component_id: contract_service
+component_type: service
+version: v1.0.0
+owner: team-core
+status: active
+
+contract:
+  input: contract.service.input.v1.0.0
+  output: contract.service.output.v1.0.0
+
+constraints:
+  max_schema_size_kb: 100
+  validation_timeout_seconds: 5
+  supported_formats:
+    - json
+    - yaml
+
+quality_metrics:
+  success_rate_target: 0.999
+  avg_execution_time_ms: 5
+  error_rate_threshold: 0.001
+
+success_metrics:
+  goal_completion_rate: 0.999
+  user_satisfaction_score: 4.95
+  retry_rate: 0.001
+
+dependencies:
+  components: []
+  tools: []
+  services:
+    - prompt_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "Contract service with schema validation"

@@ -186,7 +186,6 @@ config/local/*
 
 # Models and datasets
 models/trained/
-data/
 dataset/
 datasets/
 

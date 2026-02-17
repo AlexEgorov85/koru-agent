@@ -1,0 +1,41 @@
+component_id: file_tool
+component_type: tool
+version: v1.0.0
+owner: team-storage
+status: active
+
+contract:
+  input: file_tool.read_write.input.v1.0.0
+  output: file_tool.read_write.output.v1.0.0
+
+constraints:
+  max_file_size_mb: 10
+  allowed_extensions:
+    - .txt
+    - .json
+    - .csv
+  timeout_seconds: 60
+
+quality_metrics:
+  success_rate_target: 0.995
+  avg_execution_time_ms: 100
+  error_rate_threshold: 0.005
+
+success_metrics:
+  goal_completion_rate: 0.99
+  user_satisfaction_score: 4.9
+  retry_rate: 0.01
+
+dependencies:
+  components: []
+  tools: []
+  services:
+    - prompt_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "File read/write tool with validation"

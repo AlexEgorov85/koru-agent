@@ -1,0 +1,16 @@
+capability: behavior.react.think
+component_type: behavior
+content: '{input} Think about observation: {observation}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.react.think
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Observation to think about
+  name: observation
+  required: true
+version: v1.0.0

@@ -1,0 +1,14 @@
+capability: table_description_service.get_table
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Input contract for table description service
+schema_data:
+  type: object
+  properties:
+    table_name:
+      type: string
+      description: Name of the table to describe
+  required:
+    - table_name

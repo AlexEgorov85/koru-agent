@@ -1,0 +1,14 @@
+capability: behavior.planning.decompose
+component_type: behavior
+description: Output contract for behavior.planning.decompose
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for behavior.planning.decompose
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

@@ -1,0 +1,29 @@
+capability: sql_tool.execute_query
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Output contract for SQL tool execute operation
+schema_data:
+  type: object
+  properties:
+    rows:
+      type: array
+      description: Query result rows
+      items:
+        type: object
+    columns:
+      type: array
+      description: Column names
+      items:
+        type: string
+    rowcount:
+      type: integer
+      description: Number of rows affected/returned
+    execution_time:
+      type: number
+      description: Execution time in seconds
+  required:
+    - rows
+    - columns
+    - rowcount

@@ -1,0 +1,14 @@
+capability: behavior
+component_type: behavior
+description: Output contract for behavior
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for behavior
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

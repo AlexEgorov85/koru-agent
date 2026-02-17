@@ -1,0 +1,28 @@
+capability: contract.service
+component_type: service
+direction: input
+status: active
+version: v1.0.0
+description: "Input contract for contract service"
+schema_data:
+  $schema: "http://json-schema.org/draft-07/schema#"
+  type: object
+  properties:
+    contract_data:
+      type: object
+      description: "Contract data to process"
+      properties:
+        capability:
+          type: string
+          description: "Capability name"
+        version:
+          type: string
+          description: "Version string"
+        content:
+          type: string
+          description: "Contract content"
+      required:
+        - capability
+        - version
+  required:
+    - contract_data

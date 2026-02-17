@@ -1,0 +1,25 @@
+analysis_timestamp: '2026-02-17T13:58:40.654956'
+schema_name: Lib
+status: success
+tables:
+  authors:
+    columns: []
+    constraints: []
+    description: 'Ошибка получения метаданных: DB провайдер не найден в инфраструктурном
+      контексте'
+    status: found
+  books:
+    columns: []
+    constraints: []
+    description: 'Ошибка получения метаданных: DB провайдер не найден в инфраструктурном
+      контексте'
+    status: found
+validation:
+  errors:
+  - '[ERROR] В таблице ''books'' отсутствует обязательная колонка ''id'''
+  - '[ERROR] В таблице ''books'' отсутствует обязательная колонка ''title'''
+  - '[ERROR] В таблице ''books'' отсутствует обязательная колонка ''author'''
+  is_valid: false
+  warnings:
+  - '[WARN] Колонка ''id'' имеет тип ''None'' (ожидался INTEGER)'
+  - '[WARN] Колонка ''title'' имеет тип ''None'' (ожидался TEXT)'

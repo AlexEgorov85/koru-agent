@@ -1,0 +1,14 @@
+capability: behavior.planning.sequence
+component_type: behavior
+description: Output contract for behavior.planning.sequence
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for behavior.planning.sequence
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

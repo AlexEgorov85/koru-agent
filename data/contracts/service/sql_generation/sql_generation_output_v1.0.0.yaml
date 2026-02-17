@@ -1,0 +1,14 @@
+capability: sql_generation
+component_type: service
+description: Output contract for sql_generation
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for sql_generation
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

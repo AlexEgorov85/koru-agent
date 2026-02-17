@@ -1,0 +1,20 @@
+capability: prompt_service.get_prompt
+version: v1.0.0
+status: active
+component_type: service
+direction: output
+description: Output contract for prompt service get_prompt operation
+schema_data:
+  type: object
+  properties:
+    prompt:
+      type: string
+      description: Prompt content
+    capability:
+      type: string
+      description: Capability name
+    version:
+      type: string
+      description: Prompt version
+  required:
+    - prompt

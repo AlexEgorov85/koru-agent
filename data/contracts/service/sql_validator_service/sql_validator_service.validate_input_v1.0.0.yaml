@@ -1,0 +1,17 @@
+capability: sql_validator_service.validate
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Input contract for SQL validator service
+schema_data:
+  type: object
+  properties:
+    sql:
+      type: string
+      description: SQL query to validate
+    table_schema:
+      type: string
+      description: Database schema context
+  required:
+    - sql

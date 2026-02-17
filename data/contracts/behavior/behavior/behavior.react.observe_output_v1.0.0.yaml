@@ -1,0 +1,14 @@
+capability: behavior.react.observe
+component_type: behavior
+description: Output contract for behavior.react.observe
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for behavior.react.observe
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

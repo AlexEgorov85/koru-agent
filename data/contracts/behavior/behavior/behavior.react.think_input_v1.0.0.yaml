@@ -1,0 +1,14 @@
+capability: behavior.react.think
+component_type: behavior
+description: Input contract for behavior.react.think
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for behavior.react.think
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

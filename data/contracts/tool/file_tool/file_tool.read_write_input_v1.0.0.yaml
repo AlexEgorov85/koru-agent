@@ -1,0 +1,22 @@
+capability: file_tool.read_write
+version: v1.0.0
+status: active
+component_type: tool
+direction: input
+description: Input contract for file tool read/write operations
+schema_data:
+  type: object
+  properties:
+    operation:
+      type: string
+      description: File operation (read, write, delete, list)
+      enum: [read, write, delete, list]
+    path:
+      type: string
+      description: File or directory path
+    content:
+      type: string
+      description: File content (for write operation)
+  required:
+    - operation
+    - path

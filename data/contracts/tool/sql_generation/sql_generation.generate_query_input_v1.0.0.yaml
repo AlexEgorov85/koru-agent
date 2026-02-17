@@ -1,0 +1,18 @@
+capability: sql_generation.generate_query
+component_type: tool
+description: Input contract for sql_generation.generate_query
+direction: input
+schema_data:
+  properties:
+    natural_language_request:
+      description: Request in natural language
+      type: string
+    table_schema:
+      description: Database schema
+      type: string
+  required:
+  - natural_language_request
+  - table_schema
+  type: object
+status: active
+version: v1.0.0

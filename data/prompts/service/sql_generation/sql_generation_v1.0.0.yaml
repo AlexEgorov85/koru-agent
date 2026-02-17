@@ -1,0 +1,13 @@
+capability: sql_generation.generate_query
+component_type: service
+content: 'Default prompt for sql_generation: {input}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Default prompt for sql_generation
+status: active
+variables:
+- description: Main input for sql_generation
+  name: input
+  required: true
+version: v1.0.0

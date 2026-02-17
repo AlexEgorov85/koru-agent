@@ -1,0 +1,16 @@
+capability: behavior.planning
+component_type: behavior
+content: '{input} Plan the next step based on current state: {state}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.planning
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Current state for planning
+  name: state
+  required: true
+version: v1.0.0

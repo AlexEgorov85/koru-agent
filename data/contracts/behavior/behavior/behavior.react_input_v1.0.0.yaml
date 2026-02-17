@@ -1,0 +1,14 @@
+capability: behavior.react
+component_type: behavior
+description: Input contract for behavior.react
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for behavior.react
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

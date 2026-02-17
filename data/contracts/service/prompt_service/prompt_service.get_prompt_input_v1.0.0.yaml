@@ -1,0 +1,17 @@
+capability: prompt_service.get_prompt
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Input contract for prompt service get_prompt operation
+schema_data:
+  type: object
+  properties:
+    capability:
+      type: string
+      description: Capability name to retrieve prompt for
+    version:
+      type: string
+      description: Prompt version (optional)
+  required:
+    - capability

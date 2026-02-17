@@ -1,0 +1,14 @@
+capability: sql_generation
+component_type: service
+description: Input contract for sql_generation
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for sql_generation
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

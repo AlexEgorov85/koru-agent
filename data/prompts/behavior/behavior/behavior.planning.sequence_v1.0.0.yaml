@@ -1,0 +1,16 @@
+capability: behavior.planning.sequence
+component_type: behavior
+content: '{input} Sequence the steps for: {steps}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.planning.sequence
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Steps to sequence
+  name: steps
+  required: true
+version: v1.0.0

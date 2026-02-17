@@ -1,0 +1,27 @@
+capability: table_description_service.get_table
+version: v1.0.0
+status: active
+component_type: service
+direction: output
+description: Output contract for table description service
+schema_data:
+  type: object
+  properties:
+    table_name:
+      type: string
+      description: Table name
+    columns:
+      type: array
+      description: Column definitions
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          type:
+            type: string
+          nullable:
+            type: boolean
+  required:
+    - table_name
+    - columns

@@ -1,0 +1,14 @@
+capability: behavior.react.observe
+component_type: behavior
+description: Input contract for behavior.react.observe
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for behavior.react.observe
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

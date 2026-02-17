@@ -1,0 +1,39 @@
+capability: final_answer.generate
+component_type: skill
+description: Входной контракт для генерации финального ответа агента на основе контекста сессии
+direction: input
+schema_data:
+  type: object
+  properties:
+    include_steps:
+      type: boolean
+      default: true
+      description: Включать ли краткое резюме выполненных шагов в финальный ответ
+    include_evidence:
+      type: boolean
+      default: true
+      description: Включать ли источники информации (наблюдения) в финальный ответ
+    format_type:
+      type: string
+      enum:
+        - concise
+        - detailed
+        - structured
+      default: detailed
+      description: Формат вывода ответа
+    confidence_threshold:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      default: 0.7
+      description: Минимальный порог уверенности для включения информации в ответ
+    max_sources:
+      type: integer
+      minimum: 1
+      maximum: 20
+      default: 10
+      description: Максимальное количество источников для включения в ответ
+  required: []
+  additionalProperties: false
+status: active
+version: v1.0.0

@@ -1,0 +1,14 @@
+capability: behavior
+component_type: behavior
+description: Input contract for behavior
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for behavior
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

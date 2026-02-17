@@ -1,0 +1,18 @@
+capability: contract.service
+component_type: service
+content: |
+  Service for managing and validating contracts.
+  
+  Input: {input}
+  
+  Process the contract-related request.
+metadata:
+  author: system
+  created: '2026-02-16'
+  description: Contract service prompt
+status: active
+variables:
+- description: Main input for the contract service
+  name: input
+  required: true
+version: v1.0.0

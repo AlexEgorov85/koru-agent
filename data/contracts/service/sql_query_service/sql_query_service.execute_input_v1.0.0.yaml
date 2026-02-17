@@ -1,0 +1,18 @@
+capability: sql_query_service.execute
+version: v1.0.0
+status: active
+component_type: service
+direction: input
+description: Input contract for SQL query service
+schema_data:
+  type: object
+  properties:
+    sql:
+      type: string
+      description: SQL query to execute
+    parameters:
+      type: object
+      description: Query parameters
+      additionalProperties: true
+  required:
+    - sql

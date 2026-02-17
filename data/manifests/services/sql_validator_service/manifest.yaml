@@ -1,0 +1,45 @@
+component_id: sql_validator_service
+component_type: service
+version: v1.0.0
+owner: team-security
+status: active
+
+contract:
+  input: sql_validator.validate_query.input.v1.0.0
+  output: sql_validator.validate_query.output.v1.0.0
+
+constraints:
+  max_validation_time_ms: 100
+  allowed_sql_operations:
+    - SELECT
+    - INSERT
+    - UPDATE
+    - DELETE
+  blocked_patterns:
+    - DROP
+    - ALTER
+    - CREATE
+
+quality_metrics:
+  success_rate_target: 0.995
+  avg_execution_time_ms: 25
+  error_rate_threshold: 0.005
+
+success_metrics:
+  goal_completion_rate: 0.99
+  user_satisfaction_score: 4.8
+  retry_rate: 0.01
+
+dependencies:
+  components: []
+  tools: []
+  services:
+    - prompt_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "SQL validator service with security checks"

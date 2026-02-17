@@ -1,0 +1,43 @@
+component_id: react_pattern
+component_type: behavior
+version: v1.0.0
+owner: team-behavior
+status: active
+
+contract:
+  input: react_pattern.think_act_observe.input.v1.0.0
+  output: react_pattern.think_act_observe.output.v1.0.0
+
+constraints:
+  max_iterations: 10
+  timeout_seconds: 300
+  required_components:
+    - tool
+    - prompt_service
+
+quality_metrics:
+  success_rate_target: 0.92
+  avg_execution_time_ms: 1000
+  error_rate_threshold: 0.08
+
+success_metrics:
+  goal_completion_rate: 0.90
+  user_satisfaction_score: 4.6
+  retry_rate: 0.08
+
+dependencies:
+  components: []
+  tools:
+    - sql_tool
+    - file_tool
+  services:
+    - prompt_service
+    - contract_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "ReAct pattern implementation"

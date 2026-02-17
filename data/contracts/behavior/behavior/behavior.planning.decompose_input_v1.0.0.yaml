@@ -1,0 +1,14 @@
+capability: behavior.planning.decompose
+component_type: behavior
+description: Input contract for behavior.planning.decompose
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for behavior.planning.decompose
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

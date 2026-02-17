@@ -1,0 +1,16 @@
+capability: behavior.react.observe
+component_type: behavior
+content: '{input} Observe the result of action: {action}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.react.observe
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Action to observe the result of
+  name: action
+  required: true
+version: v1.0.0

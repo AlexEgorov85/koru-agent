@@ -1,0 +1,43 @@
+component_id: sql_generation_service
+component_type: service
+version: v1.0.0
+owner: team-database
+status: active
+
+contract:
+  input: sql_generation.generate_query.input.v1.0.0
+  output: sql_generation.generate_query.output.v1.0.0
+
+constraints:
+  max_query_length: 2000
+  timeout_seconds: 45
+  allowed_databases:
+    - postgresql
+    - mysql
+    - sqlite
+
+quality_metrics:
+  success_rate_target: 0.97
+  avg_execution_time_ms: 750
+  error_rate_threshold: 0.03
+
+success_metrics:
+  goal_completion_rate: 0.95
+  user_satisfaction_score: 4.6
+  retry_rate: 0.05
+
+dependencies:
+  components: []
+  tools:
+    - sql_tool
+  services:
+    - prompt_service
+    - contract_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "SQL generation service with query optimization"

@@ -1,0 +1,17 @@
+capability: sql_generation.generate_query
+component_type: tool
+description: Output contract for sql_generation.generate_query
+direction: output
+schema_data:
+  properties:
+    explanation:
+      description: Brief explanation
+      type: string
+    sql_query:
+      description: Generated SQL query
+      type: string
+  required:
+  - sql_query
+  type: object
+status: active
+version: v1.0.0

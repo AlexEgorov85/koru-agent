@@ -1,0 +1,22 @@
+capability: sql_tool.execute_query
+version: v1.0.0
+status: active
+component_type: tool
+direction: input
+description: Input contract for SQL tool execute operation
+schema_data:
+  type: object
+  properties:
+    sql:
+      type: string
+      description: SQL query to execute
+    parameters:
+      type: object
+      description: Query parameters
+      additionalProperties: true
+    max_rows:
+      type: integer
+      description: Maximum number of rows to return
+      default: 1000
+  required:
+    - sql

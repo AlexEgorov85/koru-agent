@@ -1,0 +1,13 @@
+capability: behavior.planning
+component_type: behavior
+content: 'Default prompt for behavior: {input}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Default prompt for behavior
+status: active
+variables:
+- description: Main input for behavior
+  name: input
+  required: true
+version: v1.0.0

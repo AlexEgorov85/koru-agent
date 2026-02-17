@@ -1,0 +1,16 @@
+capability: behavior.planning.decompose
+component_type: behavior
+content: 'Decompose the task: {input} (task: {task}) into smaller steps'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.planning.decompose
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Task to decompose into smaller steps
+  name: task
+  required: true
+version: v1.0.0

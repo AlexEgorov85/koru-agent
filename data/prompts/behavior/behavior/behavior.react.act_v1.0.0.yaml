@@ -1,0 +1,16 @@
+capability: behavior.react.act
+component_type: behavior
+content: '{input} Take action based on thought: {thought}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for behavior.react.act
+status: active
+variables:
+- description: Main input for the prompt
+  name: input
+  required: true
+- description: Thought to base action on
+  name: thought
+  required: true
+version: v1.0.0
