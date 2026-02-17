@@ -22,7 +22,7 @@
 
 | Компонент | Описание | Статус |
 |-----------|----------|--------|
-| [InfrastructureContext](./infrastructure/context.md) | Общий контекст инфраструктуры | 🚧 В работе |
+| [InfrastructureContext](./infrastructure/context.md) | Общий контекст инфраструктуры (1 экземпляр) | ✅ Готово |
 | [Провайдеры](./infrastructure/providers.md) | LLM, Database провайдеры | 🚧 В работе |
 | [Хранилища](./infrastructure/storage.md) | Хранилища промптов и контрактов | 🚧 В работе |
 
@@ -30,7 +30,7 @@
 
 | Компонент | Описание | Статус |
 |-----------|----------|--------|
-| [ApplicationContext](./application/context.md) | Изолированный контекст агента | 🚧 В работе |
+| [ApplicationContext](./application/context.md) | Изолированный контекст агента (prod/sandbox) | ✅ Готово |
 | [Сервисы](./application/services.md) | Прикладные сервисы | 🚧 В работе |
 | [Инструменты](./application/tools.md) | I/O инструменты | 🚧 В работе |
 
