@@ -219,9 +219,10 @@ class AgentRuntime:
         self.logger.debug(f"Выполнение шага {self._current_step + 1}")
 
         # Получаем доступные capability для использования в паттернах поведения
-        # В новой архитектуре capability могут быть доступны через компоненты
-        # или через специальные методы контекста
-        if hasattr(self.application_context, 'get_all_skills'):
+        # В новой архитектуре используем метод get_all_capabilities() из ApplicationContext
+        if hasattr(self.application_context, 'get_all_capabilities'):
+            available_caps = self.application_context.get_all_capabilities()
+        elif hasattr(self.application_context, 'get_all_skills'):
             available_caps = self.application_context.get_all_skills()
         elif hasattr(self.application_context, 'get_all_tools'):
             available_caps = self.application_context.get_all_tools()

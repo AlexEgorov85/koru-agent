@@ -1292,6 +1292,39 @@ class ApplicationContext(BaseSystemContext):
         """Получение инструмента через изолированный контекст приложения."""
         return self.components.get(ComponentType.TOOL, name)
 
+    def get_all_capabilities(self) -> List['Capability']:
+        """
+        Получение всех доступных capability от всех навыков и инструментов.
+        
+        ВОЗВРАЩАЕТ:
+        - List[Capability]: Список всех доступных capability
+        
+        ПРИМЕЧАНИЕ:
+        - Используется behavior_manager для принятия решений
+        - Включает capability от skills и tools
+        """
+        all_capabilities = []
+        
+        # Получаем capability от всех навыков
+        for skill in self.components.all_of_type(ComponentType.SKILL):
+            if hasattr(skill, 'get_capabilities'):
+                try:
+                    caps = skill.get_capabilities()
+                    all_capabilities.extend(caps)
+                except Exception as e:
+                    self.logger.warning(f"Ошибка получения capability от навыка {skill.name}: {e}")
+        
+        # Получаем capability от всех инструментов
+        for tool in self.components.all_of_type(ComponentType.TOOL):
+            if hasattr(tool, 'get_capabilities'):
+                try:
+                    caps = tool.get_capabilities()
+                    all_capabilities.extend(caps)
+                except Exception as e:
+                    self.logger.warning(f"Ошибка получения capability от инструмента {tool.name}: {e}")
+        
+        return all_capabilities
+
     def get_resource(self, name: str):
         """Получение ресурса - возвращает изолированные сервисы или обращается к инфраструктурному контексту."""
         # Возвращаем изолированные сервисы приложения через новый реестр компонентов
