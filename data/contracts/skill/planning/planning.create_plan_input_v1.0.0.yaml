@@ -1,0 +1,23 @@
+capability: planning.create_plan
+component_type: skill
+description: Input contract for planning.create_plan
+direction: input
+schema_data:
+  properties:
+    capabilities_list:
+      description: Available capabilities
+      items:
+        type: string
+      type: array
+    context:
+      default: ''
+      description: Additional context
+      type: string
+    goal:
+      description: Target goal to plan for
+      type: string
+  required:
+  - goal
+  type: object
+status: active
+version: v1.0.0

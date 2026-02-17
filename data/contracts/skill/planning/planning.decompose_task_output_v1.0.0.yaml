@@ -1,0 +1,54 @@
+capability: planning.decompose_task
+component_type: skill
+description: Output contract for planning.decompose_task
+direction: output
+schema_data:
+  properties:
+    decomposition_strategy:
+      description: Strategy used for decomposition
+      type: string
+    metadata:
+      description: Additional metadata
+      properties:
+        complexity_score:
+          description: Complexity score of the task
+          type: number
+        estimated_total_time:
+          description: Estimated total time for all subtasks
+          type: string
+      type: object
+    original_task:
+      description: Original task data
+      properties:
+        description:
+          description: Task description
+          type: string
+        task_id:
+          description: Task ID
+          type: string
+      type: object
+    parent_task_id:
+      description: ID of the parent task
+      type: string
+    sub_plans:
+      description: List of sub-plans created
+      items:
+        properties:
+          description:
+            description: Subtask description
+            type: string
+          plan_id:
+            description: ID of the sub-plan
+            type: string
+          subtask_id:
+            description: Subtask ID
+            type: string
+        type: object
+      type: array
+  required:
+  - parent_task_id
+  - original_task
+  - sub_plans
+  type: object
+status: active
+version: v1.0.0

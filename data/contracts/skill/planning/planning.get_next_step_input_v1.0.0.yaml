@@ -1,0 +1,21 @@
+capability: planning.get_next_step
+component_type: skill
+description: Input contract for planning.get_next_step
+direction: input
+schema_data:
+  properties:
+    plan_id:
+      default: ''
+      description: ID of the plan (empty for current plan)
+      type: string
+    current_step_id:
+      default: ''
+      description: ID of the current step to find next after
+      type: string
+    skip_completed:
+      default: true
+      description: Whether to skip completed steps
+      type: boolean
+  type: object
+status: active
+version: v1.0.0

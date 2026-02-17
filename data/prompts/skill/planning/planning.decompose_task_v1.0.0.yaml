@@ -1,0 +1,72 @@
+capability: planning.decompose_task
+component_type: skill
+content: 'You are a planning module for an agent system.
+
+  Your task is to decompose a complex task into smaller, manageable subtasks.
+
+
+  TASK TO DECOMPOSE:
+
+  Task ID: {{ task_id }}
+
+  Description: {{ task_description }}
+
+
+  AVAILABLE SYSTEM CAPABILITIES:
+
+  {{ capabilities_list }}
+
+
+  CONTEXT:
+
+  {{ context }}
+
+
+  INSTRUCTIONS:
+
+  1. ANALYZE the task complexity and requirements
+
+  2. BREAK DOWN the task into 3-7 logical subtasks
+
+  3. ORDER subtasks sequentially considering dependencies
+
+  4. ASSIGN unique IDs to each subtask (format: {task_id}.1, {task_id}.2, etc.)
+
+  5. ESTIMATE complexity for each subtask (low/medium/high)
+
+  6. CONSIDER available system capabilities
+
+  7. ENSURE each subtask is specific and actionable
+
+
+  DECOMPOSITION STRATEGY:
+
+  - For research tasks: break by information sources
+
+  - For analysis tasks: break by analysis dimensions
+
+  - For implementation tasks: break by components/features
+
+  - For multi-step tasks: break by logical phases
+
+
+  Return the decomposition in structured format with subtasks list.'
+metadata:
+  author: system
+  created: '2026-02-17'
+  description: Prompt for planning.decompose_task
+status: active
+variables:
+- description: ID of the task to decompose
+  name: task_id
+  required: true
+- description: Description of the task to decompose
+  name: task_description
+  required: true
+- description: Available system capabilities
+  name: capabilities_list
+  required: true
+- description: Additional context for decomposition
+  name: context
+  required: false
+version: v1.0.0

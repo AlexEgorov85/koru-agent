@@ -1,0 +1,46 @@
+capability: planning.mark_task_completed
+component_type: skill
+description: Output contract for planning.mark_task_completed
+direction: output
+schema_data:
+  properties:
+    all_tasks_completed:
+      description: Whether all tasks in the plan are now completed
+      type: boolean
+    next_step:
+      description: Next step to execute (if any)
+      nullable: true
+      properties:
+        action:
+          description: Action to take
+          type: string
+        step_id:
+          description: Step ID
+          type: string
+      type: object
+    step_id:
+      description: ID of the marked step
+      type: string
+    updated_step:
+      description: The updated step data
+      properties:
+        completed_at:
+          description: Completion timestamp
+          type: string
+        result:
+          description: Result data
+          type: string
+        status:
+          description: Step status
+          type: string
+        step_id:
+          description: Step ID
+          type: string
+      type: object
+  required:
+  - step_id
+  - all_tasks_completed
+  - updated_step
+  type: object
+status: active
+version: v1.0.0

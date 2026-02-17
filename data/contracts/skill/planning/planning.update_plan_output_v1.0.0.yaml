@@ -1,0 +1,54 @@
+capability: planning.update_plan
+component_type: skill
+description: Output contract for planning.update_plan
+direction: output
+schema_data:
+  properties:
+    plan:
+      description: Updated plan
+      properties:
+        created_at:
+          description: Plan creation timestamp
+          type: string
+        plan_id:
+          description: Plan ID
+          type: string
+        steps:
+          description: Plan steps
+          items:
+            properties:
+              action:
+                description: Action to take
+                type: string
+              dependencies:
+                description: Step dependencies
+                items:
+                  type: string
+                type: array
+              estimated_time:
+                description: Estimated time
+                type: string
+              status:
+                description: Step status
+                type: string
+              step:
+                description: Step number
+                type: integer
+              step_id:
+                description: Step ID
+                type: string
+            type: object
+          type: array
+        status:
+          description: Plan status
+          type: string
+      type: object
+    update_applied:
+      description: Whether the update was successfully applied
+      type: boolean
+  required:
+  - plan
+  - update_applied
+  type: object
+status: active
+version: v1.0.0

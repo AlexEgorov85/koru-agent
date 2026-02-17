@@ -1,0 +1,13 @@
+capability: planning.create_plan
+component_type: skill
+content: 'Default prompt for planning: {input}'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Default prompt for planning
+status: active
+variables:
+- description: Main input for planning
+  name: input
+  required: true
+version: v1.0.0

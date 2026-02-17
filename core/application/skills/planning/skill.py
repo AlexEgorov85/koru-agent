@@ -76,15 +76,19 @@ class PlanningSkill(BaseComponent):
         - Вызывать другие действия через self.executor.execute_action()
         - Валидировать входные/выходные данные через контракты из кэша
         """
-        # 1. Валидация через КЭШИРОВАННЫЙ контракт (без обращения к сервису!)
+        # 1. Валидация входных данных через КЭШИРОВАННЫЙ контракт
         try:
             input_contract = self.get_input_contract(capability.name)
-            # Здесь должна быть валидация через схему контракта
-            # validate_against_schema(parameters, input_contract)
+            # Валидация через метод базового класса
+            if not self.validate_input(capability.name, parameters):
+                return ActionResult(
+                    success=False,
+                    error=f"Валидация входных данных для {capability.name} не пройдена"
+                )
         except KeyError:
             # Если контракт не найден в кэше, используем переданные параметры без валидации
             # Это обеспечивает обратную совместимость
-            pass
+            self.logger.warning(f"Контракт для {capability.name} не найден в кэше, валидация пропущена")
 
         # 2. Делегирование конкретным методам
         if capability.name == "planning.create_plan":
@@ -108,6 +112,24 @@ class PlanningSkill(BaseComponent):
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""
         return "\n".join([f"- {cap.name}: {cap.description}" for cap in capabilities])
+
+    async def _publish_event(
+        self,
+        event_type: str,
+        data: Dict[str, Any],
+        execution_context: ExecutionContext
+    ) -> None:
+        """
+        Публикация события в EventBus.
+        """
+        try:
+            await self.application_context.infrastructure_context.event_bus.publish(
+                event_type=event_type,
+                data=data,
+                source="planning_skill"
+            )
+        except Exception as e:
+            self.logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
 
     async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
         try:
@@ -142,11 +164,41 @@ class PlanningSkill(BaseComponent):
             # 4. Валидация выхода через КЭШИРОВАННЫЙ контракт
             output_contract = self.get_output_contract("planning.create_plan")
             # validate_against_schema(llm_result.data, output_contract)
-            
+
+            # 5. Сохранение плана в контекст
+            save_result = await self.executor.execute_action(
+                action_name="context.record_plan",
+                parameters={
+                    "plan_data": llm_result.data,
+                    "plan_type": "initial"
+                },
+                context=execution_context
+            )
+
+            if not save_result.success:
+                return ActionResult(
+                    success=False,
+                    error=f"Не удалось сохранить план: {save_result.error}"
+                )
+
+            # 6. Публикация события о создании плана
+            await self._publish_event(
+                event_type="planning.plan_created",
+                data={
+                    "plan_id": llm_result.data.get("plan_id", ""),
+                    "steps_count": len(llm_result.data.get("steps", [])),
+                    "goal": input_data.get("goal", "")
+                },
+                execution_context=execution_context
+            )
+
             return ActionResult(
                 success=True,
                 data=llm_result.data,
-                metadata={"steps_count": len(llm_result.data.get("steps", []))}
+                metadata={
+                    "steps_count": len(llm_result.data.get("steps", [])),
+                    "plan_id": llm_result.data.get("plan_id", "")
+                }
             )
 
         except Exception as e:
@@ -157,11 +209,119 @@ class PlanningSkill(BaseComponent):
             )
 
     async def _update_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
-        # Заглушка для реализации
-        return ActionResult(
-            success=False,
-            error="Метод _update_plan не реализован"
-        )
+        """
+        Обновление существующего плана.
+        Поддерживает добавление, модификацию, удаление и переупорядочивание шагов.
+        """
+        try:
+            # 1. Валидация входных данных через контракт
+            input_contract = self.get_input_contract("planning.update_plan")
+            # validate_against_schema(input_data, input_contract)
+
+            plan_id = input_data.get("plan_id", "")
+            updates = input_data.get("updates", {})
+            reason = input_data.get("reason", "")
+
+            # 2. Загрузка текущего плана
+            if plan_id:
+                plan_result = await self.executor.execute_action(
+                    action_name="context.get_context_item",
+                    parameters={"item_id": plan_id},
+                    context=execution_context
+                )
+                if not plan_result.success:
+                    return ActionResult(
+                        success=False,
+                        error=f"План с ID {plan_id} не найден"
+                    )
+                current_plan = plan_result.data.get("content", {}) if plan_result.data else {}
+            else:
+                # Используем текущий план из контекста
+                plan_result = await self.executor.execute_action(
+                    action_name="context.get_current_plan",
+                    parameters={},
+                    context=execution_context
+                )
+                if not plan_result.success:
+                    return ActionResult(
+                        success=False,
+                        error="Нет текущего плана для обновления"
+                    )
+                current_plan = plan_result.data
+
+            # 3. Подготовка промпта для обновления плана
+            prompt_template = self.get_prompt("planning.update_plan")
+            rendered_prompt = prompt_template.format(
+                current_plan=str(current_plan),
+                new_requirements=str(updates),
+                constraints="Сохранить логическую связность плана, не нарушать зависимости шагов",
+                context=f"Причина обновления: {reason}" if reason else ""
+            )
+
+            # 4. Вызов LLM для обновления плана через executor
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate",
+                parameters={
+                    "prompt": rendered_prompt,
+                    "model": "gpt-4",
+                    "temperature": 0.3
+                },
+                context=execution_context
+            )
+
+            if not llm_result.success:
+                return ActionResult(
+                    success=False,
+                    error=f"Ошибка обновления плана: {llm_result.error}"
+                )
+
+            updated_plan = llm_result.data
+
+            # 5. Сохранение обновленного плана
+            save_result = await self.executor.execute_action(
+                action_name="context.record_plan",
+                parameters={
+                    "plan_data": updated_plan,
+                    "plan_type": "update"
+                },
+                context=execution_context
+            )
+
+            if not save_result.success:
+                return ActionResult(
+                    success=False,
+                    error="Не удалось сохранить обновленный план"
+                )
+
+            # 6. Публикация события об обновлении плана
+            await self._publish_event(
+                event_type="planning.plan_updated",
+                data={
+                    "plan_id": updated_plan.get("plan_id", plan_id),
+                    "reason": reason,
+                    "steps_count": len(updated_plan.get("steps", []))
+                },
+                execution_context=execution_context
+            )
+
+            return ActionResult(
+                success=True,
+                data={
+                    "plan": updated_plan,
+                    "update_applied": True
+                },
+                metadata={
+                    "plan_id": updated_plan.get("plan_id", plan_id),
+                    "steps_count": len(updated_plan.get("steps", []))
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
+            return ActionResult(
+                success=False,
+                error=f"Не удалось обновить план: {str(e)[:100]}"
+            )
 
     async def _get_next_step(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
         """
@@ -176,11 +336,19 @@ class PlanningSkill(BaseComponent):
                 parameters={},
                 context=execution_context
             )
-            
+
             if not plan_result.success:
                 return ActionResult(
                     success=False,
-                    error="Нет текущего плана для получения следующего шага"
+                    error=f"Нет текущего плана для получения следующего шага: {plan_result.error}"
+                )
+
+            # Проверяем, существует ли план
+            if not plan_result.data or not plan_result.metadata.get("exists", False):
+                return ActionResult(
+                    success=True,
+                    data={"step": None},
+                    metadata={"step_found": False, "message": "Текущий план не найден"}
                 )
 
             current_plan = plan_result.data
@@ -251,10 +419,10 @@ class PlanningSkill(BaseComponent):
                 parameters={"item_id": sub_plan_info.get("plan_id")},
                 context=execution_context
             )
-            
-            if sub_plan_result.success and sub_plan_result.data and sub_plan_result.data.get("content"):
-                # Рекурсивно получаем следующий шаг из подплана
-                sub_plan = sub_plan_result.data["content"]
+
+            if sub_plan_result.success and sub_plan_result.data:
+                # Извлекаем контент из результата
+                sub_plan = sub_plan_result.data.get("content", sub_plan_result.data)
                 # Создаем временный input_data для подплана
                 sub_input = {
                     "plan_id": sub_plan_info.get("plan_id"),
@@ -287,11 +455,18 @@ class PlanningSkill(BaseComponent):
                 parameters={},
                 context=execution_context
             )
-            
+
             if not plan_result.success:
                 return ActionResult(
                     success=False,
-                    error="Нет текущего плана для обновления статуса шага"
+                    error=f"Нет текущего плана для обновления статуса шага: {plan_result.error}"
+                )
+
+            # Проверяем, существует ли план
+            if not plan_result.data or not plan_result.metadata.get("exists", False):
+                return ActionResult(
+                    success=False,
+                    error="Текущий план не найден в контексте"
                 )
 
             current_plan = plan_result.data
@@ -354,7 +529,7 @@ class PlanningSkill(BaseComponent):
             if not update_result.success:
                 return ActionResult(
                     success=False,
-                    error="Не удалось обновить план в контексте"
+                    error=f"Не удалось обновить план в контексте: {update_result.error}"
                 )
 
             # Пытаемся получить следующий шаг
@@ -516,10 +691,16 @@ class PlanningSkill(BaseComponent):
                 action_name="context.record_plan",
                 parameters={
                     "plan_data": hierarchy_data,
-                    "plan_type": "hierarchy"
+                    "plan_type": "initial"  # Используем 'initial' для нового плана иерархии
                 },
                 context=execution_context
             )
+
+            if not hierarchy_result.success:
+                return ActionResult(
+                    success=False,
+                    error=f"Не удалось сохранить иерархию плана: {hierarchy_result.error}"
+                )
 
             return ActionResult(
                 success=True,
@@ -534,11 +715,145 @@ class PlanningSkill(BaseComponent):
             )
 
     async def _mark_task_completed(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
-        # Заглушка для реализации
-        return ActionResult(
-            success=False,
-            error="Метод _mark_task_completed не реализован"
-        )
+        """
+        Отметка задачи как завершенной.
+        Обновляет статус шага, проверяет завершение всех задач и определяет следующий шаг.
+        """
+        try:
+            # 1. Валидация входных данных через контракт
+            input_contract = self.get_input_contract("planning.mark_task_completed")
+            # validate_against_schema(input_data, input_contract)
+
+            step_id = input_data.get("step_id")
+            plan_id = input_data.get("plan_id", "")
+            result_data = input_data.get("result_data", "")
+
+            # 2. Загрузка текущего плана
+            if plan_id:
+                plan_result = await self.executor.execute_action(
+                    action_name="context.get_context_item",
+                    parameters={"item_id": plan_id},
+                    context=execution_context
+                )
+                if not plan_result.success:
+                    return ActionResult(
+                        success=False,
+                        error=f"План с ID {plan_id} не найден: {plan_result.error}"
+                    )
+                current_plan = plan_result.data.get("content", {}) if plan_result.data else {}
+            else:
+                plan_result = await self.executor.execute_action(
+                    action_name="context.get_current_plan",
+                    parameters={},
+                    context=execution_context
+                )
+                if not plan_result.success:
+                    return ActionResult(
+                        success=False,
+                        error=f"Нет текущего плана для отметки задачи: {plan_result.error}"
+                    )
+                
+                # Проверяем, существует ли план
+                if not plan_result.data or not plan_result.metadata.get("exists", False):
+                    return ActionResult(
+                        success=False,
+                        error="Текущий план не найден в контексте"
+                    )
+                
+                current_plan = plan_result.data
+
+            steps = current_plan.get("steps", [])
+
+            # 3. Поиск шага для обновления
+            step_to_update = None
+            step_index = -1
+            for idx, step in enumerate(steps):
+                if step.get("step_id") == step_id:
+                    step_to_update = step.copy()
+                    step_index = idx
+                    break
+
+            if not step_to_update:
+                return ActionResult(
+                    success=False,
+                    error=f"Шаг с ID {step_id} не найден в плане"
+                )
+
+            # 4. Обновление статуса шага
+            import datetime
+            step_to_update["status"] = "completed"
+            step_to_update["completed_at"] = datetime.datetime.utcnow().isoformat()
+            if result_data:
+                step_to_update["result"] = result_data
+
+            # 5. Обновление шага в плане
+            updated_steps = steps.copy()
+            updated_steps[step_index] = step_to_update
+
+            # 6. Проверка, все ли задачи завершены
+            all_completed = all(
+                s.get("status") == "completed"
+                for s in updated_steps
+            )
+
+            # 7. Определение следующего шага
+            next_step = None
+            if not all_completed and step_index + 1 < len(updated_steps):
+                next_step = {
+                    "step_id": updated_steps[step_index + 1].get("step_id"),
+                    "action": updated_steps[step_index + 1].get("action")
+                }
+
+            # 8. Сохранение обновленного плана
+            update_result = await self.executor.execute_action(
+                action_name="context.record_plan",
+                parameters={
+                    "plan_data": {
+                        **current_plan,
+                        "steps": updated_steps
+                    },
+                    "plan_type": "update"
+                },
+                context=execution_context
+            )
+
+            if not update_result.success:
+                return ActionResult(
+                    success=False,
+                    error=f"Не удалось сохранить обновленный план: {update_result.error}"
+                )
+
+            # 9. Публикация события о завершении задачи
+            await self._publish_event(
+                event_type="planning.task_completed",
+                data={
+                    "step_id": step_id,
+                    "plan_id": current_plan.get("plan_id", ""),
+                    "all_tasks_completed": all_completed
+                },
+                execution_context=execution_context
+            )
+
+            return ActionResult(
+                success=True,
+                data={
+                    "step_id": step_id,
+                    "all_tasks_completed": all_completed,
+                    "updated_step": step_to_update,
+                    "next_step": next_step
+                },
+                metadata={
+                    "step_id": step_id,
+                    "completed_at": step_to_update.get("completed_at")
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
+            return ActionResult(
+                success=False,
+                error=f"Не удалось отметить задачу как завершенную: {str(e)[:100]}"
+            )
 
     async def shutdown(self):
         """Очистка ресурсов навыка."""

@@ -1,0 +1,62 @@
+capability: planning.update_plan
+component_type: skill
+content: 'You are a planning module for an agent system.
+
+  Your task is to update an existing action plan based on new requirements or changes.
+
+
+  CURRENT PLAN:
+
+  {{ current_plan }}
+
+
+  UPDATE REQUIREMENTS:
+
+  {{ new_requirements }}
+
+
+  CONSTRAINTS:
+
+  {{ constraints }}
+
+
+  CONTEXT:
+
+  {{ context }}
+
+
+  INSTRUCTIONS:
+
+  1. ANALYZE the current plan structure
+
+  2. APPLY the requested updates (add/modify/remove/reorder steps)
+
+  3. MAINTAIN logical consistency and step dependencies
+
+  4. PRESERVE completed steps unless explicitly requested to change
+
+  5. UPDATE step numbers after modifications
+
+  6. RETURN the complete updated plan
+
+
+  Return the updated plan in structured format with all steps.'
+metadata:
+  author: system
+  created: '2026-02-17'
+  description: Prompt for planning.update_plan
+status: active
+variables:
+- description: Current plan structure
+  name: current_plan
+  required: true
+- description: New requirements or changes to apply
+  name: new_requirements
+  required: true
+- description: Constraints for the update
+  name: constraints
+  required: true
+- description: Additional context for the update
+  name: context
+  required: false
+version: v1.0.0

@@ -1,0 +1,22 @@
+capability: planning.mark_task_completed
+component_type: skill
+description: Input contract for planning.mark_task_completed
+direction: input
+schema_data:
+  properties:
+    plan_id:
+      default: ''
+      description: ID of the plan (empty for current plan)
+      type: string
+    result_data:
+      default: ''
+      description: Result data from task completion
+      type: string
+    step_id:
+      description: ID of the step to mark as completed
+      type: string
+  required:
+  - step_id
+  type: object
+status: active
+version: v1.0.0

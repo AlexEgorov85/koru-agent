@@ -1,0 +1,49 @@
+capability: planning.update_step_status
+component_type: skill
+description: Output contract for planning.update_step_status
+direction: output
+schema_data:
+  properties:
+    new_status:
+      description: The new status applied
+      type: string
+    next_step:
+      description: Next step in the plan (if any)
+      nullable: true
+      properties:
+        action:
+          description: Action to take
+          type: string
+        step_id:
+          description: Step ID
+          type: string
+      type: object
+    step_id:
+      description: ID of the updated step
+      type: string
+    updated_step:
+      description: The updated step data
+      properties:
+        action:
+          description: Action to take
+          type: string
+        error_message:
+          description: Error message if failed
+          type: string
+        result:
+          description: Result data if completed
+          type: string
+        status:
+          description: Step status
+          type: string
+        step_id:
+          description: Step ID
+          type: string
+      type: object
+  required:
+  - step_id
+  - new_status
+  - updated_step
+  type: object
+status: active
+version: v1.0.0

@@ -1,0 +1,26 @@
+capability: planning.decompose_task
+component_type: skill
+description: Input contract for planning.decompose_task
+direction: input
+schema_data:
+  properties:
+    context:
+      default: ''
+      description: Additional context for decomposition
+      type: string
+    max_subtasks:
+      default: 5
+      description: Maximum number of subtasks to create
+      type: integer
+    task_description:
+      description: Description of the task to decompose
+      type: string
+    task_id:
+      description: ID of the task to decompose
+      type: string
+  required:
+  - task_id
+  - task_description
+  type: object
+status: active
+version: v1.0.0

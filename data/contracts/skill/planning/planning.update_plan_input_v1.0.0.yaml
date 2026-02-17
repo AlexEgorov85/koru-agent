@@ -1,0 +1,65 @@
+capability: planning.update_plan
+component_type: skill
+description: Input contract for planning.update_plan
+direction: input
+schema_data:
+  properties:
+    plan_id:
+      description: ID of the plan to update
+      type: string
+    updates:
+      description: Updates to apply to the plan
+      properties:
+        add_steps:
+          description: Steps to add
+          items:
+            properties:
+              action:
+                description: Action to take
+                type: string
+              dependencies:
+                description: Step dependencies
+                items:
+                  type: string
+                type: array
+              estimated_time:
+                description: Estimated time
+                type: string
+              step:
+                description: Step number
+                type: integer
+            type: object
+          type: array
+        modify_steps:
+          description: Steps to modify
+          items:
+            properties:
+              step_id:
+                description: ID of step to modify
+                type: string
+              updates:
+                description: Fields to update
+                type: object
+            type: object
+          type: array
+        remove_steps:
+          description: Step IDs to remove
+          items:
+            type: string
+          type: array
+        reorder_steps:
+          description: New order of step IDs
+          items:
+            type: string
+          type: array
+      type: object
+    reason:
+      default: ''
+      description: Reason for the update
+      type: string
+  required:
+  - plan_id
+  - updates
+  type: object
+status: active
+version: v1.0.0

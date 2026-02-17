@@ -1,0 +1,14 @@
+capability: planning
+component_type: skill
+description: Output contract for planning
+direction: output
+schema_data:
+  properties:
+    result:
+      description: Output for planning
+      type: string
+  required:
+  - result
+  type: object
+status: active
+version: v1.0.0

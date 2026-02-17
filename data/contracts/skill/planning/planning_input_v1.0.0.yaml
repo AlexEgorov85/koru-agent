@@ -1,0 +1,14 @@
+capability: planning
+component_type: skill
+description: Input contract for planning
+direction: input
+schema_data:
+  properties:
+    input:
+      description: Input for planning
+      type: string
+  required:
+  - input
+  type: object
+status: active
+version: v1.0.0

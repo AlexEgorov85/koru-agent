@@ -1,0 +1,53 @@
+capability: planning.get_next_step
+component_type: skill
+description: Output contract for planning.get_next_step
+direction: output
+schema_data:
+  properties:
+    hierarchy_info:
+      description: Hierarchy information if step is from sub-plan
+      nullable: true
+      properties:
+        parent_task_id:
+          description: Parent task ID
+          type: string
+        subtask_id:
+          description: Subtask ID
+          type: string
+        subtask_description:
+          description: Subtask description
+          type: string
+      type: object
+    step:
+      description: Next step to execute
+      nullable: true
+      properties:
+        action:
+          description: Action to take
+          type: string
+        dependencies:
+          description: Step dependencies
+          items:
+            type: string
+          type: array
+        estimated_time:
+          description: Estimated time
+          type: string
+        status:
+          description: Step status
+          type: string
+        step:
+          description: Step number
+          type: integer
+        step_id:
+          description: Step ID
+          type: string
+      type: object
+    step_found:
+      description: Whether a step was found
+      type: boolean
+  required:
+  - step_found
+  type: object
+status: active
+version: v1.0.0

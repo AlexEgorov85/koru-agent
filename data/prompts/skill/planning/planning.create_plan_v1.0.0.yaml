@@ -1,0 +1,57 @@
+capability: planning.create_plan
+component_type: skill
+content: 'You are a planning module for an agent system.
+
+  Your task is to create an initial action plan to achieve the goal.
+
+
+  AVAILABLE SYSTEM CAPABILITIES:
+
+  {{ capabilities_list }}
+
+
+  INSTRUCTIONS:
+
+  1. BUILD a plan from scratch based on the goal
+
+  2. BREAK the plan into specific, executable steps
+
+  3. CONSIDER available system capabilities when choosing actions
+
+  4. MAKE steps sequential and logical
+
+  5. INCLUDE realistic time estimates for each step
+
+  6. CONSIDER system limitations (maximum {{ max_steps }} steps)
+
+
+  GOAL:
+
+  {{ goal }}
+
+
+  ADDITIONAL CONTEXT:
+
+  {{ context }}
+
+
+  Return the plan in structured format.'
+metadata:
+  author: system
+  created: '2026-02-15'
+  description: Prompt for planning.create_plan
+status: active
+variables:
+- description: Target goal to plan for
+  name: goal
+  required: true
+- description: Additional context
+  name: context
+  required: false
+- description: Available system capabilities
+  name: capabilities_list
+  required: true
+- description: Maximum number of steps allowed
+  name: max_steps
+  required: true
+version: v1.0.0

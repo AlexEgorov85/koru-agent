@@ -1,0 +1,36 @@
+capability: planning.update_step_status
+component_type: skill
+description: Input contract for planning.update_step_status
+direction: input
+schema_data:
+  properties:
+    error_message:
+      default: ''
+      description: Error message if status is FAILED
+      type: string
+    plan_id:
+      default: ''
+      description: ID of the plan (empty for current plan)
+      type: string
+    result:
+      default: ''
+      description: Result data if status is COMPLETED
+      type: string
+    status:
+      description: New status for the step
+      enum:
+      - pending
+      - in_progress
+      - completed
+      - failed
+      - skipped
+      type: string
+    step_id:
+      description: ID of the step to update
+      type: string
+  required:
+  - step_id
+  - status
+  type: object
+status: active
+version: v1.0.0

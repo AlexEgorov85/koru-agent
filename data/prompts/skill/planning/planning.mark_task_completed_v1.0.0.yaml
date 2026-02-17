@@ -1,0 +1,51 @@
+capability: planning.mark_task_completed
+component_type: skill
+content: 'You are a planning module for an agent system.
+
+  Your task is to process the completion of a task and determine next actions.
+
+
+  COMPLETED TASK:
+
+  Step ID: {{ step_id }}
+
+  Result: {{ result }}
+
+
+  CURRENT PLAN CONTEXT:
+
+  {{ plan_context }}
+
+
+  INSTRUCTIONS:
+
+  1. RECORD the task completion with timestamp
+
+  2. ANALYZE the result data for quality
+
+  3. CHECK if all plan tasks are now completed
+
+  4. DETERMINE the next step if any remain
+
+  5. VALIDATE dependencies for subsequent steps
+
+  6. RETURN completion status and next action
+
+
+  Return the completion confirmation in structured format.'
+metadata:
+  author: system
+  created: '2026-02-17'
+  description: Prompt for planning.mark_task_completed
+status: active
+variables:
+- description: ID of the completed step
+  name: step_id
+  required: true
+- description: Result data from task completion
+  name: result
+  required: false
+- description: Current plan context
+  name: plan_context
+  required: true
+version: v1.0.0
