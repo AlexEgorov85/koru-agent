@@ -634,7 +634,7 @@ class PromptContractGenerator(BaseService):
             patterns.append(f"  Количество: {error_pattern['count']}")
             if error_pattern.get('examples'):
                 patterns.append(f"  Примеры: {error_pattern['examples'][:2]}")
-        
+
         return patterns
 
     def _build_generation_prompt(
@@ -694,6 +694,716 @@ class PromptContractGenerator(BaseService):
 Верни JSON Schema:
 """)
         return json.loads(response)
+```
+
+---
+
+## 📝 Как именно улучшается промпт
+
+### Процесс улучшения (step-by-step)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ЦИКЛ УЛУЧШЕНИЯ ПРОМПТА                         │
+└─────────────────────────────────────────────────────────────┘
+
+1. АНАЛИЗ ТЕКУЩЕГО ПРОМПТА
+   └→ Загрузка Prompt(capability, version)
+   └→ Извлечение: content, variables, metadata
+
+2. ВЫЯВЛЕНИЕ ПРОБЛЕМ (Failure Analysis)
+   └→ Сбор error logs за 7 дней
+   └→ Группировка по типам ошибок
+   └→ Подсчёт частоты ошибок
+   └→ Извлечение примеров
+
+3. ФОРМИРОВАНИЕ PROMPT ДЛЯ LLM
+   └→ Шаблон: _build_generation_prompt()
+   └→ Включение:
+      * Текущий content промпта
+      * Список проблем (failure_patterns)
+      * Цель оптимизации (optimization_goal)
+
+4. LLM ГЕНЕРАЦИЯ
+   └→ Вызов: llm_provider.generate(prompt)
+   └→ Температура: 0.7 (баланс креативности/точности)
+   └→ Max tokens: 4000
+
+5. ВАЛИДАЦИЯ РЕЗУЛЬТАТА
+   └→ Проверка структуры (переменные сохранены)
+   └→ Проверка длины (не короче оригинала на 50%)
+   └→ Проверка Jinja2 шаблона
+
+6. СОХРАНЕНИЕ НОВОЙ ВЕРСИИ
+   └→ Расчёт версии: v1.0.0 → v1.1.0 (minor bump)
+   └→ Статус: DRAFT
+   └→ Сохранение в data/prompts/...
+```
+
+---
+
+### Детальный пример улучшения промпта
+
+#### ДО (текущий промпт):
+
+```yaml
+# data/prompts/skills/planning/create_plan_v1.0.0.yaml
+capability: planning.create_plan
+version: v1.0.0
+status: active
+content: |
+  Ты — агент планирования. Создай план для задачи.
+  
+  Задача: {{task}}
+  
+  Создай план с шагами.
+  
+variables:
+  - name: task
+    description: Описание задачи
+    required: true
+```
+
+#### Проблемы (из Failure Analysis):
+
+```python
+failure_patterns = [
+    {
+        'type': 'ContractValidationError',
+        'count': 10,
+        'examples': [
+            'missing field: description in step',
+            'missing field: estimate in step'
+        ]
+    },
+    {
+        'type': 'IncompletePlanError',
+        'count': 5,
+        'examples': [
+            'plan has only 2 steps, expected at least 5',
+            'steps lack detailed descriptions'
+        ]
+    }
+]
+```
+
+#### PROMPT для LLM (генерация улучшения):
+
+```
+Улучши промпт для агента.
+
+Текущий промпт:
+Ты — агент планирования. Создай план для задачи.
+
+Задача: {{task}}
+
+Создай план с шагами.
+
+Выявленные проблемы:
+- Тип ошибки: ContractValidationError (10 случаев)
+  Примеры: ['missing field: description in step', 'missing field: estimate in step']
+- Тип ошибки: IncompletePlanError (5 случаев)
+  Примеры: ['plan has only 2 steps, expected at least 5']
+
+Цель оптимизации:
+Улучшить точность и снизить ошибки валидации
+
+Сгенерируй улучшенную версию промпта:
+1. Сохрани структуру и переменные
+2. Устраняй выявленные проблемы
+3. Добавь конкретные инструкции для улучшения качества
+4. Оптимизируй для "Улучшить точность и снизить ошибки валидации"
+
+Новый промпт:
+```
+
+#### ПОСЛЕ (улучшенный промпт):
+
+```yaml
+# data/prompts/skills/planning/create_plan_v1.1.0.yaml
+capability: planning.create_plan
+version: v1.1.0
+status: draft
+content: |
+  Ты — опытный агент планирования проектов. Твоя задача — создать детальный, 
+  выполнимый план для заданной задачи.
+  
+  Задача: {{task}}
+  
+  ИНСТРУКЦИИ:
+  1. Создай план consisting of МИНИМУМ 5 шагов
+  2. Каждый шаг ДОЛЖЕН включать:
+     - name: Краткое название шага (2-5 слов)
+     - description: Подробное описание (минимум 2 предложения)
+     - estimate: Оценка времени в часах (число)
+     - dependencies: Список зависимостей (может быть пустым)
+  3. Убедись, что шаги логически связаны
+  4. Избегай дублирования между шагами
+  
+  ФОРМАТ ОТВЕТА:
+  {
+    "steps": [
+      {
+        "name": "...",
+        "description": "...",
+        "estimate": 0,
+        "dependencies": []
+      }
+    ]
+  }
+  
+  ВАЖНО:
+  - Минимум 5 шагов
+  - Каждый шаг с description и estimate
+  - Описание должно быть конкретным и actionable
+  
+  Начни планирование:
+variables:
+  - name: task
+    description: Описание задачи
+    required: true
+metadata:
+  generated_from: v1.0.0
+  optimization_goal: Улучшить точность и снизить ошибки валидации
+  generated_at: '2026-02-17T10:30:00'
+```
+
+---
+
+### Что изменилось в улучшенной версии:
+
+| Аспект | v1.0.0 | v1.1.0 | Почему |
+|--------|--------|--------|--------|
+| **Роль** | "Ты — агент планирования" | "Ты — опытный агент планирования проектов" | Более конкретная роль |
+| **Минимум шагов** | Не указано | "МИНИМУМ 5 шагов" | Исправляет IncompletePlanError |
+| **Структура шага** | Не указана | name, description, estimate, dependencies | Исправляет ContractValidationError |
+| **Описание** | Не указано | "Подробное описание (минимум 2 предложения)" | Улучшает качество |
+| **Формат ответа** | Не указан | JSON с примером | Упрощает валидацию |
+| **Важно** | Нет | Блок с ключевыми требованиями | Акцентирует внимание |
+
+---
+
+### Техники улучшения промптов
+
+#### 1. Добавление конкретных инструкций
+
+```yaml
+# БЫЛО:
+Создай план с шагами.
+
+# СТАЛО:
+1. Создай план consisting of МИНИМУМ 5 шагов
+2. Каждый шаг ДОЛЖЕН включать:
+   - name: Краткое название шага (2-5 слов)
+   - description: Подробное описание (минимум 2 предложения)
+   - estimate: Оценка времени в часах (число)
+```
+
+#### 2. Добавление формата ответа
+
+```yaml
+# БЫЛО:
+(нет формата)
+
+# СТАЛО:
+ФОРМАТ ОТВЕТА:
+{
+  "steps": [
+    {
+      "name": "...",
+      "description": "...",
+      "estimate": 0,
+      "dependencies": []
+    }
+  ]
+}
+```
+
+#### 3. Добавление ограничений
+
+```yaml
+# БЫЛО:
+(нет ограничений)
+
+# СТАЛО:
+ВАЖНО:
+- Минимум 5 шагов
+- Каждый шаг с description и estimate
+- Описание должно быть конкретным и actionable
+```
+
+#### 4. Улучшение роли
+
+```yaml
+# БЫЛО:
+Ты — агент планирования.
+
+# СТАЛО:
+Ты — опытный агент планирования проектов. Твоя задача — создать детальный, 
+выполнимый план для заданной задачи.
+```
+
+---
+
+### Автоматическая валидация улучшенного промпта
+
+```python
+async def _validate_improved_prompt(
+    original_prompt: Prompt,
+    new_prompt: Prompt
+) -> Tuple[bool, List[str]]:
+    """
+    Валидация улучшенного промпта.
+    
+    RETURNS:
+    - bool: True если валидация пройдена
+    - List[str]: список ошибок
+    """
+    errors = []
+    
+    # 1. Проверка: переменные сохранены
+    original_vars = {v.name for v in original_prompt.variables}
+    new_vars = {v.name for v in new_prompt.variables}
+    
+    if original_vars != new_vars:
+        missing = original_vars - new_vars
+        extra = new_vars - original_vars
+        if missing:
+            errors.append(f"Удалены переменные: {missing}")
+        if extra:
+            errors.append(f"Добавлены переменные: {extra}")
+    
+    # 2. Проверка: длина не уменьшилась на 50%+
+    if len(new_prompt.content) < len(original_prompt.content) * 0.5:
+        errors.append("Промпт стал слишком коротким (>50% сокращение)")
+    
+    # 3. Проверка: Jinja2 шаблон валиден
+    try:
+        from jinja2 import Environment
+        env = Environment()
+        env.parse(new_prompt.content)
+    except Exception as e:
+        errors.append(f"Ошибка Jinja2 шаблона: {e}")
+    
+    # 4. Проверка: есть конкретные инструкции
+    instruction_keywords = ['должен', 'минимум', 'максимум', 'обязательно', 'важно']
+    has_instructions = any(
+        keyword in new_prompt.content.lower()
+        for keyword in instruction_keywords
+    )
+    if not has_instructions:
+        errors.append("Нет конкретных инструкций в промпте")
+    
+    return len(errors) == 0, errors
+```
+
+---
+
+## 📝 Как именно улучшается контракт
+
+### Процесс улучшения контрактов
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ЦИКЛ УЛУЧШЕНИЯ КОНТРАКТА                       │
+└─────────────────────────────────────────────────────────────┘
+
+1. АНАЛИЗ ТЕКУЩЕГО КОНТРАКТА
+   └→ Загрузка Contract(capability, version, direction)
+   └→ Извлечение: schema_data, description
+
+2. ВЫЯВЛЕНИЕ ПРОБЛЕМ
+   └→ ContractValidationError: какие поля часто missing
+   └→ TypeValidationError: какие поля часто wrong type
+   └→ Извлечение паттернов из error logs
+
+3. LLM ГЕНЕРАЦИЯ УЛУЧШЕННОЙ СХЕМЫ
+   └→ Prompt: "Улучши JSON Schema с учётом ошибок"
+   └→ Вход: текущая schema + failure patterns
+   └→ Выход: улучшенная JSON Schema
+
+4. ДОБАВЛЕНИЕ ОГРАНИЧЕНИЙ
+   └→ required: добавление обязательных полей
+   └→ minLength/maxLength: для строк
+   └→ minimum/maximum: для чисел
+   └→ pattern: regex для форматирования
+
+5. ВАЛИДАЦИЯ СХЕМЫ
+   └→ Проверка JSON Schema Draft 7
+   └→ Проверка: схема не слишком строгая
+   └→ Проверка: схема не слишком слабая
+
+6. СОХРАНЕНИЕ НОВОЙ ВЕРСИИ
+   └→ Версия: v1.0.0 → v1.1.0
+   └→ Статус: DRAFT
+   └→ Сохранение в data/contracts/...
+```
+
+---
+
+### Детальный пример улучшения контракта
+
+#### ДО (текущий входной контракт):
+
+```yaml
+# data/contracts/skills/planning/create_plan_v1.0.0_input.yaml
+capability: planning.create_plan
+version: v1.0.0
+status: active
+direction: input
+schema_data:
+  type: object
+  properties:
+    task:
+      type: string
+  required:
+    - task
+description: "Входной контракт для планирования"
+```
+
+#### Проблемы (из Failure Analysis):
+
+```python
+# Из error logs:
+error_patterns = [
+    {
+        'type': 'ContractValidationError',
+        'field': 'task',
+        'issue': 'empty string',
+        'count': 5
+    },
+    {
+        'type': 'MissingContextError',
+        'issue': 'no deadline provided',
+        'count': 8
+    },
+    {
+        'type': 'IncompletePlanError',
+        'issue': 'plan quality too low',
+        'count': 10
+    }
+]
+```
+
+#### PROMPT для LLM (генерация улучшения):
+
+```
+Улучши JSON Schema для входных данных промпта.
+
+Текущая схема:
+{
+  "type": "object",
+  "properties": {
+    "task": {"type": "string"}
+  },
+  "required": ["task"]
+}
+
+Выявленные проблемы:
+- Поле 'task' часто пустое (5 случаев)
+- Отсутствует deadline (8 случаев)
+- Низкое качество плана из-за недостатка контекста (10 случаев)
+
+Создай улучшенную JSON Schema:
+1. Добавь minLength для task
+2. Добавь обязательное поле deadline
+3. Добавь опциональные поля для контекста
+4. Добавь описания для всех полей
+
+Новая схема:
+```
+
+#### ПОСЛЕ (улучшенный входной контракт):
+
+```yaml
+# data/contracts/skills/planning/create_plan_v1.1.0_input.yaml
+capability: planning.create_plan
+version: v1.1.0
+status: draft
+direction: input
+schema_data:
+  type: object
+  properties:
+    task:
+      type: string
+      description: "Подробное описание задачи, которую нужно спланировать"
+      minLength: 20
+      maxLength: 2000
+      examples:
+        - "Разработать мобильное приложение для доставки еды с интеграцией платежных систем"
+    
+    deadline:
+      type: string
+      format: date-time
+      description: "Дедлайн выполнения задачи (ISO 8601 формат)"
+      examples:
+        - "2026-03-01T00:00:00Z"
+    
+    priority:
+      type: string
+      enum: [low, medium, high, critical]
+      description: "Приоритет задачи"
+      default: "medium"
+    
+    constraints:
+      type: array
+      items:
+        type: string
+      description: "Список ограничений (бюджет, ресурсы, зависимости)"
+      default: []
+    
+    context:
+      type: object
+      properties:
+        budget:
+          type: number
+          description: "Бюджет проекта"
+        team_size:
+          type: integer
+          description: "Размер команды"
+        stakeholders:
+          type: array
+          items:
+            type: string
+          description: "Заинтересованные стороны"
+      description: "Дополнительный контекст проекта"
+  
+  required:
+    - task
+    - deadline
+  
+  additionalProperties: false
+description: "Входной контракт для планирования (улучшенная версия с валидацией)"
+```
+
+---
+
+### Что изменилось в улучшенной версии:
+
+| Аспект | v1.0.0 | v1.1.0 | Почему |
+|--------|--------|--------|--------|
+| **task validation** | `type: string` | `minLength: 20, maxLength: 2000` | Исправляет empty string |
+| **deadline** | Отсутствует | `required, format: date-time` | Исправляет MissingContextError |
+| **priority** | Отсутствует | `enum: [low, medium, high, critical]` | Добавляет контекст |
+| **constraints** | Отсутствует | `array of strings` | Добавляет ограничения |
+| **context** | Отсутствует | `object with budget, team_size` | Улучшает качество плана |
+| **descriptions** | Отсутствуют | Есть для всех полей | Улучшает понимание |
+| **examples** | Отсутствуют | Есть для task и deadline | Помогает агенту |
+| **additionalProperties** | Разрешены | `false` | Строгая валидация |
+
+---
+
+### Техники улучшения контрактов
+
+#### 1. Добавление валидации строк
+
+```json
+// БЫЛО:
+{"task": {"type": "string"}}
+
+// СТАЛО:
+{
+  "task": {
+    "type": "string",
+    "minLength": 20,
+    "maxLength": 2000,
+    "description": "Подробное описание задачи"
+  }
+}
+```
+
+#### 2. Добавление обязательных полей
+
+```json
+// БЫЛО:
+"required": ["task"]
+
+// СТАЛО:
+"required": ["task", "deadline"]
+```
+
+#### 3. Добавление enum для строгости
+
+```json
+// БЫЛО:
+{"priority": {"type": "string"}}
+
+// СТАЛО:
+{
+  "priority": {
+    "type": "string",
+    "enum": ["low", "medium", "high", "critical"]
+  }
+}
+```
+
+#### 4. Добавление вложенных объектов
+
+```json
+// БЫЛО:
+(нет контекста)
+
+// СТАЛО:
+{
+  "context": {
+    "type": "object",
+    "properties": {
+      "budget": {"type": "number"},
+      "team_size": {"type": "integer"},
+      "stakeholders": {"type": "array", "items": {"type": "string"}}
+    }
+  }
+}
+```
+
+#### 5. Добавление examples
+
+```json
+// БЫЛО:
+(нет примеров)
+
+// СТАЛО:
+{
+  "task": {
+    "type": "string",
+    "examples": [
+      "Разработать мобильное приложение для доставки еды"
+    ]
+  }
+}
+```
+
+---
+
+### Валидация улучшенного контракта
+
+```python
+async def _validate_improved_contract(
+    original_contract: Contract,
+    new_contract: Contract
+) -> Tuple[bool, List[str]]:
+    """
+    Валидация улучшенного контракта.
+    
+    RETURNS:
+    - bool: True если валидация пройдена
+    - List[str]: список ошибок
+    """
+    errors = []
+    
+    # 1. Проверка: JSON Schema валидна
+    try:
+        from jsonschema import validators
+        validator_cls = validators.validator_for(new_contract.schema_data)
+        validator_cls.check_schema(new_contract.schema_data)
+    except Exception as e:
+        errors.append(f"Невалидная JSON Schema: {e}")
+        return False, errors
+    
+    # 2. Проверка: required поля не удалены
+    original_required = set(original_contract.schema_data.get('required', []))
+    new_required = set(new_contract.schema_data.get('required', []))
+    
+    removed_required = original_required - new_required
+    if removed_required:
+        errors.append(f"Удалены required поля: {removed_required}")
+    
+    # 3. Проверка: схема не слишком строгая
+    # (проверяем что есть хотя бы одно optional поле)
+    all_properties = set(new_contract.schema_data.get('properties', {}).keys())
+    if new_required == all_properties:
+        errors.append("Схема слишком строгая (нет optional полей)")
+    
+    # 4. Проверка: есть описания полей
+    properties = new_contract.schema_data.get('properties', {})
+    fields_without_desc = [
+        name for name, schema in properties.items()
+        if 'description' not in schema
+    ]
+    if fields_without_desc:
+        errors.append(f"Нет описаний у полей: {fields_without_desc}")
+    
+    return len(errors) == 0, errors
+```
+
+---
+
+### Связь улучшения промпта и контракта
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         СВЯЗЬ УЛУЧШЕНИЯ ПРОМПТА И КОНТРАКТА                 │
+└─────────────────────────────────────────────────────────────┘
+
+Промпт v1.0.0          Контракт v1.0.0
+     │                       │
+     │  Выявлены проблемы:   │
+     │  - missing fields     │
+     │  - empty strings      │
+     │  - no deadline        │
+     │                       │
+     ▼                       ▼
+┌─────────────────────────────────────────┐
+│      LLM Генерация улучшений            │
+│                                         │
+│  Промпт:  Добавить инструкции           │
+│  Контракт: Добавить валидацию           │
+└─────────────────────────────────────────┘
+     │                       │
+     ▼                       ▼
+Промпт v1.1.0          Контракт v1.1.0
+- Минимум 5 шагов      - task: minLength 20
+- Format ответа        - deadline: required
+- Важные инструкции    - priority: enum
+                       - context: object
+
+     │                       │
+     └───────────┬───────────┘
+                 │
+                 ▼
+      A/B Тестирование обеих версий
+      (промпт + контракт вместе!)
+```
+
+---
+
+### Пример использования (полный цикл)
+
+```python
+# 1. Генерация улучшенного промпта
+new_prompt_version = await generator.generate_prompt_variant(
+    capability='planning.create_plan',
+    base_version='v1.0.0',
+    optimization_goal='Улучшить точность и снизить ошибки',
+    failure_analysis=failure_analysis
+)
+
+# 2. Генерация улучшенного контракта (автоматически)
+# _generate_matching_contract() вызывается внутри generate_prompt_variant()
+
+# 3. Валидация
+prompt_valid, prompt_errors = await _validate_improved_prompt(
+    original_prompt, new_prompt
+)
+contract_valid, contract_errors = await _validate_improved_contract(
+    original_contract, new_contract
+)
+
+# 4. Если всё OK → A/B тест
+if prompt_valid and contract_valid:
+    comparison = await benchmark_service.compare_versions(
+        version_a='v1.0.0',
+        version_b='v1.1.0-draft',
+        scenarios=scenarios
+    )
+    
+    # 5. Продвижение если лучше
+    if comparison.improvement > 0.05:
+        await benchmark_service.promote_version(
+            capability='planning.create_plan',
+            from_version='v1.0.0',
+            to_version='v1.1.0'
+        )
 ```
 
 ---
