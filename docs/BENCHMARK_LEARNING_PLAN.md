@@ -482,6 +482,636 @@ Application = анализ и оптимизация (пер-агент)
 
 ---
 
+## 💾 Стратегия хранения данных
+
+### Принципы
+
+| Принцип | Описание |
+|---------|----------|
+| **Интерфейсы primero** | Сначала определяем интерфейсы, потом реализации |
+| **Файлы по умолчанию** | FileSystem — реализация по умолчанию (не требует БД) |
+| **Смена провайдера** | Замена реализации без изменения бизнес-логики |
+| **Единый стиль** | Следование конвенциям `IPromptStorage`/`IContractStorage` |
+
+### Архитектура хранения
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Бизнес-логика                            │
+│  MetricsCollector → IMetricsStorage ← LogCollector          │
+│                         │                                   │
+│                         ▼                                   │
+│              ┌──────────────────────┐                       │
+│              │   Интерфейсы (ABC)   │                       │
+│              │  - IMetricsStorage   │                       │
+│              │  - ILogStorage       │                       │
+│              └──────────┬───────────┘                       │
+│                         │                                   │
+│         ┌───────────────┼───────────────┐                   │
+│         ▼               ▼               ▼                   │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐              │
+│  │ FileSystem │ │   SQLite   │ │ PostgreSQL │              │
+│  │ (default)  │ │  (local)   │ │  (prod)    │              │
+│  └────────────┘ └────────────┘ └────────────┘              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Интерфейсы (новые файлы)
+
+**Файл:** `core/infrastructure/interfaces/metrics_log_interfaces.py`
+
+```python
+"""
+Интерфейсы для хранилищ метрик и логов.
+
+ПРИНЦИПЫ:
+- Абстрактные базовые классы (ABC) для строгой контракции
+- Асинхронные методы для неблокирующего доступа
+- Типизированные модели данных (MetricRecord, LogEntry)
+"""
+from abc import ABC, abstractmethod
+from typing import List, Optional, Tuple
+from datetime import datetime
+from core.models.data.metrics import MetricRecord, AggregatedMetrics
+from core.models.data.benchmark import LogEntry
+
+
+class IMetricsStorage(ABC):
+    """
+    Интерфейс для хранилища метрик.
+    
+    РЕАЛИЗАЦИИ:
+    - FileSystemMetricsStorage (по умолчанию)
+    - SQLiteMetricsStorage (локально)
+    - PostgreSQLMetricsStorage (продакшен)
+    """
+
+    @abstractmethod
+    async def record(self, metric: MetricRecord) -> None:
+        """
+        Запись одной метрики.
+
+        ARGS:
+        - metric: объект метрики для записи
+
+        RAISES:
+        - IOError: если не удалось записать
+        """
+        pass
+
+    @abstractmethod
+    async def get_records(
+        self,
+        capability: str,
+        version: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None,
+        limit: int = 1000
+    ) -> List[MetricRecord]:
+        """
+        Получение записей метрик с фильтрацией.
+
+        ARGS:
+        - capability: имя capability для фильтрации
+        - version: версия для фильтрации (опционально)
+        - time_range: диапазон времени (start, end)
+        - limit: максимум записей
+
+        RETURNS:
+        - List[MetricRecord]: список записей метрик
+        """
+        pass
+
+    @abstractmethod
+    async def aggregate(
+        self,
+        capability: str,
+        version: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None
+    ) -> AggregatedMetrics:
+        """
+        Агрегация метрик по фильтру.
+
+        ARGS:
+        - capability: имя capability
+        - version: версия (опционально)
+        - time_range: диапазон времени
+
+        RETURNS:
+        - AggregatedMetrics: агрегированные метрики
+        """
+        pass
+
+    @abstractmethod
+    async def clear_old(self, older_than: datetime) -> int:
+        """
+        Очистка старых записей (TTL).
+
+        ARGS:
+        - older_than: удалять записи старше этой даты
+
+        RETURNS:
+        - int: количество удалённых записей
+        """
+        pass
+
+
+class ILogStorage(ABC):
+    """
+    Интерфейс для хранилища логов.
+    
+    РЕАЛИЗАЦИИ:
+    - FileSystemLogStorage (по умолчанию)
+    - SQLiteLogStorage (локально)
+    - PostgreSQLLogStorage (продакшен)
+    """
+
+    @abstractmethod
+    async def save(self, entry: LogEntry) -> None:
+        """
+        Сохранение одной записи лога.
+
+        ARGS:
+        - entry: объект записи лога
+
+        RAISES:
+        - IOError: если не удалось сохранить
+        """
+        pass
+
+    @abstractmethod
+    async def get_by_session(
+        self,
+        agent_id: str,
+        session_id: str,
+        limit: int = 1000
+    ) -> List[LogEntry]:
+        """
+        Получение логов по сессии.
+
+        ARGS:
+        - agent_id: ID агента
+        - session_id: ID сессии
+        - limit: максимум записей
+
+        RETURNS:
+        - List[LogEntry]: список записей логов
+        """
+        pass
+
+    @abstractmethod
+    async def get_by_capability(
+        self,
+        capability: str,
+        log_type: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None,
+        limit: int = 1000
+    ) -> List[LogEntry]:
+        """
+        Получение логов по capability.
+
+        ARGS:
+        - capability: имя capability
+        - log_type: тип лога (опционально)
+        - time_range: диапазон времени
+        - limit: максимум записей
+
+        RETURNS:
+        - List[LogEntry]: список записей логов
+        """
+        pass
+
+    @abstractmethod
+    async def clear_old(self, older_than: datetime) -> int:
+        """
+        Очистка старых записей (TTL).
+
+        ARGS:
+        - older_than: удалять записи старше этой даты
+
+        RETURNS:
+        - int: количество удалённых записей
+        """
+        pass
+```
+
+---
+
+### Реализация: FileSystem (по умолчанию)
+
+**Файл:** `core/infrastructure/metrics_storage.py`
+
+```python
+"""
+Хранилище метрик на базе файловой системы.
+
+ФОРМАТ ХРАНЕНИЯ:
+- JSON Lines (.jsonl) — одна запись = одна строка
+- Партиционирование по датам: data/metrics/YYYY-MM-DD.jsonl
+- Автоматическая ротация файлов
+
+ПРЕИМУЩЕСТВА:
+- Не требует БД
+- Легко читать внешними инструментами
+- Простое резервное копирование
+"""
+from pathlib import Path
+import json
+import aiofiles
+from datetime import datetime
+from typing import List, Optional, Tuple
+from core.models.data.metrics import MetricRecord, AggregatedMetrics
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
+
+
+class FileSystemMetricsStorage(IMetricsStorage):
+    """FileSystem реализация IMetricsStorage"""
+
+    def __init__(self, base_dir: Path):
+        self.base_dir = base_dir / "metrics"
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_daily_file(self, date: datetime) -> Path:
+        """Получение пути к файлу за дату"""
+        return self.base_dir / f"{date.strftime('%Y-%m-%d')}.jsonl"
+
+    async def record(self, metric: MetricRecord) -> None:
+        """Запись метрики в daily файл"""
+        file_path = self._get_daily_file(metric.timestamp)
+        
+        line = json.dumps({
+            'agent_id': metric.agent_id,
+            'capability': metric.capability,
+            'version': metric.version,
+            'execution_time_ms': metric.execution_time_ms,
+            'success': metric.success,
+            'tokens_used': metric.tokens_used,
+            'timestamp': metric.timestamp.isoformat(),
+            'session_id': metric.session_id,
+            'correlation_id': metric.correlation_id,
+            'metadata': metric.metadata
+        }, ensure_ascii=False)
+
+        async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
+            await f.write(line + '\n')
+
+    async def get_records(
+        self,
+        capability: str,
+        version: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None,
+        limit: int = 1000
+    ) -> List[MetricRecord]:
+        """Чтение метрик с фильтрацией"""
+        records = []
+        
+        # Определяем файлы для чтения
+        if time_range:
+            start, end = time_range
+            current = start.date()
+            end_date = end.date()
+        else:
+            # По умолчанию — последние 7 дней
+            end = datetime.now()
+            start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            current = start.date()
+            end_date = end.date()
+
+        while current <= end_date and len(records) < limit:
+            file_path = self.base_dir / f"{current}.jsonl"
+            if file_path.exists():
+                async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                    async for line in f:
+                        if len(records) >= limit:
+                            break
+                        data = json.loads(line.strip())
+                        
+                        # Фильтрация по capability
+                        if data['capability'] != capability:
+                            continue
+                        
+                        # Фильтрация по version
+                        if version and data.get('version') != version:
+                            continue
+                        
+                        # Фильтрация по времени
+                        ts = datetime.fromisoformat(data['timestamp'])
+                        if time_range and (ts < start or ts > end):
+                            continue
+
+                        records.append(MetricRecord(**data))
+            
+            current = current.replace(day=current.day + 1)
+
+        return records
+
+    async def aggregate(
+        self,
+        capability: str,
+        version: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None
+    ) -> AggregatedMetrics:
+        """Агрегация метрик"""
+        records = await self.get_records(
+            capability=capability,
+            version=version,
+            time_range=time_range,
+            limit=10000  # Большой лимит для агрегации
+        )
+
+        if not records:
+            return AggregatedMetrics(
+                capability=capability,
+                version=version or 'unknown',
+                time_range=time_range or (datetime.now(), datetime.now())
+            )
+
+        # Вычисляем агрегации
+        total = len(records)
+        success_count = sum(1 for r in records if r.success)
+        total_time = sum(r.execution_time_ms for r in records)
+        total_tokens = sum(r.tokens_used for r in records)
+        
+        # Сортируем для перцентилей
+        times = sorted(r.execution_time_ms for r in records)
+        p95_idx = int(len(times) * 0.95)
+        p99_idx = int(len(times) * 0.99)
+
+        return AggregatedMetrics(
+            capability=capability,
+            version=version or 'unknown',
+            time_range=time_range or (datetime.now(), datetime.now()),
+            accuracy=success_count / total if total > 0 else 0.0,
+            success_rate=success_count / total if total > 0 else 0.0,
+            latency_ms=total_time / total if total > 0 else 0.0,
+            latency_p95_ms=times[p95_idx] if p95_idx < len(times) else times[-1],
+            latency_p99_ms=times[p99_idx] if p99_idx < len(times) else times[-1],
+            tokens_used=total_tokens,
+            total_executions=total,
+            error_rate=1.0 - (success_count / total) if total > 0 else 0.0
+        )
+
+    async def clear_old(self, older_than: datetime) -> int:
+        """Удаление старых файлов"""
+        deleted = 0
+        for file_path in self.base_dir.glob("*.jsonl"):
+            # Извлекаем дату из имени файла
+            try:
+                file_date = datetime.strptime(file_path.stem, '%Y-%m-%d')
+                if file_date < older_than:
+                    file_path.unlink()
+                    deleted += 1
+            except ValueError:
+                continue  # Пропускаем файлы с неверным форматом
+        return deleted
+```
+
+---
+
+### Реализация: Log Storage
+
+**Файл:** `core/infrastructure/log_storage.py`
+
+```python
+"""
+Хранилище логов на базе файловой системы.
+
+ФОРМАТ ХРАНЕНИЯ:
+- JSON Lines (.jsonl) — одна запись = одна строка
+- Партиционирование по типам и датам: data/logs/{type}/YYYY-MM-DD.jsonl
+- Индексация по session_id для быстрого поиска
+"""
+from pathlib import Path
+import json
+import aiofiles
+from datetime import datetime
+from typing import List, Optional, Tuple
+from core.models.data.benchmark import LogEntry
+from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
+
+
+class FileSystemLogStorage(ILogStorage):
+    """FileSystem реализация ILogStorage"""
+
+    def __init__(self, base_dir: Path):
+        self.base_dir = base_dir / "logs"
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._session_index: dict[str, List[Path]] = {}  # Индекс для быстрого поиска
+
+    def _get_daily_file(self, log_type: str, date: datetime) -> Path:
+        """Получение пути к файлу лога"""
+        type_dir = self.base_dir / log_type
+        type_dir.mkdir(parents=True, exist_ok=True)
+        return type_dir / f"{date.strftime('%Y-%m-%d')}.jsonl"
+
+    async def save(self, entry: LogEntry) -> None:
+        """Сохранение записи лога"""
+        file_path = self._get_daily_file(entry.log_type, entry.timestamp)
+        
+        line = json.dumps({
+            'timestamp': entry.timestamp.isoformat(),
+            'agent_id': entry.agent_id,
+            'session_id': entry.session_id,
+            'log_type': entry.log_type,
+            'data': entry.data,
+            'correlation_id': entry.correlation_id
+        }, ensure_ascii=False)
+
+        async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
+            await f.write(line + '\n')
+
+        # Обновляем индекс
+        if entry.session_id:
+            key = f"{entry.agent_id}:{entry.session_id}"
+            if key not in self._session_index:
+                self._session_index[key] = []
+            self._session_index[key].append(file_path)
+
+    async def get_by_session(
+        self,
+        agent_id: str,
+        session_id: str,
+        limit: int = 1000
+    ) -> List[LogEntry]:
+        """Получение логов сессии"""
+        entries = []
+        key = f"{agent_id}:{session_id}"
+        
+        # Используем индекс если есть
+        if key in self._session_index:
+            files_to_read = set(self._session_index[key])
+        else:
+            # Fallback: читаем все файлы за последние 7 дней
+            files_to_read = set()
+            for i in range(7):
+                date = datetime.now().replace(day=datetime.now().day - i)
+                for log_type in ['capability_selection', 'error', 'benchmark']:
+                    files_to_read.add(self._get_daily_file(log_type, date))
+
+        for file_path in files_to_read:
+            if not file_path.exists():
+                continue
+            
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                async for line in f:
+                    if len(entries) >= limit:
+                        break
+                    data = json.loads(line.strip())
+                    if data.get('session_id') == session_id and data.get('agent_id') == agent_id:
+                        entries.append(LogEntry(**data))
+
+        return sorted(entries, key=lambda e: e.timestamp, reverse=True)[:limit]
+
+    async def get_by_capability(
+        self,
+        capability: str,
+        log_type: Optional[str] = None,
+        time_range: Optional[Tuple[datetime, datetime]] = None,
+        limit: int = 1000
+    ) -> List[LogEntry]:
+        """Получение логов по capability"""
+        entries = []
+        types_to_read = [log_type] if log_type else ['capability_selection', 'error']
+
+        # Определяем диапазон дат
+        if time_range:
+            start, end = time_range
+            current = start.date()
+            end_date = end.date()
+        else:
+            end = datetime.now()
+            start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            current = start.date()
+            end_date = end.date()
+
+        while current <= end_date and len(entries) < limit:
+            for lt in types_to_read:
+                file_path = self._get_daily_file(lt, current)
+                if file_path.exists():
+                    async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                        async for line in f:
+                            if len(entries) >= limit:
+                                break
+                            data = json.loads(line.strip())
+                            
+                            # Фильтрация по capability
+                            if data.get('data', {}).get('capability') == capability:
+                                entries.append(LogEntry(**data))
+            
+            current = current.replace(day=current.day + 1)
+
+        return sorted(entries, key=lambda e: e.timestamp, reverse=True)[:limit]
+
+    async def clear_old(self, older_than: datetime) -> int:
+        """Удаление старых файлов"""
+        deleted = 0
+        for type_dir in self.base_dir.iterdir():
+            if not type_dir.is_dir():
+                continue
+            for file_path in type_dir.glob("*.jsonl"):
+                try:
+                    file_date = datetime.strptime(file_path.stem, '%Y-%m-%d')
+                    if file_date < older_than:
+                        file_path.unlink()
+                        deleted += 1
+                except ValueError:
+                    continue
+        return deleted
+```
+
+---
+
+### Модель LogEntry
+
+**Файл:** `core/models/data/benchmark.py` (дополнить)
+
+```python
+@dataclass
+class LogEntry:
+    """
+    Запись лога для обучения.
+    """
+    timestamp: datetime
+    agent_id: str
+    session_id: str
+    log_type: str  # 'capability_selection', 'error', 'benchmark'
+    data: Dict[str, Any]
+    correlation_id: str = ""
+```
+
+---
+
+### Регистрация в InfrastructureContext
+
+**Файл:** `core/infrastructure/context/infrastructure_context.py` (расширить)
+
+```python
+class InfrastructureContext:
+    def __init__(self, config: AppConfig):
+        self.config = config
+        self.data_dir = Path(config.data_dir)
+        
+        # Хранилища (интерфейсы)
+        self.metrics_storage: IMetricsStorage = FileSystemMetricsStorage(self.data_dir)
+        self.log_storage: ILogStorage = FileSystemLogStorage(self.data_dir)
+        
+        # Коллекторы
+        self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
+        self.log_collector = LogCollector(self.event_bus, self.log_storage)
+
+    async def initialize(self):
+        await self.metrics_collector.initialize()
+        await self.log_collector.initialize()
+```
+
+---
+
+### Смена провайдера (пример)
+
+**Для перехода на SQLite — изменить только 2 файла:**
+
+```python
+# core/infrastructure/context/infrastructure_context.py
+
+# БЫЛО:
+from core.infrastructure.metrics_storage import FileSystemMetricsStorage
+from core.infrastructure.log_storage import FileSystemLogStorage
+
+# СТАЛО:
+from core.infrastructure.sqlite_metrics_storage import SQLiteMetricsStorage
+from core.infrastructure.sqlite_log_storage import SQLiteLogStorage
+
+# В __init__:
+self.metrics_storage = SQLiteMetricsStorage("sqlite:///data/metrics.db")
+self.log_storage = SQLiteLogStorage("sqlite:///data/logs.db")
+```
+
+**Бизнес-логика (MetricsCollector, LogCollector, BenchmarkService) не меняется!**
+
+---
+
+### Политика хранения (TTL)
+
+| Тип данных | Горячие | Архив | Удаление |
+|------------|---------|-------|----------|
+| Метрики | 7 дней | 30 дней | 90 дней |
+| Логи | 3 дня | 14 дней | 30 дней |
+| Бенчмарки | 30 дней | 90 дней | 1 год |
+
+**Автоматическая очистка:**
+```python
+# scripts/cleanup_old_data.py
+async def cleanup():
+    cutoff_metrics = datetime.now() - timedelta(days=90)
+    cutoff_logs = datetime.now() - timedelta(days=30)
+    
+    await metrics_storage.clear_old(cutoff_metrics)
+    await log_storage.clear_old(cutoff_logs)
+```
+
+---
+
 ## 📊 Модели данных
 
 ### AggregatedMetrics
@@ -1025,7 +1655,7 @@ class DataRepository:
         to_version: str
     ) -> bool:
         """
-        Продвинуть версию в active статус.
+        Продвинут�� версию в active статус.
         ПРИМЕЧАНИЕ: Требует изменения статуса в файловой системе.
         """
         # Получаем промпт
