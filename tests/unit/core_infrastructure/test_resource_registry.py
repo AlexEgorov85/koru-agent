@@ -8,7 +8,7 @@
 """
 import pytest
 from core.infrastructure.context.resource_registry import ResourceRegistry
-from core.models.resource import ResourceInfo, ResourceType
+from core.models.data.resource import ResourceInfo, ResourceType
 
 
 def test_resource_registry_initially_empty():

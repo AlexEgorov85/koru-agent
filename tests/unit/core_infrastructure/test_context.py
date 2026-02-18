@@ -1,10 +1,10 @@
-"""
-Юнит-тесты для InfrastructureContext.
+﻿"""
+Р®РЅРёС‚-С‚РµСЃС‚С‹ РґР»СЏ InfrastructureContext.
 
-Тестирует:
-- Логику инициализации/завершения
-- Регистрацию только включённых провайдеров
-- Иммутабельность после инициализации
+РўРµСЃС‚РёСЂСѓРµС‚:
+- Р›РѕРіРёРєСѓ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё/Р·Р°РІРµСЂС€РµРЅРёСЏ
+- Р РµРіРёСЃС‚СЂР°С†РёСЋ С‚РѕР»СЊРєРѕ РІРєР»СЋС‡С‘РЅРЅС‹С… РїСЂРѕРІР°Р№РґРµСЂРѕРІ
+- РРјРјСѓС‚Р°Р±РµР»СЊРЅРѕСЃС‚СЊ РїРѕСЃР»Рµ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,8 +15,8 @@ from core.infrastructure.context.infrastructure_context import InfrastructureCon
 
 @pytest.mark.asyncio
 async def test_infrastructure_registers_only_enabled_providers():
-    """Проверка: только включённые провайдеры регистрируются"""
-    # Подготовка конфигурации с включённым и отключённым провайдерами
+    """РџСЂРѕРІРµСЂРєР°: С‚РѕР»СЊРєРѕ РІРєР»СЋС‡С‘РЅРЅС‹Рµ РїСЂРѕРІР°Р№РґРµСЂС‹ СЂРµРіРёСЃС‚СЂРёСЂСѓСЋС‚СЃСЏ"""
+    # РџРѕРґРіРѕС‚РѕРІРєР° РєРѕРЅС„РёРіСѓСЂР°С†РёРё СЃ РІРєР»СЋС‡С‘РЅРЅС‹Рј Рё РѕС‚РєР»СЋС‡С‘РЅРЅС‹Рј РїСЂРѕРІР°Р№РґРµСЂР°РјРё
     config = SystemConfig(
         llm_providers={
             "prod_llm": LLMProviderConfig(
@@ -28,7 +28,7 @@ async def test_infrastructure_registers_only_enabled_providers():
             "backup_llm": LLMProviderConfig(
                 type_provider="llama_cpp",
                 model_name="qwen-4b",
-                enabled=False,  # ← Отключён
+                enabled=False,  # в†ђ РћС‚РєР»СЋС‡С‘РЅ
                 parameters={"model_name": "qwen-4b", "temperature": 0.7}
             ),
         },
@@ -40,70 +40,70 @@ async def test_infrastructure_registers_only_enabled_providers():
             ),
             "secondary_db": DBProviderConfig(
                 type_provider="sqlite",
-                enabled=False,  # ← Отключён
+                enabled=False,  # в†ђ РћС‚РєР»СЋС‡С‘РЅ
                 parameters={"database": "test_secondary.db", "host": "localhost"}
             ),
         }
     )
     
-    # Создание и инициализация инфраструктурного контекста
+    # РЎРѕР·РґР°РЅРёРµ Рё РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂРЅРѕРіРѕ РєРѕРЅС‚РµРєСЃС‚Р°
     infra = InfrastructureContext(config)
     
-    # Вызов метода инициализации, который сам регистрирует провайдеров
+    # Р’С‹Р·РѕРІ РјРµС‚РѕРґР° РёРЅРёС†РёР°Р»РёР·Р°С†РёРё, РєРѕС‚РѕСЂС‹Р№ СЃР°Рј СЂРµРіРёСЃС‚СЂРёСЂСѓРµС‚ РїСЂРѕРІР°Р№РґРµСЂРѕРІ
     await infra.initialize()
     
-    # Проверка: только включённые провайдеры в реестре
+    # РџСЂРѕРІРµСЂРєР°: С‚РѕР»СЊРєРѕ РІРєР»СЋС‡С‘РЅРЅС‹Рµ РїСЂРѕРІР°Р№РґРµСЂС‹ РІ СЂРµРµСЃС‚СЂРµ
     resource_names = infra.resource_registry.get_all_names()
     
-    # prod_llm должен быть зарегистрирован
+    # prod_llm РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ
     assert "prod_llm" in resource_names
-    # backup_llm не должен быть зарегистрирован
+    # backup_llm РЅРµ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ
     assert "backup_llm" not in resource_names
     
-    # primary_db должен быть зарегистрирован
+    # primary_db РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ
     assert "primary_db" in resource_names
-    # secondary_db не должен быть зарегистрирован
+    # secondary_db РЅРµ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅ
     assert "secondary_db" not in resource_names
 
 
 @pytest.mark.asyncio
 async def test_infrastructure_immutable_after_init():
-    """Проверка: контекст становится неизменяемым после инициализации"""
+    """РџСЂРѕРІРµСЂРєР°: РєРѕРЅС‚РµРєСЃС‚ СЃС‚Р°РЅРѕРІРёС‚СЃСЏ РЅРµРёР·РјРµРЅСЏРµРјС‹Рј РїРѕСЃР»Рµ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
     
-    # Инициализация
+    # РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ
     with patch.object(infra, '_register_providers_from_config', new_callable=AsyncMock) as mock_register:
         mock_register.return_value = None
         await infra.initialize()
     
-    # Попытка изменения после инициализации → исключение
+    # РџРѕРїС‹С‚РєР° РёР·РјРµРЅРµРЅРёСЏ РїРѕСЃР»Рµ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё в†’ РёСЃРєР»СЋС‡РµРЅРёРµ
     with pytest.raises(AttributeError, match="immutable after initialization"):
         infra.new_attribute = "value"
 
 
 @pytest.mark.asyncio
 async def test_infrastructure_cannot_be_modified_after_init():
-    """Проверка: нельзя изменять атрибуты после инициализации"""
+    """РџСЂРѕРІРµСЂРєР°: РЅРµР»СЊР·СЏ РёР·РјРµРЅСЏС‚СЊ Р°С‚СЂРёР±СѓС‚С‹ РїРѕСЃР»Рµ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
     
-    # Инициализация
+    # РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ
     with patch.object(infra, '_register_providers_from_config', new_callable=AsyncMock) as mock_register:
         mock_register.return_value = None
         await infra.initialize()
     
-    # Попытка изменить существующий атрибут
+    # РџРѕРїС‹С‚РєР° РёР·РјРµРЅРёС‚СЊ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ Р°С‚СЂРёР±СѓС‚
     with pytest.raises(AttributeError, match="immutable after initialization"):
         infra.config = SystemConfig()
 
 
 def test_infrastructure_context_initialization_state():
-    """Проверка начального состояния контекста до инициализации"""
+    """РџСЂРѕРІРµСЂРєР° РЅР°С‡Р°Р»СЊРЅРѕРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ РєРѕРЅС‚РµРєСЃС‚Р° РґРѕ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
     
-    # Проверка начальных значений
+    # РџСЂРѕРІРµСЂРєР° РЅР°С‡Р°Р»СЊРЅС‹С… Р·РЅР°С‡РµРЅРёР№
     assert infra._initialized is False
     assert infra.id is not None
     assert infra.config == config
@@ -114,35 +114,35 @@ def test_infrastructure_context_initialization_state():
 
 @pytest.mark.asyncio
 async def test_infrastructure_initialize_twice():
-    """Проверка: повторная инициализация не вызывает ошибок"""
+    """РџСЂРѕРІРµСЂРєР°: РїРѕРІС‚РѕСЂРЅР°СЏ РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РЅРµ РІС‹Р·С‹РІР°РµС‚ РѕС€РёР±РѕРє"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
     
-    # Мокируем внутренние методы
+    # РњРѕРєРёСЂСѓРµРј РІРЅСѓС‚СЂРµРЅРЅРёРµ РјРµС‚РѕРґС‹
     with patch.object(infra, '_register_providers_from_config', new_callable=AsyncMock) as mock_register:
         mock_register.return_value = None
         
-        # Первая инициализация
+        # РџРµСЂРІР°СЏ РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ
         result1 = await infra.initialize()
         assert result1 is True
         assert infra._initialized is True
         
-        # Вторая инициализация (должна вернуть True без ошибок)
+        # Р’С‚РѕСЂР°СЏ РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ (РґРѕР»Р¶РЅР° РІРµСЂРЅСѓС‚СЊ True Р±РµР· РѕС€РёР±РѕРє)
         result2 = await infra.initialize()
         assert result2 is True
 
 
 @pytest.mark.asyncio
 async def test_get_provider_returns_correct_instance():
-    """Проверка: получение провайдера по имени работает корректно"""
+    """РџСЂРѕРІРµСЂРєР°: РїРѕР»СѓС‡РµРЅРёРµ РїСЂРѕРІР°Р№РґРµСЂР° РїРѕ РёРјРµРЅРё СЂР°Р±РѕС‚Р°РµС‚ РєРѕСЂСЂРµРєС‚РЅРѕ"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
 
-    # Инициализируем инфраструктуру
+    # РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂСѓ
     await infra.initialize()
 
-    # Регистрируем мок-провайдер через реестр ресурсов
-    from core.models.resource import ResourceInfo, ResourceType
+    # Р РµРіРёСЃС‚СЂРёСЂСѓРµРј РјРѕРє-РїСЂРѕРІР°Р№РґРµСЂ С‡РµСЂРµР· СЂРµРµСЃС‚СЂ СЂРµСЃСѓСЂСЃРѕРІ
+    from core.models.data.resource import ResourceInfo, ResourceType
     mock_provider = MagicMock()
     resource_info = ResourceInfo(
         name="test_provider",
@@ -151,7 +151,7 @@ async def test_get_provider_returns_correct_instance():
     )
     infra.resource_registry.register_resource(resource_info)
 
-    # Получаем провайдер
+    # РџРѕР»СѓС‡Р°РµРј РїСЂРѕРІР°Р№РґРµСЂ
     retrieved = infra.get_provider("test_provider")
 
     assert retrieved is mock_provider
@@ -159,14 +159,14 @@ async def test_get_provider_returns_correct_instance():
 
 @pytest.mark.asyncio
 async def test_get_nonexistent_provider_returns_none():
-    """Проверка: получение несуществующего провайдера возвращает None"""
+    """РџСЂРѕРІРµСЂРєР°: РїРѕР»СѓС‡РµРЅРёРµ РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРіРѕ РїСЂРѕРІР°Р№РґРµСЂР° РІРѕР·РІСЂР°С‰Р°РµС‚ None"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
 
-    # Инициализируем инфраструктуру
+    # РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂСѓ
     await infra.initialize()
 
-    # Получаем несуществующий провайдер
+    # РџРѕР»СѓС‡Р°РµРј РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ РїСЂРѕРІР°Р№РґРµСЂ
     retrieved = infra.get_provider("nonexistent_provider")
 
     assert retrieved is None
@@ -174,40 +174,40 @@ async def test_get_nonexistent_provider_returns_none():
 
 @pytest.mark.asyncio
 async def test_get_resource_returns_correct_instance():
-    """Проверка: получение ресурса по имени работает корректно"""
+    """РџСЂРѕРІРµСЂРєР°: РїРѕР»СѓС‡РµРЅРёРµ СЂРµСЃСѓСЂСЃР° РїРѕ РёРјРµРЅРё СЂР°Р±РѕС‚Р°РµС‚ РєРѕСЂСЂРµРєС‚РЅРѕ"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
 
-    # Инициализируем контекст
+    # РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РєРѕРЅС‚РµРєСЃС‚
     await infra.initialize()
 
-    # Регистрируем тестовый ресурс
-    from core.models.resource import ResourceInfo, ResourceType
+    # Р РµРіРёСЃС‚СЂРёСЂСѓРµРј С‚РµСЃС‚РѕРІС‹Р№ СЂРµСЃСѓСЂСЃ
+    from core.models.data.resource import ResourceInfo, ResourceType
     test_resource = MagicMock()
     resource_info = ResourceInfo(
         name="test_resource",
-        resource_type=ResourceType.OTHER,
+        resource_type=ResourceType.SERVICE,
         instance=test_resource
     )
     infra.resource_registry.register_resource(resource_info)
 
-    # Получаем ресурс
+    # РџРѕР»СѓС‡Р°РµРј СЂРµСЃСѓСЂСЃ
     retrieved = infra.get_resource("test_resource")
     assert retrieved is test_resource
 
 
 @pytest.mark.asyncio
 async def test_shutdown_sets_initialized_to_false():
-    """Проверка: shutdown устанавливает _initialized в False"""
+    """РџСЂРѕРІРµСЂРєР°: shutdown СѓСЃС‚Р°РЅР°РІР»РёРІР°РµС‚ _initialized РІ False"""
     config = SystemConfig()
     infra = InfrastructureContext(config)
 
-    # Инициализация
+    # РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ
     await infra.initialize()
 
     assert infra._initialized is True
 
-    # Завершение работы
+    # Р—Р°РІРµСЂС€РµРЅРёРµ СЂР°Р±РѕС‚С‹
     await infra.shutdown()
 
     assert infra._initialized is False
