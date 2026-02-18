@@ -3917,10 +3917,495 @@ class OptimizationService(BaseService):
         capability: str,
         metrics: AggregatedMetrics
     ) -> bool:
-        """Проверка необходимости оптимизации"""
-        # Если success_rate < 0.9 или accuracy < 0.85
-        return metrics.success_rate < 0.9 or metrics.accuracy < 0.85
+        """
+        Проверка необходимости оптимизации.
+        
+        КРИТЕРИИ (все должны быть True):
+        1. Метрики ниже порога (success_rate < 0.9 или accuracy < 0.85)
+        2. Есть данные для анализа (минимум 10 выполнений)
+        3. Нет активной оптимизации
+        4. Capability разрешена для оптимизации
+        
+        ARGS:
+        - capability: имя capability
+        - metrics: текущие метрики
+        
+        RETURNS:
+        - bool: True если оптимизация нужна
+        """
+        # 1. Проверка минимального количества данных
+        if metrics.total_executions < 10:
+            self.logger.warning(
+                f"Недостаточно данных для {capability}: "
+                f"{metrics.total_executions} < 10"
+            )
+            return False
+        
+        # 2. Проверка метрик
+        needs_improvement = (
+            metrics.success_rate < 0.9 or 
+            metrics.accuracy < 0.85
+        )
+        
+        if not needs_improvement:
+            self.logger.info(
+                f"Метрики {capability} в норме: "
+                f"success_rate={metrics.success_rate:.1%}, "
+                f"accuracy={metrics.accuracy:.1%}"
+            )
+            return False
+        
+        # 3. Проверка, что capability разрешена для оптимизации
+        if not await self._is_capability_optimizable(capability):
+            return False
+        
+        # 4. Проверка, что нет активной оптимизации
+        if await self._is_optimization_in_progress(capability):
+            self.logger.warning(
+                f"Оптимизация {capability} уже выполняется"
+            )
+            return False
+        
+        self.logger.info(
+            f"Оптимизация {capability} необходима: "
+            f"success_rate={metrics.success_rate:.1%}, "
+            f"accuracy={metrics.accuracy:.1%}"
+        )
+        return True
+
+    async def _is_capability_optimizable(self, capability: str) -> bool:
+        """
+        Проверка, разрешена ли оптимизация для capability.
+        
+        НЕЛЬЗЯ ОПТИМИЗИРОВАТЬ:
+        - Критические компоненты (помечены в manifest.yaml)
+        - Стабильные версии (active > 30 дней без проблем)
+        - Заблокированные capability (в blacklist)
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - bool: True если можно оптимизировать
+        """
+        # 1. Проверка blacklist
+        blacklist = [
+            'core.system',  # Системные компоненты
+            'security.*',   # Компоненты безопасности
+        ]
+        
+        for pattern in blacklist:
+            if pattern.endswith('*'):
+                if capability.startswith(pattern[:-1]):
+                    self.logger.warning(
+                        f"Capability {capability} в blacklist (паттерн {pattern})"
+                    )
+                    return False
+            elif capability == pattern:
+                self.logger.warning(
+                    f"Capability {capability} в blacklist"
+                )
+                return False
+        
+        # 2. Проверка манифеста
+        manifest = self.data_repository.get_manifest(
+            component_type='skill',
+            component_id=capability.split('.')[0]
+        )
+        
+        if manifest and manifest.quality_metrics:
+            if not manifest.quality_metrics.auto_optimize:
+                self.logger.warning(
+                    f"Оптимизация запрещена в манифесте {capability}"
+                )
+                return False
+        
+        # 3. Проверка "стабильности" версии
+        active_version = await self.get_active_version(capability)
+        if active_version:
+            active_prompt = self.data_repository.get_prompt(
+                capability, active_version
+            )
+            
+            # Если версия active больше 30 дней и метрики хорошие
+            days_active = (datetime.now() - active_prompt.created_at).days
+            if days_active > 30:
+                metrics = await self.metrics_collector.get_aggregated_metrics(
+                    capability=capability,
+                    version=active_version,
+                    time_range=(datetime.now() - timedelta(days=7), datetime.now())
+                )
+                
+                if metrics.success_rate >= 0.95 and metrics.accuracy >= 0.90:
+                    self.logger.info(
+                        f"Capability {capability} стабильна ({days_active} дней), "
+                        f"оптимизация не требуется"
+                    )
+                    return False
+        
+        return True
+
+    async def _is_optimization_in_progress(self, capability: str) -> bool:
+        """
+        Проверка, выполняется ли уже оптимизация для capability.
+        
+        ИСПОЛЬЗУЕТ:
+        - Файл блокировки: data/locks/optimization_{capability}.lock
+        - Возраст lock < 1 часа
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - bool: True если оптимизация выполняется
+        """
+        lock_file = Path('data/locks') / f'optimization_{capability.replace(".", "_")}.lock'
+        
+        if not lock_file.exists():
+            return False
+        
+        # Проверка возраста lock
+        lock_age = datetime.now() - datetime.fromtimestamp(lock_file.stat().st_mtime)
+        
+        if lock_age.total_seconds() < 3600:  # 1 час
+            return True
+        
+        # Старый lock - удаляем
+        lock_file.unlink()
+        return False
+
+    async def _acquire_optimization_lock(self, capability: str) -> bool:
+        """
+        Установка блокировки оптимизации.
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - bool: True если блокировка установлена
+        """
+        lock_file = Path('data/locks') / f'optimization_{capability.replace(".", "_")}.lock'
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            lock_file.write_text(f'{datetime.now().isoformat()}\n')
+            return True
+        except IOError:
+            return False
+
+    async def _release_optimization_lock(self, capability: str):
+        """Освобождение блокировки оптимизации"""
+        lock_file = Path('data/locks') / f'optimization_{capability.replace(".", "_")}.lock'
+        if lock_file.exists():
+            lock_file.unlink()
 ```
+
+---
+
+## 📊 Как сервис понимает что можно улучшать
+
+### Матрица решений
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           МОЖНО ЛИ ОПТИМИЗИРОВАТЬ CAPABILITY?               │
+└─────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────┐
+                    │  start_optimi-  │
+                    │  zation_cycle() │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │ 1. Достаточно   │
+                    │    данных?      │
+                    │  (total >= 10)  │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │ NO                          │ YES
+              ▼                             ▼
+    ┌─────────────────┐           ┌─────────────────┐
+    │ ОТКАЗ:          │           │ 2. Метрики      │
+    │ "Недостаточно   │           │    ниже порога? │
+    │  данных"        │           │ (SR<0.9 OR      │
+    └─────────────────┘           │  ACC<0.85)      │
+                                  └────────┬────────┘
+                                           │
+                             ┌─────────────┴─────────────┐
+                             │ NO                        │ YES
+                             ▼                           ▼
+                   ┌─────────────────┐         ┌─────────────────┐
+                   │ ОТКАЗ:          │         │ 3. Capability   │
+                   │ "Метрики в      │         │    разрешена?   │
+                   │  норме"         │         │ (не blacklist)  │
+                   └─────────────────┘         └────────┬────────┘
+                                                        │
+                                          ┌─────────────┴─────────────┐
+                                          │ NO                        │ YES
+                                          ▼                           ▼
+                                ┌─────────────────┐         ┌─────────────────┐
+                                │ ОТКАЗ:          │         │ 4. Нет активной │
+                                │ "Запрещено      │         │    оптимизации? │
+                                │  манифестом"    │         │ (lock file)     │
+                                └─────────────────┘         └────────┬────────┘
+                                                                     │
+                                                       ┌─────────────┴─────────────┐
+                                                       │ NO                        │ YES
+                                                       ▼                           ▼
+                                             ┌─────────────────┐         ┌─────────────────┐
+                                             │ ОТКАЗ:          │         │ ✅ МОЖНО        │
+                                             │ "Оптимизация    │         │ ЗАПУСКАТЬ       │
+                                             │  выполняется"   │         │ ОПТИМИЗАЦИЮ     │
+                                             └─────────────────┘         └─────────────────┘
+```
+
+---
+
+### Критерии разрешения оптимизации
+
+| Критерий | Условие | Почему |
+|----------|---------|--------|
+| **Достаточно данных** | `total_executions >= 10` | Нельзя оптимизировать по 1-2 выполнениям |
+| **Метрики ниже порога** | `success_rate < 0.9` ИЛИ `accuracy < 0.85` | Если всё хорошо — не трогаем |
+| **Не в blacklist** | Не совпадает с паттернами | Системные и security компоненты не трогаем |
+| **Разрешено манифестом** | `auto_optimize: true` | Явное разрешение в конфигурации |
+| **Не стабильная версия** | active < 30 дней ИЛИ метрики < 0.95 | Стабильные версии не оптимизируем |
+| **Нет активной оптимизации** | lock file отсутствует | Защита от параллельных оптимизаций |
+
+---
+
+### Blacklist (нельзя оптимизировать)
+
+```python
+blacklist = [
+    'core.system',      # Системные компоненты
+    'security.*',       # Всё что начинается с 'security.'
+    'auth.*',           # Аутентификация
+    'audit.*',          # Аудит и логирование
+]
+
+# Примеры:
+'core.system.init'        → ❌ Нельзя (паттерн 'core.system')
+'security.validator'      → ❌ Нельзя (паттерн 'security.*')
+'auth.login'              → ❌ Нельзя (паттерн 'auth.*')
+'planning.create_plan'    → ✅ Можно (нет в blacklist)
+'sql_generation.generate' → ✅ Можно (нет в blacklist)
+```
+
+---
+
+### Manifest: явный запрет/разрешение
+
+**data/manifests/skills/planning/manifest.yaml:**
+
+```yaml
+component_id: planning
+component_type: skill
+version: v1.0.0
+status: active
+
+# ← Явное разрешение/запрет оптимизации:
+quality_metrics:
+  auto_optimize: false  # ← Запрет автоматической оптимизации
+  success_rate_target: 0.95
+  accuracy_target: 0.90
+
+# Если auto_optimize: false → только ручная оптимизация
+```
+
+---
+
+### Примеры решений сервиса
+
+#### Пример 1: Достаточно данных, метрики плохие
+
+```python
+metrics = AggregatedMetrics(
+    capability='planning.create_plan',
+    total_executions=100,      # >= 10 ✅
+    success_rate=0.78,         # < 0.9 ✅
+    accuracy=0.82              # < 0.85 ✅
+)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'planning.create_plan',
+    metrics
+)
+# → True ✅ (можно оптимизировать)
+```
+
+---
+
+#### Пример 2: Недостаточно данных
+
+```python
+metrics = AggregatedMetrics(
+    capability='new_capability',
+    total_executions=5,        # < 10 ❌
+    success_rate=0.60,
+    accuracy=0.70
+)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'new_capability',
+    metrics
+)
+# → False ❌
+# Лог: "Недостаточно данных для new_capability: 5 < 10"
+```
+
+---
+
+#### Пример 3: Метрики в норме
+
+```python
+metrics = AggregatedMetrics(
+    capability='stable_capability',
+    total_executions=500,
+    success_rate=0.96,         # >= 0.9 ✅
+    accuracy=0.93              # >= 0.85 ✅
+)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'stable_capability',
+    metrics
+)
+# → False ❌
+# Лог: "Метрики stable_capability в норме: success_rate=96%, accuracy=93%"
+```
+
+---
+
+#### Пример 4: Blacklist
+
+```python
+metrics = AggregatedMetrics(
+    capability='security.validator',
+    total_executions=100,
+    success_rate=0.75,
+    accuracy=0.80
+)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'security.validator',
+    metrics
+)
+# → False ❌
+# Лог: "Capability security.validator в blacklist (паттерн security.*)"
+```
+
+---
+
+#### Пример 5: Запрет манифестом
+
+```yaml
+# data/manifests/skills/legacy/manifest.yaml
+component_id: legacy
+quality_metrics:
+  auto_optimize: false  # ← Явный запрет
+```
+
+```python
+metrics = AggregatedMetrics(
+    capability='legacy.process',
+    total_executions=100,
+    success_rate=0.70,
+    accuracy=0.65
+)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'legacy.process',
+    metrics
+)
+# → False ❌
+# Лог: "Оптимизация запрещена в манифесте legacy.process"
+```
+
+---
+
+#### Пример 6: Активная оптимизация (lock)
+
+```python
+# Файл существует: data/locks/optimization_planning_create_plan.lock
+# Возраст: 30 минут (< 1 часа)
+
+needs_optimization = await optimization_service._needs_optimization(
+    'planning.create_plan',
+    metrics
+)
+# → False ❌
+# Лог: "Оптимизация planning.create_plan уже выполняется"
+```
+
+---
+
+### Полный цикл проверки
+
+```python
+async def start_optimization_cycle(
+    self,
+    capability: str,
+    mode: OptimizationMode,
+    ...
+) -> OptimizationResult:
+    # 1. Получаем метрики
+    current_metrics = await self.metrics_collector.get_aggregated_metrics(...)
+    
+    # 2. Проверяем необходимость (для AUTOMATIC режима)
+    if mode == OptimizationMode.AUTOMATIC:
+        if not await self._needs_optimization(capability, current_metrics):
+            return OptimizationResult(
+                status='not_needed',
+                reason='Метрики в норме или недостаточно данных'
+            )
+    
+    # 3. Устанавливаем lock
+    if not await self._acquire_optimization_lock(capability):
+        return OptimizationResult(
+            status='failed',
+            reason='Оптимизация уже выполняется'
+        )
+    
+    try:
+        # 4. Запускаем оптимизацию
+        # ... цикл итераций ...
+        
+        return OptimizationResult(
+            status='completed',
+            best_version=best_version,
+            ...
+        )
+    finally:
+        # 5. Освобождаем lock
+        await self._release_optimization_lock(capability)
+```
+
+---
+
+### Таблица решений
+
+| Сценарий | total_exec | success_rate | accuracy | blacklist | manifest | lock | Решение |
+|----------|------------|--------------|----------|-----------|----------|------|---------|
+| Новая capability | 5 | 0.60 | 0.65 | ❌ | auto | ❌ | ❌ Недостаточно данных |
+| Плохие метрики | 100 | 0.75 | 0.80 | ❌ | auto | ❌ | ✅ Оптимизировать |
+| Хорошие метрики | 500 | 0.96 | 0.93 | ❌ | auto | ❌ | ❌ Метрики в норме |
+| Security компонент | 100 | 0.70 | 0.75 | ✅ | auto | ❌ | ❌ Blacklist |
+| Запрет манифеста | 100 | 0.70 | 0.75 | ❌ | false | ❌ | ❌ Запрет |
+| Активная оптимизация | 100 | 0.70 | 0.75 | ❌ | auto | ✅ | ❌ Уже выполняется |
+| Ручной режим | 100 | 0.95 | 0.92 | ❌ | auto | ❌ | ✅ Всегда можно |
+
+---
+
+### Рекомендации по настройке порогов
+
+| Порог | Значение | Когда изменить |
+|-------|----------|----------------|
+| `total_executions >= 10` | Минимум данных | Увеличить до 50 для критичных компонентов |
+| `success_rate < 0.9` | Надёжность | Увеличить до 0.95 для prod |
+| `accuracy < 0.85` | Качество | Увеличить до 0.90 для важных capability |
+| `lock_age < 3600` | Timeout | Уменьшить до 1800 для быстрых циклов |
+| `days_active > 30` | Стабильность | Увеличить до 90 для стабильных версий |
 
 ---
 
@@ -4633,7 +5118,7 @@ class ExecutionContextSnapshot:
               ▼                           ▼
     ┌─────────────────┐         ┌─────────────────┐
     │ 5. PROMOTE      │         │ 5. DISCARD      │
-    │ ─────────────── │         │ ─────────────── │
+    │ ──��──────────── │         │ ─────────────── │
     │ • Смена статуса │         │ • Удаление DRAFT│
     │   DRAFT→ACTIVE  │         │ • Логирование   │
     │ • Обновление    │         │   причины       │
