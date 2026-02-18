@@ -1877,6 +1877,906 @@ print(f"""
 
 ---
 
+## 🏗️ Архитектура бенчмарков и оценки
+
+### 🔴 Проблема текущего документа
+
+Сейчас в документе используются **словари** для бенчмарков:
+
+```python
+# ❌ ПЛОХО: словари вместо классов
+criteria = {
+    'min_count': 5,
+    'required_fields': ['description', 'estimate'],
+}
+```
+
+**Почему это неправильно:**
+- ❌ Нет валидации структуры
+- ❌ Нет типизации
+- ❌ Сложно переиспользовать
+- ❌ Не соответствует архитектуре проекта (Prompt, Contract — классы)
+
+---
+
+### ✅ Решение: Классы данных (как Prompt, Contract)
+
+**Вся архитектура на классах:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    МОДЕЛИ ДАННЫХ                            │
+└─────────────────────────────────────────────────────────────┘
+
+core/models/data/benchmark.py
+├── BenchmarkScenario          # Сценарий бенчмарка
+├── BenchmarkResult            # Результат запуска
+├── EvaluationCriteria         # Критерии оценки
+├── AccuracyEvaluation         # Результат оценки
+└── VersionComparison          # Сравнение версий
+
+core/application/services/accuracy_evaluator.py
+├── AccuracyEvaluatorService   # Сервис оценки
+└── evaluators/
+    ├── ExactMatchEvaluator    # Точное совпадение
+    ├── CoverageEvaluator      # Покрытие списка
+    ├── SemanticEvaluator      # LLM-оценка
+    └── HybridEvaluator        # Комбинированная
+```
+
+---
+
+## 📊 Модели данных для бенчмарков
+
+### BenchmarkScenario
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+from dataclasses import dataclass, field
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from enum import Enum
+
+
+class EvaluationType(str, Enum):
+    """Типы оценки точности"""
+    EXACT_MATCH = "exact_match"      # Точное совпадение
+    MIN_VALUE = "min_value"          # Минимум >= значения
+    COVERAGE = "coverage"            # Покрытие списка
+    SEMANTIC = "semantic"            # LLM-оценка
+    HYBRID = "hybrid"                # Комбинированная
+
+
+@dataclass
+class EvaluationCriterion:
+    """
+    Отдельный критерий оценки.
+    
+    ПРИМЕРЫ:
+    - min_count: 5 (минимум 5 элементов)
+    - required_fields: ['description', 'estimate']
+    - sql_valid: True (валидный SQL)
+    """
+    name: str                      # Имя критерия
+    eval_type: EvaluationType      # Тип оценки
+    expected_value: Any            # Ожидаемое значение
+    weight: float = 1.0            # Вес критерия
+    tolerance: float = 0.0         # Допустимое отклонение
+    description: str = ""          # Описание для понимания
+
+
+@dataclass
+class BenchmarkScenario:
+    """
+    Сценарий бенчмарка — тестовая задача с эталоном.
+    
+    ИСПОЛЬЗОВАНИЕ:
+    scenario = BenchmarkScenario(
+        id='planning_test_001',
+        goal='Создать план из 5 шагов',
+        expected_output=ExpectedOutput(...),
+        evaluation_criteria=[...],
+        allowed_capabilities=['planning.create_plan']
+    )
+    """
+    id: str
+    name: str
+    description: str
+    goal: str                               # Задача для агента
+    
+    # Эталонный ответ
+    expected_output: 'ExpectedOutput'
+    
+    # Критерии оценки
+    evaluation_criteria: List[EvaluationCriterion]
+    
+    # Ограничения
+    allowed_capabilities: List[str] = field(default_factory=list)
+    timeout_seconds: int = 300
+    max_iterations: int = 10
+    
+    # Метаданные
+    created_at: datetime = field(default_factory=datetime.now)
+    version: str = "v1.0.0"
+    tags: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Валидация при создании"""
+        if not self.goal:
+            raise ValueError("goal обязателен")
+        if not self.evaluation_criteria:
+            raise ValueError("evaluation_criteria обязателен")
+```
+
+---
+
+### ExpectedOutput
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+@dataclass
+class ExpectedOutput:
+    """
+    Ожидаемый результат выполнения бенчмарка.
+    
+    ДЛЯ СТРУКТУРИРОВАННЫХ ЗАДАЧ:
+    ExpectedOutput(
+        structured_data={
+            'steps_count': 5,
+            'has_descriptions': True,
+            'tables': ['users', 'orders']
+        }
+    )
+    
+    ДЛЯ ТЕКСТОВЫХ ЗАДАЧ:
+    ExpectedOutput(
+        text='Эталонный текст саммаризации...',
+        key_concepts=['концепт1', 'концепт2']
+    )
+    """
+    # Для структурированных задач
+    structured_data: Optional[Dict[str, Any]] = None
+    
+    # Для текстовых задач
+    text: Optional[str] = None
+    key_concepts: List[str] = field(default_factory=list)
+    
+    # Для задач со списком ответов
+    items: List[str] = field(default_factory=list)
+    
+    # Метаданные
+    description: str = ""
+    
+    def __post_init__(self):
+        """Валидация"""
+        has_data = any([
+            self.structured_data,
+            self.text,
+            self.items
+        ])
+        if not has_data:
+            raise ValueError("ExpectedOutput должен содержать данные")
+```
+
+---
+
+### BenchmarkResult
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+@dataclass
+class BenchmarkResult:
+    """
+    Результат запуска бенчмарка.
+    
+    ИСПОЛЬЗОВАНИЕ:
+    result = await benchmark_service.run_benchmark(scenario, version)
+    """
+    scenario_id: str
+    scenario_name: str
+    version: str
+    
+    # Фактический результат
+    actual_output: 'ActualOutput'
+    
+    # Оценка точности
+    accuracy: float                    # 0.0 - 1.0
+    accuracy_details: 'AccuracyEvaluation'
+    
+    # Метрики выполнения
+    execution_time_ms: float
+    tokens_used: int
+    total_steps: int
+    
+    # Статус
+    success: bool                      # Все шаги успешны
+    goal_achieved: bool                # Цель достигнута (accuracy >= threshold)
+    error_message: Optional[str] = None
+    
+    # Контекст
+    agent_id: str
+    session_id: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def is_better_than(self, other: 'BenchmarkResult', threshold: float = 0.05) -> bool:
+        """Проверяет, лучше ли этот результат чем другой"""
+        return self.accuracy >= other.accuracy + threshold
+```
+
+---
+
+### AccuracyEvaluation
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+@dataclass
+class CriterionScore:
+    """Оценка по одному критерию"""
+    criterion_name: str
+    score: float                       # 0.0 - 1.0
+    max_score: float = 1.0
+    details: str = ""                  # Пояснение оценки
+
+
+@dataclass
+class AccuracyEvaluation:
+    """
+    Детальная оценка точности.
+    
+    ПРИМЕР:
+    AccuracyEvaluation(
+        overall_accuracy=0.73,
+        criterion_scores=[
+            CriterionScore('min_count', 0.6, details='3 из 5 шагов'),
+            CriterionScore('required_fields', 0.8, details='2 из 3 полей'),
+            CriterionScore('format_valid', 1.0, details='формат корректен'),
+        ],
+        evaluation_type=EvaluationType.HYBRID
+    )
+    """
+    overall_accuracy: float
+    criterion_scores: List[CriterionScore]
+    evaluation_type: EvaluationType
+    
+    # Для LLM-оценки
+    llm_feedback: Optional[str] = None
+    
+    def get_weighted_accuracy(self) -> float:
+        """Взвешенная точность (с учётом весов критериев)"""
+        if not self.criterion_scores:
+            return self.overall_accuracy
+        
+        total_weight = sum(s.max_score for s in self.criterion_scores)
+        weighted_sum = sum(s.score * s.max_score for s in self.criterion_scores)
+        
+        return weighted_sum / total_weight if total_weight > 0 else 0.0
+```
+
+---
+
+### ActualOutput
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+@dataclass
+class ActualOutput:
+    """
+    Фактический результат выполнения агента.
+    
+    СОЗДАЁТСЯ:
+    - При выполнении Agent.run(goal)
+    - Извлекается из ExecutionContextSnapshot
+    """
+    # Структурированные данные
+    structured_data: Optional[Dict[str, Any]] = None
+    
+    # Текст
+    text: Optional[str] = None
+    
+    # Список элементов
+    items: List[str] = field(default_factory=list)
+    
+    # Метаданные выполнения
+    execution_time_ms: float = 0.0
+    tokens_used: int = 0
+    steps_count: int = 0
+    
+    # Ошибки
+    errors: List[str] = field(default_factory=list)
+    
+    @classmethod
+    def from_execution_context(cls, context: 'ExecutionContextSnapshot') -> 'ActualOutput':
+        """Создание из контекста выполнения"""
+        return cls(
+            structured_data=context.output_result,
+            execution_time_ms=context.execution_time_ms,
+            tokens_used=context.tokens_used,
+            steps_count=context.step_number,
+        )
+```
+
+---
+
+## 🏗️ AccuracyEvaluator Service
+
+### Интерфейс сервиса
+
+**Файл:** `core/application/services/accuracy_evaluator.py`
+
+```python
+from abc import ABC, abstractmethod
+from typing import Protocol
+
+
+class IEvaluationStrategy(Protocol):
+    """Интерфейс стратегии оценки"""
+    
+    async def evaluate(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criteria: List[EvaluationCriterion]
+    ) -> AccuracyEvaluation:
+        """Оценка точности"""
+        pass
+
+
+class AccuracyEvaluatorService:
+    """
+    Сервис оценки точности ответов агента.
+    
+    АРХИТЕКТУРА:
+    - Фасад для стратегий оценки
+    - Dependency Injection для LLM provider
+    - Расширяемость через новые стратегии
+    
+    ИСПОЛЬЗОВАНИЕ:
+    evaluator = AccuracyEvaluatorService(llm_provider)
+    evaluation = await evaluator.evaluate(actual, expected, criteria)
+    """
+
+    def __init__(self, llm_provider: Any):
+        self.llm_provider = llm_provider
+        self._strategies = self._init_strategies()
+
+    def _init_strategies(self) -> Dict[EvaluationType, IEvaluationStrategy]:
+        """Регистрация стратегий"""
+        return {
+            EvaluationType.EXACT_MATCH: ExactMatchEvaluator(),
+            EvaluationType.MIN_VALUE: MinValueEvaluator(),
+            EvaluationType.COVERAGE: CoverageEvaluator(),
+            EvaluationType.SEMANTIC: SemanticEvaluator(self.llm_provider),
+            EvaluationType.HYBRID: HybridEvaluator(self.llm_provider),
+        }
+
+    async def evaluate(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criteria: List[EvaluationCriterion]
+    ) -> AccuracyEvaluation:
+        """
+        Универсальная оценка точности.
+        
+        ARGS:
+        - actual: фактический ответ (класс ActualOutput)
+        - expected: ожидаемый ответ (класс ExpectedOutput)
+        - criteria: критерии оценки (список EvaluationCriterion)
+        
+        RETURNS:
+        - AccuracyEvaluation: детальная оценка
+        
+        RAISES:
+        - ValueError: если критерии пустые
+        """
+        if not criteria:
+            raise ValueError("criteria не может быть пустым")
+        
+        # Определяем тип оценки из критериев
+        eval_type = self._determine_eval_type(criteria)
+        strategy = self._strategies.get(eval_type)
+        
+        if not strategy:
+            raise ValueError(f"Неизвестный тип оценки: {eval_type}")
+        
+        return await strategy.evaluate(actual, expected, criteria)
+
+    def _determine_eval_type(self, criteria: List[EvaluationCriterion]) -> EvaluationType:
+        """Определение типа оценки по критериям"""
+        types = set(c.eval_type for c in criteria)
+        
+        if len(types) == 1:
+            return types.pop()
+        elif len(types) > 1:
+            return EvaluationType.HYBRID
+        else:
+            return EvaluationType.COVERAGE  # По умолчанию
+```
+
+---
+
+### Стратегии оценки
+
+**Файл:** `core/application/evaluators/coverage_evaluator.py`
+
+```python
+class CoverageEvaluator:
+    """
+    Оценка покрытия списка.
+    
+    ДЛЯ: открытых вопросов (список правильных ответов)
+    ПРИМЕР: "Какие книги написал Пушкин?"
+    """
+
+    async def evaluate(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criteria: List[EvaluationCriterion]
+    ) -> AccuracyEvaluation:
+        scores = []
+        
+        for criterion in criteria:
+            if criterion.name == 'min_count':
+                score = self._eval_min_count(actual, expected, criterion)
+            elif criterion.name == 'required_items':
+                score = self._eval_required_items(actual, expected, criterion)
+            else:
+                continue
+            
+            scores.append(score)
+        
+        overall = sum(s.score for s in scores) / len(scores) if scores else 0.0
+        
+        return AccuracyEvaluation(
+            overall_accuracy=overall,
+            criterion_scores=scores,
+            evaluation_type=EvaluationType.COVERAGE
+        )
+
+    def _eval_min_count(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criterion: EvaluationCriterion
+    ) -> CriterionScore:
+        """Оценка по критерию минимального количества"""
+        actual_count = len(actual.items) if actual.items else 0
+        expected_count = criterion.expected_value
+        
+        score = min(1.0, actual_count / expected_count)
+        
+        return CriterionScore(
+            criterion_name='min_count',
+            score=score,
+            max_score=criterion.weight,
+            details=f'{actual_count} из {expected_count}'
+        )
+
+    def _eval_required_items(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criterion: EvaluationCriterion
+    ) -> CriterionScore:
+        """Оценка по критерию обязательных элементов"""
+        required_items = criterion.expected_value
+        actual_items = actual.items if actual.items else []
+        
+        # Подсчёт правильных (с учётом синонимов)
+        correct_count = sum(
+            1 for item in actual_items
+            if self._is_correct_item(item, required_items)
+        )
+        
+        score = correct_count / len(required_items) if required_items else 0.0
+        
+        return CriterionScore(
+            criterion_name='required_items',
+            score=score,
+            max_score=criterion.weight,
+            details=f'{correct_count} из {len(required_items)} обязательных'
+        )
+
+    def _is_correct_item(self, item: str, required: List[str]) -> bool:
+        """Проверка элемента на правильность (с fuzzy match)"""
+        if item in required:
+            return True
+        
+        # Fuzzy match для синонимов
+        for req in required:
+            if fuzzy_match(item, req, threshold=0.8):
+                return True
+        
+        return False
+```
+
+---
+
+**Файл:** `core/application/evaluators/semantic_evaluator.py`
+
+```python
+class SemanticEvaluator:
+    """
+    LLM-оценка семантического сходства.
+    
+    ДЛЯ: текстовых задач (summarize, reasoning)
+    ПРИМЕР: "Объясни теорию относительности"
+    """
+
+    def __init__(self, llm_provider: Any):
+        self.llm_provider = llm_provider
+
+    async def evaluate(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criteria: List[EvaluationCriterion]
+    ) -> AccuracyEvaluation:
+        scores = []
+        llm_feedback = ""
+        
+        for criterion in criteria:
+            if criterion.eval_type == EvaluationType.SEMANTIC:
+                score, feedback = await self._eval_semantic(
+                    actual, expected, criterion
+                )
+                scores.append(score)
+                llm_feedback = feedback
+        
+        overall = sum(s.score for s in scores) / len(scores) if scores else 0.0
+        
+        return AccuracyEvaluation(
+            overall_accuracy=overall,
+            criterion_scores=scores,
+            evaluation_type=EvaluationType.SEMANTIC,
+            llm_feedback=llm_feedback
+        )
+
+    async def _eval_semantic(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criterion: EvaluationCriterion
+    ) -> Tuple[CriterionScore, str]:
+        """LLM-оценка семантики"""
+        prompt = self._build_semantic_prompt(actual, expected, criterion)
+        
+        response = await self.llm_provider.generate(prompt)
+        
+        # Парсинг ответа LLM
+        accuracy, feedback = self._parse_llm_response(response)
+        
+        return CriterionScore(
+            criterion_name=criterion.name,
+            score=accuracy,
+            max_score=criterion.weight,
+            details=feedback
+        ), feedback
+
+    def _build_semantic_prompt(
+        self,
+        actual: ActualOutput,
+        expected: ExpectedOutput,
+        criterion: EvaluationCriterion
+    ) -> str:
+        """Создание промпта для LLM-оценки"""
+        return f"""
+Сравни два ответа на задачу:
+
+Задача: {criterion.description}
+
+Эталонный ответ:
+{expected.text or expected.key_concepts}
+
+Фактический ответ агента:
+{actual.text}
+
+Критерии оценки:
+{criterion.expected_value}
+
+Оцени фактический ответ по шкале от 0.0 до 1.0:
+- 1.0: Полностью соответствует эталону
+- 0.5: Частично соответствует
+- 0.0: Не соответствует
+
+Верни ответ в формате JSON:
+{{
+    "accuracy": 0.75,
+    "feedback": "Краткое пояснение оценки"
+}}
+"""
+
+    def _parse_llm_response(self, response: str) -> Tuple[float, str]:
+        """Парсинг JSON ответа от LLM"""
+        try:
+            data = json.loads(response.strip())
+            accuracy = float(data.get('accuracy', 0.0))
+            feedback = data.get('feedback', '')
+            return max(0.0, min(1.0, accuracy)), feedback
+        except (json.JSONDecodeError, ValueError):
+            # Fallback: извлечь число из текста
+            import re
+            match = re.search(r'\d+\.?\d*', response)
+            accuracy = float(match.group()) if match else 0.0
+            return max(0.0, min(1.0, accuracy)), response
+```
+
+---
+
+## 🔄 Взаимодействие компонентов
+
+### Полный цикл бенчмарка
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ПОТОК ВЫЗОВОВ (на классах)                     │
+└─────────────────────────────────────────────────────────────┘
+
+1. Создание бенчмарка
+   └→ scenario = BenchmarkScenario(
+         id='test_001',
+         goal='Создать план',
+         expected_output=ExpectedOutput(structured_data={...}),
+         evaluation_criteria=[
+             EvaluationCriterion('min_count', COVERAGE, 5),
+             EvaluationCriterion('required_fields', COVERAGE, ['desc']),
+         ]
+       )
+
+2. Запуск бенчмарка
+   └→ result = await benchmark_service.run_benchmark(scenario, 'v1.0.0')
+      │
+      ├→ actual_output = await self.agent.run(scenario.goal)
+      │   └→ ActualOutput.from_execution_context(context)
+      │
+      └→ evaluation = await self.evaluator.evaluate(
+             actual=actual_output,
+             expected=scenario.expected_output,
+             criteria=scenario.evaluation_criteria
+         )
+         │
+         ├→ strategy = self._strategies[COVERAGE]
+         └→ await strategy.evaluate(actual, expected, criteria)
+            └→ CoverageEvaluator._eval_min_count(...)
+            └→ CoverageEvaluator._eval_required_items(...)
+
+3. Результат
+   └→ return BenchmarkResult(
+         scenario_id=scenario.id,
+         actual_output=actual_output,
+         accuracy=evaluation.overall_accuracy,
+         accuracy_details=evaluation,
+         execution_time_ms=...,
+         success=True
+       )
+```
+
+---
+
+### Пример использования
+
+```python
+# 1. Создание бенчмарка
+scenario = BenchmarkScenario(
+    id='planning_test_001',
+    name='План из 5 шагов',
+    description='Тестирование planning.create_plan',
+    goal='Создать план разработки ПО из 5 шагов',
+    
+    expected_output=ExpectedOutput(
+        structured_data={
+            'steps_count': 5,
+            'required_fields': ['description', 'estimate']
+        },
+        description='План с 5 шагами, каждый с описанием и оценкой'
+    ),
+    
+    evaluation_criteria=[
+        EvaluationCriterion(
+            name='min_steps',
+            eval_type=EvaluationType.MIN_VALUE,
+            expected_value=5,
+            weight=2.0,
+            description='Минимум 5 шагов'
+        ),
+        EvaluationCriterion(
+            name='required_fields',
+            eval_type=EvaluationType.COVERAGE,
+            expected_value=['description', 'estimate'],
+            weight=1.5,
+            description='Каждый шаг имеет описание и оценку'
+        ),
+    ],
+    
+    allowed_capabilities=['planning.create_plan'],
+    timeout_seconds=300
+)
+
+# 2. Запуск бенчмарка
+result = await benchmark_service.run_benchmark(
+    scenario=scenario,
+    version='v1.0.0'
+)
+
+# 3. Анализ результата
+print(f"Точность: {result.accuracy:.1%}")
+print(f"Цель достигнута: {result.goal_achieved}")
+
+for score in result.accuracy_details.criterion_scores:
+    print(f"  {score.criterion_name}: {score.score:.1%} ({score.details})")
+
+# 4. Сравнение версий
+comparison = await benchmark_service.compare_versions(
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios=[scenario]
+)
+
+if comparison.improvement > 0.05:
+    await benchmark_service.promote_version('v1.1.0-draft')
+```
+
+---
+
+### Интеграция с BenchmarkService
+
+**Файл:** `core/application/services/benchmark_service.py`
+
+```python
+class BenchmarkService(BaseService):
+    """
+    Оркестрация бенчмарков.
+    
+    ЗАВИСИМОСТИ:
+    - AccuracyEvaluatorService (оценка точности)
+    - MetricsCollector (сбор метрик)
+    - DataRepository (доступ к версиям)
+    """
+
+    def __init__(
+        self,
+        evaluator: AccuracyEvaluatorService,
+        metrics_collector: MetricsCollector,
+        data_repository: DataRepository,
+        llm_provider: Any
+    ):
+        self.evaluator = evaluator
+        self.metrics_collector = metrics_collector
+        self.data_repository = data_repository
+        self.llm_provider = llm_provider
+
+    async def run_benchmark(
+        self,
+        scenario: BenchmarkScenario,
+        version: str
+    ) -> BenchmarkResult:
+        """Запуск одного бенчмарка"""
+        start_time = time.time()
+        
+        try:
+            # 1. Создание тестового контекста
+            context = await self._create_test_context(scenario, version)
+            
+            # 2. Запуск агента
+            agent = self._create_test_agent(context)
+            actual_output = await agent.run(scenario.goal)
+            
+            # 3. Оценка точности
+            evaluation = await self.evaluator.evaluate(
+                actual=actual_output,
+                expected=scenario.expected_output,
+                criteria=scenario.evaluation_criteria
+            )
+            
+            # 4. Сбор метрик
+            execution_time = (time.time() - start_time) * 1000
+            tokens_used = await self._get_tokens_used(context.session_id)
+            
+            # 5. Результат
+            return BenchmarkResult(
+                scenario_id=scenario.id,
+                scenario_name=scenario.name,
+                version=version,
+                actual_output=actual_output,
+                accuracy=evaluation.overall_accuracy,
+                accuracy_details=evaluation,
+                execution_time_ms=execution_time,
+                tokens_used=tokens_used,
+                total_steps=context.current_step,
+                success=evaluation.overall_accuracy >= 0.7,  # Threshold
+                goal_achieved=evaluation.overall_accuracy >= 0.9,
+                agent_id=context.agent_id,
+                session_id=context.session_id
+            )
+            
+        except Exception as e:
+            return BenchmarkResult(
+                scenario_id=scenario.id,
+                scenario_name=scenario.name,
+                version=version,
+                actual_output=ActualOutput(errors=[str(e)]),
+                accuracy=0.0,
+                accuracy_details=AccuracyEvaluation(
+                    overall_accuracy=0.0,
+                    criterion_scores=[],
+                    evaluation_type=EvaluationType.EXACT_MATCH
+                ),
+                execution_time_ms=(time.time() - start_time) * 1000,
+                tokens_used=0,
+                total_steps=0,
+                success=False,
+                goal_achieved=False,
+                error_message=str(e),
+                agent_id="",
+                session_id=""
+            )
+
+    async def compare_versions(
+        self,
+        version_a: str,
+        version_b: str,
+        scenarios: List[BenchmarkScenario]
+    ) -> VersionComparison:
+        """Сравнение двух версий"""
+        results_a = []
+        results_b = []
+        
+        for scenario in scenarios:
+            result_a = await self.run_benchmark(scenario, version_a)
+            result_b = await self.run_benchmark(scenario, version_b)
+            
+            results_a.append(result_a)
+            results_b.append(result_b)
+        
+        # Агрегация
+        avg_accuracy_a = sum(r.accuracy for r in results_a) / len(results_a)
+        avg_accuracy_b = sum(r.accuracy for r in results_b) / len(results_b)
+        
+        improvement = avg_accuracy_b - avg_accuracy_a
+        
+        recommendation = self._get_recommendation(improvement)
+        
+        return VersionComparison(
+            version_a=version_a,
+            version_b=version_b,
+            scenarios_run=len(scenarios),
+            improvement=improvement,
+            best_version=version_b if improvement > 0 else version_a,
+            metrics_a=AggregatedMetrics(accuracy=avg_accuracy_a, ...),
+            metrics_b=AggregatedMetrics(accuracy=avg_accuracy_b, ...),
+            recommendation=recommendation
+        )
+
+    def _get_recommendation(self, improvement: float) -> str:
+        """Рекомендация по продвижению версии"""
+        if improvement > 0.05:
+            return "promote"
+        elif improvement < -0.05:
+            return "reject"
+        else:
+            return "needs_more_testing"
+```
+
+---
+
+## 📋 Сводная таблица: Классы vs Словари
+
+| Компонент | ❌ Словари (неправильно) | ✅ Классы (правильно) |
+|-----------|-------------------------|----------------------|
+| **Сценарий** | `{'goal': '...', 'expected': {...}}` | `BenchmarkScenario(...)` |
+| **Ожидаемый ответ** | `{'steps': 5, 'fields': [...]}` | `ExpectedOutput(structured_data={...})` |
+| **Критерий** | `{'type': 'min_count', 'value': 5}` | `EvaluationCriterion(name='min_count', ...)` |
+| **Результат** | `{'accuracy': 0.73, 'success': True}` | `BenchmarkResult(accuracy=0.73, ...)` |
+| **Оценка** | `{'score': 0.6, 'details': '...'}` | `CriterionScore(score=0.6, ...)` |
+
+---
+
 ## 📊 Модели данных
 
 ### AggregatedMetrics
