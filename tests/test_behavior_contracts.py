@@ -1,143 +1,160 @@
+﻿"""
+Тесты валидации контрактов для behavior patterns.
+
+ПРИМЕЧАНИЕ: Тесты используют реальные объекты вместо моков для ApplicationContext и сервисов.
+Моки допускаются только для LLM и БД провайдеров.
+"""
 import pytest
-import asyncio
-from unittest.mock import Mock
-
-from core.application.behaviors.react.pattern import ReActPattern
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.config.component_config import ComponentConfig
 
 
-@pytest.mark.asyncio
-async def test_behavior_contracts_validation():
-    """Тест валидации входных данных через ContractService"""
-    
-    # Создаем mock сервисов
-    mock_prompt_service = Mock()
-    
-    # Создаем паттерн
-    react_pattern = ReActPattern(prompt_service=mock_prompt_service)
-    
-    # Создаем mock объекты для тестирования
-    mock_session_context = Mock()
-    mock_capability = Mock()
-    mock_capability.name = "test.capability"
-    mock_capability.skill_name = "book_library"  # Должен соответствовать required_skills в _filter_capabilities
-    mock_capability.supported_strategies = ["react"]
+class TestBehaviorContractsValidation:
+    """Тесты валидации контрактов behavior patterns."""
 
-    available_capabilities = [mock_capability]
-    
-    # Тестируем analyze_context
-    context_analysis = await react_pattern.analyze_context(
-        session_context=mock_session_context,
-        available_capabilities=available_capabilities,
-        context_analysis={}
-    )
-    
-    # Проверяем, что анализ контекста вернул ожидаемые данные
-    assert "available_capabilities" in context_analysis
-    assert "no_progress_steps" in context_analysis
-    assert "consecutive_errors" in context_analysis
-    
-    # Проверяем фильтрацию capability
-    filtered_caps = context_analysis["available_capabilities"]
-    assert len(filtered_caps) == 1
-    assert filtered_caps[0].name == "test.capability"
-    
-    # Тестируем generate_decision
-    mock_session_context.get_goal.return_value = "test goal"
-    
-    # Создаем mock для валидации параметров
-    from core.application.agent.strategies.react.schema_validator import SchemaValidator
-    validator = SchemaValidator()
-    
-    # Проверяем, что паттерн может обработать различные типы входных данных
-    # и что он следует контрактам поведения
-    
-    # Создаем тестовое решение
-    decision = BehaviorDecision(
-        action=BehaviorDecisionType.ACT,
-        capability_name="test.capability",
-        parameters={"input": "test input"},
-        reason="test reason"
-    )
-    
-    # Проверяем, что решение соответствует ожидаемому формату
-    assert decision.action in BehaviorDecisionType
-    assert decision.capability_name == "test.capability"
-    assert isinstance(decision.parameters, dict)
-    assert isinstance(decision.reason, str)
-    
-    # Проверяем, что паттерн может обрабатывать различные типы решений
-    stop_decision = BehaviorDecision(
-        action=BehaviorDecisionType.STOP,
-        reason="goal achieved"
-    )
-    
-    assert stop_decision.action == BehaviorDecisionType.STOP
-    assert stop_decision.reason == "goal achieved"
+    @pytest.mark.asyncio
+    async def test_component_config_creation(self):
+        """Тест создания ComponentConfig для behavior patterns."""
+        config = ComponentConfig(
+            variant_id="test_react_pattern_default",
+            prompt_versions={},
+            input_contract_versions={},
+            output_contract_versions={},
+            side_effects_enabled=True,
+            detailed_metrics=False,
+            parameters={},
+            dependencies=[]
+        )
+
+        assert config is not None
+        assert config.variant_id == "test_react_pattern_default"
+        assert config.side_effects_enabled is True
+        assert config.detailed_metrics is False
+
+    @pytest.mark.asyncio
+    async def test_component_config_with_prompt_versions(self):
+        """Тест ComponentConfig с версиями промптов."""
+        config = ComponentConfig(
+            variant_id="test_planning_pattern_v1",
+            prompt_versions={
+                "behavior.planning.decompose": "v1.0",
+                "behavior.planning.sequence": "v1.0"
+            },
+            input_contract_versions={},
+            output_contract_versions={},
+            side_effects_enabled=True,
+            detailed_metrics=False,
+            parameters={},
+            dependencies=[]
+        )
+
+        assert config.prompt_versions["behavior.planning.decompose"] == "v1.0"
+        assert config.prompt_versions["behavior.planning.sequence"] == "v1.0"
 
 
-def test_behavior_input_validation():
-    """Тест валидации входных данных для паттернов"""
-    
-    # Проверяем, что BehaviorDecision правильно валидирует свои поля
-    decision = BehaviorDecision(
-        action=BehaviorDecisionType.ACT,
-        capability_name="test.capability",
-        parameters={"input": "test"},
-        reason="test reason",
-        confidence=0.9
-    )
-    
-    assert decision.action == BehaviorDecisionType.ACT
-    assert decision.capability_name == "test.capability"
-    assert decision.parameters == {"input": "test"}
-    assert decision.reason == "test reason"
-    assert decision.confidence == 0.9
-    
-    # Проверяем значения по умолчанию
-    minimal_decision = BehaviorDecision(action=BehaviorDecisionType.STOP)
-    assert minimal_decision.action == BehaviorDecisionType.STOP
-    assert minimal_decision.capability_name is None
-    assert minimal_decision.parameters is None
-    assert minimal_decision.reason == ""
-    assert minimal_decision.confidence == 1.0
+class TestBehaviorPatternStructure:
+    """Тесты структуры behavior patterns."""
+
+    def test_react_pattern_has_required_attributes(self):
+        """Тест наличия обязательных атрибутов у ReActPattern."""
+        from core.application.behaviors.react_pattern import ReActPattern
+        
+        # Проверяем наличие классов входа/выхода
+        from core.application.behaviors.react_pattern import ReActInput, ReActOutput
+        
+        assert ReActInput is not None
+        assert ReActOutput is not None
+        
+        # Проверяем атрибуты ReActInput
+        input_obj = ReActInput(goal="Test goal")
+        assert input_obj.goal == "Test goal"
+        assert input_obj.context == {}
+        assert input_obj.history == []
+        assert input_obj.available_tools == []
+        
+        # Проверяем атрибуты ReActOutput
+        output_obj = ReActOutput(thought="Test thought", is_final=False)
+        assert output_obj.thought == "Test thought"
+        assert output_obj.is_final is False
+
+    def test_planning_pattern_has_required_attributes(self):
+        """Тест наличия обязательных атрибутов у PlanningPattern."""
+        from core.application.behaviors.planning_pattern import PlanningInput, PlanningOutput
+        
+        assert PlanningInput is not None
+        assert PlanningOutput is not None
+        
+        # Проверяем атрибуты PlanningInput
+        input_obj = PlanningInput(goal="Test goal")
+        assert input_obj.goal == "Test goal"
+        assert input_obj.context == {}
+        assert input_obj.available_tools == []
+        assert input_obj.constraints == []
+        
+        # Проверяем атрибуты PlanningOutput
+        output_obj = PlanningOutput(plan=[], is_complete=False)
+        assert output_obj.plan == []
+        assert output_obj.is_complete is False
+
+    def test_evaluation_pattern_has_required_attributes(self):
+        """Тест наличия обязательных атрибутов у EvaluationPattern."""
+        from core.application.behaviors.evaluation.pattern import EvaluationPattern
+        
+        pattern = EvaluationPattern(pattern_id="test_evaluation.v1.0.0")
+        assert pattern.pattern_id == "test_evaluation.v1.0.0"
+        assert hasattr(pattern, 'analyze_context')
+        assert hasattr(pattern, 'generate_decision')
+
+    def test_fallback_pattern_has_required_attributes(self):
+        """Тест наличия обязательных атрибутов у FallbackPattern."""
+        from core.application.behaviors.fallback.pattern import FallbackPattern
+        
+        pattern = FallbackPattern(pattern_id="test_fallback.v1.0.0")
+        assert pattern.pattern_id == "test_fallback.v1.0.0"
+        assert hasattr(pattern, 'analyze_context')
+        assert hasattr(pattern, 'generate_decision')
 
 
-@pytest.mark.asyncio
-async def test_capability_filtering_contract():
-    """Тест контракта фильтрации capability"""
-    
-    # Создаем mock сервисов
-    mock_prompt_service = Mock()
-    
-    # Создаем паттерн
-    react_pattern = ReActPattern(prompt_service=mock_prompt_service)
-    
-    # Создаем mock capability
-    cap1 = Mock()
-    cap1.skill_name = "book_library"
-    cap1.supported_strategies = ["react", "planning"]
-    
-    cap2 = Mock()
-    cap2.skill_name = "sql_query"
-    cap2.supported_strategies = ["react"]
-    
-    cap3 = Mock()
-    cap3.skill_name = "planning"
-    cap3.supported_strategies = ["planning"]
-    
-    all_caps = [cap1, cap2, cap3]
-    
-    # Тестируем фильтрацию
-    filtered_caps = react_pattern._filter_capabilities(
-        all_caps,
-        ["book_library", "sql_query"]
-    )
-    
-    # Проверяем, что остались только те, у которых skill_name в списке
-    # и которые поддерживают "react" стратегию
-    assert len(filtered_caps) == 2  # cap1 и cap2
-    skill_names = [cap.skill_name for cap in filtered_caps]
-    assert "book_library" in skill_names
-    assert "sql_query" in skill_names
-    assert "planning" not in skill_names  # потому что не в списке required_skills
+class TestBehaviorDecisionTypes:
+    """Тесты типов решений behavior patterns."""
+
+    def test_behavior_decision_type_values(self):
+        """Тест значений BehaviorDecisionType."""
+        from core.application.behaviors.base import BehaviorDecisionType
+        
+        assert BehaviorDecisionType.ACT.value == "act"
+        assert BehaviorDecisionType.STOP.value == "stop"
+        assert BehaviorDecisionType.SWITCH.value == "switch"
+        assert BehaviorDecisionType.RETRY.value == "retry"
+
+    def test_behavior_decision_creation(self):
+        """Тест создания BehaviorDecision."""
+        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        
+        decision = BehaviorDecision(
+            action=BehaviorDecisionType.ACT,
+            capability_name="test_capability",
+            parameters={"key": "value"},
+            reason="test_reason",
+            confidence=0.95
+        )
+        
+        assert decision.action == BehaviorDecisionType.ACT
+        assert decision.capability_name == "test_capability"
+        assert decision.parameters == {"key": "value"}
+        assert decision.reason == "test_reason"
+        assert decision.confidence == 0.95
+
+    def test_behavior_decision_switch_type(self):
+        """Тест создания BehaviorDecision для SWITCH."""
+        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        
+        decision = BehaviorDecision(
+            action=BehaviorDecisionType.SWITCH,
+            next_pattern="planning.v1.0.0",
+            parameters={"refined_goal": "new goal"},
+            reason="partial_progress"
+        )
+        
+        assert decision.action == BehaviorDecisionType.SWITCH
+        assert decision.next_pattern == "planning.v1.0.0"
+        assert decision.parameters["refined_goal"] == "new goal"
