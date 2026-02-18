@@ -5217,7 +5217,7 @@ CV = 0.04 / 0.85 = 0.047 (4.7%) ✅
 ```python
 class DataRepository:
     """
-    Централизованный р��позиторий с единой точкой валидации структуры данных.
+    Централизованный р����позиторий с единой точкой валидации структуры данных.
     """
 
     def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
@@ -7632,42 +7632,696 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 
 ## 📅 План внедрения
 
-### Этап 1: Фундамент (1-2 недели)
+### 🎯 Стратегия реализации
 
-| Задача | Файлы | Приоритет | Статус |
-|--------|-------|-----------|--------|
-| Создать модели метрик | `core/models/data/metrics.py` | 🔴 | ⬜ |
-| Создать модели бенчмарков | `core/models/data/benchmark.py` | 🔴 | ⬜ |
-| Расширить EventBus | `core/infrastructure/event_bus/event_bus.py` | 🔴 | ⬜ |
-| Создать MetricsStorage | `core/infrastructure/metrics_storage.py` | 🔴 | ⬜ |
-| Создать LogStorage | `core/infrastructure/log_storage.py` | 🔴 | ⬜ |
+**Принцип:** Данные → Тесты → Реализация → Проверка
 
-### Этап 2: Сервисы (2-3 недели)
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ЦИКЛ РАЗРАБОТКИ (для каждого этапа)            │
+└─────────────────────────────────────────────────────────────┘
 
-| Задача | Файлы | Приоритет | Статус |
-|--------|-------|-----------|--------|
-| MetricsCollector Service | `core/infrastructure/metrics_collector.py` | 🔴 | ⬜ |
-| LogCollector Service | `core/infrastructure/log_collector.py` | 🔴 | ⬜ |
-| BenchmarkService | `core/application/services/benchmark_service.py` | 🔴 | ⬜ |
-| Интеграция с EventBus | Все сервисы | 🟠 | ⬜ |
+1. ДАННЫЕ
+   └→ Создаём модели данных
+   └→ Определяем интерфейсы
+   └→ [✓] Можно тестировать без реализации
 
-### Этап 3: Оптимизация (2-3 недели)
+2. ТЕСТЫ
+   └→ Пишем юнит-тесты на модели
+   └→ Пишем интеграционные тесты
+   └→ [✓] Тесты падают (реализации ещё нет)
 
-| Задача | Файлы | Приоритет | Статус |
-|--------|-------|-----------|--------|
-| LearningOrchestrator | `core/application/services/learning_orchestrator.py` | 🟠 | ⬜ |
-| OptimizationService | `core/application/services/optimization_service.py` | 🟠 | ⬜ |
-| PromptContractGenerator | `core/application/services/prompt_contract_generator.py` | 🟠 | ⬜ |
-| A/B тестирование версий | `core/application/data_repository.py` | 🟠 | ⬜ |
+3. РЕАЛИЗАЦИЯ
+   └→ Пишем код реализации
+   └→ Следуем интерфейсам из этапа 1
+   └→ [✓] Тесты проходят
 
-### Этап 4: Интеграция (1-2 недели)
+4. ПРОВЕРКА
+   └→ Запускаем тесты
+   └→ Если не проходят → исправляем реализацию
+   └→ [✓] Все тесты зелёные → следующий этап
+```
 
-| Задача | Файлы | Приоритет | Статус |
-|--------|-------|-----------|--------|
-| Расширить Manifest | `core/models/data/manifest.py` | 🟡 | ⬜ |
-| Расширить BaseSkill | `core/application/skills/base_skill.py` | 🟡 | ⬜ |
-| Скрипты запуска | `scripts/run_benchmark.py` | 🟡 | ⬜ |
-| Документация | `docs/learning_system.md` | 🟡 | ⬜ |
+**Преимущества:**
+- ✅ Маленькие этапы (2-4 часа на каждый)
+- ✅ Тесты пишутся ДО реализации (TDD)
+- ✅ Быстрая обратная связь
+- ✅ Легко откатить если что-то не так
+
+---
+
+### 📋 Этап 1: Модели данных (Фундамент)
+
+**Цель:** Создать все модели данных без реализации
+
+#### Этап 1.1: Модели метрик
+
+**Файлы:**
+- `core/models/data/metrics.py` (новый)
+
+**Задачи:**
+1. Создать `MetricType` (Enum: GAUGE, COUNTER, HISTOGRAM)
+2. Создать `MetricRecord` (dataclass)
+3. Создать `AggregatedMetrics` (dataclass)
+4. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/models/test_metrics.py`
+  - `test_metric_record_creation()`
+  - `test_aggregated_metrics_calculation()`
+  - `test_is_better_than()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~2 часа
+
+---
+
+#### Этап 1.2: Модели бенчмарков
+
+**Файлы:**
+- `core/models/data/benchmark.py` (новый)
+
+**Задачи:**
+1. Создать `EvaluationType` (Enum)
+2. Создать `EvaluationCriterion` (dataclass)
+3. Создать `BenchmarkScenario` (dataclass)
+4. Создать `ExpectedOutput` (dataclass)
+5. Создать `ActualOutput` (dataclass)
+6. Создать `BenchmarkResult` (dataclass)
+7. Создать `AccuracyEvaluation` (dataclass)
+8. Создать `CriterionScore` (dataclass)
+9. Создать `VersionComparison` (dataclass)
+10. Создать `FailureAnalysis` (dataclass)
+11. Создать `TargetMetric` (dataclass)
+12. Создать `OptimizationMode` (Enum)
+13. Создать `OptimizationResult` (dataclass)
+14. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/models/test_benchmark.py`
+  - `test_benchmark_scenario_creation()`
+  - `test_expected_output_validation()`
+  - `test_accuracy_evaluation_calculation()`
+  - `test_version_comparison()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 1.3: Модели логов
+
+**Файлы:**
+- `core/models/data/benchmark.py` (дополнить)
+
+**Задачи:**
+1. Создать `LogEntry` (dataclass)
+2. Создать `LogType` (Enum: CAPABILITY_SELECTION, ERROR, BENCHMARK)
+3. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/models/test_logs.py`
+  - `test_log_entry_creation()`
+  - `test_log_entry_serialization()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~1 час
+
+---
+
+#### Этап 1.4: Интерфейсы хранилищ
+
+**Файлы:**
+- `core/infrastructure/interfaces/metrics_log_interfaces.py` (новый)
+
+**Задачи:**
+1. Создать `IMetricsStorage` (ABC)
+2. Создать `ILogStorage` (ABC)
+3. Написать тесты на интерфейсы
+
+**Тесты:**
+- `tests/unit/interfaces/test_storage_interfaces.py`
+  - `test_imetrics_storage_interface()`
+  - `test_ilog_storage_interface()`
+
+**Критерий готовности:** Интерфейсы определены, тесты проходят ✅
+
+**Время:** ~2 часа
+
+---
+
+#### Этап 1.5: Расширение EventBus
+
+**Файлы:**
+- `core/infrastructure/event_bus/event_bus.py` (существующий)
+
+**Задачи:**
+1. Добавить `EventType.BENCHMARK_STARTED`
+2. Добавить `EventType.BENCHMARK_COMPLETED`
+3. Добавить `EventType.OPTIMIZATION_CYCLE_STARTED`
+4. Добавить `EventType.OPTIMIZATION_CYCLE_COMPLETED`
+5. Добавить `EventType.VERSION_PROMOTED`
+6. Добавить `EventType.VERSION_REJECTED`
+7. Написать тесты
+
+**Тесты:**
+- `tests/unit/event_bus/test_event_types.py`
+  - `test_new_event_types_exist()`
+
+**Критерий готовности:** Новые EventType добавлены ✅
+
+**Время:** ~1 час
+
+---
+
+### 📋 Этап 2: Хранилища (Инфраструктура)
+
+**Цель:** Реализовать хранилища для метрик и логов
+
+#### Этап 2.1: FileSystemMetricsStorage
+
+**Файлы:**
+- `core/infrastructure/metrics_storage.py` (новый)
+
+**Задачи:**
+1. Реализовать `FileSystemMetricsStorage` (IMetricsStorage)
+2. Метод `record(metric)`
+3. Метод `get_records(capability, version, time_range)`
+4. Метод `aggregate(capability, version, time_range)`
+5. Метод `clear_old(older_than)`
+6. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/storage/test_metrics_storage.py`
+  - `test_record_metric()`
+  - `test_get_records_filtering()`
+  - `test_aggregate_metrics()`
+  - `test_clear_old_metrics()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 2.2: FileSystemLogStorage
+
+**Файлы:**
+- `core/infrastructure/log_storage.py` (новый)
+
+**Задачи:**
+1. Реализовать `FileSystemLogStorage` (ILogStorage)
+2. Метод `save(entry)`
+3. Метод `get_by_session(agent_id, session_id)`
+4. Метод `get_by_capability(capability, log_type)`
+5. Метод `clear_old(older_than)`
+6. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/storage/test_log_storage.py`
+  - `test_save_log_entry()`
+  - `test_get_session_logs()`
+  - `test_get_capability_logs()`
+  - `test_clear_old_logs()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+### 📋 Этап 3: Сбор метрик (Инфраструктура)
+
+**Цель:** Реализовать сбор метрик через EventBus
+
+#### Этап 3.1: MetricsCollector
+
+**Файлы:**
+- `core/infrastructure/metrics_collector.py` (новый)
+
+**Задачи:**
+1. Реализовать `MetricsCollector`
+2. Подписка на `EventType.SKILL_EXECUTED`
+3. Подписка на `EventType.CAPABILITY_SELECTED`
+4. Подписка на `EventType.ERROR_OCCURRED`
+5. Метод `initialize()`
+6. Метод `_on_skill_executed(event)`
+7. Метод `get_aggregated_metrics()`
+8. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/infrastructure/test_metrics_collector.py`
+  - `test_metrics_collector_initialization()`
+  - `test_on_skill_executed_records_metric()`
+  - `test_get_aggregated_metrics()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 3.2: LogCollector
+
+**Файлы:**
+- `core/infrastructure/log_collector.py` (новый)
+
+**Задачи:**
+1. Реализовать `LogCollector`
+2. Подписка на события
+3. Метод `_on_capability_selected(event)`
+4. Метод `_on_error(event)`
+5. Метод `get_session_logs()`
+6. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/infrastructure/test_log_collector.py`
+  - `test_log_collector_initialization()`
+  - `test_on_capability_selected_logs()`
+  - `test_on_error_logs()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 3.3: Интеграция с InfrastructureContext
+
+**Файлы:**
+- `core/infrastructure/context/infrastructure_context.py` (существующий)
+
+**Задачи:**
+1. Добавить `metrics_storage` в `__init__`
+2. Добавить `log_storage` в `__init__`
+3. Добавить `metrics_collector` в `__init__`
+4. Добавить `log_collector` в `__init__`
+5. Инициализация в `initialize()`
+6. Написать интеграционные тесты
+
+**Тесты:**
+- `tests/integration/test_infrastructure_context.py`
+  - `test_metrics_collector_initialized()`
+  - `test_log_collector_initialized()`
+
+**Критерий готовности:** Инфраструктура инициализируется с новыми компонентами ✅
+
+**Время:** ~2 часа
+
+---
+
+### 📋 Этап 4: Оценка точности (Application)
+
+**Цель:** Реализовать оценку accuracy для бенчмарков
+
+#### Этап 4.1: AccuracyEvaluator Service
+
+**Файлы:**
+- `core/application/services/accuracy_evaluator.py` (новый)
+- `core/application/evaluators/` (новая папка)
+
+**Задачи:**
+1. Создать `IEvaluationStrategy` (Protocol)
+2. Реализовать `AccuracyEvaluatorService`
+3. Реализовать `ExactMatchEvaluator`
+4. Реализовать `CoverageEvaluator`
+5. Реализовать `SemanticEvaluator`
+6. Реализовать `HybridEvaluator`
+7. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/services/test_accuracy_evaluator.py`
+  - `test_exact_match_evaluation()`
+  - `test_coverage_evaluation()`
+  - `test_semantic_evaluation()`
+  - `test_hybrid_evaluation()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~6 часов
+
+---
+
+#### Этап 4.2: Тесты AccuracyEvaluator
+
+**Файлы:**
+- `tests/unit/services/test_accuracy_evaluator.py` (дополнить)
+
+**Задачи:**
+1. Тесты на различные сценарии оценки
+2. Тесты на граничные значения
+3. Тесты на обработку ошибок
+4. Интеграционные тесты с LLM
+
+**Критерий готовности:** Покрытие тестов ≥ 90% ✅
+
+**Время:** ~3 часа
+
+---
+
+### 📋 Этап 5: Бенчмарки (Application)
+
+**Цель:** Реализовать сервис бенчмарков
+
+#### Этап 5.1: BenchmarkService
+
+**Файлы:**
+- `core/application/services/benchmark_service.py` (новый)
+
+**Задачи:**
+1. Реализовать `BenchmarkService`
+2. Метод `run_benchmark(scenario, version)`
+3. Метод `compare_versions(version_a, version_b, scenarios)`
+4. Метод `promote_version(capability, from_version, to_version)`
+5. Метод `_update_registry(capability, version)`
+6. Интеграция с `AccuracyEvaluator`
+7. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/services/test_benchmark_service.py`
+  - `test_run_benchmark()`
+  - `test_compare_versions()`
+  - `test_promote_version()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~6 часов
+
+---
+
+#### Этап 5.2: Тесты BenchmarkService
+
+**Файлы:**
+- `tests/unit/services/test_benchmark_service.py` (дополнить)
+- `tests/integration/test_benchmark_service.py` (новый)
+
+**Задачи:**
+1. Моки для зависимостей
+2. Интеграционные тесты
+3. Тесты на статистическую значимость
+4. Тесты на устойчивость результатов
+
+**Критерий готовности:** Покрытие тестов ≥ 90% ✅
+
+**Время:** ~4 часа
+
+---
+
+### 📋 Этап 6: Оптимизация (Application)
+
+**Цель:** Реализовать сервис оптимизации
+
+#### Этап 6.1: PromptContractGenerator
+
+**Файлы:**
+- `core/application/services/prompt_contract_generator.py` (новый)
+
+**Задачи:**
+1. Реализовать `PromptContractGenerator`
+2. Метод `generate_prompt_variant()`
+3. Метод `_save_prompt(prompt)`
+4. Метод `_generate_matching_contract(prompt)`
+5. Метод `_save_contract(contract)`
+6. Интеграция с `FileSystemDataSource`
+7. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/services/test_prompt_contract_generator.py`
+  - `test_generate_prompt_variant()`
+  - `test_save_prompt_to_filesystem()`
+  - `test_generate_contract()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~6 часов
+
+---
+
+#### Этап 6.2: OptimizationService
+
+**Файлы:**
+- `core/application/services/optimization_service.py` (новый)
+
+**Задачи:**
+1. Реализовать `OptimizationService`
+2. Метод `start_optimization_cycle()`
+3. Метод `_analyze_failures()`
+4. Метод `_needs_optimization()`
+5. Метод `_is_capability_optimizable()`
+6. Методы для lock (acquire/release)
+7. Интеграция с `PromptContractGenerator`
+8. Написать юнит-тесты
+
+**Тесты:**
+- `tests/unit/services/test_optimization_service.py`
+  - `test_start_optimization_cycle()`
+  - `test_analyze_failures()`
+  - `test_needs_optimization()`
+  - `test_optimization_lock()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~6 часов
+
+---
+
+### 📋 Этап 7: Интеграция (Application)
+
+**Цель:** Интегрировать все компоненты
+
+#### Этап 7.1: Расширение DataRepository
+
+**Файлы:**
+- `core/application/data_repository.py` (существующий)
+
+**Задачи:**
+1. Добавить `update_prompt_status()`
+2. Добавить `update_contract_status()`
+3. Добавить `get_prompt_versions()`
+4. Добавить `get_active_version()`
+5. Добавить `get_draft_versions()`
+6. Написать тесты
+
+**Тесты:**
+- `tests/unit/test_data_repository.py`
+  - `test_update_prompt_status()`
+  - `test_get_prompt_versions()`
+  - `test_get_active_version()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 7.2: Расширение FileSystemDataSource
+
+**Файлы:**
+- `core/infrastructure/storage/file_system_data_source.py` (существующий)
+
+**Задачи:**
+1. Добавить `save_prompt()`
+2. Добавить `save_contract()`
+3. Написать тесты
+
+**Тесты:**
+- `tests/unit/storage/test_file_system_data_source.py`
+  - `test_save_prompt()`
+  - `test_save_contract()`
+
+**Критерий готовности:** Все тесты проходят ✅
+
+**Время:** ~3 часа
+
+---
+
+#### Этап 7.3: Расширение BaseSkill
+
+**Файлы:**
+- `core/application/skills/base_skill.py` (существующий)
+
+**Задачи:**
+1. Добавить `_publish_metrics()`
+2. Интеграция с `MetricsCollector`
+3. Публикация при выполнении
+4. Написать тесты
+
+**Тесты:**
+- `tests/unit/skills/test_base_skill.py`
+  - `test_publish_metrics_on_execute()`
+
+**Критерий готовности:** Метрики публикуются при выполнении ✅
+
+**Время:** ~3 часа
+
+---
+
+### 📋 Этап 8: CLI скрипты
+
+**Цель:** Создать скрипты для запуска бенчмарков
+
+#### Этап 8.1: run_benchmark.py
+
+**Файлы:**
+- `scripts/run_benchmark.py` (новый)
+
+**Задачи:**
+1. CLI аргументы (--capability, --version, --compare)
+2. Запуск бенчмарков
+3. Вывод результатов
+4. Написать тесты
+
+**Тесты:**
+- `tests/test_cli/test_run_benchmark.py`
+
+**Критерий готовности:** Скрипт работает ✅
+
+**Время:** ~3 часа
+
+---
+
+#### Этап 8.2: run_optimization.py
+
+**Файлы:**
+- `scripts/run_optimization.py` (новый)
+
+**Задачи:**
+1. CLI аргументы (--capability, --mode, --target-accuracy)
+2. Запуск оптимизации
+3. Вывод результатов
+4. Написать тесты
+
+**Тесты:**
+- `tests/test_cli/test_run_optimization.py`
+
+**Критерий готовности:** Скрипт работает ✅
+
+**Время:** ~3 часа
+
+---
+
+### 📋 Этап 9: E2E тестирование
+
+**Цель:** Проверить полный цикл работы
+
+#### Этап 9.1: E2E тесты бенчмарков
+
+**Файлы:**
+- `tests/e2e/test_benchmark_cycle.py` (новый)
+
+**Задачи:**
+1. Тест полного цикла бенчмарка
+2. Тест сравнения версий
+3. Тест продвижения версии
+
+**Критерий готовности:** Все E2E тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+#### Этап 9.2: E2E тесты оптимизации
+
+**Файлы:**
+- `tests/e2e/test_optimization_cycle.py` (новый)
+
+**Задачи:**
+1. Тест полного цикла оптимизации
+2. Тест анализа неудач
+3. Тест генерации новой версии
+
+**Критерий готовности:** Все E2E тесты проходят ✅
+
+**Время:** ~4 часа
+
+---
+
+### 📋 Этап 10: Документация и полировка
+
+**Цель:** Завершить работу
+
+#### Этап 10.1: Обновление документации
+
+**Файлы:**
+- `docs/BENCHMARK_LEARNING_PLAN.md` (существующий)
+
+**Задачи:**
+1. Обновить статусы задач
+2. Добавить примеры использования
+3. Обновить README
+
+**Критерий готовности:** Документация актуальна ✅
+
+**Время:** ~2 часа
+
+---
+
+#### Этап 10.2: Финальная проверка
+
+**Задачи:**
+1. Запустить все тесты
+2. Проверить покрытие (≥ 90%)
+3. Исправить замечания
+4. Создать релизный тег
+
+**Критерий готовности:** Все тесты проходят, покрытие ≥ 90% ✅
+
+**Время:** ~4 часа
+
+---
+
+## 📊 Сводная таблица этапов
+
+| Этап | Название | Задач | Время | Статус |
+|------|----------|-------|-------|--------|
+| 1 | Модели данных | 5 | ~10 часов | ⬜ |
+| 2 | Хранилища | 2 | ~8 часов | ⬜ |
+| 3 | Сбор метрик | 3 | ~10 часов | ⬜ |
+| 4 | Оценка точности | 2 | ~9 часов | ⬜ |
+| 5 | Бенчмарки | 2 | ~10 часов | ⬜ |
+| 6 | Оптимизация | 2 | ~12 часов | ⬜ |
+| 7 | Интеграция | 3 | ~10 часов | ⬜ |
+| 8 | CLI скрипты | 2 | ~6 часов | ⬜ |
+| 9 | E2E тесты | 2 | ~8 часов | ⬜ |
+| 10 | Документация | 2 | ~6 часов | ⬜ |
+
+**Итого:** 25 задач, ~89 часов (~11 рабочих дней)
+
+---
+
+## 🎯 Приоритеты
+
+### 🔴 Критические (Этапы 1-3)
+- Без них не работает сбор метрик
+- Время: ~28 часов
+
+### 🟠 Важные (Этапы 4-6)
+- Без них не работает оценка и оптимизация
+- Время: ~31 часов
+
+### 🟡 Желательные (Этапы 7-10)
+- Интеграция и полировка
+- Время: ~30 часов
+
+---
+
+## 📈 Прогресс
+
+```
+[██████████░░░░░░░░░░] 0/10 этапов выполнено
+[████████░░░░░░░░░░░░] 0/25 задач выполнено
+```
+
+---
+
+## 🔗 Ссылки
+
+- [План внедрения](#-план-внедрения)
+- [Изменение существующих компонентов](#-изменение-существующих-компонентов)
+- [Тестирование](#-тестирование)
 
 ---
 
