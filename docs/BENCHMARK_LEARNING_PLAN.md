@@ -14,8 +14,16 @@
 - [Текущая архитектура](#-текущая-архитектура)
 - [Новые компоненты](#-новые-компоненты)
 - [Размещение компонентов](#-размещение-компонентов)
+- [Стратегия хранения данных](#-стратегия-хранения-данных)
+- [Архитектура метрик: полное руководство](#-архитектура-метрик-полное-руководство)
+- [Бенчмарк для подсчёта метрик](#-бенчмарк-для-подсчёта-метрик)
+- [Архитектура бенчмарков и оценки](#-архитектура-бенчмарков-и-оценки)
+- [Модели данных для бенчмарков](#-модели-данных-для-бенчмарков)
+- [AccuracyEvaluator Service](#-accuracyevaluator-service)
+- [Взаимодействие компонентов](#-взаимодействие-компонентов)
 - [Модели данных](#-модели-данных)
 - [Сбор метрик](#-сбор-метрик)
+- [Уровни агрегации метрик](#-уровни-агрегации-метрик)
 - [Сбор логов](#-сбор-логов)
 - [Цикл обучения](#-цикл-обучения)
 - [План внедрения](#-план-внедрения)
@@ -23,6 +31,28 @@
 - [Изменение существующих компонентов](#-изменение-существующих-компонентов)
 - [Тестирование](#-тестирование)
 - [Риски и митигация](#-риски-и-митигация)
+- [Целевые метрики](#-целевые-метрики)
+- [Следующие шаги](#-следующие-шаги)
+- [Ссылки](#-ссылки)
+
+---
+
+## ⚠️ Известные пробелы в документе
+
+| Раздел | Статус | Комментарий |
+|--------|--------|-------------|
+| OptimizationService | 🟠 Частично | Нет детального описания |
+| promote_version в DataRepository | 🟠 Псевдокод | Требуется реализация через FileSystemDataSource |
+| LearningOrchestrator → OptimizationService интеграция | 🟠 Отсутствует | Будет добавлено |
+| PromptContractGenerator (сохранение в ФС) | 🟠 Псевдокод | Требуется реализация |
+| FailureAnalysis (модель) | ✅ Есть | `core/models/data/benchmark.py` |
+| CLI скрипты для бенчмарков | 🔴 Отсутствуют | Только в плане внедрения |
+
+**Приоритеты для доработки:**
+1. 🔴 Добавить описание OptimizationService
+2. 🔴 Реализовать promote_version (через FileSystemDataSource)
+3. 🟠 Добавить схему полного цикла обучения
+4. 🟠 Добавить CLI скрипты
 
 ---
 
@@ -1609,7 +1639,7 @@ async def calculate_hybrid_accuracy(
             scores.append(score)
             weights.append(crit.get('weight', 1.0))
     
-    # 3. Взвешенное среднее
+    # 3. Взвешен����ое среднее
     if scores:
         total_weight = sum(weights)
         return sum(s * w for s, w in zip(scores, weights)) / total_weight
@@ -2761,6 +2791,411 @@ class BenchmarkService(BaseService):
             return "reject"
         else:
             return "needs_more_testing"
+
+    async def promote_version(
+        self,
+        capability: str,
+        from_version: str,
+        to_version: str
+    ) -> bool:
+        """
+        Продвижение версии промпта в active статус.
+        
+        ТРЕБУЕТ:
+        - FileSystemDataSource для записи в ФС
+        - Обновления registry.yaml
+        
+        ARGS:
+        - capability: имя capability
+        - from_version: текущая active версия
+        - to_version: новая версия для продвижения
+        
+        RETURNS:
+        - bool: True если успешно
+        """
+        # 1. Получаем промпт новой версии
+        new_prompt = self.data_repository.get_prompt(capability, to_version)
+        
+        # 2. Получаем промпт текущей версии
+        old_prompt = self.data_repository.get_prompt(capability, from_version)
+        
+        # 3. Обновляем статусы (через FileSystemDataSource)
+        # ПРИМЕЧАНИЕ: Требуется реализация в FileSystemDataSource
+        await self.data_repository.update_prompt_status(
+            capability=capability,
+            version=from_version,
+            new_status=PromptStatus.INACTIVE
+        )
+        await self.data_repository.update_prompt_status(
+            capability=capability,
+            version=to_version,
+            new_status=PromptStatus.ACTIVE
+        )
+        
+        # 4. Обновляем registry.yaml
+        await self._update_registry(capability, to_version)
+        
+        # 5. Публикуем событие
+        await self.event_bus.publish(
+            EventType.VERSION_PROMOTED,
+            data={
+                'capability': capability,
+                'from_version': from_version,
+                'to_version': to_version,
+                'timestamp': datetime.now().isoformat()
+            }
+        )
+        
+        return True
+
+    async def _update_registry(self, capability: str, version: str):
+        """Обновление registry.yaml"""
+        # Загрузка registry.yaml
+        # Обновление prompt_versions[capability] = version
+        # Сохранение
+        pass
+```
+
+---
+
+## 🏗️ OptimizationService
+
+### Назначение
+
+**Файл:** `core/application/services/optimization_service.py`
+
+```python
+class OptimizationService(BaseService):
+    """
+    Сервис оптимизации промптов и контрактов.
+    
+    ОТВЕЧАЕТ ЗА:
+    - Запуск циклов оптимизации (Manual/Automatic/Target)
+    - Анализ неудач (FailureAnalysis)
+    - Генерацию новых версий (через PromptContractGenerator)
+    - Координацию с BenchmarkService для A/B тестирования
+    
+    ЗАВИСИМОСТИ:
+    - BenchmarkService (сравнение версий)
+    - PromptContractGenerator (генерация вариантов)
+    - MetricsCollector (получение метрик)
+    - DataRepository (доступ к версиям)
+    """
+
+    def __init__(
+        self,
+        benchmark_service: BenchmarkService,
+        prompt_generator: PromptContractGenerator,
+        metrics_collector: MetricsCollector,
+        data_repository: DataRepository,
+        llm_provider: Any
+    ):
+        self.benchmark_service = benchmark_service
+        self.prompt_generator = prompt_generator
+        self.metrics_collector = metrics_collector
+        self.data_repository = data_repository
+        self.llm_provider = llm_provider
+
+    async def start_optimization_cycle(
+        self,
+        capability: str,
+        mode: OptimizationMode,
+        target_metric: Optional[TargetMetric] = None,
+        max_iterations: int = 20,
+        scenarios: Optional[List[BenchmarkScenario]] = None
+    ) -> OptimizationResult:
+        """
+        Запуск цикла оптимизации.
+        
+        РЕЖИМЫ:
+        - Manual: ручная оптимизация по запросу
+        - Automatic: при ухудшении метрик
+        - Target: стремление к целевой метрике
+        
+        ARGS:
+        - capability: имя capability для оптимизации
+        - mode: режим оптимизации
+        - target_metric: целевая метрика (для Target режима)
+        - max_iterations: максимум итераций
+        - scenarios: сценарии для бенчмарка
+        
+        RETURNS:
+        - OptimizationResult: результат оптимизации
+        """
+        # 1. Получаем текущую версию
+        current_version = await self._get_active_version(capability)
+        
+        # 2. Получаем базовые метрики
+        current_metrics = await self.metrics_collector.get_aggregated_metrics(
+            capability=capability,
+            version=current_version,
+            time_range=(datetime.now() - timedelta(days=7), datetime.now())
+        )
+        
+        # 3. Проверяем необходимость оптимизации
+        if mode == OptimizationMode.AUTOMATIC:
+            if not await self._needs_optimization(capability, current_metrics):
+                return OptimizationResult(
+                    status='not_needed',
+                    reason='Метрики в норме'
+                )
+        
+        # 4. Запускаем цикл итераций
+        best_version = current_version
+        best_metrics = current_metrics
+        
+        for iteration in range(max_iterations):
+            # 4.1. Анализ неудач
+            failure_analysis = await self._analyze_failures(
+                capability=capability,
+                version=current_version
+            )
+            
+            # 4.2. Генерация новой версии
+            new_version = await self.prompt_generator.generate_prompt_variant(
+                capability=capability,
+                base_version=current_version,
+                optimization_goal=self._get_optimization_goal(mode, target_metric),
+                failure_analysis=failure_analysis
+            )
+            
+            # 4.3. A/B тестирование
+            comparison = await self.benchmark_service.compare_versions(
+                version_a=current_version,
+                version_b=new_version,
+                scenarios=scenarios or await self._get_default_scenarios(capability)
+            )
+            
+            # 4.4. Сохраняем лучшую версию
+            if comparison.improvement > 0:
+                best_version = new_version
+                best_metrics = comparison.metrics_b
+            
+            # 4.5. Проверяем достижение цели
+            if mode == OptimizationMode.TARGET and target_metric:
+                if self._target_achieved(best_metrics, target_metric):
+                    break
+        
+        # 5. Продвигаем лучшую версию
+        if best_version != current_version:
+            await self.benchmark_service.promote_version(
+                capability=capability,
+                from_version=current_version,
+                to_version=best_version
+            )
+        
+        return OptimizationResult(
+            status='completed',
+            best_version=best_version,
+            final_metrics=best_metrics,
+            iterations=iteration + 1
+        )
+
+    async def _analyze_failures(
+        self,
+        capability: str,
+        version: str
+    ) -> FailureAnalysis:
+        """Анализ неудач для генерации улучшений"""
+        # Получаем логи ошибок
+        error_logs = await self.metrics_collector.log_collector.get_by_capability(
+            capability=capability,
+            log_type='error',
+            time_range=(datetime.now() - timedelta(days=7), datetime.now())
+        )
+        
+        # Получаем метрики
+        metrics = await self.metrics_collector.get_aggregated_metrics(
+            capability=capability,
+            version=version,
+            time_range=(datetime.now() - timedelta(days=7), datetime.now())
+        )
+        
+        # Анализируем паттерны ошибок
+        error_patterns = self._extract_error_patterns(error_logs)
+        
+        # Определяем сценарии провалов
+        failure_scenarios = self._identify_failure_scenarios(error_logs)
+        
+        # Генерируем предложения исправлений
+        suggested_fixes = await self._generate_fix_suggestions(
+            error_patterns,
+            failure_scenarios
+        )
+        
+        return FailureAnalysis(
+            capability=capability,
+            version=version,
+            failure_count=metrics.total_executions - int(metrics.success_rate * metrics.total_executions),
+            total_executions=metrics.total_executions,
+            error_patterns=error_patterns,
+            common_failure_scenarios=failure_scenarios,
+            suggested_fixes=suggested_fixes
+        )
+
+    def _extract_error_patterns(self, error_logs: List[LogEntry]) -> List[Dict[str, Any]]:
+        """Извлечение паттернов ошибок из логов"""
+        patterns = {}
+        
+        for log in error_logs:
+            error_type = log.data.get('error_type', 'Unknown')
+            if error_type not in patterns:
+                patterns[error_type] = {
+                    'type': error_type,
+                    'count': 0,
+                    'examples': []
+                }
+            patterns[error_type]['count'] += 1
+            if len(patterns[error_type]['examples']) < 3:
+                patterns[error_type]['examples'].append(log.data.get('error_message', ''))
+        
+        return list(patterns.values())
+
+    def _identify_failure_scenarios(self, error_logs: List[LogEntry]) -> List[str]:
+        """Определение сценариев, где происходят ошибки"""
+        scenarios = set()
+        
+        for log in error_logs:
+            # Извлекаем контекст выполнения
+            context = log.data.get('context_snapshot', {})
+            step_number = context.get('step_number', 'unknown')
+            input_params = context.get('input_parameters', {})
+            
+            # Формируем описание сценария
+            scenario_desc = f"Step {step_number}: {input_params}"
+            scenarios.add(scenario_desc)
+        
+        return list(scenarios)
+
+    async def _generate_fix_suggestions(
+        self,
+        error_patterns: List[Dict[str, Any]],
+        failure_scenarios: List[str]
+    ) -> List[str]:
+        """Генерация предложений исправлений через LLM"""
+        prompt = f"""
+Проанализируй ошибки и предложи исправления для промпта:
+
+Ошибки:
+{json.dumps(error_patterns, indent=2)}
+
+Сценарии провалов:
+{json.dumps(failure_scenarios, indent=2)}
+
+Предложи конкретные исправления для промпта:
+1. ...
+2. ...
+3. ...
+"""
+        
+        response = await self.llm_provider.generate(prompt)
+        return response.strip().split('\n')
+
+    def _get_optimization_goal(
+        self,
+        mode: OptimizationMode,
+        target_metric: Optional[TargetMetric]
+    ) -> str:
+        """Определение цели оптимизации"""
+        if mode == OptimizationMode.TARGET and target_metric:
+            return f"Достичь {target_metric.name} >= {target_metric.target_value}"
+        elif mode == OptimizationMode.AUTOMATIC:
+            return "Устранить ошибки и улучшить метрики"
+        else:
+            return "Улучшить качество ответов"
+
+    def _target_achieved(
+        self,
+        metrics: AggregatedMetrics,
+        target: TargetMetric
+    ) -> bool:
+        """Проверка достижения целевой метрики"""
+        current_value = getattr(metrics, target.name, 0.0)
+        return current_value >= target.target_value - target.tolerance
+
+    async def _get_active_version(self, capability: str) -> str:
+        """Получение текущей active версии"""
+        versions = await self.data_repository.get_prompt_versions(capability)
+        active_versions = [v for v in versions if v.status == PromptStatus.ACTIVE]
+        return active_versions[0].version if active_versions else 'v1.0.0'
+
+    async def _get_default_scenarios(
+        self,
+        capability: str
+    ) -> List[BenchmarkScenario]:
+        """Получение сценариев по умолчанию для capability"""
+        # Загрузка из data/benchmarks/scenarios/{capability}/
+        pass
+
+    async def _needs_optimization(
+        self,
+        capability: str,
+        metrics: AggregatedMetrics
+    ) -> bool:
+        """Проверка необходимости оптимизации"""
+        # Если success_rate < 0.9 или accuracy < 0.85
+        return metrics.success_rate < 0.9 or metrics.accuracy < 0.85
+```
+
+---
+
+### OptimizationResult
+
+**Файл:** `core/models/data/benchmark.py`
+
+```python
+@dataclass
+class OptimizationResult:
+    """
+    Результат цикла оптимизации.
+    """
+    status: str                      # 'completed', 'not_needed', 'failed'
+    best_version: str = ""
+    final_metrics: Optional[AggregatedMetrics] = None
+    iterations: int = 0
+    reason: str = ""                 # Для 'not_needed' или 'failed'
+    improvement: float = 0.0         # Процент улучшения
+```
+
+---
+
+### Пример использования
+
+```python
+# 1. Ручная оптимизация
+result = await optimization_service.start_optimization_cycle(
+    capability='planning.create_plan',
+    mode=OptimizationMode.MANUAL,
+    max_iterations=10
+)
+
+# 2. Оптимизация с целевой метрикой
+result = await optimization_service.start_optimization_cycle(
+    capability='sql_generation.generate',
+    mode=OptimizationMode.TARGET,
+    target_metric=TargetMetric(
+        name='accuracy',
+        target_value=0.95,
+        current_value=0.87
+    ),
+    max_iterations=20,
+    scenarios=[scenario_1, scenario_2]
+)
+
+# 3. Автоматическая оптимизация (при ухудшении)
+result = await optimization_service.start_optimization_cycle(
+    capability='text.summarize',
+    mode=OptimizationMode.AUTOMATIC,
+    max_iterations=5
+)
+
+print(f"""
+Оптимизация завершена:
+- Статус: {result.status}
+- Лучшая версия: {result.best_version}
+- Итераций: {result.iterations}
+- Улучшение: {result.improvement:.1%}
+""")
 ```
 
 ---
