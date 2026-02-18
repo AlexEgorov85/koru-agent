@@ -1432,38 +1432,272 @@ accuracy = calculate_accuracy(
 
 ### Как бенчмарк считает accuracy
 
+**Важно:** Не существует универсального алгоритма. Стратегия зависит от **типа задачи**.
+
+---
+
+#### Стратегия 1: Правило-ориентированная (для структурированных задач)
+
+**Для:** planning, sql_generation, data_extraction
+
 **Алгоритм:**
 
 ```python
 def calculate_accuracy(actual, expected, criteria) -> float:
     """
-    Вычисляет точность ответа агента.
+    Вычисляет точность через проверку правил.
     Возвращает число от 0.0 до 1.0
     """
     scores = []
     
-    # Критерий 1: Количество шагов
-    if 'min_steps' in criteria:
-        step_score = min(1.0, len(actual.steps) / criteria['min_steps'])
+    # Критерий 1: Количество элементов
+    if 'min_count' in criteria:
+        step_score = min(1.0, len(actual.items) / criteria['min_count'])
         scores.append(step_score)
     
-    # Критерий 2: Полнота описания
-    if 'all_have_description' in criteria:
-        with_desc = sum(1 for s in actual.steps if s.description)
-        desc_score = with_desc / len(actual.steps) if actual.steps else 0
-        scores.append(desc_score)
+    # Критерий 2: Наличие обязательных полей
+    if 'required_fields' in criteria:
+        field_scores = []
+        for field in criteria['required_fields']:
+            has_field = sum(1 for item in actual.items if hasattr(item, field))
+            field_scores.append(has_field / len(actual.items) if actual.items else 0)
+        scores.append(sum(field_scores) / len(field_scores))
     
-    # Критерий 3: Наличие оценок
-    if 'all_have_estimate' in criteria:
-        with_est = sum(1 for s in actual.steps if s.estimate)
-        est_score = with_est / len(actual.steps) if actual.steps else 0
-        scores.append(est_score)
+    # Критерий 3: Соответствие формату
+    if 'format_validator' in criteria:
+        valid_count = sum(1 for item in actual.items 
+                         if criteria['format_validator'](item))
+        scores.append(valid_count / len(actual.items) if actual.items else 0)
     
     # Средняя точность
     return sum(scores) / len(scores) if scores else 0.0
 ```
 
 **Пример расчёта:**
+```
+Задача: "Создать план из 5 шагов"
+
+criteria = {
+    'min_count': 5,
+    'required_fields': ['description', 'estimate'],
+    'format_validator': lambda step: len(step.description) > 10
+}
+
+Ожидаемо: 5 шагов, все с описанием >10 символов и оценкой
+Фактично: 3 шага, 2 с описанием >10, 1 с оценкой
+
+Критерий 1 (количество): min(1.0, 3/5) = 0.6
+Критерий 2 (поля): (2/3 + 1/3) / 2 = 0.5
+Критерий 3 (формат): 2/3 = 0.67
+
+accuracy = (0.6 + 0.5 + 0.67) / 3 = 0.59 (59%)
+```
+
+---
+
+#### Стратегия 2: LLM-ориентированная (для текстовых задач)
+
+**Для:** summarization, classification, text_generation, reasoning
+
+**Алгоритм:**
+
+```python
+async def calculate_accuracy_with_llm(
+    actual: str,
+    expected: str,
+    criteria: Dict,
+    llm_provider: Any
+) -> float:
+    """
+    Оценка точности через LLM-сравнение.
+    Используется когда результат — текст, а не структура.
+    """
+    prompt = f"""
+Сравни два ответа на задачу:
+
+Задача: {criteria['task_description']}
+
+Ожидаемый ответ (эталон):
+{expected}
+
+Фактический ответ (агент):
+{actual}
+
+Критерии оценки (rubric):
+{criteria['rubric']}
+
+Оцени фактический ответ по шкале от 0.0 до 1.0:
+- 1.0: Полностью соответствует эталону
+- 0.5: Частично соответствует
+- 0.0: Не соответствует
+
+Верни ТОЛЬКО число от 0.0 до 1.0:
+"""
+    
+    response = await llm_provider.generate(prompt)
+    
+    # Извлекаем число из ответа
+    accuracy = float(response.strip())
+    
+    # Валидация диапазона
+    return max(0.0, min(1.0, accuracy))
+```
+
+**Пример расчёта:**
+```python
+criteria = {
+    'task_description': 'Саммаризировать статью про ИИ',
+    'rubric': '''
+    - 1.0: Все ключевые моменты отражены (нейросети, обучение, применение)
+    - 0.5: Половина ключевых моментов
+    - 0.0: Ни одного ключевого момента или ошибки
+    '''
+}
+
+accuracy = await calculate_accuracy_with_llm(
+    actual="ИИ использует нейросети для обучения...",
+    expected="Искусственный интеллект применяет глубокие нейросети...",
+    criteria=criteria,
+    llm_provider=provider
+)
+# → LLM вернёт 0.75 (75% соответствие)
+```
+
+**Преимущества:**
+- ✅ Работает для любых текстов
+- ✅ Учитывает семантику, а не только синтаксис
+- ✅ Не требует жёсткой структуры
+
+**Недостатки:**
+- ❌ Требует LLM-вызов (стоимость + время)
+- ❌ Может быть неконсистентным (один ответ → разная оценка)
+
+---
+
+#### Стратегия 3: Гибридная (комбинированная)
+
+**Для:** сложных задач с несколькими аспектами
+
+**Алгоритм:**
+
+```python
+async def calculate_hybrid_accuracy(
+    actual: Any,
+    expected: Any,
+    criteria: Dict,
+    llm_provider: Any
+) -> float:
+    """
+    Комбинирует правило-ориентированную и LLM-оценку.
+    """
+    scores = []
+    weights = []
+    
+    # 1. Структурированные критерии (автоматически)
+    if 'structured_criteria' in criteria:
+        for crit in criteria['structured_criteria']:
+            score = evaluate_structured(actual, expected, crit)
+            scores.append(score)
+            weights.append(crit.get('weight', 1.0))
+    
+    # 2. Текстовые критерии (через LLM)
+    if 'text_criteria' in criteria:
+        for crit in criteria['text_criteria']:
+            score = await calculate_accuracy_with_llm(
+                actual.text, expected.text, crit, llm_provider
+            )
+            scores.append(score)
+            weights.append(crit.get('weight', 1.0))
+    
+    # 3. Взвешенное среднее
+    if scores:
+        total_weight = sum(weights)
+        return sum(s * w for s, w in zip(scores, weights)) / total_weight
+    return 0.0
+```
+
+**Пример расчёта:**
+```python
+criteria = {
+    'structured_criteria': [
+        {'type': 'min_count', 'value': 5, 'weight': 2.0},
+        {'type': 'required_fields', 'fields': ['description'], 'weight': 1.0},
+    ],
+    'text_criteria': [
+        {
+            'task_description': 'Описание шагов плана',
+            'rubric': 'Ясность и полнота описания',
+            'weight': 1.5
+        }
+    ]
+}
+
+# Структурированные: 0.6 (кол-во), 0.5 (поля)
+# LLM: 0.8 (качество текста)
+
+# Взвешенное среднее:
+# (0.6*2.0 + 0.5*1.0 + 0.8*1.5) / (2.0 + 1.0 + 1.5)
+# = (1.2 + 0.5 + 1.2) / 4.5 = 0.64 (64%)
+```
+
+---
+
+### Выбор стратегии
+
+| Тип задачи | Стратегия | Почему |
+|------------|-----------|--------|
+| **planning.create_plan** | Правило-ориентированная | Структурированный результат (шаги) |
+| **sql_generation.generate** | Правило-ориентированная | SQL можно валидировать синтаксически |
+| **text.summarize** | LLM-ориентированная | Текст, семантика важна |
+| **classification.categorize** | Правило-ориентированная | Точное совпадение категорий |
+| **reasoning.analyze** | Гибридная | Структура + качество аргументации |
+
+---
+
+### Примеры для разных capability
+
+#### planning.create_plan
+
+```python
+criteria = {
+    'structured_criteria': [
+        {'type': 'min_count', 'value': 5, 'weight': 2.0},
+        {'type': 'required_fields', 'fields': ['description', 'estimate'], 'weight': 1.0},
+        {'type': 'format_validator', 'validator': lambda s: s.estimate > 0, 'weight': 1.0},
+    ]
+}
+```
+
+#### sql_generation.generate
+
+```python
+criteria = {
+    'structured_criteria': [
+        {'type': 'sql_valid', 'validator': validate_sql_syntax, 'weight': 3.0},
+        {'type': 'has_required_tables', 'tables': ['users', 'orders'], 'weight': 2.0},
+        {'type': 'has_required_columns', 'columns': ['id', 'created_at'], 'weight': 1.0},
+    ]
+}
+```
+
+#### text.summarize
+
+```python
+criteria = {
+    'text_criteria': [
+        {
+            'task_description': 'Саммаризировать статью',
+            'rubric': 'Все ключевые моменты отражены кратко',
+            'weight': 2.0
+        }
+    ]
+}
+```
+
+---
+
+### Пример расчёта:
+
 ```
 Ожидаемо: 5 шагов, все с описанием и оценкой
 Фактично: 3 шага, 2 с описанием, 1 с оценкой
