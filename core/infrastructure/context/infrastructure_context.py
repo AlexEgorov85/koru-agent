@@ -252,28 +252,118 @@ class InfrastructureContext:
             raise AttributeError(f"InfrastructureContext is immutable after initialization")
         super().__setattr__(name, value)
 
-    async def call_llm(self, request):
-        """Вызов LLM через инфраструктурный контекст."""
-        # Получаем провайдер LLM
-        default_llm = None
+    async def call_llm(
+        self,
+        request: str,
+        provider_name: Optional[str] = None,
+        fallback: bool = True
+    ):
+        """
+        Вызов LLM через инфраструктурный контекст.
+        
+        ПАРАМЕТРЫ:
+        - request: Запрос к LLM
+        - provider_name: Имя провайдера (опционально)
+          * Если указано → используется конкретный провайдер
+          * Если None → используется default провайдер
+        - fallback: Использовать fallback стратегию при ошибке
+          * Если True → при ошибке пытается использовать backup
+          * Если False → выбрасывает исключение при ошибке
+        
+        ВОЗВРАЩАЕТ:
+        - str: Ответ от LLM
+        
+        ИСПОЛЬЗОВАНИЕ:
+        # Default LLM
+        response = await infra.call_llm("Привет!")
+        
+        # Конкретная LLM
+        response = await infra.call_llm("Привет!", provider_name="primary_llm")
+        
+        # Конкретная LLM без fallback
+        response = await infra.call_llm("Привет!", provider_name="primary_llm", fallback=False)
+        """
+        # 1. Получаем запрошенную LLM
+        llm = None
+        
+        if provider_name:
+            # Попытка получить конкретный провайдер по имени
+            resource_info = self.resource_registry.get_resource(provider_name)
+            if resource_info:
+                llm = resource_info.instance
+                self.logger.debug(f"Используем LLM провайдер: {provider_name}")
+            else:
+                self.logger.warning(f"LLM провайдер '{provider_name}' не найден")
+                if not fallback:
+                    raise ValueError(f"LLM провайдер '{provider_name}' не найден")
+        
+        # 2. Если не найдено, пробуем default
+        if llm is None:
+            llm = self._get_default_llm()
+            if llm:
+                self.logger.debug("Используем default LLM провайдер")
+        
+        # 3. Если всё ещё нет, пробуем первый доступный
+        if llm is None:
+            llm = self._get_first_available_llm()
+            if llm:
+                self.logger.warning("Default LLM не найден, используем первый доступный")
+        
+        # 4. Если вообще нет LLM → ошибка
+        if llm is None:
+            raise ValueError("Нет доступных LLM провайдеров")
+        
+        # 5. Вызов провайдера
+        try:
+            response = await llm.generate(request)
+            return response
+        except Exception as e:
+            self.logger.error(f"Ошибка LLM провайдера: {e}")
+            
+            if fallback and provider_name:
+                # Пытаемся использовать backup
+                self.logger.warning("Попытка fallback на backup LLM")
+                backup_llm = self._get_backup_llm(exclude_name=provider_name)
+                
+                if backup_llm:
+                    try:
+                        response = await backup_llm.generate(request)
+                        return response
+                    except Exception as backup_error:
+                        self.logger.error(f"Backup LLM также не удался: {backup_error}")
+            
+            # Если fallback не помог или не запрошен
+            raise
+
+    def _get_default_llm(self):
+        """Получение default LLM провайдера."""
         for info in self.resource_registry.all():
             if info.resource_type == ResourceType.LLM_PROVIDER and info.is_default:
-                default_llm = info.instance
-                break
+                return info.instance
+        return None
 
-        if default_llm is None:
-            # Используем первый доступный LLM провайдер
-            for info in self.resource_registry.all():
-                if info.resource_type == ResourceType.LLM_PROVIDER:
-                    default_llm = info.instance
-                    break
+    def _get_first_available_llm(self):
+        """Получение первого доступного LLM провайдера."""
+        for info in self.resource_registry.all():
+            if info.resource_type == ResourceType.LLM_PROVIDER:
+                return info.instance
+        return None
 
-        if default_llm is None:
-            raise ValueError("Нет доступных LLM провайдеров")
-
-        # Вызов провайдера
-        response = await default_llm.generate(request)
-        return response
+    def _get_backup_llm(self, exclude_name: str):
+        """
+        Получение backup LLM провайдера (исключая указанный).
+        
+        ПАРАМЕТРЫ:
+        - exclude_name: Имя провайдера для исключения
+        
+        ВОЗВРАЩАЕТ:
+        - LLM провайдер или None
+        """
+        for info in self.resource_registry.all():
+            if (info.resource_type == ResourceType.LLM_PROVIDER and 
+                info.name != exclude_name):
+                return info.instance
+        return None
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""

@@ -852,7 +852,7 @@ llm_providers:
 
 ### 🔧 Как получить доступ к конкретной LLM
 
-#### Способ 1: `get_provider(name)` — по имени
+#### Способ 1: `call_llm(request, provider_name)` — через InfraContext (рекомендуется)
 
 ```python
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
@@ -860,14 +860,57 @@ from core.infrastructure.context.infrastructure_context import InfrastructureCon
 # Инициализация
 infra = await InfrastructureContext.create(config)
 
-# Получение конкретного провайдера
-primary_llm = infra.get_provider('primary_llm')
-backup_llm = infra.get_provider('backup_llm')
-cheap_llm = infra.get_provider('cheap_llm')
+# Default LLM (без указания провайдера)
+response = await infra.call_llm("Привет!")
 
-# Использование
-response = await primary_llm.generate(prompt)
+# Конкретная LLM по имени
+response = await infra.call_llm(
+    "Создай план",
+    provider_name='primary_llm'
+)
+
+# Конкретная LLM без fallback
+response = await infra.call_llm(
+    "Создай план",
+    provider_name='primary_llm',
+    fallback=False
+)
 ```
+
+**Параметры `call_llm`:**
+
+| Параметр | Тип | По умолчанию | Описание |
+|----------|-----|--------------|----------|
+| `request` | str | — | Запрос к LLM |
+| `provider_name` | str | None | Имя провайдера (если None → default) |
+| `fallback` | bool | True | Использовать backup при ошибке |
+
+**Логика работы:**
+
+```
+1. provider_name указан?
+   ├─ ДА → Попытка получить провайдер по имени
+   │      ├─ Успех → Использовать этот провайдер
+   │      └─ Неудача → Переход к шагу 2 (если fallback=True)
+   └─ НЕТ → Переход к шагу 2
+
+2. Есть default LLM?
+   ├─ ДА → Использовать default
+   └─ НЕТ → Переход к шагу 3
+
+3. Есть первый доступный LLM?
+   ├─ ДА → Использовать первый доступный
+   └─ НЕТ → Ошибка "Нет доступных LLM провайдеров"
+
+4. При ошибке генерации (если fallback=True):
+   └─ Попытка использовать backup LLM
+```
+
+**Преимущества `call_llm`:**
+- ✅ Автоматический fallback на backup
+- ✅ Градация: provider → default → first available
+- ✅ Логирование всех шагов
+- ✅ Простой интерфейс
 
 ---
 
@@ -983,13 +1026,85 @@ response = await llm.generate(prompt)
 
 ### 📊 Методы InfraContext для работы с LLM
 
-| Метод | Описание | Возвращает | Пример |
-|-------|----------|------------|--------|
-| `get_provider(name)` | Получение провайдера по имени | `BaseLLMProvider` | `get_provider('primary_llm')` |
-| `get_resource(name)` | Универсальное получение | `Any` | `get_resource('cheap_llm')` |
-| `call_llm(request)` | Вызов default LLM | `str` | `call_llm(prompt)` |
-| `resource_registry.get_resources_by_type()` | Все провайдеры типа | `Dict[str, ResourceInfo]` | `get_resources_by_type(LLM_PROVIDER)` |
-| `resource_registry.get_default_resource()` | Default провайдер | `ResourceInfo` | `get_default_resource(LLM_PROVIDER)` |
+| Метод | Описание | Параметры | Возвращает | Пример |
+|-------|----------|-----------|------------|--------|
+| `call_llm(request, provider_name, fallback)` | **Универсальный вызов LLM** | request, provider_name=None, fallback=True | str | `call_llm("Привет!", provider_name='primary_llm')` |
+| `get_provider(name)` | Получение провайдера по имени | name | BaseLLMProvider | `get_provider('primary_llm')` |
+| `get_resource(name)` | Универсальное получение | name | Any | `get_resource('cheap_llm')` |
+| `resource_registry.get_resources_by_type()` | Все провайдеры типа | resource_type | Dict[str, ResourceInfo] | `get_resources_by_type(LLM_PROVIDER)` |
+| `resource_registry.get_default_resource()` | Default провайдер | resource_type | ResourceInfo | `get_default_resource(LLM_PROVIDER)` |
+
+---
+
+### 📋 Сценарии использования
+
+#### Сценарий 1: Простой вызов (default LLM)
+
+```python
+# Используем LLM по умолчанию
+response = await infra.call_llm("Создай план проекта")
+```
+
+#### Сценарий 2: Вызов конкретной LLM
+
+```python
+# Генерация промпта → мощная LLM
+prompt = await infra.call_llm(
+    "Улучши этот промпт: ...",
+    provider_name='primary_llm'
+)
+
+# Анализ ошибок → дешёвая LLM
+analysis = await infra.call_llm(
+    "Проанализируй ошибки: ...",
+    provider_name='cheap_llm'
+)
+```
+
+#### Сценарий 3: Вызов с fallback
+
+```python
+# Попытка через primary, при ошибке → backup
+try:
+    response = await infra.call_llm(
+        "Создай план",
+        provider_name='primary_llm',
+        fallback=True  # ← Автоматический fallback
+    )
+except RuntimeError as e:
+    # Все LLM недоступны
+    logger.error(f"Все LLM не доступны: {e}")
+```
+
+#### Сценарий 4: Вызов без fallback
+
+```python
+# Только конкретная LLM, без fallback
+try:
+    response = await infra.call_llm(
+        "Создай план",
+        provider_name='primary_llm',
+        fallback=False  # ← Только primary_llm
+    )
+except Exception as e:
+    # Обработка ошибки primary_llm
+    logger.error(f"Primary LLM failed: {e}")
+```
+
+#### Сценарий 5: Прямой доступ к провайдеру
+
+```python
+# Для сложных сценариев (несколько вызовов, streaming, etc.)
+llm = infra.get_provider('primary_llm')
+
+# Несколько вызовов
+response1 = await llm.generate("Запрос 1")
+response2 = await llm.generate("Запрос 2")
+
+# Streaming
+async for chunk in llm.generate_stream("Большой запрос"):
+    print(chunk, end='')
+```
 
 ---
 
@@ -1624,7 +1739,7 @@ async def _validate_improved_prompt(
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              ЦИКЛ УЛУЧШЕНИЯ КОНТРАКТА                       │
-└─────────────────────────────────────────────────────────────┘
+└─────���───────────────────────────────────────────────────────┘
 
 1. АНАЛИЗ ТЕКУЩЕГО КОНТРАКТА
    └→ Загрузка Contract(capability, version, direction)
@@ -5102,7 +5217,7 @@ CV = 0.04 / 0.85 = 0.047 (4.7%) ✅
 ```python
 class DataRepository:
     """
-    Централизованный репозиторий с единой точкой валидации структуры данных.
+    Централизованный р��позиторий с единой точкой валидации структуры данных.
     """
 
     def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
