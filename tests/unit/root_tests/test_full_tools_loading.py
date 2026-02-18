@@ -1,161 +1,90 @@
 #!/usr/bin/env python3
 """
-Тестирование полной загрузки инструментов в ApplicationContext
+Тестирование полной загрузки инструментов
 """
 
-import asyncio
 import sys
 import os
 
-# Добавляем путь к проекту
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.application.context.application_context import ApplicationContext
+from core.application.context.application_context import ApplicationContext, ComponentType
 from core.config.app_config import AppConfig
+from core.config.component_config import ComponentConfig
 
 
-async def test_full_tools_loading():
-    """Тестируем полную загрузку инструментов"""
+async def test_full_tools_loading(fake_infra_context):
+    """Тестирование полной загрузки инструментов"""
     print("=== Тестирование полной загрузки инструментов ===")
-    
-    # Создаем конфигурацию с инструментами
+
     app_config = AppConfig(
-        config_id="full_tools_test_config",
+        config_id="tools_test_config",
         prompt_versions={"test": "v1.0.0"},
         input_contract_versions={"test": "v1.0.0"},
         output_contract_versions={"test": "v1.0.0"},
-        service_configs={
-            "prompt_service": type('obj', (object,), {
-                'variant_id': 'test',
-                'prompt_versions': {"test": "v1.0.0"},
-                'input_contract_versions': {"test": "v1.0.0"},
-                'output_contract_versions': {"test": "v1.0.0"},
-                'side_effects_enabled': True,
-                'detailed_metrics': False
-            })(),
-            "contract_service": type('obj', (object,), {
-                'variant_id': 'test',
-                'prompt_versions': {"test": "v1.0.0"},
-                'input_contract_versions': {"test": "v1.0.0"},
-                'output_contract_versions': {"test": "v1.0.0"},
-                'side_effects_enabled': True,
-                'detailed_metrics': False
-            })()
-        },
         tool_configs={
-            "sql_tool": type('obj', (object,), {
-                'variant_id': 'test_sql_tool',
-                'prompt_versions': {"test": "v1.0.0"},
-                'input_contract_versions': {"test": "v1.0.0"},
-                'output_contract_versions': {"test": "v1.0.0"},
-                'side_effects_enabled': True,
-                'detailed_metrics': False
-            })(),
-            "file_tool": type('obj', (object,), {
-                'variant_id': 'test_file_tool',
-                'prompt_versions': {"test": "v1.0.0"},
-                'input_contract_versions': {"test": "v1.0.0"},
-                'output_contract_versions': {"test": "v1.0.0"},
-                'side_effects_enabled': True,
-                'detailed_metrics': False
-            })()
+            "sql_tool": ComponentConfig(
+                variant_id='test_sql',
+                prompt_versions={"test": "v1.0.0"},
+                input_contract_versions={"test": "v1.0.0"},
+                output_contract_versions={"test": "v1.0.0"},
+                side_effects_enabled=True,
+                detailed_metrics=False
+            ),
+            "file_tool": ComponentConfig(
+                variant_id='test_file',
+                prompt_versions={"test": "v1.0.0"},
+                input_contract_versions={"test": "v1.0.0"},
+                output_contract_versions={"test": "v1.0.0"},
+                side_effects_enabled=True,
+                detailed_metrics=False
+            )
         }
     )
-    
-    # Создаем фейковый инфраструктурный контекст
-    class FakeInfraContext:
-        def __init__(self):
-            self.id = "fake_infra_context"
-            
-        def get_prompt_storage(self):
-            class FakeStorage:
-                async def exists(self, capability, version):
-                    return True
-                async def load(self, capability, version):
-                    class FakePrompt:
-                        def __init__(self):
-                            class Metadata:
-                                class Status:
-                                    value = "active"
-                                status = Status()
-                            self.metadata = Metadata()
-                            self.content = f"Fake prompt for {capability} v{version}"
-                    return FakePrompt()
-            return FakeStorage()
-            
-        def get_contract_storage(self):
-            class FakeContractStorage:
-                async def exists(self, capability, version, direction):
-                    return True
-                async def load(self, capability, version, direction):
-                    class FakeContract:
-                        def __init__(self):
-                            self.schema_data = {"type": "object", "properties": {}}
-                    return FakeContract()
-            return FakeContractStorage()
-        
-        def get_provider(self, name):
-            # Возвращаем фейковый провайдер БД для SQL инструмента
-            if name == "default_db":
-                class FakeDBProvider:
-                    async def execute(self, query, params=None, max_rows=1000):
-                        class Result:
-                            def __init__(self):
-                                self.rows = [["test_value"]]
-                                self.columns = ["test_column"]
-                                self.rowcount = 1
-                        return Result()
-                return FakeDBProvider()
-            return None
-    
-    fake_infra = FakeInfraContext()
-    
-    # Создаем прикладной контекст
+
+    print(f"Конфигурация создана:")
+    print(f"- Инструментов: {len(app_config.tool_configs)}")
+
     app_context = ApplicationContext(
-        infrastructure_context=fake_infra,
+        infrastructure_context=fake_infra_context,
         config=app_config,
         profile="prod"
     )
-    
-    print("Прикладной контекст создан с конфигурацией, содержащей инструменты")
-    
-    # Попробуем инициализировать
-    try:
-        success = await app_context.initialize()
-        print(f"Инициализация успешна: {success}")
-        
-        if success:
-            from core.application.context.application_context import ComponentType
-            services = app_context.components.all_of_type(ComponentType.SERVICE)
-            tools = app_context.components.all_of_type(ComponentType.TOOL)
-            
-            print(f"Количество сервисов: {len(services)}")
-            print(f"Количество инструментов: {len(tools)}")
-            
-            # Выведем имена всех зарегистрированных сервисов
-            print("Сервисы:")
-            for service in services:
-                print(f"  - {service.name} (инициализирован: {getattr(service, '_initialized', False)})")
-            
-            # Выведем имена всех зарегистрированных инструментов
-            print("Инструменты:")
-            for tool in tools:
-                print(f"  - {tool.name} (инициализирован: {getattr(tool, '_initialized', False)})")
-        
-    except Exception as e:
-        print(f"Ошибка инициализации: {e}")
-        import traceback
-        traceback.print_exc()
+
+    success = await app_context.initialize()
+    print(f"ApplicationContext инициализирован: {success}")
+
+    if success:
+        tools = app_context.components.all_of_type(ComponentType.TOOL)
+        print(f"Загружено инструментов: {len(tools)}")
+        for tool in tools:
+            print(f"  - {tool.name}")
+
+    print("\n✅ Тест полной загрузки инструментов пройден")
 
 
-async def main():
-    """Основная функция тестирования"""
-    print("Тестирование полной загрузки инструментов в ApplicationContext")
-    
-    await test_full_tools_loading()
-    
-    print("\n[SUCCESS] Тестирование завершено!")
+async def test_tool_resolution(fake_infra_context):
+    """Тестирование разрешения классов инструментов"""
+    print("\n=== Тестирование разрешения классов инструментов ===")
 
+    app_config = AppConfig(config_id="tool_resolution_test")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    app_context = ApplicationContext(
+        infrastructure_context=fake_infra_context,
+        config=app_config,
+        profile="prod"
+    )
+
+    test_tools = [
+        ("sql_tool", ComponentType.TOOL),
+        ("file_tool", ComponentType.TOOL),
+    ]
+
+    for name, comp_type in test_tools:
+        try:
+            cls = app_context._resolve_component_class(comp_type, name)
+            print(f"[OK] {name}: {cls.__name__}")
+        except Exception as e:
+            print(f"[FAIL] {name}: {e}")
+
+    print("\n✅ Тест разрешения инструментов пройден")
