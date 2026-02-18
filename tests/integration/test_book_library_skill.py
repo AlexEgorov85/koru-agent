@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Интеграционные тесты для навыка book_library.
 
@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # ФИКСТУРЫ
 # ============================================================================
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def event_loop():
     """Создание event loop для асинхронных тестов."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
@@ -36,7 +36,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def app_contexts():
     """
     Инициализация контекстов для тестирования.
