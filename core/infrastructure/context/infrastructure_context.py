@@ -23,6 +23,13 @@ from core.infrastructure.context.lifecycle_manager import LifecycleManager
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
 
+# Импорты для сборщиков метрик и логов
+from core.infrastructure.metrics_storage import FileSystemMetricsStorage
+from core.infrastructure.log_storage import FileSystemLogStorage
+from core.infrastructure.metrics_collector import MetricsCollector
+from core.infrastructure.log_collector import LogCollector
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+
 
 class InfrastructureContext:
     """Главный класс инфраструктурного контекста. Создаётся 1 раз за жизненный цикл приложения."""
@@ -50,6 +57,14 @@ class InfrastructureContext:
         # Инфраструктурные хранилища (только загрузка, без кэширования)
         self.prompt_storage: Optional[IPromptStorage] = None
         self.contract_storage: Optional[IContractStorage] = None
+
+        # Хранилища метрик и логов
+        self.metrics_storage: Optional[IMetricsStorage] = None
+        self.log_storage: Optional[ILogStorage] = None
+
+        # Сборщики метрик и логов
+        self.metrics_collector: Optional[MetricsCollector] = None
+        self.log_collector: Optional[LogCollector] = None
 
         # Удаляем _tools, так как инструменты должны быть в прикладном контексте
 
@@ -97,6 +112,26 @@ class InfrastructureContext:
 
         self.contract_storage = ContractStorage(contracts_dir)
         self.logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.contracts_dir}")
+
+        # Инициализация хранилищ метрик и логов
+        from pathlib import Path
+        metrics_dir = Path(self.config.data_dir) / "metrics"
+        logs_dir = Path(self.config.data_dir) / "logs"
+
+        self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
+        self.logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
+
+        self.log_storage = FileSystemLogStorage(logs_dir)
+        self.logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
+
+        # Инициализация сборщиков метрик и логов
+        self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
+        await self.metrics_collector.initialize()
+        self.logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
+
+        self.log_collector = LogCollector(self.event_bus, self.log_storage)
+        await self.log_collector.initialize()
+        self.logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
 
         # Регистрация инициализаторов в менеджере жизненного цикла
         self.lifecycle_manager.register_initializer(self._register_providers_from_config)
@@ -212,6 +247,12 @@ class InfrastructureContext:
         if self.contract_storage and hasattr(self.contract_storage, 'shutdown'):
             await self.contract_storage.shutdown()
 
+        # Завершение сборщиков метрик и логов
+        if self.metrics_collector:
+            await self.metrics_collector.shutdown()
+        if self.log_collector:
+            await self.log_collector.shutdown()
+
     def get_provider(self, name: str):
         """Получение провайдера по имени."""
         resource_info = self.resource_registry.get_resource(name)
@@ -245,6 +286,26 @@ class InfrastructureContext:
         if not hasattr(self, 'contract_storage'):
             raise RuntimeError("ContractStorage не инициализирован")
         return self.contract_storage
+
+    def get_metrics_storage(self) -> IMetricsStorage:
+        if not hasattr(self, 'metrics_storage'):
+            raise RuntimeError("MetricsStorage не инициализирован")
+        return self.metrics_storage
+
+    def get_log_storage(self) -> ILogStorage:
+        if not hasattr(self, 'log_storage'):
+            raise RuntimeError("LogStorage не инициализирован")
+        return self.log_storage
+
+    def get_metrics_collector(self) -> MetricsCollector:
+        if not hasattr(self, 'metrics_collector'):
+            raise RuntimeError("MetricsCollector не инициализирован")
+        return self.metrics_collector
+
+    def get_log_collector(self) -> LogCollector:
+        if not hasattr(self, 'log_collector'):
+            raise RuntimeError("LogCollector не инициализирован")
+        return self.log_collector
 
     def __setattr__(self, name, value):
         """Запрет на изменение после инициализации."""
