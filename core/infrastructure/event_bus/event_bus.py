@@ -75,9 +75,24 @@ class EventType(Enum):
     # События ошибок
     RETRY_ATTEMPT = "retry.attempt"
     ERROR_OCCURRED = "error.occurred"
-    
+
     # События метрик
     METRIC_COLLECTED = "metric.collected"
+
+    # События бенчмарков
+    BENCHMARK_STARTED = "benchmark.started"
+    BENCHMARK_COMPLETED = "benchmark.completed"
+    BENCHMARK_FAILED = "benchmark.failed"
+
+    # События оптимизации
+    OPTIMIZATION_CYCLE_STARTED = "optimization.cycle.started"
+    OPTIMIZATION_CYCLE_COMPLETED = "optimization.cycle.completed"
+    OPTIMIZATION_FAILED = "optimization.failed"
+
+    # События версий
+    VERSION_PROMOTED = "version.promoted"
+    VERSION_REJECTED = "version.rejected"
+    VERSION_CREATED = "version.created"
 
 
 class EventBus:
