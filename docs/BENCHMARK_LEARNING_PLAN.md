@@ -1349,6 +1349,235 @@ class BaseSkill(BaseComponent):
 
 ---
 
+## 📏 Уровни агрегации метрик
+
+### Два уровня сбора
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    УРОВНИ МЕТРИК                            │
+└─────────────────────────────────────────────────────────────┘
+
+1. Уровень ШАГА (capability-level)
+   └── Публикуется при выполнении КАЖДОЙ capability
+       └── EventType.SKILL_EXECUTED
+       └── MetricRecord: capability, execution_time_ms, success
+
+2. Уровень СЕССИИ (session-level)
+   └── Агрегируется из всех шагов сессии
+       └── BenchmarkResult: total_steps, total_time, overall_success
+```
+
+### Метрики уровня ШАГА
+
+**Источник:** `BaseSkill._publish_metrics()` при каждом выполнении
+
+**Запись в хранилище:**
+```python
+MetricRecord(
+    agent_id='agent-123',
+    capability='planning.create_plan',  # ← Конкретная capability
+    version='v1.0.0',
+    execution_time_ms=150.5,
+    success=True,
+    tokens_used=250,
+    step_number=1,                       # ← Номер шага в сессии
+    session_id='session-456',
+    timestamp=datetime.now()
+)
+```
+
+**Агрегация по шагам:**
+```python
+# Пример: метрики для planning.create_plan@v1.0.0 за неделю
+AggregatedMetrics(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    total_executions=150,        # 150 вызовов capability
+    success_rate=0.93,           # 93% успешных
+    latency_ms=145.2,            # среднее время
+    latency_p95_ms=320.0,        # 95-й перцентиль
+)
+```
+
+**Использование:**
+- Сравнение версий промптов/контрактов
+- Выявление деградации конкретной capability
+- Оптимизация отдельных компонентов
+
+---
+
+### Метрики уровня СЕССИИ
+
+**Источник:** Агрегация всех шагов сессии + оценка бенчмарка
+
+**Запись в хранилище:**
+```python
+SessionMetrics(
+    agent_id='agent-123',
+    session_id='session-456',
+    scenario_id='benchmark-001',  # Для бенчмарков
+    total_steps=5,                # 5 вызовов capability
+    total_time_ms=2500.0,         # Сумма всех шагов
+    total_tokens=1250,            # Сумма токенов
+    success=True,                 # Все шаги успешны ИЛИ цель достигнута
+    goal_accuracy=0.95,           # Насколько результат близок к цели
+    capabilities_used=[           # Какие capability использованы
+        'planning.create_plan',
+        'sql_query.execute',
+        'text.summarize'
+    ],
+    timestamp=datetime.now()
+)
+```
+
+**Агрегация по сессиям:**
+```python
+# Пример: метрики сессий для бенчмарка planning@v1.0.0
+SessionAggregatedMetrics(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    total_sessions=50,           # 50 тестовых сессий
+    goal_success_rate=0.88,      # 88% сессий достигли цели
+    avg_steps_per_session=4.2,   # среднее число шагов
+    avg_time_per_session=2100.0, # среднее время сессии
+)
+```
+
+**Использование:**
+- Оценка качества работы агента в целом
+- Бенчмарки: сравнение версий по достижению цели
+- KPI: "% задач выполнено с первого раза"
+
+---
+
+### Сравнение уровней
+
+| Характеристика | Уровень ШАГА | Уровень СЕССИИ |
+|----------------|--------------|----------------|
+| **Гранулярность** | Одна capability | Вся сессия агента |
+| **Частота записи** | ~100-1000/час | ~10-100/час |
+| **Что измеряет** | Производительность компонента | Достигнута ли цель |
+| **Агрегация** | По capability + version | По сценарию + version |
+| **Для оптимизации** | Промпты, контракты | Поведение агента, цепочки |
+| **Пример вопроса** | "Насколько быстр planning?" | "Справляется ли агент с задачей?" |
+
+---
+
+### Пример: полный цикл метрик
+
+```
+Сессия: agent-123, session-456, goal="Создать SQL запрос"
+
+Шаг 1: planning.create_plan@v1.0.0
+  → execution_time_ms: 150, success: True, tokens: 200
+
+Шаг 2: sql_generation.generate@v1.2.0
+  → execution_time_ms: 300, success: True, tokens: 400
+
+Шаг 3: sql_validator.validate@v1.0.0
+  → execution_time_ms: 50, success: True, tokens: 50
+
+└── Сессия завершена:
+    total_steps: 3
+    total_time_ms: 500
+    total_tokens: 650
+    success: True
+    goal_accuracy: 1.0  # Цель достигнута полностью
+```
+
+---
+
+### Реализация агрегации сессии
+
+**Файл:** `core/infrastructure/metrics_collector.py` (дополнить)
+
+```python
+class MetricsCollector:
+    async def _on_skill_executed(self, event: Event):
+        """Сбор метрик шага"""
+        # ... запись MetricRecord ...
+
+    async def finalize_session_metrics(
+        self,
+        agent_id: str,
+        session_id: str,
+        scenario_id: Optional[str] = None
+    ) -> SessionMetrics:
+        """
+        Агрегация метрик сессии после завершения.
+
+        Вызывается когда агент завершил работу.
+        """
+        # 1. Получаем все шаги сессии
+        step_records = await self.storage.get_records(
+            agent_id=agent_id,
+            session_id=session_id
+        )
+
+        # 2. Агрегируем
+        total_steps = len(step_records)
+        total_time = sum(r.execution_time_ms for r in step_records)
+        total_tokens = sum(r.tokens_used for r in step_records)
+        all_success = all(r.success for r in step_records)
+
+        # 3. Оцениваем достижение цели (для бенчмарков)
+        goal_accuracy = await self._calculate_goal_accuracy(
+            session_id=session_id,
+            scenario_id=scenario_id
+        )
+
+        return SessionMetrics(
+            agent_id=agent_id,
+            session_id=session_id,
+            scenario_id=scenario_id,
+            total_steps=total_steps,
+            total_time_ms=total_time,
+            total_tokens=total_tokens,
+            success=all_success,
+            goal_accuracy=goal_accuracy,
+            capabilities_used=list(set(r.capability for r in step_records))
+        )
+```
+
+---
+
+### Когда вызывать агрегацию сессии
+
+**Файл:** `core/application/agent/agent.py` (дополнить)
+
+```python
+class Agent:
+    async def run(self, goal: str) -> AgentResult:
+        session_id = str(uuid.uuid4())
+
+        try:
+            # ... выполнение сессии ...
+            result = await self._execute_session(goal)
+
+            # Агрегация метрик сессии
+            session_metrics = await self.metrics_collector.finalize_session_metrics(
+                agent_id=self.id,
+                session_id=session_id,
+                scenario_id=self.scenario_id  # Для бенчмарков
+            )
+
+            return result
+
+        finally:
+            # Публикация события завершения сессии
+            await self.event_bus.publish(
+                EventType.AGENT_COMPLETED,
+                data={
+                    'agent_id': self.id,
+                    'session_id': session_id,
+                    'session_metrics': session_metrics
+                }
+            )
+```
+
+---
+
 ## 📝 Сбор логов
 
 ### Централизованный LogCollector
