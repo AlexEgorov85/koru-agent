@@ -48,14 +48,13 @@
 | FailureAnalysis (модель) | ✅ Готово | `core/models/data/benchmark.py` |
 | CLI скрипты для бенчмарков | ✅ Готово | `scripts/run_benchmark.py`, `scripts/run_optimization.py` |
 | Схема полного цикла обучения | ✅ Готово | Детальная схема с этапами |
-| DataRepository.update_prompt_status | 🟠 Требует реализации | Псевдокод в BenchmarkService |
-| _update_registry | 🟠 Псевдокод | В BenchmarkService.promote_version |
+| DataRepository.update_prompt_status | ✅ Готово | Полная реализация с примерами |
+| _update_registry | ✅ Готово | Обновление registry.yaml с бэкапом |
+| FileSystemDataSource.save_prompt | ✅ Готово | Сохранение промптов/контрактов |
 
-**Приоритеты для доработки (реализация в коде):**
-1. 🟠 Реализовать `DataRepository.update_prompt_status()` (через FileSystemDataSource)
-2. 🟠 Реализовать `_update_registry()` (обновление registry.yaml)
+**Документ готов на 100%** — все разделы реализованы с полным кодом.
 
-**Документ готов на 95%** — требуется только реализация в коде.
+**Следующий шаг:** Реализация в коде проекта (не в документе).
 
 ---
 
@@ -3125,11 +3124,521 @@ class BenchmarkService(BaseService):
         return True
 
     async def _update_registry(self, capability: str, version: str):
-        """Обновление registry.yaml"""
-        # Загрузка registry.yaml
-        # Обновление prompt_versions[capability] = version
-        # Сохранение
+        """
+        Обновление registry.yaml с новой активной версией.
+        
+        ФОРМАТ registry.yaml:
+        ```yaml
+        profile: prod
+        prompt_versions:
+          planning.create_plan: v1.1.0
+          sql_generation.generate: v2.0.0
+        input_contract_versions:
+          planning.create_plan.input: v1.0.0
+        output_contract_versions:
+          planning.create_plan.output: v1.0.0
+        ```
+        
+        ARGS:
+        - capability: имя capability (например, 'planning.create_plan')
+        - version: новая активная версия (например, 'v1.1.0')
+        """
+        import yaml
+        
+        registry_path = self.data_dir.parent / 'registry.yaml'
+        
+        # 1. Загрузка текущего registry.yaml
+        with open(registry_path, 'r', encoding='utf-8') as f:
+            registry_data = yaml.safe_load(f)
+        
+        # 2. Обновление prompt_versions
+        if 'prompt_versions' not in registry_data:
+            registry_data['prompt_versions'] = {}
+        
+        old_version = registry_data['prompt_versions'].get(capability)
+        registry_data['prompt_versions'][capability] = version
+        
+        # 3. Сохранение с бэкапом
+        if old_version:
+            backup_path = registry_path.with_suffix('.yaml.bak')
+            import shutil
+            shutil.copy2(registry_path, backup_path)
+        
+        with open(registry_path, 'w', encoding='utf-8') as f:
+            yaml.dump(registry_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        # 4. Логирование
+        self.logger.info(
+            f"Registry обновлён: {capability} {old_version} → {version}"
+        )
+```
+
+---
+
+### DataRepository: update_prompt_status
+
+**Файл:** `core/application/data_repository.py` (расширить)
+
+```python
+class DataRepository:
+    """
+    Централизованный репозиторий с единой точкой валидации структуры данных.
+    """
+
+    def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
+        self.data_source = data_source
+        self.profile = profile
+        self._initialized = False
+        self.logger = logging.getLogger(__name__)
+
+        # ТИПИЗИРОВАННЫЕ индексы
+        self._prompts_index: Dict[Tuple[str, str], Prompt] = {}
+        self._contracts_index: Dict[Tuple[str, str, str], Contract] = {}
+        self._manifest_cache: Dict[str, Manifest] = {}
+
+        # Кэши
+        self._prompt_content_cache: Dict[Tuple[str, str], str] = {}
+        self._contract_schema_cache: Dict[Tuple[str, str, str], Type[BaseModel]] = {}
+
+        self._validation_errors: List[str] = []
+        self._validation_warnings: List[str] = []
+
+    # === СУЩЕСТВУЮЩИЕ МЕТОДЫ ===
+    # initialize(), load_manifests(), get_prompt(), get_contract(), etc.
+
+    # === НОВЫЕ МЕТОДЫ ДЛЯ PROMOTE/REJECT ===
+
+    async def update_prompt_status(
+        self,
+        capability: str,
+        version: str,
+        new_status: PromptStatus
+    ) -> bool:
+        """
+        Обновление статуса промпта в файловой системе.
+        
+        ИСПОЛЬЗОВАНИЕ:
+        - При продвижении версии (DRAFT → ACTIVE)
+        - При откате версии (ACTIVE → INACTIVE)
+        
+        ARGS:
+        - capability: имя capability (например, 'planning.create_plan')
+        - version: версия промпта (например, 'v1.1.0')
+        - new_status: новый статус (ACTIVE, INACTIVE, DRAFT, etc.)
+        
+        RETURNS:
+        - bool: True если успешно
+        
+        RAISES:
+        - FileNotFoundError: если промпт не найден
+        - IOError: если не удалось записать файл
+        """
+        # 1. Получаем текущий промпт
+        current_prompt = self.get_prompt(capability, version)
+        
+        # 2. Создаём новый промпт с обновлённым статусом
+        updated_prompt = Prompt(
+            capability=current_prompt.capability,
+            version=current_prompt.version,
+            status=new_status,  # ← Обновляем статус
+            component_type=current_prompt.component_type,
+            content=current_prompt.content,
+            variables=current_prompt.variables,
+            metadata={
+                **current_prompt.metadata,
+                'status_changed_at': datetime.now().isoformat(),
+                'previous_status': current_prompt.status.value
+            }
+        )
+        
+        # 3. Сохраняем через DataSource
+        await self.data_source.save_prompt(capability, version, updated_prompt)
+        
+        # 4. Обновляем кэш
+        self._prompts_index[(capability, version)] = updated_prompt
+        
+        self.logger.info(
+            f"Статус промпта обновлён: {capability}@{version} "
+            f"{current_prompt.status.value} → {new_status.value}"
+        )
+        
+        return True
+
+    async def update_contract_status(
+        self,
+        capability: str,
+        version: str,
+        direction: str,
+        new_status: PromptStatus
+    ) -> bool:
+        """
+        Обновление статуса контракта в файловой системе.
+        
+        ARGS:
+        - capability: имя capability
+        - version: версия контракта
+        - direction: направление ('input' или 'output')
+        - new_status: новый статус
+        
+        RETURNS:
+        - bool: True если успешно
+        """
+        # 1. Получаем текущий контракт
+        current_contract = self.get_contract(capability, version, direction)
+        
+        # 2. Создаём новый контракт с обновлённым статусом
+        updated_contract = Contract(
+            capability=current_contract.capability,
+            version=current_contract.version,
+            status=new_status,  # ← Обновляем статус
+            component_type=current_contract.component_type,
+            direction=current_contract.direction,
+            schema_data=current_contract.schema_data,
+            description=current_contract.description
+        )
+        
+        # 3. Сохраняем через DataSource
+        await self.data_source.save_contract(capability, version, direction, updated_contract)
+        
+        # 4. Обновляем кэш
+        self._contracts_index[(capability, version, direction)] = updated_contract
+        
+        self.logger.info(
+            f"Статус контракта обновлён: {capability}@{version} ({direction}) "
+            f"{current_contract.status.value} → {new_status.value}"
+        )
+        
+        return True
+
+    async def get_prompt_versions(self, capability: str) -> List[Prompt]:
+        """
+        Получить все версии промпта для capability.
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - List[Prompt]: список версий, отсортированный по версии
+        """
+        versions = []
+        for (cap, ver), prompt in self._prompts_index.items():
+            if cap == capability:
+                versions.append(prompt)
+        
+        # Сортировка по семантической версии
+        return sorted(versions, key=lambda p: self._parse_version(p.version))
+
+    def _parse_version(self, version: str) -> Tuple[int, int, int]:
+        """
+        Парсинг семантической версии.
+        
+        ПРИМЕР:
+        v1.2.3 → (1, 2, 3)
+        """
+        import re
+        match = re.match(r'v(\d+)\.(\d+)\.(\d+)', version)
+        if match:
+            return tuple(map(int, match.groups()))
+        return (0, 0, 0)
+
+    async def get_active_version(self, capability: str) -> Optional[str]:
+        """
+        Получить текущую активную версию capability.
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - str: версия или None если нет активной
+        """
+        versions = await self.get_prompt_versions(capability)
+        active_versions = [v for v in versions if v.status == PromptStatus.ACTIVE]
+        
+        if active_versions:
+            return active_versions[0].version
+        return None
+
+    async def get_draft_versions(self, capability: str) -> List[str]:
+        """
+        Получить все draft версии capability.
+        
+        ARGS:
+        - capability: имя capability
+        
+        RETURNS:
+        - List[str]: список draft версий
+        """
+        versions = await self.get_prompt_versions(capability)
+        draft_versions = [v.version for v in versions if v.status == PromptStatus.DRAFT]
+        return draft_versions
+```
+
+---
+
+### FileSystemDataSource: save_prompt
+
+**Файл:** `core/infrastructure/storage/file_system_data_source.py` (расширить)
+
+```python
+class FileSystemDataSource(ResourceDataSource):
+    """
+    Источник данных на базе файловой системы.
+    Поддерживает чтение и запись промптов/контрактов.
+    """
+
+    def __init__(self, data_dir: Path, registry_config: Dict[str, Any]):
+        self.data_dir = data_dir
+        self.registry_config = registry_config
+        self.logger = logging.getLogger(__name__)
+
+    def initialize(self):
+        """Инициализация источника данных"""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"FileSystemDataSource инициализирован: {self.data_dir}")
+
+    async def load_prompt(self, capability: str, version: str) -> Prompt:
+        """Загрузка промпта (существующая реализация)"""
+        # ... существующий код ...
         pass
+
+    async def save_prompt(
+        self,
+        capability: str,
+        version: str,
+        prompt: Prompt
+    ) -> Path:
+        """
+        Сохранение промпта в файловую систему.
+        
+        ФОРМАТ ПУТИ:
+        data/prompts/{component_type}/{capability_path}/{name}_{version}.yaml
+        
+        ПРИМЕР:
+        data/prompts/skills/planning/create_plan_v1.1.0.yaml
+        
+        ARGS:
+        - capability: имя capability
+        - version: версия
+        - prompt: объект Prompt для сохранения
+        
+        RETURNS:
+        - Path: путь к сохранённому файлу
+        
+        RAISES:
+        - IOError: если не удалось сохранить
+        """
+        import yaml
+        
+        # 1. Определяем путь
+        capability_path = capability.replace('.', '/')
+        
+        if prompt.component_type == ComponentType.SKILL:
+            base_subdir = 'skills'
+        elif prompt.component_type == ComponentType.SERVICE:
+            base_subdir = 'services'
+        elif prompt.component_type == ComponentType.TOOL:
+            base_subdir = 'tools'
+        else:
+            base_subdir = 'prompts'
+        
+        prompt_dir = self.data_dir / base_subdir / capability_path
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 2. Имя файла
+        capability_parts = capability.split('.')
+        file_name = f"{capability_parts[-1]}_{version}.yaml"
+        prompt_file = prompt_dir / file_name
+        
+        # 3. Сериализация в YAML
+        yaml_data = {
+            'capability': prompt.capability,
+            'version': prompt.version,
+            'status': prompt.status.value,
+            'component_type': prompt.component_type.value,
+            'content': prompt.content,
+            'variables': [v.model_dump() for v in prompt.variables],
+            'metadata': prompt.metadata
+        }
+        
+        # 4. Запись файла
+        with open(prompt_file, 'w', encoding='utf-8') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        self.logger.info(f"Промпт сохранён: {prompt_file}")
+        return prompt_file
+
+    async def save_contract(
+        self,
+        capability: str,
+        version: str,
+        direction: str,
+        contract: Contract
+    ) -> Path:
+        """
+        Сохранение контракта в файловую систему.
+        
+        ФОРМАТ ПУТИ:
+        data/contracts/{component_type}/{capability_path}/{name}_{version}_{direction}.yaml
+        
+        ПРИМЕР:
+        data/contracts/skills/planning/create_plan_v1.0.0_input.yaml
+        
+        ARGS:
+        - capability: имя capability
+        - version: версия
+        - direction: 'input' или 'output'
+        - contract: объект Contract для сохранения
+        
+        RETURNS:
+        - Path: путь к сохранённому файлу
+        """
+        import yaml
+        
+        capability_path = capability.replace('.', '/')
+        
+        if contract.component_type == ComponentType.SKILL:
+            base_subdir = 'skills'
+        else:
+            base_subdir = 'contracts'
+        
+        contract_dir = self.data_dir / base_subdir / capability_path
+        contract_dir.mkdir(parents=True, exist_ok=True)
+        
+        contract_parts = capability.split('.')
+        file_name = f"{contract_parts[-1]}_{version}_{direction}.yaml"
+        contract_file = contract_dir / file_name
+        
+        yaml_data = {
+            'capability': contract.capability,
+            'version': contract.version,
+            'status': contract.status.value,
+            'component_type': contract.component_type.value,
+            'direction': contract.direction.value,
+            'schema_data': contract.schema_data,
+            'description': contract.description
+        }
+        
+        with open(contract_file, 'w', encoding='utf-8') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        self.logger.info(f"Контракт сохранён: {contract_file}")
+        return contract_file
+
+    async def list_prompts(self) -> List[Prompt]:
+        """Сканирование всех промптов (существующая реализация)"""
+        # ... существующий код ...
+        pass
+
+    async def list_contracts(self) -> List[Contract]:
+        """Сканирование всех контрактов (существующая реализация)"""
+        # ... существующий код ...
+        pass
+```
+
+---
+
+### Пример использования update_prompt_status
+
+```python
+# 1. Инициализация
+data_source = FileSystemDataSource(Path('data'), registry_config)
+data_source.initialize()
+
+data_repository = DataRepository(data_source, profile='prod')
+await data_repository.initialize(app_config)
+
+# 2. Продвижение версии (DRAFT → ACTIVE)
+await data_repository.update_prompt_status(
+    capability='planning.create_plan',
+    version='v1.1.0',
+    new_status=PromptStatus.ACTIVE
+)
+
+# 3. Откат предыдущей версии (ACTIVE → INACTIVE)
+await data_repository.update_prompt_status(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    new_status=PromptStatus.INACTIVE
+)
+
+# 4. Проверка
+active_version = await data_repository.get_active_version('planning.create_plan')
+print(f"Active версия: {active_version}")  # → v1.1.0
+
+draft_versions = await data_repository.get_draft_versions('planning.create_plan')
+print(f"Draft версии: {draft_versions}")  # → []
+```
+
+---
+
+### Пример использования _update_registry
+
+```python
+# В BenchmarkService.promote_version()
+await self._update_registry('planning.create_plan', 'v1.1.0')
+
+# registry.yaml ДО:
+"""
+profile: prod
+prompt_versions:
+  planning.create_plan: v1.0.0
+  sql_generation.generate: v2.0.0
+"""
+
+# registry.yaml ПОСЛЕ:
+"""
+profile: prod
+prompt_versions:
+  planning.create_plan: v1.1.0  # ← Обновлено
+  sql_generation.generate: v2.0.0
+"""
+```
+
+---
+
+### Полный цикл promote_version
+
+```python
+# 1. Запуск бенчмарка
+comparison = await benchmark_service.compare_versions(
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios=scenarios
+)
+
+# comparison.improvement = 0.12 (12% улучшение!)
+
+# 2. Решение о продвижении
+if comparison.improvement > 0.05:
+    # 3. Обновление статусов промптов
+    await data_repository.update_prompt_status(
+        capability='planning.create_plan',
+        version='v1.0.0',
+        new_status=PromptStatus.INACTIVE  # ← Старая версия
+    )
+    await data_repository.update_prompt_status(
+        capability='planning.create_plan',
+        version='v1.1.0-draft',
+        new_status=PromptStatus.ACTIVE  # ← Новая версия
+    )
+    
+    # 4. Обновление registry.yaml
+    await benchmark_service._update_registry(
+        capability='planning.create_plan',
+        version='v1.1.0'  # Без -draft
+    )
+    
+    # 5. Публикация события
+    await event_bus.publish(
+        EventType.VERSION_PROMOTED,
+        data={
+            'capability': 'planning.create_plan',
+            'from_version': 'v1.0.0',
+            'to_version': 'v1.1.0'
+        }
+    )
+    
+    print("✅ Версия продвинута: v1.0.0 → v1.1.0")
 ```
 
 ---
@@ -4654,7 +5163,7 @@ class EventType(Enum):
     SYSTEM_INITIALIZED = "system.initialized"
     AGENT_CREATED = "agent.created"
     SKILL_EXECUTED = "skill.executed"
-    METRIC_COLLECTED = "metric.collected"  # ← Уже существует, используем
+    METRIC_COLLECTED = "metric.collected"  # ← Уже су��ествует, используем
 
     # ← НОВЫЕ для benchmark/learning:
     BENCHMARK_STARTED = "benchmark.started"
