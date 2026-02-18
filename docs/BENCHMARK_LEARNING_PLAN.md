@@ -3738,44 +3738,636 @@ class BenchmarkService(BaseService):
         version_b: str,
         scenarios: List[BenchmarkScenario]
     ) -> VersionComparison:
-        """Сравнение двух версий"""
-        results_a = []
-        results_b = []
+        """
+        Сравнение двух версий с проверкой статистической значимости.
         
-        for scenario in scenarios:
-            result_a = await self.run_benchmark(scenario, version_a)
-            result_b = await self.run_benchmark(scenario, version_b)
-            
-            results_a.append(result_a)
-            results_b.append(result_b)
+        ЭТАПЫ:
+        1. Множественные прогоны (min 5 итераций на сценарий)
+        2. Расчёт средних метрик
+        3. Проверка статистической значимости (t-test)
+        4. Проверка устойчивости (consistency check)
+        5. Принятие решения
         
-        # Агрегация
-        avg_accuracy_a = sum(r.accuracy for r in results_a) / len(results_a)
-        avg_accuracy_b = sum(r.accuracy for r in results_b) / len(results_b)
+        ARGS:
+        - version_a: текущая версия (baseline)
+        - version_b: новая версия (candidate)
+        - scenarios: список сценариев для тестирования
         
-        improvement = avg_accuracy_b - avg_accuracy_a
+        RETURNS:
+        - VersionComparison: результат сравнения
+        """
+        all_results_a = []
+        all_results_b = []
         
-        recommendation = self._get_recommendation(improvement)
+        # 1. Множественные прогоны (min 5 итераций на сценарий)
+        num_iterations = max(5, len(scenarios) * 3)  # Минимум 5 или 3x от числа сценариев
+        
+        for iteration in range(num_iterations):
+            for scenario in scenarios:
+                result_a = await self.run_benchmark(scenario, version_a)
+                result_b = await self.run_benchmark(scenario, version_b)
+                
+                all_results_a.append(result_a)
+                all_results_b.append(result_b)
+        
+        # 2. Расчёт статистик
+        stats_a = self._calculate_statistics(all_results_a)
+        stats_b = self._calculate_statistics(all_results_b)
+        
+        # 3. Проверка статистической значимости (t-test)
+        t_stat, p_value = self._t_test(
+            [r.accuracy for r in all_results_a],
+            [r.accuracy for r in all_results_b]
+        )
+        
+        statistically_significant = p_value < 0.05  # 95% confidence
+        
+        # 4. Проверка устойчивости (consistency check)
+        consistency_check = self._check_consistency(all_results_a, all_results_b)
+        
+        # 5. Расчёт улучшения
+        improvement = stats_b['mean_accuracy'] - stats_a['mean_accuracy']
+        
+        # 6. Принятие решения
+        recommendation = self._get_recommendation(
+            improvement=improvement,
+            statistically_significant=statistically_significant,
+            consistency=consistency_check
+        )
         
         return VersionComparison(
             version_a=version_a,
             version_b=version_b,
             scenarios_run=len(scenarios),
+            total_iterations=num_iterations,
             improvement=improvement,
             best_version=version_b if improvement > 0 else version_a,
-            metrics_a=AggregatedMetrics(accuracy=avg_accuracy_a, ...),
-            metrics_b=AggregatedMetrics(accuracy=avg_accuracy_b, ...),
+            metrics_a=stats_a,
+            metrics_b=stats_b,
+            statistical_significance={
+                't_statistic': t_stat,
+                'p_value': p_value,
+                'significant': statistically_significant,
+                'confidence_level': 0.95
+            },
+            consistency_check=consistency_check,
             recommendation=recommendation
         )
 
-    def _get_recommendation(self, improvement: float) -> str:
-        """Рекомендация по продвижению версии"""
-        if improvement > 0.05:
-            return "promote"
-        elif improvement < -0.05:
+    def _calculate_statistics(self, results: List[BenchmarkResult]) -> Dict[str, Any]:
+        """
+        Расчёт статистик по результатам.
+        
+        RETURNS:
+        - mean_accuracy: средняя точность
+        - std_accuracy: стандартное отклонение
+        - min_accuracy: минимальная точность
+        - max_accuracy: максимальная точность
+        - median_accuracy: медианная точность
+        - mean_latency: среднее время
+        """
+        import statistics
+        
+        accuracies = [r.accuracy for r in results]
+        latencies = [r.execution_time_ms for r in results]
+        
+        return {
+            'mean_accuracy': statistics.mean(accuracies),
+            'std_accuracy': statistics.stdev(accuracies) if len(accuracies) > 1 else 0,
+            'min_accuracy': min(accuracies),
+            'max_accuracy': max(accuracies),
+            'median_accuracy': statistics.median(accuracies),
+            'mean_latency': statistics.mean(latencies),
+            'total_runs': len(results)
+        }
+
+    def _t_test(self, sample_a: List[float], sample_b: List[float]) -> Tuple[float, float]:
+        """
+        Двухвыборочный t-тест Стьюдента.
+        
+        ПРОВЕРЯЕТ:
+        - Принадлежат ли две выборки одному распределению
+        - Null hypothesis: выборки из одного распределения
+        
+        RETURNS:
+        - t_statistic: t-статистика
+        - p_value: вероятность null hypothesis
+        
+        ИНТЕРПРЕТАЦИЯ:
+        - p_value < 0.05: статистически значимо (отвергаем null hypothesis)
+        - p_value >= 0.05: не значимо (не можем отвергнуть null hypothesis)
+        """
+        import statistics
+        
+        n_a = len(sample_a)
+        n_b = len(sample_b)
+        
+        if n_a < 2 or n_b < 2:
+            return 0.0, 1.0  # Недостаточно данных
+        
+        mean_a = statistics.mean(sample_a)
+        mean_b = statistics.mean(sample_b)
+        
+        var_a = statistics.variance(sample_a)
+        var_b = statistics.variance(sample_b)
+        
+        # Стандартная ошибка разности средних
+        se = ((var_a / n_a) + (var_b / n_b)) ** 0.5
+        
+        if se == 0:
+            return 0.0, 1.0
+        
+        # t-статистика
+        t_stat = (mean_a - mean_b) / se
+        
+        # Степени свободы (приближение Уэлча)
+        df = ((var_a / n_a + var_b / n_b) ** 2) / (
+            (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
+        )
+        
+        # Приближённое вычисление p-value (через нормальное распределение)
+        # Для точного вычисления использовать scipy.stats.t.sf
+        from math import erf, sqrt
+        p_value = 1 - (0.5 * (1 + erf(abs(t_stat) / sqrt(2))))
+        
+        return t_stat, p_value * 2  # Двусторонний тест
+
+    def _check_consistency(
+        self,
+        results_a: List[BenchmarkResult],
+        results_b: List[BenchmarkResult]
+    ) -> Dict[str, Any]:
+        """
+        Проверка устойчивости результатов.
+        
+        КРИТЕРИИ:
+        1. Коэффициент вариации (CV) < 0.1 (10%)
+        2. Все прогоны показывают одинаковое направление
+        3. Нет выбросов (>3σ от среднего)
+        
+        RETURNS:
+        - consistent: True если результаты устойчивы
+        - cv_a: коэффициент вариации версии A
+        - cv_b: коэффициент вариации версии B
+        - direction_consistent: все прогоны в одном направлении
+        - outliers: количество выбросов
+        """
+        import statistics
+        
+        accuracies_a = [r.accuracy for r in results_a]
+        accuracies_b = [r.accuracy for r in results_b]
+        
+        mean_a = statistics.mean(accuracies_a)
+        mean_b = statistics.mean(accuracies_b)
+        
+        std_a = statistics.stdev(accuracies_a) if len(accuracies_a) > 1 else 0
+        std_b = statistics.stdev(accuracies_b) if len(accuracies_b) > 1 else 0
+        
+        # Коэффициент вариации (CV)
+        cv_a = std_a / mean_a if mean_a > 0 else 0
+        cv_b = std_b / mean_b if mean_b > 0 else 0
+        
+        # Проверка направления (все ли прогоны b > a или все a > b)
+        directions = [b.accuracy - a.accuracy for a, b in zip(results_a, results_b)]
+        all_positive = all(d > 0 for d in directions)
+        all_negative = all(d < 0 for d in directions)
+        direction_consistent = all_positive or all_negative
+        
+        # Проверка выбросов (>3σ от среднего)
+        outliers_a = sum(1 for x in accuracies_a if abs(x - mean_a) > 3 * std_a) if std_a > 0 else 0
+        outliers_b = sum(1 for x in accuracies_b if abs(x - mean_b) > 3 * std_b) if std_b > 0 else 0
+        
+        consistent = (
+            cv_a < 0.1 and  # CV < 10%
+            cv_b < 0.1 and
+            direction_consistent and
+            outliers_a == 0 and
+            outliers_b == 0
+        )
+        
+        return {
+            'consistent': consistent,
+            'cv_a': cv_a,
+            'cv_b': cv_b,
+            'direction_consistent': direction_consistent,
+            'outliers_a': outliers_a,
+            'outliers_b': outliers_b,
+            'total_outliers': outliers_a + outliers_b
+        }
+
+    def _get_recommendation(
+        self,
+        improvement: float,
+        statistically_significant: bool,
+        consistency: Dict[str, Any]
+    ) -> str:
+        """
+        Принятие решения о продвижении версии.
+        
+        КРИТЕРИИ ДЛЯ PROMOTE:
+        1. Улучшение > 5% (improvement > 0.05)
+        2. Статистически значимо (p_value < 0.05)
+        3. Результаты устойчивы (consistent = True)
+        
+        КРИТЕРИИ ДЛЯ REJECT:
+        1. Ухудшение > 5% (improvement < -0.05)
+        2. ИЛИ статистически значимое ухудшение
+        
+        ИНАЧЕ: needs_more_testing
+        
+        ARGS:
+        - improvement: разница в точности (version_b - version_a)
+        - statistically_significant: результат t-теста
+        - consistency: результат проверки устойчивости
+        
+        RETURNS:
+        - "promote", "reject", или "needs_more_testing"
+        """
+        # Проверка на ухудшение
+        if improvement < -0.05:
             return "reject"
-        else:
-            return "needs_more_testing"
+        
+        if improvement < 0 and statistically_significant:
+            return "reject"
+        
+        # Проверка на улучшение
+        if improvement > 0.05:
+            if statistically_significant and consistency['consistent']:
+                return "promote"
+            elif not consistency['consistent']:
+                return "needs_more_testing"  # Нестабильные результаты
+            else:
+                return "needs_more_testing"  # Недостаточно значимо
+        
+        # Небольшое улучшение/ухудшение (< 5%)
+        if -0.05 <= improvement <= 0.05:
+            if statistically_significant and improvement > 0:
+                return "promote"  # Статистически значимое улучшение даже < 5%
+            else:
+                return "needs_more_testing"
+        
+        return "needs_more_testing"
+
+
+---
+
+## 🧪 A/B тестирование: как принимать решение о продвижении в prod
+
+### ❓ Вопросы и ответы
+
+#### Вопрос 1: Как понять, стоит ли изменение добавлять в промышленную эксплуатацию?
+
+**Ответ:** Решение принимается по **трём критериям**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           КРИТЕРИИ ДЛЯ ПРОДВИЖЕНИЯ В PROD                   │
+└─────────────────────────────────────────────────────────────┘
+
+1. УЛУЧШЕНИЕ > 5%
+   └→ improvement = accuracy_b - accuracy_a > 0.05
+   └→ Почему 5%? Меньшие улучшения могут быть случайными
+
+2. СТАТИСТИЧЕСКАЯ ЗНАЧИМОСТЬ (p-value < 0.05)
+   └→ t-тест Стьюдента показывает, что разница не случайна
+   └→ 95% confidence level
+   └→ Null hypothesis отвергается
+
+3. УСТОЙЧИВОСТЬ РЕЗУЛЬТАТОВ (consistency check)
+   └→ Коэффициент вариации (CV) < 10%
+   └→ Все прогоны в одном направлении
+   └→ Нет выбросов (>3σ)
+
+ТОЛЬКО ЕСЛИ ВСЕ 3 КРИТЕРИЯ ВЫПОЛНЕНЫ → PROMOTE TO PROD
+```
+
+---
+
+#### Вопрос 2: Сколько раз проводится тестирование?
+
+**Ответ:** **Минимум 5 итераций**, но зависит от количества сценариев:
+
+```python
+# Формула расчёта количества итераций
+num_iterations = max(5, len(scenarios) * 3)  # Минимум 5 или 3x от числа сценариев
+
+# Примеры:
+# 1 сценарий  → 5 итераций (минимум)
+# 3 сценария  → 9 итераций (3 * 3)
+# 10 сценариев → 30 итераций (10 * 3)
+```
+
+**Почему так:**
+- **Минимум 5** — для базовой статистики
+- **3x от числа сценариев** — чтобы каждый сценарий был представлен многократно
+
+**Общее количество прогонов:**
+```
+total_runs = num_iterations * len(scenarios) * 2  # ×2 для version_a и version_b
+
+Пример (3 сценария, 9 итераций):
+total_runs = 9 * 3 * 2 = 54 прогона
+```
+
+---
+
+#### Вопрос 3: Как система понимает, что результат устойчивый?
+
+**Ответ:** Проверка **consistency** включает 3 теста:
+
+```python
+consistent = (
+    cv_a < 0.1 and              # 1. CV версии A < 10%
+    cv_b < 0.1 and              # 2. CV версии B < 10%
+    direction_consistent and    # 3. Все прогоны в одном направлении
+    outliers_a == 0 and         # 4. Нет выбросов в A
+    outliers_b == 0             # 5. Нет выбросов в B
+)
+```
+
+**1. Коэффициент вариации (CV):**
+```python
+CV = std_dev / mean
+
+# Пример:
+version_a: mean=0.80, std=0.05 → CV = 0.05/0.80 = 0.0625 (6.25%) ✅
+version_b: mean=0.88, std=0.12 → CV = 0.12/0.88 = 0.136 (13.6%) ❌
+
+# version_b нестабильна (CV > 10%)
+```
+
+**2. Направление (direction_consistent):**
+```python
+# Проверяем, что ВСЕ прогоны показывают b > a (или все a > b)
+directions = [b.accuracy - a.accuracy for each run]
+
+# Пример 1 (устойчиво):
+directions = [+0.08, +0.06, +0.09, +0.07, +0.08]
+→ all_positive = True ✅
+
+# Пример 2 (неустойчиво):
+directions = [+0.08, -0.02, +0.09, +0.07, -0.01]
+→ all_positive = False ❌
+```
+
+**3. Выбросы (outliers):**
+```python
+# Выброс = значение > 3σ от среднего
+outlier = abs(x - mean) > 3 * std
+
+# Пример:
+version_a: mean=0.80, std=0.05
+runs: [0.78, 0.82, 0.79, 0.81, 0.50]  # ← 0.50 это выброс!
+outliers = 1 ❌
+```
+
+---
+
+### 📊 Матрица решений
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    A/B TEST DECISION MATRIX                 │
+└─────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────┐
+                    │  compare_versions() │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │ 1. improvement  │
+                    │    > 5%?        │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │ NO                          │ YES
+              ▼                             ▼
+    ┌─────────────────┐           ┌─────────────────┐
+    │ improvement <   │           │ 2. p-value <    │
+    │ -5%?            │           │    0.05?        │
+    └────────┬────────┘           └────────┬────────┘
+             │                             │
+    ┌────────┴────────┐           ┌────────┴────────┐
+    │ NO              │ YES       │ NO              │ YES
+    ▼                 ▼           ▼                 ▼
+┌─────────┐   ┌───────────┐ ┌─────────┐   ┌─────────────────┐
+│ needs_  │   │  REJECT   │ │ needs_  │ │ 3. consistent?  │
+│ more_   │   │  (ухудше- │ │ more_   │ │ (CV<10%, no     │
+│ testing │   │  ние)     │ │ testing │ │  outliers)       │
+└─────────┘   └───────────┘ └─────────┘   └────────┬────────┘
+                                                   │
+                                     ┌─────────────┴─────────────┐
+                                     │ NO                        │ YES
+                                     ▼                           ▼
+                               ┌─────────────┐         ┌─────────────────┐
+                               │ needs_more_ │         │    PROMOTE ✅   │
+                               │ testing     │         │ (улучшение      │
+                               │ (нестабиль- │         │  значимо и      │
+                               │  но)        │         │  устойчиво)     │
+                               └─────────────┘         └─────────────────┘
+```
+
+---
+
+### 📈 Примеры результатов и решений
+
+#### Пример 1: Уверенное улучшение ✅
+
+```python
+comparison = await benchmark_service.compare_versions(
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios=scenarios
+)
+
+# Результаты:
+comparison.improvement = 0.12  # 12% улучшение
+comparison.statistical_significance = {
+    'p_value': 0.003,          # p < 0.05 ✅
+    'significant': True
+}
+comparison.consistency_check = {
+    'consistent': True,
+    'cv_a': 0.05,              # 5% < 10% ✅
+    'cv_b': 0.06,              # 6% < 10% ✅
+    'direction_consistent': True,
+    'total_outliers': 0
+}
+
+comparison.recommendation = "promote"
+# ✅ РЕШЕНИЕ: Продвинуть в prod
+```
+
+**Почему promote:**
+- ✅ Улучшение 12% > 5%
+- ✅ p-value 0.003 < 0.05 (статистически значимо)
+- ✅ CV 5-6% < 10% (устойчиво)
+- ✅ Нет выбросов
+
+---
+
+#### Пример 2: Статистически не значимо ❌
+
+```python
+comparison.improvement = 0.08  # 8% улучшение
+comparison.statistical_significance = {
+    'p_value': 0.15,           # p > 0.05 ❌
+    'significant': False
+}
+comparison.consistency_check = {
+    'consistent': True,
+    'cv_a': 0.12,              # Высокая вариация
+    'cv_b': 0.14
+}
+
+comparison.recommendation = "needs_more_testing"
+# ❌ РЕШЕНИЕ: Нужно больше тестов
+```
+
+**Почему needs_more_testing:**
+- ❌ p-value 0.15 > 0.05 (не значимо)
+- ❌ CV 12-14% > 10% (высокая вариация)
+- Возможно улучшение есть, но нужно больше данных
+
+---
+
+#### Пример 3: Нестабильные результаты ❌
+
+```python
+comparison.improvement = 0.10  # 10% улучшение
+comparison.statistical_significance = {
+    'p_value': 0.02,           # p < 0.05 ✅
+    'significant': True
+}
+comparison.consistency_check = {
+    'consistent': False,       # ❌ Нестабильно
+    'cv_a': 0.08,
+    'cv_b': 0.15,              # ❌ CV > 10%
+    'direction_consistent': False,  # ❌ Разные направления
+    'total_outliers': 3        # ❌ 3 выброса
+}
+
+comparison.recommendation = "needs_more_testing"
+# ❌ РЕШЕНИЕ: Результаты нестабильны
+```
+
+**Почему needs_more_testing:**
+- ✅ Улучшение 10% > 5%
+- ✅ p-value 0.02 < 0.05 (значимо)
+- ❌ CV 15% > 10% (нестабильно)
+- ❌ direction_consistent = False (разные направления)
+- ❌ 3 выброса
+
+---
+
+#### Пример 4: Ухудшение ❌
+
+```python
+comparison.improvement = -0.08  # -8% (ухудшение!)
+comparison.statistical_significance = {
+    'p_value': 0.01,           # p < 0.05 ✅
+    'significant': True
+}
+
+comparison.recommendation = "reject"
+# ❌ РЕШЕНИЕ: Отклонить версию
+```
+
+**Почему reject:**
+- ❌ Ухудшение 8% > 5%
+- ✅ Статистически значимо (но это плохо!)
+- Новая версия ХУЖЕ текущей
+
+---
+
+### 📊 Интерпретация p-value
+
+| p-value | Значение | Решение |
+|---------|----------|---------|
+| < 0.01 | Очень значимо | ✅ Доверяем результату |
+| 0.01 - 0.05 | Значимо | ✅ Доверяем результату |
+| 0.05 - 0.10 | Почти значимо | ⚠️ Нужно больше тестов |
+| > 0.10 | Не значимо | ❌ Результат случайный |
+
+**Что такое p-value:**
+```
+p-value = вероятность получить такие же результаты случайно,
+          если на самом деле разницы нет (null hypothesis верна)
+
+p-value = 0.03 означает:
+"3% вероятность что разница случайна"
+→ 97% уверенность что разница реальная
+→ Отвергаем null hypothesis
+```
+
+---
+
+### 📊 Интерпретация коэффициента вариации (CV)
+
+| CV | Оценка | Решение |
+|----|--------|---------|
+| < 5% | Отличная стабильность | ✅ |
+| 5% - 10% | Хорошая стабильность | ✅ |
+| 10% - 15% | Средняя стабильность | ⚠️ |
+| > 15% | Низкая стабильность | ❌ |
+
+**Формула:**
+```python
+CV = std_dev / mean
+
+# Пример:
+mean_accuracy = 0.85
+std_dev = 0.04
+CV = 0.04 / 0.85 = 0.047 (4.7%) ✅
+```
+
+---
+
+### 📋 Чеклист для принятия решения
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ЧЕКЛИСТ: ГОТОВО ЛИ К PROMOTE?                  │
+└─────────────────────────────────────────────────────────────┘
+
+□ 1. improvement > 0.05 (улучшение > 5%)
+□ 2. p_value < 0.05 (статистически значимо)
+□ 3. CV версии A < 0.10 (стабильно)
+□ 4. CV версии B < 0.10 (стабильно)
+□ 5. direction_consistent = True (все прогоны в одном направлении)
+□ 6. total_outliers = 0 (нет выбросов)
+□ 7. total_iterations >= 5 (минимум 5 прогонов)
+□ 8. total_runs >= 15 (минимум 15 total runs)
+
+ЕСЛИ ВСЕ ✅ → PROMOTE TO PROD
+ЕСЛИ ХОТЯ БЫ ОДИН ❌ → NEEDS_MORE_TESTING
+```
+
+---
+
+### 💡 Рекомендации
+
+#### Когда нужно больше тестов:
+
+1. **p-value > 0.05** → Увеличить количество итераций
+2. **CV > 10%** → Проверить сценарии на стабильность
+3. **Есть выбросы** → Исследовать причины выбросов
+4. **direction_consistent = False** → Разбить на подгруппы сценариев
+
+#### Как уменьшить вариацию:
+
+1. **Увеличить количество сценариев** (минимум 5-10)
+2. **Увеличить количество итераций** (минимум 10-20)
+3. **Исключить нестабильные сценарии** (с высокой вариацией)
+4. **Нормализовать данные** (если есть систематические различия)
+
+#### Когда можно снизить требования:
+
+1. **Критичные исправления** → Можно promote при p < 0.10
+2. **Некритичные улучшения** → Требуется p < 0.01 и CV < 5%
+3. **Экспериментальные функции** → Можно promote при improvement > 10% даже с CV < 15%
+
+---
 
     async def promote_version(
         self,
@@ -3785,25 +4377,25 @@ class BenchmarkService(BaseService):
     ) -> bool:
         """
         Продвижение версии промпта в active статус.
-        
+
         ТРЕБУЕТ:
         - FileSystemDataSource для записи в ФС
         - Обновления registry.yaml
-        
+
         ARGS:
         - capability: имя capability
         - from_version: текущая active версия
         - to_version: новая версия для продвижения
-        
+
         RETURNS:
         - bool: True если успешно
         """
         # 1. Получаем промпт новой версии
         new_prompt = self.data_repository.get_prompt(capability, to_version)
-        
+
         # 2. Получаем промпт текущей версии
         old_prompt = self.data_repository.get_prompt(capability, from_version)
-        
+
         # 3. Обновляем статусы (через FileSystemDataSource)
         # ПРИМЕЧАНИЕ: Требуется реализация в FileSystemDataSource
         await self.data_repository.update_prompt_status(
@@ -6247,7 +6839,7 @@ async def run_optimization(capability: str, mode: str, target_accuracy: float = 
     
     # Вывод результата
     print(f"""
-═══════════════════════════════════════════════════
+═══════════════════════════════���═══════════════════
 Результаты оптимизации
 ═══════════════════════════════════════════════════
 Статус:           {result.status}
