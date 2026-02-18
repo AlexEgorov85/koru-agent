@@ -8282,7 +8282,7 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 | 3 | Сбор метрик | 3 | ~10 часов | ✅ |
 | 4 | Оценка точности | 2 | ~9 часов | ✅ |
 | 5 | Бенчмарки | 2 | ~10 часов | ✅ |
-| 6 | Оптимизация | 2 | ~12 часов | 🟡 |
+| 6 | Оптимизация | 2 | ~12 часов | ✅ |
 | 7 | Интеграция | 3 | ~10 часов | ⬜ |
 | 8 | CLI скрипты | 2 | ~6 часов | ⬜ |
 | 9 | E2E тесты | 2 | ~8 часов | ⬜ |
@@ -8311,16 +8311,16 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 ## 📈 Прогресс
 
 ```
-[████████████████████████████████████████████░░░░░░] 5.5/10 этапов выполнено (55%)
-[███████████████████████████████░░░░░░░░░░░░░░░░░░░] 15/25 задач выполнено (60%)
+[████████████████████████████████████████████████████░░░░] 6/10 этапов выполнено (60%)
+[██████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░] 17/25 задач выполнено (68%)
 ```
 
 **Последнее обновление:** 2026-02-18
-**Выполнено:** Этапы 1-5 + Этап 6.1 (Модели + Хранилища + Сбор метрик + Оценка + Бенчмарки + Генератор)
-**Тестов:** 246+ тестов, все проходят ✅
-**Коммитов:** 12
+**Выполнено:** Этапы 1-6 (Модели + Хранилища + Сбор метрик + Оценка + Бенчмарки + Оптимизация)
+**Тестов:** 276+ тестов, все проходят ✅
+**Коммитов:** 14
 
-### ✅ Выполнено (Этапы 1-5)
+### ✅ Выполнено (Этапы 1-6)
 
 **Этап 1: Модели данных**
 - `core/models/data/metrics.py`: MetricType, MetricRecord, AggregatedMetrics
@@ -8350,14 +8350,12 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 - run_benchmark, compare_versions, promote_version, auto_promote_if_better
 - Тесты: 23 теста
 
-### 🟡 В процессе (Этап 6)
+**Этап 6: Оптимизация**
+- `core/application/services/prompt_contract_generator.py`: PromptContractGenerator
+- `core/application/services/optimization_service.py`: OptimizationService
+- Тесты: 49 тестов (PromptContractGenerator: 19, OptimizationService: 30)
 
-**Этап 6.1: PromptContractGenerator**
-- `core/application/services/prompt_contract_generator.py`: генерация промптов
-- generate_prompt_variant, generate_from_scratch, generate_matching_contract
-- Тесты: 19/30 проходят (требуют доработки из-за Pydantic)
-
-### ⬜ В ожидании (Этапы 6.2, 7-10)
+### ⬜ В ожидании (Этапы 7-10)
 
 ---
 
