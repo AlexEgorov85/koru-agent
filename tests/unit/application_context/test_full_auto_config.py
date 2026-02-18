@@ -19,6 +19,13 @@ async def test_full_auto_config():
 
     # Создаем временную директорию для данных
     with tempfile.TemporaryDirectory() as temp_dir:
+        # Копируем registry.yaml из корня проекта
+        import shutil
+        registry_src = Path(__file__).parent.parent.parent.parent / "registry.yaml"
+        registry_dst = Path(temp_dir) / "registry.yaml"
+        if registry_src.exists():
+            shutil.copy(registry_src, registry_dst)
+        
         # Подготовка тестовых данных
         prompts_dir = Path(temp_dir) / "prompts"
         prompts_dir.mkdir(exist_ok=True)
