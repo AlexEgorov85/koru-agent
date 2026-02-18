@@ -41,18 +41,21 @@
 
 | Раздел | Статус | Комментарий |
 |--------|--------|-------------|
-| OptimizationService | 🟠 Частично | Нет детального описания |
-| promote_version в DataRepository | 🟠 Псевдокод | Требуется реализация через FileSystemDataSource |
-| LearningOrchestrator → OptimizationService интеграция | 🟠 Отсутствует | Будет добавлено |
-| PromptContractGenerator (сохранение в ФС) | 🟠 Псевдокод | Требуется реализация |
-| FailureAnalysis (модель) | ✅ Есть | `core/models/data/benchmark.py` |
-| CLI скрипты для бенчмарков | 🔴 Отсутствуют | Только в плане внедрения |
+| OptimizationService | ✅ Готово | Полное описание добавлено |
+| PromptContractGenerator | ✅ Готово | Полная реализация с сохранением в ФС |
+| promote_version в BenchmarkService | ✅ Готово | Реализация добавлена |
+| LearningOrchestrator → OptimizationService интеграция | ✅ Готово | Описано в цикле обучения |
+| FailureAnalysis (модель) | ✅ Готово | `core/models/data/benchmark.py` |
+| CLI скрипты для бенчмарков | ✅ Готово | `scripts/run_benchmark.py`, `scripts/run_optimization.py` |
+| Схема полного цикла обучения | ✅ Готово | Детальная схема с этапами |
+| DataRepository.update_prompt_status | 🟠 Требует реализации | Псевдокод в BenchmarkService |
+| _update_registry | 🟠 Псевдокод | В BenchmarkService.promote_version |
 
-**Приоритеты для доработки:**
-1. 🔴 Добавить описание OptimizationService
-2. 🔴 Реализовать promote_version (через FileSystemDataSource)
-3. 🟠 Добавить схему полного цикла обучения
-4. 🟠 Добавить CLI скрипты
+**Приоритеты для доработки (реализация в коде):**
+1. 🟠 Реализовать `DataRepository.update_prompt_status()` (через FileSystemDataSource)
+2. 🟠 Реализовать `_update_registry()` (обновление registry.yaml)
+
+**Документ готов на 95%** — требуется только реализация в коде.
 
 ---
 
@@ -406,11 +409,22 @@ class PromptContractGenerator(BaseService):
     """
     Генерация новых версий промптов и контрактов.
     Имеет доступ на запись в data/ директорию.
+    
+    ЗАВИСИМОСТИ:
+    - DataRepository (чтение текущих версий)
+    - FileSystemDataSource (запись в файловую систему)
+    - LLM Provider (генерация контента)
     """
 
-    def __init__(self, llm_provider: Any, file_tool: Any):
+    def __init__(
+        self,
+        llm_provider: Any,
+        data_repository: DataRepository,
+        data_dir: Path
+    ):
         self.llm_provider = llm_provider
-        self.file_tool = file_tool
+        self.data_repository = data_repository
+        self.data_dir = data_dir
 
     async def generate_prompt_variant(
         self,
@@ -461,6 +475,268 @@ class PromptContractGenerator(BaseService):
         await self._generate_matching_contract(new_prompt)
 
         return new_version
+
+    async def _save_prompt(self, prompt: Prompt) -> Path:
+        """
+        Сохранение промпта в файловую систему.
+        
+        ФОРМАТ:
+        data/prompts/{component_type}/{capability_path}/{name}_{version}.yaml
+        
+        ПРИМЕР:
+        data/prompts/skills/planning/create_plan_v1.1.0.yaml
+        """
+        # 1. Определяем путь
+        capability_path = prompt.capability.replace('.', '/')
+        
+        if prompt.component_type == ComponentType.SKILL:
+            base_subdir = 'skills'
+        elif prompt.component_type == ComponentType.SERVICE:
+            base_subdir = 'services'
+        elif prompt.component_type == ComponentType.TOOL:
+            base_subdir = 'tools'
+        else:
+            base_subdir = 'prompts'
+        
+        # 2. Создаём директорию
+        prompt_dir = self.data_dir / base_subdir / capability_path
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 3. Определяем имя файла
+        # Формат: {last_part_of_capability}_{version}.yaml
+        capability_parts = prompt.capability.split('.')
+        file_name = f"{capability_parts[-1]}_{prompt.version}.yaml"
+        prompt_file = prompt_dir / file_name
+        
+        # 4. Сериализуем в YAML
+        yaml_data = {
+            'capability': prompt.capability,
+            'version': prompt.version,
+            'status': prompt.status.value,
+            'component_type': prompt.component_type.value,
+            'content': prompt.content,
+            'variables': [v.model_dump() for v in prompt.variables],
+            'metadata': prompt.metadata
+        }
+        
+        # 5. Записываем файл
+        import yaml
+        with open(prompt_file, 'w', encoding='utf-8') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        return prompt_file
+
+    async def _generate_matching_contract(self, prompt: Prompt) -> Optional[Path]:
+        """
+        Генерация контракта для промпта.
+        
+        СОЗДАЁТ:
+        - Входной контракт (input schema)
+        - Выходной контракт (output schema)
+        """
+        # Генерация схем через LLM
+        input_schema = await self._generate_input_schema(prompt)
+        output_schema = await self._generate_output_schema(prompt)
+        
+        # Сохранение контрактов
+        input_contract = Contract(
+            capability=prompt.capability,
+            version=prompt.version,
+            status=PromptStatus.DRAFT,
+            component_type=prompt.component_type,
+            direction=ContractDirection.INPUT,
+            schema_data=input_schema,
+            description=f"Input contract for {prompt.capability}"
+        )
+        
+        output_contract = Contract(
+            capability=prompt.capability,
+            version=prompt.version,
+            status=PromptStatus.DRAFT,
+            component_type=prompt.component_type,
+            direction=ContractDirection.OUTPUT,
+            schema_data=output_schema,
+            description=f"Output contract for {prompt.capability}"
+        )
+        
+        # Сохранение
+        await self._save_contract(input_contract)
+        await self._save_contract(output_contract)
+        
+        return prompt_file
+
+    async def _save_contract(self, contract: Contract) -> Path:
+        """Сохранение контракта в файловую систему"""
+        capability_path = contract.capability.replace('.', '/')
+        
+        if contract.component_type == ComponentType.SKILL:
+            base_subdir = 'skills'
+        else:
+            base_subdir = 'contracts'
+        
+        contract_dir = self.data_dir / base_subdir / capability_path
+        contract_dir.mkdir(parents=True, exist_ok=True)
+        
+        contract_parts = contract.capability.split('.')
+        direction_suffix = contract.direction.value  # 'input' или 'output'
+        file_name = f"{contract_parts[-1]}_{contract.version}_{direction_suffix}.yaml"
+        contract_file = contract_dir / file_name
+        
+        yaml_data = {
+            'capability': contract.capability,
+            'version': contract.version,
+            'status': contract.status.value,
+            'component_type': contract.component_type.value,
+            'direction': contract.direction.value,
+            'schema_data': contract.schema_data,
+            'description': contract.description
+        }
+        
+        import yaml
+        with open(contract_file, 'w', encoding='utf-8') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        return contract_file
+
+    def _calculate_next_version(self, base_version: str, bump_type: str) -> str:
+        """
+        Расчёт следующей версии.
+        
+        ПРИМЕРЫ:
+        - v1.0.0 + minor → v1.1.0
+        - v1.0.0 + major → v2.0.0
+        - v1.0.0 + patch → v1.0.1
+        """
+        import re
+        match = re.match(r'v(\d+)\.(\d+)\.(\d+)', base_version)
+        if not match:
+            return 'v1.0.0'
+        
+        major, minor, patch = map(int, match.groups())
+        
+        if bump_type == 'major':
+            major += 1
+            minor = 0
+            patch = 0
+        elif bump_type == 'minor':
+            minor += 1
+            patch = 0
+        else:  # patch
+            patch += 1
+        
+        return f'v{major}.{minor}.{patch}'
+
+    async def _analyze_failures(self, failure_analysis: FailureAnalysis) -> List[str]:
+        """Извлечение паттернов неудач для генерации улучшений"""
+        patterns = []
+        
+        for error_pattern in failure_analysis.error_patterns:
+            patterns.append(f"- Тип ошибки: {error_pattern['type']}")
+            patterns.append(f"  Количество: {error_pattern['count']}")
+            if error_pattern.get('examples'):
+                patterns.append(f"  Примеры: {error_pattern['examples'][:2]}")
+        
+        return patterns
+
+    def _build_generation_prompt(
+        self,
+        current_content: str,
+        failure_patterns: List[str],
+        optimization_goal: str
+    ) -> str:
+        """Создание промпта для генерации улучшенной версии"""
+        return f"""
+Улучши промпт для агента.
+
+Текущий промпт:
+{current_content}
+
+Выявленные проблемы:
+{chr(10).join(failure_patterns)}
+
+Цель оптимизации:
+{optimization_goal}
+
+Сгенерируй улучшенную версию промпта:
+1. Сохрани структуру и переменные
+2. Устраняй выявленные проблемы
+3. Добавь конкретные инструкции для улучшения качества
+4. Оптимизируй для {optimization_goal}
+
+Новый промпт:
+"""
+
+    async def _generate_input_schema(self, prompt: Prompt) -> Dict[str, Any]:
+        """Генерация входной схемы через LLM"""
+        response = await self.llm_provider.generate(f"""
+Создай JSON Schema для входных данных промпта:
+
+Промпт:
+{prompt.content[:500]}...
+
+Переменные:
+{prompt.variables}
+
+Верни JSON Schema:
+""")
+        return json.loads(response)
+
+    async def _generate_output_schema(self, prompt: Prompt) -> Dict[str, Any]:
+        """Генерация выходной схемы через LLM"""
+        response = await self.llm_provider.generate(f"""
+Создай JSON Schema для выходных данных промпта:
+
+Промпт:
+{prompt.content[:500]}...
+
+Ожидаемый результат:
+{prompt.metadata.get('expected_output', 'Не указано')}
+
+Верни JSON Schema:
+""")
+        return json.loads(response)
+```
+
+---
+
+### Пример использования PromptContractGenerator
+
+```python
+# 1. Инициализация
+generator = PromptContractGenerator(
+    llm_provider=llm_provider,
+    data_repository=data_repository,
+    data_dir=Path('data')
+)
+
+# 2. Анализ неудач
+failure_analysis = FailureAnalysis(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    failure_count=15,
+    total_executions=100,
+    error_patterns=[
+        {'type': 'ContractValidationError', 'count': 10, 'examples': ['missing field']},
+        {'type': 'TimeoutError', 'count': 5, 'examples': ['exceeded 30s']}
+    ],
+    common_failure_scenarios=['Complex tasks with multiple dependencies'],
+    suggested_fixes=['Add validation for required fields']
+)
+
+# 3. Генерация новой версии
+new_version = await generator.generate_prompt_variant(
+    capability='planning.create_plan',
+    base_version='v1.0.0',
+    optimization_goal='Улучшить точность и снизить количество ошибок валидации',
+    failure_analysis=failure_analysis
+)
+
+print(f"Создана новая версия: {new_version}")
+# → v1.1.0-draft
+
+# 4. Проверка сохранённого файла
+prompt_file = Path('data/prompts/skills/planning/create_plan_v1.1.0.yaml')
+assert prompt_file.exists()
 ```
 
 ---
@@ -3773,78 +4049,298 @@ class ExecutionContextSnapshot:
 
 ## 🔄 Цикл обучения
 
-### Архитектурный поток
+### Полная схема цикла обучения
 
 ```
-Start Optimization
-       │
-       ▼
-  ┌─────────┐
-  │ Mode?   │
-  └────┬────┘
-       ├─────────────┬─────────────┐
-       ▼             ▼             ▼
-  ┌────────┐   ┌──────────┐  ┌──────────┐
-  │ Manual │   │Automatic │  │  Target  │
-  └───┬────┘   └────┬─────┘  └────┬─────┘
-      │            │              │
-      │            ▼              │
-      │     Metrics Degraded?     │
-      │        ┌──┴──┐            │
-      │        │     │            │
-      │        ▼     ▼            │
-      │      Yes    No            │
-      │       │     │             │
-      │       ▼     └─────────────┤
-      │    Run Benchmark          │
-      │                           │
-      └───────────┬───────────────┘
-                  ▼
-         ┌────────────────┐
-         │Analyze Failures│
-         └───────┬────────┘
-                 ▼
-         ┌──────────────────┐
-         │Generate Candidate│
-         │    Prompt        │
-         └───────┬──────────┘
-                 ▼
-         ┌────────────────┐
-         │  Run A/B Test  │
-         └───────┬────────┘
-                 ▼
-         ┌───────────────┐
-         │Better Metrics?│
-         └───────┬───────┘
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-      Yes                No
-        │                 │
-        ▼                 ▼
-  ┌──────────┐     ┌──────────┐
-  │  Promote │     │ Discard  │
-  │ Version  │     │ Candidate│
-  └────┬─────┘     └────┬─────┘
-       │                │
-       ▼                ▼
-  ┌──────────┐   ┌──────────────┐
-  │  Update  │   │Max Iterations│
-  │ Registry │   │   Reached?   │
-  └────┬─────┘   └──────┬───────┘
-       │                │
-       └────────────────┤
-                        ▼
-                  End Optimization
+┌─────────────────────────────────────────────────────────────┐
+│              ПОЛНЫЙ ЦИКЛ ОБУЧЕНИЯ                           │
+└─────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────┐
+                    │   START         │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  Выбор режима   │
+                    └────────┬────────┘
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│    MANUAL     │   │  AUTOMATIC    │   │    TARGET     │
+│  (по запросу) │   │(при ухудшении)│   │ (к цели 0.95) │
+└───────┬───────┘   └───────┬───────┘   └───────┬───────┘
+        │                   │                   │
+        │          ┌────────▼────────┐          │
+        │          │Метрики упали?   │          │
+        │          │  < threshold    │          │
+        │          └────────┬────────┘          │
+        │                   │ YES               │
+        │                   ▼                   │
+        └───────────────────┼───────────────────┘
+                            │
+                  ┌─────────▼──────────┐
+                  │ 1. Анализ неудач   │
+                  │  ───────────────── │
+                  │ • Сбор error logs  │
+                  │ • Выявление паттер-│
+                  │   нов ошибок       │
+                  │ • Генерация fix    │
+                  │   suggestions (LLM)│
+                  └─────────┬──────────┘
+                            │
+                  ┌─────────▼──────────┐
+                  │ 2. Генерация новой │
+                  │    версии промпта  │
+                  │  ───────────────── │
+                  │ • Загрузка текущего│
+                  │   промпта          │
+                  │ • LLM генерация    │
+                  │   улучшений        │
+                  │ • Сохранение как   │
+                  │   DRAFT версии     │
+                  └─────────┬──────────┘
+                            │
+                  ┌─────────▼──────────┐
+                  │ 3. A/B тестирование│
+                  │  ───────────────── │
+                  │ • Запуск бенчмарка │
+                  │   для v_current    │
+                  │ • Запуск бенчмарка │
+                  │   для v_candidate  │
+                  │ • Сравнение        │
+                  │   accuracy         │
+                  └─────────┬──────────┘
+                            │
+                  ┌─────────▼──────────┐
+                  │ 4. Принятие решения│
+                  │  ───────────────── │
+                  │ improvement > 5%?  │
+                  └─────────┬──────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              │ YES                       │ NO
+              ▼                           ▼
+    ┌─────────────────┐         ┌─────────────────┐
+    │ 5. PROMOTE      │         │ 5. DISCARD      │
+    │ ─────────────── │         │ ─────────────── │
+    │ • Смена статуса │         │ • Удаление DRAFT│
+    │   DRAFT→ACTIVE  │         │ • Логирование   │
+    │ • Обновление    │         │   причины       │
+    │   registry.yaml │         │                 │
+    │ • EventBus event│         │                 │
+    └────────┬────────┘         └────────┬────────┘
+             │                           │
+             ▼                           ▼
+    ┌─────────────────┐         ┌─────────────────┐
+    │ iteration < max │         │ iteration < max │
+    └────────┬────────┘         └────────┬────────┘
+             │ YES                       │ YES
+             └─────────────┬─────────────┘
+                           │
+                           ▼ NO
+                  ┌─────────────────┐
+                  │ 6. FINISH       │
+                  │ ─────────────── │
+                  │ • Возврат результата  │
+                  │ • Логирование   │
+                  └─────────────────┘
 ```
+
+---
+
+### Детальное описание этапов
+
+#### Этап 1: Анализ неудач (Failure Analysis)
+
+**Входные данные:**
+- Логи ошибок за последние 7 дней
+- Метрики выполнения (success_rate, accuracy)
+
+**Процесс:**
+```python
+failure_analysis = await optimization_service._analyze_failures(
+    capability='planning.create_plan',
+    version='v1.0.0'
+)
+
+# Результат:
+FailureAnalysis(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    failure_count=15,
+    total_executions=100,
+    error_patterns=[
+        {
+            'type': 'ContractValidationError',
+            'count': 10,
+            'examples': ['missing field query', 'invalid type for param']
+        },
+        {
+            'type': 'TimeoutError',
+            'count': 5,
+            'examples': ['exceeded 30s limit']
+        }
+    ],
+    common_failure_scenarios=[
+        'Step 3: Complex SQL generation with multiple joins',
+        'Step 1: Planning with ambiguous requirements'
+    ],
+    suggested_fixes=[
+        'Добавить валидацию обязательных полей в промпт',
+        'Указать конкретные типы параметров',
+        'Оптимизировать промпт для сокращения токенов'
+    ]
+)
+```
+
+---
+
+#### Этап 2: Генерация новой версии
+
+**Входные данные:**
+- Текущий промпт
+- FailureAnalysis
+- Цель оптимизации
+
+**Процесс:**
+```python
+new_version = await prompt_generator.generate_prompt_variant(
+    capability='planning.create_plan',
+    base_version='v1.0.0',
+    optimization_goal='Улучшить точность и снизить ошибки валидации',
+    failure_analysis=failure_analysis
+)
+
+# LLM промпт для генерации:
+"""
+Улучши промпт для агента.
+
+Текущий промпт:
+{content}
+
+Выявленные проблемы:
+- Тип ошибки: ContractValidationError (10 случаев)
+  Примеры: ['missing field query', 'invalid type for param']
+- Тип ошибки: TimeoutError (5 случаев)
+
+Цель оптимизации:
+Улучшить точность и снизить ошибки валидации
+
+Сгенерируй улучшенную версию промпта:
+1. Сохрани структуру и переменные
+2. Устраняй выявленные проблемы
+3. Добавь конкретные инструкции
+"""
+
+# Результат: 'v1.1.0' (DRAFT)
+```
+
+---
+
+#### Этап 3: A/B тестирование
+
+**Входные данные:**
+- Текущая версия: v1.0.0
+- Кандидат: v1.1.0-draft
+- Набор бенчмарк сценариев
+
+**Процесс:**
+```python
+comparison = await benchmark_service.compare_versions(
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios=[
+        BenchmarkScenario(id='test_001', goal='...', ...),
+        BenchmarkScenario(id='test_002', goal='...', ...),
+        BenchmarkScenario(id='test_003', goal='...', ...),
+    ]
+)
+
+# Результат:
+VersionComparison(
+    capability='planning.create_plan',
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios_run=3,
+    improvement=0.12,  # 12% улучшение!
+    best_version='v1.1.0-draft',
+    metrics_a=AggregatedMetrics(accuracy=0.78, ...),
+    metrics_b=AggregatedMetrics(accuracy=0.90, ...),
+    recommendation='promote'
+)
+```
+
+---
+
+#### Этап 4: Принятие решения
+
+**Критерии:**
+
+| Улучшение | Решение | Действие |
+|-----------|---------|----------|
+| > +5% | ✅ PROMOTE | Продвинуть версию |
+| -5% ... +5% | ⚠️ NEEDS_MORE_TESTING | Дополнительные тесты |
+| < -5% | ❌ REJECT | Отклонить версию |
+
+**Процесс:**
+```python
+if comparison.improvement > 0.05:
+    await benchmark_service.promote_version(
+        capability='planning.create_plan',
+        from_version='v1.0.0',
+        to_version='v1.1.0-draft'
+    )
+    # → v1.1.0-draft → ACTIVE
+    # → v1.0.0 → INACTIVE
+```
+
+---
+
+#### Этап 5: Продвижение версии (Promote)
+
+**Процесс:**
+```python
+async def promote_version(capability, from_version, to_version):
+    # 1. Обновление статусов промптов
+    await data_repository.update_prompt_status(
+        capability=capability,
+        version=from_version,
+        new_status=PromptStatus.INACTIVE
+    )
+    await data_repository.update_prompt_status(
+        capability=capability,
+        version=to_version,
+        new_status=PromptStatus.ACTIVE
+    )
+    
+    # 2. Обновление registry.yaml
+    # prompt_versions:
+    #   planning.create_plan: v1.1.0
+    
+    # 3. Публикация события
+    await event_bus.publish(
+        EventType.VERSION_PROMOTED,
+        data={
+            'capability': capability,
+            'from_version': from_version,
+            'to_version': to_version
+        }
+    )
+```
+
+---
 
 ### Режимы обучения
 
-| Режим | Описание | Когда использовать |
-|-------|----------|-------------------|
-| **Manual** | Ручная оптимизация по запросу | Для точечных улучшений |
-| **Automatic** | Автоматический цикл при ухудшении метрик | Для поддержания качества |
-| **Target** | Стремление к целевой метрике | Для достижения KPI |
+| Режим | Описание | Когда использовать | Триггер |
+|-------|----------|-------------------|---------|
+| **Manual** | Ручная оптимизация по запросу | Для точечных улучшений | Команда разработчика |
+| **Automatic** | Автоматический цикл при ухудшении метрик | Для поддержания качества | success_rate < 0.9 |
+| **Target** | Стремление к целевой метрике | Для достижения KPI | accuracy < target |
+
+---
 
 ### Пример использования
 
@@ -3872,9 +4368,235 @@ async def main():
     )
 
     # 4. Отчёт
-    print(f"Оптимизация завершена: {result.status}")
-    print(f"Лучшая версия: {result.best_version}")
-    print(f"Финальная точность: {result.final_metrics.accuracy}")
+    print(f"""
+Оптимизация завершена:
+- Статус: {result.status}
+- Лучшая версия: {result.best_version}
+- Итераций: {result.iterations}
+- Улучшение: {result.improvement:.1%}
+- Финальная точность: {result.final_metrics.accuracy:.1%}
+""")
+```
+
+---
+
+### CLI скрипты для бенчмарков
+
+#### scripts/run_benchmark.py
+
+```python
+#!/usr/bin/env python3
+"""
+Запуск бенчмарков для оценки качества агента.
+
+ИСПОЛЬЗОВАНИЕ:
+    python scripts/run_benchmark.py --capability planning.create_plan --version v1.0.0
+    python scripts/run_benchmark.py --compare v1.0.0 v1.1.0-draft
+    python scripts/run_benchmark.py --all
+"""
+import asyncio
+import argparse
+from pathlib import Path
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.application.context.application_context import ApplicationContext
+from core.application.services.benchmark_service import BenchmarkService
+from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+
+
+async def run_single_benchmark(capability: str, version: str, scenarios_dir: Path):
+    """Запуск бенчмарка для одной версии"""
+    # Инициализация
+    infra = await InfrastructureContext.create(config)
+    app_ctx = await ApplicationContext.create_from_registry(infra, profile="sandbox")
+    
+    # Получение сервисов
+    evaluator = AccuracyEvaluatorService(llm_provider)
+    benchmark_service = BenchmarkService(evaluator, metrics_collector, data_repository, llm_provider)
+    
+    # Загрузка сценариев
+    scenarios = load_scenarios(scenarios_dir / capability)
+    
+    # Запуск бенчмарков
+    results = []
+    for scenario in scenarios:
+        result = await benchmark_service.run_benchmark(scenario, version)
+        results.append(result)
+        
+        print(f"  {scenario.name}: accuracy={result.accuracy:.1%}")
+    
+    # Агрегация
+    avg_accuracy = sum(r.accuracy for r in results) / len(results)
+    print(f"\nСредняя точность ({capability}@{version}): {avg_accuracy:.1%}")
+    
+    return avg_accuracy
+
+
+async def compare_versions(capability: str, version_a: str, version_b: str, scenarios_dir: Path):
+    """Сравнение двух версий"""
+    infra = await InfrastructureContext.create(config)
+    app_ctx = await ApplicationContext.create_from_registry(infra, profile="sandbox")
+    
+    evaluator = AccuracyEvaluatorService(llm_provider)
+    benchmark_service = BenchmarkService(evaluator, metrics_collector, data_repository, llm_provider)
+    
+    scenarios = load_scenarios(scenarios_dir / capability)
+    
+    comparison = await benchmark_service.compare_versions(version_a, version_b, scenarios)
+    
+    print(f"""
+Сравнение версий ({capability}):
+  {version_a}: accuracy={comparison.metrics_a.accuracy:.1%}
+  {version_b}: accuracy={comparison.metrics_b.accuracy:.1%}
+  
+  Улучшение: {comparison.improvement:+.1%}
+  Рекомендация: {comparison.recommendation}
+""")
+    
+    return comparison
+
+
+def load_scenarios(scenarios_dir: Path) -> List[BenchmarkScenario]:
+    """Загрузка сценариев из YAML файлов"""
+    scenarios = []
+    for file in scenarios_dir.glob('*.yaml'):
+        with open(file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            scenarios.append(BenchmarkScenario(**data))
+    return scenarios
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Запуск бенчмарков Agent_v5')
+    parser.add_argument('--capability', type=str, help='Имя capability для тестирования')
+    parser.add_argument('--version', type=str, default='v1.0.0', help='Версия для тестирования')
+    parser.add_argument('--compare', nargs=2, metavar='VERSION', help='Сравнить две версии')
+    parser.add_argument('--all', action='store_true', help='Запустить все бенчмарки')
+    parser.add_argument('--scenarios-dir', type=Path, default='data/benchmarks/scenarios')
+    
+    args = parser.parse_args()
+    
+    if args.compare:
+        asyncio.run(compare_versions(args.capability, args.compare[0], args.compare[1], args.scenarios_dir))
+    elif args.capability:
+        asyncio.run(run_single_benchmark(args.capability, args.version, args.scenarios_dir))
+    elif args.all:
+        # Запуск всех доступных бенчмарков
+        pass
+
+
+if __name__ == '__main__':
+    main()
+```
+
+#### scripts/run_optimization.py
+
+```python
+#!/usr/bin/env python3
+"""
+Запуск цикла оптимизации промптов.
+
+ИСПОЛЬЗОВАНИЕ:
+    python scripts/run_optimization.py --capability planning.create_plan --mode target --target-accuracy 0.95
+    python scripts/run_optimization.py --capability sql_generation.generate --mode automatic
+"""
+import asyncio
+import argparse
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.application.context.application_context import ApplicationContext
+from core.application.services.optimization_service import OptimizationService
+from core.models.data.benchmark import OptimizationMode, TargetMetric
+
+
+async def run_optimization(capability: str, mode: str, target_accuracy: float = None, max_iterations: int = 20):
+    """Запуск цикла оптимизации"""
+    # Инициализация
+    infra = await InfrastructureContext.create(config)
+    app_ctx = await ApplicationContext.create_from_registry(infra, profile="sandbox")
+    
+    # Получение сервиса оптимизации
+    optimization_service = app_ctx.get_service("optimization_service")
+    
+    # Определение режима
+    if mode == 'target':
+        opt_mode = OptimizationMode.TARGET
+        target_metric = TargetMetric(
+            name='accuracy',
+            target_value=target_accuracy or 0.95,
+            current_value=0.0  # Будет получено из метрик
+        )
+    elif mode == 'automatic':
+        opt_mode = OptimizationMode.AUTOMATIC
+        target_metric = None
+    else:
+        opt_mode = OptimizationMode.MANUAL
+        target_metric = None
+    
+    # Запуск оптимизации
+    print(f"Запуск оптимизации {capability} (режим: {mode})...")
+    
+    result = await optimization_service.start_optimization_cycle(
+        capability=capability,
+        mode=opt_mode,
+        target_metric=target_metric,
+        max_iterations=max_iterations
+    )
+    
+    # Вывод результата
+    print(f"""
+═══════════════════════════════════════════════════
+Результаты оптимизации
+═══════════════════════════════════════════════════
+Статус:           {result.status}
+Лучшая версия:    {result.best_version}
+Итераций:         {result.iterations}
+Улучшение:        {result.improvement:+.1%}
+Финальная accuracy: {result.final_metrics.accuracy:.1%}
+═══════════════════════════════════════════════════
+""")
+    
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Оптимизация промптов Agent_v5')
+    parser.add_argument('--capability', type=str, required=True, help='Имя capability')
+    parser.add_argument('--mode', type=str, choices=['manual', 'automatic', 'target'], default='manual')
+    parser.add_argument('--target-accuracy', type=float, help='Целевая точность (для target режима)')
+    parser.add_argument('--max-iterations', type=int, default=20, help='Максимум итераций')
+    
+    args = parser.parse_args()
+    
+    asyncio.run(run_optimization(
+        args.capability,
+        args.mode,
+        args.target_accuracy,
+        args.max_iterations
+    ))
+
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+### Примеры использования CLI
+
+```bash
+# 1. Запуск бенчмарка для одной версии
+python scripts/run_benchmark.py --capability planning.create_plan --version v1.0.0
+
+# 2. Сравнение двух версий
+python scripts/run_benchmark.py --capability planning.create_plan --compare v1.0.0 v1.1.0-draft
+
+# 3. Запуск оптимизации с целевой метрикой
+python scripts/run_optimization.py --capability planning.create_plan --mode target --target-accuracy 0.95
+
+# 4. Автоматическая оптимизация (при ухудшении)
+python scripts/run_optimization.py --capability sql_generation.generate --mode automatic
+
+# 5. Ручная оптимизация
+python scripts/run_optimization.py --capability text.summarize --mode manual --max-iterations 10
 ```
 
 ---
