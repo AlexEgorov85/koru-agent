@@ -11,7 +11,7 @@
 import uuid
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Any, Literal, Type
+from typing import Dict, List, Optional, Any, Literal, Type
 from datetime import datetime
 from enum import Enum
 
@@ -62,7 +62,7 @@ class ApplicationContext(BaseSystemContext):
     def __init__(
         self,
         infrastructure_context: InfrastructureContext,
-        config: 'AppConfig',  # Единая конфигурация приложения
+        config: Optional['AppConfig'] = None,  # Единая конфигурация приложения (может быть None для авто-создания)
         profile: Literal["prod", "sandbox"] = "prod",  # Профиль работы
         use_data_repository: bool = True  # По умолчанию ВКЛЮЧЁН (после тестирования)
     ):
@@ -71,24 +71,31 @@ class ApplicationContext(BaseSystemContext):
 
         ПАРАМЕТРЫ:
         - infrastructure_context: Инфраструктурный контекст (только для чтения!)
-        - config: Единая конфигурация приложения (AppConfig)
+        - config: Единая конфигурация приложения (AppConfig). Если None, будет создана автоматически.
         - profile: Профиль работы ('prod' или 'sandbox')
         - use_data_repository: использовать новый DataRepository (по умолчанию True)
         """
+        from core.config.app_config import AppConfig
+        
         self.id = str(uuid.uuid4())
         self.infrastructure_context = infrastructure_context  # Только для чтения!
-        self.config = config
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
         self._initialized = False  # Защита от раннего доступа
         self.use_data_repository = use_data_repository  # Новый флаг
+        
+        # Если конфигурация не передана, создаем пустую для последующего авто-заполнения
+        if config is None:
+            self.config = AppConfig(config_id=f"auto_{profile}_{infrastructure_context.id[:8]}")
+        else:
+            self.config = config
 
         # ЕДИНСТВЕННОЕ место хранения всех компонентов
         self.components = ComponentRegistry()
 
         # Флаги конфигурации из AppConfig
-        self.side_effects_enabled = getattr(config, 'side_effects_enabled', True)
-        self.detailed_metrics = getattr(config, 'detailed_metrics', False)
+        self.side_effects_enabled = getattr(self.config, 'side_effects_enabled', True)
+        self.detailed_metrics = getattr(self.config, 'detailed_metrics', False)
 
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
@@ -195,6 +202,11 @@ class ApplicationContext(BaseSystemContext):
             return True
 
         self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
+
+        # === Авто-заполнение конфигурации если она была создана пустой ===
+        # Это нужно для случая, когда config=None был передан в __init__
+        if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
+            await self._auto_fill_config()
 
         # === НОВЫЙ ПУТЬ: Инициализация репозитория с валидацией ===
         if self.use_data_repository and self.data_repository:
@@ -1045,7 +1057,7 @@ class ApplicationContext(BaseSystemContext):
                         
                     except Exception as e:
                         self.logger.error(
-                            f"Не удалось загрузить входной контракт {capability}@{version}: {e}. "
+                            f"Н�� удалось загрузить входной контракт {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
                         # Если не удалось ��агрузить контракт, в проде - не разрешаем
