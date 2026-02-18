@@ -1112,6 +1112,537 @@ async def cleanup():
 
 ---
 
+## 📊 Архитектура метрик: полное руководство
+
+### 🎯 Что такое метрика и зачем она нужна
+
+**Метрика** — это измеримая характеристика выполнения capability.
+
+**Зачем нужны метрики:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ЦЕЛИ СБОРА МЕТРИК                        │
+└─────────────────────────────────────────────────────────────┘
+
+1. МОНИТОРИНГ
+   └→ "Система работает нормально?"
+   └→ "Нет ли деградации производительности?"
+
+2. СРАВНЕНИЕ ВЕРСИЙ
+   └→ "v1.1.0 лучше чем v1.0.0?"
+   └→ "Стоит ли продвигать draft версию в active?"
+
+3. ОПТИМИЗАЦИЯ
+   └→ "Какая capability самая медленная?"
+   └→ "Где больше всего ошибок?"
+
+4. ПЛАНИРОВАНИЕ РЕСУРСОВ
+   └→ "Сколько токенов тратим в день?"
+   └→ "Нужно ли масштабироваться?"
+```
+
+---
+
+### 📏 Базовые метрики шага (что собирается)
+
+**При выполнении КАЖДОЙ capability** записывается `MetricRecord`:
+
+```python
+MetricRecord(
+    # Контекст
+    agent_id='agent-123',
+    capability='planning.create_plan',
+    version='v1.0.0',
+    session_id='session-456',
+    step_number=1,
+    
+    # Измерения
+    execution_time_ms=150.5,    # ← СКОЛЬКО времени заняло
+    success=True,                # ← УСПЕШНО или нет
+    tokens_used=250,             # ← РЕСУРСЫ (токены)
+    
+    timestamp=datetime.now()
+)
+```
+
+---
+
+### 📊 Агрегированные метрики (что считается)
+
+Из сырых записей (`MetricRecord`) вычисляются **агрегированные метрики**:
+
+#### 1. Success Rate (Процент успешных выполнений)
+
+**Что измеряет:** Надёжность capability
+
+**Формула:**
+```python
+success_rate = successful_executions / total_executions
+```
+
+**Пример:**
+```
+planning.create_plan@v1.0.0 за неделю:
+- Всего выполнений: 100
+- Успешных: 93
+- Ошибок: 7
+
+success_rate = 93 / 100 = 0.93 (93%)
+```
+
+**Что такое хорошо/плохо:**
+| Значение | Оценка | Действие |
+|----------|--------|----------|
+| ≥ 0.95 | ✅ Отлично | Поддерживать |
+| 0.90 - 0.95 | ⚠️ Нормально | Наблюдать |
+| 0.80 - 0.90 | 🟠 Внимание | Анализировать ошибки |
+| < 0.80 | 🔴 Критично | Срочная оптимизация |
+
+**На что влияет:**
+- Решение о продвижении версии (promote/reject)
+- Приоритет оптимизации (capability с низким success_rate — первые в очереди)
+
+---
+
+#### 2. Latency (Время выполнения)
+
+**Что измеряет:** Скорость выполнения capability
+
+**Три метрики:**
+
+| Метрика | Формула | Зачем |
+|---------|---------|-------|
+| `latency_ms` (среднее) | `sum(execution_time) / count` | Общая оценка |
+| `latency_p95_ms` (95-й перцентиль) | Значение, ниже которого 95% измерений | SLA, худшие случаи |
+| `latency_p99_ms` (99-й перцентиль) | Значение, ниже которого 99% измерений | Критичные задержки |
+
+**Пример расчёта:**
+```
+10 выполнений planning.create_plan@v1.0.0:
+[100, 120, 115, 130, 125, 140, 135, 150, 200, 500] мс
+
+latency_ms = (100+120+115+130+125+140+135+150+200+500) / 10 = 171.5 мс
+latency_p95_ms = 200 мс (9-е значение из 10)
+latency_p99_ms = 500 мс (10-е значение из 10)
+```
+
+**Что такое хорошо/плохо:**
+| Capability | < 100мс | 100-500мс | 500-1000мс | > 1000мс |
+|------------|---------|-----------|------------|----------|
+| planning | ✅ | ⚠️ | 🟠 | 🔴 |
+| sql_generation | ✅ | ⚠️ | 🟠 | 🔴 |
+| text_summarize | ⚠️ | ✅ | ⚠️ | 🟠 |
+
+**На что влияет:**
+- Выбор capability (если есть альтернативы)
+- Оптимизация промптов (сокращение токенов → быстрее)
+- Бюджетирование времени сессии
+
+---
+
+#### 3. Accuracy (Точность)
+
+**Что измеряет:** Насколько результат соответствует ожидаемому
+
+**Как считается (для бенчмарков):**
+```python
+accuracy = matching_criteria / total_criteria
+```
+
+**Пример:**
+```
+Бенчмарк: "Создать план из 5 шагов"
+Ожидаемый результат: 5 шагов, каждый с описанием
+
+Фактический результат: 4 шага, 3 с описанием
+
+Критерии оценки:
+- Количество шагов: 4/5 = 0.8
+- Полнота описания: 3/5 = 0.6
+
+accuracy = (0.8 + 0.6) / 2 = 0.7 (70%)
+```
+
+**Что такое хорошо/плохо:**
+| Значение | Оценка | Действие |
+|----------|--------|----------|
+| ≥ 0.95 | ✅ Отлично | Эталонная версия |
+| 0.85 - 0.95 | ⚠️ Хорошо | Приемлемо для prod |
+| 0.70 - 0.85 | 🟠 Требует улучшения | Только sandbox |
+| < 0.70 | 🔴 Недопустимо | Отклонить версию |
+
+**На что влияет:**
+- **Главный критерий** для A/B тестирования версий
+- Решение о продвижении версии
+- Выявление регрессий
+
+---
+
+#### 4. Token Usage (Использование токенов)
+
+**Что измеряет:** Потребление ресурсов LLM
+
+**Формула:**
+```python
+total_tokens = sum(tokens_used for each execution)
+avg_tokens = total_tokens / total_executions
+```
+
+**Пример:**
+```
+sql_generation.generate@v1.2.0 за день:
+- 500 выполнений
+- 125,000 токенов всего
+- 250 токенов в среднем на выполнение
+
+Стоимость (при $0.002/1K токенов):
+125,000 / 1000 * 0.002 = $0.25/день
+```
+
+**Что такое хорошо/плохо:**
+| Метрика | Оценка | Действие |
+|---------|--------|----------|
+| Растёт avg_tokens | 🟠 | Оптимизировать промпт |
+| Растёт total_tokens | 🟠 | Пересмотреть бюджет |
+| Выше аналогов на 50%+ | 🔴 | Критично, требует рефакторинга |
+
+**На что влияет:**
+- Бюджетирование
+- Выбор между альтернативными capability
+- Оптимизация промптов (меньше токенов = дешевле + быстрее)
+
+---
+
+#### 5. Error Rate (Процент ошибок)
+
+**Что измеряет:** Частоту ошибок
+
+**Формула:**
+```python
+error_rate = 1.0 - success_rate
+# или
+error_rate = failed_executions / total_executions
+```
+
+**Пример:**
+```
+planning.create_plan@v1.0.0:
+- 100 выполнений
+- 7 ошибок
+- error_rate = 7 / 100 = 0.07 (7%)
+```
+
+**Типы ошибок (из логов):**
+| Тип | Пример | Причина |
+|-----|--------|---------|
+| ContractValidationError | "missing field 'query'" | Ошибка агента (передал не то) |
+| LLMProviderError | "timeout" | Внешняя система |
+| PromptError | "template variable missing" | Ошибка в промпте |
+| BusinessLogicError | "no tables found" | Ошибка в логике |
+
+**Что такое хорошо/плохо:**
+| Значение | Оценка | Действие |
+|----------|--------|----------|
+| < 0.05 | ✅ Отлично | Норма |
+| 0.05 - 0.10 | ⚠️ Внимание | Анализировать паттерны |
+| 0.10 - 0.20 | 🟠 Проблема | Срочный анализ |
+| > 0.20 | 🔴 Критично | Блокировка версии |
+
+**На что влияет:**
+- Приоритет исправлений
+- Выявление системных проблем
+- Решение об откате версии
+
+---
+
+### 📋 Сводная таблица метрик
+
+| Метрика | Формула | Хорошо | Плохо | Влияние |
+|---------|---------|--------|-------|---------|
+| **success_rate** | `success / total` | ≥ 0.95 | < 0.80 | Надёжность |
+| **accuracy** | `matching / criteria` | ≥ 0.95 | < 0.70 | Качество |
+| **latency_ms** | `sum(time) / count` | < 100мс | > 1000мс | Скорость |
+| **latency_p95** | 95-й перцентиль | < 500мс | > 2000мс | SLA |
+| **tokens_used** | `sum(tokens)` | Минимум | Рост > 50% | Стоимость |
+| **error_rate** | `errors / total` | < 0.05 | > 0.20 | Стабильность |
+
+---
+
+## 🔬 Бенчмарк для подсчёта метрик
+
+### Нужен ли бенчмарк?
+
+**Ответ: ДА, но не для всех метрик**
+
+| Метрика | Считается без бенчмарка? | Нужен бенчмарк? |
+|---------|-------------------------|-----------------|
+| `success_rate` | ✅ Да (из success флага) | ❌ Нет |
+| `latency_ms` | ✅ Да (из execution_time) | ❌ Нет |
+| `tokens_used` | ✅ Да (из tokens_used) | ❌ Нет |
+| `error_rate` | ✅ Да (из success=false) | ❌ Нет |
+| `accuracy` | ❌ **Нет** | ✅ **ДА** |
+
+---
+
+### Зачем нужен бенчмарк?
+
+**Бенчмарк** — это тестовый сценарий с **известным ожидаемым результатом**.
+
+**Проблема без бенчмарка:**
+```
+Агент выполнил задачу: "Создать план проекта"
+→ success=True (ошибок не было)
+→ latency=150мс (быстро)
+
+НО: План оказался неполным (3 шага вместо 5)!
+→ Без бенчмарка мы не узнаем об этом
+→ success=True вводит в заблуждение
+```
+
+**Решение с бенчмарком:**
+```python
+BenchmarkScenario(
+    id='planning_test_001',
+    goal='Создать план из 5 шагов',
+    input_data={'task': 'разработка ПО'},
+    expected_output={
+        'min_steps': 5,
+        'each_step_has': ['description', 'estimate']
+    },
+    success_criteria={
+        'steps_count': 5,
+        'all_have_description': True,
+        'all_have_estimate': True
+    }
+)
+
+# После выполнения агента:
+actual_output = agent.run('разработка ПО')
+
+# Оценка accuracy:
+accuracy = calculate_accuracy(
+    actual=actual_output,
+    expected=expected_output,
+    criteria=success_criteria
+)
+# → accuracy = 0.6 (только 3 шага, без оценок)
+```
+
+---
+
+### Как бенчмарк считает accuracy
+
+**Алгоритм:**
+
+```python
+def calculate_accuracy(actual, expected, criteria) -> float:
+    """
+    Вычисляет точность ответа агента.
+    Возвращает число от 0.0 до 1.0
+    """
+    scores = []
+    
+    # Критерий 1: Количество шагов
+    if 'min_steps' in criteria:
+        step_score = min(1.0, len(actual.steps) / criteria['min_steps'])
+        scores.append(step_score)
+    
+    # Критерий 2: Полнота описания
+    if 'all_have_description' in criteria:
+        with_desc = sum(1 for s in actual.steps if s.description)
+        desc_score = with_desc / len(actual.steps) if actual.steps else 0
+        scores.append(desc_score)
+    
+    # Критерий 3: Наличие оценок
+    if 'all_have_estimate' in criteria:
+        with_est = sum(1 for s in actual.steps if s.estimate)
+        est_score = with_est / len(actual.steps) if actual.steps else 0
+        scores.append(est_score)
+    
+    # Средняя точность
+    return sum(scores) / len(scores) if scores else 0.0
+```
+
+**Пример расчёта:**
+```
+Ожидаемо: 5 шагов, все с описанием и оценкой
+Фактично: 3 шага, 2 с описанием, 1 с оценкой
+
+Критерий 1 (шаги): min(1.0, 3/5) = 0.6
+Критерий 2 (описание): 2/3 = 0.67
+Критерий 3 (оценка): 1/3 = 0.33
+
+accuracy = (0.6 + 0.67 + 0.33) / 3 = 0.53 (53%)
+```
+
+---
+
+### Когда использовать бенчмарк
+
+| Сценарий | Нужен бенчмарк? | Почему |
+|----------|-----------------|--------|
+| Мониторинг prod | ❌ Нет | Достаточно success/latency |
+| A/B тестирование версий | ✅ **ДА** | Нужно объективное сравнение |
+| Обучение/оптимизация | ✅ **ДА** | Нужно измерять улучшения |
+| Отладка ошибок | ❌ Нет | Достаточно логов |
+| Приёмка новой capability | ✅ **ДА** | Нужно подтвердить качество |
+
+---
+
+### Полный цикл с бенчмарком
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              ЦИКЛ ИЗМЕРЕНИЯ С БЕНЧМАРКОМ                    │
+└─────────────────────────────────────────────────────────────┘
+
+1. Запуск бенчмарка
+   └→ BenchmarkService.run_benchmark(scenario, version='v1.0.0')
+
+2. Выполнение агентом
+   └→ Agent.run(goal)
+   └→ Сбор метрик шага (latency, tokens, success)
+
+3. Оценка результата
+   └→ compare(actual, expected)
+   └→ accuracy = 0.73
+
+4. Сохранение результата
+   └→ BenchmarkResult(
+         scenario_id='test_001',
+         version='v1.0.0',
+         accuracy=0.73,
+         latency_ms=150,
+         tokens_used=250
+       )
+
+5. Сравнение версий (A/B тест)
+   └→ v1.0.0: accuracy=0.73
+   └→ v1.1.0-draft: accuracy=0.89
+   └→ improvement = 0.16 (16% улучшение!)
+
+6. Решение
+   └→ improvement > 0.05 → PROMOTE v1.1.0-draft to active
+```
+
+---
+
+## 📊 Архитектура метрик (полная схема)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ПОТОК ДАННЫХ МЕТРИК                      │
+└─────────────────────────────────────────────────────────────┘
+
+1. СБОР (на каждый шаг)
+   BaseSkill.execute()
+   └→ publish(SKILL_EXECUTED, {execution_time_ms, success, tokens})
+   └→ MetricsCollector._on_skill_executed()
+   └→ storage.record(MetricRecord)
+
+2. АГРЕГАЦИЯ (по запросу)
+   MetricsCollector.get_aggregated_metrics(capability, version, time_range)
+   └→ storage.get_records()
+   └→ calculate:
+      - success_rate = sum(success) / count
+      - latency_ms = avg(execution_time_ms)
+      - latency_p95 = percentile(95, execution_time_ms)
+      - tokens_used = sum(tokens_used)
+   └→ AggregatedMetrics
+
+3. БЕНЧМАРК (для accuracy)
+   BenchmarkService.run_benchmark(scenario, version)
+   └→ Agent.run(goal)
+   └→ compare(actual, expected)
+   └→ accuracy = calculate_accuracy(...)
+   └→ BenchmarkResult
+
+4. СРАВНЕНИЕ (A/B тест)
+   BenchmarkService.compare_versions(version_a, version_b)
+   └→ run_benchmark для каждой версии
+   └→ improvement = metrics_b.accuracy - metrics_a.accuracy
+   └→ VersionComparison
+
+5. РЕШЕНИЕ (promote/reject)
+   if improvement > threshold (0.05):
+       promote_version(version_b)
+   else:
+       reject_version(version_b)
+```
+
+---
+
+## 💡 Практические примеры
+
+### Пример 1: Мониторинг prod
+
+```python
+# Ежедневный отчёт
+metrics = await metrics_collector.get_aggregated_metrics(
+    capability='planning.create_plan',
+    version='v1.0.0',
+    time_range=(yesterday, today)
+)
+
+print(f"""
+planning.create_plan@v1.0.0 за вчера:
+- Выполнений: {metrics.total_executions}
+- Успешность: {metrics.success_rate:.1%} {'✅' if metrics.success_rate >= 0.95 else '🔴'}
+- Среднее время: {metrics.latency_ms:.0f}мс {'✅' if metrics.latency_ms < 500 else '🔴'}
+- Токенов: {metrics.tokens_used} (${metrics.cost:.2f})
+""")
+```
+
+### Пример 2: A/B тестирование
+
+```python
+# Сравнение версий
+comparison = await benchmark_service.compare_versions(
+    capability='sql_generation.generate',
+    version_a='v1.0.0',
+    version_b='v1.1.0-draft',
+    scenarios=[
+        BenchmarkScenario(...),  # 10 тестовых сценариев
+        BenchmarkScenario(...),
+    ]
+)
+
+print(f"""
+Сравнение sql_generation.generate:
+- v1.0.0: accuracy={comparison.metrics_a.accuracy:.1%}
+- v1.1.0-draft: accuracy={comparison.metrics_b.accuracy:.1%}
+- Улучшение: {comparison.improvement:.1%}
+- Рекомендация: {comparison.recommendation}
+""")
+# → Рекомендация: "promote" если improvement > 5%
+```
+
+### Пример 3: Автоматическая оптимизация
+
+```python
+# Запуск цикла оптимизации
+result = await optimization_service.start_optimization_cycle(
+    capability='planning.create_plan',
+    mode=OptimizationMode.TARGET,
+    target_metric=TargetMetric(
+        name='accuracy',
+        target_value=0.95,
+        current_value=0.87  # Текущая точность
+    ),
+    max_iterations=20
+)
+
+print(f"""
+Оптимизация завершена:
+- Было: accuracy=0.87
+- Стало: accuracy={result.final_metrics.accuracy:.2f}
+- Лучшая версия: {result.best_version}
+- Итераций: {result.iterations}
+""")
+```
+
+---
+
 ## 📊 Модели данных
 
 ### AggregatedMetrics
