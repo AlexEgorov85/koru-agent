@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
 from core.models.enums.common_enums import ComponentStatus, ComponentType
@@ -25,6 +25,22 @@ class ChangelogEntry(BaseModel):
     changes: List[str]
 
 
+class Capability(BaseModel):
+    name: str
+    description: str
+    input_contract: Optional[str] = None
+    output_contract: Optional[str] = None
+    prompt: Optional[str] = None
+    execution_type: Optional[str] = None
+    requires_llm: bool = False
+
+
+class Contract(BaseModel):
+    capabilities: Optional[List[Capability]] = None
+    input: Optional[str] = None
+    output: Optional[str] = None
+
+
 class Manifest(TemplateValidatorMixin, BaseModel):
     component_id: str = Field(..., min_length=1)
     component_type: ComponentType
@@ -32,7 +48,7 @@ class Manifest(TemplateValidatorMixin, BaseModel):
     owner: str = Field(..., min_length=1)
     status: ComponentStatus = ComponentStatus.DRAFT
     
-    contract: Optional[Dict[str, str]] = None
+    contract: Optional[Union[Dict[str, str], Contract, Dict[str, Any]]] = None
     constraints: Optional[Dict[str, Any]] = None
     
     quality_metrics: Optional[QualityMetrics] = None

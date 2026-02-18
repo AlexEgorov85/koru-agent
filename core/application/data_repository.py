@@ -238,28 +238,209 @@ class DataRepository:
     def get_validation_report(self) -> str:
         """Полный отчёт о проблемах структуры"""
         report = ["=" * 60, "ОТЧЁТ ВАЛИДАЦИИ DATA REPOSITORY", "=" * 60, ""]
-        
+
         if self._validation_errors:
             report.append("❌ КРИТИЧЕСКИЕ ОШИБКИ (блокируют запуск):")
             for i, err in enumerate(self._validation_errors, 1):
                 report.append(f"  {i}. {err}")
             report.append("")
-        
+
         if self._validation_warnings:
             report.append("⚠️  ПРЕДУПРЕЖДЕНИЯ (не блокируют запуск):")
             for i, warn in enumerate(self._validation_warnings, 1):
                 report.append(f"  {i}. {warn}")
             report.append("")
-        
+
         if not self._validation_errors and not self._validation_warnings:
             report.append("✅ Все проверки пройдены успешно")
             report.append("")
-        
+
         # Статистика
         report.append("📊 Статистика репозитория:")
         report.append(f"   Промптов загружено: {len(self._prompts_index)}")
         report.append(f"   Контрактов загружено: {len(self._contracts_index)}")
         report.append(f"   Профиль: {self.profile}")
         report.append("=" * 60)
-        
+
         return "\n".join(report)
+
+    # ========================================================================
+    # Методы для Benchmark/Learning системы (Этап 7)
+    # ========================================================================
+
+    def get_prompt_versions(self, capability: str) -> List[Prompt]:
+        """
+        Получение всех версий промпта для capability.
+
+        ARGS:
+        - capability: название способности
+
+        RETURNS:
+        - List[Prompt]: список версий промпта, отсортированных по версии
+        """
+        versions = []
+        for (cap, ver), prompt in self._prompts_index.items():
+            if cap == capability:
+                versions.append(prompt)
+
+        # Сортировка по версии (простая строковая сортировка)
+        return sorted(versions, key=lambda p: p.version)
+
+    def get_contract_versions(self, capability: str, direction: str) -> List[Contract]:
+        """
+        Получение всех версий контракта для capability.
+
+        ARGS:
+        - capability: название способности
+        - direction: направление (input/output)
+
+        RETURNS:
+        - List[Contract]: список версий контракта
+        """
+        versions = []
+        for (cap, ver, dir_), contract in self._contracts_index.items():
+            if cap == capability and dir_ == direction:
+                versions.append(contract)
+
+        return sorted(versions, key=lambda c: c.version)
+
+    def get_active_version(self, capability: str) -> Optional[str]:
+        """
+        Получение активной версии промпта для capability.
+
+        ARGS:
+        - capability: название способности
+
+        RETURNS:
+        - Optional[str]: версия или None если не найдена
+        """
+        for (cap, ver), prompt in self._prompts_index.items():
+            if cap == capability and prompt.status == PromptStatus.ACTIVE:
+                return ver
+        return None
+
+    def get_draft_versions(self, capability: str) -> List[str]:
+        """
+        Получение draft версий промпта для capability.
+
+        ARGS:
+        - capability: название способности
+
+        RETURNS:
+        - List[str]: список draft версий
+        """
+        drafts = []
+        for (cap, ver), prompt in self._prompts_index.items():
+            if cap == capability and prompt.status == PromptStatus.DRAFT:
+                drafts.append(ver)
+        return drafts
+
+    def update_prompt_status(
+        self,
+        capability: str,
+        version: str,
+        new_status: PromptStatus
+    ) -> bool:
+        """
+        Обновление статуса промпта.
+
+        ARGS:
+        - capability: название способности
+        - version: версия промпта
+        - new_status: новый статус
+
+        RETURNS:
+        - bool: успешно ли обновлено
+        """
+        key = (capability, version)
+        if key not in self._prompts_index:
+            self.logger.warning(f"Промпт {capability}@{version} не найден")
+            return False
+
+        prompt = self._prompts_index[key]
+        old_status = prompt.status
+
+        # Prompt - frozen модель, создаём новую копию с обновлённым статусом
+        try:
+            new_prompt = prompt.model_copy(update={'status': new_status})
+            self._prompts_index[key] = new_prompt
+            self.logger.info(f"Статус промпта {capability}@{version} изменён: {old_status.value} → {new_status.value}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка обновления статуса промпта {capability}@{version}: {e}")
+            return False
+
+    def update_contract_status(
+        self,
+        capability: str,
+        version: str,
+        direction: str,
+        new_status: PromptStatus
+    ) -> bool:
+        """
+        Обновление статуса контракта.
+
+        ARGS:
+        - capability: название способности
+        - version: версия контракта
+        - direction: направление (input/output)
+        - new_status: новый статус (active/draft)
+
+        RETURNS:
+        - bool: успешно ли обновлено
+        """
+        key = (capability, version, direction)
+        if key not in self._contracts_index:
+            self.logger.warning(f"Контракт {capability}@{version} ({direction}) не найден")
+            return False
+
+        contract = self._contracts_index[key]
+        old_status = contract.status
+
+        # Contract - frozen модель, создаём новую копию с обновлённым статусом
+        try:
+            new_contract = contract.model_copy(update={'status': new_status})
+            self._contracts_index[key] = new_contract
+            self.logger.info(f"Статус контракта {capability}@{version} ({direction}) изменён: {old_status.value} → {new_status.value}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка обновления статуса контракта {capability}@{version} ({direction}): {e}")
+            return False
+
+    def add_prompt(self, prompt: Prompt) -> bool:
+        """
+        Добавление нового промпта в репозиторий.
+
+        ARGS:
+        - prompt: объект промпта для добавления
+
+        RETURNS:
+        - bool: успешно ли добавлено
+        """
+        key = (prompt.capability, prompt.version)
+        if key in self._prompts_index:
+            self.logger.warning(f"Промпт {prompt.capability}@{prompt.version} уже существует")
+            return False
+
+        self._prompts_index[key] = prompt
+        self.logger.info(f"Добавлен промпт {prompt.capability}@{prompt.version}")
+        return True
+
+    def add_contract(self, contract: Contract) -> bool:
+        """
+        Добавление нового контракта в репозиторий.
+
+        ARGS:
+        - contract: объект контракта для добавления
+
+        RETURNS:
+        - bool: успешно ли добавлено
+        """
+        key = (contract.capability, contract.version, contract.direction.value)
+        if key in self._contracts_index:
+            self.logger.warning(f"Контракт {contract.capability}@{contract.version} ({contract.direction.value}) уже существует")
+            return False
+
+        self._contracts_index[key] = contract
+        self.logger.info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
+        return True

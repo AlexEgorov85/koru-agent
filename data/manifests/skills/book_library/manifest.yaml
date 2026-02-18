@@ -1,4 +1,4 @@
-component_id: book_library
+﻿component_id: book_library
 component_type: skill
 version: v1.0.0
 owner: team-library
@@ -14,7 +14,7 @@ contract:
       execution_type: dynamic
       requires_llm: true
     - name: book_library.execute_script
-      description: Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author, get_books_by_genre, get_books_by_year_range, get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Быстро ~100мс.
+      description: 'Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author, get_books_by_genre, get_books_by_year_range, get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Быстро ~100мс.'
       input_contract: book_library.execute_script.input.v1.0.0
       output_contract: book_library.execute_script.output.v1.0.0
       prompt: book_library.execute_script.v1.1.0

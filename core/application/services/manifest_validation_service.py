@@ -88,7 +88,7 @@ class ManifestValidationService:
     async def validate_schema_integrity(self) -> Dict[str, Any]:
         """
         Проверка целостности схем input/output контрактов.
-        
+
         Возвращает:
         - missing_input: Контракты без input схемы
         - missing_output: Контракты без output схемы
@@ -100,34 +100,45 @@ class ManifestValidationService:
             'schema_mismatch': [],
             'is_valid': True
         }
-        
+
         # Получаем все контракты из хранилища
         all_contracts = self.data_repository._contracts_index
-        
+
         # Группируем по capability
         contracts_by_cap: Dict[str, Dict[str, Any]] = {}
-        
+
         for (cap, ver, direction), contract in all_contracts.items():
             if cap not in contracts_by_cap:
                 contracts_by_cap[cap] = {}
             contracts_by_cap[cap][direction] = contract
-        
+
         # Проверка наличия input/output для каждой capability
+        # Примечание: некоторые capability могут иметь только input или только output
         for cap, directions in contracts_by_cap.items():
-            if 'input' not in directions:
+            has_input = 'input' in directions
+            has_output = 'output' in directions
+            
+            # Если нет ни input, ни output - это ошибка
+            if not has_input and not has_output:
                 report['missing_input'].append({
                     'capability': cap,
-                    'message': f"Capability '{cap}' не имеет input контракта"
+                    'message': f"Capability '{cap}' не имеет ни input, ни output контракта"
                 })
                 report['is_valid'] = False
-            
-            if 'output' not in directions:
+            # Если есть только один тип, добавляем предупреждение (не ошибку)
+            elif not has_input:
+                report['missing_input'].append({
+                    'capability': cap,
+                    'message': f"Capability '{cap}' не имеет input контракта (только output)",
+                    'severity': 'warning'
+                })
+            elif not has_output:
                 report['missing_output'].append({
                     'capability': cap,
-                    'message': f"Capability '{cap}' не имеет output контракта"
+                    'message': f"Capability '{cap}' не имеет output контракта (только input)",
+                    'severity': 'warning'
                 })
-                report['is_valid'] = False
-        
+
         self._validation_cache['schema_integrity'] = report
         return report
     
