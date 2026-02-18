@@ -808,6 +808,241 @@ class PromptContractGenerator(BaseService):
 - **Продакшен:** GPT-4 Turbo для генерации + GPT-3.5 для анализа/оценки
 - **Эконом:** Llama-3-70B для генерации + 8B для анализа
 
+---
+
+## 🔧 Работа с несколькими LLM в InfraContext
+
+### ❓ Поддерживает ли InfraContext несколько LLM?
+
+**Ответ:** ✅ **ДА!** InfraContext регистрирует **все включённые LLM провайдеры** из конфигурации.
+
+---
+
+### 📋 Конфигурация нескольких LLM
+
+**registry.yaml:**
+
+```yaml
+llm_providers:
+  primary_llm:           # ← Имя провайдера
+    enabled: true
+    provider_type: llama_cpp
+    parameters:
+      model_path: "models/llama-3-70b.gguf"
+  
+  backup_llm:
+    enabled: true
+    provider_type: mock
+    parameters:
+      model_name: "gpt-4"
+  
+  cheap_llm:
+    enabled: true
+    provider_type: mock
+    parameters:
+      model_name: "gpt-3.5-turbo"
+```
+
+**При инициализации:**
+- Все `enabled: true` провайдеры регистрируются в `ResourceRegistry`
+- Первый успешный провайдер становится **default** (`is_default=True`)
+- Доступ к каждому провайдеру по **имени**
+
+---
+
+### 🔧 Как получить доступ к конкретной LLM
+
+#### Способ 1: `get_provider(name)` — по имени
+
+```python
+from core.infrastructure.context.infrastructure_context import InfrastructureContext
+
+# Инициализация
+infra = await InfrastructureContext.create(config)
+
+# Получение конкретного провайдера
+primary_llm = infra.get_provider('primary_llm')
+backup_llm = infra.get_provider('backup_llm')
+cheap_llm = infra.get_provider('cheap_llm')
+
+# Использование
+response = await primary_llm.generate(prompt)
+```
+
+---
+
+#### Способ 2: `get_resource(name)` — универсальный
+
+```python
+# Универсальный метод для любого ресурса
+llm = infra.get_resource('primary_llm')
+response = await llm.generate(prompt)
+```
+
+---
+
+#### Способ 3: `call_llm(request)` — только default LLM
+
+```python
+# Вызов LLM по умолчанию (первый зарегистрированный)
+response = await infra.call_llm(prompt)
+```
+
+**Важно:** Использует только default LLM, не подходит для выбора конкретной.
+
+---
+
+#### Способ 4: Через `resource_registry` — все провайдеры
+
+```python
+# Получить все LLM провайдеры
+from core.models.enums.common_enums import ResourceType
+
+llm_providers = infra.resource_registry.get_resources_by_type(
+    ResourceType.LLM_PROVIDER
+)
+
+# Итерация по всем
+for name, resource_info in llm_providers.items():
+    llm = resource_info.instance
+    print(f"{name}: is_default={resource_info.is_default}")
+
+# Получить default LLM
+default_llm = infra.resource_registry.get_default_resource(
+    ResourceType.LLM_PROVIDER
+)
+```
+
+---
+
+### 💡 Пример: Выбор LLM для задачи
+
+```python
+# core/application/services/prompt_contract_generator.py
+
+class PromptContractGenerator(BaseService):
+    def __init__(
+        self,
+        infra_context: InfrastructureContext,
+        data_repository: DataRepository,
+        data_dir: Path
+    ):
+        self.infra = infra_context
+        self.data_repository = data_repository
+        self.data_dir = data_dir
+        
+        # ← Явное получение LLM для разных задач
+        self.powerful_llm = infra.get_provider('primary_llm')   # Для генерации
+        self.cheap_llm = infra.get_provider('cheap_llm')       # Для анализа
+        self.backup_llm = infra.get_provider('backup_llm')     # Fallback
+
+    async def generate_prompt_variant(self, ...) -> str:
+        """Генерация промпта → используем мощную LLM"""
+        try:
+            new_content = await self.powerful_llm.generate(
+                prompt=self._build_generation_prompt(...)
+            )
+        except Exception:
+            # Fallback на backup при ошибке
+            new_content = await self.backup_llm.generate(...)
+        
+        return new_content
+
+    async def _analyze_failures(self, failure_analysis: FailureAnalysis) -> List[str]:
+        """Анализ ошибок → используем дешёвую LLM"""
+        response = await self.cheap_llm.generate(
+            prompt=f"Проанализируй ошибки: {failure_analysis}"
+        )
+        return response.strip().split('\n')
+
+    async def _generate_input_schema(self, prompt: Prompt) -> Dict[str, Any]:
+        """Генерация контракта → используем мощную LLM"""
+        response = await self.powerful_llm.generate(
+            prompt=f"Создай JSON Schema: {prompt.content[:500]}..."
+        )
+        return json.loads(response)
+```
+
+---
+
+### 🎯 Как указать задачу для конкретной LLM
+
+```python
+# Явное указание LLM по имени
+llm_name = 'primary_llm'  # или 'cheap_llm', 'backup_llm'
+llm = infra_context.get_provider(llm_name)
+
+if llm is None:
+    raise ValueError(f"LLM провайдер '{llm_name}' не найден")
+
+# Генерация через выбранную LLM
+response = await llm.generate(prompt)
+```
+
+---
+
+### 📊 Методы InfraContext для работы с LLM
+
+| Метод | Описание | Возвращает | Пример |
+|-------|----------|------------|--------|
+| `get_provider(name)` | Получение провайдера по имени | `BaseLLMProvider` | `get_provider('primary_llm')` |
+| `get_resource(name)` | Универсальное получение | `Any` | `get_resource('cheap_llm')` |
+| `call_llm(request)` | Вызов default LLM | `str` | `call_llm(prompt)` |
+| `resource_registry.get_resources_by_type()` | Все провайдеры типа | `Dict[str, ResourceInfo]` | `get_resources_by_type(LLM_PROVIDER)` |
+| `resource_registry.get_default_resource()` | Default провайдер | `ResourceInfo` | `get_default_resource(LLM_PROVIDER)` |
+
+---
+
+### 🔄 Fallback стратегия
+
+```python
+async def generate_with_fallback(self, prompt: str) -> str:
+    """
+    Генерация с fallback на backup LLM.
+    
+    СТРАТЕГИЯ:
+    1. Попытка через primary_llm
+    2. При ошибке → backup_llm
+    3. При ошибке → исключение
+    """
+    # Попытка 1: Primary
+    try:
+        return await self.powerful_llm.generate(prompt)
+    except Exception as e:
+        self.logger.warning(f"Primary LLM failed: {e}")
+    
+    # Попытка 2: Backup
+    try:
+        return await self.backup_llm.generate(prompt)
+    except Exception as e:
+        self.logger.error(f"Backup LLM failed: {e}")
+    
+    raise RuntimeError("Все LLM провайдеры недоступны")
+```
+
+---
+
+### 📋 Чеклист: правильно ли настроены LLM
+
+```
+□ 1. В registry.yaml указано ≥ 2 LLM провайдеров
+□ 2. У каждого провайдера уникальное имя
+□ 3. Первый провайдер enabled: true (будет default)
+□ 4. В коде используется get_provider('имя') для выбора
+□ 5. Реализован fallback на backup при ошибке
+□ 6. Для разных задач используются разные LLM
+```
+
+---
+
+### 💡 Рекомендации
+
+1. **Минимум 2 LLM:** primary + backup
+2. **Именуйте явно:** `primary_llm`, `cheap_llm`, `backup_llm`
+3. **Используйте fallback:** всегда обрабатывайте ошибки LLM
+4. **Разделяйте задачи:** генерация → powerful, анализ → cheap
+5. **Проверяйте доступность:** `if llm is None: raise ValueError(...)`
+
     async def generate_prompt_variant(
         self,
         capability: str,
@@ -4968,7 +5203,7 @@ class DataRepository:
         RETURNS:
         - bool: True если успешно
         """
-        # 1. Получаем текущий контракт
+        # 1. Получаем теку��ий контракт
         current_contract = self.get_contract(capability, version, direction)
         
         # 2. Создаём новый контракт с обновлённым статусом
