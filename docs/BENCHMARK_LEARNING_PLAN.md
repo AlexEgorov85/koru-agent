@@ -424,6 +424,389 @@ class PromptContractGenerator(BaseService):
         self.llm_provider = llm_provider
         self.data_repository = data_repository
         self.data_dir = data_dir
+```
+
+---
+
+## 🤖 Выбор LLM для анализа и улучшения промптов/контрактов
+
+### ❓ Какую LLM использовать?
+
+**Ответ:** Зависит от **задачи** и **бюджета**. Рекомендуется **разделение по задачам**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              СТРАТЕГИЯ ВЫБОРА LLM                           │
+└─────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────┐
+                    │  Тип задачи?    │
+                    └────────┬────────┘
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│  Генерация    │   │  Анализ       │   │  Оценка       │
+│  промптов     │   │  ошибок       │   │  (accuracy)   │
+│               │   │               │   │               │
+│ → МОЩНАЯ LLM  │   │ → LLM средней │   │ → LLM средней │
+│   (GPT-4,     │   │   мощности    │   │   мощности    │
+│   Claude 3)   │   │   (GPT-3.5,   │   │   (GPT-3.5,   │
+│               │   │    Claude)    │   │    Claude)    │
+└───────────────┘   └───────────────┘   └───────────────┘
+```
+
+---
+
+### 📊 Рекомендуемая конфигурация
+
+#### Вариант 1: Разные LLM для разных задач (рекомендуется)
+
+```python
+# core/config/llm_config.py
+
+class LLMConfig:
+    """Конфигурация LLM для разных задач"""
+    
+    # 1. ГЕНЕРАЦИЯ ПРОМПТОВ (критичная задача)
+    PROMPT_GENERATION = {
+        'provider': 'openai',
+        'model': 'gpt-4-turbo-preview',
+        'temperature': 0.7,      # Баланс креативности/точности
+        'max_tokens': 4000,
+        'top_p': 0.9,
+        'frequency_penalty': 0.3,
+        'presence_penalty': 0.3
+    }
+    
+    # 2. АНАЛИЗ ОШИБОК (средняя важность)
+    FAILURE_ANALYSIS = {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo-16k',  # Дешевле, но достаточно
+        'temperature': 0.5,      # Более детерминировано
+        'max_tokens': 2000,
+    }
+    
+    # 3. ОЦЕНКА ACCURACY (много вызовов)
+    ACCURACY_EVALUATION = {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',  # Самый дешёвый
+        'temperature': 0.3,      # Минимум вариативности
+        'max_tokens': 500,
+    }
+    
+    # 4. ГЕНЕРАЦИЯ КОНТРАКТОВ (требует точности)
+    CONTRACT_GENERATION = {
+        'provider': 'openai',
+        'model': 'gpt-4-turbo-preview',
+        'temperature': 0.5,      # Меньше креативности
+        'max_tokens': 3000,
+    }
+```
+
+**Почему так:**
+
+| Задача | LLM | Почему | Стоимость (1K токенов) |
+|--------|-----|--------|------------------------|
+| Генерация промптов | GPT-4 Turbo | Требует креативности и понимания контекста | $0.01 |
+| Анализ ошибок | GPT-3.5 | Достаточно для классификации | $0.001 |
+| Оценка accuracy | GPT-3.5 | Много вызовов, нужна скорость | $0.001 |
+| Генерация контрактов | GPT-4 Turbo | Требует точности (JSON Schema) | $0.01 |
+
+---
+
+#### Вариант 2: Единая LLM для всех задач (проще)
+
+```python
+# core/config/llm_config.py
+
+class LLMConfig:
+    """Единая LLM для всех задач"""
+    
+    DEFAULT = {
+        'provider': 'openai',
+        'model': 'gpt-4-turbo-preview',  # Универсальный выбор
+        'temperature': 0.7,
+        'max_tokens': 4000,
+    }
+```
+
+**Плюсы:**
+- ✅ Проще в настройке
+- ✅ Меньше зависимостей
+- ✅ Консистентные результаты
+
+**Минусы:**
+- ❌ Дороже (все вызовы по $0.01/1K)
+- ❌ Медленнее (GPT-4 медленнее GPT-3.5)
+- ❌ Overkill для простых задач
+
+---
+
+#### Вариант 3: Локальная LLM (для экономии)
+
+```python
+# core/config/llm_config.py
+
+class LLMConfig:
+    """Локальная LLM для экономии"""
+    
+    # Генерация промптов (требует качества)
+    PROMPT_GENERATION = {
+        'provider': 'vllm',
+        'model': 'meta-llama/Llama-3-70B-Instruct',
+        'temperature': 0.7,
+        'max_tokens': 4000,
+        'gpu_memory_utilization': 0.9,
+    }
+    
+    # Анализ ошибок (достаточно меньшей модели)
+    FAILURE_ANALYSIS = {
+        'provider': 'vllm',
+        'model': 'meta-llama/Llama-3-8B-Instruct',
+        'temperature': 0.5,
+        'max_tokens': 2000,
+    }
+```
+
+**Плюсы:**
+- ✅ Дешевле (нет оплаты за токены)
+- ✅ Контроль над данными
+- ✅ Нет rate limits
+
+**Минусы:**
+- ❌ Требует GPU (70B → ~140GB VRAM)
+- ❌ Сложнее в настройке
+- ❌ Качество может быть ниже
+
+---
+
+### 📋 Сравнение LLM для задач
+
+| Задача | GPT-4 Turbo | GPT-3.5 | Claude 3 | Llama-3-70B |
+|--------|-------------|---------|----------|-------------|
+| **Генерация промптов** | ✅ Отлично | ⚠️ Средне | ✅ Отлично | ⚠️ Средне |
+| **Анализ ошибок** | ✅ Отлично | ✅ Хорошо | ✅ Отлично | ✅ Хорошо |
+| **Оценка accuracy** | ✅ Отлично | ✅ Хорошо | ✅ Отлично | ⚠️ Нестабильно |
+| **Генерация контрактов** | ✅ Отлично | ⚠️ Средне | ✅ Отлично | ⚠️ Средне |
+| **Стоимость** | $$$$ | $ | $$$ | $ (GPU) |
+| **Скорость** | Средняя | Быстрая | Средняя | Зависит от GPU |
+
+---
+
+### 💡 Рекомендации
+
+#### Для продакшена:
+
+```python
+# Оптимальная конфигурация
+LLM_CONFIG = {
+    'prompt_generation': {
+        'provider': 'openai',
+        'model': 'gpt-4-turbo-preview',
+        'temperature': 0.7,
+    },
+    'failure_analysis': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo-16k',
+        'temperature': 0.5,
+    },
+    'accuracy_evaluation': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',
+        'temperature': 0.3,
+    },
+    'contract_generation': {
+        'provider': 'openai',
+        'model': 'gpt-4-turbo-preview',
+        'temperature': 0.5,
+    }
+}
+```
+
+**Ожидаемая стоимость на цикл оптимизации:**
+```
+1 цикл = 10 итераций × (1 генерация + 1 анализ + 5 оценок)
+
+Генерация промпта: 10 × 3000 токенов × $0.01 = $0.30
+Анализ ошибок: 10 × 1000 токенов × $0.001 = $0.01
+Оценка accuracy: 50 × 500 токенов × $0.001 = $0.025
+
+Итого: ~$0.34 за цикл оптимизации
+```
+
+---
+
+#### Для разработки/тестирования:
+
+```python
+# Бюджетная конфигурация
+LLM_CONFIG = {
+    'prompt_generation': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',  # Дешевле
+        'temperature': 0.7,
+    },
+    'failure_analysis': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',
+        'temperature': 0.5,
+    },
+    'accuracy_evaluation': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',
+        'temperature': 0.3,
+    },
+    'contract_generation': {
+        'provider': 'openai',
+        'model': 'gpt-3.5-turbo',
+        'temperature': 0.5,
+    }
+}
+```
+
+**Ожидаемая стоимость:**
+```
+Итого: ~$0.05 за цикл оптимизации (в 7 раз дешевле!)
+```
+
+---
+
+### 🔧 Реализация переключения LLM
+
+```python
+# core/application/services/llm_router.py
+
+class LLMRouter:
+    """
+    Маршрутизатор LLM вызовов.
+    
+    Выбирает LLM на основе задачи.
+    """
+
+    def __init__(self, config: Dict[str, Dict[str, Any]]):
+        self.config = config
+        self._providers = self._init_providers()
+
+    def _init_providers(self) -> Dict[str, Any]:
+        """Инициализация провайдеров"""
+        providers = {}
+        
+        for task_name, task_config in self.config.items():
+            provider_name = task_config['provider']
+            
+            if provider_name == 'openai':
+                from openai import AsyncOpenAI
+                providers[task_name] = AsyncOpenAI()
+            elif provider_name == 'vllm':
+                from vllm import AsyncLLMEngine
+                providers[task_name] = AsyncLLMEngine(task_config)
+            elif provider_name == 'anthropic':
+                from anthropic import AsyncAnthropic
+                providers[task_name] = AsyncAnthropic()
+        
+        return providers
+
+    async def generate(
+        self,
+        task: str,  # 'prompt_generation', 'failure_analysis', etc.
+        prompt: str,
+        **kwargs
+    ) -> str:
+        """
+        Генерация через соответствующую LLM.
+        
+        ARGS:
+        - task: тип задачи
+        - prompt: промпт для генерации
+        - kwargs: дополнительные параметры
+        
+        RETURNS:
+        - str: результат генерации
+        """
+        if task not in self.config:
+            raise ValueError(f"Неизвестная задача: {task}")
+        
+        task_config = self.config[task]
+        provider = self._providers[task]
+        
+        # Объединение конфигурации с overrides
+        full_config = {**task_config, **kwargs}
+        
+        if task_config['provider'] == 'openai':
+            response = await provider.chat.completions.create(
+                model=full_config['model'],
+                messages=[{'role': 'user', 'content': prompt}],
+                temperature=full_config.get('temperature', 0.7),
+                max_tokens=full_config.get('max_tokens', 4000),
+            )
+            return response.choices[0].message.content
+        
+        elif task_config['provider'] == 'anthropic':
+            response = await provider.messages.create(
+                model=full_config['model'],
+                max_tokens=full_config.get('max_tokens', 4000),
+                messages=[{'role': 'user', 'content': prompt}],
+            )
+            return response.content[0].text
+        
+        # ... другие провайдеры
+```
+
+---
+
+### Пример использования
+
+```python
+# core/application/services/prompt_contract_generator.py
+
+class PromptContractGenerator(BaseService):
+    def __init__(
+        self,
+        llm_router: LLMRouter,  # ← Вместо llm_provider
+        data_repository: DataRepository,
+        data_dir: Path
+    ):
+        self.llm_router = llm_router
+        self.data_repository = data_repository
+        self.data_dir = data_dir
+
+    async def generate_prompt_variant(...) -> str:
+        # ... анализ неудач ...
+        
+        # 3. Генерируем новый промпт через LLM
+        new_content = await self.llm_router.generate(
+            task='prompt_generation',  # ← Указываем задачу
+            prompt=self._build_generation_prompt(...)
+        )
+        
+        return new_version
+
+    async def _generate_input_schema(self, prompt: Prompt) -> Dict[str, Any]:
+        """Генерация входной схемы через LLM"""
+        response = await self.llm_router.generate(
+            task='contract_generation',  # ← Другая задача
+            prompt=f"Создай JSON Schema: {prompt.content[:500]}..."
+        )
+        return json.loads(response)
+```
+
+---
+
+### 📊 Итоговая рекомендация
+
+| Сценарий | Конфигурация | Стоимость/цикл | Качество |
+|----------|--------------|----------------|----------|
+| **Продакшен** | GPT-4 Turbo + GPT-3.5 | $0.34 | ⭐⭐⭐⭐⭐ |
+| **Разработка** | GPT-3.5 (везде) | $0.05 | ⭐⭐⭐⭐ |
+| **Эконом** | Llama-3-70B + 8B | $0.01 (GPU) | ⭐⭐⭐ |
+| **Гибрид** | GPT-4 (генерация) + Llama (анализ) | $0.15 | ⭐⭐⭐⭐ |
+
+**Рекомендация:**
+- **Старт:** GPT-3.5 для всех задач (дешево, достаточно для тестов)
+- **Продакшен:** GPT-4 Turbo для генерации + GPT-3.5 для анализа/оценки
+- **Эконом:** Llama-3-70B для генерации + 8B для анализа
 
     async def generate_prompt_variant(
         self,
@@ -3087,7 +3470,7 @@ class BenchmarkResult:
     """
     Результат запуска бенчмарка.
     
-    ИСПОЛЬЗОВАНИЕ:
+    И��ПОЛЬЗОВАНИЕ:
     result = await benchmark_service.run_benchmark(scenario, version)
     """
     scenario_id: str
