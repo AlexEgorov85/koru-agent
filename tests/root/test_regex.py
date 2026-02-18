@@ -13,7 +13,7 @@ matches2 = re.findall(pattern2, text2)
 print(f"Double braces matches: {matches2}")
 
 # Объединенное регулярное выражение
-pattern3 = r'(?:\{\{|\{)([a-zA-Z_][a-zA-Z0-9_]*)\}\}?)'
+pattern3 = r'(?:\{\{|\{)([a-zA-Z_][a-zA-Z0-9_]*)(?:\}\}|\})'
 matches3 = re.findall(pattern3, text)
 print(f"Combined matches: {matches3}")
 
