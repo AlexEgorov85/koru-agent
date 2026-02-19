@@ -8,7 +8,6 @@ content: |
   ## КОНТЕКСТ АНАЛИЗА
   - ID шага: {{ step_id }}
   - Вопрос: {{ question }}
-  - Источник данных: {{ data_source.type }}
   - Метод агрегации: {{ aggregation_method }}
   
   ## ДАННЫЕ ДЛЯ АНАЛИЗА
@@ -70,7 +69,6 @@ variables:
   - name: question
     description: Вопрос пользователя
     required: true
-  - name: data_source
     description: Информация об источнике данных
     required: true
   - name: raw_data

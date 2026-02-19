@@ -1,5 +1,9 @@
-active_contracts: {}
-active_prompts: {}
+active_contracts:
+  final_answer.generate:
+    input: v1.0.0
+    output: v1.0.0
+active_prompts:
+  final_answer.generate: v1.0.0
 behaviors:
   planning_pattern:
     dependencies: []
@@ -116,13 +120,16 @@ skills:
     enabled: true
     input_contract_versions:
       book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
     manifest_path: data/manifests/skills/book_library/manifest.yaml
     output_contract_versions:
       book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
     parameters:
       max_results: 10
     prompt_versions:
       book_library.search_books: v1.0.0
+      book_library.execute_script: v1.0.0
   data_analysis:
     dependencies:
     - file_tool
