@@ -3,6 +3,7 @@ pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0
 pytest-mock>=3.12.0
+pytest-benchmark>=4.0.0
 
 # Linting & Formatting
 flake8>=7.0.0
@@ -13,3 +14,6 @@ mypy>=1.8.0
 # Testing utilities
 faker>=21.0.0
 factory-boy>=3.3.0
+
+# Profiling
+py-spy>=0.3.14
