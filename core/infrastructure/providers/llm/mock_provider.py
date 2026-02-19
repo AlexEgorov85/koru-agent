@@ -1,8 +1,17 @@
 """
 Mock LLM Provider для тестирования без реального LLM.
+
+Поддерживает:
+- Регистрацию ответов для конкретных промптов
+- Историю вызовов для тестирования
+- Детерминированные ответы
+- Переключение между mock и real LLM
 """
 import logging
-from typing import Dict, Any, Optional
+import time
+import re
+from datetime import datetime
+from typing import Dict, Any, Optional, List, Pattern, Union
 from pydantic import BaseModel, Field
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.models.types.llm_types import LLMRequest, LLMResponse
@@ -15,21 +24,124 @@ logger = logging.getLogger(__name__)
 class MockLLMConfig(BaseModel):
     """Конфигурация для mock LLM провайдера."""
     model_name: str = Field(default="mock-model", description="Имя модели (для mock-провайдера)")
-    temperature: float = Field(default=0.7, description="Температура генерации")
-    max_tokens: int = Field(default=512, description="Максимальное количество токенов")
-    verbose: bool = Field(default=True, description="Подробный вывод")
+    temperature: float = Field(default=0.0, description="Температура генерации (0.0 для детерминизма)")
+    max_tokens: int = Field(default=1000, description="Максимальное количество токенов")
+    verbose: bool = Field(default=False, description="Подробный вывод")
+    default_response: str = Field(default='{"status": "ok"}', description="Ответ по умолчанию")
 
 
 class MockLLMProvider(BaseLLMProvider):
-    """Mock LLM провайдер для тестирования."""
+    """
+    Mock LLM провайдер для тестирования.
+    
+    Поддерживает регистрацию ответов для конкретных промптов и ведение истории вызовов.
+    """
 
-    def __init__(self, config: MockLLMConfig, model_name: str = None):
+    def __init__(self, config: MockLLMConfig = None, model_name: str = None):
         # Вызываем родительский конструктор с базовыми параметрами
+        config = config or MockLLMConfig()
         model_name = model_name or getattr(config, 'model_name', 'mock-model')
         super().__init__(model_name=model_name, config=config.model_dump())
         self.config = config
         self.initialized = False
+        
+        # Маппинг паттернов → ответы
+        self._prompt_responses: Dict[Union[str, Pattern], str] = {}
+        self._default_response = config.default_response
+        self._call_history: List[Dict[str, Any]] = []
+        
         logger.info(f"Создан MockLLMProvider для модели: {model_name}")
+    
+    def register_response(self, prompt_pattern: str, response: str):
+        """
+        Регистрация ответа для конкретного паттерна промпта.
+        
+        Args:
+            prompt_pattern: Строка или regex-паттерн для поиска в промпте
+            response: Ответ, который будет возвращен при совпадении
+        """
+        self._prompt_responses[prompt_pattern] = response
+        logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
+    
+    def register_regex_response(self, pattern: str, response: str):
+        """
+        Регистрация ответа для regex-паттерна.
+        
+        Args:
+            pattern: Regex-паттерн для поиска в промпте
+            response: Ответ, который будет возвращен при совпадении
+        """
+        compiled_pattern = re.compile(pattern, re.IGNORECASE | re.DOTALL)
+        self._prompt_responses[compiled_pattern] = response
+        logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
+    
+    def set_default_response(self, response: str):
+        """
+        Установка ответа по умолчанию для неизвестных промптов.
+        
+        Args:
+            response: Ответ по умолчанию
+        """
+        self._default_response = response
+        logger.debug(f"Установлен ответ по умолчанию: {response[:50]}...")
+    
+    def get_call_history(self) -> List[Dict[str, Any]]:
+        """
+        Получение истории вызовов для тестов.
+        
+        Returns:
+            Копия истории вызовов
+        """
+        return self._call_history.copy()
+    
+    def clear_history(self):
+        """Очистка истории вызовов."""
+        self._call_history.clear()
+        logger.debug("История вызовов очищена")
+    
+    def get_last_call(self) -> Optional[Dict[str, Any]]:
+        """
+        Получение последнего вызова.
+        
+        Returns:
+            Последний вызов или None если история пуста
+        """
+        return self._call_history[-1] if self._call_history else None
+    
+    def assert_called_with(self, prompt_contains: str):
+        """
+        Проверка что LLM был вызван с промптом содержащим указанную строку.
+        
+        Args:
+            prompt_contains: Строка которая должна содержаться в промпте
+            
+        Raises:
+            AssertionError: Если вызов не найден
+        """
+        for call in self._call_history:
+            if prompt_contains in call.get('prompt', ''):
+                return
+        raise AssertionError(
+            f"Mock LLM не был вызван с промптом содержащим '{prompt_contains}'. "
+            f"История вызовов: {[c.get('prompt', '')[:50] for c in self._call_history]}"
+        )
+    
+    def assert_call_count(self, expected_count: int):
+        """
+        Проверка количества вызовов LLM.
+        
+        Args:
+            expected_count: Ожидаемое количество вызовов
+            
+        Raises:
+            AssertionError: Если количество вызовов не совпадает
+        """
+        actual_count = len(self._call_history)
+        if actual_count != expected_count:
+            raise AssertionError(
+                f"Ожидалось {expected_count} вызовов LLM, но было {actual_count}. "
+                f"История: {[c.get('prompt', '')[:30] for c in self._call_history]}"
+            )
 
     async def initialize(self) -> bool:
         """Инициализация провайдера."""
@@ -37,6 +149,7 @@ class MockLLMProvider(BaseLLMProvider):
             logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
             self.initialized = True
             self.is_initialized = True
+            self._set_healthy_status()
             return True
         except Exception as e:
             logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
@@ -47,50 +160,67 @@ class MockLLMProvider(BaseLLMProvider):
         return {
             "status": "healthy",
             "model": self.model_name,
-            "is_initialized": self.is_initialized
+            "is_initialized": self.is_initialized,
+            "call_count": len(self._call_history),
+            "registered_patterns": len(self._prompt_responses)
         }
 
     async def execute(self, request: LLMRequest) -> LLMResponse:
-        """Выполнить запрос к LLM (заглушка)."""
+        """
+        Выполнить запрос к LLM.
+        
+        Ищет подходящий ответ среди зарегистрированных паттернов.
+        """
         if not self.initialized:
             await self.initialize()
 
-        logger.debug(f"Mock выполнение запроса: {request.prompt[:50]}...")
+        start_time = time.time()
+        
+        # Логирование вызова
+        logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
 
-        # Создаем mock-ответ в зависимости от типа запроса
-        user_prompt = request.prompt.lower()
-
-        if "какие книги" in user_prompt or "автор" in user_prompt or "написал" in user_prompt:
-            # Ответ на вопросы о книгах
-            mock_response = {
-                "choices": [{
-                    "text": '{"action_type": "execute_capability", "capability_name": "book_library.get_books_by_author", "parameters": {"author_name": "Александр Пушкин"}, "reasoning": "Поиск книг конкретного автора"}'
-                }],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60}
-            }
-        elif "финальный" in user_prompt or "итоговый" in user_prompt or "заключение" in user_prompt:
-            # Ответ для генерации финального ответа
-            mock_response = {
-                "choices": [{
-                    "text": '{"final_answer": "Александр Пушкин написал такие книги: \'Евгений Онегин\', \'Капитанская дочка\', \'Руслан и Людмила\', \'Борис Годунов\'.", "confidence": 0.95, "sources": ["book_library.get_books_by_author"]}'
-                }],
-                "usage": {"prompt_tokens": 15, "completion_tokens": 80, "total_tokens": 95}
-            }
-        else:
-            # Общий ответ
-            mock_response = {
-                "choices": [{
-                    "text": '{"action_type": "continue", "next_step": "Продолжить выполнение задачи", "confidence": 0.8}'
-                }],
-                "usage": {"prompt_tokens": 8, "completion_tokens": 30, "total_tokens": 38}
-            }
-
+        # Поиск подходящего ответа
+        response = self._default_response
+        matched_pattern = None
+        
+        for pattern, resp in self._prompt_responses.items():
+            if isinstance(pattern, Pattern):
+                # Regex паттерн
+                if pattern.search(request.prompt):
+                    response = resp
+                    matched_pattern = pattern.pattern
+                    break
+            else:
+                # Строковый паттерн
+                if pattern in request.prompt:
+                    response = resp
+                    matched_pattern = pattern
+                    break
+        
+        # Логирование в историю
+        self._call_history.append({
+            'prompt': request.prompt,
+            'prompt_truncated': request.prompt[:200],
+            'response': response,
+            'response_truncated': response[:200],
+            'matched_pattern': matched_pattern,
+            'timestamp': datetime.now().isoformat(),
+            'temperature': request.temperature,
+            'max_tokens': request.max_tokens
+        })
+        
+        generation_time = time.time() - start_time
+        
         return LLMResponse(
-            text=mock_response["choices"][0]["text"],
-            tokens_used=mock_response["usage"]["total_tokens"],
-            generation_time=0.01,
-            model_name=self.model_name,
-            finish_reason="stop"
+            content=response,
+            model=self.model_name,
+            tokens_used=len(response.split()),
+            generation_time=generation_time,
+            finish_reason="stop",
+            metadata={
+                'matched_pattern': matched_pattern,
+                'is_mock': True
+            }
         )
 
     async def shutdown(self):
@@ -103,11 +233,49 @@ class MockLLMProvider(BaseLLMProvider):
         """Генерация текста (совместимость с базовым интерфейсом)."""
         return await self.execute(request)
 
-    async def generate_structured(self, request: LLMRequest) -> Dict[str, Any]:
-        """Генерация структурированных данных."""
+    async def generate_structured(self, request: LLMRequest, output_schema: Dict = None, system_prompt: str = None) -> Dict[str, Any]:
+        """
+        Генерация структурированных данных.
+        
+        Args:
+            request: Запрос к LLM
+            output_schema: JSON схема для валидации (опционально)
+            system_prompt: Системный промпт (опционально)
+            
+        Returns:
+            Словарь с распарсенными данными
+        """
+        # Если есть output_schema, добавляем его в промпт
+        if output_schema:
+            schema_prompt = f"\n\nExpected JSON schema: {output_schema}"
+            if isinstance(request, LLMRequest):
+                request = LLMRequest(
+                    prompt=request.prompt + schema_prompt,
+                    system_prompt=system_prompt or request.system_prompt,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens
+                )
+        
         response = await self.execute(request)
-        # Возвращаем структурированные данные
-        return {"raw_response": response.text, "tokens_used": response.tokens_used}
+        
+        # Пытаемся распарсить JSON ответ
+        try:
+            import json
+            parsed = json.loads(response.content)
+            return {
+                "parsed": parsed,
+                "raw_response": response.content,
+                "tokens_used": response.tokens_used,
+                "is_valid": True
+            }
+        except (json.JSONDecodeError, AttributeError):
+            return {
+                "parsed": None,
+                "raw_response": response.content,
+                "tokens_used": response.tokens_used,
+                "is_valid": False,
+                "error": "Failed to parse JSON response"
+            }
 
 
 # Alias для совместимости с фабрикой
