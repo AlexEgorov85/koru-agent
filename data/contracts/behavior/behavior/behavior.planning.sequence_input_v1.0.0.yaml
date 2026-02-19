@@ -1,14 +1,28 @@
 capability: behavior.planning.sequence
 component_type: behavior
-description: Input contract for behavior.planning.sequence
+description: Input contract for behavior.planning.sequence - упорядочивание шагов
 direction: input
 schema_data:
+  type: object
   properties:
     input:
-      description: Input for behavior.planning.sequence
       type: string
+      description: Текущий контекст задачи и состояние
+    subtasks:
+      type: string
+      description: Список подзадач для упорядочивания
+    dependencies:
+      type: string
+      description: Известные зависимости между подзадачами
+    constraints:
+      type: string
+      description: Ограничения выполнения (ресурсы, время, приоритеты)
+    capabilities_list:
+      type: string
+      description: Список доступных возможностей системы
   required:
-  - input
-  type: object
+    - input
+    - subtasks
+  additionalProperties: true
 status: active
 version: v1.0.0

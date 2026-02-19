@@ -1,14 +1,56 @@
 capability: behavior.planning.sequence
 component_type: behavior
-description: Output contract for behavior.planning.sequence
+description: Output contract for behavior.planning.sequence - упорядоченные шаги
 direction: output
 schema_data:
+  type: object
   properties:
-    result:
-      description: Output for behavior.planning.sequence
+    sequenced_steps:
+      type: array
+      items:
+        type: object
+        properties:
+          step_id:
+            type: string
+          position:
+            type: integer
+          description:
+            type: string
+          dependencies:
+            type: array
+            items:
+              type: string
+          dependency_type:
+            type: string
+            enum: [FS, SS, FF, SF]
+          estimated_duration:
+            type: number
+          can_parallel:
+            type: boolean
+          parallel_group:
+            type: string
+    critical_path:
+      type: array
+      items:
+        type: string
+    total_estimated_duration:
+      type: number
+    parallel_groups:
+      type: array
+      items:
+        type: object
+    constraints_satisfied:
+      type: boolean
+    warnings:
+      type: array
+      items:
+        type: string
+    optimization_notes:
       type: string
   required:
-  - result
-  type: object
+    - sequenced_steps
+    - critical_path
+    - constraints_satisfied
+  additionalProperties: true
 status: active
 version: v1.0.0

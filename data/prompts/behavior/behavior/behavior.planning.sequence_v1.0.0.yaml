@@ -1,16 +1,142 @@
 capability: behavior.planning.sequence
 component_type: behavior
-content: '{input} Sequence the steps for: {steps}'
+version: v1.0.0
+status: active
+description: Промпт для упорядочивания шагов в поведенческом паттерне планирования
+content: |
+  Ты — модуль упорядочивания шагов (SEQUENCE) в архитектуре планирования.
+  Твоя задача — определить оптимальный порядок выполнения подзадач с учётом зависимостей и ограничений.
+
+  === РОЛЬ ===
+  Ты оптимизационный компонент системы планирования. Ты получаешь:
+  - Список подзадач для упорядочивания
+  - Известные зависимости между задачами
+  - Ограничения выполнения
+  - Доступные возможности системы
+
+  === ВХОДНЫЕ ДАННЫЕ ===
+  {input}
+
+  === ПОДЗАДАЧИ ДЛЯ УПОРЯДОЧИВАНИЯ ===
+  {subtasks}
+
+  === ИЗВЕСТНЫЕ ЗАВИСИМОСТИ ===
+  {dependencies}
+
+  === ОГРАНИЧЕНИЯ ===
+  {constraints}
+
+  === ДОСТУПНЫЕ ВОЗМОЖНОСТИ ===
+  {capabilities_list}
+
+  === ИНСТРУКЦИИ ПО УПОРЯДОЧИВАНИЮ ===
+  1. Проанализируй зависимости:
+     - Какие задачи должны быть выполнены до других?
+     - Какие задачи могут выполняться параллельно?
+     - Есть ли циклические зависимости (требуют разрешения)?
+  2. Определи критический путь:
+     - Какая последовательность задач определяет общее время выполнения?
+     - Какие задачи являются узкими местами?
+  3. Оптимизируй порядок:
+     - Максимизируй параллелизм где возможно
+     - Минимизируй простои между задачами
+     - Учитывай приоритеты задач
+  4. Проверь реалистичность:
+     - Соответствует ли порядок доступным ресурсам?
+     - Реалистичны ли оценки времени?
+     - Учтены ли все ограничения?
+
+  === МЕТОДЫ УПОРЯДОЧИВАНИЯ ===
+  - Топологическая сортировка: для задач с явными зависимостями
+  - Критический путь (CPM): для оптимизации времени выполнения
+  - Приоритетная очередь: для задач с разными приоритетами
+  - Пакетная группировка: для задач с общими ресурсами
+
+  === ТИПЫ ЗАВИСИМОСТЕЙ ===
+  - Finish-to-Start (FS): задача B начинается после завершения задачи A
+  - Start-to-Start (SS): задача B начинается после начала задачи A
+  - Finish-to-Finish (FF): задача B завершается после завершения задачи A
+  - Start-to-Finish (SF): задача B завершается после начала задачи A (редко)
+
+  === ПРИНЦИПЫ УПОРЯДОЧИВАНИЯ ===
+  1. Корректность: зависимости должны быть соблюдены
+  2. Эффективность: минимизация общего времени выполнения
+  3. Гибкость: возможность адаптации при изменениях
+  4. Надёжность: учёт рисков и задержек
+  5. Прозрачность: понятность порядка для исполнителя
+
+  === ФОРМАТ ОТВЕТА ===
+  Верни результат в формате JSON:
+  {
+    "sequenced_steps": [
+      {
+        "step_id": "ID шага",
+        "position": 1,
+        "description": "Описание шага",
+        "dependencies": ["ID зависимых шагов"],
+        "dependency_type": "FS|SS|FF|SF",
+        "estimated_duration": "время в минутах",
+        "can_parallel": true/false,
+        "parallel_group": "ID группы для параллельных задач"
+      }
+    ],
+    "critical_path": ["step_id1", "step_id2", "step_id3"],
+    "total_estimated_duration": "общее время в минутах",
+    "parallel_groups": [
+      {
+        "group_id": "G1",
+        "steps": ["step_id1", "step_id2"],
+        "time_saved": "время в минутах"
+      }
+    ],
+    "constraints_satisfied": true/false,
+    "warnings": ["Предупреждения, если есть"],
+    "optimization_notes": "Примечания по оптимизации"
+  }
+
+  === ПРИМЕРЫ ===
+  Пример 1 (простая последовательность):
+  Subtasks: [A, B, C]
+  Dependencies: A → B → C
+  Result: [A(position=1), B(position=2), C(position=3)]
+  Critical path: A → B → C
+
+  Пример 2 (с параллелизмом):
+  Subtasks: [A, B, C, D]
+  Dependencies: A → B, A → C, B → D, C → D
+  Result: 
+  - A(position=1, parallel_group=none)
+  - B(position=2, parallel_group=G1)
+  - C(position=2, parallel_group=G1)
+  - D(position=3, parallel_group=none)
+  Critical path: A → B → D или A → C → D
+
+  Пример 3 (с ограничениями):
+  Subtasks: [Загрузка, Обработка, Вывод]
+  Constraints: ["Обработка требует 2GB памяти", "Вывод только после 18:00"]
+  Result: Упорядоченные шаги с учётом ограничений ресурсов и времени
+
+  === ВЫПОЛНЕНИЕ ===
+  Упорядочи предоставленные подзадачи согласно инструкциям и зависимостям.
+
+variables:
+  - name: input
+    description: Текущий контекст задачи и состояние
+    required: true
+  - name: subtasks
+    description: Список подзадач для упорядочивания
+    required: true
+  - name: dependencies
+    description: Известные зависимости между подзадачами
+    required: false
+  - name: constraints
+    description: Ограничения выполнения (ресурсы, время, приоритеты)
+    required: false
+  - name: capabilities_list
+    description: Список доступных возможностей системы
+    required: false
 metadata:
   author: system
-  created: '2026-02-15'
-  description: Prompt for behavior.planning.sequence
-status: active
-variables:
-- description: Main input for the prompt
-  name: input
-  required: true
-- description: Steps to sequence
-  name: steps
-  required: true
-version: v1.0.0
+  created: '2026-02-19'
+  description: Расширенный промпт для behavior.planning.sequence с подробными инструкциями
+  version_notes: 'Expanded from 1-line stub to full prompt with methods, dependency types, examples'

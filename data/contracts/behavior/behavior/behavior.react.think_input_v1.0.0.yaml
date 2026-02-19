@@ -1,14 +1,28 @@
 capability: behavior.react.think
 component_type: behavior
-description: Input contract for behavior.react.think
+description: Input contract for behavior.react.think - рассуждение в цикле ReAct
 direction: input
 schema_data:
+  type: object
   properties:
     input:
-      description: Input for behavior.react.think
       type: string
+      description: Текущий контекст задачи и состояние
+    goal:
+      type: string
+      description: Исходная цель задачи
+    step_history:
+      type: string
+      description: История выполненных шагов с результатами
+    observation:
+      type: string
+      description: Результат последнего наблюдения
+    available_tools:
+      type: string
+      description: Список доступных инструментов с описаниями
   required:
-  - input
-  type: object
+    - input
+    - goal
+  additionalProperties: true
 status: active
 version: v1.0.0

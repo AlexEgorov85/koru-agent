@@ -1,14 +1,22 @@
 capability: behavior.react.act
 component_type: behavior
-description: Input contract for behavior.react.act
+description: Input contract for behavior.react.act - выполнение действия в цикле ReAct
 direction: input
 schema_data:
+  type: object
   properties:
     input:
-      description: Input for behavior.react.act
       type: string
+      description: Текущий контекст задачи и состояние
+    thought:
+      type: string
+      description: Рассуждение предыдущего шага Think
+    available_tools:
+      type: string
+      description: Список доступных инструментов с описаниями
   required:
-  - input
-  type: object
+    - input
+    - thought
+  additionalProperties: true
 status: active
 version: v1.0.0

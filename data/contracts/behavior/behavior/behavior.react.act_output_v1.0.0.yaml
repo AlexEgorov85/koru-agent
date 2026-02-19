@@ -1,14 +1,26 @@
 capability: behavior.react.act
 component_type: behavior
-description: Output contract for behavior.react.act
+description: Output contract for behavior.react.act - результат выполнения действия
 direction: output
 schema_data:
-  properties:
-    result:
-      description: Output for behavior.react.act
-      type: string
-  required:
-  - result
   type: object
+  properties:
+    action_name:
+      type: string
+      description: Имя выбранного инструмента
+    action_parameters:
+      type: object
+      description: Параметры для вызова инструмента
+    reasoning:
+      type: string
+      description: Краткое обоснование выбора этого действия
+    expected_outcome:
+      type: string
+      description: Ожидаемый результат выполнения
+  required:
+    - action_name
+    - action_parameters
+    - reasoning
+  additionalProperties: true
 status: active
 version: v1.0.0

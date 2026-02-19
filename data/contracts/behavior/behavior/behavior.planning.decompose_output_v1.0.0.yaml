@@ -1,14 +1,53 @@
 capability: behavior.planning.decompose
 component_type: behavior
-description: Output contract for behavior.planning.decompose
+description: Output contract for behavior.planning.decompose - результат декомпозиции
 direction: output
 schema_data:
+  type: object
   properties:
-    result:
-      description: Output for behavior.planning.decompose
+    task_id:
+      type: string
+      description: ID исходной задачи
+    decomposition_strategy:
+      type: string
+      description: Название использованной стратегии
+    complexity_estimate:
+      type: string
+      enum: [low, medium, high]
+    subtasks:
+      type: array
+      items:
+        type: object
+        properties:
+          subtask_id:
+            type: string
+          description:
+            type: string
+          dependencies:
+            type: array
+            items:
+              type: string
+          estimated_complexity:
+            type: string
+            enum: [low, medium, high]
+          required_capabilities:
+            type: array
+            items:
+              type: string
+          expected_outcome:
+            type: string
+    total_subtasks:
+      type: integer
+    critical_path:
+      type: array
+      items:
+        type: string
+    notes:
       type: string
   required:
-  - result
-  type: object
+    - task_id
+    - subtasks
+    - total_subtasks
+  additionalProperties: true
 status: active
 version: v1.0.0

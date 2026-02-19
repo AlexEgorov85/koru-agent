@@ -1,14 +1,46 @@
 capability: behavior.react.observe
 component_type: behavior
-description: Output contract for behavior.react.observe
+description: Output contract for behavior.react.observe - структурированное наблюдение
 direction: output
 schema_data:
-  properties:
-    result:
-      description: Output for behavior.react.observe
-      type: string
-  required:
-  - result
   type: object
+  properties:
+    status:
+      type: string
+      enum: [success, partial, error, empty]
+      description: Статус выполнения действия
+    observation:
+      type: string
+      description: Краткое описание наблюдаемого результата
+    key_findings:
+      type: array
+      items:
+        type: string
+      description: Список важных фактов
+    data_quality:
+      type: object
+      properties:
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 1
+        reliability:
+          type: number
+          minimum: 0
+          maximum: 1
+    errors:
+      type: array
+      items:
+        type: string
+    next_step_suggestion:
+      type: string
+      description: Рекомендация для следующего шага
+    requires_additional_action:
+      type: boolean
+  required:
+    - status
+    - observation
+    - requires_additional_action
+  additionalProperties: true
 status: active
 version: v1.0.0

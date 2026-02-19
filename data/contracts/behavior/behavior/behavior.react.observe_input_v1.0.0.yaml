@@ -1,14 +1,26 @@
 capability: behavior.react.observe
 component_type: behavior
-description: Input contract for behavior.react.observe
+description: Input contract for behavior.react.observe - наблюдение результата действия
 direction: input
 schema_data:
+  type: object
   properties:
     input:
-      description: Input for behavior.react.observe
       type: string
+      description: Текущий контекст задачи и состояние
+    action:
+      type: string
+      description: Выполненное действие с параметрами
+    action_result:
+      type: string
+      description: Результат выполнения действия (данные или ошибка)
+    expected_outcome:
+      type: string
+      description: Ожидаемый результат (для сравнения)
   required:
-  - input
-  type: object
+    - input
+    - action
+    - action_result
+  additionalProperties: true
 status: active
 version: v1.0.0

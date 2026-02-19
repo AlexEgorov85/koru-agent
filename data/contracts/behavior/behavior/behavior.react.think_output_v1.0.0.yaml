@@ -1,14 +1,52 @@
 capability: behavior.react.think
 component_type: behavior
-description: Output contract for behavior.react.think
+description: Output contract for behavior.react.think - результат рассуждения
 direction: output
 schema_data:
+  type: object
   properties:
-    result:
-      description: Output for behavior.react.think
+    thought:
+      type: string
+      description: Развёрнутое рассуждение о текущей ситуации
+    analysis:
+      type: object
+      properties:
+        progress:
+          type: string
+        current_state:
+          type: string
+        issues:
+          type: array
+          items:
+            type: string
+    decision:
+      type: object
+      properties:
+        next_action:
+          type: string
+        reasoning:
+          type: string
+        parameters:
+          type: object
+        expected_outcome:
+          type: string
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+    alternative_actions:
+      type: array
+      items:
+        type: object
+    stop_condition:
+      type: boolean
+    stop_reason:
       type: string
   required:
-  - result
-  type: object
+    - thought
+    - decision
+    - confidence
+    - stop_condition
+  additionalProperties: true
 status: active
 version: v1.0.0

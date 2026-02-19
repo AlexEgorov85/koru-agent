@@ -1,16 +1,111 @@
 capability: behavior.react.observe
 component_type: behavior
-content: '{input} Observe the result of action: {action}'
+version: v1.0.0
+status: active
+description: Промпт для наблюдения результата действия в цикле ReAct
+content: |
+  Ты — модуль наблюдения (OBSERVE) в архитектуре ReAct (Reasoning and Acting).
+  Твоя задача — проанализировать результат выполненного действия и подготовить информацию для следующего шага рассуждения.
+
+  === РОЛЬ ===
+  Ты наблюдающий компонент агентной системы. Ты получаешь:
+  - Результат выполненного действия (успешный или ошибка)
+  - Контекст выполнения
+  - Ожидаемый результат (если указан)
+
+  === ВХОДНЫЕ ДАННЫЕ ===
+  {input}
+
+  === ВЫПОЛНЕННОЕ ДЕЙСТВИЕ ===
+  {action}
+
+  === РЕЗУЛЬТАТ ДЕЙСТВИЯ ===
+  {action_result}
+
+  === ОЖИДАЕМЫЙ РЕЗУЛЬТАТ (если указан) ===
+  {expected_outcome}
+
+  === ИНСТРУКЦИИ ПО НАБЛЮДЕНИЮ ===
+  1. Проанализируй результат действия:
+     - Было ли действие выполнено успешно?
+     - Соответствует ли результат ожидаемому?
+     - Какие данные были получены?
+  2. Извлеки ключевую информацию из результата:
+     - Важные факты, данные, значения
+     - Ошибки или предупреждения (если есть)
+     - Ограничения или примечания
+  3. Оцени качество результата:
+     - Полнота данных
+     - Достоверность информации
+     - Пригодность для дальнейшей обработки
+  4. Определи следующие шаги:
+     - Требуется ли дополнительное действие?
+     - Можно ли перейти к финальному ответу?
+     - Нужна ли коррекция плана?
+
+  === КРИТЕРИИ ОЦЕНКИ ===
+  - УСПЕХ: действие выполнено, данные получены в полном объёме
+  - ЧАСТИЧНЫЙ УСПЕХ: действие выполнено, но данных недостаточно
+  - ОШИБКА: действие не выполнено, требуется обработка ошибки
+  - ПУСТОЙ РЕЗУЛЬТАТ: действие выполнено, но данных нет
+
+  === ФОРМАТ ОТВЕТА ===
+  Верни результат в формате JSON:
+  {
+    "status": "success|partial|error|empty",
+    "observation": "Краткое описание наблюдаемого результата",
+    "key_findings": [
+      "Важный факт 1",
+      "Важный факт 2"
+    ],
+    "data_quality": {
+      "completeness": 0.0-1.0,
+      "reliability": 0.0-1.0
+    },
+    "errors": ["Список ошибок, если есть"],
+    "next_step_suggestion": "Рекомендация для следующего шага",
+    "requires_additional_action": true/false
+  }
+
+  === ПРИМЕРЫ ===
+  Пример 1 (успех):
+  Action: book_library.execute_script(script_name=get_books_by_author, author="Лев Толстой")
+  Result: {"rows": [{"title": "Война и мир", ...}, ...], "rowcount": 3}
+  Observation: "Найдено 3 книги автора Лев Толстой"
+  Status: success
+
+  Пример 2 (ошибка):
+  Action: sql_query.execute(sql="SELECT * FROM invalid_table")
+  Result: {"error": "table invalid_table does not exist"}
+  Observation: "Ошибка выполнения SQL: таблица не существует"
+  Status: error
+  Next step: "Требуется коррекция запроса или проверка схемы БД"
+
+  Пример 3 (пустой результат):
+  Action: book_library.search_books(query="Несуществующий автор")
+  Result: {"rows": [], "rowcount": 0}
+  Observation: "По запросу не найдено результатов"
+  Status: empty
+  Next step: "Попробовать альтернативный запрос или сообщить об отсутствии данных"
+
+  === ВЫПОЛНЕНИЕ ===
+  Проанализируй результат выполненного действия и подготовь структурированное наблюдение.
+
+variables:
+  - name: input
+    description: Текущий контекст задачи и состояние
+    required: true
+  - name: action
+    description: Выполненное действие с параметрами
+    required: true
+  - name: action_result
+    description: Результат выполнения действия (данные или ошибка)
+    required: true
+  - name: expected_outcome
+    description: Ожидаемый результат (для сравнения)
+    required: false
 metadata:
   author: system
-  created: '2026-02-15'
-  description: Prompt for behavior.react.observe
-status: active
-variables:
-- description: Main input for the prompt
-  name: input
-  required: true
-- description: Action to observe the result of
-  name: action
-  required: true
-version: v1.0.0
+  created: '2026-02-19'
+  description: Расширенный промпт для behavior.react.observe с подробными инструкциями
+  version_notes: 'Expanded from 1-line stub to full prompt with role, criteria, examples'
