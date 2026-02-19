@@ -29,7 +29,7 @@ class BaseTool(BaseComponent):
 
     def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
         # Вызов конструктора родительского класса
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
 

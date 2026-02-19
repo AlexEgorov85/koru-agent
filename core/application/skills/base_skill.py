@@ -44,7 +44,7 @@ class BaseSkill(BaseComponent):
         # Если нет, используем app_config для обратной совместимости
         config_to_use = component_config if component_config is not None else app_config
         # Вызов конструктора родительского класса
-        super().__init__(name, application_context, config_to_use, executor)
+        super().__init__(name, application_context, component_config=config_to_use, executor=executor)
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
     

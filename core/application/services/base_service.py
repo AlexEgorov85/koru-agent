@@ -86,7 +86,7 @@ class BaseService(BaseComponent):
             )
 
         # Вызов конструктора родительского класса с ComponentConfig и executor
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
 
         # Устанавливаем атрибут component_config для обратной совместимости с существующими сервисами
         self.component_config = component_config

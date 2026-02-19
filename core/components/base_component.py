@@ -68,6 +68,12 @@ class BaseComponent(ABC):
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
 
+        # === АЛИАСЫ для обратной совместимости ===
+        # Старый код использует _cached_* имена, новый код использует *_schemas
+        self._cached_prompts = self.prompts  # Алиас для совместимости
+        self._cached_input_contracts = self.input_schemas  # Алиас для совместимости
+        self._cached_output_contracts = self.output_schemas  # Алиас для совместимости
+
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,

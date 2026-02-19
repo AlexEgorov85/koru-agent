@@ -67,7 +67,7 @@ class BaseBehavior(BaseComponent):
         - **kwargs: дополнительные параметры
         """
         # Вызов родительского конструктора
-        super().__init__(name, application_context, component_config, executor, **kwargs)
+        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
 
         # Сохраняем executor как атрибут
         self.executor = executor

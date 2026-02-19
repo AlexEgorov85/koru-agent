@@ -60,7 +60,7 @@ class SQLValidatorService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
         self.allowed_operations = set(allowed_operations or ["SELECT"])

@@ -12,7 +12,7 @@ class PlanningSkill(BaseComponent):
     """НАВЫК ПЛАНИРОВАНИЯ С ПОЛНОЙ ИЗОЛЯЦИЕЙ"""
     
     def __init__(self, name: str, application_context: Any, component_config=None, executor=None):
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
         # Инициализация логгера
         import logging
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")

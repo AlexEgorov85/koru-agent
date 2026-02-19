@@ -36,7 +36,7 @@ class DataAnalysisSkill(BaseSkill):
         component_config: Any,
         executor: Any
     ):
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
         
         # Регистрируем поддерживаемые capability
         self.supported_capabilities = {

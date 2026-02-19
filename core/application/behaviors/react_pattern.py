@@ -37,7 +37,7 @@ class ReActPattern(BaseBehavior):
         return "ReAct (Reasoning and Acting) паттерн: цикл размышлений-действий-наблюдений"
 
     def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional['ComponentConfig'] = None, executor=None, **kwargs):
-        super().__init__(name, application_context, component_config, executor, **kwargs)
+        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
 
     async def initialize(self) -> bool:
         """Инициализация паттерна поведения."""

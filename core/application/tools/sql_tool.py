@@ -39,7 +39,7 @@ class SQLTool(BaseTool):
         return "Выполнение SQL-запросов к базе данных с поддержкой изолированных кэшей и sandbox режима"
 
     def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
-        super().__init__(name, application_context, component_config, executor, **kwargs)
+        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""

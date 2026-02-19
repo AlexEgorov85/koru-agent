@@ -64,7 +64,7 @@ class BookLibrarySkill(BaseComponent):
         component_config: ComponentConfig,
         executor: ActionExecutor
     ):
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
 
         # Регистрируем capability, которые использует этот навык
         self.supported_capabilities = {

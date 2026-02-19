@@ -49,7 +49,7 @@ class FinalAnswerSkill(BaseSkill):
         component_config: ComponentConfig,
         executor: Any
     ):
-        super().__init__(name, application_context, component_config, executor)
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
         
         # Кэш для скриптов реестра
         self._scripts_registry = None
