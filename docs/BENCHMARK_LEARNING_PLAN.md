@@ -8283,7 +8283,7 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 | 4 | Оценка точности | 2 | ~9 часов | ✅ |
 | 5 | Бенчмарки | 2 | ~10 часов | ✅ |
 | 6 | Оптимизация | 2 | ~12 часов | ✅ |
-| 7 | Интеграция | 3 | ~10 часов | ⬜ |
+| 7 | Интеграция | 3 | ~10 часов | ✅ |
 | 8 | CLI скрипты | 2 | ~6 часов | ⬜ |
 | 9 | E2E тесты | 2 | ~8 часов | ⬜ |
 | 10 | Документация | 2 | ~6 часов | ⬜ |
@@ -8311,16 +8311,16 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 ## 📈 Прогресс
 
 ```
-[████████████████████████████████████████████████████░░░░] 6/10 этапов выполнено (60%)
-[██████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░] 17/25 задач выполнено (68%)
+[████████████████████████████████████████████████████████████] 7/10 этапов выполнено (70%)
+[██████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░] 20/25 задач выполнено (80%)
 ```
 
 **Последнее обновление:** 2026-02-18
-**Выполнено:** Этапы 1-6 (Модели + Хранилища + Сбор метрик + Оценка + Бенчмарки + Оптимизация)
-**Тестов:** 276+ тестов, все проходят ✅
-**Коммитов:** 14
+**Выполнено:** Этапы 1-7 (Модели + Хранилища + Сбор метрик + Оценка + Бенчмарки + Оптимизация + Интеграция)
+**Тестов:** 321 тест, все проходят ✅
+**Коммитов:** 16
 
-### ✅ Выполнено (Этапы 1-6)
+### ✅ Выполнено (Этапы 1-7)
 
 **Этап 1: Модели данных**
 - `core/models/data/metrics.py`: MetricType, MetricRecord, AggregatedMetrics
@@ -8353,9 +8353,15 @@ python scripts/run_optimization.py --capability text.summarize --mode manual --m
 **Этап 6: Оптимизация**
 - `core/application/services/prompt_contract_generator.py`: PromptContractGenerator
 - `core/application/services/optimization_service.py`: OptimizationService
-- Тесты: 49 тестов (PromptContractGenerator: 19, OptimizationService: 30)
+- Тесты: 49 тестов (PromptContractGenerator: 30, OptimizationService: 30)
 
-### ⬜ В ожидании (Этапы 7-10)
+**Этап 7: Интеграция**
+- `core/application/data_repository.py`: методы управления версиями (get_prompt_versions, get_active_version, update_prompt_status, add_prompt, etc.)
+- `core/infrastructure/storage/file_system_data_source.py`: save_prompt, save_contract
+- `core/application/skills/base_skill.py`: _publish_metrics()
+- Тесты: 15 тестов интеграции
+
+### ⬜ В ожидании (Этапы 8-10)
 
 ---
 
