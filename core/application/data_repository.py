@@ -123,16 +123,16 @@ class DataRepository:
                 # В новой архитектуре это соответствие проверяется при загрузке
         
         # Контракты (аналогично)
-        for cap_dir, ver in app_config.input_contract_versions.items():
-            cap = cap_dir.rsplit('.', 1)[0]  # "planning.create_plan.input" → "planning.create_plan"
+        # Ключи в input_contract_versions/output_contract_versions имеют вид "final_answer.generate"
+        # и должны совпадать с capability в контрактах
+        for cap, ver in app_config.input_contract_versions.items():
             key = (cap, ver, "input")
             if key not in self._contracts_index:
                 self._validation_errors.append(
                     f"Входной контракт {cap}@{ver} указан в конфигурации, но отсутствует в файловой системе"
                 )
-        
-        for cap_dir, ver in app_config.output_contract_versions.items():
-            cap = cap_dir.rsplit('.', 1)[0]
+
+        for cap, ver in app_config.output_contract_versions.items():
             key = (cap, ver, "output")
             if key not in self._contracts_index:
                 self._validation_errors.append(

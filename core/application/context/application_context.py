@@ -418,16 +418,15 @@ class ApplicationContext(BaseSystemContext):
         self._output_contract_schema_cache = {}
 
         # Глобальные контракты из AppConfig
-        for cap_key, ver in self.config.input_contract_versions.items():
-            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.input') else cap_key
+        # Ключи имеют вид "final_answer.generate", используем их напрямую
+        for cap, ver in self.config.input_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                 self._input_contract_schema_cache[(cap, ver)] = schema_cls
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
-        for cap_key, ver in self.config.output_contract_versions.items():
-            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.output') else cap_key
+        for cap, ver in self.config.output_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                 self._output_contract_schema_cache[(cap, ver)] = schema_cls
@@ -444,8 +443,8 @@ class ApplicationContext(BaseSystemContext):
                 for comp_name, comp_config in comp_configs.items():
                     self.logger.info(f"_preload_resources_via_repository: Обработка {comp_name}, input_contract_versions={getattr(comp_config, 'input_contract_versions', {})}")
                     if hasattr(comp_config, 'input_contract_versions'):
-                        for cap_key, ver in comp_config.input_contract_versions.items():
-                            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.input') else cap_key
+                        for cap, ver in comp_config.input_contract_versions.items():
+                            # Ключи имеют вид "final_answer.generate", используем их напрямую
 
                             # Загружаем схему в кэш
                             if (cap, ver) not in self._input_contract_schema_cache:
@@ -464,9 +463,9 @@ class ApplicationContext(BaseSystemContext):
                                 self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
 
                     if hasattr(comp_config, 'output_contract_versions'):
-                        for cap_key, ver in comp_config.output_contract_versions.items():
-                            cap = cap_key.rsplit('.', 1)[0] if cap_key.endswith('.output') else cap_key
-                            
+                        for cap, ver in comp_config.output_contract_versions.items():
+                            # Ключи имеют вид "final_answer.generate", используем их напрямую
+
                             # Загружаем схему в кэш
                             if (cap, ver) not in self._output_contract_schema_cache:
                                 try:
@@ -474,7 +473,7 @@ class ApplicationContext(BaseSystemContext):
                                     self._output_contract_schema_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
-                            
+
                             # Заполняем resolved_output_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "output")
@@ -1057,7 +1056,7 @@ class ApplicationContext(BaseSystemContext):
                         
                     except Exception as e:
                         self.logger.error(
-                            f"Н�� удалось загрузить входной контракт {capability}@{version}: {e}. "
+                            f"Н�� удалось загрузить входной контрак�� {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
                         # Если не удалось ��агрузить контракт, в проде - не разрешаем
