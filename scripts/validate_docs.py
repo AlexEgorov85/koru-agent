@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Скрипт валидации документации проекта Agent_v5.
+Скрипт валидации документации проекта koru-agent.
 
 Запуск:
     python scripts/validate_docs.py
@@ -189,8 +189,8 @@ class DocumentationValidator:
 
 def main():
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Валидация документации Agent_v5")
+
+    parser = argparse.ArgumentParser(description="Валидация документации koru-agent")
     parser.add_argument(
         "--docs",
         type=str,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Скрипт автоматической генерации документации проекта Agent_v5.
+Скрипт автоматической генерации документации проекта koru-agent.
 
 Запуск:
     python scripts/generate_docs.py --output docs/
@@ -307,7 +307,7 @@ def generate_api_reference(scanner: ComponentScanner, output_dir: Path) -> Path:
 
 ## 🔍 Обзор
 
-Этот документ содержит справочник API всех компонентов системы Agent_v5.
+Этот документ содержит справочник API всех компонентов системы koru-agent.
 
 ---
 
@@ -404,7 +404,7 @@ async def {method['name']}({method['params']}) -> {method['return_type']}:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Генерация документации Agent_v5")
+    parser = argparse.ArgumentParser(description="Генерация документации koru-agent")
     parser.add_argument(
         "--output",
         type=str,

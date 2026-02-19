@@ -1,4 +1,4 @@
-# 📋 План внедрения системы Benchmark + Learning для Agent_v5
+# 📋 План внедрения системы Benchmark + Learning для koru-agent
 
 > **Версия:** 1.1.0
 > **Дата создания:** 2026-02-17
@@ -60,7 +60,7 @@
 
 ## 🔍 Обзор
 
-Этот документ описывает план внедрения системы **Benchmark + Learning** в архитектуру Agent_v5. Система позволит:
+Этот документ описывает план внедрения системы **Benchmark + Learning** в архитектуру koru-agent. Система позволит:
 
 - ✅ Автоматически оценивать качество работы агента через бенчмарки
 - ✅ Собирать метрики выполнения через EventBus
@@ -5217,7 +5217,7 @@ CV = 0.04 / 0.85 = 0.047 (4.7%) ✅
 ```python
 class DataRepository:
     """
-    Централизованный р��������������������позиторий с единой точкой валидации структуры данных.
+    Централизова��������ый р��������������������позиторий с единой точкой валидации структуры данных.
     """
 
     def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
@@ -7495,7 +7495,7 @@ def load_scenarios(scenarios_dir: Path) -> List[BenchmarkScenario]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Запуск бенчмарков Agent_v5')
+    parser = argparse.ArgumentParser(description='Запуск бенчмарков koru-agent')
     parser.add_argument('--capability', type=str, help='Имя capability для тестирования')
     parser.add_argument('--version', type=str, default='v1.0.0', help='Версия для тестирования')
     parser.add_argument('--compare', nargs=2, metavar='VERSION', help='Сравнить две версии')
@@ -7587,7 +7587,7 @@ async def run_optimization(capability: str, mode: str, target_accuracy: float = 
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Оптимизация промптов Agent_v5')
+    parser = argparse.ArgumentParser(description='Оптимизация промптов koru-agent')
     parser.add_argument('--capability', type=str, required=True, help='Имя capability')
     parser.add_argument('--mode', type=str, choices=['manual', 'automatic', 'target'], default='manual')
     parser.add_argument('--target-accuracy', type=float, help='Целевая точность (для target режима)')
@@ -8727,7 +8727,7 @@ async def test_full_learning_cycle():
 | Сложность интеграции | Высокое | Начинать с изолированного сервиса, постепенно интегрировать |
 | Производительность | Среднее | Кэшировать метрики, асинхронная запись |
 | Хранение данных | Среднее | Использовать SQLite для начала, потом PostgreSQL |
-| Переобучение промптов | Высокое | Ограничиват�� количество итераций, валидировать на holdout наборе |
+| Переобучение промптов | Высокое | О��ра��ич��ват�� количество итераций, валидировать на holdout наборе |
 | Стоимость LLM вызовов | Высокое | Батчить запросы, использовать mock для тестов |
 
 ---

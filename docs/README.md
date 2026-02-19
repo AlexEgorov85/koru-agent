@@ -1,4 +1,4 @@
-# 📚 Документация Agent_v5
+# 📚 Документация koru-agent
 
 > **Версия:** 5.1.0
 > **Дата обновления:** 2026-02-17
@@ -8,7 +8,7 @@
 
 ## 🔍 О документации
 
-Эта документация описывает архитектуру, компоненты и использование платформы автономных AI-агентов Agent_v5.
+Эта документация описывает архитектуру, компоненты и использование платформы автономных AI-агентов koru-agent.
 
 ### Быстрые ссылки
 
@@ -94,7 +94,7 @@ docs/
 
 ```bash
 git clone <repository_url>
-cd Agent_v5
+cd koru-agent
 python -m venv venv
 source venv/bin/activate  # Или venv\Scripts\activate на Windows
 pip install -r requirements.txt
@@ -147,7 +147,7 @@ python -m pytest tests/ -v
 
 ### Код
 
-- [Исходный код](https://github.com/your-org/Agent_v5)
+- [Исходный код](https://github.com/your-org/koru-agent)
 - [Примеры](../examples/)
 - [Тесты](../tests/)
 

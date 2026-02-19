@@ -1,4 +1,4 @@
-# 🚀 Руководство по развёртыванию Agent_v5
+# 🚀 Руководство по развёртыванию koru-agent
 
 > **Версия:** 5.1.0
 > **Дата обновления:** 2026-02-17
@@ -22,7 +22,7 @@
 
 ## 🔍 Обзор
 
-Руководство по развёртыванию Agent_v5 в различных окружениях.
+Руководство по развёртыванию koru-agent в различных окружениях.
 
 ---
 
@@ -54,7 +54,7 @@
 
 ```bash
 git clone <repository_url>
-cd Agent_v5
+cd koru-agent
 ```
 
 ### Виртуальное окружение
@@ -160,7 +160,7 @@ python -m pytest tests/ --cov=core
 ### Сборка образа
 
 ```bash
-docker build -t agent_v5:latest .
+docker build -t koru-agent:latest .
 ```
 
 ### Запуск контейнера
@@ -170,7 +170,7 @@ docker run -it --rm \
   -e AGENT_PROFILE=prod \
   -e DB_HOST=db \
   -e DB_PASSWORD=secret \
-  agent_v5:latest
+  koru-agent:latest
 ```
 
 ### Docker Compose
@@ -233,8 +233,8 @@ sudo useradd -m -s /bin/bash agent
 
 ```bash
 # Клонирование
-git clone <repository_url> ~/agent_v5
-cd ~/agent_v5
+git clone <repository_url> ~/koru-agent
+cd ~/koru-agent
 
 # Виртуальное окружение
 python3 -m venv venv
@@ -249,8 +249,8 @@ pip install -r requirements-prod.txt
 ```ini
 # /etc/supervisor/conf.d/agent.conf
 [program:agent]
-command=/home/agent/agent_v5/venv/bin/python /home/agent/agent_v5/main.py
-directory=/home/agent/agent_v5
+command=/home/agent/koru-agent/venv/bin/python /home/agent/koru-agent/main.py
+directory=/home/agent/koru-agent
 user=agent
 autostart=true
 autorestart=true

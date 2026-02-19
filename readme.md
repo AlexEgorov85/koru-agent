@@ -1,4 +1,4 @@
-# Agent_v5 — Модульная платформа автономных AI-агентов
+# koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-398%20passed-green.svg)]()
@@ -8,7 +8,7 @@
 
 ## 📋 О проекте
 
-**Agent_v5** — это модульная платформа для создания автономных AI-агентов с поддержкой reasoning-циклов (ReAct), планирования задач и интеграции с различными LLM-провайдерами.
+**koru-agent** — это модульная платформа для создания автономных AI-агентов с поддержкой reasoning-циклов (ReAct), планирования задач и интеграции с различными LLM-провайдерами.
 
 ### Ключевые возможности
 
@@ -28,7 +28,7 @@
 ```bash
 # Клонирование репозитория
 git clone <repository_url>
-cd agent_v5
+cd koru-agent
 
 # Установка зависимостей
 pip install -r requirements.txt
@@ -95,7 +95,7 @@ python -m pytest tests/unit/ -v
 ## 📁 Структура проекта
 
 ```
-agent_v5/
+koru-agent/
 ├── core/                           # Ядро системы
 │   ├── application/                # Прикладной слой
 │   │   ├── context/               # ApplicationContext
@@ -330,4 +330,4 @@ MIT License — см. файл [LICENSE](LICENSE)
 
 ## 👥 Авторы
 
-**Agent_v5 Team** — [GitHub](https://github.com/your-org)
+**koru-agent Team** — [GitHub](https://github.com/your-org)
