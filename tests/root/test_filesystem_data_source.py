@@ -12,40 +12,54 @@ from core.models.data.prompt import Prompt, PromptStatus, ComponentType
 from core.models.data.contract import Contract, ContractDirection
 
 
-def test_empty_directory_initialize():
-    """Тест 1: Пустая директория → initialize() → успешно"""
+@pytest.fixture
+def temp_dir():
+    """Фикстура для создания временной директории"""
     with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.prompt": "skill"
-            }
-        )
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
+        yield Path(tmp_dir)
+
+
+@pytest.fixture
+def registry_config():
+    """Фикстура для создания стандартной конфигурации реестра"""
+    return RegistryConfig(
+        profile="dev",
+        capability_types={
+            "test.skill": "skill"
+        }
+    )
+
+
+@pytest.fixture
+def initialized_ds(temp_dir, registry_config):
+    """Фикстура для создания и инициализации FileSystemDataSource"""
+    ds = FileSystemDataSource(temp_dir, registry_config)
+    ds.initialize()
+    return ds
+
+
+class TestFileSystemDataSourceInitialize:
+    """Тесты инициализации FileSystemDataSource"""
+
+    def test_empty_directory_initialize(self, temp_dir, registry_config):
+        """Тест 1: Пустая директория → initialize() → успешно"""
+        ds = FileSystemDataSource(temp_dir, registry_config)
         ds.initialize()
-        
+
         # Проверяем, что директории созданы
         assert ds.prompts_dir.exists()
         assert ds.contracts_dir.exists()
 
 
-def test_single_valid_prompt():
-    """Тест 2: Один корректный prompt → успешно"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
+class TestFileSystemDataSourceLoadPrompts:
+    """Тесты загрузки промптов"""
+
+    def test_single_valid_prompt(self, temp_dir, registry_config):
+        """Тест 2: Один корректный prompt → успешно"""
         # Создаем директорию для промптов
-        prompts_dir = base_dir / "prompts" / "skill" / "test"
+        prompts_dir = temp_dir / "prompts" / "skill" / "test"
         prompts_dir.mkdir(parents=True)
-        
+
         # Создаем корректный файл промпта
         prompt_data = {
             "capability": "test.skill",
@@ -61,63 +75,43 @@ def test_single_valid_prompt():
                 }
             ]
         }
-        
+
         prompt_file = prompts_dir / "test.skill_v1.0.0.json"
         with open(prompt_file, 'w', encoding='utf-8') as f:
             json.dump(prompt_data, f, ensure_ascii=False, indent=2)
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
+
+        ds = FileSystemDataSource(temp_dir, registry_config)
         ds.initialize()
-        
+
         # Проверяем, что промпт загружен
         prompts = ds.load_all_prompts()
         assert len(prompts) == 1
         assert prompts[0].capability == "test.skill"
         assert prompts[0].version == "v1.0.0"
 
-
-def test_corrupted_json_fails():
-    """Тест 3: Один повреждённый JSON → initialize() падает"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
+    def test_corrupted_json_fails(self, temp_dir, registry_config):
+        """Тест 3: Один повреждённый JSON → initialize() падает"""
         # Создаем директорию для промптов
-        prompts_dir = base_dir / "prompts" / "skill" / "test"
+        prompts_dir = temp_dir / "prompts" / "skill" / "test"
         prompts_dir.mkdir(parents=True)
-        
+
         # Создаем поврежденный файл промпта
         prompt_file = prompts_dir / "test.skill_v1.0.0.json"
         with open(prompt_file, 'w', encoding='utf-8') as f:
             f.write("{ invalid json ")  # intentionally broken JSON
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        
+
+        ds = FileSystemDataSource(temp_dir, registry_config)
+
         # Проверяем, что initialize падает
         with pytest.raises(ValueError):
             ds.initialize()
 
-
-def test_invalid_prompt_fails():
-    """Тест 4: Один невалидный Prompt → initialize() падает"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
+    def test_invalid_prompt_fails(self, temp_dir, registry_config):
+        """Тест 4: Один невалидный Prompt → initialize() падает"""
         # Создаем директорию для промптов
-        prompts_dir = base_dir / "prompts" / "skill" / "test"
+        prompts_dir = temp_dir / "prompts" / "skill" / "test"
         prompts_dir.mkdir(parents=True)
-        
+
         # Создаем невалидный файл промпта (короткое содержание)
         prompt_data = {
             "capability": "test.skill",
@@ -127,32 +121,23 @@ def test_invalid_prompt_fails():
             "content": "Too short",  # слишком короткое содержание
             "variables": []
         }
-        
+
         prompt_file = prompts_dir / "test.skill_v1.0.0.json"
         with open(prompt_file, 'w', encoding='utf-8') as f:
             json.dump(prompt_data, f, ensure_ascii=False, indent=2)
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        
+
+        ds = FileSystemDataSource(temp_dir, registry_config)
+
         # Проверяем, что initialize падает
         with pytest.raises(ValueError):
             ds.initialize()
 
 
-def test_add_new_prompt():
-    """Тест 5: Добавление нового prompt → успешно"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        ds.initialize()
-        
+class TestFileSystemDataSourceSavePrompt:
+    """Тесты сохранения промптов"""
+
+    def test_add_new_prompt(self, initialized_ds):
+        """Тест 5: Добавление нового prompt → успешно"""
         # Создаем новый промпт
         new_prompt = Prompt(
             capability="test.skill",
@@ -168,30 +153,17 @@ def test_add_new_prompt():
                 }
             ]
         )
-        
+
         # Сохраняем промпт
-        ds.save_prompt(new_prompt)
-        
+        initialized_ds.save_prompt(new_prompt)
+
         # Проверяем, что промпт доступен
-        prompts = ds.load_all_prompts()
+        prompts = initialized_ds.load_all_prompts()
         assert len(prompts) == 1
         assert prompts[0].capability == "test.skill"
 
-
-def test_duplicate_prompt_error():
-    """Тест 6: Добавление duplicate → ошибка"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        ds.initialize()
-        
+    def test_duplicate_prompt_error(self, initialized_ds):
+        """Тест 6: Добавление duplicate → ошибка"""
         # Создаем и сохраняем первый промпт
         prompt1 = Prompt(
             capability="test.skill",
@@ -207,9 +179,9 @@ def test_duplicate_prompt_error():
                 }
             ]
         )
-        
-        ds.save_prompt(prompt1)
-        
+
+        initialized_ds.save_prompt(prompt1)
+
         # Пытаемся сохранить второй с тем же именем
         prompt2 = Prompt(
             capability="test.skill",  # same capability
@@ -219,26 +191,17 @@ def test_duplicate_prompt_error():
             content="This is another test prompt",
             variables=[]
         )
-        
+
         # Проверяем, что сохранение дубликата вызывает ошибку
         with pytest.raises(ValueError):
-            ds.save_prompt(prompt2)
+            initialized_ds.save_prompt(prompt2)
 
 
-def test_delete_prompt():
-    """Тест 7: Удаление prompt → успешно"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        ds.initialize()
-        
+class TestFileSystemDataSourceDeletePrompt:
+    """Тесты удаления промптов"""
+
+    def test_delete_prompt(self, initialized_ds):
+        """Тест 7: Удаление prompt → успешно"""
         # Создаем и сохраняем промпт
         prompt = Prompt(
             capability="test.skill",
@@ -254,77 +217,23 @@ def test_delete_prompt():
                 }
             ]
         )
-        
-        ds.save_prompt(prompt)
-        
+
+        initialized_ds.save_prompt(prompt)
+
         # Проверяем, что промпт добавлен
-        prompts = ds.load_all_prompts()
+        prompts = initialized_ds.load_all_prompts()
         assert len(prompts) == 1
-        
+
         # Удаляем промпт
         prompt_key = f"{prompt.capability}:{prompt.version}"
-        ds.delete_prompt(prompt_key)
-        
+        initialized_ds.delete_prompt(prompt_key)
+
         # Проверяем, что промпт удален
-        prompts = ds.load_all_prompts()
+        prompts = initialized_ds.load_all_prompts()
         assert len(prompts) == 0
 
-
-def test_delete_nonexistent_prompt():
-    """Тест 8: Повторное удаление → ошибка"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        base_dir = Path(tmp_dir)
-        registry_config = RegistryConfig(
-            profile="dev",
-            capability_types={
-                "test.skill": "skill"
-            }
-        )
-        
-        ds = FileSystemDataSource(base_dir, registry_config)
-        ds.initialize()
-        
+    def test_delete_nonexistent_prompt(self, initialized_ds):
+        """Тест 8: Повторное удаление → ошибка"""
         # Пытаемся удалить несуществующий промпт
         with pytest.raises(ValueError):
-            ds.delete_prompt("non.existent:v1.0.0")
-
-
-if __name__ == "__main__":
-    # Запуск всех тестов
-    test_empty_directory_initialize()
-    print("✓ Тест 1: Пустая директория → initialize() → успешно")
-    
-    test_single_valid_prompt()
-    print("✓ Тест 2: Один корректный prompt → успешно")
-    
-    try:
-        test_corrupted_json_fails()
-        print("✗ Тест 3: Один повреждённый JSON → initialize() падает")
-    except AssertionError:
-        print("✓ Тест 3: Один повреждённый JSON → initialize() падает")
-    
-    try:
-        test_invalid_prompt_fails()
-        print("✗ Тест 4: Один невалидный Prompt → initialize() падает")
-    except AssertionError:
-        print("✓ Тест 4: Один невалидный Prompt → initialize() падает")
-    
-    test_add_new_prompt()
-    print("✓ Тест 5: Добавление нового prompt → успешно")
-    
-    try:
-        test_duplicate_prompt_error()
-        print("✗ Тест 6: Добавление duplicate → ошибка")
-    except AssertionError:
-        print("✓ Тест 6: Добавление duplicate → ошибка")
-    
-    test_delete_prompt()
-    print("✓ Тест 7: Удаление prompt → успешно")
-    
-    try:
-        test_delete_nonexistent_prompt()
-        print("✗ Тест 8: Повторное удаление → ошибка")
-    except AssertionError:
-        print("✓ Тест 8: Повторное удаление → ошибка")
-    
-    print("\nВсе тесты выполнены!")
+            initialized_ds.delete_prompt("non.existent:v1.0.0")

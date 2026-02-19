@@ -1,0 +1,35 @@
+# Set the default behavior to treat files as UTF-8
+* text=auto eol=crlf working-tree-encoding=utf-8
+
+# Explicitly declare source code files as UTF-8
+*.py text eol=crlf working-tree-encoding=utf-8
+*.yaml text eol=crlf working-tree-encoding=utf-8
+*.yml text eol=crlf working-tree-encoding=utf-8
+*.json text eol=crlf working-tree-encoding=utf-8
+*.md text eol=crlf working-tree-encoding=utf-8
+*.txt text eol=crlf working-tree-encoding=utf-8
+*.rst text eol=crlf working-tree-encoding=utf-8
+
+# Shell scripts should use LF line endings
+*.sh text eol=lf working-tree-encoding=utf-8
+*.bash text eol=lf working-tree-encoding=utf-8
+
+# Batch files should use CRLF line endings
+*.bat text eol=crlf working-tree-encoding=utf-8
+*.cmd text eol=crlf working-tree-encoding=utf-8
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.dll binary
+*.exe binary
+*.pyc binary
+*.whl binary
+
+# Git files
+.gitattributes text eol=lf
+.gitignore text eol=lf

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 def check_yaml_file(filepath):
-    """Проверяет синтаксис YAML файла"""
+    """РџСЂРѕРІРµСЂСЏРµС‚ СЃРёРЅС‚Р°РєСЃРёСЃ YAML С„Р°Р№Р»Р°"""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
@@ -14,7 +14,7 @@ def check_yaml_file(filepath):
         return False
 
 def check_all_yaml_files(root_dir):
-    """Проверяет все YAML файлы в директории"""
+    """РџСЂРѕРІРµСЂСЏРµС‚ РІСЃРµ YAML С„Р°Р№Р»С‹ РІ РґРёСЂРµРєС‚РѕСЂРёРё"""
     root_path = Path(root_dir)
     yaml_files = list(root_path.rglob("*.yaml")) + list(root_path.rglob("*.yml"))
     
@@ -29,7 +29,7 @@ def check_all_yaml_files(root_dir):
     return total == success
 
 if __name__ == "__main__":
-    # Проверяем файлы в data/prompts и data/contracts
+    # РџСЂРѕРІРµСЂСЏРµРј С„Р°Р№Р»С‹ РІ data/prompts Рё data/contracts
     print("Checking files in data/prompts:")
     success1 = check_all_yaml_files("data/prompts")
     

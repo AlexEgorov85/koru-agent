@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI-утилита для управления промптами
+CLI-СѓС‚РёР»РёС‚Р° РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ РїСЂРѕРјРїС‚Р°РјРё
 """
 
 import argparse
@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 import json
 
-# Добавляем путь к корню проекта для импорта модулей
+# Р”РѕР±Р°РІР»СЏРµРј РїСѓС‚СЊ Рє РєРѕСЂРЅСЋ РїСЂРѕРµРєС‚Р° РґР»СЏ РёРјРїРѕСЂС‚Р° РјРѕРґСѓР»РµР№
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.models.data.prompt import Prompt, PromptStatus, PromptMetadata
@@ -18,54 +18,54 @@ from core.infrastructure.registry.prompt_registry import PromptRegistry
 
 
 def create_prompt(args):
-    """Создает новый промпт-черновик"""
-    print(f"Создание нового промпта: {args.capability} версии {args.version}")
+    """РЎРѕР·РґР°РµС‚ РЅРѕРІС‹Р№ РїСЂРѕРјРїС‚-С‡РµСЂРЅРѕРІРёРє"""
+    print(f"РЎРѕР·РґР°РЅРёРµ РЅРѕРІРѕРіРѕ РїСЂРѕРјРїС‚Р°: {args.capability} РІРµСЂСЃРёРё {args.version}")
     
-    # Определяем шаблон содержимого
+    # РћРїСЂРµРґРµР»СЏРµРј С€Р°Р±Р»РѕРЅ СЃРѕРґРµСЂР¶РёРјРѕРіРѕ
     content_templates = {
-        "planning": """# Планирование задачи
+        "planning": """# РџР»Р°РЅРёСЂРѕРІР°РЅРёРµ Р·Р°РґР°С‡Рё
 
-Вы - помощник по планированию задач. Ваша цель - помочь пользователю разбить сложную задачу на подзадачи.
+Р’С‹ - РїРѕРјРѕС‰РЅРёРє РїРѕ РїР»Р°РЅРёСЂРѕРІР°РЅРёСЋ Р·Р°РґР°С‡. Р’Р°С€Р° С†РµР»СЊ - РїРѕРјРѕС‡СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ СЂР°Р·Р±РёС‚СЊ СЃР»РѕР¶РЅСѓСЋ Р·Р°РґР°С‡Сѓ РЅР° РїРѕРґР·Р°РґР°С‡Рё.
 
-## Контекст:
+## РљРѕРЅС‚РµРєСЃС‚:
 {{ context }}
 
-## Задача:
+## Р—Р°РґР°С‡Р°:
 {{ task }}
 
-## Требования:
+## РўСЂРµР±РѕРІР°РЅРёСЏ:
 {{ requirements }}
 
-## Результат:
+## Р РµР·СѓР»СЊС‚Р°С‚:
 """,
-        "analysis": """# Анализ информации
+        "analysis": """# РђРЅР°Р»РёР· РёРЅС„РѕСЂРјР°С†РёРё
 
-Вы - аналитический помощник. Ваша цель - проанализировать предоставленную информацию и предоставить структурированный обзор.
+Р’С‹ - Р°РЅР°Р»РёС‚РёС‡РµСЃРєРёР№ РїРѕРјРѕС‰РЅРёРє. Р’Р°С€Р° С†РµР»СЊ - РїСЂРѕР°РЅР°Р»РёР·РёСЂРѕРІР°С‚СЊ РїСЂРµРґРѕСЃС‚Р°РІР»РµРЅРЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ Рё РїСЂРµРґРѕСЃС‚Р°РІРёС‚СЊ СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРЅС‹Р№ РѕР±Р·РѕСЂ.
 
-## Данные для анализа:
+## Р”Р°РЅРЅС‹Рµ РґР»СЏ Р°РЅР°Р»РёР·Р°:
 {{ data }}
 
-## Критерии анализа:
+## РљСЂРёС‚РµСЂРёРё Р°РЅР°Р»РёР·Р°:
 {{ criteria }}
 
-## Результат анализа:
+## Р РµР·СѓР»СЊС‚Р°С‚ Р°РЅР°Р»РёР·Р°:
 """,
         "default": """# {{ title }}
 
 {{ description }}
 
-## Входные данные:
+## Р’С…РѕРґРЅС‹Рµ РґР°РЅРЅС‹Рµ:
 {% for var in input_vars %}
 - {{ var }}
 {% endfor %}
 
-## Результат:
+## Р РµР·СѓР»СЊС‚Р°С‚:
 """
     }
     
     template = content_templates.get(args.template, content_templates["default"])
     
-    # Создаем метаданные
+    # РЎРѕР·РґР°РµРј РјРµС‚Р°РґР°РЅРЅС‹Рµ
     metadata = PromptMetadata(
         version=args.version,
         skill=args.capability.split('.')[0] if '.' in args.capability else 'general',
@@ -77,109 +77,109 @@ def create_prompt(args):
         status=PromptStatus.DRAFT,
         quality_metrics={},
         author=args.author,
-        changelog=[f"Создан {datetime.now(timezone.utc).isoformat()}"]
+        changelog=[f"РЎРѕР·РґР°РЅ {datetime.now(timezone.utc).isoformat()}"]
     )
     
-    # Создаем промпт
+    # РЎРѕР·РґР°РµРј РїСЂРѕРјРїС‚
     prompt = Prompt(
         metadata=metadata,
         content=template
     )
     
-    # Сохраняем промпт
+    # РЎРѕС…СЂР°РЅСЏРµРј РїСЂРѕРјРїС‚
     base_path = Path("prompts")
     file_path = PromptSerializer.to_file(prompt, base_path)
     
-    print(f"Промпт создан: {file_path}")
+    print(f"РџСЂРѕРјРїС‚ СЃРѕР·РґР°РЅ: {file_path}")
     return True
 
 
 def promote_prompt(args):
-    """Промоутит промпт в активный статус"""
-    print(f"Продвижение промпта: {args.capability} версии {args.version}")
+    """РџСЂРѕРјРѕСѓС‚РёС‚ РїСЂРѕРјРїС‚ РІ Р°РєС‚РёРІРЅС‹Р№ СЃС‚Р°С‚СѓСЃ"""
+    print(f"РџСЂРѕРґРІРёР¶РµРЅРёРµ РїСЂРѕРјРїС‚Р°: {args.capability} РІРµСЂСЃРёРё {args.version}")
     
-    # Загружаем промпт
+    # Р—Р°РіСЂСѓР¶Р°РµРј РїСЂРѕРјРїС‚
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
     prompt = registry.get_prompt_by_capability_and_version(args.capability, args.version)
     
     if not prompt:
-        print(f"Ошибка: Промпт {args.capability} версии {args.version} не найден")
+        print(f"РћС€РёР±РєР°: РџСЂРѕРјРїС‚ {args.capability} РІРµСЂСЃРёРё {args.version} РЅРµ РЅР°Р№РґРµРЅ")
         return False
     
-    # Обновляем статус
+    # РћР±РЅРѕРІР»СЏРµРј СЃС‚Р°С‚СѓСЃ
     prompt.metadata.status = PromptStatus.ACTIVE
     prompt.metadata.updated_at = datetime.now(timezone.utc)
-    prompt.metadata.changelog.append(f"Продвинут в активные {datetime.now(timezone.utc).isoformat()}")
+    prompt.metadata.changelog.append(f"РџСЂРѕРґРІРёРЅСѓС‚ РІ Р°РєС‚РёРІРЅС‹Рµ {datetime.now(timezone.utc).isoformat()}")
     
-    # Обновляем реестр
+    # РћР±РЅРѕРІР»СЏРµРј СЂРµРµСЃС‚СЂ
     success = registry.promote(prompt)
     
     if success:
-        print(f"Промпт {args.capability} версии {args.version} успешно продвинут в активные")
+        print(f"РџСЂРѕРјРїС‚ {args.capability} РІРµСЂСЃРёРё {args.version} СѓСЃРїРµС€РЅРѕ РїСЂРѕРґРІРёРЅСѓС‚ РІ Р°РєС‚РёРІРЅС‹Рµ")
     else:
-        print(f"Ошибка при продвижении промпта {args.capability} версии {args.version}")
+        print(f"РћС€РёР±РєР° РїСЂРё РїСЂРѕРґРІРёР¶РµРЅРёРё РїСЂРѕРјРїС‚Р° {args.capability} РІРµСЂСЃРёРё {args.version}")
     
     return success
 
 
 def archive_prompt(args):
-    """Архивирует промпт"""
-    print(f"Архивация промпта: {args.capability} версии {args.version}")
+    """РђСЂС…РёРІРёСЂСѓРµС‚ РїСЂРѕРјРїС‚"""
+    print(f"РђСЂС…РёРІР°С†РёСЏ РїСЂРѕРјРїС‚Р°: {args.capability} РІРµСЂСЃРёРё {args.version}")
     
-    # Загружаем реестр
+    # Р—Р°РіСЂСѓР¶Р°РµРј СЂРµРµСЃС‚СЂ
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
     
-    # Архивируем промпт
+    # РђСЂС…РёРІРёСЂСѓРµРј РїСЂРѕРјРїС‚
     success = registry.archive(args.capability, args.version, args.reason)
     
     if success:
-        print(f"Промпт {args.capability} версии {args.version} успешно архивирован")
+        print(f"РџСЂРѕРјРїС‚ {args.capability} РІРµСЂСЃРёРё {args.version} СѓСЃРїРµС€РЅРѕ Р°СЂС…РёРІРёСЂРѕРІР°РЅ")
     else:
-        print(f"Ошибка при архивации промпта {args.capability} версии {args.version}")
+        print(f"РћС€РёР±РєР° РїСЂРё Р°СЂС…РёРІР°С†РёРё РїСЂРѕРјРїС‚Р° {args.capability} РІРµСЂСЃРёРё {args.version}")
     
     return success
 
 
 def show_status(args):
-    """Показывает статус всех промптов"""
-    print("Статус промптов:")
+    """РџРѕРєР°Р·С‹РІР°РµС‚ СЃС‚Р°С‚СѓСЃ РІСЃРµС… РїСЂРѕРјРїС‚РѕРІ"""
+    print("РЎС‚Р°С‚СѓСЃ РїСЂРѕРјРїС‚РѕРІ:")
     
-    # Загружаем реестр
+    # Р—Р°РіСЂСѓР¶Р°РµРј СЂРµРµСЃС‚СЂ
     registry = PromptRegistry(Path("prompts") / "registry.yaml")
     
-    print("\nАктивные промпты:")
+    print("\nРђРєС‚РёРІРЅС‹Рµ РїСЂРѕРјРїС‚С‹:")
     for capability, entry in registry.active_prompts.items():
         print(f"  - {capability}: {entry.version} ({entry.status.value}) - {entry.file_path}")
     
-    print("\nАрхивные промпты:")
+    print("\nРђСЂС…РёРІРЅС‹Рµ РїСЂРѕРјРїС‚С‹:")
     for (capability, version), entry in registry.archived_prompts.items():
         print(f"  - {capability}: {version} ({entry.status.value}) - {entry.file_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CLI-утилита для управления промптами")
-    subparsers = parser.add_subparsers(dest="command", help="Доступные команды")
+    parser = argparse.ArgumentParser(description="CLI-СѓС‚РёР»РёС‚Р° РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ РїСЂРѕРјРїС‚Р°РјРё")
+    subparsers = parser.add_subparsers(dest="command", help="Р”РѕСЃС‚СѓРїРЅС‹Рµ РєРѕРјР°РЅРґС‹")
     
-    # Команда create
-    create_parser = subparsers.add_parser("create", help="Создать новый промпт-черновик")
-    create_parser.add_argument("--capability", required=True, help="Название возможности (например, planning.create_plan)")
-    create_parser.add_argument("--version", required=True, help="Версия промпта (например, v1.0.0)")
-    create_parser.add_argument("--template", default="default", choices=["planning", "analysis", "default"], help="Шаблон для промпта")
-    create_parser.add_argument("--author", required=True, help="Автор промпта")
+    # РљРѕРјР°РЅРґР° create
+    create_parser = subparsers.add_parser("create", help="РЎРѕР·РґР°С‚СЊ РЅРѕРІС‹Р№ РїСЂРѕРјРїС‚-С‡РµСЂРЅРѕРІРёРє")
+    create_parser.add_argument("--capability", required=True, help="РќР°Р·РІР°РЅРёРµ РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё (РЅР°РїСЂРёРјРµСЂ, planning.create_plan)")
+    create_parser.add_argument("--version", required=True, help="Р’РµСЂСЃРёСЏ РїСЂРѕРјРїС‚Р° (РЅР°РїСЂРёРјРµСЂ, v1.0.0)")
+    create_parser.add_argument("--template", default="default", choices=["planning", "analysis", "default"], help="РЁР°Р±Р»РѕРЅ РґР»СЏ РїСЂРѕРјРїС‚Р°")
+    create_parser.add_argument("--author", required=True, help="РђРІС‚РѕСЂ РїСЂРѕРјРїС‚Р°")
     
-    # Команда promote
-    promote_parser = subparsers.add_parser("promote", help="Продвинуть промпт в активный статус")
-    promote_parser.add_argument("--capability", required=True, help="Название возможности")
-    promote_parser.add_argument("--version", required=True, help="Версия промпта")
+    # РљРѕРјР°РЅРґР° promote
+    promote_parser = subparsers.add_parser("promote", help="РџСЂРѕРґРІРёРЅСѓС‚СЊ РїСЂРѕРјРїС‚ РІ Р°РєС‚РёРІРЅС‹Р№ СЃС‚Р°С‚СѓСЃ")
+    promote_parser.add_argument("--capability", required=True, help="РќР°Р·РІР°РЅРёРµ РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё")
+    promote_parser.add_argument("--version", required=True, help="Р’РµСЂСЃРёСЏ РїСЂРѕРјРїС‚Р°")
     
-    # Команда archive
-    archive_parser = subparsers.add_parser("archive", help="Архивировать промпт")
-    archive_parser.add_argument("--capability", required=True, help="Название возможности")
-    archive_parser.add_argument("--version", required=True, help="Версия промпта")
-    archive_parser.add_argument("--reason", default="", help="Причина архивации")
+    # РљРѕРјР°РЅРґР° archive
+    archive_parser = subparsers.add_parser("archive", help="РђСЂС…РёРІРёСЂРѕРІР°С‚СЊ РїСЂРѕРјРїС‚")
+    archive_parser.add_argument("--capability", required=True, help="РќР°Р·РІР°РЅРёРµ РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё")
+    archive_parser.add_argument("--version", required=True, help="Р’РµСЂСЃРёСЏ РїСЂРѕРјРїС‚Р°")
+    archive_parser.add_argument("--reason", default="", help="РџСЂРёС‡РёРЅР° Р°СЂС…РёРІР°С†РёРё")
     
-    # Команда status
-    status_parser = subparsers.add_parser("status", help="Показать статус всех промптов")
+    # РљРѕРјР°РЅРґР° status
+    status_parser = subparsers.add_parser("status", help="РџРѕРєР°Р·Р°С‚СЊ СЃС‚Р°С‚СѓСЃ РІСЃРµС… РїСЂРѕРјРїС‚РѕРІ")
     
     args = parser.parse_args()
     

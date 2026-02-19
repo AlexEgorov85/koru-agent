@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
 """
-Скрипт для проверки соответствия файлов в ФС и capability_types в registry.yaml.
+РЎРєСЂРёРїС‚ РґР»СЏ РїСЂРѕРІРµСЂРєРё СЃРѕРѕС‚РІРµС‚СЃС‚РІРёСЏ С„Р°Р№Р»РѕРІ РІ Р¤РЎ Рё capability_types РІ registry.yaml.
 """
 import yaml
 from pathlib import Path
 import os
 
 def check_consistency():
-    """Проверка соответствия файлов в ФС и capability_types в registry.yaml."""
+    """РџСЂРѕРІРµСЂРєР° СЃРѕРѕС‚РІРµС‚СЃС‚РІРёСЏ С„Р°Р№Р»РѕРІ РІ Р¤РЎ Рё capability_types РІ registry.yaml."""
     
-    # Загрузим registry
+    # Р—Р°РіСЂСѓР·РёРј registry
     with open("registry.yaml", 'r', encoding='utf-8') as f:
         registry_data = yaml.safe_load(f)
     
     capability_types = registry_data.get('capability_types', {})
     
-    print(f"[INFO] Загружено {len(capability_types)} capability_types из registry.yaml")
+    print(f"[INFO] Р—Р°РіСЂСѓР¶РµРЅРѕ {len(capability_types)} capability_types РёР· registry.yaml")
     
     data_dir = Path("data")
     
-    # Проверим, что для каждого capability в registry.yaml существуют соответствующие файлы
+    # РџСЂРѕРІРµСЂРёРј, С‡С‚Рѕ РґР»СЏ РєР°Р¶РґРѕРіРѕ capability РІ registry.yaml СЃСѓС‰РµСЃС‚РІСѓСЋС‚ СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёРµ С„Р°Р№Р»С‹
     missing_prompts = []
     missing_input_contracts = []
     missing_output_contracts = []
     
     for capability, comp_type in capability_types.items():
-        # Разбиваем capability на части
+        # Р Р°Р·Р±РёРІР°РµРј capability РЅР° С‡Р°СЃС‚Рё
         cap_parts = capability.split('.')
         if len(cap_parts) >= 2:
             cap_main = cap_parts[0]
         else:
-            print(f"[WARN] Неверный формат capability: {capability}")
+            print(f"[WARN] РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ capability: {capability}")
             continue
         
-        # Проверим наличие промпта
+        # РџСЂРѕРІРµСЂРёРј РЅР°Р»РёС‡РёРµ РїСЂРѕРјРїС‚Р°
         prompt_dir = data_dir / "prompts" / comp_type / cap_main
         prompt_file = prompt_dir / f"{capability}_v1.0.0.yaml"
         
@@ -43,7 +43,7 @@ def check_consistency():
         else:
             print(f"[FOUND PROMPT] {prompt_file}")
         
-        # Проверим наличие входного контракта
+        # РџСЂРѕРІРµСЂРёРј РЅР°Р»РёС‡РёРµ РІС…РѕРґРЅРѕРіРѕ РєРѕРЅС‚СЂР°РєС‚Р°
         contract_dir = data_dir / "contracts" / comp_type / cap_main
         input_contract_file = contract_dir / f"{capability}_input_v1.0.0.yaml"
         
@@ -53,7 +53,7 @@ def check_consistency():
         else:
             print(f"[FOUND INPUT CONTRACT] {input_contract_file}")
         
-        # Проверим наличие выходного контракта
+        # РџСЂРѕРІРµСЂРёРј РЅР°Р»РёС‡РёРµ РІС‹С…РѕРґРЅРѕРіРѕ РєРѕРЅС‚СЂР°РєС‚Р°
         output_contract_file = contract_dir / f"{capability}_output_v1.0.0.yaml"
         
         if not output_contract_file.exists():
@@ -63,9 +63,9 @@ def check_consistency():
             print(f"[FOUND OUTPUT CONTRACT] {output_contract_file}")
     
     print(f"\n[SUMMARY]")
-    print(f"  Промпты отсутствуют: {len(missing_prompts)}")
-    print(f"  Входные контракты отсутствуют: {len(missing_input_contracts)}")
-    print(f"  Выходные контракты отсутствуют: {len(missing_output_contracts)}")
+    print(f"  РџСЂРѕРјРїС‚С‹ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚: {len(missing_prompts)}")
+    print(f"  Р’С…РѕРґРЅС‹Рµ РєРѕРЅС‚СЂР°РєС‚С‹ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚: {len(missing_input_contracts)}")
+    print(f"  Р’С‹С…РѕРґРЅС‹Рµ РєРѕРЅС‚СЂР°РєС‚С‹ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚: {len(missing_output_contracts)}")
     
     if missing_prompts:
         print(f"\n[MISSING PROMPTS]:")
@@ -85,17 +85,17 @@ def check_consistency():
     total_missing = len(missing_prompts) + len(missing_input_contracts) + len(missing_output_contracts)
     
     if total_missing == 0:
-        print(f"\n[SUCCESS] Все capability из registry.yaml имеют соответствующие файлы!")
+        print(f"\n[SUCCESS] Р’СЃРµ capability РёР· registry.yaml РёРјРµСЋС‚ СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёРµ С„Р°Р№Р»С‹!")
         return True
     else:
-        print(f"\n[INFO] Всего отсутствует {total_missing} файлов")
+        print(f"\n[INFO] Р’СЃРµРіРѕ РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ {total_missing} С„Р°Р№Р»РѕРІ")
         return False
 
 
 def create_missing_files():
-    """Создание отсутствующих файлов."""
+    """РЎРѕР·РґР°РЅРёРµ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РёС… С„Р°Р№Р»РѕРІ."""
     
-    # Загрузим registry
+    # Р—Р°РіСЂСѓР·РёРј registry
     with open("registry.yaml", 'r', encoding='utf-8') as f:
         registry_data = yaml.safe_load(f)
     
@@ -106,21 +106,21 @@ def create_missing_files():
     created_count = 0
     
     for capability, comp_type in capability_types.items():
-        # Разбиваем capability на части
+        # Р Р°Р·Р±РёРІР°РµРј capability РЅР° С‡Р°СЃС‚Рё
         cap_parts = capability.split('.')
         if len(cap_parts) >= 2:
             cap_main = cap_parts[0]
         else:
             continue
         
-        # Создаем директории
+        # РЎРѕР·РґР°РµРј РґРёСЂРµРєС‚РѕСЂРёРё
         prompt_dir = data_dir / "prompts" / comp_type / cap_main
         contract_dir = data_dir / "contracts" / comp_type / cap_main
         
         prompt_dir.mkdir(parents=True, exist_ok=True)
         contract_dir.mkdir(parents=True, exist_ok=True)
         
-        # Создаем промпт если отсутствует
+        # РЎРѕР·РґР°РµРј РїСЂРѕРјРїС‚ РµСЃР»Рё РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚
         prompt_file = prompt_dir / f"{capability}_v1.0.0.yaml"
         if not prompt_file.exists():
             prompt_content = {
@@ -149,7 +149,7 @@ def create_missing_files():
             print(f"[CREATED PROMPT] {prompt_file}")
             created_count += 1
         
-        # Создаем входной контракт если отсутствует
+        # РЎРѕР·РґР°РµРј РІС…РѕРґРЅРѕР№ РєРѕРЅС‚СЂР°РєС‚ РµСЃР»Рё РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚
         input_contract_file = contract_dir / f"{capability}_input_v1.0.0.yaml"
         if not input_contract_file.exists():
             input_contract_content = {
@@ -177,7 +177,7 @@ def create_missing_files():
             print(f"[CREATED INPUT CONTRACT] {input_contract_file}")
             created_count += 1
         
-        # Создаем выходной контракт если отсутствует
+        # РЎРѕР·РґР°РµРј РІС‹С…РѕРґРЅРѕР№ РєРѕРЅС‚СЂР°РєС‚ РµСЃР»Рё РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚
         output_contract_file = contract_dir / f"{capability}_output_v1.0.0.yaml"
         if not output_contract_file.exists():
             output_contract_content = {
@@ -205,17 +205,17 @@ def create_missing_files():
             print(f"[CREATED OUTPUT CONTRACT] {output_contract_file}")
             created_count += 1
     
-    print(f"\n[SUCCESS] Создано {created_count} файлов")
+    print(f"\n[SUCCESS] РЎРѕР·РґР°РЅРѕ {created_count} С„Р°Р№Р»РѕРІ")
 
 
 if __name__ == "__main__":
-    print("Проверка соответствия файлов в ФС и capability_types в registry.yaml...")
+    print("РџСЂРѕРІРµСЂРєР° СЃРѕРѕС‚РІРµС‚СЃС‚РІРёСЏ С„Р°Р№Р»РѕРІ РІ Р¤РЎ Рё capability_types РІ registry.yaml...")
     success = check_consistency()
     
     if not success:
-        print("\nНекоторые файлы отсутствуют. Создаем недостающие файлы...")
+        print("\nРќРµРєРѕС‚РѕСЂС‹Рµ С„Р°Р№Р»С‹ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚. РЎРѕР·РґР°РµРј РЅРµРґРѕСЃС‚Р°СЋС‰РёРµ С„Р°Р№Р»С‹...")
         create_missing_files()
-        print("\nПовторная проверка...")
+        print("\nРџРѕРІС‚РѕСЂРЅР°СЏ РїСЂРѕРІРµСЂРєР°...")
         check_consistency()
     
-    print("\n[SUCCESS] Проверка завершена!")
+    print("\n[SUCCESS] РџСЂРѕРІРµСЂРєР° Р·Р°РІРµСЂС€РµРЅР°!")

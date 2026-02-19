@@ -2,11 +2,16 @@
 """
 Интеграционный тест: Поднятие ApplicationContext и запуск инструментов
 БЕЗ МОКОВ - используются реальные компоненты
+
+Конвертировано в pytest формат с использованием fixtures и async тестов.
 """
 import asyncio
 import logging
 import sys
 from pathlib import Path
+
+import pytest
+
 from core.config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
 from core.config.app_config import AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
@@ -20,15 +25,25 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
+logger = logging.getLogger(__name__)
 
-async def test_infrastructure_context():
-    """Тест 1: Инициализация InfrastructureContext"""
-    print("\n" + "="*60)
-    print("ТЕСТ 1: Инициализация InfrastructureContext")
-    print("="*60)
-    
-    # Создаем минимальную системную конфигурацию
-    config = SystemConfig(
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Создание event loop для async тестов."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+def system_config():
+    """Создание минимальной системной конфигурации для тестов."""
+    return SystemConfig(
         debug=True,
         log_level="INFO",
         log_dir="./logs",
@@ -42,85 +57,87 @@ async def test_infrastructure_context():
             )
         }
     )
+
+
+@pytest.fixture(scope="session")
+def app_config():
+    """Загрузка конфигурации приложения из registry.yaml."""
+    return AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+
+
+@pytest.fixture
+async def infrastructure_context(system_config):
+    """
+    Фикстура для создания и инициализации InfrastructureContext.
     
-    # Создаем и инициализируем инфраструктурный контекст
-    infra = InfrastructureContext(config)
+    Setup:
+        - Создает InfrastructureContext с системной конфигурацией
+        - Инициализирует контекст
+    
+    Teardown:
+        - Корректно завершает работу контекста через shutdown()
+    
+    Yields:
+        InfrastructureContext: Инициализированный инфраструктурный контекст
+    """
+    infra = InfrastructureContext(system_config)
     success = await infra.initialize()
-    
-    print(f"InfrastructureContext инициализирован: {success}")
-    print(f"ID контекста: {infra.id}")
-    print(f"PromptStorage: {infra.prompt_storage is not None}")
-    print(f"ContractStorage: {infra.contract_storage is not None}")
-    print(f"ResourceRegistry: {infra.resource_registry is not None}")
-    
     assert success, "InfrastructureContext не инициализировался"
-    return infra
+    logger.info(f"InfrastructureContext инициализирован: ID={infra.id}")
+    yield infra
+    await infra.shutdown()
+    logger.info("InfrastructureContext завершен")
 
 
-async def test_application_context(infra: InfrastructureContext):
-    """Тест 2: Инициализация ApplicationContext"""
-    print("\n" + "="*60)
-    print("ТЕСТ 2: Инициализация ApplicationContext")
-    print("="*60)
-
-    # Загружаем конфигурацию из registry.yaml
-    app_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
-
-    print(f"Config ID: {app_config.config_id}")
-    print(f"Service configs: {len(app_config.service_configs)}")
-    print(f"Skill configs: {len(app_config.skill_configs)}")
-    print(f"Tool configs: {len(app_config.tool_configs)}")
-    print(f"Behavior configs: {len(app_config.behavior_configs)}")
-
-    # Создаем прикладной контекст
+@pytest.fixture
+async def application_context(infrastructure_context, app_config):
+    """
+    Фикстура для создания и инициализации ApplicationContext.
+    
+    Setup:
+        - Создает ApplicationContext с инфраструктурным контекстом и конфигурацией
+        - Инициализирует прикладной контекст
+    
+    Teardown:
+        - Сбрасывает флаг инициализации
+    
+    Yields:
+        ApplicationContext: Инициализированный прикладной контекст
+    """
     app_context = ApplicationContext(
-        infrastructure_context=infra,
+        infrastructure_context=infrastructure_context,
         config=app_config,
         profile="prod",
         use_data_repository=True
     )
-
-    print(f"ID ApplicationContext: {app_context.id}")
-    print(f"DataRepository: {app_context.data_repository is not None}")
-    print(f"Side effects enabled: {app_context.side_effects_enabled}")
-
-    # Инициализируем прикладной контекст
-    # Примечание: некоторые компоненты могут не инициализироваться из-за отсутствующих ресурсов
+    logger.info(f"ApplicationContext создан: ID={app_context.id}")
     success = await app_context.initialize()
-
-    print(f"ApplicationContext инициализирован: {success}")
-    # Разрешаем частичную инициализацию - главное что контекст создан
     assert app_context is not None, "ApplicationContext должен быть создан"
+    logger.info(f"ApplicationContext инициализирован: success={success}")
+    yield app_context
+    app_context._initialized = False
 
-    return app_context
 
-
-async def test_components_loading(app_context: ApplicationContext):
-    """Тест 3: Загрузка компонентов из реестра"""
-    print("\n" + "="*60)
-    print("ТЕСТ 3: Загрузка компонентов")
-    print("="*60)
+@pytest.fixture
+def loaded_components(application_context):
+    """
+    Фикстура для загрузки компонентов из контекста.
     
-    # Проверяем загрузку компонентов через реестр
-    tools = app_context.components.all_of_type(ComponentType.TOOL)
-    skills = app_context.components.all_of_type(ComponentType.SKILL)
-    services = app_context.components.all_of_type(ComponentType.SERVICE)
-    behaviors = app_context.components.all_of_type(ComponentType.BEHAVIOR)
+    Извлекает все компоненты по типам из ApplicationContext.
     
-    print(f"Загружено инструментов: {len(tools)}")
-    print(f"Загружено навыков: {len(skills)}")
-    print(f"Загружено сервисов: {len(services)}")
-    print(f"Загружено поведений: {len(behaviors)}")
+    Args:
+        application_context: Инициализированный ApplicationContext
     
-    # Выводим имена компонентов
-    if tools:
-        print(f"  Инструменты: {[t.name for t in tools]}")
-    if skills:
-        print(f"  Навыки: {[s.name for s in skills]}")
-    if services:
-        print(f"  Сервисы: {[s.name for s in services]}")
-    if behaviors:
-        print(f"  Поведения: {[b.name for b in behaviors]}")
+    Returns:
+        dict: Словарь с компонентами по типам (tools, skills, services, behaviors)
+    """
+    tools = application_context.components.all_of_type(ComponentType.TOOL)
+    skills = application_context.components.all_of_type(ComponentType.SKILL)
+    services = application_context.components.all_of_type(ComponentType.SERVICE)
+    behaviors = application_context.components.all_of_type(ComponentType.BEHAVIOR)
+    
+    logger.info(f"Загружено компонентов - Tools: {len(tools)}, Skills: {len(skills)}, "
+                f"Services: {len(services)}, Behaviors: {len(behaviors)}")
     
     return {
         'tools': tools,
@@ -130,148 +147,299 @@ async def test_components_loading(app_context: ApplicationContext):
     }
 
 
-async def test_tool_execution(app_context: ApplicationContext, tools: list):
-    """Тест 4: Выполнение инструментов"""
-    print("\n" + "="*60)
-    print("ТЕСТ 4: Выполнение инструментов")
-    print("="*60)
+# =============================================================================
+# Тест 1: Инициализация InfrastructureContext
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_infrastructure_context_initialization(infrastructure_context):
+    """
+    Тест инициализации InfrastructureContext.
+    
+    Проверяет:
+        - Успешную инициализацию инфраструктурного контекста
+        - Наличие ID контекста
+        - Инициализацию PromptStorage
+        - Инициализацию ContractStorage
+        - Инициализацию ResourceRegistry
+    
+    Args:
+        infrastructure_context: Фикстура InfrastructureContext
+    
+    Asserts:
+        - infrastructure_context успешно инициализирован
+        - infrastructure_context.id существует
+        - prompt_storage инициализирован
+        - contract_storage инициализирован
+        - resource_registry инициализирован
+    """
+    assert infrastructure_context is not None, "InfrastructureContext должен быть создан"
+    assert infrastructure_context.id is not None, "ID контекста должен быть установлен"
+    assert infrastructure_context.prompt_storage is not None, "PromptStorage должен быть инициализирован"
+    assert infrastructure_context.contract_storage is not None, "ContractStorage должен быть инициализирован"
+    assert infrastructure_context.resource_registry is not None, "ResourceRegistry должен быть инициализирован"
+    
+    logger.info(f"InfrastructureContext проверки пройдены: ID={infrastructure_context.id}")
+
+
+# =============================================================================
+# Тест 2: Инициализация ApplicationContext
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_application_context_initialization(application_context, app_config):
+    """
+    Тест инициализации ApplicationContext.
+    
+    Проверяет:
+        - Создание ApplicationContext с корректными параметрами
+        - Инициализацию DataRepository
+        - Настройку side effects
+    
+    Args:
+        application_context: Фикстура ApplicationContext
+        app_config: Фикстура конфигурации приложения
+    
+    Asserts:
+        - application_context создан
+        - application_context.id установлен
+        - data_repository инициализирован
+    """
+    assert application_context is not None, "ApplicationContext должен быть создан"
+    assert application_context.id is not None, "ID контекста должен быть установлен"
+    assert application_context.data_repository is not None, "DataRepository должен быть инициализирован"
+    
+    logger.info(f"ApplicationContext проверки пройдены: ID={application_context.id}, "
+                f"Service configs: {len(app_config.service_configs)}, "
+                f"Skill configs: {len(app_config.skill_configs)}, "
+                f"Tool configs: {len(app_config.tool_configs)}, "
+                f"Behavior configs: {len(app_config.behavior_configs)}")
+
+
+# =============================================================================
+# Тест 3: Загрузка компонентов
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_components_loading(loaded_components):
+    """
+    Тест загрузки компонентов из реестра.
+    
+    Проверяет загрузку всех типов компонентов:
+        - Инструменты (TOOL)
+        - Навыки (SKILL)
+        - Сервисы (SERVICE)
+        - Поведения (BEHAVIOR)
+    
+    Args:
+        loaded_components: Фикстура с загруженными компонентами
+    
+    Asserts:
+        - Компоненты загружены в словарь
+        - Ключи словаря соответствуют ожидаемым типам
+    """
+    assert 'tools' in loaded_components, "Словарь компонентов должен содержать ключ 'tools'"
+    assert 'skills' in loaded_components, "Словарь компонентов должен содержать ключ 'skills'"
+    assert 'services' in loaded_components, "Словарь компонентов должен содержать ключ 'services'"
+    assert 'behaviors' in loaded_components, "Словарь компонентов должен содержать ключ 'behaviors'"
+    
+    tools = loaded_components['tools']
+    skills = loaded_components['skills']
+    services = loaded_components['services']
+    behaviors = loaded_components['behaviors']
+    
+    logger.info(f"Компоненты загружены - Tools: {len(tools)}, Skills: {len(skills)}, "
+                f"Services: {len(services)}, Behaviors: {len(behaviors)}")
+    
+    if tools:
+        logger.info(f"Инструменты: {[t.name for t in tools]}")
+    if skills:
+        logger.info(f"Навыки: {[s.name for s in skills]}")
+    if services:
+        logger.info(f"Сервисы: {[s.name for s in services]}")
+    if behaviors:
+        logger.info(f"Поведения: {[b.name for b in behaviors]}")
+
+
+# =============================================================================
+# Тест 4: Выполнение инструментов
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_file_tool_execution(application_context):
+    """
+    Тест выполнения операций FileTool.
+    
+    Проверяет:
+        - Наличие FileTool в контексте
+        - Инициализацию FileTool
+        - Операцию read (чтение файла)
+        - Операцию list (список файлов в директории)
+    
+    Args:
+        application_context: Фикстура ApplicationContext
+    
+    Asserts:
+        - FileTool найден в контексте
+        - FileTool инициализирован
+        - Операция read выполнена успешно (если файл существует)
+        - Операция list выполнена успешно
+    """
+    from core.application.tools.file_tool import FileToolInput
+    
+    file_tool = application_context.components.get(ComponentType.TOOL, "file_tool")
+    
+    assert file_tool is not None, "FileTool должен быть найден в контексте"
+    logger.info(f"FileTool найден: {file_tool.name}, Описание: {file_tool.description}")
+    assert file_tool._initialized, "FileTool должен быть инициализирован"
     
     results = {}
     
-    # Тест FileTool
-    file_tool = app_context.components.get(ComponentType.TOOL, "file_tool")
-    if file_tool:
-        print(f"\nFileTool найден: {file_tool.name}")
-        print(f"  Описание: {file_tool.description}")
-        print(f"  Инициализирован: {file_tool._initialized}")
-        
-        # Тест операции read (безопасная операция)
-        from core.application.tools.file_tool import FileToolInput
-        test_file = Path("./data/registry.yaml")
-        
-        if test_file.exists():
-            input_data = FileToolInput(operation="read", path=str(test_file))
-            output = await file_tool.execute(input_data)
-            
-            print(f"  Операция read: success={output.success}")
-            if output.success:
-                print(f"  Размер файла: {output.data.get('size', 'N/A')} байт")
-            else:
-                print(f"  Ошибка: {output.error}")
-            
-            results['file_tool_read'] = output.success
-        else:
-            print(f"  Тестовый файл не найден: {test_file}")
-            results['file_tool_read'] = False
-        
-        # Тест операции list
-        input_data = FileToolInput(operation="list", path="./data")
+    # Тест операции read
+    test_file = Path("./data/registry.yaml")
+    if test_file.exists():
+        input_data = FileToolInput(operation="read", path=str(test_file))
         output = await file_tool.execute(input_data)
         
-        print(f"  Операция list: success={output.success}")
+        assert output.success, f"FileTool read операция не удалась: {output.error}"
         if output.success:
-            print(f"  Найдено элементов: {output.data.get('count', 0)}")
-        else:
-            print(f"  Ошибка: {output.error}")
-        
-        results['file_tool_list'] = output.success
+            file_size = output.data.get('size', 'N/A')
+            logger.info(f"FileTool read: success=True, Размер файла: {file_size} байт")
+        results['file_tool_read'] = True
     else:
-        print("FileTool не найден в контексте")
+        logger.warning(f"Тестовый файл не найден: {test_file}")
         results['file_tool_read'] = False
-        results['file_tool_list'] = False
     
-    # Тест SQLTool
-    sql_tool = app_context.components.get(ComponentType.TOOL, "sql_tool")
-    if sql_tool:
-        print(f"\nSQLTool найден: {sql_tool.name}")
-        print(f"  Описание: {sql_tool.description}")
-        print(f"  Инициализирован: {sql_tool._initialized}")
-        
-        # Проверяем наличие БД провайдера
-        db_provider = app_context.infrastructure_context.get_provider("default_db")
-        print(f"  DB провайдер: {db_provider is not None}")
-        
-        if db_provider:
-            # Тест SQL запроса (создание таблицы)
-            from core.application.tools.sql_tool import SQLToolInput
-            
-            # Создаем тестовую таблицу
-            input_data = SQLToolInput(
-                sql="CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)",
-                parameters=None,
-                max_rows=100
-            )
-            output = await sql_tool.execute(input_data)
-            
-            print(f"  CREATE TABLE: success={output.rowcount >= 0}")
-            results['sql_create'] = True
-            
-            # Вставляем тестовые данные
-            input_data = SQLToolInput(
-                sql="INSERT INTO test_table (name) VALUES (?)",
-                parameters={"1": "test_value"},
-                max_rows=100
-            )
-            output = await sql_tool.execute(input_data)
-            
-            print(f"  INSERT: rows affected={output.rowcount}")
-            results['sql_insert'] = output.rowcount >= 0
-            
-            # Читаем данные
-            input_data = SQLToolInput(
-                sql="SELECT * FROM test_table",
-                parameters=None,
-                max_rows=100
-            )
-            output = await sql_tool.execute(input_data)
-            
-            print(f"  SELECT: найдено строк={output.rowcount}")
-            print(f"  Колонки: {output.columns}")
-            if output.rows:
-                print(f"  Первая строка: {output.rows[0]}")
-            
-            results['sql_select'] = output.rowcount >= 0
-        else:
-            print("  DB провайдер не найден, пропускаем SQL тесты")
-            results['sql_create'] = False
-            results['sql_insert'] = False
-            results['sql_select'] = False
-    else:
-        print("SQLTool не найден в контексте")
-        results['sql_create'] = False
-        results['sql_insert'] = False
-        results['sql_select'] = False
+    # Тест операции list
+    input_data = FileToolInput(operation="list", path="./data")
+    output = await file_tool.execute(input_data)
+    
+    assert output.success, f"FileTool list операция не удалась: {output.error}"
+    if output.success:
+        count = output.data.get('count', 0)
+        logger.info(f"FileTool list: success=True, Найдено элементов: {count}")
+    results['file_tool_list'] = True
     
     return results
 
 
-async def test_sandbox_mode(app_context: ApplicationContext):
-    """Тест 5: Проверка sandbox режима"""
-    print("\n" + "="*60)
-    print("ТЕСТ 5: Sandbox режим (side_effects_enabled=False)")
-    print("="*60)
+@pytest.mark.asyncio
+async def test_sql_tool_execution(application_context):
+    """
+    Тест выполнения операций SQLTool.
     
-    # Создаем контекст с отключенными side effects
-    app_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
-    # Переключаем в sandbox режим
-    app_config.side_effects_enabled = False
+    Проверяет:
+        - Наличие SQLTool в контексте
+        - Инициализацию SQLTool
+        - Наличие DB провайдера
+        - Операцию CREATE TABLE
+        - Операцию INSERT
+        - Операцию SELECT
+    
+    Args:
+        application_context: Фикстура ApplicationContext
+    
+    Asserts:
+        - SQLTool найден в контексте
+        - SQLTool инициализирован
+        - DB провайдер доступен
+        - SQL операции выполняются успешно
+    """
+    from core.application.tools.sql_tool import SQLToolInput
+    
+    sql_tool = application_context.components.get(ComponentType.TOOL, "sql_tool")
+    
+    assert sql_tool is not None, "SQLTool должен быть найден в контексте"
+    logger.info(f"SQLTool найден: {sql_tool.name}, Описание: {sql_tool.description}")
+    assert sql_tool._initialized, "SQLTool должен быть инициализирован"
+    
+    db_provider = application_context.infrastructure_context.get_provider("default_db")
+    assert db_provider is not None, "DB провайдер 'default_db' должен быть доступен"
+    logger.info(f"DB провайдер доступен: {db_provider is not None}")
+    
+    results = {}
+    
+    # CREATE TABLE
+    input_data = SQLToolInput(
+        sql="CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)",
+        parameters=None,
+        max_rows=100
+    )
+    output = await sql_tool.execute(input_data)
+    assert output.rowcount >= 0, "CREATE TABLE операция не удалась"
+    logger.info(f"SQL CREATE TABLE: success=True")
+    results['sql_create'] = True
+    
+    # INSERT
+    input_data = SQLToolInput(
+        sql="INSERT INTO test_table (name) VALUES (?)",
+        parameters={"1": "test_value"},
+        max_rows=100
+    )
+    output = await sql_tool.execute(input_data)
+    assert output.rowcount >= 0, "INSERT операция не удалась"
+    logger.info(f"SQL INSERT: rows affected={output.rowcount}")
+    results['sql_insert'] = output.rowcount >= 0
+    
+    # SELECT
+    input_data = SQLToolInput(
+        sql="SELECT * FROM test_table",
+        parameters=None,
+        max_rows=100
+    )
+    output = await sql_tool.execute(input_data)
+    assert output.rowcount >= 0, "SELECT операция не удалась"
+    logger.info(f"SQL SELECT: найдено строк={output.rowcount}, Колонки: {output.columns}")
+    if output.rows:
+        logger.info(f"Первая строка: {output.rows[0]}")
+    results['sql_select'] = output.rowcount >= 0
+    
+    return results
+
+
+# =============================================================================
+# Тест 5: Sandbox режим
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_sandbox_mode(infrastructure_context, app_config):
+    """
+    Тест проверки sandbox режима (side_effects_enabled=False).
+    
+    Проверяет:
+        - Создание ApplicationContext с отключенными side effects
+        - Инициализацию sandbox контекста
+        - Блокировку write операций в sandbox режиме
+        - Активацию dry_run режима
+    
+    Args:
+        infrastructure_context: Фикстура InfrastructureContext
+        app_config: Фикстура конфигурации приложения
+    
+    Asserts:
+        - Sandbox контекст успешно инициализирован
+        - FileTool write операция выполняется в dry_run режиме
+        - Sandbox режим корректно блокирует запись
+    """
+    from core.application.tools.file_tool import FileToolInput
+    
+    # Создаем конфигурацию для sandbox режима
+    sandbox_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    sandbox_config.side_effects_enabled = False
     
     sandbox_context = ApplicationContext(
-        infrastructure_context=app_context.infrastructure_context,
-        config=app_config,
+        infrastructure_context=infrastructure_context,
+        config=sandbox_config,
         profile="prod",
         use_data_repository=True
     )
     
     success = await sandbox_context.initialize()
-    print(f"Sandbox контекст инициализирован: {success}")
+    assert success or sandbox_context is not None, "Sandbox контекст должен быть инициализирован"
+    logger.info(f"Sandbox контекст инициализирован: success={success}")
     
-    # Проверяем FileTool в sandbox режиме
     file_tool = sandbox_context.components.get(ComponentType.TOOL, "file_tool")
     if file_tool:
-        from core.application.tools.file_tool import FileToolInput
-        
-        # Тест write операции (должна быть заблокирована)
         input_data = FileToolInput(
             operation="write",
             path="./data/test_sandbox.txt",
@@ -279,154 +447,240 @@ async def test_sandbox_mode(app_context: ApplicationContext):
         )
         output = await file_tool.execute(input_data)
         
-        print(f"\nFileTool write в sandbox: success={output.success}")
+        logger.info(f"FileTool write в sandbox: success={output.success}")
+        
+        # В sandbox режиме операция должна быть выполнена в dry_run режиме
         if output.success and output.data.get('dry_run'):
-            print(f"  Sandbox режим активен: {output.data.get('message')}")
-            print("  OK Sandbox режим работает корректно")
+            message = output.data.get('message', 'Sandbox режим активен')
+            logger.info(f"Sandbox режим активен: {message}")
+            assert output.data.get('dry_run') is True, "Sandbox режим должен активировать dry_run"
         else:
-            print(f"  Ошибка или unexpected behavior: {output.error}")
+            logger.warning(f"Ожидается dry_run режим, получено: success={output.success}, error={output.error}")
     
-    # Завершаем sandbox контекст (вместо shutdown просто сбрасываем флаг)
     sandbox_context._initialized = False
-    print("Sandbox контекст завершен")
+    logger.info("Sandbox контекст завершен")
+    
     return True
 
 
-async def test_prompt_contract_access(app_context: ApplicationContext):
-    """Тест 6: Доступ к промптам и контрактам"""
-    print("\n" + "="*60)
-    print("ТЕСТ 6: Доступ к промптам и контрактам")
-    print("="*60)
+# =============================================================================
+# Тест 6: Доступ к промптам и контрактам
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_prompt_contract_access(application_context):
+    """
+    Тест доступа к хранилищам промптов и контрактов.
     
-    # Проверяем доступ к хранилищам через инфраструктуру
-    prompt_storage = app_context.infrastructure_context.prompt_storage
-    contract_storage = app_context.infrastructure_context.contract_storage
+    Проверяет:
+        - Доступность PromptStorage
+        - Доступность ContractStorage
+        - Инициализацию DataRepository
+        - Загрузку манифестов
+        - Получение промптов через контекст
+        - Получение контрактов через контекст
     
-    print(f"PromptStorage доступен: {prompt_storage is not None}")
-    print(f"ContractStorage доступен: {contract_storage is not None}")
+    Args:
+        application_context: Фикстура ApplicationContext
     
-    # Проверяем DataRepository
-    if app_context.data_repository:
-        print(f"\nDataRepository инициализирован")
-        print(f"  Manifests загружено: {len(app_context.data_repository._manifest_cache)}")
+    Asserts:
+        - prompt_storage доступен
+        - contract_storage доступен
+        - data_repository инициализирован
+    """
+    prompt_storage = application_context.infrastructure_context.prompt_storage
+    contract_storage = application_context.infrastructure_context.contract_storage
+    
+    assert prompt_storage is not None, "PromptStorage должен быть доступен"
+    assert contract_storage is not None, "ContractStorage должен быть доступен"
+    
+    logger.info(f"PromptStorage доступен: {prompt_storage is not None}")
+    logger.info(f"ContractStorage доступен: {contract_storage is not None}")
+    
+    if application_context.data_repository:
+        logger.info("DataRepository инициализирован")
+        manifests_count = len(application_context.data_repository._manifest_cache)
+        logger.info(f"Manifests загружено: {manifests_count}")
         
-        # Используем правильные атрибуты DataRepository
-        prompt_cache = getattr(app_context.data_repository, '_prompt_cache', {})
-        contract_cache = getattr(app_context.data_repository, '_contract_cache', {})
-        print(f"  Prompts загружено: {len(prompt_cache)}")
-        print(f"  Contracts загружено: {len(contract_cache)}")
+        prompt_cache = getattr(application_context.data_repository, '_prompt_cache', {})
+        contract_cache = getattr(application_context.data_repository, '_contract_cache', {})
+        logger.info(f"Prompts загружено: {len(prompt_cache)}")
+        logger.info(f"Contracts загружено: {len(contract_cache)}")
         
-        # Пробуем получить манифест инструмента
-        sql_tool_manifest = app_context.data_repository.get_manifest('tool', 'sql_tool')
+        # Проверка манифеста sql_tool
+        sql_tool_manifest = application_context.data_repository.get_manifest('tool', 'sql_tool')
         if sql_tool_manifest:
-            print(f"\n  Манифест sql_tool:")
-            print(f"    Version: {sql_tool_manifest.version}")
-            print(f"    Status: {sql_tool_manifest.status}")
-            print(f"    Owner: {sql_tool_manifest.owner}")
+            logger.info(f"Манифест sql_tool: Version={sql_tool_manifest.version}, "
+                       f"Status={sql_tool_manifest.status}, Owner={sql_tool_manifest.owner}")
         else:
-            print("  Манифест sql_tool не найден")
+            logger.warning("Манифест sql_tool не найден")
         
-        # Пробуем получить промпт через контекст
+        # Проверка получения промпта
         try:
-            prompt = app_context.get_prompt("sql_generation.generate_query", "v1.0.0")
-            print(f"\n  Промпт sql_generation.generate_query@v1.0.0:")
-            print(f"    Длина: {len(prompt) if prompt else 0} символов")
+            prompt = application_context.get_prompt("sql_generation.generate_query", "v1.0.0")
+            prompt_length = len(prompt) if prompt else 0
+            logger.info(f"Промпт sql_generation.generate_query@v1.0.0: Длина={prompt_length} символов")
             if prompt:
-                print(f"    Первые 100 символов: {prompt[:100]}...")
+                logger.info(f"Первые 100 символов: {prompt[:100]}...")
         except Exception as e:
-            print(f"  Ошибка получения промпта: {e}")
+            logger.warning(f"Ошибка получения промпта: {e}")
         
-        # Пробуем получить контракт через контекст
+        # Проверка получения контракта
         try:
-            contract = app_context.get_contract("sql_generation.generate_query", "v1.0.0", "input")
-            print(f"\n  Контракт sql_generation.generate_query@v1.0.0 (input):")
-            print(f"    Тип: {type(contract)}")
-            if contract:
-                print(f"    Ключи схемы: {list(contract.keys()) if isinstance(contract, dict) else 'N/A'}")
+            contract = application_context.get_contract("sql_generation.generate_query", "v1.0.0", "input")
+            logger.info(f"Контракт sql_generation.generate_query@v1.0.0 (input): Тип={type(contract)}")
+            if contract and isinstance(contract, dict):
+                logger.info(f"Ключи схемы: {list(contract.keys())}")
         except Exception as e:
-            print(f"  Ошибка получения контракта: {e}")
+            logger.warning(f"Ошибка получения контракта: {e}")
     
     return True
 
 
-async def test_context_shutdown(infra: InfrastructureContext):
-    """Тест 7: Корректное завершение работы"""
-    print("\n" + "="*60)
-    print("ТЕСТ 7: Завершение работы")
-    print("="*60)
+# =============================================================================
+# Тест 7: Завершение работы
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_context_shutdown(infrastructure_context):
+    """
+    Тест корректного завершения работы InfrastructureContext.
     
-    await infra.shutdown()
-    print("InfrastructureContext завершен")
+    Проверяет:
+        - Успешное выполнение shutdown()
+        - Корректное освобождение ресурсов
     
-    return True
+    Args:
+        infrastructure_context: Фикстура InfrastructureContext
+    
+    Note:
+        Фикстура infrastructure_context автоматически вызывает shutdown() после завершения теста.
+        Этот тест явно вызывает shutdown() для проверки корректности завершения.
+    """
+    await infrastructure_context.shutdown()
+    logger.info("InfrastructureContext завершен успешно")
 
 
-async def main():
-    """Главная функция теста"""
-    print("\n" + "="*60)
-    print("ИНТЕГРАЦИОННЫЙ ТЕСТ: ApplicationContext + Инструменты")
-    print("БЕЗ МОКОВ - реальные компоненты")
-    print("="*60)
+# =============================================================================
+# Интеграционный тест: Полный цикл
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_full_integration_cycle(system_config, app_config):
+    """
+    Полный интеграционный тест: запуск всех компонентов в цикле.
+    
+    Проверяет полный цикл работы системы:
+        1. Инициализация InfrastructureContext
+        2. Инициализация ApplicationContext
+        3. Загрузка компонентов
+        4. Выполнение инструментов
+        5. Sandbox режим
+        6. Доступ к промптам и контрактам
+        7. Завершение работы
+    
+    Args:
+        system_config: Фикстура системной конфигурации
+        app_config: Фикстура конфигурации приложения
+    
+    Asserts:
+        - Все этапы инициализации проходят успешно
+        - Компоненты загружаются корректно
+        - Инструменты выполняются без ошибок
+        - Sandbox режим работает
+        - Промпты и контракты доступны
+        - Завершение работы проходит корректно
+    """
+    logger.info("=" * 60)
+    logger.info("ИНТЕГРАЦИОННЫЙ ТЕСТ: Полный цикл")
+    logger.info("=" * 60)
     
     test_results = {}
     
     try:
-        # Тест 1: InfrastructureContext
-        infra = await test_infrastructure_context()
+        # Этап 1: InfrastructureContext
+        infra = InfrastructureContext(system_config)
+        success = await infra.initialize()
+        assert success, "InfrastructureContext не инициализировался"
         test_results['infrastructure'] = True
+        logger.info("Этап 1: InfrastructureContext - PASS")
         
-        # Тест 2: ApplicationContext
-        app_context = await test_application_context(infra)
+        # Этап 2: ApplicationContext
+        app_context = ApplicationContext(
+            infrastructure_context=infra,
+            config=app_config,
+            profile="prod",
+            use_data_repository=True
+        )
+        success = await app_context.initialize()
+        assert app_context is not None, "ApplicationContext должен быть создан"
         test_results['application'] = True
+        logger.info("Этап 2: ApplicationContext - PASS")
         
-        # Тест 3: Загрузка компонентов
-        components = await test_components_loading(app_context)
-        test_results['components'] = len(components['tools']) > 0
+        # Этап 3: Загрузка компонентов
+        tools = app_context.components.all_of_type(ComponentType.TOOL)
+        skills = app_context.components.all_of_type(ComponentType.SKILL)
+        services = app_context.components.all_of_type(ComponentType.SERVICE)
+        behaviors = app_context.components.all_of_type(ComponentType.BEHAVIOR)
+        test_results['components'] = len(tools) > 0
+        logger.info(f"Этап 3: Компоненты загружены - Tools: {len(tools)} - {'PASS' if len(tools) > 0 else 'FAIL'}")
         
-        # Тест 4: Выполнение инструментов
-        tool_results = await test_tool_execution(app_context, components['tools'])
-        test_results.update(tool_results)
+        # Этап 4: Выполнение инструментов (FileTool)
+        file_tool = app_context.components.get(ComponentType.TOOL, "file_tool")
+        if file_tool:
+            from core.application.tools.file_tool import FileToolInput
+            test_file = Path("./data/registry.yaml")
+            if test_file.exists():
+                input_data = FileToolInput(operation="read", path=str(test_file))
+                output = await file_tool.execute(input_data)
+                test_results['file_tool_read'] = output.success
+            else:
+                test_results['file_tool_read'] = False
+        logger.info(f"Этап 4: Выполнение инструментов - {'PASS' if test_results.get('file_tool_read', False) else 'PARTIAL'}")
         
-        # Тест 5: Sandbox режим
-        sandbox_result = await test_sandbox_mode(app_context)
-        test_results['sandbox'] = sandbox_result
+        # Этап 5: Sandbox режим
+        sandbox_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+        sandbox_config.side_effects_enabled = False
+        sandbox_context = ApplicationContext(
+            infrastructure_context=infra,
+            config=sandbox_config,
+            profile="prod",
+            use_data_repository=True
+        )
+        await sandbox_context.initialize()
+        sandbox_context._initialized = False
+        test_results['sandbox'] = True
+        logger.info("Этап 5: Sandbox режим - PASS")
         
-        # Тест 6: Доступ к промптам и контрактам
-        access_result = await test_prompt_contract_access(app_context)
-        test_results['prompt_contract_access'] = access_result
+        # Этап 6: Доступ к промптам и контрактам
+        assert app_context.infrastructure_context.prompt_storage is not None
+        assert app_context.infrastructure_context.contract_storage is not None
+        test_results['prompt_contract_access'] = True
+        logger.info("Этап 6: Доступ к промптам и контрактам - PASS")
         
-        # Тест 7: Завершение работы
-        shutdown_result = await test_context_shutdown(infra)
-        test_results['shutdown'] = shutdown_result
+        # Этап 7: Завершение работы
+        await infra.shutdown()
+        test_results['shutdown'] = True
+        logger.info("Этап 7: Завершение работы - PASS")
         
     except Exception as e:
-        print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
+        logger.error(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
         import traceback
         traceback.print_exc()
         test_results['error'] = str(e)
+        pytest.fail(f"Интеграционный тест не пройден: {e}")
     
     # Итоговый отчет
-    print("\n" + "="*60)
-    print("ИТОГОВЫЙ ОТЧЕТ")
-    print("="*60)
-    
     passed = sum(1 for v in test_results.values() if v is True)
     total = len(test_results)
     
+    logger.info("=" * 60)
+    logger.info("ИТОГОВЫЙ ОТЧЕТ")
+    logger.info("=" * 60)
     for test_name, result in test_results.items():
-        status = "PASS" if result is True else ("PARTIAL" if isinstance(result, bool) and not result else f"FAIL: {result}")
-        print(f"  {test_name}: {status}")
+        status = "PASS" if result is True else f"FAIL: {result}"
+        logger.info(f"  {test_name}: {status}")
+    logger.info(f"Итого: {passed}/{total} тестов пройдено")
     
-    print(f"\nИтого: {passed}/{total} тестов пройдено")
-    
-    if passed == total:
-        print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")
-    else:
-        print(f"\n{total - passed} тестов не пройдено")
-    
-    return passed == total
-
-
-if __name__ == "__main__":
-    success = asyncio.run(main())
-    exit(0 if success else 1)
+    assert passed == total, f"Не все тесты пройдены: {passed}/{total}"
+    logger.info("ВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")

@@ -1,49 +1,57 @@
+"""Тесты модели Manifest с расширенной валидацией."""
+import pytest
 from core.models.data.manifest import Manifest, ComponentType, ComponentStatus, QualityMetrics
 
-# Тест валидного манифеста
-m = Manifest(
-    component_id='test',
-    component_type=ComponentType.SKILL,
-    version='v1.0.0',
-    owner='test_owner',
-    status=ComponentStatus.ACTIVE
-)
-print(f'[SUCCESS] Valid manifest created: {m.component_id}@{m.version}')
 
-# Тест невалидной версии
-try:
-    Manifest(
-        component_id='test',
-        component_type=ComponentType.SKILL,
-        version='1.0.0',  # Без 'v'
-        owner='owner',
-        status=ComponentStatus.ACTIVE
-    )
-    print('[ERROR] Should have failed validation for version')
-except Exception as e:
-    print(f'[SUCCESS] Version without v rejected: {type(e).__name__}')
-
-# Тест пустого owner
-try:
-    Manifest(
+def test_valid_manifest_creation():
+    """Проверка создания валидного манифеста."""
+    m = Manifest(
         component_id='test',
         component_type=ComponentType.SKILL,
         version='v1.0.0',
-        owner='',
+        owner='test_owner',
         status=ComponentStatus.ACTIVE
     )
-    print('[ERROR] Should have failed validation for empty owner')
-except Exception as e:
-    print(f'[SUCCESS] Empty owner rejected: {type(e).__name__}')
+    assert m.component_id == 'test'
+    assert m.version == 'v1.0.0'
 
-# Тест enum значений
-print(f'[SUCCESS] ComponentType.ACTIVE.value: {ComponentStatus.ACTIVE.value}')
 
-# Тест диапазона метрик
-try:
-    QualityMetrics(success_rate_target=1.5)  # Больше 1.0
-    print('[ERROR] Should have failed validation for metrics range')
-except Exception as e:
-    print(f'[SUCCESS] Metrics out of range rejected: {type(e).__name__}')
+def test_invalid_version_rejected():
+    """Проверка отклонения версии без префикса 'v'."""
+    with pytest.raises(Exception):
+        Manifest(
+            component_id='test',
+            component_type=ComponentType.SKILL,
+            version='1.0.0',
+            owner='owner',
+            status=ComponentStatus.ACTIVE
+        )
 
-print('[SUCCESS] All tests passed!')
+
+def test_empty_owner_rejected():
+    """Проверка отклонения пустого owner."""
+    with pytest.raises(Exception):
+        Manifest(
+            component_id='test',
+            component_type=ComponentType.SKILL,
+            version='v1.0.0',
+            owner='',
+            status=ComponentStatus.ACTIVE
+        )
+
+
+def test_enum_values():
+    """Проверка enum значений ComponentStatus."""
+    assert ComponentStatus.ACTIVE.value == 'active'
+
+
+def test_quality_metrics_range():
+    """Проверка диапазона метрик качества."""
+    with pytest.raises(Exception):
+        QualityMetrics(success_rate_target=1.5)
+
+    with pytest.raises(Exception):
+        QualityMetrics(success_rate_target=-0.1)
+
+    metrics = QualityMetrics(success_rate_target=0.95)
+    assert metrics.success_rate_target == 0.95
