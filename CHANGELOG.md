@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [5.1.1] - 2026-02-19
+
+### Changed
+- Обновлена документация: исправлены ссылки и устаревшая статистика
+- Удалены временные файлы разработки
+- BENCHMARK_LEARNING_PLAN.md перемещён в docs/plans/
+
+### Added
+- requirements.txt — зависимости проекта
+- requirements-dev.txt — зависимости для разработки
+- LICENSE — лицензия MIT
+- .env.example — пример конфигурации окружения
+
+### Removed
+- dev.yaml.improved, config_test_result.txt, tests/system_context_test.txt
+- capability_inventory.txt (устарел)
+- minimal_registry.yaml, very_minimal_registry.yaml (тестовые)
+- check_contracts.py (дублируется в scripts/)
+
+---
 
 ## [5.1.0] - 2026-02-15
 

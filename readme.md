@@ -27,7 +27,7 @@
 
 ```bash
 # Клонирование репозитория
-git clone https://github.com/your-org/agent_v5.git
+git clone <repository_url>
 cd agent_v5
 
 # Установка зависимостей
@@ -275,8 +275,6 @@ agent:
 
 | Показатель | Значение |
 |------------|----------|
-| **Этапов выполнено** | 10/10 (100%) 🎉 |
-| **Задач выполнено** | 25/25 (100%) 🎉 |
 | **Тестов пройдено** | 398 passed, 10 skipped |
 | **Без моков** | 113 тестов (31%) |
 | **Файлов создано** | 25+ |
@@ -318,8 +316,9 @@ black core/ --check
 
 ## 📚 Документация
 
-- **[BENCHMARK_LEARNING_PLAN.md](docs/BENCHMARK_LEARNING_PLAN.md)** — План внедрения Benchmark + Learning
+- **[BENCHMARK_LEARNING_PLAN.md](docs/plans/BENCHMARK_LEARNING_PLAN.md)** — План внедрения Benchmark + Learning
 - **[CHANGELOG.md](CHANGELOG.md)** — История изменений
+- **[docs/README.md](docs/README.md)** — Полная документация проекта
 
 ---
 
