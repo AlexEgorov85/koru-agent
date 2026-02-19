@@ -1,0 +1,43 @@
+# core/config/defaults/test.yaml
+# Конфигурация для тестирования с Mock LLM
+
+profile: test
+debug: true
+log_level: DEBUG
+log_dir: logs/test
+data_dir: data
+
+# Mock LLM для тестов
+llm_providers:
+  mock_llm:
+    provider_type: mock
+    model_name: test-mock
+    enabled: true
+    parameters:
+      temperature: 0.0  # Детерминированные ответы
+      max_tokens: 1000
+      verbose: false
+      default_response: '{"status": "ok"}'
+
+# Отключаем реальные провайдеры в тестах
+db_providers:
+  test_db:
+    provider_type: sqlite
+    enabled: true
+    parameters:
+      database: ":memory:"
+
+# Настройки агента для тестов
+agent:
+  max_steps: 5
+  max_retries: 1
+  temperature: 0.0
+
+# Настройки безопасности для тестов
+security:
+  secrets_path: null
+
+# Провайдеры инструментов
+providers:
+  tools:
+    enabled: true

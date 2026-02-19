@@ -55,7 +55,27 @@ python -m pytest tests/ -v
 
 # Быстрые тесты (без интеграционных)
 python -m pytest tests/unit/ -v
+
+# Интеграционные тесты с Mock LLM (быстро)
+python -m pytest tests/integration/test_mock_llm_workflow.py -v
+
+# Тестовые сценарии
+python -m pytest tests/integration/test_scenarios/ -v
+
+# Benchmark тесты производительности
+python -m pytest tests/benchmark/test_mock_llm_performance.py -v
+
+# С реальной LLM (для финальной валидации)
+TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 ```
+
+**Mock LLM тестирование:**
+- 🚀 Скорость: тесты выполняются в 1000x быстрее (< 1ms на запрос)
+- 💰 Экономия: $0 на тестирование
+- ✅ Надёжность: 100% детерминированные результаты
+- 📊 Полная история вызовов для отладки
+
+См. [MOCK_LLM_TESTING_STRATEGY.md](tests/MOCK_LLM_TESTING_STRATEGY.md) для подробной документации.
 
 ---
 
