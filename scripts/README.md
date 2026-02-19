@@ -19,6 +19,8 @@ scripts/
 | `run_benchmark.py` | Запуск бенчмарков | `python scripts/cli/run_benchmark.py -c planning.create_plan -v v1.0.0` |
 | `run_optimization.py` | Оптимизация промптов | `python scripts/cli/run_optimization.py -c planning.create_plan -m accuracy` |
 
+**Важно:** Тесты импортируют эти скрипты как `from scripts.cli.run_optimization import ...`
+
 ---
 
 ## Обслуживание (`maintenance/`)

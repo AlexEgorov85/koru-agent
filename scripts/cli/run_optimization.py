@@ -3,8 +3,8 @@
 CLI скрипт для запуска оптимизации промптов и контрактов.
 
 ИСПОЛЬЗОВАНИЕ:
-    python scripts/run_optimization.py --capability <capability> --mode accuracy
-    python scripts/run_optimization.py --capability <capability> --target-accuracy 0.95
+    python scripts/cli/run_optimization.py --capability <capability> --mode accuracy
+    python scripts/cli/run_optimization.py --capability <capability> --target-accuracy 0.95
 
 АРГУМЕНТЫ:
     --capability, -c        Название способности для оптимизации

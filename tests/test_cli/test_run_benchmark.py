@@ -20,7 +20,7 @@ class TestParseArgs:
 
     def test_parse_args_basic(self):
         """Тест парсинга базовых аргументов"""
-        from scripts.run_benchmark import parse_args
+        from scripts.cli.run_benchmark import parse_args
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '-v', 'v1.0.0']
         with patch.object(sys, 'argv', test_args):
@@ -34,7 +34,7 @@ class TestParseArgs:
 
     def test_parse_args_compare(self):
         """Тест парсинга аргументов сравнения"""
-        from scripts.run_benchmark import parse_args
+        from scripts.cli.run_benchmark import parse_args
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '--compare', 'v1.0.0', 'v2.0.0']
         with patch.object(sys, 'argv', test_args):
@@ -46,7 +46,7 @@ class TestParseArgs:
 
     def test_parse_args_output(self):
         """Тест парсинга аргумента output"""
-        from scripts.run_benchmark import parse_args
+        from scripts.cli.run_benchmark import parse_args
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '-v', 'v1.0.0', '-o', 'results.json']
         with patch.object(sys, 'argv', test_args):
@@ -58,7 +58,7 @@ class TestParseArgs:
 
     def test_parse_args_verbose(self):
         """Тест парсинга аргумента verbose"""
-        from scripts.run_benchmark import parse_args
+        from scripts.cli.run_benchmark import parse_args
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '-v', 'v1.0.0', '--verbose']
         with patch.object(sys, 'argv', test_args):
@@ -68,7 +68,7 @@ class TestParseArgs:
 
     def test_parse_args_missing_capability(self):
         """Тест отсутствия обязательного аргумента capability"""
-        from scripts.run_benchmark import parse_args
+        from scripts.cli.run_benchmark import parse_args
 
         test_args = ['run_benchmark.py', '-v', 'v1.0.0']
         with patch.object(sys, 'argv', test_args):
@@ -82,7 +82,7 @@ class TestRunSingleBenchmark:
     @pytest.mark.asyncio
     async def test_run_single_benchmark_mock(self):
         """Тест одиночного бенчмарка с моками"""
-        from scripts.run_benchmark import run_single_benchmark
+        from scripts.cli.run_benchmark import run_single_benchmark
 
         # Мокаем зависимости (импорты внутри функции)
         with patch('core.config.app_config.AppConfig') as mock_config, \
@@ -123,7 +123,7 @@ class TestRunSingleBenchmark:
     @pytest.mark.asyncio
     async def test_run_single_benchmark_error(self):
         """Тест ошибки бенчмарка"""
-        from scripts.run_benchmark import run_single_benchmark
+        from scripts.cli.run_benchmark import run_single_benchmark
 
         with patch('core.config.app_config.AppConfig') as mock_config:
             mock_config.load_from_file.side_effect = Exception("Config not found")
@@ -140,7 +140,7 @@ class TestRunComparison:
     @pytest.mark.asyncio
     async def test_run_comparison_mock(self):
         """Тест сравнения версий с моками"""
-        from scripts.run_benchmark import run_comparison
+        from scripts.cli.run_benchmark import run_comparison
 
         with patch('scripts.run_benchmark.run_single_benchmark') as mock_run:
             # Мокаем результаты для обеих версий
@@ -175,7 +175,7 @@ class TestRunComparison:
     @pytest.mark.asyncio
     async def test_run_comparison_no_improvement(self):
         """Тест сравнения без улучшения"""
-        from scripts.run_benchmark import run_comparison
+        from scripts.cli.run_benchmark import run_comparison
 
         with patch('scripts.run_benchmark.run_single_benchmark') as mock_run:
             # Мокаем результаты - v2 хуже v1
@@ -208,7 +208,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_single_benchmark(self):
         """Тест main для одиночного бенчмарка"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         test_args = [
             'run_benchmark.py',
@@ -237,7 +237,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_comparison(self):
         """Тест main для сравнения версий"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         test_args = [
             'run_benchmark.py',
@@ -263,7 +263,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_missing_version(self):
         """Тест main без указания версии"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         test_args = ['run_benchmark.py', '-c', 'test.capability']
 
@@ -277,7 +277,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_with_output(self, tmp_path):
         """Тест main с сохранением в файл"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         output_file = tmp_path / 'results.json'
 
@@ -316,7 +316,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_keyboard_interrupt(self):
         """Тест прерывания пользователем"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '-v', 'v1.0.0']
 
@@ -334,7 +334,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_low_success_rate(self):
         """Тест main с низким success rate"""
-        from scripts.run_benchmark import main
+        from scripts.cli.run_benchmark import main
 
         test_args = ['run_benchmark.py', '-c', 'test.capability', '-v', 'v1.0.0']
 

@@ -3,8 +3,8 @@
 CLI скрипт для запуска бенчмарков.
 
 ИСПОЛЬЗОВАНИЕ:
-    python scripts/run_benchmark.py --capability <capability> --version <version>
-    python scripts/run_benchmark.py --capability <capability> --compare v1.0.0 v2.0.0
+    python scripts/cli/run_benchmark.py --capability <capability> --version <version>
+    python scripts/cli/run_benchmark.py --capability <capability> --compare v1.0.0 v2.0.0
 
 АРГУМЕНТЫ:
     --capability, -c    Название способности для бенчмарка

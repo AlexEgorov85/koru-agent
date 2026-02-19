@@ -19,7 +19,7 @@ class TestParseArgs:
 
     def test_parse_args_basic(self):
         """Тест парсинга базовых аргументов"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability']
         with patch.object(sys, 'argv', test_args):
@@ -32,7 +32,7 @@ class TestParseArgs:
 
     def test_parse_args_mode(self):
         """Тест парсинга режима оптимизации"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability', '-m', 'balanced']
         with patch.object(sys, 'argv', test_args):
@@ -42,7 +42,7 @@ class TestParseArgs:
 
     def test_parse_args_invalid_mode(self):
         """Тест невалидного режима"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability', '-m', 'invalid']
         with patch.object(sys, 'argv', test_args):
@@ -51,7 +51,7 @@ class TestParseArgs:
 
     def test_parse_args_target_accuracy(self):
         """Тест парсинга целевой точности"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability', '-t', '0.95']
         with patch.object(sys, 'argv', test_args):
@@ -61,7 +61,7 @@ class TestParseArgs:
 
     def test_parse_args_max_iterations(self):
         """Тест парсинга количества итераций"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability', '--max-iterations', '10']
         with patch.object(sys, 'argv', test_args):
@@ -71,7 +71,7 @@ class TestParseArgs:
 
     def test_parse_args_output(self):
         """Тест парсинга output файла"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py', '-c', 'test.capability', '-o', 'results.json']
         with patch.object(sys, 'argv', test_args):
@@ -86,7 +86,7 @@ class TestRunOptimization:
     @pytest.mark.asyncio
     async def test_run_optimization_mock(self):
         """Тест оптимизации с моками"""
-        from scripts.run_optimization import run_optimization
+        from scripts.cli.run_optimization import run_optimization
         from core.models.data.benchmark import OptimizationResult, OptimizationMode
 
         # Создаём мок результата
@@ -147,7 +147,7 @@ class TestRunOptimization:
     @pytest.mark.asyncio
     async def test_run_optimization_not_started(self):
         """Тест когда оптимизация не запущена"""
-        from scripts.run_optimization import run_optimization
+        from scripts.cli.run_optimization import run_optimization
 
         with patch('core.config.app_config.AppConfig') as mock_config, \
              patch('core.infrastructure.context.infrastructure_context.InfrastructureContext') as mock_infra, \
@@ -169,7 +169,7 @@ class TestRunOptimization:
     @pytest.mark.asyncio
     async def test_run_optimization_error(self):
         """Тест ошибки оптимизации"""
-        from scripts.run_optimization import run_optimization
+        from scripts.cli.run_optimization import run_optimization
 
         with patch('core.config.app_config.AppConfig') as mock_config:
             mock_config.load_from_file.side_effect = Exception("Config error")
@@ -186,7 +186,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_success(self):
         """Тест успешной оптимизации"""
-        from scripts.run_optimization import main
+        from scripts.cli.run_optimization import main
 
         test_args = ['run_optimization.py', '-c', 'test.capability']
 
@@ -208,7 +208,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_not_started(self):
         """Тест когда оптимизация не запущена"""
-        from scripts.run_optimization import main
+        from scripts.cli.run_optimization import main
 
         test_args = ['run_optimization.py', '-c', 'test.capability']
 
@@ -230,7 +230,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_failed(self):
         """Тест неудачной оптимизации"""
-        from scripts.run_optimization import main
+        from scripts.cli.run_optimization import main
 
         test_args = ['run_optimization.py', '-c', 'test.capability']
 
@@ -253,7 +253,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_with_output(self, tmp_path):
         """Тест main с сохранением в файл"""
-        from scripts.run_optimization import main
+        from scripts.cli.run_optimization import main
 
         output_file = tmp_path / 'optimization_results.json'
 
@@ -291,7 +291,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_keyboard_interrupt(self):
         """Тест прерывания пользователем"""
-        from scripts.run_optimization import main
+        from scripts.cli.run_optimization import main
 
         test_args = ['run_optimization.py', '-c', 'test.capability']
 
@@ -308,7 +308,7 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_main_missing_capability(self):
         """Тест без указания capability"""
-        from scripts.run_optimization import parse_args
+        from scripts.cli.run_optimization import parse_args
 
         test_args = ['run_optimization.py']
         with patch.object(sys, 'argv', test_args):
