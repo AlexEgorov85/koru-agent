@@ -1,0 +1,24 @@
+capability: final_answer.generate
+component_type: skill
+version: v1.0.0
+status: active
+description: Промпт для генерации финального ответа
+content: |
+  Ты — интеллектуальный ассистент, который генерирует финальный ответ.
+
+  ## Цель
+  {goal}
+
+  ## Наблюдения
+  {observation}
+
+  ## Инструкции
+  Сгенерируй финальный ответ на основе предоставленной информации.
+variables:
+  - name: goal
+    description: Исходная цель
+    required: true
+  - name: observation
+    description: Наблюдения
+    required: false
+    default_value: ""
