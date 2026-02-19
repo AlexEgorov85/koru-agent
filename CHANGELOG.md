@@ -1,15 +1,22 @@
 # CHANGELOG
 
-## [5.2.0] - 2026-02-19
+## [5.3.0] - 2026-02-19
 
 ### Changed
-- **Переименование проекта:** Agent_v5 → koru-agent
-- Обновлены все документы документации с новым названием
-- Обновлены скрипты generate_docs.py и validate_docs.py
+- **Рефакторинг scripts/:** создана чистая структура
+  - `cli/` — CLI утилиты (promptctl, run_benchmark, run_optimization)
+  - `maintenance/` — скрипты обслуживания (generate_docs, validate_docs, manage_migrations)
+  - `validation/` — скрипты валидации (validate_registry, validate_manifests)
+- Добавлен scripts/README.md с документацией
+
+### Removed
+- Удалены 22 одноразовых скрипта миграции (organize_data_*, move_files_*, create_*, fix_registry_*, update_registry_*)
+- Удалены 9 отладочных тестов (debug_*, test_*, verify_*)
+- Удалены подпапки: tests/, data/, architecture_audit/, utils/, versioning/
 
 ---
 
-## [5.1.1] - 2026-02-19
+## [5.2.0] - 2026-02-19
 
 ### Changed
 - Обновлена документация: исправлены ссылки и устаревшая статистика
