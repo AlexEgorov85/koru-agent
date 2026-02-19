@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.models.enums.common_enums import ComponentStatus, ComponentType
 from .base_template_validator import TemplateValidatorMixin
@@ -62,12 +62,12 @@ class Manifest(TemplateValidatorMixin, BaseModel):
     
     changelog: List[ChangelogEntry] = Field(default_factory=list)
     
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: Optional[str] = None
     
-    @validator('updated_at', always=True)
-    def set_updated_at(cls, v, values):
-        return v or datetime.utcnow().isoformat()
+    @field_validator('updated_at', mode='before')
+    def set_updated_at(cls, v):
+        return v or datetime.now(timezone.utc).isoformat()
 
     def validate_templates(self) -> list[str]:
         """

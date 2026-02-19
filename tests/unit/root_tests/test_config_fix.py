@@ -39,35 +39,25 @@ def test_sql_tool_config_fix():
             if tool_prompt_keys.intersection(global_prompt_keys):
                 print("- ОШИБКА: Конфигурация sql_tool содержит глобальные версии навыков!")
                 print(f"  Пересечение: {tool_prompt_keys.intersection(global_prompt_keys)}")
-                return False
+                assert False, "Конфигурация sql_tool содержит глобальные версии навыков"
             else:
                 print("+ УСПЕХ: Конфигурация sql_tool НЕ содержит глобальные версии навыков")
-                
+
             # Проверяем, что конфигурация инструмента пуста (что правильно для инструментов без промптов)
             if not sql_tool_config.prompt_versions and not sql_tool_config.input_contract_versions and not sql_tool_config.output_contract_versions:
                 print("+ УСПЕХ: Конфигурация sql_tool пуста (нормально для инструментов без промптов)")
             else:
                 print("! ВНИМАНИЕ: Конфигурация sql_tool содержит какие-то версии")
-                
+
         else:
             print("- ОШИБКА: Конфигурация sql_tool НЕ найдена!")
-            return False
-        
+            assert False, "Конфигурация sql_tool не найдена"
+
         print("\n=== ОСНОВНОЙ ТЕСТ ПРОЙДЕН: sql_tool правильно настроен ===")
         print("Ключевой момент: инструменты больше не получают версии навыков по умолчанию!")
-        return True
         
     except Exception as e:
         print(f"- ОШИБКА при тестировании: {e}")
         import traceback
         traceback.print_exc()
-        return False
-
-if __name__ == "__main__":
-    success = test_sql_tool_config_fix()
-    if success:
-        print("\n+ Все основные тесты пройдены успешно!")
-        sys.exit(0)
-    else:
-        print("\n- Основные тесты не пройдены!")
-        sys.exit(1)
+        raise  # Перебрасываем исключение для pytest

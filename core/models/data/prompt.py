@@ -1,7 +1,7 @@
 """
 Типизированная модель промпта с полной валидацией.
 """
-from pydantic import BaseModel, Field, validator, root_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from typing import List, Optional, Dict
 
 from core.models.data.base_template_validator import TemplateValidatorMixin
@@ -65,17 +65,16 @@ class Prompt(TemplateValidatorMixin, BaseModel):
     )
 
     # === Валидация шаблона ===
-    @root_validator(skip_on_failure=True)
-    def validate_template_variables(cls, values):
+    @model_validator(mode='after')
+    def validate_template_variables(self):
         """Проверяем, что все переменные в шаблоне объявлены в списке variables"""
-        content = values.get('content', '')
-        declared_vars = {v.name for v in values.get('variables', [])}
+        declared_vars = {v.name for v in self.variables}
 
         # Используем унифицированный метод валидации
-        _, warnings = cls.validate_jinja_template(
-            template_content=content,
+        _, warnings = self.validate_jinja_template(
+            template_content=self.content,
             declared_variables=declared_vars,
-            component_info=f"prompt {values.get('capability', 'unknown')}@{values.get('version', 'unknown')}",
+            component_info=f"prompt {self.capability}@{self.version}",
             template_field="template"
         )
 
@@ -83,7 +82,7 @@ class Prompt(TemplateValidatorMixin, BaseModel):
         for warning in warnings:
             print(warning.encode('ascii', 'replace').decode('ascii') if isinstance(warning, str) else warning)
 
-        return values
+        return self
 
     def validate_templates(self) -> List[str]:
         """

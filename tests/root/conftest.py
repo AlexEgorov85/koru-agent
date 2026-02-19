@@ -14,13 +14,6 @@ from core.config.app_config import AppConfig
 from core.application.context.application_context import ApplicationContext
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    """Return event loop policy for asyncio tests."""
-    import asyncio
-    return asyncio.WindowsProactorEventLoopPolicy() if sys.platform == "win32" else asyncio.DefaultEventLoopPolicy()
-
-
 @pytest.fixture(scope="function")
 async def infra():
     """Create InfrastructureContext for tests."""
