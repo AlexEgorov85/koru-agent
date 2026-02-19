@@ -1,9 +1,5 @@
-active_contracts:
-  final_answer.generate:
-    input: v1.0.0
-    output: v1.0.0
-active_prompts:
-  final_answer.generate: v1.0.0
+active_contracts: {}
+active_prompts: {}
 behaviors:
   planning_pattern:
     dependencies: []
