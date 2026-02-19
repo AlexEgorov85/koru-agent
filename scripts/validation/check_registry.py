@@ -1,6 +1,6 @@
 import yaml
 
-with open('c:/Users/Р В РЎвЂ™Р В Р’В»Р В Р’ВµР В РЎвЂќР РЋР С“Р В Р’ВµР В РІвЂћвЂ“/Documents/WORK/Agent_v5/registry.yaml', 'r', encoding='utf-8') as f:
+with open('c:/Users/Р В Р’В Р РЋРІР‚в„ўР В Р’В Р вЂ™Р’В»Р В Р’В Р вЂ™Р’ВµР В Р’В Р РЋРІР‚СњР В Р Р‹Р В РЎвЂњР В Р’В Р вЂ™Р’ВµР В Р’В Р Р†РІР‚С›РІР‚вЂњ/Documents/WORK/Agent_v5/registry.yaml', 'r', encoding='utf-8') as f:
     data = yaml.safe_load(f)
 
 # Check if 'behavior' key exists in capability_types
