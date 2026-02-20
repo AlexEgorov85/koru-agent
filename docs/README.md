@@ -1,7 +1,7 @@
 # 📚 Документация koru-agent
 
-> **Версия:** 5.1.0
-> **Дата обновления:** 2026-02-17
+> **Версия:** 5.4.0
+> **Дата обновления:** 2026-02-20
 > **Статус:** approved
 
 ---
@@ -38,53 +38,36 @@ docs/
 ├── TROUBLESHOOTING.md                 # Устранение неполадок
 │
 ├── architecture/                      # Архитектурные документы
+│   ├── README.md                      # Обзор
+│   ├── checklist.md                   # Чек-лист архитектуры
+│   └── ideal.md                       # Идеальная архитектура
+│
 ├── components/                        # Документация компонентов
-└── guides/                            # Руководства
+│   ├── README.md                      # Обзор компонентов
+│   ├── infrastructure/
+│   │   └── context.md                 # InfrastructureContext
+│   └── application/
+│       └── context.md                 # ApplicationContext
+│
+├── guides/                            # Руководства
+│   ├── README.md                      # Обзор руководств
+│   ├── book_library.md                # Book Library
+│   └── vector_search.md               # Vector Search
+│
+├── vector_search/                     # Vector Search документация
+│   ├── README.md                      # Навигация
+│   ├── UNIVERSAL_SPEC.md              # Спецификация
+│   ├── VECTOR_LIFECYCLE.md            # Жизненный цикл
+│   ├── CHUNKING_STRATEGY.md           # Chunking стратегия
+│   └── BOOKS_INTEGRATION.md           # Интеграция с книгами
+│
+├── plans/                             # Планы разработки
+│   └── BENCHMARK_LEARNING_PLAN.md     # Benchmark + Learning
+│
+└── adr/                               # Архитектурные решения
+    ├── 0001-modular-architecture.md   # Модульная архитектура
+    └── 0002-contract-validation.md    # Валидация контрактов
 ```
-
-### Архитектура
-
-| Документ | Описание |
-|----------|----------|
-| [Слои системы](./architecture/layers.md) | Описание слоёв архитектуры |
-| [Поток данных](./architecture/data-flow.md) | Как данные перемещаются в системе |
-| [Модель безопасности](./architecture/security-model.md) | Безопасность и изоляция |
-| [Масштабируемость](./architecture/scalability.md) | Горизонтальное и вертикальное масштабирование |
-
-### Компоненты
-
-#### Инфраструктура
-
-| Документ | Описание |
-|----------|----------|
-| [InfrastructureContext](./components/infrastructure/context.md) | Общий контекст инфраструктуры |
-| [Провайдеры](./components/infrastructure/providers.md) | LLM, Database провайдеры |
-| [Хранилища](./components/infrastructure/storage.md) | Хранилища промптов и контрактов |
-
-#### Приложение
-
-| Документ | Описание |
-|----------|----------|
-| [ApplicationContext](./components/application/context.md) | Изолированный контекст агента |
-| [Сервисы](./components/application/services.md) | Прикладные сервисы |
-| [Инструменты](./components/application/tools.md) | I/O инструменты |
-
-#### Агент
-
-| Документ | Описание |
-|----------|----------|
-| [AgentRuntime](./components/agent/runtime.md) | Runtime агента |
-| [Паттерны поведения](./components/agent/behaviors.md) | ReAct, Planning, Evaluation |
-| [Навыки](./components/agent/skills.md) | Высокоуровневые способности |
-
-### Руководства
-
-| Документ | Описание |
-|----------|----------|
-| [Быстрый старт](./guides/quick-start.md) | Начало работы за 5 минут |
-| [Разработка](./guides/development.md) | Разработка компонентов |
-| [Тестирование](./guides/testing.md) | Тестирование компонентов |
-| [Миграция](./guides/migration.md) | Миграция со старых версий |
 
 ---
 
