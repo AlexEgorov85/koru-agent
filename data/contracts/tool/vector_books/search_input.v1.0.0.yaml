@@ -1,0 +1,52 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+type: object
+title: "VectorBooksSearchInput"
+description: "Входные данные для семантического поиска по книгам"
+version: "v1.0.0"
+
+properties:
+  query:
+    type: string
+    description: "Текст запроса"
+    minLength: 1
+    maxLength: 10000
+  
+  top_k:
+    type: integer
+    description: "Количество результатов"
+    default: 10
+    minimum: 1
+    maximum: 100
+  
+  min_score:
+    type: number
+    description: "Минимальный порог схожести"
+    default: 0.5
+    minimum: 0.0
+    maximum: 1.0
+  
+  filters:
+    type: object
+    description: "Фильтры по метаданным"
+    properties:
+      book_id:
+        type: array
+        items:
+          type: integer
+      author_id:
+        type: array
+        items:
+          type: integer
+      genre:
+        type: array
+        items:
+          type: string
+      year_from:
+        type: integer
+      year_to:
+        type: integer
+
+required:
+  - query
+
+additionalProperties: false

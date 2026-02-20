@@ -173,7 +173,53 @@ strategies:
     manifest_path: data/manifests/strategies/react/manifest.yaml
     parameters:
       max_thoughts: 5
+
+vector_search:
+  enabled: true
+  indexes:
+    knowledge: "knowledge_index.faiss"
+    history: "history_index.faiss"
+    docs: "docs_index.faiss"
+    books: "books_index.faiss"
+  faiss:
+    index_type: "Flat"
+    nlist: 100
+    nprobe: 10
+    metric: "IP"
+  embedding:
+    model_name: "all-MiniLM-L6-v2"
+    dimension: 384
+    device: "cpu"
+    batch_size: 32
+  chunking:
+    enabled: true
+    strategy: "text"
+    chunk_size: 500
+    chunk_overlap: 50
+    min_chunk_size: 100
+  storage:
+    base_path: "./data/vector"
+    backup_enabled: true
+    backup_interval_hours: 24
+  cache:
+    enabled: true
+    ttl_hours: 168
+    max_size_mb: 100
+  default_top_k: 10
+  max_top_k: 100
+  default_min_score: 0.5
+  max_workers: 4
+  timeout_seconds: 30.0
+
 tools:
+  vector_books_tool:
+    dependencies: []
+    enabled: true
+    manifest_path: data/manifests/tools/vector_books_tool/manifest.yaml
+    parameters:
+      default_top_k: 10
+      max_top_k: 100
+      cache_enabled: true
   file_tool:
     dependencies: []
     enabled: true

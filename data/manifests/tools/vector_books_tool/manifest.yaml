@@ -1,0 +1,67 @@
+component_id: vector_books_tool
+component_type: tool
+version: v1.0.0
+owner: team-vector
+status: active
+
+capabilities:
+  - name: search
+    description: Семантический поиск по текстам книг через FAISS (быстро ~50-100мс)
+    input_contract: vector_books.search_input.v1.0.0
+    output_contract: vector_books.search_output.v1.0.0
+    execution_type: vector_search
+    requires_llm: false
+  
+  - name: get_document
+    description: Получение полного текста книги из SQL базы (быстро ~100мс)
+    input_contract: vector_books.get_document_input.v1.0.0
+    output_contract: vector_books.get_document_output.v1.0.0
+    execution_type: sql_query
+    requires_llm: false
+  
+  - name: analyze
+    description: LLM анализ контента (герои, темы, классификация). Кэшируется на 7 дней (медленно ~2000мс, с кэшем ~10мс)
+    input_contract: vector_books.analyze_input.v1.0.0
+    output_contract: vector_books.analyze_output.v1.0.0
+    execution_type: llm_analysis
+    requires_llm: true
+  
+  - name: query
+    description: Прямой SQL запрос к базе книг (быстро ~100мс)
+    input_contract: vector_books.query_input.v1.0.0
+    output_contract: vector_books.query_output.v1.0.0
+    execution_type: sql_query
+    requires_llm: false
+
+constraints:
+  max_steps: 10
+  timeout_seconds: 30
+  required_capabilities: []
+
+quality_metrics:
+  success_rate_target: 0.98
+  avg_search_time_ms: 100
+  avg_analysis_time_ms: 2000
+  cache_hit_rate_target: 0.7
+
+dependencies:
+  components: []
+  infrastructure:
+    - faiss_provider_books
+    - sql_provider
+    - embedding_provider
+  services:
+    - document_indexing_service
+  tools: []
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-20"
+    author: alexey
+    changes:
+      - "Initial implementation of VectorBooksTool"
+      - "Added search capability (FAISS semantic search)"
+      - "Added get_document capability (SQL full text)"
+      - "Added analyze capability (LLM analysis with caching)"
+      - "Added query capability (direct SQL)"
+      - "Integrated with AnalysisCache (7 day TTL)"
