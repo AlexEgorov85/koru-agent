@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## [5.4.0] - 2026-02-19
+
+### Added
+- **Vector Search** — система семантического поиска по документам
+  - `VectorBooksTool` — универсальный инструмент (поиск + текст + анализ)
+  - `DocumentIndexingService` — сервис индексации документов
+  - `AnalysisCache` — кэш результатов LLM анализа
+  - `TextChunkingStrategy` — разбиение текста на чанки
+  - `FAISSProvider` — векторный поиск (FAISS)
+  - `EmbeddingProvider` — генерация эмбеддингов (SentenceTransformers)
+  
+- **Модели данных:**
+  - `VectorSearchResult`, `VectorQuery`, `VectorDocument`
+  - `VectorChunk`, `VectorIndexInfo`, `VectorSearchStats`
+  - `AnalysisResult`, `BookWithCharacter`
+  
+- **Конфигурация:**
+  - `VectorSearchConfig` — общая конфигурация
+  - `FAISSConfig`, `EmbeddingConfig`, `ChunkingConfig`
+  - `VectorStorageConfig`, `AnalysisCacheConfig`
+  
+- **Тесты:**
+  - Unit тесты (71 тест)
+  - Integration тесты (3 теста)
+  - E2E тесты (3 теста)
+  - Performance бенчмарки (12 тестов)
+  
+- **Документация:**
+  - `docs/api/vector_search_api.md` — API документация
+  - `docs/guides/vector_search.md` — руководство пользователя
+  - `docs/vector_search/README.md` — навигация
+  - `examples/vector_search_examples.py` — примеры использования
+
+### Changed
+- Обновлена `SystemConfig` для поддержки `vector_search`
+- Обновлен `registry.yaml` с конфигурацией vector search
+
+### Technical Details
+- Архитектура: раздельные индексы FAISS на каждый источник
+- Chunking: 500 символов, перекрытие 50 символов
+- Embedding: SentenceTransformers (all-MiniLM-L6-v2, 384 dim)
+- Кэширование: TTL 7 дней, инвалидация по префиксу
+- Производительность: поиск < 1 сек (p95)
+
+---
+
 ## [5.3.0] - 2026-02-19
 
 ### Changed
