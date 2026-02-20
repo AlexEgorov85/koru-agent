@@ -193,6 +193,9 @@ class ComponentFactory:
             elif name == "file_tool":
                 from core.application.tools.file_tool import FileTool
                 return FileTool
+            elif name == "vector_books_tool":
+                from core.application.tools.vector_books_tool import VectorBooksTool
+                return VectorBooksTool
             else:
                 # Попробуем стандартный путь
                 module_name = f"core.application.tools.{name}_tool"
