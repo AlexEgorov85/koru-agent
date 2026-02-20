@@ -3,6 +3,7 @@ component_type: tool
 version: v1.0.0
 owner: team-vector
 status: active
+class_name: VectorBooksTool
 
 capabilities:
   - name: search
