@@ -1,8 +1,8 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-398%20passed-green.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-31%20no%20mocks-orange.svg)]()
+[![Tests](https://img.shields.io/badge/tests-475%20passed-green.svg)]()
+[![Vector Search](https://img.shields.io/badge/vector_search-77%20tests-blue.svg)]()
 
 ---
 
