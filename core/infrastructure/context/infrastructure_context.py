@@ -66,6 +66,11 @@ class InfrastructureContext:
         self.metrics_collector: Optional[MetricsCollector] = None
         self.log_collector: Optional[LogCollector] = None
 
+        # Vector Search провайдеры
+        self._faiss_providers: Dict[str, Any] = {}
+        self._embedding_provider: Optional[Any] = None
+        self._chunking_strategy: Optional[Any] = None
+
         # Удаляем _tools, так как инструменты должны быть в прикладном контексте
 
         # Настройка логирования
@@ -132,6 +137,10 @@ class InfrastructureContext:
         self.log_collector = LogCollector(self.event_bus, self.log_storage)
         await self.log_collector.initialize()
         self.logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
+
+        # Инициализация Vector Search
+        if self.config.vector_search and self.config.vector_search.enabled:
+            await self._init_vector_search()
 
         # Регистрация инициализаторов в менеджере жизненного цикла
         self.lifecycle_manager.register_initializer(self._register_providers_from_config)
@@ -220,6 +229,56 @@ class InfrastructureContext:
                         self.logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
                     self.logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
+
+    async def _init_vector_search(self):
+        """Инициализация векторного поиска."""
+        from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
+        from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
+        from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
+        from pathlib import Path
+        
+        vs_config = self.config.vector_search
+        self.logger.info("Инициализация Vector Search...")
+        
+        # Инициализация FAISS провайдеров для каждого источника
+        for source, index_file in vs_config.indexes.items():
+            try:
+                provider = FAISSProvider(
+                    dimension=vs_config.embedding.dimension,
+                    config=vs_config.faiss
+                )
+                await provider.initialize()
+                
+                # Загрузка индекса если существует
+                index_path = Path(vs_config.storage.base_path) / index_file
+                if index_path.exists():
+                    await provider.load(str(index_path))
+                    self.logger.info(f"✅ Загружен индекс {source}: {index_path}")
+                else:
+                    self.logger.info(f"⚠️ Индекс {source} не найден, будет создан при индексации")
+                
+                self._faiss_providers[source] = provider
+            except Exception as e:
+                self.logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
+        
+        # Инициализация Embedding провайдера
+        try:
+            self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
+            await self._embedding_provider.initialize()
+            self.logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
+        except Exception as e:
+            self.logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
+        
+        # Инициализация Chunking стратегии
+        try:
+            self._chunking_strategy = TextChunkingStrategy(
+                chunk_size=vs_config.chunking.chunk_size,
+                chunk_overlap=vs_config.chunking.chunk_overlap,
+                min_chunk_size=vs_config.chunking.min_chunk_size
+            )
+            self.logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
+        except Exception as e:
+            self.logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
 
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""
@@ -413,18 +472,32 @@ class InfrastructureContext:
     def _get_backup_llm(self, exclude_name: str):
         """
         Получение backup LLM провайдера (исключая указанный).
-        
+
         ПАРАМЕТРЫ:
         - exclude_name: Имя провайдера для исключения
-        
+
         ВОЗВРАЩАЕТ:
         - LLM провайдер или None
         """
         for info in self.resource_registry.all():
-            if (info.resource_type == ResourceType.LLM_PROVIDER and 
+            if (info.resource_type == ResourceType.LLM_PROVIDER and
                 info.name != exclude_name):
                 return info.instance
         return None
+
+    # Vector Search методы доступа
+
+    def get_faiss_provider(self, source: str) -> Optional[Any]:
+        """Получение FAISS провайдера по источнику."""
+        return self._faiss_providers.get(source)
+
+    def get_embedding_provider(self) -> Optional[Any]:
+        """Получение Embedding провайдера."""
+        return self._embedding_provider
+
+    def get_chunking_strategy(self) -> Optional[Any]:
+        """Получение Chunking стратегии."""
+        return self._chunking_strategy
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""
@@ -432,6 +505,32 @@ class InfrastructureContext:
             return
 
         self.logger.info("Начало завершения работы InfrastructureContext")
+
+        # Сохранение Vector Search индексов
+        if self._faiss_providers and self.config.vector_search:
+            self.logger.info("Сохранение Vector Search индексов...")
+            from pathlib import Path
+            for source, provider in self._faiss_providers.items():
+                try:
+                    index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
+                    index_path.parent.mkdir(parents=True, exist_ok=True)
+                    await provider.save(str(index_path))
+                    self.logger.info(f"💾 Сохранён индекс {source}: {index_path}")
+                except Exception as e:
+                    self.logger.error(f"Ошибка сохранения индекса {source}: {e}")
+        
+        # Завершение Vector Search провайдеров
+        for source, provider in self._faiss_providers.items():
+            try:
+                await provider.shutdown()
+            except Exception as e:
+                self.logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
+        
+        if self._embedding_provider:
+            try:
+                await self._embedding_provider.shutdown()
+            except Exception as e:
+                self.logger.error(f"Ошибка завершения Embedding провайдера: {e}")
 
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:
