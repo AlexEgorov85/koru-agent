@@ -179,6 +179,9 @@ class RegistryConfig(BaseModel):
 
 from .agent_config import AgentConfig
 
+from .vector_config import VectorSearchConfig
+
+
 class SystemConfig(BaseModelConfig):
     """Корневая конфигурация системы"""
     # Конфигурация LLM провайдеров
@@ -186,6 +189,12 @@ class SystemConfig(BaseModelConfig):
 
     # Конфигурация БД
     db_providers: Dict[str, DBProviderConfig] = Field(default_factory=dict, description="Базы данных")
+
+    # Конфигурация векторного поиска
+    vector_search: Optional[VectorSearchConfig] = Field(
+        default=None,
+        description="Конфигурация векторного поиска"
+    )
 
     # Конфигурация навыков
     skills: Dict[str, SkillConfig] = Field(default_factory=dict, description="Навыки системы")
@@ -212,6 +221,14 @@ class SystemConfig(BaseModelConfig):
 
     # Дополнительные настройки
     providers: Dict[str, Any] = Field(default_factory=dict, description="Дополнительные провайдеры")
+    
+    @field_validator('vector_search', mode='before')
+    @classmethod
+    def set_default_vector_config(cls, v):
+        """Установка конфигурации векторного поиска по умолчанию."""
+        if v is None:
+            return VectorSearchConfig()
+        return v
 
     @property
     def primary_llm(self) -> Optional[LLMProviderConfig]:
