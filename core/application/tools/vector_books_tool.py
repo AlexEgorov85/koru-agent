@@ -10,6 +10,8 @@ Capabilities:
 
 from typing import Optional, Dict, Any, List
 from core.application.tools.base_tool import BaseTool
+from core.application.context.application_context import ApplicationContext
+from core.config.component_config import ComponentConfig
 from core.models.types.vector_types import VectorSearchResult, VectorQuery
 from core.models.types.analysis import AnalysisResult
 
@@ -17,37 +19,54 @@ from core.models.types.analysis import AnalysisResult
 class VectorBooksTool(BaseTool):
     """
     Универсальный инструмент для работы с книгами.
-    
+
     Использует:
     - FAISS для семантического поиска
     - SQL для получения полного текста
     - LLM для анализа
     - Cache для кэширования результатов анализа
     """
-    
+
     def __init__(
         self,
-        faiss_provider=None,
-        sql_provider=None,
-        embedding_provider=None,
-        llm_provider=None,
-        cache_service=None,
-        chunking_strategy=None
+        name: str,
+        application_context: ApplicationContext,
+        component_config: Optional[ComponentConfig] = None,
+        executor=None,
+        **kwargs
     ):
-        self.faiss_provider = faiss_provider
-        self.sql_provider = sql_provider
-        self.embedding_provider = embedding_provider
-        self.llm_provider = llm_provider
-        self.cache_service = cache_service
-        self.chunking_strategy = chunking_strategy
+        # Вызываем родительский конструктор
+        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
+        
+        # Провайдеры будут получены из инфраструктуры при выполнении
+        self._faiss_provider = None
+        self._sql_provider = None
+        self._embedding_provider = None
+        self._llm_provider = None
+        self._cache_service = None
+        self._chunking_strategy = None
     
     @property
     def name(self) -> str:
         return "vector_books_tool"
-    
+
     @property
     def description(self) -> str:
         return "Все операции с книгами: поиск + текст + анализ"
+
+    def _get_infrastructure(self):
+        """Получение провайдеров из инфраструктуры."""
+        if self._faiss_provider is None:
+            infra = self.application_context.infrastructure_context
+            self._faiss_providers = infra._faiss_providers
+            self._embedding_provider = infra.get_embedding_provider()
+            self._chunking_strategy = infra.get_chunking_strategy()
+            self._sql_provider = infra.get_sql_provider('books_db')
+            self._llm_provider = infra.llm_provider_factory.get_default_llm()
+            
+            # Получаем кэш из application context
+            from core.infrastructure.cache.analysis_cache import AnalysisCache
+            self._cache_service = AnalysisCache()
     
     async def shutdown(self):
         """Закрытие инструмента."""
@@ -92,22 +111,29 @@ class VectorBooksTool(BaseTool):
     ) -> Dict[str, Any]:
         """
         Семантический поиск по книгам.
-        
+
         Args:
             query: Текстовый запрос
             top_k: Количество результатов
             min_score: Минимальный порог
             filters: Фильтры по метаданным
-        
+
         Returns:
             {"results": [...], "total_found": int}
         """
         
-        # 1. Генерируем вектор запроса
-        query_vector = await self.embedding_provider.generate([query])
+        # Получаем инфраструктуру
+        self._get_infrastructure()
         
-        # 2. Ищем в FAISS
-        faiss_results = await self.faiss_provider.search(
+        # 1. Генерируем вектор запроса
+        query_vector = await self._embedding_provider.generate([query])
+        
+        # 2. Ищем в FAISS (используем books источник)
+        faiss_provider = self._faiss_providers.get('books')
+        if not faiss_provider:
+            return {"error": "FAISS provider for books not initialized"}
+        
+        faiss_results = await faiss_provider.search(
             query_vector[0],
             top_k=top_k,
             filters=filters
@@ -141,19 +167,22 @@ class VectorBooksTool(BaseTool):
     ) -> Dict[str, Any]:
         """
         Получение полного текста книги из SQL.
-        
+
         Args:
             document_id: ID документа (например, "book_1")
-        
+
         Returns:
             {"book_id": int, "chapters": [...]}
         """
+        
+        # Получаем инфраструктуру
+        self._get_infrastructure()
         
         # Извлекаем book_id из document_id
         book_id = int(document_id.replace("book_", ""))
         
         # SQL запрос для получения полного текста
-        chapters = await self.sql_provider.fetch("""
+        chapters = await self._sql_provider.fetch("""
             SELECT chapter, content
             FROM book_texts
             WHERE book_id = ?
@@ -174,25 +203,28 @@ class VectorBooksTool(BaseTool):
     ) -> Dict[str, Any]:
         """
         Универсальный LLM анализ.
-        
+
         Примеры:
         - analyze(entity_id="book_1", analysis_type="character", prompt="Кто главный герой?")
         - analyze(entity_id="book_1", analysis_type="theme", prompt="Какие основные темы?")
-        
+
         Args:
             entity_id: ID сущности
             analysis_type: Тип анализа
             prompt: Промпт для LLM
             force_refresh: Игнорировать кэш
-        
+
         Returns:
             AnalysisResult.to_dict()
         """
         
+        # Получаем инфраструктуру
+        self._get_infrastructure()
+        
         # 1. Проверка кэша
         cache_key = f"analysis:{analysis_type}:{entity_id}"
-        if not force_refresh and self.cache_service:
-            cached = await self.cache_service.get(cache_key)
+        if not force_refresh and self._cache_service:
+            cached = await self._cache_service.get(cache_key)
             if cached:
                 return cached
         
@@ -214,7 +246,7 @@ class VectorBooksTool(BaseTool):
 }}
 """
         
-        llm_response = await self.llm_provider.generate_json(llm_prompt)
+        llm_response = await self._llm_provider.generate_json(llm_prompt)
         
         # 4. Формируем результат
         analysis = AnalysisResult(
@@ -226,8 +258,8 @@ class VectorBooksTool(BaseTool):
         )
         
         # 5. Сохранение в кэш
-        if self.cache_service:
-            await self.cache_service.set(
+        if self._cache_service:
+            await self._cache_service.set(
                 cache_key,
                 analysis.to_dict(),
                 ttl_hours=168  # 7 дней
@@ -264,16 +296,19 @@ class VectorBooksTool(BaseTool):
     ) -> Dict[str, Any]:
         """
         SQL запрос к базе книг.
-        
+
         Args:
             sql: SQL запрос
             parameters: Параметры запроса
-        
+
         Returns:
             {"data": [...]}
         """
         
-        result = await self.sql_provider.fetch(sql, parameters)
+        # Получаем инфраструктуру
+        self._get_infrastructure()
+        
+        result = await self._sql_provider.fetch(sql, parameters)
         
         return {
             "data": result
