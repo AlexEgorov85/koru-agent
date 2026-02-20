@@ -1,6 +1,6 @@
 # ✂️ Chunking: Разбиение на чанки
 
-**Версия:** 1.0.0  
+**Версия:** 2.0.0  
 **Дата:** 2026-02-19  
 **Статус:** ✅ Утверждено
 
@@ -8,7 +8,66 @@
 
 ## 📋 Обзор
 
-Этот документ описывает стратегию и алгоритм разбиения текстов на чанки для векторного поиска.
+**ChunkingService — отдельный, расширяемый компонент.**
+
+Позволяет добавлять новые стратегии без изменения кода:
+- TextChunkingStrategy (по тексту)
+- SemanticChunkingStrategy (по смыслу)
+- HybridChunkingStrategy (комбо)
+- TableChunkingStrategy (для таблиц)
+- CodeChunkingStrategy (для кода)
+
+---
+
+## 🏗️ Архитектура
+
+### Компоненты
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ChunkingService                          │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  IChunkingStrategy (интерфейс)                       │  │
+│  │  └─ split(text) → List[Chunk]                        │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                            │                                │
+│         ┌──────────────────┼──────────────────┐             │
+│         ▼                  ▼                  ▼             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ TextChunking │  │ Semantic     │  │ Hybrid       │      │
+│  │ Strategy     │  │ Chunking     │  │ Chunking     │      │
+│  │ (по тексту)  │  │ (по смыслу)  │  │ (комбо)      │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│                                                             │
+│  + ChunkingFactory (создание стратегий)                     │
+│  + ChunkingConfig (настройки)                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Интерфейс
+
+```python
+# core/infrastructure/providers/vector/chunking_strategy.py
+
+class IChunkingStrategy(ABC):
+    """Интерфейс стратегии разбиения."""
+    
+    @abstractmethod
+    async def split(
+        self,
+        content: str,
+        document_id: str,
+        metadata: Optional[Dict] = None
+    ) -> List[VectorChunk]:
+        """Разбиение текста на чанки."""
+        pass
+    
+    @abstractmethod
+    def get_config(self) -> dict:
+        """Получить конфигурацию стратегии."""
+        pass
+```
 
 ---
 
@@ -19,6 +78,216 @@
 | **chunk_size** | 500 символов | Оптимально для эмбеддингов (SentenceTransformers) |
 | **chunk_overlap** | 50 символов (10%) | Сохраняет контекст между чанками |
 | **min_chunk_size** | 100 символов | Не разбивать маленькие чанки |
+
+---
+
+## 🔧 Стратегии
+
+### 1. TextChunkingStrategy (по тексту)
+
+**Когда использовать:** По умолчанию, для большинства текстов
+
+**Алгоритм:**
+```
+1. Разделить по заголовкам (\n## )
+2. Разделить по абзацам (\n\n)
+3. Разделить по предложениям (. )
+4. Принудительно по размеру (500 символов)
+5. Добавить перекрытие (50 символов)
+```
+
+**Конфигурация:**
+```yaml
+strategy: "text"
+config:
+  chunk_size: 500
+  chunk_overlap: 50
+  separators:
+    - "\n## "
+    - "\n\n"
+    - "\n"
+    - ". "
+```
+
+---
+
+### 2. SemanticChunkingStrategy (по смыслу)
+
+**Когда использовать:** Для сложных текстов, где важны смысловые границы
+
+**Алгоритм:**
+```
+1. Разделить на предложения
+2. Сгенерировать эмбеддинги предложений
+3. Найти границы тем (cosine similarity < threshold)
+4. Объединить предложения в чанки по темам
+```
+
+**Конфигурация:**
+```yaml
+strategy: "semantic"
+config:
+  embedding_model: "all-MiniLM-L6-v2"
+  similarity_threshold: 0.5  # Ниже = больше чанков
+  min_chunk_size: 100
+  max_chunk_size: 1000
+```
+
+**Преимущества:**
+- ✅ Чанки соответствуют смысловым границам
+- ✅ Лучшее качество поиска
+- ✅ Меньше потери контекста
+
+**Недостатки:**
+- ⚠️ Медленнее (требуется генерация эмбеддингов)
+- ⚠️ Требует embedding модель
+
+---
+
+### 3. HybridChunkingStrategy (комбо)
+
+**Когда использовать:** Для больших документов со сложной структурой
+
+**Алгоритм:**
+```
+1. Сначала разбить по тексту (заголовки, абзацы)
+2. Затем уточнить границы по смыслу
+3. Объединить маленькие чанки
+```
+
+**Конфигурация:**
+```yaml
+strategy: "hybrid"
+config:
+  text:
+    chunk_size: 500
+    chunk_overlap: 50
+  semantic:
+    similarity_threshold: 0.5
+    max_chunk_size: 1000
+```
+
+---
+
+### 4. TableChunkingStrategy (для таблиц)
+
+**Когда использовать:** Для документов с таблицами
+
+**Алгоритм:**
+```
+1. Найти таблицы в тексте
+2. Каждая таблица → отдельный чанк
+3. Текст вокруг → по тексту
+```
+
+**Конфигурация:**
+```yaml
+strategy: "table"
+config:
+  max_table_rows: 50  # Максимум строк в чанке
+  include_headers: true  # Сохранять заголовки
+```
+
+---
+
+### 5. CodeChunkingStrategy (для кода)
+
+**Когда использовать:** Для документов с кодом
+
+**Алгоритм:**
+```
+1. Найти блоки кода
+2. Каждый блок → отдельный чанк
+3. Сохранять отступы
+4. Добавлять язык кода в метаданные
+```
+
+**Конфигурация:**
+```yaml
+strategy: "code"
+config:
+  max_code_lines: 100  # Максимум строк в чанке
+  preserve_indentation: true  # Сохранять отступы
+```
+
+---
+
+## 🏭 Фабрика стратегий
+
+```python
+# core/infrastructure/providers/vector/chunking_factory.py
+
+class ChunkingFactory:
+    """Фабрика стратегий chunking."""
+    
+    @staticmethod
+    def create(
+        strategy_type: Literal["text", "semantic", "hybrid", "table", "code"],
+        config: Dict[str, Any]
+    ) -> IChunkingStrategy:
+        """Создание стратегии по типу."""
+        
+        if strategy_type == "text":
+            return TextChunkingStrategy(**config)
+        
+        elif strategy_type == "semantic":
+            return SemanticChunkingStrategy(**config)
+        
+        elif strategy_type == "hybrid":
+            text = ChunkingFactory.create("text", config.get("text", {}))
+            semantic = ChunkingFactory.create("semantic", config.get("semantic", {}))
+            return HybridChunkingStrategy(text, semantic)
+        
+        elif strategy_type == "table":
+            return TableChunkingStrategy(**config)
+        
+        elif strategy_type == "code":
+            return CodeChunkingStrategy(**config)
+        
+        else:
+            raise ValueError(f"Unknown strategy type: {strategy_type}")
+```
+
+---
+
+## ⚙️ Конфигурация
+
+```yaml
+# registry.yaml
+
+vector_search:
+  chunking:
+    # Тип стратегии (text/semantic/hybrid/table/code)
+    strategy: "text"
+    
+    # Конфигурация стратегии
+    config:
+      chunk_size: 500
+      chunk_overlap: 50
+      separators:
+        - "\n## "
+        - "\n\n"
+        - "\n"
+        - ". "
+    
+    # Будущая конфигурация semantic
+    # strategy: "semantic"
+    # config:
+    #   embedding_model: "all-MiniLM-L6-v2"
+    #   similarity_threshold: 0.5
+    #   min_chunk_size: 100
+    #   max_chunk_size: 1000
+    
+    # Будущая конфигурация hybrid
+    # strategy: "hybrid"
+    # config:
+    #   text:
+    #     chunk_size: 500
+    #     chunk_overlap: 50
+    #   semantic:
+    #     similarity_threshold: 0.5
+    #     max_chunk_size: 1000
+```
 
 ---
 
