@@ -49,6 +49,10 @@ class VectorBooksTool(BaseTool):
     def description(self) -> str:
         return "Все операции с книгами: поиск + текст + анализ"
     
+    async def shutdown(self):
+        """Закрытие инструмента."""
+        pass
+    
     async def execute(
         self,
         capability: str,
