@@ -6,109 +6,109 @@
 
 ## 🎯 Быстрый старт
 
-**Порядок чтения для разработчика:**
+**Для начала разработки читайте в порядке:**
 
-1. **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** — главный план (обзор)
-2. **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** — универсальная спецификация (основной!)
-3. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — жизненный цикл БД
-4. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — разбиение на чанки
-5. **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** — что готово, что нет
+1. **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** — обзор плана (5 мин)
+2. **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** — спецификация (20 мин) ⭐ **ОСНОВНОЙ**
+3. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — индексация (15 мин)
+4. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — chunking (15 мин)
+5. **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** — что делать дальше (5 мин)
+
+**Общее время:** ~1 час
 
 ---
 
-## 📁 Все документы
+## 📁 Документы
 
 ### Основные
 
-| Документ | Строк | Статус | Описание |
+| Документ | Строк | Читать | Описание |
 |----------|-------|--------|----------|
-| **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** | 575 | ✅ | Главный план разработки |
-| **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** | 606 | ✅ | Универсальная спецификация |
-| **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** | ~400 | ✅ | Аудит полноты документации |
+| **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** | 606 | ⭐⭐⭐ | Универсальная спецификация |
+| **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** | 575 | ⭐⭐ | Главный план |
+| **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** | 513 | ⭐⭐ | Жизненный цикл БД |
+| **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** | 756 | ⭐⭐ | Chunking стратегия |
 
 ### Архитектура
 
-| Документ | Строк | Статус | Описание |
+| Документ | Строк | Читать | Описание |
 |----------|-------|--------|----------|
-| **[INDEX_ARCHITECTURE.md](INDEX_ARCHITECTURE.md)** | 394 | ✅ | Архитектура индексов FAISS |
-| **[SKILL_ARCHITECTURE.md](SKILL_ARCHITECTURE.md)** | 438 | ✅ | Архитектура навыков |
-| **[DATA_SOURCES.md](DATA_SOURCES.md)** | 464 | ✅ | Источники данных |
-| **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** | 677 | ✅ | Интеграция с книгами (SQL+Vector) |
+| **[INDEX_ARCHITECTURE.md](INDEX_ARCHITECTURE.md)** | 394 | ⭐ | Индексы FAISS |
+| **[SKILL_ARCHITECTURE.md](SKILL_ARCHITECTURE.md)** | 438 | ⭐ | Навыки |
+| **[DATA_SOURCES.md](DATA_SOURCES.md)** | 464 | ⭐ | Источники данных |
+| **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** | 677 | ⭐ | Интеграция с книгами |
 
-### Реализация
+### Навигация
 
-| Документ | Строк | Статус | Описание |
-|----------|-------|--------|----------|
-| **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** | 513 | ✅ | Жизненный цикл векторной БД |
-| **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** | 756 | ✅ | Стратегия разбиения на чанки |
-| **[REQUIREMENTS.md](REQUIREMENTS.md)** | 334 | ✅ | Требования (FR/NFR) |
-| **[RISK_ASSESSMENT.md](RISK_ASSESSMENT.md)** | 434 | ✅ | Оценка рисков |
-
-### Устаревшие
-
-| Документ | Статус | Замена |
-|----------|--------|--------|
-| **[IMPLEMENTATION_SPEC.md](IMPLEMENTATION_SPEC.md)** | ⚠️ Устарел | [UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md) |
-| **[DETAILED_PLAN.md](DETAILED_PLAN.md)** | ⚠️ Требует обновления | - |
+| Документ | Описание |
+|----------|----------|
+| **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** | Аудит и план разработки |
 
 ---
 
 ## 🎯 По задачам
 
 ### Хочу понять архитектуру
-
-1. [VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md) — обзор
-2. [UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md) — детали
-3. [INDEX_ARCHITECTURE.md](INDEX_ARCHITECTURE.md) — индексы
-4. [SKILL_ARCHITECTURE.md](SKILL_ARCHITECTURE.md) — навыки
+→ `VECTOR_SEARCH_PLAN.md` → `UNIVERSAL_SPEC.md` → `INDEX_ARCHITECTURE.md`
 
 ### Хочу начать разработку
-
-1. [UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md) — спецификация
-2. [CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md) — chunking
-3. [VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md) — индексация
-4. [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md) — что делать дальше
+→ `UNIVERSAL_SPEC.md` → `DOCUMENTATION_AUDIT.md` (смотреть ЭТАП 1)
 
 ### Хочу понять chunking
+→ `CHUNKING_STRATEGY.md` (полная стратегия)
 
-1. [CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md) — полная стратегия
-2. [VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md) — интеграция
+### Хочу понять индексацию
+→ `VECTOR_LIFECYCLE.md` (жизненный цикл)
 
 ### Хочу понять интеграцию с книгами
-
-1. [BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md) — полная интеграция
-2. [DATA_SOURCES.md](DATA_SOURCES.md) — источники данных
-3. [VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md) — обновление
-
-### Хочу понять требования
-
-1. [REQUIREMENTS.md](REQUIREMENTS.md) — требования
-2. [RISK_ASSESSMENT.md](RISK_ASSESSMENT.md) — риски
+→ `BOOKS_INTEGRATION.md` (SQL + FAISS + LLM)
 
 ---
 
-## 📊 Статус готовности
+## 📊 Статус
 
-| Компонент | Готовность | Документ |
-|-----------|------------|----------|
-| Архитектура | ✅ 100% | UNIVERSAL_SPEC.md |
-| Chunking | ✅ 100% | CHUNKING_STRATEGY.md |
-| Жизненный цикл | ✅ 100% | VECTOR_LIFECYCLE.md |
-| Источники данных | ✅ 100% | DATA_SOURCES.md |
-| Требования | ✅ 100% | REQUIREMENTS.md |
-| Риски | ✅ 100% | RISK_ASSESSMENT.md |
-| EmbeddingProvider | ❌ 0% | Требуется документ |
-| FAISSProvider | ❌ 0% | Требуется документ |
-| VectorBooksTool | ❌ 0% | Требуется документ |
-| Тесты | ❌ 0% | Требуется план |
+### Документация ✅
 
-**Общая готовность:** ~60%
+```
+Архитектура          ✅ 100%
+Индексы              ✅ 100%
+Навыки               ✅ 100%
+Chunking             ✅ 100%
+Lifecycle            ✅ 100%
+Источники            ✅ 100%
+Интеграция (книги)   ✅ 100%
+────────────────────────────
+ДОКУМЕНТАЦИЯ         ✅ 100%
+```
+
+### Реализация ⏳
+
+```
+Модели данных        ⏳ 0%
+EmbeddingProvider    ⏳ 0%
+FAISSProvider        ⏳ 0%
+ChunkingService      ⏳ 0%
+VectorBooksTool      ⏳ 0%
+Конфигурация         ⏳ 0%
+Тесты                ⏳ 0%
+────────────────────────────
+РЕАЛИЗАЦИЯ           ⏳ 0%
+```
 
 ---
 
 ## 🚀 Следующие шаги
 
-См. [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md) — план доработки документации.
+См. **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** — подробный план разработки по этапам.
+
+**Кратко:**
+1. **ЭТАП 1:** Модели данных (4-6 часов)
+2. **ЭТАП 2:** Infrastructure провайдеры (8-10 часов)
+3. **ЭТАП 3:** Application инструменты (6-8 часов)
+4. **ЭТАП 4:** Интеграция (4-6 часов)
+5. **ЭТАП 5:** Тесты и верификация (6-8 часов)
+
+**Итого:** 30-40 часов разработки
 
 ---
 
