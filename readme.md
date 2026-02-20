@@ -347,25 +347,17 @@ black core/ --check
 
 ### Vector Search
 
-- **[docs/vector_search/README.md](docs/vector_search/README.md)** — Навигация по документации
+- **[docs/vector_search/README.md](docs/vector_search/README.md)** — навигация
 - **[docs/api/vector_search_api.md](docs/api/vector_search_api.md)** — API документация
-- **[docs/guides/vector_search.md](docs/guides/vector_search.md)** — Руководство пользователя
-- **[examples/vector_search_examples.py](examples/vector_search_examples.py)** — Примеры использования
+- **[docs/guides/vector_search.md](docs/guides/vector_search.md)** — руководство
+- **[examples/vector_search_examples.py](examples/vector_search_examples.py)** — примеры
 
-#### Архитектура Vector Search
+#### Документация
 
-- **[VECTOR_SEARCH_PLAN.md](docs/vector_search/VECTOR_SEARCH_PLAN.md)** — Главный план
-- **[UNIVERSAL_SPEC.md](docs/vector_search/UNIVERSAL_SPEC.md)** — Универсальная спецификация
-- **[INDEX_ARCHITECTURE.md](docs/vector_search/INDEX_ARCHITECTURE.md)** — Архитектура индексов
-- **[SKILL_ARCHITECTURE.md](docs/vector_search/SKILL_ARCHITECTURE.md)** — Архитектура навыков
-- **[DATA_SOURCES.md](docs/vector_search/DATA_SOURCES.md)** — Источники данных
-- **[BOOKS_INTEGRATION.md](docs/vector_search/BOOKS_INTEGRATION.md)** — Интеграция с книгами
-
-#### Реализация Vector Search
-
-- **[VECTOR_LIFECYCLE.md](docs/vector_search/VECTOR_LIFECYCLE.md)** — Жизненный цикл БД
-- **[CHUNKING_STRATEGY.md](docs/vector_search/CHUNKING_STRATEGY.md)** — Стратегия chunking
-- **[DOCUMENTATION_AUDIT.md](docs/vector_search/DOCUMENTATION_AUDIT.md)** — Аудит документации
+- **[UNIVERSAL_SPEC.md](docs/vector_search/UNIVERSAL_SPEC.md)** — универсальная спецификация
+- **[VECTOR_LIFECYCLE.md](docs/vector_search/VECTOR_LIFECYCLE.md)** — жизненный цикл БД
+- **[CHUNKING_STRATEGY.md](docs/vector_search/CHUNKING_STRATEGY.md)** — стратегия chunking
+- **[BOOKS_INTEGRATION.md](docs/vector_search/BOOKS_INTEGRATION.md)** — интеграция с книгами
 
 ---
 

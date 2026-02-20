@@ -6,62 +6,56 @@
 
 ## 🎯 Быстрый старт
 
-**Для начала разработки читайте в порядке:**
+**Для разработчиков:**
 
-1. **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** — обзор плана (5 мин)
-2. **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** — спецификация (20 мин) ⭐ **ОСНОВНОЙ**
-3. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — индексация (15 мин)
-4. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — chunking (15 мин)
-5. **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** — что делать дальше (5 мин)
+1. **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** — универсальная спецификация ⭐ **ОСНОВНОЙ**
+2. **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** — жизненный цикл БД
+3. **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** — разбиение на чанки
+4. **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** — интеграция с книгами
 
-**Общее время:** ~1 час
+**Для пользователей:**
+
+1. **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** — API документация
+2. **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** — руководство
+3. **[../../examples/vector_search_examples.py](../../examples/vector_search_examples.py)** — примеры
 
 ---
 
 ## 📁 Документы
 
-### Основные
+### Реализация
 
-| Документ | Строк | Читать | Описание |
-|----------|-------|--------|----------|
-| **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** | 606 | ⭐⭐⭐ | Универсальная спецификация |
-| **[VECTOR_SEARCH_PLAN.md](VECTOR_SEARCH_PLAN.md)** | 575 | ⭐⭐ | Главный план |
-| **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** | 513 | ⭐⭐ | Жизненный цикл БД |
-| **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** | 756 | ⭐⭐ | Chunking стратегия |
-
-### Архитектура
-
-| Документ | Строк | Читать | Описание |
-|----------|-------|--------|----------|
-| **[INDEX_ARCHITECTURE.md](INDEX_ARCHITECTURE.md)** | 394 | ⭐ | Индексы FAISS |
-| **[SKILL_ARCHITECTURE.md](SKILL_ARCHITECTURE.md)** | 438 | ⭐ | Навыки |
-| **[DATA_SOURCES.md](DATA_SOURCES.md)** | 464 | ⭐ | Источники данных |
-| **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** | 677 | ⭐ | Интеграция с книгами |
+| Документ | Строк | Описание |
+|----------|-------|----------|
+| **[UNIVERSAL_SPEC.md](UNIVERSAL_SPEC.md)** | 606 | Универсальная спецификация |
+| **[VECTOR_LIFECYCLE.md](VECTOR_LIFECYCLE.md)** | 513 | Жизненный цикл векторной БД |
+| **[CHUNKING_STRATEGY.md](CHUNKING_STRATEGY.md)** | 756 | Стратегия разбиения на чанки |
+| **[BOOKS_INTEGRATION.md](BOOKS_INTEGRATION.md)** | 677 | Интеграция с книгами (SQL+Vector) |
 
 ### Навигация
 
 | Документ | Описание |
 |----------|----------|
-| **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** | Аудит и план разработки |
+| **[README.md](README.md)** | Этот файл — навигация |
 
 ---
 
 ## 🎯 По задачам
 
 ### Хочу понять архитектуру
-→ `VECTOR_SEARCH_PLAN.md` → `UNIVERSAL_SPEC.md` → `INDEX_ARCHITECTURE.md`
-
-### Хочу начать разработку
-→ `UNIVERSAL_SPEC.md` → `DOCUMENTATION_AUDIT.md` (смотреть ЭТАП 1)
-
-### Хочу понять chunking
-→ `CHUNKING_STRATEGY.md` (полная стратегия)
+→ `UNIVERSAL_SPEC.md`
 
 ### Хочу понять индексацию
-→ `VECTOR_LIFECYCLE.md` (жизненный цикл)
+→ `VECTOR_LIFECYCLE.md`
+
+### Хочу понять chunking
+→ `CHUNKING_STRATEGY.md`
 
 ### Хочу понять интеграцию с книгами
-→ `BOOKS_INTEGRATION.md` (SQL + FAISS + LLM)
+→ `BOOKS_INTEGRATION.md`
+
+### Хочу начать разработку
+→ `UNIVERSAL_SPEC.md` → API документация
 
 ---
 
@@ -75,41 +69,39 @@
 Навыки               ✅ 100%
 Chunking             ✅ 100%
 Lifecycle            ✅ 100%
-Источники            ✅ 100%
 Интеграция (книги)   ✅ 100%
 ────────────────────────────
 ДОКУМЕНТАЦИЯ         ✅ 100%
 ```
 
-### Реализация ⏳
+### Реализация ✅
 
 ```
-Модели данных        ⏳ 0%
-EmbeddingProvider    ⏳ 0%
-FAISSProvider        ⏳ 0%
-ChunkingService      ⏳ 0%
-VectorBooksTool      ⏳ 0%
-Конфигурация         ⏳ 0%
-Тесты                ⏳ 0%
+Модели данных        ✅ 100%
+EmbeddingProvider    ✅ 100%
+FAISSProvider        ✅ 100%
+ChunkingService      ✅ 100%
+VectorBooksTool      ✅ 100%
+Конфигурация         ✅ 100%
+Тесты                ✅ 100%
 ────────────────────────────
-РЕАЛИЗАЦИЯ           ⏳ 0%
+РЕАЛИЗАЦИЯ           ✅ 100%
 ```
 
 ---
 
-## 🚀 Следующие шаги
+## 🔗 Ссылки
 
-См. **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** — подробный план разработки по этапам.
+### Внешняя документация
 
-**Кратко:**
-1. **ЭТАП 1:** Модели данных (4-6 часов)
-2. **ЭТАП 2:** Infrastructure провайдеры (8-10 часов)
-3. **ЭТАП 3:** Application инструменты (6-8 часов)
-4. **ЭТАП 4:** Интеграция (4-6 часов)
-5. **ЭТАП 5:** Тесты и верификация (6-8 часов)
-
-**Итого:** 30-40 часов разработки
+| Документ | Описание |
+|----------|----------|
+| **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** | API документация |
+| **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** | Руководство пользователя |
+| **[../../examples/vector_search_examples.py](../../examples/vector_search_examples.py)** | Примеры кода |
+| **[../../CHANGELOG.md](../../CHANGELOG.md)** | История изменений |
 
 ---
 
-*Обновлено: 2026-02-19*
+*Обновлено: 2026-02-19*  
+*Версия: 2.0.0 (очищено)*
