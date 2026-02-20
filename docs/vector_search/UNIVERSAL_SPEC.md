@@ -16,7 +16,22 @@
 
 ## 🏗️ Архитектура
 
-### Универсальные компоненты
+### Поток данных: SQL → Вектор → SQL
+
+```
+SQL (TEXT) → Chunking → Embedding → FAISS (vector + metadata) → Поиск → SQL (полный текст)
+```
+
+**Где что хранится:**
+
+| Данные | Хранение | Формат |
+|--------|----------|--------|
+| Исходный текст | SQL (book_texts.content) | TEXT |
+| Векторы | FAISS (books_index.faiss) | binary (384 dim) |
+| Метаданные | JSON (books_metadata.json) | JSON |
+| Связь | metadata.book_id → books.id | integer |
+
+### Компоненты
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,6 +60,53 @@
                      │  Analysis Cache  │
                      │ (универсальный)  │
                      └──────────────────┘
+```
+
+---
+
+## 🔄 Детальный поток данных
+
+### 1. Индексация (SQL → FAISS)
+
+```python
+# 1. Получаем текст из SQL
+chapters = await sql.fetch("""
+    SELECT chapter, content FROM book_texts
+    WHERE book_id = ? ORDER BY chapter
+""", (book_id,))
+
+# 2. Разбиваем на чанки
+chunks = await chunking.split(content=chapter["content"])
+
+# 3. Генерируем векторы
+vectors = await embedding.generate([chunk.content for chunk in chunks])
+
+# 4. Добавляем в FAISS с метаданными
+metadata = {
+    "chunk_id": f"book_{book_id}_chunk_0",
+    "document_id": f"book_{book_id}",
+    "book_id": book_id,  ← Ссылка на SQL
+    "chapter": 1,
+    "chunk_index": 0
+}
+await faiss.add(vectors, metadata)
+```
+
+### 2. Поиск (FAISS → SQL)
+
+```python
+# 1. Генерируем вектор запроса
+query_vector = await embedding.generate(["найди про любовь"])
+
+# 2. Ищем в FAISS
+results = await faiss.search(query_vector, top_k=10)
+# results[0].metadata = {"book_id": 1, "chapter": 1, ...}
+
+# 3. Получаем полный текст из SQL
+text = await sql.fetch("""
+    SELECT content FROM book_texts
+    WHERE book_id = ? AND chapter = ?
+""", (results[0].metadata["book_id"], results[0].metadata["chapter"]))
 ```
 
 ---
