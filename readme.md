@@ -15,6 +15,8 @@
 - 🔄 **Reasoning-циклы (ReAct)** — агент планирует и выполняет задачи пошагово
 - 🧠 **Мульти-LLM поддержка** — vLLM, LlamaCpp, OpenAI, Anthropic, Gemini
 - 💾 **Работа с данными** — PostgreSQL, SQLite, векторные хранилища
+- 🔍 **Векторный поиск** — семантический поиск по документам (FAISS)
+- 📚 **Анализ книг** — LLM анализ героев, тем, классификация
 - 📊 **Структурированный вывод** — типизированные ответы с валидацией
 - 🎯 **Автоматическая оценка качества** — бенчмарки и сравнение версий
 - 🚀 **Самооптимизация** — автоматическое улучшение промптов и контрактов
@@ -297,8 +299,9 @@ agent:
 |------------|----------|
 | **Тестов пройдено** | 398 passed, 10 skipped |
 | **Без моков** | 113 тестов (31%) |
-| **Файлов создано** | 25+ |
-| **Строк кода** | ~6000+ |
+| **Vector Search** | 77 тестов (все прошли) |
+| **Файлов создано** | 65+ |
+| **Строк кода** | ~10000+ |
 
 ---
 
@@ -336,9 +339,33 @@ black core/ --check
 
 ## 📚 Документация
 
+### Основная документация
+
 - **[BENCHMARK_LEARNING_PLAN.md](docs/plans/BENCHMARK_LEARNING_PLAN.md)** — План внедрения Benchmark + Learning
 - **[CHANGELOG.md](CHANGELOG.md)** — История изменений
 - **[docs/README.md](docs/README.md)** — Полная документация проекта
+
+### Vector Search
+
+- **[docs/vector_search/README.md](docs/vector_search/README.md)** — Навигация по документации
+- **[docs/api/vector_search_api.md](docs/api/vector_search_api.md)** — API документация
+- **[docs/guides/vector_search.md](docs/guides/vector_search.md)** — Руководство пользователя
+- **[examples/vector_search_examples.py](examples/vector_search_examples.py)** — Примеры использования
+
+#### Архитектура Vector Search
+
+- **[VECTOR_SEARCH_PLAN.md](docs/vector_search/VECTOR_SEARCH_PLAN.md)** — Главный план
+- **[UNIVERSAL_SPEC.md](docs/vector_search/UNIVERSAL_SPEC.md)** — Универсальная спецификация
+- **[INDEX_ARCHITECTURE.md](docs/vector_search/INDEX_ARCHITECTURE.md)** — Архитектура индексов
+- **[SKILL_ARCHITECTURE.md](docs/vector_search/SKILL_ARCHITECTURE.md)** — Архитектура навыков
+- **[DATA_SOURCES.md](docs/vector_search/DATA_SOURCES.md)** — Источники данных
+- **[BOOKS_INTEGRATION.md](docs/vector_search/BOOKS_INTEGRATION.md)** — Интеграция с книгами
+
+#### Реализация Vector Search
+
+- **[VECTOR_LIFECYCLE.md](docs/vector_search/VECTOR_LIFECYCLE.md)** — Жизненный цикл БД
+- **[CHUNKING_STRATEGY.md](docs/vector_search/CHUNKING_STRATEGY.md)** — Стратегия chunking
+- **[DOCUMENTATION_AUDIT.md](docs/vector_search/DOCUMENTATION_AUDIT.md)** — Аудит документации
 
 ---
 
