@@ -486,43 +486,64 @@ class ReActPattern(BaseBehaviorPattern):
                 )
             )
 
-            # === ЛОГИРОВАНИЕ ПРОМПТА ===
-            logger.info("=" * 80)
-            logger.info("=== ЗАПРОС К LLM (REACT THINK) ===")
-            logger.info("=" * 80)
-            logger.info(f"System prompt: {llm_request.system_prompt[:500]}...")
-            logger.info("-" * 80)
-            logger.info(f"User prompt (первые 2000 символов):\n{reasoning_prompt[:2000]}...")
-            logger.info(f"Полный размер промпта: {len(reasoning_prompt)} символов")
-            logger.info(f"Temperature: {llm_request.temperature}, Max tokens: {llm_request.max_tokens}")
-            logger.info("=" * 80)
+            # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
+            if self.application_context and hasattr(self.application_context, 'event_bus'):
+                from core.infrastructure.event_bus.event_bus import Event, EventType
+                await self.application_context.event_bus.publish(
+                    event=EventType.LLM_PROMPT_GENERATED,
+                    data={
+                        "component": "react_pattern",
+                        "phase": "think",
+                        "system_prompt": llm_request.system_prompt,
+                        "user_prompt": reasoning_prompt,
+                        "prompt_length": len(reasoning_prompt),
+                        "temperature": llm_request.temperature,
+                        "max_tokens": llm_request.max_tokens,
+                        "session_id": getattr(session_context, 'session_id', 'unknown'),
+                        "goal": session_context.get_goal() if session_context else 'unknown'
+                    },
+                    source="react_pattern.think",
+                    correlation_id=getattr(session_context, 'session_id', '')
+                )
 
             response = await llm_provider.generate_structured(llm_request)
 
-            # === ЛОГИРОВАНИЕ ОТВЕТА ===
-            logger.info("=" * 80)
-            logger.info("=== ОТВЕТ ОТ LLM (REACT THINK) ===")
-            logger.info("=" * 80)
-            
-            # Обработка ответа
-            # LlamaCppProvider возвращает dict с 'raw_response', извлекаем его
-            if isinstance(response, dict) and 'raw_response' in response:
-                result = response['raw_response']
-                logger.info(f"Формат ответа: dict с raw_response")
-            elif hasattr(response, 'content'):
-                result = response.content
-                logger.info(f"Формат ответа: объект с content")
-            else:
-                result = response
-                logger.info(f"Формат ответа: {type(response).__name__}")
+            # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
+            if self.application_context and hasattr(self.application_context, 'event_bus'):
+                from core.infrastructure.event_bus.event_bus import Event, EventType
+                
+                # Обработка ответа
+                if isinstance(response, dict) and 'raw_response' in response:
+                    result = response['raw_response']
+                    response_format = "dict.raw_response"
+                elif hasattr(response, 'content'):
+                    result = response.content
+                    response_format = "object.content"
+                else:
+                    result = response
+                    response_format = type(response).__name__
 
-            # Логируем результат
-            if isinstance(result, dict):
-                logger.info(f"Результат (dict): {json.dumps(result, ensure_ascii=False, indent=2)[:3000]}...")
+                await self.application_context.event_bus.publish(
+                    event=EventType.LLM_RESPONSE_RECEIVED,
+                    data={
+                        "component": "react_pattern",
+                        "phase": "think",
+                        "response_format": response_format,
+                        "response": result,
+                        "session_id": getattr(session_context, 'session_id', 'unknown'),
+                        "goal": session_context.get_goal() if session_context else 'unknown'
+                    },
+                    source="react_pattern.think",
+                    correlation_id=getattr(session_context, 'session_id', '')
+                )
             else:
-                logger.info(f"Результат ({type(result).__name__}): {str(result)[:3000]}...")
-            
-            logger.info("=" * 80)
+                # Fallback для обработки ответа если EventBus недоступен
+                if isinstance(response, dict) and 'raw_response' in response:
+                    result = response['raw_response']
+                elif hasattr(response, 'content'):
+                    result = response.content
+                else:
+                    result = response
                 
             reasoning_result = validate_reasoning_result(result)
 

@@ -65,6 +65,8 @@ class EventType(Enum):
     LLM_CALL_STARTED = "llm.call.started"
     LLM_CALL_COMPLETED = "llm.call.completed"
     LLM_CALL_FAILED = "llm.call.failed"
+    LLM_PROMPT_GENERATED = "llm.prompt.generated"  # Сгенерирован промпт для LLM
+    LLM_RESPONSE_RECEIVED = "llm.response.received"  # Получен ответ от LLM
 
     # События сервисов
     SERVICE_REGISTERED = "services.registered"

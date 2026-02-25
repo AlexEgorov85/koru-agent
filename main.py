@@ -55,7 +55,13 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         logger.error(f"MAIN: До инициализации - use_data_repository={application_context.use_data_repository}, data_repository={application_context.data_repository}")
         
         await application_context.initialize()
-        
+
+        # Подписка на события LLM для логирования
+        from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
+        llm_subscriber = LLMEventSubscriber(log_full_content=False)  # True для полного логирования
+        llm_subscriber.subscribe(application_context.event_bus)
+        logger.info("Подписчик на события LLM активирован")
+
         # Проверяем, что компоненты зарегистрированы
         from core.models.enums.common_enums import ComponentType
         logger.error(f"MAIN: После инициализации - use_data_repository={application_context.use_data_repository}, data_repository={application_context.data_repository}")
