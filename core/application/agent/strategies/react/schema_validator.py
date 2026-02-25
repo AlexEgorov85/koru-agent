@@ -53,22 +53,23 @@ class SchemaValidator:
         - Валидированные параметры или None, если валидация не удалась
         """
         import logging
+        import re
         logger = logging.getLogger(__name__)
-        
+
         if not capability or not raw_params:
             return None
 
         # Получаем схему из кэша по имени capability
         params_schema = self.get_capability_schema(capability.name)
-        
+
         logger.info(f"validate_parameters: capability={capability.name}, raw_params={raw_params}, params_schema={params_schema}")
-        
+
         # Если схема не найдена в кэше, пробуем получить из meta capability
         if not params_schema:
             # Пытаемся получить из meta (если там есть contract_schema)
             params_schema = capability.meta.get('contract_schema', {})
             logger.debug(f"Схема не найдена в кэше, пробуем из meta: {params_schema}")
-        
+
         # Если схема всё ещё пуста, создаём минимальную схему с "input"
         if not params_schema:
             # Дефолтная схема: требуется поле "input" типа string
@@ -76,6 +77,14 @@ class SchemaValidator:
                 "input": {"type": "string", "required": True}
             }
             logger.debug(f"Используем дефолтную схему: {params_schema}")
+
+        # СПЕЦИАЛЬНАЯ ЛОГИКА для book_library.execute_script
+        # Если LLM передал только {"input": "..."}, пытаемся извлечь автора и создать правильные параметры
+        if capability.name == "book_library.execute_script":
+            validated_params = self._try_fix_book_library_params(raw_params, params_schema)
+            if validated_params:
+                logger.info(f"✅ Параметры для book_library.execute_script исправлены: {validated_params}")
+                return validated_params
 
         validated_params = {}
 
@@ -124,3 +133,83 @@ class SchemaValidator:
 
         logger.info(f"validate_parameters: result={validated_params}")
         return validated_params
+
+    def _try_fix_book_library_params(
+        self,
+        raw_params: Dict[str, Any],
+        params_schema: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Пытается исправить параметры для book_library.execute_script.
+        
+        Если LLM передал только {"input": "Какие книги написал Александр Пушкин?"},
+        извлекаем имя автора и создаём правильные параметры.
+        
+        RETURNS:
+        - Исправленные параметры или None
+        """
+        import logging
+        import re
+        logger = logging.getLogger(__name__)
+
+        # Если уже есть script_name, ничего не делаем
+        if 'script_name' in raw_params:
+            logger.debug("script_name уже присутствует, пропускаем исправление")
+            return None
+
+        # Если есть только input, пытаемся извлечь информацию
+        input_text = raw_params.get('input', '')
+        if not input_text:
+            logger.debug("input текст пустой")
+            return None
+
+        logger.info(f"_try_fix_book_library_params: Пытаемся исправить параметры для input='{input_text}'")
+
+        # Паттерны для извлечения авторов (русские имена)
+        author_patterns = [
+            # "книги написал Александр Пушкин"
+            r'(?:написал|написали|автор|авторы)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?\s+[А-Я][а-яё]+)',
+            # "книги Александра Пушкина" (родительный падеж)
+            r'(?:книги|произведения|творения)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?[а-яё]+)',
+            # "Пушкин" или "Лев Толстой" (просто имя)
+            r'([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?(?:ов|ев|ин|ский|ц[а-яё]+)?\s+[А-Я][а-яё]+(?:-[А-Я][а-яё]+)?)',
+        ]
+
+        # Пробуем найти имя автора
+        author = None
+        for i, pattern in enumerate(author_patterns):
+            match = re.search(pattern, input_text)
+            if match:
+                author = match.group(1).strip()
+                # Очищаем от лишних окончаний
+                author = re.sub(r'(?:ова|ева|ина|ская|цкого|ого|ему|ым|ою|е)$', '', author)
+                logger.info(f"Найден автор по паттерну #{i} '{pattern}': {author}")
+                break
+
+        # Если автор найден, создаём правильные параметры
+        if author and len(author) > 2:
+            result = {
+                "script_name": "get_books_by_author",
+                "parameters": {
+                    "author": author,
+                    "max_rows": 20
+                }
+            }
+            logger.info(f"✅ Созданы исправленные параметры: {result}")
+            return result
+
+        # Если автора нет, пробуем определить тип запроса
+        input_lower = input_text.lower()
+        if "все книги" in input_lower or "полный список" in input_lower:
+            result = {
+                "script_name": "get_all_books",
+                "parameters": {
+                    "max_rows": 50
+                }
+            }
+            logger.info(f"✅ Определён запрос 'все книги': {result}")
+            return result
+
+        # Для других запросов - используем fallback на dynamic search
+        logger.warning(f"❌ Не удалось определить параметры для input='{input_text}'")
+        return None

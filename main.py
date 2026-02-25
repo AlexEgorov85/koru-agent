@@ -18,7 +18,7 @@ from core.config.app_config import AppConfig
 
 # === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
 GOAL = "Какие книги написал Александр Пушкин?"
-MAX_STEPS = 3  # Уменьшено для быстрого теста
+MAX_STEPS = 10  # Увеличено для полного выполнения
 TEMPERATURE = 0.7
 
 

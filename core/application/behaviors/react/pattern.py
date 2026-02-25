@@ -289,8 +289,12 @@ class ReActPattern(BaseBehaviorPattern):
         - available_capabilities: список capability для регистрации
         """
         if not self.application_context:
+            logger.warning("_register_capability_schemas: application_context не доступен")
             return
 
+        logger.info(f"=== РЕГИСТРАЦИЯ СХЕМ ===")
+        logger.info(f"Всего capability: {len(available_capabilities)}")
+        
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
             # Пытаемся получить схему из input_schemas кэша
@@ -300,16 +304,19 @@ class ReActPattern(BaseBehaviorPattern):
             # Проверяем, есть ли схема в кэше input_schemas
             if hasattr(self, 'input_schemas') and cap.name in self.input_schemas:
                 schema = self.input_schemas[cap.name]
+                logger.info(f"Найдена схема в input_schemas для {cap.name}")
             elif self.application_context.use_data_repository and self.application_context.data_repository:
                 # Пытаемся получить схему из DataRepository
                 try:
                     # Получаем версию контракта из meta capability
                     contract_version = cap.meta.get('contract_version', 'v1.0.0')
+                    logger.debug(f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
                     schema = self.application_context.data_repository.get_contract_schema(
                         cap.name, 
                         contract_version, 
                         "input"
                     )
+                    logger.info(f"Загружена схема из DataRepository для {cap.name}")
                 except Exception as e:
                     logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
             
@@ -340,7 +347,11 @@ class ReActPattern(BaseBehaviorPattern):
                 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    logger.debug(f"Зарегистрирована схема для {cap.name}: {params_schema}")
+                    logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
+                else:
+                    logger.warning(f"⚠️ Пустая схема для {cap.name}")
+            else:
+                logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
 
     async def generate_decision(
         self,
