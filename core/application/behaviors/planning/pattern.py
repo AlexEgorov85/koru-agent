@@ -12,22 +12,25 @@ class PlanningPattern(BehaviorPatternInterface):
     """Паттерн иерархического планирования: создание плана → выполнение шагов → коррекция
     
     АРХИТЕКТУРА:
-    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
-    - НЕ содержит захардкоженных версий
+    - component_name используется для получения config из AppConfig
+    - Промпты и контракты загружаются из component_config.resolved_prompts/contracts
+    - pattern_id генерируется из component_name для совместимости
     """
-    # pattern_id НЕ определяется здесь — передаётся через __init__
+    # pattern_id НЕ определяется — генерируется из component_name
 
-    def __init__(self, pattern_id: str, metadata: dict = None):
+    def __init__(self, component_name: str, component_config = None):
         """Инициализация паттерна.
         
         ПАРАМЕТРЫ:
-        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "planning.v1.0.0")
-        - metadata: Метаданные паттерна
+        - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "planning_pattern")
+        - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         """
-        if not pattern_id:
-            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        if not component_name:
+            raise ValueError("component_name обязателен для инициализации паттерна")
         
-        self.pattern_id = pattern_id
+        self.pattern_id = component_name
+        self.component_name = component_name
+        self._component_config = component_config
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def analyze_context(

@@ -14,6 +14,15 @@ class BehaviorStorage:
         self._cache: Dict[str, 'BehaviorPattern'] = {}
 
     async def load_pattern(self, pattern_id: str) -> 'BehaviorPattern':
+        """
+        Загружает паттерн по pattern_id (для обратной совместимости).
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна (например "react.v1.0.0")
+        
+        ВОЗВРАЩАЕТ:
+        - BehaviorPattern: Экземпляр паттерна
+        """
         if pattern_id in self._cache:
             return self._cache[pattern_id]
 
@@ -22,7 +31,71 @@ class BehaviorStorage:
         self._cache[pattern_id] = pattern
         return pattern
 
+    async def load_pattern_by_component(self, component_name: str) -> 'BehaviorPattern':
+        """
+        Загружает паттерн по component_name (новая архитектура).
+        
+        ПАРАМЕТРЫ:
+        - component_name: Имя компонента (например "react_pattern")
+        
+        ВОЗВРАЩАЕТ:
+        - BehaviorPattern: Экземпляр паттерна
+        """
+        if component_name in self._cache:
+            return self._cache[component_name]
+
+        # Извлекаем тип паттерна из component_name (react_pattern → react)
+        pattern_type = component_name.replace("_pattern", "")
+        
+        # Загрузка из data/behaviors/{type}/{version}.yaml
+        pattern = await self._load_from_component_name(component_name, pattern_type)
+        self._cache[component_name] = pattern
+        return pattern
+
+    async def _load_from_component_name(self, component_name: str, pattern_type: str) -> 'BehaviorPattern':
+        """
+        Загружает паттерн из FS по component_name.
+        
+        ПАРАМЕТРЫ:
+        - component_name: Имя компонента (например "react_pattern")
+        - pattern_type: Тип паттерна (например "react")
+        
+        ВОЗВРАЩАЕТ:
+        - BehaviorPattern: Экземпляр паттерна
+        """
+        # Находим активную версию из registry.yaml через application_context
+        if not self._application_context:
+            raise RuntimeError("ApplicationContext не доступен для загрузки паттерна")
+        
+        # Получаем behavior_configs из AppConfig
+        behavior_configs = getattr(self._application_context.config, 'behavior_configs', {})
+        component_config = behavior_configs.get(component_name)
+        
+        if not component_config:
+            raise ValueError(f"Component config для {component_name} не найден в AppConfig")
+        
+        # Получаем класс паттерна
+        pattern_class = self._get_pattern_class(pattern_type, "v1.0.0")  # Версия не важна для новой архитектуры
+        
+        # Создание экземпляра паттерна с component_name и component_config
+        pattern_instance = pattern_class(
+            component_name=component_name,
+            component_config=component_config,
+            application_context=self._application_context
+        )
+
+        return pattern_instance
+
     async def _load_from_fs(self, pattern_id: str) -> 'BehaviorPattern':
+        """
+        Загружает паттерн из FS по pattern_id (для обратной совместимости).
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна (например "react.v1.0.0")
+        
+        ВОЗВРАЩАЕТ:
+        - BehaviorPattern: Экземпляр паттерна
+        """
         # Разбор ID паттерна на тип и версию
         parts = pattern_id.split('.')
         if len(parts) < 2:
@@ -49,23 +122,18 @@ class BehaviorStorage:
         # Загрузка соответствующего класса паттерна
         pattern_class = self._get_pattern_class(pattern_type, version)
 
-        # Получаем component_config из application_context для передачи в паттерн
-        # Это позволяет паттерну НЕ ЗНАТЬ о версиях - версии управляются через AppConfig
+        # Получаем component_config и component_name из application_context
         component_config = None
+        component_name = None
         if self._application_context:
-            # Получаем конфигурацию behavior из AppConfig
             behavior_configs = getattr(self._application_context.config, 'behavior_configs', {})
-            # Для react_pattern ищем конфигурацию
-            config_key = f"{pattern_type}_pattern"
-            component_config = behavior_configs.get(config_key)
+            component_name = f"{pattern_type}_pattern"
+            component_config = behavior_configs.get(component_name)
         
-        # Создание экземпляра паттерна с component_config в metadata
+        # Создание экземпляра паттерна с component_name и component_config
         pattern_instance = pattern_class(
-            pattern_id=pattern_id,
-            metadata={
-                **metadata,
-                'component_config': component_config  # Передаем component_config для доступа к resolved_prompts/contracts
-            },
+            component_name=component_name,
+            component_config=component_config,
             application_context=self._application_context
         )
 

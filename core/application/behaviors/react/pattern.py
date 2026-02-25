@@ -36,49 +36,47 @@ class ReActPattern(BehaviorPatternInterface):
 
     АРХИТЕКТУРА:
     - НЕ знает о версиях промптов/контрактов
-    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
-    - Использует ресурсы из component_config (загружены ApplicationContext)
-    - Промпты и контракты загружаются через PromptService/ContractService
+    - component_name используется для получения config из AppConfig
+    - Промпты и контракты загружаются из component_config.resolved_prompts/contracts
+    - pattern_id генерируется из component_name для совместимости
     """
-    # pattern_id НЕ определяется здесь — передаётся через __init__
+    # pattern_id НЕ определяется — генерируется из component_name
 
-    def __init__(self, pattern_id: str, metadata: dict = None, application_context = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None):
         """Инициализация паттерна.
 
         ПАРАМЕТРЫ:
-        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "react.v1.0.0")
-        - metadata: Метаданные паттерна (может содержать resolved_prompt и resolved_output_contract)
+        - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "react_pattern")
+        - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст для доступа к компонентам
         """
-        if not pattern_id:
-            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        if not component_name:
+            raise ValueError("component_name обязателен для инициализации паттерна")
         
-        self.pattern_id = pattern_id
-        self.reasoning_schema = None  # Будет загружено из metadata или ContractService
-        self.reasoning_prompt_template = None  # Будет загружено из metadata или PromptService
+        # pattern_id для совместимости (без версии, только имя)
+        self.pattern_id = component_name
+        self.component_name = component_name
+        self.reasoning_schema = None  # Будет загружено из component_config
+        self.reasoning_prompt_template = None  # Будет загружено из component_config
         self.last_reasoning_time = 0.0
         self.error_count = 0
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
         self._application_context = application_context
-        self._component_config = None  # ComponentConfig из metadata
+        self._component_config = component_config
 
-        # Извлекаем component_config из metadata (если передан)
-        if metadata and isinstance(metadata, dict):
-            self._component_config = metadata.get('component_config')
-            # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
-            if self._component_config:
-                # Получаем промпт из resolved_prompts (первый доступный)
-                resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
-                if resolved_prompts:
-                    # Берём первый промпт (для react это behavior.react.think)
-                    self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
+        # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
+        if self._component_config:
+            # Получаем промпт из resolved_prompts (первый доступный)
+            resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
+            if resolved_prompts:
+                self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
 
-                # Получаем контракт из resolved_output_contracts
-                resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
-                if resolved_output_contracts:
-                    self.reasoning_schema = next(iter(resolved_output_contracts.values()))
+            # Получаем контракт из resolved_output_contracts
+            resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
+            if resolved_output_contracts:
+                self.reasoning_schema = next(iter(resolved_output_contracts.values()))
 
     async def _ensure_prompt_and_contract_loaded(self) -> bool:
         """

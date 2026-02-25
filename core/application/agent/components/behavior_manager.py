@@ -3,8 +3,8 @@
 
 АРХИТЕКТУРА:
 - НЕ содержит захардкоженных версий паттернов
-- initial_pattern_id передаётся из AppConfig или внешнего кода
-- Версии паттернов управляются через registry.yaml → AppConfig
+- component_name используется вместо pattern_id
+- Версии управляются через registry.yaml → AppConfig → ComponentConfig
 """
 from typing import Optional, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
@@ -15,26 +15,26 @@ from core.application.storage.behavior.behavior_storage import BehaviorStorage
 class BehaviorManager:
     """Управление паттернами поведения с изоляцией через ApplicationContext"""
 
-    def __init__(self, application_context: 'ApplicationContext', initial_pattern_id: str = None):
+    def __init__(self, application_context: 'ApplicationContext', initial_component_name: str = None):
         """
         Инициализация менеджера поведения.
         
         ПАРАМЕТРЫ:
         - application_context: Прикладной контекст
-        - initial_pattern_id: ID начального паттерна (из AppConfig или внешний)
+        - initial_component_name: Имя начального компонента (из AppConfig, например "react_pattern")
         """
         self._app_ctx = application_context
-        self._initial_pattern_id = initial_pattern_id or "react.v1.0.0"  # Fallback только для совместимости
+        self._initial_component_name = initial_component_name or "react_pattern"  # Fallback для совместимости
         self._current_pattern: Optional[BehaviorPatternInterface] = None
         self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None
 
-    async def initialize(self, pattern_id: str = None):
+    async def initialize(self, component_name: str = None):
         """
         Инициализация хранилища паттернов и загрузка начального паттерна.
         
         ПАРАМЕТРЫ:
-        - pattern_id: ID паттерна для инициализации (переопределяет initial_pattern_id)
+        - component_name: Имя компонента для инициализации (переопределяет initial_component_name)
         """
         # Инициализация хранилища паттернов
         prompt_service = self._app_ctx.get_service("prompt_service")
@@ -44,9 +44,9 @@ class BehaviorManager:
             application_context=self._app_ctx  # ← Передаём ApplicationContext
         )
 
-        # Загрузка начального паттерна
-        target_pattern_id = pattern_id or self._initial_pattern_id
-        self._current_pattern = await self._behavior_storage.load_pattern(target_pattern_id)
+        # Загрузка начального паттерна (через component_name)
+        target_component_name = component_name or self._initial_component_name
+        self._current_pattern = await self._behavior_storage.load_pattern_by_component(target_component_name)
 
     async def generate_next_decision(
         self,
