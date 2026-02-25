@@ -110,37 +110,12 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     
     async def initialize(self) -> bool:
         """
-        Инициализация паттерна с загрузкой промптов/контрактов.
-        
-        Если component_config.resolved_* пустые, загружаем из PromptService/ContractService.
+        Инициализация паттерна.
+
+        Промпты/контракты уже загружены в component_config.resolved_* на уровне ApplicationContext.
         """
         # Вызываем инициализацию BaseComponent (загружает из component_config.resolved_*)
         success = await BaseComponent.initialize(self)
-        
-        # Если кэши пустые, пытаемся загрузить из сервисов
-        if not self.prompts and self.application_context:
-            self.logger.warning(f"Кэш промптов пуст для {self.component_name}, загружаем из PromptService")
-            prompt_service = self.application_context.get_prompt_service()
-            if prompt_service:
-                # Загружаем все доступные промпты для этого компонента
-                for capability in self.component_config.prompt_versions.keys() if self.component_config else []:
-                    try:
-                        prompt_text = prompt_service.get_prompt(capability)
-                        if prompt_text:
-                            # Создаём объект Prompt для совместимости
-                            from core.models.data.prompt import Prompt, PromptStatus, ComponentType
-                            self.prompts[capability] = Prompt(
-                                capability=capability,
-                                version=self.component_config.prompt_versions.get(capability, 'v1.0.0'),
-                                status=PromptStatus.ACTIVE,
-                                component_type=ComponentType.BEHAVIOR,
-                                content=prompt_text,
-                                variables=[],
-                                metadata={}
-                            )
-                    except Exception as e:
-                        self.logger.warning(f"Не удалось загрузить промпт {capability}: {e}")
-        
         return success
     
     async def analyze_context(
