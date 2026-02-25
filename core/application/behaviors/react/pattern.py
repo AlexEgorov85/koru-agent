@@ -17,6 +17,7 @@ from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionTy
 from core.application.agent.strategies.react.schema_validator import SchemaValidator
 from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
+from core.application.agent.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.enums.common_enums import ExecutionStatus
