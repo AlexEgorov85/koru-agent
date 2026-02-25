@@ -5,6 +5,8 @@
 - Поддержка отката при необходимости
 - ИСПОЛЬЗОВАНИЕ ТОЛЬКО capability, доступных для реактивной стратегии
 - Сохранение совместимости с существующей архитектурой
+- ИСПОЛЬЗОВАНИЕ PromptService и ContractService для загрузки промптов и контрактов
+- НЕ ЗНАЕТ о версиях — версии управляются через ComponentConfig в ApplicationContext
 """
 import json
 import time
@@ -14,7 +16,6 @@ from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDe
 from core.application.agent.strategies.react.schema_validator import SchemaValidator
 from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
-from core.application.agent.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.enums.common_enums import ExecutionStatus
@@ -29,31 +30,218 @@ class ReActPattern(BehaviorPatternInterface):
     ЭТАПЫ РАБОТЫ:
     1. Анализ контекста и прогресса
     2. Получение доступных capability ТОЛЬКО для реактивной стратегии
-    3. Структурированное рассуждение через LLM
+    3. Структурированное рассуждение через LLM (с использованием PromptService и ContractService)
     4. Принятие решения на основе результатов
     5. Обработка ошибок и применение fallback
+    
+    АРХИТЕКТУРА:
+    - НЕ знает о версиях промптов/контрактов
+    - Использует ресурсы из component_config (загружены ApplicationContext)
+    - Промпты и контракты загружаются через PromptService/ContractService
     """
     pattern_id = "react.v1.0.0"
 
     def __init__(self, pattern_id: str = None, metadata: dict = None, application_context = None):
         """Инициализация паттерна.
-        
+
         ПАРАМЕТРЫ:
         - pattern_id: ID паттерна
-        - metadata: Метаданные паттерна
+        - metadata: Метаданные паттерна (может содержать resolved_prompt и resolved_output_contract)
         - application_context: Прикладной контекст для доступа к компонентам
         """
         self.pattern_id = pattern_id or "react.v1.0.0"
-        self.reasoning_schema = ReasoningResult.model_json_schema()
-        # Удаляем служебные поля из схемы
-        self.reasoning_schema.pop('title', None)
-        self.reasoning_schema.pop('description', None)
+        self.reasoning_schema = None  # Будет загружено из metadata или ContractService
+        self.reasoning_prompt_template = None  # Будет загружено из metadata или PromptService
         self.last_reasoning_time = 0.0
         self.error_count = 0
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
-        self._application_context = application_context  # ← Сохраняем ссылку на ApplicationContext
+        self._application_context = application_context
+        self._component_config = None  # ComponentConfig из metadata
+
+        # Извлекаем component_config из metadata (если передан)
+        if metadata and isinstance(metadata, dict):
+            self._component_config = metadata.get('component_config')
+            # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
+            if self._component_config:
+                # Получаем промпт из resolved_prompts (первый доступный)
+                resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
+                if resolved_prompts:
+                    # Берём первый промпт (для react это behavior.react.think)
+                    self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
+                
+                # Получаем контракт из resolved_output_contracts
+                resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
+                if resolved_output_contracts:
+                    self.reasoning_schema = next(iter(resolved_output_contracts.values()))
+
+    async def _ensure_prompt_and_contract_loaded(self) -> bool:
+        """
+        Гарантирует загрузку промпта и контракта.
+        
+        Порядок загрузки:
+        1. Из component_config (если доступен)
+        2. Из PromptService/ContractService (через ApplicationContext)
+        3. Fallback на ReasoningResult.model_json_schema()
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если успешно, False иначе
+        """
+        # Если уже загружено из component_config, ничего не делаем
+        if self.reasoning_prompt_template and self.reasoning_schema:
+            return True
+        
+        if not self._application_context:
+            logger.error("ApplicationContext не доступен для загрузки промпта и контракта")
+            return False
+        
+        try:
+            # Пытаемся загрузить из сервисов
+            prompt_service = self._application_context.get_prompt_service()
+            contract_service = self._application_context.get_contract_service()
+            
+            # Загружаем промпт из PromptService (если есть component_config, сервис уже имеет кэш)
+            if prompt_service and self._component_config:
+                # Получаем из кэша сервиса (уже загружено при инициализации сервиса)
+                resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
+                if resolved_prompts:
+                    self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
+            elif prompt_service:
+                # Fallback: пытаемся получить через сервис (но это нарушение архитектуры)
+                logger.warning("ComponentConfig не доступен, используем fallback для промпта")
+            
+            # Загружаем контракт из ContractService
+            if contract_service and self._component_config:
+                resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
+                if resolved_output_contracts:
+                    self.reasoning_schema = next(iter(resolved_output_contracts.values()))
+            elif contract_service:
+                logger.warning("ComponentConfig не доступен, используем fallback для контракта")
+            
+            # Fallback на схему из модели
+            if not self.reasoning_schema:
+                logger.warning("Контракт не загружен, используем ReasoningResult.model_json_schema()")
+                self.reasoning_schema = ReasoningResult.model_json_schema()
+            
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка загрузки промпта/контракта: {e}", exc_info=True)
+            return False
+
+    def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
+        """
+        Рендерит шаблон промпта с подстановкой переменных.
+        
+        Если промпт загружен из PromptService, используем его шаблон.
+        Иначе используем fallback реализацию.
+        
+        ПАРАМЕТРЫ:
+        - context_analysis: анализ контекста
+        - available_capabilities: доступные capability
+        
+        ВОЗВРАЩАЕТ:
+        - str: отрендеренный промпт
+        """
+        if self.reasoning_prompt_template:
+            # Рендерим шаблон из PromptService
+            # В простейшем случае просто добавляем контекст к шаблону
+            # В продакшене здесь должен быть proper template rendering
+            goal = context_analysis.get("goal", "Неизвестная цель")
+            last_steps = context_analysis.get("last_steps", [])
+            no_progress_steps = context_analysis.get("no_progress_steps", 0)
+            consecutive_errors = context_analysis.get("consecutive_errors", 0)
+            
+            # Формируем контекст для подстановки в шаблон
+            prompt_context = {
+                "goal": goal,
+                "step_history": "\n".join([f"{i+1}. {s}" for i, s in enumerate(last_steps[-3:])]),
+                "observation": last_steps[-1] if last_steps else "Нет наблюдений",
+                "available_tools": "\n".join([f"- {cap['name']}: {cap['description']}" for cap in available_capabilities]),
+                "no_progress_steps": no_progress_steps,
+                "consecutive_errors": consecutive_errors
+            }
+            
+            # Простой рендеринг (в продакшене использовать Jinja2 или аналог)
+            rendered = self.reasoning_prompt_template
+            for key, value in prompt_context.items():
+                rendered = rendered.replace(f"{{{key}}}", str(value))
+            
+            return rendered
+        else:
+            # Fallback: используем старую реализацию
+            return self._build_fallback_reasoning_prompt(context_analysis, available_capabilities)
+
+    def _build_fallback_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
+        """
+        Fallback реализация промпта (если не загружен из PromptService).
+        
+        ПАРАМЕТРЫ:
+        - context_analysis: анализ контекста
+        - available_capabilities: доступные capability
+        
+        ВОЗВРАЩАЕТ:
+        - str: промпт для рассуждения
+        """
+        goal = context_analysis.get("goal", "Неизвестная цель")
+        last_steps = context_analysis.get("last_steps", [])
+        no_progress_steps = context_analysis.get("no_progress_steps", 0)
+        consecutive_errors = context_analysis.get("consecutive_errors", 0)
+
+        prompt_parts = [
+            f"ЦЕЛЬ: {goal}\n",
+            "=== ТЕКУЩИЙ КОНТЕКСТ ===\n",
+            f"- Шагов без прогресса: {no_progress_steps}",
+            f"- Последовательных ошибок: {consecutive_errors}",
+            f"- Последние шаги ({len(last_steps)}):"
+        ]
+
+        for i, step in enumerate(last_steps[-3:], 1):
+            prompt_parts.append(f"  {i}. {step}")
+
+        prompt_parts.extend([
+            "\n=== ДОСТУПНЫЕ CAPABILITIES ===\n",
+            "Доступные действия (ВЫБИРАЙ ТОЛЬКО ИЗ ЭТОГО СПИСКА):"
+        ])
+
+        for cap in available_capabilities:
+            cap_desc = cap.get('description', 'Без описания')
+            cap_params = cap.get('parameters_schema', {})
+            prompt_parts.append(f"- {cap['name']}: {cap_desc}")
+            if cap_params:
+                prompt_parts.append(f"  Параметры: {list(cap_params.keys())}")
+
+        prompt_parts.extend([
+            "\n=== ИНСТРУКЦИЯ ===",
+            "Проанализируй ситуацию и верни РЕШЕНИЕ в формате JSON.",
+            "",
+            "ТРЕБУЕМЫЙ ФОРМАТ JSON (строго следуй структуре):",
+            """{
+  "thought": "Развёрнутое рассуждение о текущей ситуации",
+  "analysis": {
+    "progress": "Опиши прогресс: что сделано, что осталось",
+    "current_state": "Текущее состояние задачи",
+    "issues": []
+  },
+  "decision": {
+    "next_action": "ТОЧНОЕ ИМЯ capability из списка выше",
+    "reasoning": "Почему выбрано это действие",
+    "parameters": {"input": "параметры для capability"},
+    "expected_outcome": "Ожидаемый результат"
+  },
+  "confidence": 0.85,
+  "stop_condition": false
+}""",
+            "",
+            "ВАЖНО:",
+            "1. Возвращай ТОЛЬКО JSON без дополнительного текста",
+            "2. next_action ДОЛЖЕН точно совпадать с именем из списка доступных",
+            "3. parameters должны соответствовать ожидаемым параметрам capability",
+            "4. confidence - число от 0.0 до 1.0",
+            "5. stop_condition - true только если цель достигнута"
+        ])
+
+        return "\n".join(prompt_parts)
 
     async def analyze_context(
         self,
@@ -140,7 +328,10 @@ class ReActPattern(BehaviorPatternInterface):
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
         logger.error(f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
-        
+
+        # Гарантируем загрузку промпта и контракта
+        await self._ensure_prompt_and_contract_loaded()
+
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
         for cap in available_capabilities:
@@ -150,8 +341,8 @@ class ReActPattern(BehaviorPatternInterface):
                 'parameters_schema': getattr(cap, 'parameters_schema', {}) or {}
             })
 
-        # Используем промпт из новой архитектуры
-        reasoning_prompt = build_reasoning_prompt(
+        # Рендерим промпт из шаблона (загружен из PromptService/ComponentConfig)
+        reasoning_prompt = self._render_reasoning_prompt(
             context_analysis=context_analysis,
             available_capabilities=formatted_capabilities
         )
@@ -162,7 +353,7 @@ class ReActPattern(BehaviorPatternInterface):
             # Генерация структурированного ответа через LLM
             # Получаем LLM провайдер через ApplicationContext
             llm_provider = None
-            
+
             # Пытаемся получить через application_context
             if self._application_context:
                 llm_provider = self._application_context.get_provider("default_llm")

@@ -47,14 +47,25 @@ class BehaviorStorage:
             raise ValueError(f"Pattern {pattern_id} is not active (status: {status})")
 
         # Загрузка соответствующего класса паттерна
-        # В реальной реализации здесь будет динамический импорт
-        # В зависимости от типа паттерна
         pattern_class = self._get_pattern_class(pattern_type, version)
 
-        # Создание экземпляра паттерна с ApplicationContext
+        # Получаем component_config из application_context для передачи в паттерн
+        # Это позволяет паттерну НЕ ЗНАТЬ о версиях - версии управляются через AppConfig
+        component_config = None
+        if self._application_context:
+            # Получаем конфигурацию behavior из AppConfig
+            behavior_configs = getattr(self._application_context.config, 'behavior_configs', {})
+            # Для react_pattern ищем конфигурацию
+            config_key = f"{pattern_type}_pattern"
+            component_config = behavior_configs.get(config_key)
+        
+        # Создание экземпляра паттерна с component_config в metadata
         pattern_instance = pattern_class(
             pattern_id=pattern_id,
-            metadata=metadata,
+            metadata={
+                **metadata,
+                'component_config': component_config  # Передаем component_config для доступа к resolved_prompts/contracts
+            },
             application_context=self._application_context
         )
 
