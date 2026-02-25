@@ -598,6 +598,10 @@ class ReActPattern(BaseBehaviorPattern):
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
         # Валидация и корректировка параметров
+        logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
+        logger.info(f"capability: {capability.name}")
+        logger.info(f"raw_params: {parameters}")
+        
         validated_params = self.schema_validator.validate_parameters(
             capability=capability,
             raw_params=parameters,
@@ -608,10 +612,20 @@ class ReActPattern(BaseBehaviorPattern):
             # system_context больше не передается, так как мы изолированы
         )
 
+        logger.info(f"validated_params: {validated_params}")
+        
         if not validated_params:
             # Попытка создать минимально необходимые параметры
             validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
             logger.warning(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
+        else:
+            logger.info(f"✅ Параметры успешно валидированы")
+
+        logger.info(f"=== РЕШЕНИЕ ===")
+        logger.info(f"action: {BehaviorDecisionType.ACT}")
+        logger.info(f"capability_name: {capability_name}")
+        logger.info(f"parameters: {validated_params}")
+        logger.info(f"reason: {reasoning}")
 
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,

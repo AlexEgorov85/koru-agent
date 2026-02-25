@@ -94,9 +94,15 @@ class ExecutionGateway:
         parameters = action.get("parameters", {})
         capability_name = action.get("capability", "")
 
+        self.logger.info(f"=== ВЫПОЛНЕНИЕ НАВЫКА ===")
+        self.logger.info(f"skill_name: {skill_name}")
+        self.logger.info(f"capability: {capability_name}")
+        self.logger.info(f"parameters: {parameters}")
+
         # Получение навыка из прикладного контекста
         skill = self.application_context.get_skill(skill_name)
         if not skill:
+            self.logger.error(f"Навык не найден: {skill_name}")
             return ExecutionResult(
                 status=ExecutionStatus.ERROR,
                 result={"error": f"Навык не найден: {skill_name}"},
@@ -107,11 +113,15 @@ class ExecutionGateway:
 
         try:
             # Выполнение навыка
+            self.logger.info(f"Вызов skill.execute()...")
             result = await skill.execute(
                 capability=None,  # В реальной системе здесь будет объект capability
                 parameters=parameters,
                 context=self.application_context
             )
+
+            self.logger.info(f"✅ Навык выполнен успешно")
+            self.logger.info(f"result: {result}")
 
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
@@ -125,7 +135,7 @@ class ExecutionGateway:
                 }
             )
         except Exception as e:
-            self.logger.error(f"Ошибка выполнения навыка {skill_name}: {str(e)}")
+            self.logger.error(f"❌ Ошибка выполнения навыка {skill_name}: {str(e)}", exc_info=True)
             return ExecutionResult(
                 status=ExecutionStatus.ERROR,
                 result={"error": str(e), "skill_name": skill_name},
