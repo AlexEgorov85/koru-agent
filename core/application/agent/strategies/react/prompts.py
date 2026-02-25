@@ -1,16 +1,17 @@
 """
-Промпты для ReAct стратегии в новой архитектуре
+Промпты для ReAct стратегии в новой архитектуре.
+
+Этот модуль предоставляет функции для получения промптов из репозитория через PromptService.
+Прямое определение промптов в коде НЕ рекомендуется — используйте registry.yaml.
 """
 from typing import Dict, Any, List
-from core.models.data.capability import Capability
 
 
 def build_system_prompt_for_reasoning() -> str:
     """
     Создает системный промпт для процесса рассуждения.
     
-    RETURNS:
-    - Строку системного промпта
+    ПРИМЕЧАНИЕ: В продакшене используйте PromptService для загрузки из репозитория.
     """
     return """
 Ты - агент, реализующий ReAct (Reasoning and Acting) подход.
@@ -29,7 +30,10 @@ def build_reasoning_prompt(
 ) -> str:
     """
     Создает промпт для процесса рассуждения.
-
+    
+    ВНИМАНИЕ: Это временная реализация для совместимости.
+    В продакшене используйте PromptService.get_prompt('behavior.react.think', version).
+    
     ARGS:
     - context_analysis: анализ текущего контекста
     - available_capabilities: список доступных capability
@@ -50,7 +54,7 @@ def build_reasoning_prompt(
         f"- Последние шаги ({len(last_steps)}):"
     ]
 
-    for i, step in enumerate(last_steps[-3:], 1):  # Показываем последние 3 шага
+    for i, step in enumerate(last_steps[-3:], 1):
         prompt_parts.append(f"  {i}. {step}")
 
     prompt_parts.extend([
@@ -65,7 +69,6 @@ def build_reasoning_prompt(
         if cap_params:
             prompt_parts.append(f"  Параметры: {list(cap_params.keys())}")
 
-    # Добавляем явную инструкцию по формату JSON с примером
     prompt_parts.extend([
         "\n=== ИНСТРУКЦИЯ ===",
         "Проанализируй ситуацию и верни РЕШЕНИЕ в формате JSON.",

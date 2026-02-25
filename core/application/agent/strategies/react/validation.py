@@ -8,7 +8,9 @@ from typing import Any, Dict
 def validate_reasoning_result(result: Any) -> Dict[str, Any]:
     """
     Валидирует результат структурированного рассуждения.
-
+    
+    СООТВЕТСТВУЕТ КОНТРАКТУ: behavior.react.think_output_v1.0.0
+    
     ARGS:
     - result: результат рассуждения для валидации
 
@@ -57,39 +59,47 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         else:
             raise ValueError(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
         
-        # Проверяем наличие обязательных полей и устанавливаем значения по умолчанию
+        # Проверяем наличие обязательных полей (согласно контракту)
+        if 'thought' not in validated_result:
+            validated_result['thought'] = 'Рассуждение не предоставлено'
+        
         if 'analysis' not in validated_result:
             validated_result['analysis'] = {}
         
         analysis = validated_result['analysis']
-        if 'current_situation' not in analysis:
-            analysis['current_situation'] = str(analysis.get('thoughts', 'Неизвестно'))
-        if 'progress_assessment' not in analysis:
-            analysis['progress_assessment'] = 'Неизвестно'
-        if 'confidence' not in analysis:
-            analysis['confidence'] = float(analysis.get('confidence_level', 0.5))
-        if 'errors_detected' not in analysis:
-            analysis['errors_detected'] = False
+        if 'progress' not in analysis:
+            analysis['progress'] = 'Неизвестно'
+        if 'current_state' not in analysis:
+            analysis['current_state'] = str(analysis.get('current_situation', 'Неизвестно'))
+        if 'issues' not in analysis:
+            analysis['issues'] = []
         
-        if 'recommended_action' not in validated_result:
-            validated_result['recommended_action'] = {}
+        if 'decision' not in validated_result:
+            validated_result['decision'] = {}
         
-        action = validated_result['recommended_action']
-        if 'capability_name' not in action:
-            # Пробуем найти в action_name (старое имя поля)
-            action['capability_name'] = action.get('action_name', 'generic.execute')
-        if 'action_type' not in action:
-            action['action_type'] = 'execute_capability'
-        if 'parameters' not in action:
-            action['parameters'] = action.get('parameters', {})
-        if 'reasoning' not in action:
-            action['reasoning'] = action.get('reason', 'Действие по умолчанию')
+        decision = validated_result['decision']
+        # next_action — это capability_name в новой архитектуре
+        if 'next_action' not in decision:
+            # Пробуем найти в capability_name (альтернативное имя)
+            decision['next_action'] = decision.get('capability_name', 'generic.execute')
+        if 'reasoning' not in decision:
+            decision['reasoning'] = decision.get('reason', 'Действие по умолчанию')
+        if 'parameters' not in decision:
+            decision['parameters'] = decision.get('parameters', {})
+        if 'expected_outcome' not in decision:
+            decision['expected_outcome'] = 'Неизвестно'
         
-        if 'needs_rollback' not in validated_result:
-            validated_result['needs_rollback'] = False
+        if 'confidence' not in validated_result:
+            validated_result['confidence'] = 0.5
         
-        if 'rollback_steps' not in validated_result:
-            validated_result['rollback_steps'] = 0
+        if 'stop_condition' not in validated_result:
+            validated_result['stop_condition'] = False
+        
+        if 'stop_reason' not in validated_result:
+            validated_result['stop_reason'] = None
+        
+        if 'alternative_actions' not in validated_result:
+            validated_result['alternative_actions'] = []
 
         logger.debug("Результат рассуждения успешно валидирован")
         return validated_result
@@ -99,18 +109,20 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
 
         # Возвращаем минимально допустимый результат в случае ошибки
         return {
+            'thought': 'Ошибка валидации',
             'analysis': {
-                'current_situation': 'Ошибка валидации',
-                'progress_assessment': 'Неизвестно',
-                'confidence': 0.1,
-                'errors_detected': True
+                'progress': 'Неизвестно',
+                'current_state': 'Ошибка валидации',
+                'issues': []
             },
-            'recommended_action': {
-                'action_type': 'execute_capability',
-                'capability_name': 'generic.execute',
+            'decision': {
+                'next_action': 'generic.execute',
+                'reasoning': f'fallback после ошибки валидации: {str(e)}',
                 'parameters': {'input': 'Продолжить выполнение задачи'},
-                'reasoning': f'fallback после ошибки валидации: {str(e)}'
+                'expected_outcome': 'Неизвестно'
             },
-            'needs_rollback': False,
-            'rollback_steps': 0
+            'confidence': 0.1,
+            'stop_condition': False,
+            'stop_reason': None,
+            'alternative_actions': []
         }

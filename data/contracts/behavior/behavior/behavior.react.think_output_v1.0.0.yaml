@@ -5,61 +5,60 @@ direction: output
 schema_data:
   type: object
   properties:
+    thought:
+      type: string
+      description: Развёрнутое рассуждение о текущей ситуации
     analysis:
       type: object
-      description: Анализ текущей ситуации
       properties:
-        current_situation:
+        progress:
           type: string
-          description: Текущая ситуация и контекст
-        progress_assessment:
+          description: Описание прогресса к цели
+        current_state:
           type: string
-          description: Оценка прогресса к цели
-        confidence:
-          type: number
-          description: Уверенность в решении (0.0-1.0)
-          minimum: 0.0
-          maximum: 1.0
-        errors_detected:
-          type: boolean
-          description: Обнаружены ли ошибки
-          default: false
-      required:
-        - current_situation
-        - progress_assessment
-        - confidence
-    recommended_action:
+          description: Текущее состояние задачи
+        issues:
+          type: array
+          items:
+            type: string
+          description: Список проблем, если есть
+    decision:
       type: object
-      description: Рекомендованное действие
       properties:
-        action_type:
+        next_action:
           type: string
-          description: Тип действия
-          default: execute_capability
-        capability_name:
+          description: Название следующего действия (capability_name)
+        reasoning:
           type: string
-          description: Имя capability для выполнения
+          description: Обоснование выбора
         parameters:
           type: object
           description: Параметры для capability
           additionalProperties: true
-        reasoning:
+        expected_outcome:
           type: string
-          description: Обоснование выбора действия
-      required:
-        - capability_name
-        - reasoning
-    needs_rollback:
+          description: Ожидаемый результат
+    confidence:
+      type: number
+      description: Уверенность в решении (0.0-1.0)
+      minimum: 0
+      maximum: 1
+    alternative_actions:
+      type: array
+      items:
+        type: object
+      description: Альтернативные действия
+    stop_condition:
       type: boolean
-      description: Требуется ли откат
-      default: false
-    rollback_steps:
-      type: integer
-      description: Количество шагов для отката
-      default: 0
+      description: Флаг завершения работы
+    stop_reason:
+      type: string
+      description: Причина остановки
   required:
-    - analysis
-    - recommended_action
-  additionalProperties: false
+    - thought
+    - decision
+    - confidence
+    - stop_condition
+  additionalProperties: true
 status: active
 version: v1.0.0

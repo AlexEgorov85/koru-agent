@@ -252,26 +252,20 @@ class ReActPattern(BehaviorPatternInterface):
                 raise
 
     async def _make_decision_from_reasoning(
-        self, 
-        session_context, 
+        self,
+        session_context,
         reasoning_result: Dict[str, Any]
     ) -> BehaviorDecision:
         """Принимает решение о следующем действии на основе анализа контекста."""
         try:
-            # Проверка необходимости отката
-            if reasoning_result.get("needs_rollback", False):
-                return self._build_rollback_decision(session_context, reasoning_result)
-
-            # Обработка типа действия
-            action_type = reasoning_result.get("action_type", "execute_capability")
-
-            if action_type == "stop":
+            # Проверка условия остановки (согласно контракту behavior.react.think)
+            if reasoning_result.get("stop_condition", False):
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
-                    reason=reasoning_result.get("reasoning", "goal_achieved")
+                    reason=reasoning_result.get("stop_reason", "goal_achieved")
                 )
 
-            # По умолчанию - выполнение capability
+            # По умолчанию - выполнение capability из decision.next_action
             return self._build_capability_decision(session_context, reasoning_result)
 
         except Exception as e:
@@ -280,13 +274,12 @@ class ReActPattern(BehaviorPatternInterface):
 
     def _build_rollback_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
         """Создает решение для отката."""
-        rollback_steps = reasoning_result.get("rollback_steps", 1)
-        reason = reasoning_result.get("reasoning", "rollback_requested")
+        # В новой схеме нет rollback_steps, используем stop_condition
+        reason = reasoning_result.get("stop_reason", "rollback_requested")
 
         # Используем generic.execute как fallback для отката
-        # Вместо прямого доступа к runtime.system, мы полагаемся на переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
-        
+
         capability = None
         for cap in available_caps:
             if cap.name == "generic.execute":
@@ -294,14 +287,12 @@ class ReActPattern(BehaviorPatternInterface):
                 break
 
         if not capability:
-            # Если нет generic.execute, ищем любую доступную capability
             for cap in available_caps:
                 if any(s.lower() == "react" for s in cap.supported_strategies or []):
                     capability = cap
                     break
 
         if not capability:
-            # Если нет доступных capability, возвращаем команду остановки
             return BehaviorDecision(
                 action=BehaviorDecisionType.STOP,
                 reason="no_capability_for_rollback"
@@ -309,19 +300,21 @@ class ReActPattern(BehaviorPatternInterface):
 
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,
-            capability_name="generic.execute",  # Используем имя capability
+            capability_name="generic.execute",
             parameters={
-                "input": reasoning_result.get("analysis", {}).get("current_situation", session_context.get_goal()),
-                "context": f"Откат на {rollback_steps} шагов из-за: {reason}"
+                "input": reasoning_result.get("analysis", {}).get("current_state", session_context.get_goal()),
+                "context": f"Откат из-за: {reason}"
             },
-            reason=f"rollback_{rollback_steps}_steps"
+            reason=f"rollback_{reason}"
         )
 
     def _build_capability_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
         """Создает решение для выполнения capability."""
-        recommended_action = reasoning_result.get("recommended_action", {})
-        capability_name = recommended_action.get("capability_name") or "generic.execute"
-        parameters = recommended_action.get("parameters", {})
+        # Согласно контракту: decision.next_action = capability_name
+        decision = reasoning_result.get("decision", {})
+        capability_name = decision.get("next_action") or "generic.execute"
+        parameters = decision.get("parameters", {})
+        reasoning = decision.get("reasoning", "capability_execution")
 
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
