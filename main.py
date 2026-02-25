@@ -4,6 +4,10 @@
 """
 import asyncio
 import sys
+import warnings
+
+# Подавляем предупреждения Pydantic о не-JSON сериализуемых значениях по умолчанию
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.json_schema")
 
 from core.config import get_config
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
@@ -14,7 +18,7 @@ from core.config.app_config import AppConfig
 
 # === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
 GOAL = "Какие книги написал Александр Пушкин?"
-MAX_STEPS = 5
+MAX_STEPS = 3  # Уменьшено для быстрого теста
 TEMPERATURE = 0.7
 
 
