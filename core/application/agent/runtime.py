@@ -169,7 +169,7 @@ class AgentRuntime:
                 }, step_number=0)
             
             # Инициализация менеджера поведения
-            await self.behavior_manager.initialize(initial_pattern_id="react.v1.0.0")
+            await self.behavior_manager.initialize(component_name="react_pattern")
 
             # Цикл рассуждений
             while self._running and self._current_step < self._max_steps:
