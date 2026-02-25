@@ -79,51 +79,65 @@ class ReActPattern(BaseBehaviorPattern):
     async def _ensure_prompt_and_contract_loaded(self) -> bool:
         """
         Гарантирует загрузку промпта и контракта.
-        
+
         Порядок загрузки:
-        1. Из component_config (если доступен)
-        2. Из PromptService/ContractService (через ApplicationContext)
+        1. Из self.prompts / self.output_schemas (загружено BaseComponent._preload_resources())
+        2. Из component_config.resolved_prompts (fallback)
         3. Fallback на ReasoningResult.model_json_schema()
-        
+
         ВОЗВРАЩАЕТ:
         - bool: True если успешно, False иначе
         """
-        # Если уже загружено из component_config, ничего не делаем
+        # Если уже загружено, ничего не делаем
         if self.reasoning_prompt_template and self.reasoning_schema:
             return True
-        
+
         if not self.application_context:
             logger.error("ApplicationContext не доступен для загрузки промпта и контракта")
             return False
-        
+
         try:
-            # Пытаемся загрузить из сервисов
-            prompt_service = self.application_context.get_prompt_service()
-            contract_service = self.application_context.get_contract_service()
+            # === ПРИОРИТЕТ 1: Используем кэш BaseComponent (self.prompts / self.output_schemas) ===
+            # Промпты уже загружены в self.prompts через BaseComponent.initialize() → _preload_resources()
+            if self.prompts:
+                # Берём первый доступный промпт (обычно behavior.react.think)
+                for cap_name, prompt_obj in self.prompts.items():
+                    if hasattr(prompt_obj, 'content') and prompt_obj.content:
+                        self.reasoning_prompt_template = prompt_obj.content
+                        logger.info(f"Загружен промпт из self.prompts[{cap_name}]")
+                        break
             
-            # Загружаем промпт из PromptService (если есть component_config, сервис уже имеет кэш)
-            if prompt_service and self.component_config:
-                # Получаем из кэша сервиса (уже загружено при инициализации сервиса)
+            # Контракты уже загружены в self.output_schemas через BaseComponent.initialize()
+            if self.output_schemas:
+                # Берём первую доступную схему
+                for cap_name, schema_cls in self.output_schemas.items():
+                    if schema_cls:
+                        # Преобразуем Pydantic модель в dict для совместимости
+                        if hasattr(schema_cls, 'model_json_schema'):
+                            self.reasoning_schema = schema_cls.model_json_schema()
+                        else:
+                            self.reasoning_schema = schema_cls
+                        logger.info(f"Загружен контракт из self.output_schemas[{cap_name}]")
+                        break
+
+            # === ПРИОРИТЕТ 2: Fallback на component_config.resolved_prompts ===
+            if not self.reasoning_prompt_template and self.component_config:
                 resolved_prompts = getattr(self.component_config, 'resolved_prompts', {})
                 if resolved_prompts:
                     self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
-            elif prompt_service:
-                # Fallback: пытаемся получить через сервис (но это нарушение архитектуры)
-                logger.warning("ComponentConfig не доступен, используем fallback для промпта")
-            
-            # Загружаем контракт из ContractService
-            if contract_service and self.component_config:
+                    logger.warning("Использован fallback: component_config.resolved_prompts")
+
+            if not self.reasoning_schema and self.component_config:
                 resolved_output_contracts = getattr(self.component_config, 'resolved_output_contracts', {})
                 if resolved_output_contracts:
                     self.reasoning_schema = next(iter(resolved_output_contracts.values()))
-            elif contract_service:
-                logger.warning("ComponentConfig не доступен, используем fallback для контракта")
-            
-            # Fallback на схему из модели
+                    logger.warning("Использован fallback: component_config.resolved_output_contracts")
+
+            # === ПРИОРИТЕТ 3: Fallback на модель ===
             if not self.reasoning_schema:
                 logger.warning("Контракт не загружен, используем ReasoningResult.model_json_schema()")
                 self.reasoning_schema = ReasoningResult.model_json_schema()
-            
+
             return True
         except Exception as e:
             logger.error(f"Ошибка загрузки промпта/контракта: {e}", exc_info=True)
