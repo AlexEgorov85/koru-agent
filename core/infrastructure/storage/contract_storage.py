@@ -50,12 +50,14 @@ class ContractStorage(IContractStorage):
                 standard_subdirs = ['sql_generation']
             elif component_type == ComponentType.CONTRACT:
                 standard_subdirs = ['contracts']
+            elif component_type == ComponentType.BEHAVIOR:
+                standard_subdirs = ['behaviors']
             else:
                 # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'services', 'contracts']
+                standard_subdirs = ['skills', 'services', 'contracts', 'behaviors']
         else:
             # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'services', 'contracts']
+            standard_subdirs = ['skills', 'services', 'contracts', 'behaviors']
 
         # Разбиваем capability_name на части
         parts = capability_name.split('.')
@@ -197,12 +199,14 @@ class ContractStorage(IContractStorage):
                 standard_subdirs = ['sql_generation']
             elif component_type == ComponentType.CONTRACT:
                 standard_subdirs = ['contracts']
+            elif component_type == ComponentType.BEHAVIOR:
+                standard_subdirs = ['behaviors']
             else:
                 # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'services', 'contracts']
+                standard_subdirs = ['skills', 'services', 'contracts', 'behaviors']
         else:
             # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'services', 'contracts']
+            standard_subdirs = ['skills', 'services', 'contracts', 'behaviors']
 
         # Определяем возможные подкаталоги для поиска
         parts = capability_name.split('.')
