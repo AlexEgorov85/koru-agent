@@ -1,0 +1,42 @@
+component_id: planning_pattern
+component_type: behavior
+version: v1.0.0
+owner: team-behavior
+status: active
+
+contract:
+  input: planning_pattern.decompose_execute_monitor.input.v1.0.0
+  output: planning_pattern.decompose_execute_monitor.output.v1.0.0
+
+constraints:
+  max_subtasks: 20
+  timeout_seconds: 600
+  required_components:
+    - skill
+    - tool
+
+quality_metrics:
+  success_rate_target: 0.94
+  avg_execution_time_ms: 1500
+  error_rate_threshold: 0.06
+
+success_metrics:
+  goal_completion_rate: 0.92
+  user_satisfaction_score: 4.7
+  retry_rate: 0.06
+
+dependencies:
+  components: []
+  tools:
+    - file_tool
+  services:
+    - prompt_service
+    - contract_service
+
+changelog:
+  - version: v1.0.0
+    date: "2026-02-16"
+    author: alexey
+    changes:
+      - "Initial release"
+      - "Hierarchical planning pattern implementation"

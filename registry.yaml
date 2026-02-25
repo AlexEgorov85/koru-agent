@@ -2,6 +2,18 @@ active_contracts:
   final_answer.generate:
     input: v1.0.0
     output: v1.0.0
+  vector_books.search:
+    input: v1.0.0
+    output: v1.0.0
+  vector_books.get_document:
+    input: v1.0.0
+    output: v1.0.0
+  vector_books.analyze:
+    input: v1.0.0
+    output: v1.0.0
+  vector_books.query:
+    input: v1.0.0
+    output: v1.0.0
 active_prompts:
   final_answer.generate: v1.0.0
 behaviors:
@@ -60,6 +72,10 @@ capability_types:
   sql_tool.execute_query: tool
   sql_validator_service.validate: service
   table_description_service.get_table: service
+  vector_books.search: tool
+  vector_books.get_document: tool
+  vector_books.analyze: tool
+  vector_books.query: tool
 profile: prod
 services:
   contract_service:
@@ -215,7 +231,17 @@ tools:
   vector_books_tool:
     dependencies: []
     enabled: true
+    input_contract_versions:
+      vector_books.search: v1.0.0
+      vector_books.get_document: v1.0.0
+      vector_books.analyze: v1.0.0
+      vector_books.query: v1.0.0
     manifest_path: data/manifests/tools/vector_books_tool/manifest.yaml
+    output_contract_versions:
+      vector_books.search: v1.0.0
+      vector_books.get_document: v1.0.0
+      vector_books.analyze: v1.0.0
+      vector_books.query: v1.0.0
     parameters:
       default_top_k: 10
       max_top_k: 100

@@ -1,59 +1,63 @@
 import os
 import yaml
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, TYPE_CHECKING, Any
 from pathlib import Path
 
+if TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
+
 class BehaviorStorage:
-    def __init__(self, data_dir: str, prompt_service: 'PromptService'):
+    def __init__(self, data_dir: str, prompt_service: 'PromptService', application_context: Optional['ApplicationContext'] = None):
         self._data_dir = data_dir
         self._prompt_service = prompt_service
+        self._application_context = application_context
         self._cache: Dict[str, 'BehaviorPattern'] = {}
-    
+
     async def load_pattern(self, pattern_id: str) -> 'BehaviorPattern':
         if pattern_id in self._cache:
             return self._cache[pattern_id]
-        
+
         # Загрузка из data/behaviors/{type}/{pattern_id}.yaml
         pattern = await self._load_from_fs(pattern_id)
         self._cache[pattern_id] = pattern
         return pattern
-    
+
     async def _load_from_fs(self, pattern_id: str) -> 'BehaviorPattern':
         # Разбор ID паттерна на тип и версию
         parts = pattern_id.split('.')
         if len(parts) < 2:
             raise ValueError(f"Invalid pattern ID format: {pattern_id}")
-        
+
         pattern_type = parts[0]  # react, planning, etc.
         version = '.'.join(parts[1:])  # v1.0.0
-        
+
         # Путь к файлу метаданных
         pattern_file = os.path.join(self._data_dir, "behaviors", pattern_type, f"{version}.yaml")
-        
+
         if not os.path.exists(pattern_file):
             raise FileNotFoundError(f"Pattern file not found: {pattern_file}")
-        
+
         # Загрузка YAML файла
         with open(pattern_file, 'r', encoding='utf-8') as f:
             metadata = yaml.safe_load(f)
-        
+
         # Проверка статуса
         status = metadata.get('status', 'draft')
         if status != 'active':
             raise ValueError(f"Pattern {pattern_id} is not active (status: {status})")
-        
+
         # Загрузка соответствующего класса паттерна
         # В реальной реализации здесь будет динамический импорт
         # В зависимости от типа паттерна
         pattern_class = self._get_pattern_class(pattern_type, version)
-        
-        # Создание экземпляра паттерна
+
+        # Создание экземпляра паттерна с ApplicationContext
         pattern_instance = pattern_class(
             pattern_id=pattern_id,
             metadata=metadata,
-            prompt_service=self._prompt_service
+            application_context=self._application_context
         )
-        
+
         return pattern_instance
     
     def _get_pattern_class(self, pattern_type: str, version: str):

@@ -30,12 +30,12 @@ class SchemaValidator:
         """
         if not capability or not raw_params:
             return None
-            
+
         validated_params = {}
-        
+
         # Получаем схему параметров из capability
-        params_schema = capability.parameters_schema or {}
-        
+        params_schema = getattr(capability, 'parameters_schema', None) or {}
+
         # Проходим по каждому параметру и валидируем его
         for param_name, param_info in params_schema.items():
             if param_name in raw_params:

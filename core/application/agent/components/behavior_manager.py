@@ -18,10 +18,11 @@ class BehaviorManager:
 
     async def initialize(self, initial_pattern_id: str = "react.v1.0.0"):
         # Инициализация хранилища паттернов
-        prompt_service = self._app_ctx.get_service("prompt")
+        prompt_service = self._app_ctx.get_service("prompt_service")
         self._behavior_storage = BehaviorStorage(
             data_dir="data",
-            prompt_service=prompt_service
+            prompt_service=prompt_service,
+            application_context=self._app_ctx  # ← Передаём ApplicationContext
         )
 
         # Загрузка начального паттерна

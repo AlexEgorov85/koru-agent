@@ -1,0 +1,17 @@
+capability: vector_books.query
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Output contract for SQL query execution
+schema_data:
+  type: object
+  properties:
+    data:
+      type: array
+      description: "Результаты запроса"
+      items:
+        type: object
+  required:
+    - data
+  additionalProperties: false

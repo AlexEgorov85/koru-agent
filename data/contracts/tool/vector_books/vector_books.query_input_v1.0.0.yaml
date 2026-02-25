@@ -1,0 +1,20 @@
+capability: vector_books.query
+version: v1.0.0
+status: active
+component_type: tool
+direction: input
+description: Input contract for SQL query execution
+schema_data:
+  type: object
+  properties:
+    sql:
+      type: string
+      description: "SQL запрос"
+    parameters:
+      type: array
+      description: "Параметры запроса"
+      items:
+        type: string
+  required:
+    - sql
+  additionalProperties: false

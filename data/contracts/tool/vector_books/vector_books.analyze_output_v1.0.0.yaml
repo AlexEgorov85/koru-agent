@@ -1,0 +1,30 @@
+capability: vector_books.analyze
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Output contract for LLM analysis of book content
+schema_data:
+  type: object
+  properties:
+    entity_id:
+      type: string
+      description: "ID сущности"
+    analysis_type:
+      type: string
+      description: "Тип анализа"
+    result:
+      type: object
+      description: "Результат анализа"
+    confidence:
+      type: number
+      description: "Уверенность (0.0-1.0)"
+    reasoning:
+      type: string
+      description: "Обоснование"
+  required:
+    - entity_id
+    - analysis_type
+    - result
+    - confidence
+  additionalProperties: false

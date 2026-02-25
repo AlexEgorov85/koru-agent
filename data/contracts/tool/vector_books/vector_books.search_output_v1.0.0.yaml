@@ -1,0 +1,36 @@
+capability: vector_books.search
+version: v1.0.0
+status: active
+component_type: tool
+direction: output
+description: Output contract for vector books search operation
+schema_data:
+  type: object
+  properties:
+    results:
+      type: array
+      description: "Список результатов поиска"
+      items:
+        type: object
+        properties:
+          chunk_id:
+            type: string
+          document_id:
+            type: string
+          book_id:
+            type: integer
+          chapter:
+            type: integer
+          score:
+            type: number
+          content:
+            type: string
+          metadata:
+            type: object
+    total_found:
+      type: integer
+      description: "Общее количество найденных результатов"
+  required:
+    - results
+    - total_found
+  additionalProperties: false

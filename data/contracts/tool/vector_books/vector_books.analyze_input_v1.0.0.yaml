@@ -1,0 +1,27 @@
+capability: vector_books.analyze
+version: v1.0.0
+status: active
+component_type: tool
+direction: input
+description: Input contract for LLM analysis of book content
+schema_data:
+  type: object
+  properties:
+    entity_id:
+      type: string
+      description: "ID сущности для анализа (например, book_1)"
+    analysis_type:
+      type: string
+      description: "Тип анализа (character, theme, summary, etc.)"
+    prompt:
+      type: string
+      description: "Промпт для LLM"
+    force_refresh:
+      type: boolean
+      description: "Игнорировать кэш"
+      default: false
+  required:
+    - entity_id
+    - analysis_type
+    - prompt
+  additionalProperties: false

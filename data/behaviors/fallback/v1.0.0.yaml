@@ -1,0 +1,5 @@
+component_id: fallback_pattern  
+component_type: behavior  
+version: v1.0.0  
+owner: team-behavior  
+status: active 

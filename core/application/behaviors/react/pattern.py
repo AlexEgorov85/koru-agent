@@ -34,8 +34,14 @@ class ReActPattern(BehaviorPatternInterface):
     """
     pattern_id = "react.v1.0.0"
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None):
-        """Инициализация паттерна."""
+    def __init__(self, pattern_id: str = None, metadata: dict = None, application_context = None):
+        """Инициализация паттерна.
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна
+        - metadata: Метаданные паттерна
+        - application_context: Прикладной контекст для доступа к компонентам
+        """
         self.pattern_id = pattern_id or "react.v1.0.0"
         self.reasoning_schema = ReasoningResult.model_json_schema()
         # Удаляем служебные поля из схемы
@@ -46,6 +52,7 @@ class ReActPattern(BehaviorPatternInterface):
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
+        self._application_context = application_context  # ← Сохраняем ссылку на ApplicationContext
 
     async def analyze_context(
         self,
@@ -54,20 +61,30 @@ class ReActPattern(BehaviorPatternInterface):
         context_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Анализ контекста без принятия решений"""
+        logger.error(f"analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
+        
+        # Если available_capabilities пустой, получаем их из ApplicationContext
+        if not available_capabilities and self._application_context:
+            logger.error("analyze_context: available_capabilities пуст, получаем из ApplicationContext")
+            available_capabilities = self._application_context.get_all_capabilities()
+            logger.error(f"analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
+        
         # Выполняем анализ контекста сессии
         analysis = analyze_context(session_context)
-        
+
         # Добавляем информацию о доступных capability
         analysis["available_capabilities"] = self._filter_capabilities(
             available_capabilities,
             required_skills=["book_library", "sql_query", "generic"]
         )
         
+        logger.error(f"analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
+
         # Добавляем информацию о прогрессе
         # В новой архитектуре используем атрибуты или возвращаем 0, если метод не существует
         analysis["no_progress_steps"] = getattr(session_context, 'no_progress_steps', 0)
         analysis["consecutive_errors"] = getattr(session_context, 'consecutive_errors', 0)
-        
+
         return analysis
 
     async def generate_decision(
@@ -121,13 +138,15 @@ class ReActPattern(BehaviorPatternInterface):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
+        logger.error(f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
+        
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
         for cap in available_capabilities:
             formatted_capabilities.append({
                 'name': cap.name,
                 'description': cap.description or 'Без описания',
-                'parameters_schema': cap.parameters_schema or {}
+                'parameters_schema': getattr(cap, 'parameters_schema', {}) or {}
             })
 
         # Используем промпт из новой архитектуры
@@ -140,14 +159,12 @@ class ReActPattern(BehaviorPatternInterface):
 
         try:
             # Генерация структурированного ответа через LLM
-            # В реальной реализации здесь будет вызов LLM через сервис
-            # который доступен через ApplicationContext
-            llm_provider = getattr(session_context, 'llm_provider', None)
-            if llm_provider is None:
-                # Если llm_provider не доступен через session_context, пробуем получить через application_context
-                app_context = getattr(self, '_app_context', None)
-                if app_context and hasattr(app_context, 'llm_provider'):
-                    llm_provider = app_context.llm_provider
+            # Получаем LLM провайдер через ApplicationContext
+            llm_provider = None
+            
+            # Пытаемся получить через application_context
+            if self._application_context:
+                llm_provider = self._application_context.get_provider("default_llm")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
@@ -164,10 +181,11 @@ class ReActPattern(BehaviorPatternInterface):
                     },
                     "recommended_action": {
                         "action_type": "execute_capability",
-                        "capability_name": "generic.execute",  # Предполагаем, что generic.execute доступен
+                        "capability_name": "book_library.search_books",  # Используем доступную capability
                         "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
                         "reasoning": "LLM недоступен, используем fallback"
                     },
+                    "available_capabilities": available_capabilities,  # ← Добавляем доступные capability
                     "needs_rollback": False
                 }
 
@@ -287,6 +305,8 @@ class ReActPattern(BehaviorPatternInterface):
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
         
+        logger.error(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
+
         capability = None
         for cap in available_caps:
             if cap.name == capability_name and any(s.lower() == "react" for s in cap.supported_strategies or []):
@@ -303,6 +323,7 @@ class ReActPattern(BehaviorPatternInterface):
                     break
 
         if not capability:
+            logger.error(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
         # Валидация и корректировка параметров

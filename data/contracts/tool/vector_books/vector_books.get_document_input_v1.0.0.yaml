@@ -1,0 +1,15 @@
+capability: vector_books.get_document
+version: v1.0.0
+status: active
+component_type: tool
+direction: input
+description: Input contract for getting full book text
+schema_data:
+  type: object
+  properties:
+    document_id:
+      type: string
+      description: "ID документа (например, book_1)"
+  required:
+    - document_id
+  additionalProperties: false

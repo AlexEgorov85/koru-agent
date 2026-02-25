@@ -45,10 +45,6 @@ class VectorBooksTool(BaseTool):
         self._llm_provider = None
         self._cache_service = None
         self._chunking_strategy = None
-    
-    @property
-    def name(self) -> str:
-        return "vector_books_tool"
 
     @property
     def description(self) -> str:

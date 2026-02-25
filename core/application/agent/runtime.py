@@ -131,7 +131,7 @@ class AgentRuntime:
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-    async def run(self, max_steps: Optional[int] = None) -> ExecutionResult:
+    async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
         """
         Запуск выполнения агента.
 
@@ -143,6 +143,10 @@ class AgentRuntime:
         """
         if self._running:
             raise RuntimeError("Агент уже выполняется")
+
+        # Обновляем goal если передан
+        if goal:
+            self.goal = goal
 
         self._running = True
         self._current_step = 0
@@ -229,6 +233,8 @@ class AgentRuntime:
         else:
             # Если нет специальных методов, возвращаем пустой список
             available_caps = []
+
+        self.logger.error(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")
 
         # Получаем решение от менеджера поведения
         decision = await self.behavior_manager.generate_next_decision(

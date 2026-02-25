@@ -110,6 +110,60 @@ class BaseTool(BaseComponent):
             return self.component_config.constraints.get('side_effects_enabled', False)
         return False
 
+    def get_capabilities(self) -> List['Capability']:
+        """
+        Возвращает список возможностей, которые предоставляет инструмент.
+
+        ВОЗВРАЩАЕТ:
+        - List[Capability]: Список capability для каждой операции инструмента
+
+        ПРИМЕЧАНИЕ:
+        - Использует компонент_config для получения списка операций
+        - Каждая операция становится отдельным capability
+        """
+        from core.models.data.capability import Capability
+        import logging
+        logger = logging.getLogger(__name__)
+
+        capabilities = []
+
+        # Получаем список операций из конфигурации
+        allowed_operations = self.get_allowed_operations()
+        logger.debug(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
+
+        if not allowed_operations and self.component_config:
+            # Если operations не указаны явно, извлекаем из input_contract_versions
+            if hasattr(self.component_config, 'input_contract_versions'):
+                # Извлекаем имена операций из ключей input_contract_versions
+                for cap_name in self.component_config.input_contract_versions.keys():
+                    # Проверяем, что capability принадлежит этому инструменту
+                    # Например, для vector_books_tool: vector_books.search, vector_books.get_document
+                    # Для file_tool: file_tool.read_write
+                    if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
+                        allowed_operations.append(cap_name)
+                logger.debug(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
+
+        # Создаём capability для каждой операции
+        for op_name in allowed_operations:
+            # Формируем полное имя capability
+            cap_full_name = op_name if '.' in op_name else f"{self.name}.{op_name}"
+
+            capabilities.append(Capability(
+                name=cap_full_name,
+                description=f"Операция '{op_name}' инструмента {self.name}",
+                skill_name=self.name,
+                supported_strategies=["react"],  # Инструменты поддерживают react стратегию
+                visiable=True,
+                meta={
+                    "tool": self.name,
+                    "operation": op_name,
+                    "contract_version": self.component_config.input_contract_versions.get(cap_full_name, "v1.0.0") if self.component_config else "v1.0.0"
+                }
+            ))
+
+        logger.info(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        return capabilities
+
     @abstractmethod
     async def shutdown(self) -> None:
         """Корректное завершение работы."""

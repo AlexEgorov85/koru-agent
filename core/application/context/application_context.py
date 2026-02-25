@@ -131,7 +131,7 @@ class ApplicationContext(BaseSystemContext):
         tool_configs = getattr(self.config, 'tool_configs', {})
         behavior_configs = getattr(self.config, 'behavior_configs', {})
 
-        self.logger.debug(f"Загружено конфигураций: services={len(service_configs)}, skills={len(skill_configs)}, tools={len(tool_configs)}, behaviors={len(behavior_configs)}")
+        self.logger.error(f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}")
 
         return {
             ComponentType.SERVICE: service_configs,
@@ -285,12 +285,12 @@ class ApplicationContext(BaseSystemContext):
             )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
-            self.logger.info(f"use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
+            self.logger.error(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
             if self.use_data_repository and self.data_repository:
-                self.logger.info("Вызов _preload_resources_via_repository...")
+                self.logger.error("Вызов _preload_resources_via_repository...")
                 await self._preload_resources_via_repository()
             else:
-                self.logger.warning("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
+                self.logger.error("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
 
             # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
             # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
@@ -298,7 +298,9 @@ class ApplicationContext(BaseSystemContext):
             executor = ActionExecutor(self)
 
             # Сначала создаем и регистрируем все компоненты
+            self.logger.error("Начало создания компонентов...")
             component_configs = self._resolve_component_configs()
+            self.logger.error(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
                     self.logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")
@@ -355,6 +357,9 @@ class ApplicationContext(BaseSystemContext):
                     except Exception as e:
                         self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
                         return False
+
+            # Логируем все зарегистрированные компоненты
+            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
             # Инициализируем компоненты в правильном порядке
@@ -1306,34 +1311,49 @@ class ApplicationContext(BaseSystemContext):
     def get_all_capabilities(self) -> List['Capability']:
         """
         Получение всех доступных capability от всех навыков и инструментов.
-        
+
         ВОЗВРАЩАЕТ:
         - List[Capability]: Список всех доступных capability
-        
+
         ПРИМЕЧАНИЕ:
         - Используется behavior_manager для принятия решений
         - Включает capability от skills и tools
         """
-        all_capabilities = []
+        import logging
+        logger = logging.getLogger(__name__)
         
+        all_capabilities = []
+
+        # Логируем все зарегистрированные компоненты
+        logger.error(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}")
+
         # Получаем capability от всех навыков
         for skill in self.components.all_of_type(ComponentType.SKILL):
+            logger.error(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}")
             if hasattr(skill, 'get_capabilities'):
                 try:
                     caps = skill.get_capabilities()
                     all_capabilities.extend(caps)
+                    logger.error(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
                 except Exception as e:
-                    self.logger.warning(f"Ошибка получения capability от навыка {skill.name}: {e}")
-        
+                    logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}")
+            else:
+                logger.error(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities")
+
         # Получаем capability от всех инструментов
         for tool in self.components.all_of_type(ComponentType.TOOL):
+            logger.error(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}")
             if hasattr(tool, 'get_capabilities'):
                 try:
                     caps = tool.get_capabilities()
                     all_capabilities.extend(caps)
+                    logger.error(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
                 except Exception as e:
-                    self.logger.warning(f"Ошибка получения capability от инструмента {tool.name}: {e}")
-        
+                    logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}")
+            else:
+                logger.error(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities")
+
+        logger.error(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}")
         return all_capabilities
 
     def get_resource(self, name: str):

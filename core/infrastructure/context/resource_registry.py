@@ -21,10 +21,10 @@ class ResourceRegistry:
         """Получение информации о ресурсе."""
         return self._resources.get(name)
         
-    def get_resources_by_type(self, resource_type: ResourceType) -> Dict[str, ResourceInfo]:
+    def get_resources_by_type(self, resource_type: ResourceType) -> list:
         """Получение ресурсов по типу."""
-        return {name: info for name, info in self._resources.items() 
-                if info.resource_type == resource_type}
+        return [info for info in self._resources.values()
+                if info.resource_type == resource_type]
                 
     def get_default_resource(self, resource_type: ResourceType) -> Optional[ResourceInfo]:
         """Получение ресурса по умолчанию для типа."""
