@@ -78,7 +78,7 @@ class FileTool(BaseTool):
         # для безопасности
         # Используем директорию данных из инфраструктурной конфигурации
         # ApplicationContext имеет доступ к InfrastructureContext
-        allowed_base_path = Path(self.application_context.infrastructure_context.config.data_dir or "data")
+        allowed_base_path = Path(getattr(self.application_context.infrastructure_context.config, 'data_dir', 'data') or "data")
         requested_path = Path(file_path).resolve()
 
         try:

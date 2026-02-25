@@ -102,13 +102,17 @@ class ApplicationContext(BaseSystemContext):
 
         # Создаём репозиторий с явным источником данных
         if use_data_repository:
+            # Получаем data_dir из infrastructure_context.config (SystemConfig)
+            # Используем getattr для безопасности с fallback на "data"
+            data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
+            
             # Загружаем реестр напрямую (для получения capability_types)
-            registry_loader = RegistryLoader(Path(infrastructure_context.config.data_dir) / "registry.yaml")
+            registry_loader = RegistryLoader(Path(data_dir) / "registry.yaml")
             registry_config = registry_loader.load(profile=profile)
 
             # Создаём источник данных поверх ФС (новая архитектурно-правильная реализация)
             fs_data_source = FileSystemDataSource(
-                Path(infrastructure_context.config.data_dir),
+                Path(data_dir),
                 registry_config
             )
 

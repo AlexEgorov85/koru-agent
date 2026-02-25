@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## [5.5.0] - 2026-02-25
+
+### Fixed
+- **ReActPattern** — исправлено получение LLM провайдера и обработка ответов
+  - Метод `_perform_structured_reasoning` теперь корректно получает `default_llm` через `ApplicationContext.get_provider()`
+  - Создается `LLMRequest` с `StructuredOutputConfig` для структурированного вывода
+  - Обработка ответа от `LlamaCppProvider` (dict с `raw_response`)
+  - Добавлена передача `available_capabilities` в результат рассуждения
+
+- **AgentFactory** — устранена архитектурная ошибка с созданием второго ApplicationContext
+  - Удалено дублирующее создание `ApplicationContext` в `create_agent()`
+  - Теперь используется существующий `application_context` из фабрики
+  - Исправлен `__init__` для приёма `ApplicationContext` вместо `InfrastructureContext`
+
+- **validate_reasoning_result** — улучшен парсинг JSON от LLM
+  - Поддержка markdown-разметки (```json ... ```)
+  - Поиск сбалансированных фигурных скобок для извлечения JSON
+  - Нормализация формата (строки → dict для `recommended_action` и `analysis`)
+  - Обработка упрощённого формата ответа от LLM
+
+- **FallbackPattern** — добавлен параметр `application_context` в конструктор
+
+- **data_dir доступ** — исправлена ошибка отсутствия атрибута в `AppConfig`
+  - В `application_context.py` использован `getattr` с fallback
+  - В `file_tool.py` использован `getattr` с fallback
+
+### Changed
+- Обновлена версия с 5.4.0 на 5.5.0
+
+### Technical Details
+- ReActPattern теперь корректно работает с новой архитектурой LLM провайдеров
+- AgentFactory использует единый ApplicationContext (устранено дублирование)
+- Улучшена совместимость с ответами LLM (разные форматы JSON)
+
+---
+
 ## [5.4.0] - 2026-02-19
 
 ### Added

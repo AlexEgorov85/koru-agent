@@ -19,6 +19,7 @@ from core.application.agent.strategies.react.validation import validate_reasonin
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.enums.common_enums import ExecutionStatus
 from core.models.data.capability import Capability
+from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
 logger = logging.getLogger(__name__)
 
@@ -189,16 +190,35 @@ class ReActPattern(BehaviorPatternInterface):
                     "needs_rollback": False
                 }
 
-            response = await llm_provider.generate_structured(
+            # Создаем LLMRequest для структурированного вывода
+            llm_request = LLMRequest(
                 prompt=reasoning_prompt,
-                schema=self.reasoning_schema,
+                system_prompt=build_system_prompt_for_reasoning(),
                 temperature=0.3,
-                max_tokens=1000
+                max_tokens=1000,
+                structured_output=StructuredOutputConfig(
+                    output_model="ReasoningResult",
+                    schema_def=self.reasoning_schema,
+                    max_retries=3,
+                    strict_mode=False
+                )
             )
+            
+            response = await llm_provider.generate_structured(llm_request)
 
             # Обработка ответа
-            result = response.content if hasattr(response, 'content') else response
+            # LlamaCppProvider возвращает dict с 'raw_response', извлекаем его
+            if isinstance(response, dict) and 'raw_response' in response:
+                result = response['raw_response']
+            elif hasattr(response, 'content'):
+                result = response.content
+            else:
+                result = response
+                
             reasoning_result = validate_reasoning_result(result)
+
+            # Добавляем available_capabilities в результат для последующего использования
+            reasoning_result['available_capabilities'] = available_capabilities
 
             self.last_reasoning_time = time.time() - start_time
             logger.debug(f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
@@ -221,10 +241,11 @@ class ReActPattern(BehaviorPatternInterface):
                     },
                     "recommended_action": {
                         "action_type": "execute_capability",
-                        "capability_name": "generic.execute",  # Предполагаем, что generic.execute доступен
+                        "capability_name": "book_library.search_books",  # Используем доступную capability
                         "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
                         "reasoning": f"fallback после ошибки: {str(e)}"
                     },
+                    "available_capabilities": available_capabilities,  # ← Передаем доступные capability
                     "needs_rollback": False
                 }
             else:

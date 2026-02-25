@@ -15,9 +15,10 @@ class FallbackPattern(BehaviorPatternInterface):
 
     pattern_id = "fallback.v1.0.0"
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None):
+    def __init__(self, pattern_id: str = None, metadata: dict = None, application_context = None):
         self.pattern_id = pattern_id or "fallback.v1.0.0"
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self._application_context = application_context
 
     async def analyze_context(
         self,
