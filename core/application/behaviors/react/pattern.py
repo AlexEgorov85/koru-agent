@@ -91,14 +91,14 @@ class ReActPattern(BaseBehaviorPattern):
         if self.reasoning_prompt_template and self.reasoning_schema:
             return True
         
-        if not self._application_context:
+        if not self.application_context:
             logger.error("ApplicationContext не доступен для загрузки промпта и контракта")
             return False
         
         try:
             # Пытаемся загрузить из сервисов
-            prompt_service = self._application_context.get_prompt_service()
-            contract_service = self._application_context.get_contract_service()
+            prompt_service = self.application_context.get_prompt_service()
+            contract_service = self.application_context.get_contract_service()
             
             # Загружаем промпт из PromptService (если есть component_config, сервис уже имеет кэш)
             if prompt_service and self.component_config:
@@ -354,8 +354,8 @@ class ReActPattern(BaseBehaviorPattern):
             llm_provider = None
 
             # Пытаемся получить через application_context
-            if self._application_context:
-                llm_provider = self._application_context.get_provider("default_llm")
+            if self.application_context:
+                llm_provider = self.application_context.get_provider("default_llm")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
