@@ -98,18 +98,26 @@ class TestBehaviorPatternStructure:
     def test_evaluation_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у EvaluationPattern."""
         from core.application.behaviors.evaluation.pattern import EvaluationPattern
+        from core.config.component_config import ComponentConfig
+
+        # Создаём минимальный ComponentConfig для теста
+        config = ComponentConfig(variant_id="test_evaluation")
         
-        pattern = EvaluationPattern(pattern_id="test_evaluation.v1.0.0")
-        assert pattern.pattern_id == "test_evaluation.v1.0.0"
+        pattern = EvaluationPattern(component_name="test_evaluation_pattern", component_config=config)
+        assert pattern.pattern_id == "test_evaluation_pattern"
         assert hasattr(pattern, 'analyze_context')
         assert hasattr(pattern, 'generate_decision')
 
     def test_fallback_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у FallbackPattern."""
         from core.application.behaviors.fallback.pattern import FallbackPattern
+        from core.config.component_config import ComponentConfig
+
+        # Создаём минимальный ComponentConfig для теста
+        config = ComponentConfig(variant_id="test_fallback")
         
-        pattern = FallbackPattern(pattern_id="test_fallback.v1.0.0")
-        assert pattern.pattern_id == "test_fallback.v1.0.0"
+        pattern = FallbackPattern(component_name="test_fallback_pattern", component_config=config)
+        assert pattern.pattern_id == "test_fallback_pattern"
         assert hasattr(pattern, 'analyze_context')
         assert hasattr(pattern, 'generate_decision')
 

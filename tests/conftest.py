@@ -266,10 +266,13 @@ def create_planning_pattern():
 def create_evaluation_pattern():
     """Factory fixture для создания EvaluationPattern в тестах."""
     from core.application.behaviors.evaluation.pattern import EvaluationPattern
+    from core.config.component_config import ComponentConfig
 
     def _create():
+        config = ComponentConfig(variant_id="test_evaluation")
         return EvaluationPattern(
-            pattern_id="test_evaluation_pattern"
+            component_name="test_evaluation_pattern",
+            component_config=config
         )
 
     return _create
@@ -279,10 +282,13 @@ def create_evaluation_pattern():
 def create_fallback_pattern():
     """Factory fixture для создания FallbackPattern в тестах."""
     from core.application.behaviors.fallback.pattern import FallbackPattern
+    from core.config.component_config import ComponentConfig
 
     def _create():
+        config = ComponentConfig(variant_id="test_fallback")
         return FallbackPattern(
-            pattern_id="test_fallback_pattern"
+            component_name="test_fallback_pattern",
+            component_config=config
         )
 
     return _create

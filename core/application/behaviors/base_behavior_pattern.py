@@ -19,6 +19,7 @@ from core.config.component_config import ComponentConfig
 if typing.TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
     from core.application.agent.components.executor import ActionExecutor
+    from core.models.data.capability import Capability
 
 
 class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
@@ -126,3 +127,24 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
+    
+    async def execute(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: Any
+    ) -> Any:
+        """
+        Заглушка execute для совместимости с BaseComponent.
+        
+        ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ — они генерируют решения через generate_decision().
+        Этот метод нужен только для совместимости с интерфейсом BaseComponent.
+        
+        RAISES:
+        - NotImplementedError: Всегда, так как паттерны не выполняют действия напрямую
+        """
+        raise NotImplementedError(
+            f"BehaviorPattern не выполняет действия напрямую. "
+            f"Используйте generate_decision() для получения решения. "
+            f"Component: {self.component_name}"
+        )
