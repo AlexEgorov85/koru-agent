@@ -78,10 +78,12 @@ class BehaviorStorage:
         pattern_class = self._get_pattern_class(pattern_type, "v1.0.0")  # Версия не важна для новой архитектуры
         
         # Создание экземпляра паттерна с component_name и component_config
+        # executor=None так как паттерны генерируют решения, а не выполняют действия
         pattern_instance = pattern_class(
             component_name=component_name,
             component_config=component_config,
-            application_context=self._application_context
+            application_context=self._application_context,
+            executor=None  # Паттерны не используют executor напрямую
         )
 
         return pattern_instance
@@ -131,10 +133,12 @@ class BehaviorStorage:
             component_config = behavior_configs.get(component_name)
         
         # Создание экземпляра паттерна с component_name и component_config
+        # executor=None так как паттерны генерируют решения, а не выполняют действия
         pattern_instance = pattern_class(
             component_name=component_name,
             component_config=component_config,
-            application_context=self._application_context
+            application_context=self._application_context,
+            executor=None  # Паттерны не используют executor напрямую
         )
 
         return pattern_instance

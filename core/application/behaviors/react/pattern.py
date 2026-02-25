@@ -43,15 +43,16 @@ class ReActPattern(BaseBehaviorPattern):
     """
     # pattern_id НЕ определяется — генерируется из component_name
 
-    def __init__(self, component_name: str, component_config = None, application_context = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
 
         ПАРАМЕТРЫ:
         - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "react_pattern")
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст для доступа к компонентам
+        - executor: ActionExecutor для взаимодействия (требуется BaseComponent)
         """
-        super().__init__(component_name, component_config, application_context)
+        super().__init__(component_name, component_config, application_context, executor)
         
         # Специфичные для ReAct атрибуты
         self.reasoning_schema = None  # Будет загружено из component_config

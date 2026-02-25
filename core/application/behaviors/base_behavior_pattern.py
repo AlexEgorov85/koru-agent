@@ -2,30 +2,46 @@
 Базовый класс для всех паттернов поведения (Behavior Patterns).
 
 АРХИТЕКТУРА:
-- Наследуется от BehaviorPatternInterface
-- Предоставляет унифицированный доступ к промптам/контрактам из component_config
+- Наследуется от BaseComponent для единого интерфейса
+- Использует методы BaseComponent.get_prompt/get_input_contract/get_output_contract
 - Все паттерны (ReAct, Planning, Evaluation, Fallback) наследуются от этого класса
 """
 import logging
-from typing import Dict, Any, Optional, Type
-from pydantic import BaseModel
+import typing
+from typing import Dict, Any, Optional
 
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.session_context.session_context import SessionContext
+from core.components.base_component import BaseComponent
+from core.config.component_config import ComponentConfig
+
+if typing.TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.executor import ActionExecutor
 
 
-class BaseBehaviorPattern(BehaviorPatternInterface):
+class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ПОВЕДЕНЧЕСКИХ ПАТТЕРНОВ.
     
+    НАСЛЕДУЕТСЯ ОТ BaseComponent ДЛЯ:
+    - Единого кэша промптов/контрактов (self.prompts, self.input_schemas, self.output_schemas)
+    - Единых методов доступа (self.get_prompt(), self.get_output_contract())
+    - Единой инициализации через component_config.resolved_*
+    
     ПРЕДОСТАВЛЯЕТ:
     - component_name для идентификации
-    - component_config с resolved_prompts/contracts
-    - Унифицированные методы доступа к ресурсам
+    - pattern_id для совместимости с BehaviorPatternInterface
     """
     
-    def __init__(self, component_name: str, component_config = None, application_context = None):
+    def __init__(
+        self, 
+        component_name: str, 
+        component_config: Optional[ComponentConfig] = None, 
+        application_context: 'ApplicationContext' = None,
+        executor: 'ActionExecutor' = None
+    ):
         """
         Инициализация базового паттерна.
         
@@ -33,97 +49,47 @@ class BaseBehaviorPattern(BehaviorPatternInterface):
         - component_name: Имя компонента (ОБЯЗАТЕЛЬНО)
         - component_config: ComponentConfig с resolved_prompts/contracts
         - application_context: Прикладной контекст
+        - executor: ActionExecutor для взаимодействия (требуется BaseComponent)
         """
         if not component_name:
             raise ValueError("component_name обязателен для инициализации паттерна")
         
+        # Инициализируем BaseComponent (который загружает промпты/контракты из component_config)
+        BaseComponent.__init__(
+            self,
+            name=component_name,
+            application_context=application_context,
+            component_config=component_config,
+            executor=executor
+        )
+        
+        # pattern_id для совместимости с BehaviorPatternInterface
         self.pattern_id = component_name
         self.component_name = component_name
-        self._component_config = component_config
-        self._application_context = application_context
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        
-        # Кэши для быстрого доступа (загружаются из component_config)
-        self._prompts: Dict[str, str] = {}
-        self._input_contracts: Dict[str, Dict] = {}
-        self._output_contracts: Dict[str, Dict] = {}
-        
-        # Загружаем ресурсы из component_config при инициализации
-        if self._component_config:
-            self._load_resources_from_config()
-    
-    def _load_resources_from_config(self):
-        """
-        Загружает промпты и контракты из component_config.
-        
-        Вызывается автоматически в __init__.
-        """
-        if not self._component_config:
-            return
-        
-        # Загружаем промпты из resolved_prompts
-        resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
-        for key, prompt_obj in resolved_prompts.items():
-            # prompt_obj может быть Prompt объектом или строкой
-            if hasattr(prompt_obj, 'content'):
-                self._prompts[key] = prompt_obj.content
-            else:
-                self._prompts[key] = str(prompt_obj)
-        
-        # Загружаем input контракты из resolved_input_contracts
-        resolved_input = getattr(self._component_config, 'resolved_input_contracts', {})
-        for key, schema in resolved_input.items():
-            self._input_contracts[key] = schema
-        
-        # Загружаем output контракты из resolved_output_contracts
-        resolved_output = getattr(self._component_config, 'resolved_output_contracts', {})
-        for key, schema in resolved_output.items():
-            self._output_contracts[key] = schema
     
     def get_prompt(self, key: str) -> str:
         """
-        Получает промпт из кэша.
+        Получает промпт из кэша BaseComponent.
         
-        ПАРАМЕТРЫ:
-        - key: Ключ промпта (обычно capability_name)
-        
-        ВОЗВРАЩАЕТ:
-        - str: Текст промпта или пустая строка если не найден
+        ДЕЛЕГИРУЕТ: BaseComponent.get_prompt()
         """
-        if key not in self._prompts:
-            self.logger.warning(f"Промпт '{key}' не найден в кэше паттерна {self.component_name}")
-            return ""
-        return self._prompts[key]
+        return super().get_prompt(key)
     
     def get_input_contract(self, key: str) -> Dict:
         """
-        Получает input контракт из кэша.
+        Получает input контракт из кэша BaseComponent.
         
-        ПАРАМЕТРЫ:
-        - key: Ключ контракта (обычно capability_name)
-        
-        ВОЗВРАЩАЕТ:
-        - Dict: Схема контракта или пустой словарь если не найден
+        ДЕЛЕГИРУЕТ: BaseComponent.get_input_contract()
         """
-        if key not in self._input_contracts:
-            self.logger.warning(f"Input контракт '{key}' не найден в кэше паттерна {self.component_name}")
-            return {}
-        return self._input_contracts[key]
+        return super().get_input_contract(key)
     
     def get_output_contract(self, key: str) -> Dict:
         """
-        Получает output контракт из кэша.
+        Получает output контракт из кэша BaseComponent.
         
-        ПАРАМЕТРЫ:
-        - key: Ключ контракта (обычно capability_name)
-        
-        ВОЗВРАЩАЕТ:
-        - Dict: Схема контракта или пустой словарь если не найден
+        ДЕЛЕГИРУЕТ: BaseComponent.get_output_contract()
         """
-        if key not in self._output_contracts:
-            self.logger.warning(f"Output контракт '{key}' не найден в кэше паттерна {self.component_name}")
-            return {}
-        return self._output_contracts[key]
+        return super().get_output_contract(key)
     
     def _render_prompt(self, prompt_template: str, variables: Dict[str, Any]) -> str:
         """

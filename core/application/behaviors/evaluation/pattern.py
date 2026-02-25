@@ -18,15 +18,16 @@ class EvaluationPattern(BaseBehaviorPattern):
     - pattern_id генерируется из component_name для совместимости
     """
 
-    def __init__(self, component_name: str, component_config = None, application_context = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
         
         ПАРАМЕТРЫ:
         - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "evaluation_pattern")
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст
+        - executor: ActionExecutor для взаимодействия
         """
-        super().__init__(component_name, component_config, application_context)
+        super().__init__(component_name, component_config, application_context, executor)
 
     async def analyze_context(
         self,
