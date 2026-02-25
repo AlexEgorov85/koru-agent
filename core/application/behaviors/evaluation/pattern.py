@@ -1,4 +1,5 @@
-from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
+from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
@@ -7,30 +8,25 @@ import logging
 from typing import List, Dict, Any
 
 
-class EvaluationPattern(BehaviorPatternInterface):
+class EvaluationPattern(BaseBehaviorPattern):
     """
     Паттерн оценки достижения цели.
     
     АРХИТЕКТУРА:
     - component_name используется для получения config из AppConfig
+    - Промпты и контракты загружаются через BaseBehaviorPattern
     - pattern_id генерируется из component_name для совместимости
     """
-    # pattern_id НЕ определяется — генерируется из component_name
 
-    def __init__(self, component_name: str, component_config = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None):
         """Инициализация паттерна.
         
         ПАРАМЕТРЫ:
         - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "evaluation_pattern")
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
+        - application_context: Прикладной контекст
         """
-        if not component_name:
-            raise ValueError("component_name обязателен для инициализации паттерна")
-        
-        self.pattern_id = component_name
-        self.component_name = component_name
-        self._component_config = component_config
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        super().__init__(component_name, component_config, application_context)
 
     async def analyze_context(
         self,
@@ -51,75 +47,54 @@ class EvaluationPattern(BehaviorPatternInterface):
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
-        try:
-            # 1. Анализ достижения цели через LLM
-            evaluation = await self._evaluate_goal_achievement(session_context, context_analysis)
-
-            # 2. Принятие решения
-            if evaluation.achieved:
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.STOP,
-                    reason="goal_achieved",
-                    parameters={"result": evaluation.summary}
-                )
-            elif evaluation.partial_progress:
-                # Частичный прогресс → вернуться к планированию с уточнённой целью
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.SWITCH,
-                    next_pattern="planning.v1.0.0",
-                    parameters={"refined_goal": evaluation.refined_goal},
-                    reason="partial_progress_continue_with_refined_goal"
-                )
-            else:
-                # Полный провал → переключиться на реактивный режим для диагностики
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.SWITCH,
-                    next_pattern="react.v1.0.0",
-                    reason="evaluation_failed_need_diagnosis"
-                )
-        except Exception as e:
-            self.logger.error(f"Ошибка в EvaluationPattern: {str(e)}", exc_info=True)
-            # При ошибке оценки - возвращаемся к реактивной стратегии
-            return BehaviorDecision(
-                action=BehaviorDecisionType.SWITCH,
-                next_pattern="react.v1.0.0",
-                reason=f"evaluation_error: {str(e)}"
-            )
-
-    async def _evaluate_goal_achievement(self, session_context: SessionContext, context_analysis: Dict[str, Any]):
         """
-        Оценка достижения цели через LLM
+        Оценка достижения цели через LLM.
+        
+        АРХИТЕКТУРА:
+        - Использует промпт из component_config (через get_prompt())
+        - Использует output контракт из component_config (через get_output_contract())
         """
         # Подготовка контекста для оценки
         goal = context_analysis["goal"]
         context_summary = context_analysis["context_summary"]
 
-        # Получение кэшированного промпта из компонента
-        assessment_prompt = self.get_cached_prompt_safe("behaviors.evaluation.assess_goal")
+        # Получение промпта из кэша (загружен из component_config)
+        assessment_prompt = self.get_prompt("behavior.react.think")  # Или другой ключ из registry
         
-        # Заменяем переменные в кэшированном промпте
-        evaluation_prompt = assessment_prompt
-        evaluation_prompt = evaluation_prompt.replace("{goal}", str(goal))
-        evaluation_prompt = evaluation_prompt.replace("{context_summary}", str(context_summary))
+        if not assessment_prompt:
+            self.logger.warning("Промпт для оценки не загружен, используем fallback")
+            assessment_prompt = "Оцени достижение цели: {goal}\nКонтекст: {context_summary}"
+        
+        # Заменяем переменные в промпте
+        evaluation_prompt = self._render_prompt(assessment_prompt, {
+            "goal": str(goal),
+            "context_summary": str(context_summary)
+        })
 
         try:
             # Вызов LLM для оценки через сервис, доступный через контекст
             llm_provider = session_context.get_llm_provider()
             
-            response = await llm_provider.generate_structured(
-                prompt=evaluation_prompt,
-                schema={
+            # Получаем output контракт для структурированного вывода
+            output_schema = self.get_output_contract("behavior.react.think")
+            
+            if not output_schema:
+                self.logger.warning("Output контракт не загружен, используем fallback схему")
+                output_schema = {
                     "type": "object",
                     "properties": {
                         "achieved": {"type": "boolean"},
                         "partial_progress": {"type": "boolean"},
                         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                         "summary": {"type": "string"},
-                        "refined_goal": {"type": "string"},
                         "reasoning": {"type": "string"}
                     },
                     "required": ["achieved", "partial_progress", "confidence", "summary", "reasoning"]
-                },
+                }
+
+            response = await llm_provider.generate_structured(
+                prompt=evaluation_prompt,
+                schema=output_schema,
                 temperature=0.1,
                 max_tokens=500
             )
@@ -137,21 +112,33 @@ class EvaluationPattern(BehaviorPatternInterface):
                     self.partial_progress = data.get("partial_progress", False)
                     self.confidence = data.get("confidence", 0.0)
                     self.summary = data.get("summary", "")
-                    self.refined_goal = data.get("refined_goal", "")
                     self.reasoning = data.get("reasoning", "")
+                    self.refined_goal = data.get("refined_goal", goal)
 
-            return EvaluationResult(result)
+            evaluation = EvaluationResult(result)
+
+            # Принятие решения на основе оценки
+            if evaluation.achieved or (evaluation.confidence > 0.8 and not evaluation.partial_progress):
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.STOP,
+                    reason=f"goal_achieved: {evaluation.summary}"
+                )
+            elif evaluation.confidence < 0.3:
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.SWITCH,
+                    next_pattern="fallback.v1.0.0",
+                    reason=f"low_confidence: {evaluation.reasoning}"
+                )
+            else:
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.CONTINUE,
+                    reason=f"continue_execution: {evaluation.summary}"
+                )
 
         except Exception as e:
-            self.logger.error(f"Ошибка при оценке достижения цели: {str(e)}", exc_info=True)
-            # Возвращаем базовую оценку при ошибке
-            class EvaluationResult:
-                def __init__(self, session_context):
-                    self.achieved = False
-                    self.partial_progress = True
-                    self.confidence = 0.5
-                    self.summary = "Ошибка при автоматической оценке, требуется ручная проверка"
-                    self.refined_goal = session_context.get_goal()
-                    self.reasoning = "Ошибка при анализе результатов выполнения"
-
-            return EvaluationResult(session_context)
+            self.logger.error(f"Ошибка при оценке цели: {e}", exc_info=True)
+            return BehaviorDecision(
+                action=BehaviorDecisionType.SWITCH,
+                next_pattern="fallback.v1.0.0",
+                reason=f"evaluation_error: {str(e)}"
+            )

@@ -12,7 +12,8 @@ import json
 import time
 import logging
 from typing import Any, Dict, List
-from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
+from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.application.agent.strategies.react.schema_validator import SchemaValidator
 from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
@@ -24,7 +25,7 @@ from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
 logger = logging.getLogger(__name__)
 
-class ReActPattern(BehaviorPatternInterface):
+class ReActPattern(BaseBehaviorPattern):
     """ReAct паттерн поведения без логики планирования.
 
     ЭТАПЫ РАБОТЫ:
@@ -50,12 +51,9 @@ class ReActPattern(BehaviorPatternInterface):
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст для доступа к компонентам
         """
-        if not component_name:
-            raise ValueError("component_name обязателен для инициализации паттерна")
+        super().__init__(component_name, component_config, application_context)
         
-        # pattern_id для совместимости (без версии, только имя)
-        self.pattern_id = component_name
-        self.component_name = component_name
+        # Специфичные для ReAct атрибуты
         self.reasoning_schema = None  # Будет загружено из component_config
         self.reasoning_prompt_template = None  # Будет загружено из component_config
         self.last_reasoning_time = 0.0
@@ -63,8 +61,6 @@ class ReActPattern(BehaviorPatternInterface):
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
-        self._application_context = application_context
-        self._component_config = component_config
 
         # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
         if self._component_config:

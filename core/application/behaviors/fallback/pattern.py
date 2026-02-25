@@ -1,4 +1,5 @@
-from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
+from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
@@ -7,7 +8,7 @@ import logging
 from typing import List, Dict, Any
 
 
-class FallbackPattern(BehaviorPatternInterface):
+class FallbackPattern(BaseBehaviorPattern):
     """
     Паттерн интеллектуального восстановления.
     Используется при ошибках для диагностики и восстановления.
@@ -16,7 +17,6 @@ class FallbackPattern(BehaviorPatternInterface):
     - component_name используется для получения config из AppConfig
     - pattern_id генерируется из component_name для совместимости
     """
-    # pattern_id НЕ определяется — генерируется из component_name
 
     def __init__(self, component_name: str, component_config = None, application_context = None):
         """Инициализация паттерна.
@@ -26,14 +26,7 @@ class FallbackPattern(BehaviorPatternInterface):
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
         - application_context: Прикладной контекст
         """
-        if not component_name:
-            raise ValueError("component_name обязателен для инициализации паттерна")
-        
-        self.pattern_id = component_name
-        self.component_name = component_name
-        self._component_config = component_config
-        self._application_context = application_context
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        super().__init__(component_name, component_config, application_context)
 
     async def analyze_context(
         self,
