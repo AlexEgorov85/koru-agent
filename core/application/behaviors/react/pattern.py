@@ -524,7 +524,7 @@ class ReActPattern(BaseBehaviorPattern):
                 if any(s.lower() == "react" for s in cap.supported_strategies or []):
                     capability = cap
                     capability_name = cap.name
-                    logger.warning(f"Capability '{recommended_action.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
+                    logger.warning(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
                     break
 
         if not capability:
@@ -551,7 +551,7 @@ class ReActPattern(BaseBehaviorPattern):
             action=BehaviorDecisionType.ACT,
             capability_name=capability_name,
             parameters=validated_params,
-            reason=recommended_action.get("reasoning", "capability_execution")
+            reason=reasoning
         )
 
     async def _create_fallback_decision(self, session_context, reason: str) -> BehaviorDecision:
