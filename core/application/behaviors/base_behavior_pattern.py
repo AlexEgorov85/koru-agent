@@ -118,9 +118,9 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         success = await BaseComponent.initialize(self)
         
         # Если кэши пустые, пытаемся загрузить из сервисов
-        if not self.prompts and self._application_context:
+        if not self.prompts and self.application_context:
             self.logger.warning(f"Кэш промптов пуст для {self.component_name}, загружаем из PromptService")
-            prompt_service = self._application_context.get_prompt_service()
+            prompt_service = self.application_context.get_prompt_service()
             if prompt_service:
                 # Загружаем все доступные промпты для этого компонента
                 for capability in self.component_config.prompt_versions.keys() if self.component_config else []:

@@ -252,9 +252,9 @@ class ReActPattern(BaseBehaviorPattern):
         logger.error(f"analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
         
         # Если available_capabilities пустой, получаем их из ApplicationContext
-        if not available_capabilities and self._application_context:
+        if not available_capabilities and self.application_context:
             logger.error("analyze_context: available_capabilities пуст, получаем из ApplicationContext")
-            available_capabilities = self._application_context.get_all_capabilities()
+            available_capabilities = self.application_context.get_all_capabilities()
             logger.error(f"analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
         
         # Выполняем анализ контекста сессии
