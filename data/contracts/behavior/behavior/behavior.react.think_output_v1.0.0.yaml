@@ -1,52 +1,65 @@
 capability: behavior.react.think
 component_type: behavior
-description: Output contract for behavior.react.think - результат рассуждения
+description: Output contract for behavior.react.think - результат рассуждения ReAct
 direction: output
 schema_data:
   type: object
   properties:
-    thought:
-      type: string
-      description: Развёрнутое рассуждение о текущей ситуации
     analysis:
       type: object
+      description: Анализ текущей ситуации
       properties:
-        progress:
+        current_situation:
           type: string
-        current_state:
+          description: Текущая ситуация и контекст
+        progress_assessment:
           type: string
-        issues:
-          type: array
-          items:
-            type: string
-    decision:
+          description: Оценка прогресса к цели
+        confidence:
+          type: number
+          description: Уверенность в решении (0.0-1.0)
+          minimum: 0.0
+          maximum: 1.0
+        errors_detected:
+          type: boolean
+          description: Обнаружены ли ошибки
+          default: false
+      required:
+        - current_situation
+        - progress_assessment
+        - confidence
+    recommended_action:
       type: object
+      description: Рекомендованное действие
       properties:
-        next_action:
+        action_type:
           type: string
-        reasoning:
+          description: Тип действия
+          default: execute_capability
+        capability_name:
           type: string
+          description: Имя capability для выполнения
         parameters:
           type: object
-        expected_outcome:
+          description: Параметры для capability
+          additionalProperties: true
+        reasoning:
           type: string
-    confidence:
-      type: number
-      minimum: 0
-      maximum: 1
-    alternative_actions:
-      type: array
-      items:
-        type: object
-    stop_condition:
+          description: Обоснование выбора действия
+      required:
+        - capability_name
+        - reasoning
+    needs_rollback:
       type: boolean
-    stop_reason:
-      type: string
+      description: Требуется ли откат
+      default: false
+    rollback_steps:
+      type: integer
+      description: Количество шагов для отката
+      default: 0
   required:
-    - thought
-    - decision
-    - confidence
-    - stop_condition
-  additionalProperties: true
+    - analysis
+    - recommended_action
+  additionalProperties: false
 status: active
 version: v1.0.0

@@ -34,8 +34,7 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
             cleaned = re.sub(r'\s*```$', '', cleaned)
             cleaned = cleaned.strip()
             
-            # Пытаемся найти первый полный JSON объект
-            # Ищем сбалансированные фигурные скобки
+            # Пытаемся найти первый полный JSON объект (сбалансированные скобки)
             depth = 0
             start_idx = None
             json_str = None
@@ -54,43 +53,43 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
             if json_str:
                 validated_result = json.loads(json_str)
             else:
-                # Если не нашли сбалансированный JSON, пробуем распарсить всю строку
                 validated_result = json.loads(cleaned)
         else:
             raise ValueError(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
         
-        # Нормализация результата - приводим к ожидаемому формату
-        validated_result = _normalize_reasoning_result(validated_result)
-        
-        # Проверяем наличие обязательных полей
+        # Проверяем наличие обязательных полей и устанавливаем значения по умолчанию
         if 'analysis' not in validated_result:
-            validated_result['analysis'] = {
-                'current_situation': 'Неизвестно',
-                'progress_assessment': 'Неизвестно',
-                'confidence': 0.5,
-                'errors_detected': False,
-                'consecutive_errors': 0,
-                'execution_time': 0,
-                'no_progress_steps': 0
-            }
-
+            validated_result['analysis'] = {}
+        
+        analysis = validated_result['analysis']
+        if 'current_situation' not in analysis:
+            analysis['current_situation'] = str(analysis.get('thoughts', 'Неизвестно'))
+        if 'progress_assessment' not in analysis:
+            analysis['progress_assessment'] = 'Неизвестно'
+        if 'confidence' not in analysis:
+            analysis['confidence'] = float(analysis.get('confidence_level', 0.5))
+        if 'errors_detected' not in analysis:
+            analysis['errors_detected'] = False
+        
         if 'recommended_action' not in validated_result:
-            validated_result['recommended_action'] = {
-                'action_type': 'execute_capability',
-                'capability_name': 'generic.execute',
-                'parameters': {'input': 'Продолжить выполнение задачи'},
-                'reasoning': 'Действие по умолчанию'
-            }
-
-        # Устанавливаем значения по умолчанию для опциональных полей
+            validated_result['recommended_action'] = {}
+        
+        action = validated_result['recommended_action']
+        if 'capability_name' not in action:
+            # Пробуем найти в action_name (старое имя поля)
+            action['capability_name'] = action.get('action_name', 'generic.execute')
+        if 'action_type' not in action:
+            action['action_type'] = 'execute_capability'
+        if 'parameters' not in action:
+            action['parameters'] = action.get('parameters', {})
+        if 'reasoning' not in action:
+            action['reasoning'] = action.get('reason', 'Действие по умолчанию')
+        
         if 'needs_rollback' not in validated_result:
             validated_result['needs_rollback'] = False
-
+        
         if 'rollback_steps' not in validated_result:
-            validated_result['rollback_steps'] = 1
-
-        if 'action_type' not in validated_result:
-            validated_result['action_type'] = 'execute_capability'
+            validated_result['rollback_steps'] = 0
 
         logger.debug("Результат рассуждения успешно валидирован")
         return validated_result
@@ -104,10 +103,7 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
                 'current_situation': 'Ошибка валидации',
                 'progress_assessment': 'Неизвестно',
                 'confidence': 0.1,
-                'errors_detected': True,
-                'consecutive_errors': 1,
-                'execution_time': 0,
-                'no_progress_steps': 0
+                'errors_detected': True
             },
             'recommended_action': {
                 'action_type': 'execute_capability',
@@ -116,48 +112,5 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
                 'reasoning': f'fallback после ошибки валидации: {str(e)}'
             },
             'needs_rollback': False,
-            'rollback_steps': 1,
-            'action_type': 'execute_capability'
+            'rollback_steps': 0
         }
-
-
-def _normalize_reasoning_result(result: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Нормализует результат рассуждения к ожидаемому формату.
-    
-    LLM может возвращать разные форматы - приводим их к единому виду.
-    """
-    # Если recommended_action - строка, преобразуем в dict
-    if isinstance(result.get('recommended_action'), str):
-        action_str = result['recommended_action']
-        # Пытаемся извлечь имя capability из строки
-        # Например: "Выполнить действие: book_library.search_books с параметрами..."
-        import re
-        cap_match = re.search(r'([a-z_]+\.[a-z_]+)', action_str)
-        capability_name = cap_match.group(1) if cap_match else 'generic.execute'
-        
-        result['recommended_action'] = {
-            'action_type': 'execute_capability',
-            'capability_name': capability_name,
-            'parameters': {'input': action_str},
-            'reasoning': action_str
-        }
-    
-    # Если analysis - строка, преобразуем в dict
-    if isinstance(result.get('analysis'), str):
-        result['analysis'] = {
-            'current_situation': result['analysis'],
-            'progress_assessment': 'Неизвестно',
-            'confidence': result.get('confidence', 0.5),
-            'errors_detected': False,
-            'consecutive_errors': 0,
-            'execution_time': 0,
-            'no_progress_steps': 0
-        }
-    
-    # Если есть поле confidence на верхнем уровне, переносим в analysis
-    if 'confidence' in result and isinstance(result.get('analysis'), dict):
-        result['analysis']['confidence'] = result['confidence']
-        del result['confidence']
-    
-    return result
