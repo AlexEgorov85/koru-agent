@@ -485,17 +485,44 @@ class ReActPattern(BaseBehaviorPattern):
                     strict_mode=False
                 )
             )
-            
+
+            # === ЛОГИРОВАНИЕ ПРОМПТА ===
+            logger.info("=" * 80)
+            logger.info("=== ЗАПРОС К LLM (REACT THINK) ===")
+            logger.info("=" * 80)
+            logger.info(f"System prompt: {llm_request.system_prompt[:500]}...")
+            logger.info("-" * 80)
+            logger.info(f"User prompt (первые 2000 символов):\n{reasoning_prompt[:2000]}...")
+            logger.info(f"Полный размер промпта: {len(reasoning_prompt)} символов")
+            logger.info(f"Temperature: {llm_request.temperature}, Max tokens: {llm_request.max_tokens}")
+            logger.info("=" * 80)
+
             response = await llm_provider.generate_structured(llm_request)
 
+            # === ЛОГИРОВАНИЕ ОТВЕТА ===
+            logger.info("=" * 80)
+            logger.info("=== ОТВЕТ ОТ LLM (REACT THINK) ===")
+            logger.info("=" * 80)
+            
             # Обработка ответа
             # LlamaCppProvider возвращает dict с 'raw_response', извлекаем его
             if isinstance(response, dict) and 'raw_response' in response:
                 result = response['raw_response']
+                logger.info(f"Формат ответа: dict с raw_response")
             elif hasattr(response, 'content'):
                 result = response.content
+                logger.info(f"Формат ответа: объект с content")
             else:
                 result = response
+                logger.info(f"Формат ответа: {type(response).__name__}")
+
+            # Логируем результат
+            if isinstance(result, dict):
+                logger.info(f"Результат (dict): {json.dumps(result, ensure_ascii=False, indent=2)[:3000]}...")
+            else:
+                logger.info(f"Результат ({type(result).__name__}): {str(result)[:3000]}...")
+            
+            logger.info("=" * 80)
                 
             reasoning_result = validate_reasoning_result(result)
 
