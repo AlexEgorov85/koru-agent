@@ -321,6 +321,20 @@ class ApplicationContext(BaseSystemContext):
                         self.logger.error(f"Ошибка создания {comp_type.value}.{name} (новый путь): {e}", exc_info=True)
                         return False
 
+            # Логируем все зарегистрированные компоненты
+            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
+
+            # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
+            # Инициализируем компоненты в правильном порядке
+            success = await self._initialize_components_with_dependencies()
+            if not success:
+                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+                return False
+
+            # === ЭТАП 5: Валидация готовности системы ===
+            if not await self._verify_readiness():
+                return False
+
         # === СТАРЫЙ ПУТЬ: Для обратной совместимости ===
         else:
             # === ЭТАП 1: Централизованная загрузка ресурсов ===
