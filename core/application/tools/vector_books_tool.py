@@ -213,46 +213,71 @@ class VectorBooksTool(BaseTool):
         Returns:
             AnalysisResult.to_dict()
         """
-        
+
         # Получаем инфраструктуру
         self._get_infrastructure()
-        
+
         # 1. Проверка кэша
         cache_key = f"analysis:{analysis_type}:{entity_id}"
         if not force_refresh and self._cache_service:
             cached = await self._cache_service.get(cache_key)
             if cached:
                 return cached
-        
+
         # 2. Получение контекста
         context = await self._get_context(entity_id)
-        
-        # 3. LLM анализ
-        llm_prompt = f"""
-{prompt}
 
-Контекст:
-{context}
+        # 3. LLM анализ — используем промпт из component_config
+        # Получаем шаблон промпта из кэша (загружен при инициализации)
+        capability_name = "vector_books.analyze"
+        prompt_template = self.get_prompt(capability_name)
+        
+        if not prompt_template:
+            self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
+            # Fallback шаблон
+            prompt_template = "{prompt}\n\nКонтекст:\n{context}\n\nОтветь в формате JSON:\n{{\n    \"result\": {{...}},\n    \"confidence\": 0.0-1.0,\n    \"reasoning\": \"обоснование\"\n}}"
+        
+        # Рендерим промпт
+        llm_prompt = prompt_template.format(prompt=prompt, context=context)
 
-Ответь в формате JSON:
-{{
-    "result": {{...}},
-    "confidence": 0.0-1.0,
-    "reasoning": "обоснование"
-}}
-"""
+        # Получаем output контракт для структурированного вывода
+        output_schema = self.get_output_contract(capability_name)
         
-        llm_response = await self._llm_provider.generate_json(llm_prompt)
-        
+        if output_schema:
+            # Используем структурированный вывод с контрактом
+            from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+            
+            llm_request = LLMRequest(
+                prompt=llm_prompt,
+                structured_output=StructuredOutputConfig(
+                    output_model="VectorBooksAnalysis",
+                    schema_def=output_schema,
+                    max_retries=3,
+                    strict_mode=False
+                )
+            )
+            
+            llm_response = await self._llm_provider.generate_structured(llm_request)
+            # Извлекаем результат из структурированного ответа
+            if isinstance(llm_response, dict) and 'raw_response' in llm_response:
+                import json
+                result_data = json.loads(llm_response['raw_response'])
+            else:
+                result_data = llm_response
+        else:
+            # Fallback: простой JSON вывод
+            llm_response = await self._llm_provider.generate_json(llm_prompt)
+            result_data = llm_response
+
         # 4. Формируем результат
         analysis = AnalysisResult(
             entity_id=entity_id,
             analysis_type=analysis_type,
-            result=llm_response.get("result", {}),
-            confidence=llm_response.get("confidence", 0.5),
-            reasoning=llm_response.get("reasoning")
+            result=result_data.get("result", {}),
+            confidence=result_data.get("confidence", 0.5),
+            reasoning=result_data.get("reasoning", "")
         )
-        
+
         # 5. Сохранение в кэш
         if self._cache_service:
             await self._cache_service.set(
@@ -260,7 +285,7 @@ class VectorBooksTool(BaseTool):
                 analysis.to_dict(),
                 ttl_hours=168  # 7 дней
             )
-        
+
         return analysis.to_dict()
     
     async def _get_context(self, entity_id: str) -> str:

@@ -241,31 +241,29 @@ class FinalAnswerSkill(BaseSkill):
         confidence_threshold = parameters.get("confidence_threshold", 0.7)
         max_sources = parameters.get("max_sources", 10)
 
-        # Получение промпта из кэша
-        prompt_content = self.get_cached_prompt_safe("final_answer.generate")
+        # Получение промпта из кэша (через BaseComponent.get_prompt)
+        capability_name = "final_answer.generate"
+        prompt_content = self.get_prompt(capability_name)
+        
         if not prompt_content:
-            self.logger.error("Промпт для final_answer.generate не найден")
+            self.logger.error(f"Промпт для {capability_name} не найден в кэше")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
-        # Рендеринг промпта с переменными
+        # Рендеринг промпта с переменными (используем метод из BaseComponent)
         try:
-            from core.services.prompt_service import PromptService
-            
-            rendered_prompt = await self.application_context.prompt_service.render_prompt(
-                capability="final_answer.generate",
-                variables={
-                    "goal": goal,
-                    "observations": observations[-max_sources:],  # Последние наблюдения
-                    "steps_taken": steps_taken[-10:],  # Последние шаги
-                    "format_type": format_type,
-                    "include_steps": include_steps,
-                    "include_evidence": include_evidence,
-                    "confidence_threshold": confidence_threshold,
-                    "max_sources": max_sources
-                }
+            rendered_prompt = self.render_prompt(
+                capability_name,
+                goal=goal,
+                observations=observations[-max_sources:],
+                steps_taken=steps_taken[-10:],
+                format_type=format_type,
+                include_steps=include_steps,
+                include_evidence=include_evidence,
+                confidence_threshold=confidence_threshold,
+                max_sources=max_sources
             )
         except Exception as e:
-            self.logger.warning(f"Ошибка рендеринга промпта через сервис: {e}, используем fallback")
+            self.logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
             rendered_prompt = self._render_prompt_fallback(
                 goal=goal,
                 observations=observations,
