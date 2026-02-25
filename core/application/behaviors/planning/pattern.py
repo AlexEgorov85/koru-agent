@@ -9,12 +9,25 @@ import logging
 logger = logging.getLogger(__name__)
 
 class PlanningPattern(BehaviorPatternInterface):
-    """Паттерн иерархического планирования: создание плана → выполнение шагов → коррекция"""
+    """Паттерн иерархического планирования: создание плана → выполнение шагов → коррекция
     
-    pattern_id = "planning.v1.0.0"
+    АРХИТЕКТУРА:
+    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
+    - НЕ содержит захардкоженных версий
+    """
+    # pattern_id НЕ определяется здесь — передаётся через __init__
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None):
-        self.pattern_id = pattern_id or "planning.v1.0.0"
+    def __init__(self, pattern_id: str, metadata: dict = None):
+        """Инициализация паттерна.
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "planning.v1.0.0")
+        - metadata: Метаданные паттерна
+        """
+        if not pattern_id:
+            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        
+        self.pattern_id = pattern_id
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def analyze_context(

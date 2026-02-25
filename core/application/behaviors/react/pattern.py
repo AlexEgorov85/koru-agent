@@ -33,23 +33,27 @@ class ReActPattern(BehaviorPatternInterface):
     3. Структурированное рассуждение через LLM (с использованием PromptService и ContractService)
     4. Принятие решения на основе результатов
     5. Обработка ошибок и применение fallback
-    
+
     АРХИТЕКТУРА:
     - НЕ знает о версиях промптов/контрактов
+    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
     - Использует ресурсы из component_config (загружены ApplicationContext)
     - Промпты и контракты загружаются через PromptService/ContractService
     """
-    pattern_id = "react.v1.0.0"
+    # pattern_id НЕ определяется здесь — передаётся через __init__
 
-    def __init__(self, pattern_id: str = None, metadata: dict = None, application_context = None):
+    def __init__(self, pattern_id: str, metadata: dict = None, application_context = None):
         """Инициализация паттерна.
 
         ПАРАМЕТРЫ:
-        - pattern_id: ID паттерна
+        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "react.v1.0.0")
         - metadata: Метаданные паттерна (может содержать resolved_prompt и resolved_output_contract)
         - application_context: Прикладной контекст для доступа к компонентам
         """
-        self.pattern_id = pattern_id or "react.v1.0.0"
+        if not pattern_id:
+            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        
+        self.pattern_id = pattern_id
         self.reasoning_schema = None  # Будет загружено из metadata или ContractService
         self.reasoning_prompt_template = None  # Будет загружено из metadata или PromptService
         self.last_reasoning_time = 0.0
@@ -70,7 +74,7 @@ class ReActPattern(BehaviorPatternInterface):
                 if resolved_prompts:
                     # Берём первый промпт (для react это behavior.react.think)
                     self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
-                
+
                 # Получаем контракт из resolved_output_contracts
                 resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
                 if resolved_output_contracts:

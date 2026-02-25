@@ -10,12 +10,24 @@ from typing import List, Dict, Any
 class EvaluationPattern(BehaviorPatternInterface):
     """
     Паттерн оценки достижения цели.
+    
+    АРХИТЕКТУРА:
+    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
+    - НЕ содержит захардкоженных версий
     """
+    # pattern_id НЕ определяется здесь — передаётся через __init__
 
-    pattern_id = "evaluation.v1.0.0"
-
-    def __init__(self, pattern_id: str = None, metadata: dict = None):
-        self.pattern_id = pattern_id or "evaluation.v1.0.0"
+    def __init__(self, pattern_id: str, metadata: dict = None):
+        """Инициализация паттерна.
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "evaluation.v1.0.0")
+        - metadata: Метаданные паттерна
+        """
+        if not pattern_id:
+            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        
+        self.pattern_id = pattern_id
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def analyze_context(

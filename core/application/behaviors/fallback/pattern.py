@@ -11,12 +11,25 @@ class FallbackPattern(BehaviorPatternInterface):
     """
     Паттерн интеллектуального восстановления.
     Используется при ошибках для диагностики и восстановления.
+    
+    АРХИТЕКТУРА:
+    - pattern_id передаётся извне (через BehaviorStorage/BehaviorManager)
+    - НЕ содержит захардкоженных версий
     """
+    # pattern_id НЕ определяется здесь — передаётся через __init__
 
-    pattern_id = "fallback.v1.0.0"
-
-    def __init__(self, pattern_id: str = None, metadata: dict = None, application_context = None):
-        self.pattern_id = pattern_id or "fallback.v1.0.0"
+    def __init__(self, pattern_id: str, metadata: dict = None, application_context = None):
+        """Инициализация паттерна.
+        
+        ПАРАМЕТРЫ:
+        - pattern_id: ID паттерна (ОБЯЗАТЕЛЬНО, например "fallback.v1.0.0")
+        - metadata: Метаданные паттерна
+        - application_context: Прикладной контекст
+        """
+        if not pattern_id:
+            raise ValueError("pattern_id обязателен для инициализации паттерна")
+        
+        self.pattern_id = pattern_id
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._application_context = application_context
 
