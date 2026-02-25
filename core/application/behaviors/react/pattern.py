@@ -251,13 +251,16 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> Dict[str, Any]:
         """Анализ контекста без принятия решений"""
         logger.error(f"analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
-        
+
         # Если available_capabilities пустой, получаем их из ApplicationContext
         if not available_capabilities and self.application_context:
             logger.error("analyze_context: available_capabilities пуст, получаем из ApplicationContext")
             available_capabilities = self.application_context.get_all_capabilities()
             logger.error(f"analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
-        
+
+        # Регистрируем схемы для всех capability в SchemaValidator
+        self._register_capability_schemas(available_capabilities)
+
         # Выполняем анализ контекста сессии
         analysis = analyze_context(session_context)
 
@@ -266,7 +269,7 @@ class ReActPattern(BaseBehaviorPattern):
             available_capabilities,
             required_skills=["book_library", "sql_query", "generic"]
         )
-        
+
         logger.error(f"analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
 
         # Добавляем информацию о прогрессе
@@ -275,6 +278,69 @@ class ReActPattern(BaseBehaviorPattern):
         analysis["consecutive_errors"] = getattr(session_context, 'consecutive_errors', 0)
 
         return analysis
+
+    def _register_capability_schemas(self, available_capabilities: List[Capability]):
+        """
+        Регистрирует схемы входных параметров для всех capability в SchemaValidator.
+
+        Схемы берутся из input_schemas кэша компонента.
+
+        ARGS:
+        - available_capabilities: список capability для регистрации
+        """
+        if not self.application_context:
+            return
+
+        # Получаем все input схемы из контекста
+        for cap in available_capabilities:
+            # Пытаемся получить схему из input_schemas кэша
+            # Формат ключа: capability_name (например, "book_library.execute_script")
+            schema = None
+            
+            # Проверяем, есть ли схема в кэше input_schemas
+            if hasattr(self, 'input_schemas') and cap.name in self.input_schemas:
+                schema = self.input_schemas[cap.name]
+            elif self.application_context.use_data_repository and self.application_context.data_repository:
+                # Пытаемся получить схему из DataRepository
+                try:
+                    # Получаем версию контракта из meta capability
+                    contract_version = cap.meta.get('contract_version', 'v1.0.0')
+                    schema = self.application_context.data_repository.get_contract_schema(
+                        cap.name, 
+                        contract_version, 
+                        "input"
+                    )
+                except Exception as e:
+                    logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
+            
+            # Если схема найдена, регистрируем её в SchemaValidator
+            if schema:
+                # Преобразуем схему в словарь параметров
+                # Ожидаем формат: {"input": {"type": "string", "required": True}}
+                params_schema = {}
+                if hasattr(schema, 'model_json_schema'):
+                    # Pydantic модель
+                    schema_dict = schema.model_json_schema()
+                    properties = schema_dict.get('properties', {})
+                    required = schema_dict.get('required', [])
+                    for prop_name, prop_info in properties.items():
+                        params_schema[prop_name] = {
+                            'type': prop_info.get('type', 'string'),
+                            'required': prop_name in required
+                        }
+                elif isinstance(schema, dict):
+                    # Словарь schema_data из YAML контракта
+                    properties = schema.get('properties', {})
+                    required = schema.get('required', [])
+                    for prop_name, prop_info in properties.items():
+                        params_schema[prop_name] = {
+                            'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string',
+                            'required': prop_name in required
+                        }
+                
+                if params_schema:
+                    self.schema_validator.register_capability_schema(cap.name, params_schema)
+                    logger.debug(f"Зарегистрирована схема для {cap.name}: {params_schema}")
 
     async def generate_decision(
         self,
