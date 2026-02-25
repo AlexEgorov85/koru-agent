@@ -51,7 +51,6 @@ behaviors:
   fallback_pattern:
     dependencies: []
     enabled: true
-    manifest_path: data/manifests/behaviors/fallback_pattern/manifest.yaml
     parameters: {}
 capability_types:
   behavior: behavior
