@@ -48,6 +48,11 @@ behaviors:
       behavior.react.act: v1.0.0
       behavior.react.observe: v1.0.0
       behavior.react.think: v1.0.0
+  fallback_pattern:
+    dependencies: []
+    enabled: true
+    manifest_path: data/manifests/behaviors/fallback_pattern/manifest.yaml
+    parameters: {}
 capability_types:
   behavior: behavior
   behavior.planning: behavior
