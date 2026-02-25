@@ -47,6 +47,10 @@ class BehaviorManager:
         # Загрузка начального паттерна (через component_name)
         target_component_name = component_name or self._initial_component_name
         self._current_pattern = await self._behavior_storage.load_pattern_by_component(target_component_name)
+        
+        # Инициализация паттерна (загрузка промптов/контрактов если кэши пустые)
+        if hasattr(self._current_pattern, 'initialize'):
+            await self._current_pattern.initialize()
 
     async def generate_next_decision(
         self,
