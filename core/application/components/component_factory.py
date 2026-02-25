@@ -50,7 +50,16 @@ class ComponentFactory:
 
         self.logger.info(f"Параметры конструктора {component_class.__name__}: {list(params.keys())}")
 
-        if 'executor' in params:
+        # Специальная обработка для FallbackPattern (использует component_name вместо name)
+        if component_class.__name__ == "FallbackPattern":
+            self.logger.info(f"Создание FallbackPattern с component_name={name}")
+            component = component_class(
+                component_name=name,
+                component_config=component_config,
+                application_context=application_context,
+                executor=executor
+            )
+        elif 'executor' in params:
             # Если класс принимает executor, передаем его
             self.logger.info(f"Конструктор {component_class.__name__} принимает executor")
             component = component_class(
@@ -226,6 +235,9 @@ class ComponentFactory:
             elif name == "planning_pattern":
                 from core.application.behaviors.planning_pattern import PlanningPattern
                 return PlanningPattern
+            elif name == "fallback_pattern":
+                from core.application.behaviors.fallback.pattern import FallbackPattern
+                return FallbackPattern
             else:
                 # Попробуем стандартный путь для паттернов поведения
                 module_name = f"core.application.behaviors.{name}_pattern"
