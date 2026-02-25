@@ -64,14 +64,14 @@ class ReActPattern(BaseBehaviorPattern):
         self.retry_policy = RetryPolicy()
 
         # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
-        if self._component_config:
+        if self.component_config:
             # Получаем промпт из resolved_prompts (первый доступный)
-            resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
+            resolved_prompts = getattr(self.component_config, 'resolved_prompts', {})
             if resolved_prompts:
                 self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
 
             # Получаем контракт из resolved_output_contracts
-            resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
+            resolved_output_contracts = getattr(self.component_config, 'resolved_output_contracts', {})
             if resolved_output_contracts:
                 self.reasoning_schema = next(iter(resolved_output_contracts.values()))
 
@@ -101,9 +101,9 @@ class ReActPattern(BaseBehaviorPattern):
             contract_service = self._application_context.get_contract_service()
             
             # Загружаем промпт из PromptService (если есть component_config, сервис уже имеет кэш)
-            if prompt_service and self._component_config:
+            if prompt_service and self.component_config:
                 # Получаем из кэша сервиса (уже загружено при инициализации сервиса)
-                resolved_prompts = getattr(self._component_config, 'resolved_prompts', {})
+                resolved_prompts = getattr(self.component_config, 'resolved_prompts', {})
                 if resolved_prompts:
                     self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
             elif prompt_service:
@@ -111,8 +111,8 @@ class ReActPattern(BaseBehaviorPattern):
                 logger.warning("ComponentConfig не доступен, используем fallback для промпта")
             
             # Загружаем контракт из ContractService
-            if contract_service and self._component_config:
-                resolved_output_contracts = getattr(self._component_config, 'resolved_output_contracts', {})
+            if contract_service and self.component_config:
+                resolved_output_contracts = getattr(self.component_config, 'resolved_output_contracts', {})
                 if resolved_output_contracts:
                     self.reasoning_schema = next(iter(resolved_output_contracts.values()))
             elif contract_service:
