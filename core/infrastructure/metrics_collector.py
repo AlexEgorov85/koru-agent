@@ -16,12 +16,13 @@ from typing import Dict, List, Optional, Tuple, Any
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
+from core.infrastructure.collectors.base.base_collector import BaseEventCollector
 
 
 logger = logging.getLogger(__name__)
 
 
-class MetricsCollector:
+class MetricsCollector(BaseEventCollector):
     """
     Сборщик метрик через EventBus.
 
@@ -48,10 +49,8 @@ class MetricsCollector:
         - event_bus: шина событий для подписки
         - storage: хранилище для сохранения метрик
         """
-        self.event_bus = event_bus
+        super().__init__(event_bus)
         self.storage = storage
-        self._initialized = False
-        self._subscriptions = []
 
     async def initialize(self) -> None:
         """
@@ -61,6 +60,7 @@ class MetricsCollector:
         - EventType.SKILL_EXECUTED: выполнение навыков
         - EventType.CAPABILITY_SELECTED: выбор способности
         - EventType.ERROR_OCCURRED: ошибки выполнения
+        - EventType.METRIC_COLLECTED: произвольные метрики
         """
         if self._initialized:
             logger.warning("MetricsCollector уже инициализирован")
@@ -72,14 +72,7 @@ class MetricsCollector:
         self._subscribe(EventType.ERROR_OCCURRED, self._on_error_occurred)
         self._subscribe(EventType.METRIC_COLLECTED, self._on_metric_collected)
 
-        self._initialized = True
-        logger.info("MetricsCollector инициализирован: подписан на %d событий", len(self._subscriptions))
-
-    def _subscribe(self, event_type: EventType, handler) -> None:
-        """Подписка на событие"""
-        self.event_bus.subscribe(event_type, handler)
-        self._subscriptions.append(event_type)
-        logger.debug("MetricsCollector подписан на %s", event_type.value)
+        await super().initialize()
 
     async def _on_skill_executed(self, event: Event) -> None:
         """
@@ -317,34 +310,3 @@ class MetricsCollector:
         - List[MetricRecord]: список метрик
         """
         return await self.storage.get_records(capability, version, time_range, limit)
-
-    async def shutdown(self) -> None:
-        """
-        Корректное завершение работы.
-
-        Отписка от всех событий.
-        """
-        if not self._initialized:
-            return
-
-        for event_type in self._subscriptions:
-            # Отписка (если метод unsubscribe доступен)
-            try:
-                # Пытаемся отписаться, если метод существует
-                pass
-            except Exception:
-                pass
-
-        self._subscriptions.clear()
-        self._initialized = False
-        logger.info("MetricsCollector завершил работу")
-
-    @property
-    def is_initialized(self) -> bool:
-        """Проверка инициализации"""
-        return self._initialized
-
-    @property
-    def subscriptions_count(self) -> int:
-        """Количество подписок"""
-        return len(self._subscriptions)

@@ -16,12 +16,13 @@ from typing import Dict, List, Optional, Any
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
 from core.models.data.benchmark import LogEntry, LogType
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
+from core.infrastructure.collectors.base.base_collector import BaseEventCollector
 
 
 logger = logging.getLogger(__name__)
 
 
-class LogCollector:
+class LogCollector(BaseEventCollector):
     """
     Централизованный сбор логов для обучения.
 
@@ -50,10 +51,8 @@ class LogCollector:
         - event_bus: шина событий для подписки
         - storage: хранилище для сохранения логов
         """
-        self.event_bus = event_bus
+        super().__init__(event_bus)
         self.storage = storage
-        self._initialized = False
-        self._subscriptions = []
 
     async def initialize(self) -> None:
         """
@@ -468,24 +467,3 @@ class LogCollector:
         - List[LogEntry]: список логов ошибок
         """
         return await self.storage.get_by_capability(capability, log_type='error', limit=limit)
-
-    async def shutdown(self) -> None:
-        """
-        Корректное завершение работы.
-        """
-        if not self._initialized:
-            return
-
-        self._subscriptions.clear()
-        self._initialized = False
-        logger.info("LogCollector завершил работу")
-
-    @property
-    def is_initialized(self) -> bool:
-        """Проверка инициализации"""
-        return self._initialized
-
-    @property
-    def subscriptions_count(self) -> int:
-        """Количество подписок"""
-        return len(self._subscriptions)
