@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## [5.7.0] - 2026-02-26
+
+### Refactored
+- **Система кэширования компонентов** — переименование атрибутов
+  - `BaseComponent`: `_cached_prompts` → `prompts`
+  - `BaseComponent`: `_cached_input_contracts` → `input_contracts`
+  - `BaseComponent`: `_cached_output_contracts` → `output_contracts`
+  - `PromptService`: `_cached_prompts` → `prompts`
+  - `ContractService`: `_cached_contracts` → `contracts`
+  - `DataRepository`: `_prompt_content_cache` → `prompt_cache`
+  - `DataRepository`: `_contract_schema_cache` → `contract_schema_cache`
+  - `ApplicationContext`: `_prompt_cache` → `prompt_cache`
+  - `ApplicationContext`: `_input_contract_schema_cache` → `input_contract_cache`
+  - `ApplicationContext`: `_output_contract_schema_cache` → `output_contract_cache`
+
+- **Паттерны поведения** — исправление архитектурных нарушений
+  - `ReActPattern`: удалён `_ensure_prompt_and_contract_loaded()`, добавлен `_load_reasoning_resources()`
+  - `ReActPattern`: загрузка ресурсов только из кэша `BaseComponent`
+  - `EvaluationPattern`: `session_context.get_llm_provider()` → `infrastructure_context.get_provider()`
+  - `EvaluationPattern`: промпты/контракты из `self.prompts` / `self.output_contracts`
+  - `FallbackPattern`: версии паттернов из `component_config.parameters` (не хардкод)
+
+- **AgentRuntime** — удалён мёртвый код
+  - Удалён метод `_decide_next_action()` — ответственность делегирована `Behavior Pattern`
+
+### Fixed
+- **test_log_collector.py** — обновлено количество subscriptions (9 → 11)
+- **test_e2e_architecture.py** — обновлены имена атрибутов кэша
+
+### Technical Details
+- Сохранена обратная совместимость через алиасы в `BaseComponent`
+- Все 696 тестов проходят успешно (10 skipped — интеграционные)
+- Удалён unused файл `core/application/agent/strategies/react/prompts.py`
+
 ## [5.6.0] - 2026-02-26
 
 ### Added
