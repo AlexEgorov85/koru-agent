@@ -60,8 +60,16 @@ class SQLTool(BaseTool):
                 return True
         return False
 
-    async def execute_specific(self, input_data: SQLToolInput) -> SQLToolOutput:
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима."""
+        # Преобразуем параметры во входные данные
+        input_data = self._convert_params_to_input(parameters)
+        
         # === ЭТАП 1: Валидация входных данных через схему ===
         input_schema = self.get_cached_input_contract_safe("sql_tool.execute_query")
         if input_schema:
@@ -73,13 +81,13 @@ class SQLTool(BaseTool):
                 })
             except Exception as e:
                 self.logger.error(f"Валидация входных данных не пройдена: {e}")
-                return SQLToolOutput(
-                    rows=[],
-                    columns=[],
-                    rowcount=0,
-                    execution_time=0
-                )
-        
+                return {
+                    "rows": [],
+                    "columns": [],
+                    "rowcount": 0,
+                    "execution_time": 0
+                }
+
         start_time = time.time()
 
         # Запрашиваем зависимости из инфраструктуры при выполнении через унифицированный метод
@@ -87,21 +95,21 @@ class SQLTool(BaseTool):
 
         if not db_provider:
             self.logger.error("DB провайдер не найден")
-            return SQLToolOutput(
-                rows=[],
-                columns=[],
-                rowcount=0,
-                execution_time=time.time() - start_time
-            )
+            return {
+                "rows": [],
+                "columns": [],
+                "rowcount": 0,
+                "execution_time": time.time() - start_time
+            }
 
         # Проверка sandbox-режима
         if not self.component_config.side_effects_enabled and self._is_write_query(input_data.sql):
-            return SQLToolOutput(
-                rows=[],
-                columns=[],
-                rowcount=0,
-                execution_time=time.time() - start_time
-            )
+            return {
+                "rows": [],
+                "columns": [],
+                "rowcount": 0,
+                "execution_time": time.time() - start_time
+            }
 
         # Выполнение через провайдера
         # Проверяем, поддерживает ли провайдер параметр max_rows
@@ -122,41 +130,24 @@ class SQLTool(BaseTool):
 
         execution_time = time.time() - start_time
 
-        output = SQLToolOutput(
-            rows=result.rows,
-            columns=result.columns,
-            rowcount=result.rowcount,
-            execution_time=execution_time
-        )
+        output = {
+            "rows": result.rows,
+            "columns": result.columns,
+            "rowcount": result.rowcount,
+            "execution_time": execution_time
+        }
 
         # === ЭТАП 2: Валидация выходных данных через схему ===
         output_schema = self.get_cached_output_contract_safe("sql_tool.execute_query")
         if output_schema:
             try:
-                output_schema.model_validate({
-                    "rows": output.rows,
-                    "columns": output.columns,
-                    "rowcount": output.rowcount,
-                    "execution_time": output.execution_time
-                })
+                from dataclasses import asdict
+                output_schema.model_validate(output)
             except Exception as e:
                 self.logger.error(f"Валидация выходных данных не пройдена: {e}")
 
         return output
-    
-    # Also preserve the original execute method for backward compatibility
-    async def execute(self, input_data: SQLToolInput = None, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None):
-        """
-        Выполнение SQL-запроса - поддержка обоих интерфейсов.
-        """
-        # Если вызов происходит с новым интерфейсом
-        if capability is not None or parameters is not None or execution_context is not None:
-            input_data = self._convert_params_to_input(parameters or {})
-            return await self.execute_specific(input_data)
-        else:
-            # Это вызов старого интерфейса
-            return await self.execute_specific(input_data)
-    
+
     def _convert_params_to_input(self, parameters: Dict[str, Any]) -> SQLToolInput:
         """
         Преобразование параметров нового интерфейса в SQLToolInput.

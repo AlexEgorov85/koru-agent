@@ -58,21 +58,43 @@ class FileTool(BaseTool):
         """Корректное завершение работы."""
         pass
 
-    async def execute(self, input_data: FileToolInput) -> FileToolOutput:
+    def _convert_params_to_input(self, parameters: Dict[str, Any]) -> FileToolInput:
+        """
+        Преобразование параметров нового интерфейса в FileToolInput.
+        """
+        operation = parameters.get('operation', 'read')
+        path = parameters.get('path', '')
+        content = parameters.get('content')
+        return FileToolInput(operation=operation, path=path, content=content, **parameters)
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """
         Выполнение файловой операции.
 
         ARGS:
-        - input_data: объект FileToolInput с параметрами выполнения
+        - capability: capability для выполнения
+        - parameters: параметры выполнения
+        - execution_context: контекст выполнения
+
+        RETURNS:
+        - Словарь с результатом операции
         """
+        # Преобразуем параметры во входные данные
+        input_data = self._convert_params_to_input(parameters)
+        
         operation = input_data.operation
         file_path = input_data.path
 
         if not file_path:
-            return FileToolOutput(
-                success=False,
-                error="Путь к файлу не предоставлен"
-            )
+            return {
+                "success": False,
+                "error": "Путь к файлу не предоставлен"
+            }
 
         # Проверяем, что путь находится в разрешенной директории
         # для безопасности
@@ -85,21 +107,18 @@ class FileTool(BaseTool):
             # Проверяем, что запрашиваемый путь находится внутри разрешенной директории
             requested_path.relative_to(allowed_base_path.resolve())
         except ValueError:
-            return FileToolOutput(
-                success=False,
-                error="Запрашиваемый путь находится вне разрешенной директории"
-            )
+            return {
+                "success": False,
+                "error": "Запрашиваемый путь находится вне разрешенной директории"
+            }
 
         # Проверка sandbox-режима для операций записи
         if not self.component_config.side_effects_enabled and self._is_write_operation(operation):
-            return FileToolOutput(
-                success=True,
-                data={
-                    "success": True,
-                    "message": f"[SANDBOX] Would perform {operation} on {requested_path}",
-                    "dry_run": True
-                }
-            )
+            return {
+                "success": True,
+                "message": f"[SANDBOX] Would perform {operation} on {requested_path}",
+                "dry_run": True
+            }
 
         if operation == "read":
             result = await self._read_file(requested_path)
@@ -116,7 +135,7 @@ class FileTool(BaseTool):
                 "error": f"Неизвестная операция: {operation}"
             }
 
-        return FileToolOutput(success=result["success"], data=result, error=result.get("error"))
+        return result
 
     async def _read_file(self, path: Path) -> Dict[str, Any]:
         """Чтение содержимого файла."""

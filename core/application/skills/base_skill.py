@@ -214,12 +214,18 @@ class BaseSkill(BaseComponent):
     # --------------------------------------------------
     # Execution API
     # --------------------------------------------------
-    @abstractmethod
+
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения навыка."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED
+
     async def execute(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
-        context: BaseSessionContext,
+        context: BaseSessionContext = None,
+        execution_context: 'ExecutionContext' = None,
     ) -> ExecutionResult:
         """
         Выполнение конкретной capability навыка.
@@ -227,7 +233,8 @@ class BaseSkill(BaseComponent):
         ПАРАМЕТРЫ:
         - capability: выбранная возможность для выполнения
         - parameters: параметры от LLM или runtime
-        - context: порт для работы с контекстом сессии
+        - context: порт для работы с контекстом сессии (устаревший параметр)
+        - execution_context: контекст выполнения (новый параметр)
 
         ВОЗВРАЩАЕТ:
         - Результат выполнения capability
@@ -243,15 +250,41 @@ class BaseSkill(BaseComponent):
             context=session_context
         )
         """
-        # По умолчанию делегируем выполнение методу run для обратной совместимости
-        result = await self.run(parameters, context)
-        return ExecutionResult(
-            status=ExecutionStatus.SUCCESS,
-            result=result,
-            observation_item_id=None,
-            summary=f"Capability {capability.name} executed successfully",
-            error=None
-        )
+        # Адаптация старого интерфейса к новому
+        if context is not None and execution_context is None:
+            # Создаём ExecutionContext из BaseSessionContext
+            from core.application.agent.components.action_executor import ExecutionContext
+            execution_context = ExecutionContext(
+                session_context=context,
+                available_capabilities=self.get_capability_names()
+            )
+        
+        # Используем универсальный шаблон выполнения из BaseComponent
+        return await super().execute(capability, parameters, execution_context)
+
+    async def _execute_impl(
+        self,
+        capability: Capability,
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики навыка.
+
+        Переопределяется в наследниках для конкретной реализации.
+        По умолчанию вызывает run() для обратной совместимости.
+
+        ПАРАМЕТРЫ:
+        - capability: capability для выполнения
+        - parameters: параметры выполнения
+        - execution_context: контекст выполнения
+
+        ВОЗВРАЩАЕТ:
+        - Результат выполнения в виде словаря
+        """
+        # Для обратной совместимости вызываем run()
+        session_context = execution_context.session_context if execution_context else None
+        return await self.run(parameters, session_context)
 
     def get_metadata(self):
         """

@@ -114,6 +114,12 @@ class BaseBehavior(BaseComponent):
         self._ensure_initialized()
         return self.output_contracts.get(capability_name, {})
 
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения поведенческого паттерна."""
+        # Для поведенческих паттернов нет специального события
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.AGENT_STARTED
+
     @abstractmethod
     async def execute(self, input_data: BehaviorInput) -> BehaviorOutput:
         """

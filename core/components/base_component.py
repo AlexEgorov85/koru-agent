@@ -8,7 +8,7 @@
 - Изолированные кэши для каждого экземпляра
 - Взаимодействие ТОЛЬКО через ActionExecutor
 """
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
@@ -24,11 +24,35 @@ class BaseComponent(ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ.
 
-    ГАРАНТИИ:
+    АРХИТЕКТУРНЫЕ ГАРАНТИИ:
     - Никаких обращений к сервисам во время выполнения
     - Все ресурсы предзагружены ДО вызова execute()
     - Никаких прямых зависимостей от других компонентов
     - Взаимодействие ТОЛЬКО через ActionExecutor
+
+    ЖИЗНЕННЫЙ ЦИКЛ:
+    1. __init__ - создание экземпляра с конфигурацией
+    2. initialize() - предзагрузка всех ресурсов (промты, контракты)
+    3. execute() - выполнение бизнес-логики через универсальный шаблон
+    4. shutdown() - корректное завершение работы
+
+    ПРИМЕР ИСПОЛЬЗОВАНИЯ:
+    ```python
+    class MySkill(BaseSkill):
+        async def _execute_impl(self, capability, parameters, context):
+            # Ваша бизнес-логика здесь
+            prompt = self.get_prompt(capability.name)
+            return {"result": "done"}
+    ```
+
+    АТРИБУТЫ:
+    - name: имя компонента
+    - application_context: контекст приложения для доступа к ресурсам
+    - component_config: конфигурация компонента с версиями ресурсов
+    - executor: ActionExecutor для взаимодействия с другими компонентами
+    - prompts: кэш промптов (объекты Prompt)
+    - input_contracts: кэш входных контрактов (классы Pydantic)
+    - output_contracts: кэш выходных контрактов (классы Pydantic)
     """
 
     def __init__(
@@ -800,7 +824,6 @@ class BaseComponent(ABC):
         from core.infrastructure.event_bus.event_bus import EventType
         return EventType.SKILL_EXECUTED  # По умолчанию
 
-    @abstractmethod
     async def _execute_impl(
         self,
         capability: 'Capability',
@@ -811,6 +834,7 @@ class BaseComponent(ABC):
         Реализация бизнес-логики компонента.
 
         Этот метод должен быть переопределен в наследниках.
+        Реализация по умолчанию вызывает NotImplementedError.
 
         ПАРАМЕТРЫ:
         - capability: capability для выполнения
@@ -819,8 +843,13 @@ class BaseComponent(ABC):
 
         ВОЗВРАЩАЕТ:
         - Результат выполнения (тип зависит от компонента)
+
+        ИСКЛЮЧЕНИЯ:
+        - NotImplementedError: если метод не переопределен в наследнике
         """
-        pass
+        raise NotImplementedError(
+            f"Метод _execute_impl() должен быть реализован в классе {self.__class__.__name__}"
+        )
 
     async def shutdown(self) -> None:
         """Корректное завершение работы компонента."""

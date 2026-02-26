@@ -268,22 +268,71 @@ class BaseService(BaseComponent):
         """
         raise NotImplementedError("_convert_params_to_input должен быть реализован в подклассе")
 
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса."""
+        # Для сервисов нет специального события, используем общее
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
+
     async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):
         """
         Универсальный метод выполнения, поддерживающий оба интерфейса.
         """
         # Если вызов происходит с новым интерфейсом (Capability, parameters, context)
         if capability is not None or parameters is not None or execution_context is not None:
-            # Пытаемся преобразовать вызов к старому интерфейсу
-            input_data = self._convert_params_to_input(parameters or {})
-            return await self.execute_specific(input_data)
+            # Используем универсальный шаблон выполнения из BaseComponent
+            if capability is None:
+                # Создаём capability по умолчанию для сервиса
+                from core.models.data.capability import Capability
+                capability = Capability(
+                    name=f"{self.name}.default",
+                    description=f"Операция сервиса {self.name}",
+                    skill_name=self.name
+                )
+            
+            return await super().execute(capability, parameters or {}, execution_context)
+        
         elif input_data is not None:
-            # Это вызов старого интерфейса
-            return await self.execute_specific(input_data)
+            # Это вызов старого интерфейса - преобразуем в новый
+            from core.models.data.capability import Capability
+            from core.application.agent.components.action_executor import ExecutionContext
+            
+            capability = Capability(
+                name=f"{self.name}.default",
+                description=f"Операция сервиса {self.name}",
+                skill_name=self.name
+            )
+            
+            # Преобразуем ServiceInput в parameters
+            parameters = {}
+            if hasattr(input_data, '__dict__'):
+                parameters = input_data.__dict__
+            
+            return await super().execute(capability, parameters, ExecutionContext())
+        
         else:
             # Это вызов с явным input_data (старый интерфейс)
             raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
-    
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса.
+
+        Преобразует параметры в ServiceInput и вызывает execute_specific.
+        """
+        input_data = self._convert_params_to_input(parameters)
+        result = await self.execute_specific(input_data)
+        
+        # Преобразуем результат в словарь
+        if hasattr(result, '__dict__'):
+            return result.__dict__
+        return {'result': result}
+
     async def execute_specific(self, input_data: ServiceInput) -> ServiceOutput:
         """
         Специфичный метод выполнения для конкретных сервисов.
