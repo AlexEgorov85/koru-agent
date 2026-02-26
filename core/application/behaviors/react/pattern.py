@@ -100,25 +100,41 @@ class ReActPattern(BaseBehaviorPattern):
             # === ПРИОРИТЕТ 1: Используем кэш BaseComponent (self.prompts / self.output_schemas) ===
             # Промпты уже загружены в self.prompts через BaseComponent.initialize() → _preload_resources()
             if self.prompts:
-                # Берём первый доступный промпт (обычно behavior.react.think)
-                for cap_name, prompt_obj in self.prompts.items():
+                # Ищем промпт behavior.react.think (приоритет) или первый доступный
+                if "behavior.react.think" in self.prompts:
+                    prompt_obj = self.prompts["behavior.react.think"]
                     if hasattr(prompt_obj, 'content') and prompt_obj.content:
                         self.reasoning_prompt_template = prompt_obj.content
-                        logger.info(f"Загружен промпт из self.prompts[{cap_name}]")
-                        break
-            
+                        logger.info("Загружен промпт behavior.react.think из self.prompts")
+                else:
+                    # Fallback: берём первый доступный промпт
+                    for cap_name, prompt_obj in self.prompts.items():
+                        if hasattr(prompt_obj, 'content') and prompt_obj.content:
+                            self.reasoning_prompt_template = prompt_obj.content
+                            logger.info(f"Загружен промпт из self.prompts[{cap_name}] (fallback)")
+                            break
+
             # Контракты уже загружены в self.output_schemas через BaseComponent.initialize()
             if self.output_schemas:
-                # Берём первую доступную схему
-                for cap_name, schema_cls in self.output_schemas.items():
+                # Ищем контракт behavior.react.think (приоритет) или первый доступный
+                if "behavior.react.think" in self.output_schemas:
+                    schema_cls = self.output_schemas["behavior.react.think"]
                     if schema_cls:
-                        # Преобразуем Pydantic модель в dict для совместимости
                         if hasattr(schema_cls, 'model_json_schema'):
                             self.reasoning_schema = schema_cls.model_json_schema()
                         else:
                             self.reasoning_schema = schema_cls
-                        logger.info(f"Загружен контракт из self.output_schemas[{cap_name}]")
-                        break
+                        logger.info("Загружен контракт behavior.react.think из self.output_schemas")
+                else:
+                    # Fallback: берём первую доступную схему
+                    for cap_name, schema_cls in self.output_schemas.items():
+                        if schema_cls:
+                            if hasattr(schema_cls, 'model_json_schema'):
+                                self.reasoning_schema = schema_cls.model_json_schema()
+                            else:
+                                self.reasoning_schema = schema_cls
+                            logger.info(f"Загружен контракт из self.output_schemas[{cap_name}] (fallback)")
+                            break
 
             # === ПРИОРИТЕТ 2: Fallback на component_config.resolved_prompts ===
             if not self.reasoning_prompt_template and self.component_config:
