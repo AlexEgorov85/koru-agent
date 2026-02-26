@@ -1,4 +1,4 @@
-"""
+﻿"""
 Типизированная модель контракта с встроенной Pydantic-схемой.
 """
 from pydantic import BaseModel, Field, model_validator, ConfigDict

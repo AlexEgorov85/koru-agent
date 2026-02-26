@@ -1,4 +1,4 @@
-"""
+﻿"""
 Валидатор схемы для ReAct стратегии в новой архитектуре
 """
 from typing import Dict, Any, Optional

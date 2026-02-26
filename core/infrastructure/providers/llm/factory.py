@@ -1,4 +1,4 @@
-"""
+﻿"""
 Фабрика для создания LLM провайдеров.
 """
 from typing import Dict, Type

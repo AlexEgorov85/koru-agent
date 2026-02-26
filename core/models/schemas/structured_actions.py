@@ -1,4 +1,4 @@
-"""
+﻿"""
 Structured Actions
 
 Назначение:

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+﻿from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from core.application.context.application_context import ApplicationContext
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput

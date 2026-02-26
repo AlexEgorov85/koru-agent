@@ -1,4 +1,4 @@
-"""
+﻿"""
 Инициализация компонентов агента для новой архитектуры
 """
 from .behavior_manager import BehaviorManager

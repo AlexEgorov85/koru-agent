@@ -1,4 +1,4 @@
-"""
+﻿"""
 Модели для выполнения задач.
 """
 from dataclasses import dataclass

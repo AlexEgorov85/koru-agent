@@ -581,27 +581,244 @@ class BaseComponent(ABC):
             self.logger.error(f"Ошибка рендеринга промпта {capability_name}: {e}")
             raise
 
+    # === ДОСТУП К ПРОВАЙДЕРАМ ИНФРАСТРУКТУРЫ ===
+
+    def get_provider(self, name: str):
+        """
+        Универсальный метод получения провайдера из инфраструктуры.
+
+        ARGS:
+        - name: имя провайдера
+
+        RETURNS:
+        - Провайдер или None если не найден
+        """
+        if not hasattr(self.application_context, 'infrastructure_context'):
+            self.logger.warning(f"infrastructure_context не доступен для получения провайдера '{name}'")
+            return None
+        return self.application_context.infrastructure_context.get_provider(name)
+
+    def get_llm_provider(self, name: str = "default_llm"):
+        """
+        Получение LLM провайдера.
+
+        ARGS:
+        - name: имя LLM провайдера (по умолчанию "default_llm")
+
+        RETURNS:
+        - LLM провайдер или None если не найден
+        """
+        return self.get_provider(name)
+
+    def get_db_provider(self, name: str = "default_db"):
+        """
+        Получение DB провайдера.
+
+        ARGS:
+        - name: имя DB провайдера (по умолчанию "default_db")
+
+        RETURNS:
+        - DB провайдер или None если не найден
+        """
+        return self.get_provider(name)
+
+    # === ПУБЛИКАЦИЯ МЕТОРИК И СОБЫТИЙ ===
+
+    async def _publish_metrics(
+        self,
+        event_type: 'EventType',
+        capability_name: str,
+        success: bool,
+        execution_time_ms: float,
+        tokens_used: int = 0,
+        **extra_data
+    ) -> None:
+        """
+        Универсальный метод публикации метрик выполнения компонента через EventBus.
+
+        ARGS:
+        - event_type: тип события (EventType.SKILL_EXECUTED, EventType.TOOL_EXECUTED, etc.)
+        - capability_name: название выполненной capability
+        - success: успешность выполнения
+        - execution_time_ms: время выполнения в мс
+        - tokens_used: количество использованных токенов
+        - **extra_data: дополнительные данные для события
+        """
+        if not hasattr(self.application_context, 'infrastructure_context'):
+            self.logger.debug(f"infrastructure_context не доступен для публикации метрик")
+            return
+
+        event_bus = self.application_context.infrastructure_context.event_bus
+        
+        # Формируем базовые данные события
+        event_data = {
+            'agent_id': getattr(self.application_context, 'agent_id', getattr(self.application_context, 'id', 'unknown')),
+            'component_name': self.name,
+            'component_type': self._get_component_type(),
+            'capability': capability_name,
+            'success': success,
+            'execution_time_ms': execution_time_ms,
+            'tokens_used': tokens_used,
+            **extra_data
+        }
+
+        await event_bus.publish(
+            event_type,
+            data=event_data,
+            source=self.name
+        )
+
     # === АБСТРАКТНЫЙ МЕТОД ВЫПОЛНЕНИЯ (БЕЗ ПРЯМЫХ ЗАВИСИМОСТЕЙ) ===
-    
-    @abstractmethod
+
     async def execute(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
-    ) -> 'ActionResult':
+    ) -> 'ExecutionResult':
         """
-        ЕДИНСТВЕННЫЙ метод выполнения логики компонента.
-        
+        УНИВЕРСАЛЬНЫЙ ШАБЛОН ВЫПОЛНЕНИЯ КОМПОНЕНТА.
+
+        Этот метод реализует полный цикл выполнения с:
+        - Валидацией входных/выходных данных
+        - Обработкой ошибок
+        - Публикацией метрик
+        - Измерением времени выполнения
+
+        НАСЛЕДНИКИ должны переопределить только _execute_impl() для своей бизнес-логики.
+
         ЗАПРЕЩЕНО:
         - Вызывать другие компоненты напрямую
         - Обращаться к сервисам (PromptService, ContractService)
         - Работать с файловой системой
-        
+
         РАЗРЕШЕНО:
         - Использовать предзагруженные ресурсы из кэшей
         - Вызывать другие действия через self.executor.execute_action()
         - Валидировать входные/выходные данные через контракты из кэша
+        """
+        import time
+        from core.models.data.execution import ExecutionResult, ExecutionStatus
+        from core.infrastructure.event_bus.event_bus import EventType
+
+        start_time = time.time()
+        
+        try:
+            # === ЭТАП 1: Валидация входных данных ===
+            if not self.validate_input(capability.name, parameters):
+                execution_time_ms = (time.time() - start_time) * 1000
+                
+                # Публикация метрики ошибки валидации
+                await self._publish_metrics(
+                    EventType.ERROR_OCCURRED,
+                    capability_name=capability.name,
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    error="Input validation failed",
+                    error_category="validation"
+                )
+                
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error="Input validation failed",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 2: Выполнение бизнес-логики ===
+            result = await self._execute_impl(capability, parameters, execution_context)
+
+            # === ЭТАП 3: Валидация выходных данных ===
+            if not self.validate_output(capability.name, result):
+                execution_time_ms = (time.time() - start_time) * 1000
+                
+                await self._publish_metrics(
+                    EventType.ERROR_OCCURRED,
+                    capability_name=capability.name,
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    error="Output validation failed",
+                    error_category="validation"
+                )
+                
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error="Output validation failed",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 4: Публикация метрик успеха ===
+            execution_time_ms = (time.time() - start_time) * 1000
+            
+            # Определяем тип события в зависимости от типа компонента
+            event_type = self._get_event_type_for_success()
+            
+            await self._publish_metrics(
+                event_type,
+                capability_name=capability.name,
+                success=True,
+                execution_time_ms=execution_time_ms,
+                result=result
+            )
+
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                result=result,
+                metadata={
+                    "capability": capability.name,
+                    "execution_time_ms": execution_time_ms
+                }
+            )
+
+        except Exception as e:
+            execution_time_ms = (time.time() - start_time) * 1000
+            
+            # Публикация метрик ошибки
+            await self._publish_metrics(
+                EventType.ERROR_OCCURRED,
+                capability_name=capability.name,
+                success=False,
+                execution_time_ms=execution_time_ms,
+                error=str(e),
+                error_type=type(e).__name__
+            )
+
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=str(e),
+                metadata={
+                    "capability": capability.name,
+                    "error_type": type(e).__name__
+                }
+            )
+
+    def _get_event_type_for_success(self) -> 'EventType':
+        """
+        Возвращает тип события для успешного выполнения.
+
+        Переопределяется в наследниках для возврата правильного типа события.
+        """
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED  # По умолчанию
+
+    @abstractmethod
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Any:
+        """
+        Реализация бизнес-логики компонента.
+
+        Этот метод должен быть переопределен в наследниках.
+
+        ПАРАМЕТРЫ:
+        - capability: capability для выполнения
+        - parameters: параметры выполнения
+        - execution_context: контекст выполнения
+
+        ВОЗВРАЩАЕТ:
+        - Результат выполнения (тип зависит от компонента)
         """
         pass
 

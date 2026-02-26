@@ -1,4 +1,4 @@
-"""
+﻿"""
 Базовый класс для LLM провайдеров.
 """
 from abc import ABC, abstractmethod

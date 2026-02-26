@@ -1,4 +1,4 @@
-class PlanningPatternFactory:
+﻿class PlanningPatternFactory:
     """Фабрика для устранения циклических зависимостей"""
     
     @staticmethod

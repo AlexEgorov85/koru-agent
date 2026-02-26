@@ -11,7 +11,7 @@
 7. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.model import ContextItemType
 from core.models.data.capability import Capability
@@ -357,47 +357,6 @@ class BaseSkill(BaseComponent):
             import logging
             logging.getLogger(__name__).warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         return safe_reload_component_with_module_reload(self)
-
-    async def _publish_metrics(
-        self,
-        capability_name: str,
-        success: bool,
-        execution_time_ms: float,
-        tokens_used: int = 0,
-        version: str = 'v1.0.0',
-        session_id: Optional[str] = None
-    ) -> None:
-        """
-        Публикация метрик выполнения навыка через EventBus.
-
-        ARGS:
-        - capability_name: название выполненной capability
-        - success: успешность выполнения
-        - execution_time_ms: время выполнения в мс
-        - tokens_used: количество использованных токенов
-        - version: версия промпта/контракта
-        - session_id: идентификатор сессии
-        """
-        from core.infrastructure.event_bus.event_bus import EventType
-        
-        # Получаем EventBus из application_context
-        if hasattr(self.application_context, 'infrastructure_context'):
-            event_bus = self.application_context.infrastructure_context.event_bus
-            
-            # Публикация события выполнения
-            await event_bus.publish(
-                EventType.SKILL_EXECUTED,
-                data={
-                    'agent_id': self.application_context.agent_id if hasattr(self.application_context, 'agent_id') else 'unknown',
-                    'capability': capability_name,
-                    'success': success,
-                    'execution_time_ms': execution_time_ms,
-                    'tokens_used': tokens_used,
-                    'version': version,
-                    'session_id': session_id
-                },
-                source=self.name
-            )
 
     async def shutdown(self):
         """

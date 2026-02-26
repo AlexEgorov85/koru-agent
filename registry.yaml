@@ -47,6 +47,7 @@ behaviors:
     prompt_versions:
       behavior.react.act: v1.0.0
       behavior.react.observe: v1.0.0
+      behavior.react.system: v1.0.0
       behavior.react.think: v1.0.0
   fallback_pattern:
     dependencies: []
@@ -60,6 +61,7 @@ capability_types:
   behavior.react: behavior
   behavior.react.act: behavior
   behavior.react.observe: behavior
+  behavior.react.system: behavior
   behavior.react.think: behavior
   book_library: skill
   book_library.search_books: tool

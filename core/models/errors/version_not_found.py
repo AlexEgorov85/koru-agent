@@ -1,4 +1,4 @@
-"""Exception raised when a specific version of a resource is not found."""
+﻿"""Exception raised when a specific version of a resource is not found."""
 
 
 class VersionNotFoundError(Exception):

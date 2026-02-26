@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+﻿from typing import Dict, Any, List, Optional
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.models.types.db_types import DBQueryResult
 from core.application.services.sql_generation.error_analyzer import SQLErrorAnalyzer
@@ -155,7 +155,7 @@ class SQLQueryService(BaseService):
         
         try:
             # === ЭТАП 1: Валидация входных данных через схему ===
-            input_schema = self.get_cached_input_schema_safe("sql_query_service.execute")
+            input_schema = self.get_cached_input_contract_safe("sql_query_service.execute")
             if input_schema:
                 try:
                     input_schema.model_validate({
@@ -213,7 +213,7 @@ class SQLQueryService(BaseService):
             )
 
             # === ЭТАП 4: Валидация выходных данных через схему ===
-            output_schema = self.get_cached_output_schema_safe("sql_query_service.execute")
+            output_schema = self.get_cached_output_contract_safe("sql_query_service.execute")
             if output_schema and tool_result.success and tool_result.data:
                 try:
                     output_schema.model_validate({

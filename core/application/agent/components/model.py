@@ -1,4 +1,4 @@
-"""
+﻿"""
 Модели решений агента для новой архитектуры
 """
 from dataclasses import dataclass

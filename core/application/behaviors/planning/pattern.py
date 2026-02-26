@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+﻿from typing import List, Optional, Dict, Any
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability

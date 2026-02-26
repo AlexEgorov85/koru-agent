@@ -1,4 +1,4 @@
-"""
+﻿"""
 Базовый класс для всех паттернов поведения (Behavior Patterns).
 
 АРХИТЕКТУРА:
@@ -27,7 +27,7 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ПОВЕДЕНЧЕСКИХ ПАТТЕРНОВ.
     
     НАСЛЕДУЕТСЯ ОТ BaseComponent ДЛЯ:
-    - Единого кэша промптов/контрактов (self.prompts, self.input_schemas, self.output_schemas)
+    - Единого кэша промптов/контрактов (self.prompts, self.input_contracts, self.output_contracts)
     - Единых методов доступа (self.get_prompt(), self.get_output_contract())
     - Единой инициализации через component_config.resolved_*
     

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Навык работы с библиотекой книг.
 
@@ -145,11 +145,11 @@ class BookLibrarySkill(BaseComponent):
                 self.logger.warning(f"Промпт для {capability} не загружен")
 
             # Проверяем наличие входной схемы
-            if capability not in self.input_schemas:
+            if capability not in self.input_contracts:
                 self.logger.warning(f"Входная схема для {capability} не загружена")
 
             # Проверяем наличие выходной схемы
-            if capability not in self.output_schemas:
+            if capability not in self.output_contracts:
                 self.logger.warning(f"Выходная схема для {capability} не загружена")
 
         # Загружаем реестр скриптов
@@ -199,7 +199,7 @@ class BookLibrarySkill(BaseComponent):
         self.logger.info(f"Запуск динамического поиска книг: {params}")
 
         # 1. Валидация входных параметров через кэшированную схему из YAML контракта
-        input_schema = self.get_cached_input_schema_safe("book_library.search_books")
+        input_schema = self.get_cached_input_contract_safe("book_library.search_books")
         if input_schema:
             try:
                 validated_params = input_schema.model_validate(params)
@@ -324,7 +324,7 @@ class BookLibrarySkill(BaseComponent):
             self.logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 6. Валидация результатов через выходную схему
-        output_schema = self.get_cached_output_schema_safe("book_library.search_books")
+        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
@@ -468,7 +468,7 @@ class BookLibrarySkill(BaseComponent):
             self.logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 8. Валидация результатов через выходную схему
-        output_schema = self.get_cached_output_schema_safe("book_library.execute_script")
+        output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
@@ -542,7 +542,7 @@ class BookLibrarySkill(BaseComponent):
         self.logger.info(f"Возвращено {len(scripts_list)} скриптов")
 
         # Валидация через схему из сервиса контрактов
-        output_schema = self.get_cached_output_schema_safe("book_library.list_scripts")
+        output_schema = self.get_cached_output_contract_safe("book_library.list_scripts")
         if output_schema:
             try:
                 # Создаём валидированную модель через схему контракта

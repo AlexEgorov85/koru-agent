@@ -1,4 +1,4 @@
-"""
+﻿"""
 Инструмент для выполнения SQL-запросов с поддержкой изолированных кэшей и sandbox режима.
 
 АРХИТЕКТУРА:
@@ -63,7 +63,7 @@ class SQLTool(BaseTool):
     async def execute_specific(self, input_data: SQLToolInput) -> SQLToolOutput:
         """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима."""
         # === ЭТАП 1: Валидация входных данных через схему ===
-        input_schema = self.get_cached_input_schema_safe("sql_tool.execute_query")
+        input_schema = self.get_cached_input_contract_safe("sql_tool.execute_query")
         if input_schema:
             try:
                 input_schema.model_validate({
@@ -82,8 +82,17 @@ class SQLTool(BaseTool):
         
         start_time = time.time()
 
-        # Запрашиваем зависимости из инфраструктуры при выполнении
-        db_provider = self.application_context.infrastructure_context.get_provider("default_db")
+        # Запрашиваем зависимости из инфраструктуры при выполнении через унифицированный метод
+        db_provider = self.get_db_provider("default_db")
+
+        if not db_provider:
+            self.logger.error("DB провайдер не найден")
+            return SQLToolOutput(
+                rows=[],
+                columns=[],
+                rowcount=0,
+                execution_time=time.time() - start_time
+            )
 
         # Проверка sandbox-режима
         if not self.component_config.side_effects_enabled and self._is_write_query(input_data.sql):
@@ -121,7 +130,7 @@ class SQLTool(BaseTool):
         )
 
         # === ЭТАП 2: Валидация выходных данных через схему ===
-        output_schema = self.get_cached_output_schema_safe("sql_tool.execute_query")
+        output_schema = self.get_cached_output_contract_safe("sql_tool.execute_query")
         if output_schema:
             try:
                 output_schema.model_validate({

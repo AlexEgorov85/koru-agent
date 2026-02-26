@@ -1,4 +1,4 @@
-"""
+﻿"""
 Навык анализа сырых данных по шагу.
 
 Архитектурные гарантии:
@@ -71,10 +71,10 @@ class DataAnalysisSkill(BaseSkill):
         if "data_analysis.analyze_step_data" not in self.prompts:
             self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
 
-        if "data_analysis.analyze_step_data" not in self.input_schemas:
+        if "data_analysis.analyze_step_data" not in self.input_contracts:
             self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
 
-        if "data_analysis.analyze_step_data" not in self.output_schemas:
+        if "data_analysis.analyze_step_data" not in self.output_contracts:
             self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
 
         self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
@@ -224,7 +224,7 @@ class DataAnalysisSkill(BaseSkill):
         start_time = time.time()
 
         # 1. Валидация входных параметров через кэшированную схему
-        input_schema = self.get_cached_input_schema_safe("data_analysis.analyze_step_data")
+        input_schema = self.get_cached_input_contract_safe("data_analysis.analyze_step_data")
         if input_schema:
             try:
                 validated_params = input_schema.model_validate(params)
@@ -313,7 +313,7 @@ class DataAnalysisSkill(BaseSkill):
             answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
 
             # 9. Валидация выхода
-            output_schema = self.get_cached_output_schema_safe("data_analysis.analyze_step_data")
+            output_schema = self.get_cached_output_contract_safe("data_analysis.analyze_step_data")
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(answer_data)

@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Any
+﻿from typing import Dict, List, Set, Any
 from core.models.data.manifest import Manifest
 from core.application.data_repository import DataRepository
 

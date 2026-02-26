@@ -1,4 +1,4 @@
-"""Навык для генерации финального ответа агента.
+﻿"""Навык для генерации финального ответа агента.
 
 Этот навык анализирует весь контекст сессии и формирует
 комплексный финальный ответ на основе всех собранных данных.
@@ -99,13 +99,13 @@ class FinalAnswerSkill(BaseSkill):
             self.logger.info(f"Промпт для {capability_name} загружен: {self.prompts[capability_name].version}")
 
         # Проверяем входную схему
-        if capability_name not in self.input_schemas:
+        if capability_name not in self.input_contracts:
             self.logger.warning(f"Входная схема для {capability_name} не загружена")
         else:
             self.logger.info(f"Входная схема для {capability_name} загружена")
 
         # Проверяем выходную схему
-        if capability_name not in self.output_schemas:
+        if capability_name not in self.output_contracts:
             self.logger.warning(f"Выходная схема для {capability_name} не загружена")
         else:
             self.logger.info(f"Выходная схема для {capability_name} загружена")
@@ -142,7 +142,7 @@ class FinalAnswerSkill(BaseSkill):
 
         try:
             # Валидация входных параметров через кэшированную схему
-            input_schema = self.get_cached_input_schema_safe(capability)
+            input_schema = self.get_cached_input_contract_safe(capability)
             if input_schema:
                 try:
                     validated_params = input_schema.model_validate(parameters)
@@ -168,7 +168,7 @@ class FinalAnswerSkill(BaseSkill):
             result["metadata"]["generation_time_ms"] = execution_time * 1000
             
             # Валидация выходных данных через кэшированную схему
-            output_schema = self.get_cached_output_schema_safe(capability)
+            output_schema = self.get_cached_output_contract_safe(capability)
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(result)
@@ -485,29 +485,29 @@ class FinalAnswerSkill(BaseSkill):
             }
         }
 
-    def get_cached_input_schema_safe(self, capability: str) -> Optional[Any]:
+    def get_cached_input_contract_safe(self, capability: str) -> Optional[Any]:
         """
-        Безопасное получение кэшированной входной схемы.
-        
-        ПАРАМЕТРЫ:
-        - capability: имя capability
-        
-        ВОЗВРАЩАЕТ:
-        - Схема валидации или None
-        """
-        return self.input_schemas.get(capability)
+        Безопасное получение кэшированного входного контракта.
 
-    def get_cached_output_schema_safe(self, capability: str) -> Optional[Any]:
-        """
-        Безопасное получение кэшированной выходной схемы.
-        
         ПАРАМЕТРЫ:
         - capability: имя capability
-        
+
         ВОЗВРАЩАЕТ:
         - Схема валидации или None
         """
-        return self.output_schemas.get(capability)
+        return self.input_contracts.get(capability)
+
+    def get_cached_output_contract_safe(self, capability: str) -> Optional[Any]:
+        """
+        Безопасное получение кэшированного выходного контракта.
+
+        ПАРАМЕТРЫ:
+        - capability: имя capability
+
+        ВОЗВРАЩАЕТ:
+        - Схема валидации или None
+        """
+        return self.output_contracts.get(capability)
 
     def get_cached_prompt_safe(self, capability: str) -> Optional[Prompt]:
         """

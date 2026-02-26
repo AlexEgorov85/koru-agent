@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+﻿from typing import Dict, Any, List, Optional
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.application.context.application_context import ApplicationContext
 import re
@@ -102,7 +102,7 @@ class SQLValidatorService(BaseService):
         - SQLValidatorServiceOutput: результат валидации
         """
         # === ЭТАП 1: Валидация входных данных через схему ===
-        input_schema = self.get_cached_input_schema_safe("sql_validator_service.validate")
+        input_schema = self.get_cached_input_contract_safe("sql_validator_service.validate")
         if input_schema:
             try:
                 # Валидируем входные данные через схему
@@ -121,7 +121,7 @@ class SQLValidatorService(BaseService):
         result = await self.validate_query(input_data.sql_query, input_data.parameters)
 
         # === ЭТАП 3: Валидация выходных данных через схему ===
-        output_schema = self.get_cached_output_schema_safe("sql_validator_service.validate")
+        output_schema = self.get_cached_output_contract_safe("sql_validator_service.validate")
         if output_schema:
             try:
                 output_schema.model_validate({

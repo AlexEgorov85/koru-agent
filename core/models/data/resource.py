@@ -1,4 +1,4 @@
-"""
+﻿"""
 Модели ресурсов для инфраструктурного контекста.
 """
 from dataclasses import dataclass

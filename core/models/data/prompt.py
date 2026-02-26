@@ -1,4 +1,4 @@
-"""
+﻿"""
 Типизированная модель промпта с полной валидацией.
 """
 from pydantic import BaseModel, Field, model_validator, ConfigDict

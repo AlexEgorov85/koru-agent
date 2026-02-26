@@ -1,4 +1,4 @@
-"""
+﻿"""
 ReAct (Reasoning and Acting) паттерн поведения.
 
 РЕАЛИЗУЕТ:

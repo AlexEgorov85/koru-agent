@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Реестр заготовленных SQL-скриптов для навыка book_library.
 
