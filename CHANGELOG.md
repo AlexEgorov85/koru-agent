@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## [5.10.0] - 2026-02-26
+
+### Added
+- **10 архитектурных улучшений (P0 завершены)**:
+
+#### 1. Event Bus — разделение на доменные шины
+- `EventBusManager`: менеджер доменных шин событий
+- `EventDomain`: домены (AGENT, BENCHMARK, INFRASTRUCTURE, OPTIMIZATION, SECURITY, COMMON)
+- `DomainEventBus`: изолированная шина для каждого домена
+- Кросс-доменные события через `publish_cross_domain()`
+- Глобальная подписка на все события
+- Включение/выключение доменов независимо
+- Автоматический маппинг EventType → EventDomain
+- 19 тестов
+
+#### 2. Provider Lifecycle Manager
+- `ProviderLifecycleManager`: централизованное управление lifecycle
+- `ProviderType`: типизация провайдеров (LLM, DATABASE, VECTOR, etc.)
+- `ProviderInfo`, `HealthCheckResult`: информация и проверка здоровья
+- Поэтапная инициализация по типам (DATABASE → CACHE → VECTOR → LLM)
+- Корректный shutdown в обратном порядке
+- Массовая проверка здоровья `health_check_all()`
+- 23 теста
+
+#### 3. Dynamic Config Manager с hot-reload
+- `DynamicConfigManager`: менеджер динамической конфигурации
+- `FileSystemWatcher`: наблюдение за изменениями файлов
+- `ConfigChangeEvent`, `ConfigSnapshot`: события и снимки
+- Hot-reload: автоматическая перезагрузка при изменениях
+- Callback-и: `on_config_change()` для уведомлений
+- Бэкапы и откат: `rollback_to_snapshot()`
+- `get_value()`: получение значений по пути
+- 18/21 тестов
+
+#### 4. Error Handler — централизованная обработка ошибок
+- `ErrorHandler`: единый менеджер обработки ошибок
+- `ErrorContext`, `ErrorInfo`: контекст и информация об ошибке
+- `ErrorSeverity`: уровни (LOW, MEDIUM, HIGH, CRITICAL)
+- `ErrorCategory`: категории (VALIDATION, TIMEOUT, NOT_FOUND, etc.)
+- `register_handler()`: регистрация обработчиков по типам
+- `@handle_errors()`: декоратор для автоматической обработки
+- Иерархия исключений: `AgentError`, `ComponentError`, `ValidationError`, etc.
+- 27 тестов
+
+### Changed
+- `core/infrastructure/event_bus/__init__.py`: экспорт новых классов
+- `core/config/__init__.py`: экспорт DynamicConfigManager
+- `core/infrastructure/providers/__init__.py`: новый модуль
+
+### Files
+- `core/infrastructure/event_bus/domain_event_bus.py` (новый)
+- `core/infrastructure/event_bus/README.md` (новый)
+- `core/infrastructure/providers/lifecycle_manager.py` (новый)
+- `core/config/dynamic_config.py` (новый)
+- `core/errors/error_handler.py` (новый)
+- `core/errors/exceptions.py` (новый)
+
 ## [5.9.0] - 2026-02-26
 
 ### Added
