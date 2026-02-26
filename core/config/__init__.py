@@ -1,16 +1,34 @@
 ﻿# core/config/__init__.py
+"""
+Модуль конфигурации системы.
+
+КОМПОНЕНТЫ:
+- config_loader: загрузчик конфигурации из файлов
+- dynamic_config: менеджер динамической конфигурации с hot-reload
+- agent_config: конфигурация агента
+- app_config: конфигурация приложения
+- models: модели данных конфигурации
+"""
 import os
 from typing import Optional
 
 from core.config.models import SystemConfig
 from .config_loader import ConfigLoader
 from .agent_config import AgentConfig
+from .dynamic_config import (
+    DynamicConfigManager,
+    ConfigChangeEvent,
+    ConfigSnapshot,
+    get_config_manager,
+    create_config_manager,
+    reset_config_manager,
+)
 
 
 def get_config(profile: Optional[str] = None, config_dir: Optional[str] = None) -> SystemConfig:
     """
     Получение конфигурации приложения
-    
+
     :param profile: Профиль конфигурации (dev/staging/prod)
     :param config_dir: Директория с конфигурационными файлами
     :return: Валидированная конфигурация системы
@@ -26,7 +44,7 @@ def get_config(profile: Optional[str] = None, config_dir: Optional[str] = None) 
         import logging
         logger = logging.getLogger("config")
         logger.error(f"Ошибка загрузки конфигурации: {str(e)}")
-        
+
         # Создание минимальной конфигурации для работы
         default_config = {
             "profile": profile or "dev",
@@ -47,3 +65,22 @@ def get_config(profile: Optional[str] = None, config_dir: Optional[str] = None) 
             }
         }
         return SystemConfig(**default_config)
+
+
+__all__ = [
+    # Config loader
+    'ConfigLoader',
+    'get_config',
+    
+    # Dynamic config (hot-reload)
+    'DynamicConfigManager',
+    'ConfigChangeEvent',
+    'ConfigSnapshot',
+    'get_config_manager',
+    'create_config_manager',
+    'reset_config_manager',
+    
+    # Models
+    'SystemConfig',
+    'AgentConfig',
+]
