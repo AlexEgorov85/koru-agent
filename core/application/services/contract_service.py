@@ -1,4 +1,4 @@
-"""
+﻿"""
 Сервис контрактов с изолированным кэшем.
 """
 from typing import Dict, Tuple, Optional, Any
@@ -32,7 +32,7 @@ class ContractService(BaseService):
             executor=executor
         )
         # Кэш: {(capability, direction): schema}
-        self._cached_contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
+        self.contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
     
     async def initialize(self) -> bool:
         """Инициализация ContractService с использованием предзагруженных ресурсов из ComponentConfig."""
@@ -47,7 +47,7 @@ class ContractService(BaseService):
                 # Получаем схему контракта из resolved_input_contracts в ComponentConfig (предзагруженные ресурсы)
                 if capability in self.component_config.resolved_input_contracts:
                     schema = self.component_config.resolved_input_contracts[capability]
-                    self._cached_contracts[(capability, "input")] = schema
+                    self.contracts[(capability, "input")] = schema
                 else:
                     self.logger.error(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
                     missing_contracts.append(f"{capability}@{version} (input)")
@@ -58,7 +58,7 @@ class ContractService(BaseService):
                 # Получаем схему контракта из resolved_output_contracts в ComponentConfig (предзагруженные ресурсы)
                 if capability in self.component_config.resolved_output_contracts:
                     schema = self.component_config.resolved_output_contracts[capability]
-                    self._cached_contracts[(capability, "output")] = schema
+                    self.contracts[(capability, "output")] = schema
                 else:
                     self.logger.error(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
                     missing_contracts.append(f"{capability}@{version} (output)")
@@ -72,14 +72,14 @@ class ContractService(BaseService):
             self._initialized = True
             self.logger.info(
                 f"ContractService инициализирован: "
-                f"загружено {len(self._cached_contracts)} контрактов"
+                f"загружено {len(self.contracts)} контрактов"
             )
             return True
 
         except Exception as e:
             self.logger.error(f"Ошибка инициализации ContractService: {e}")
             return False
-    
+
     def get_contract(self, capability_name: str, direction: str) -> Dict:
         """Возвращает схему контракта из ИЗОЛИРОВАННОГО кэша."""
         if not self._initialized:
@@ -87,15 +87,15 @@ class ContractService(BaseService):
                 f"Сервис '{self.name}' не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
             )
-        
+
         key = (capability_name, direction)
-        if key not in self._cached_contracts:
+        if key not in self.contracts:
             raise KeyError(
                 f"Контракт для capability '{capability_name}' ({direction}) не найден в кэше. "
-                f"Доступные: {[k for k in self._cached_contracts.keys() if k[0] == capability_name]}"
+                f"Доступные: {[k for k in self.contracts.keys() if k[0] == capability_name]}"
             )
-        
-        return self._cached_contracts[key]
+
+        return self.contracts[key]
 
     async def preload_contracts(self, component_config) -> bool:
         """
@@ -113,7 +113,7 @@ class ContractService(BaseService):
                         f"Input-контракт {capability}@{version} отсутствует в хранилище"
                     )
                 contract = await storage.load(capability, version, "input")
-                self._cached_contracts[(capability, "input")] = contract.schema_data
+                self.contracts[(capability, "input")] = contract.schema_data
 
             # Предзагружаем выходные контракты
             output_versions = getattr(component_config, 'output_contract_versions', {})
@@ -123,11 +123,11 @@ class ContractService(BaseService):
                         f"Output-контракт {capability}@{version} отсутствует в хранилище"
                     )
                 contract = await storage.load(capability, version, "output")
-                self._cached_contracts[(capability, "output")] = contract.schema_data
+                self.contracts[(capability, "output")] = contract.schema_data
 
             self.logger.info(
                 f"Контракты предзагружены: "
-                f"загружено {len(self._cached_contracts)} контрактов"
+                f"загружено {len(self.contracts)} контрактов"
             )
             return True
 
@@ -147,13 +147,13 @@ class ContractService(BaseService):
             )
 
         key = (capability_name, direction)
-        if key not in self._cached_contracts:
+        if key not in self.contracts:
             raise KeyError(
                 f"Контракт для capability '{capability_name}' ({direction}) не найден в кэше. "
-                f"Доступные: {[k for k in self._cached_contracts.keys() if k[0] == capability_name]}"
+                f"Доступные: {[k for k in self.contracts.keys() if k[0] == capability_name]}"
             )
 
-        return self._cached_contracts[key]
+        return self.contracts[key]
 
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:
         """Execute method required by the base class."""

@@ -112,8 +112,8 @@ async def test_prompt_cache_isolated(app_context_pair):
     assert prompt_service2 is not None, "PromptService не создан в ctx2"
 
     # Кэши должны быть разными объектами (изолированными)
-    if hasattr(prompt_service1, '_cached_prompts') and hasattr(prompt_service2, '_cached_prompts'):
-        assert id(prompt_service1._cached_prompts) != id(prompt_service2._cached_prompts)
+    if hasattr(prompt_service1, 'prompts') and hasattr(prompt_service2, 'prompts'):
+        assert id(prompt_service1.prompts) != id(prompt_service2.prompts)
 
     print("[PASS] Кэши промптов изолированы")
 
@@ -132,6 +132,6 @@ async def test_contract_cache_isolated(app_context_pair):
     assert contract_service2 is not None, "ContractService не создан в ctx2"
 
     # Кэши должны быть разными объектами (изолированными)
-    assert id(contract_service1._cached_contracts) != id(contract_service2._cached_contracts)
+    assert id(contract_service1.contracts) != id(contract_service2.contracts)
 
     print("[PASS] Кэши контрактов изолированы")

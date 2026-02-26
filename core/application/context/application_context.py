@@ -1,4 +1,4 @@
-"""
+﻿"""
 Прикладной контекст - версионируемый контекст для сессии/агента.
 
 СОДЕРЖИТ:
@@ -413,12 +413,12 @@ class ApplicationContext(BaseSystemContext):
         """
         self.logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
         # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
-        self._prompt_cache = {}  # Dict[(capability, version), Prompt]
+        self.prompt_cache = {}  # Dict[(capability, version), Prompt]
 
         for cap, ver in self.config.prompt_versions.items():
             try:
                 prompt_obj = self.data_repository.get_prompt(cap, ver)
-                self._prompt_cache[(cap, ver)] = prompt_obj
+                self.prompt_cache[(cap, ver)] = prompt_obj
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
 
@@ -429,30 +429,30 @@ class ApplicationContext(BaseSystemContext):
                 for comp_name, comp_config in comp_configs.items():
                     if hasattr(comp_config, 'prompt_versions'):
                         for cap, ver in comp_config.prompt_versions.items():
-                            if (cap, ver) not in self._prompt_cache:  # Не дублируем
+                            if (cap, ver) not in self.prompt_cache:  # Не дублируем
                                 try:
                                     prompt_obj = self.data_repository.get_prompt(cap, ver)
-                                    self._prompt_cache[(cap, ver)] = prompt_obj
+                                    self.prompt_cache[(cap, ver)] = prompt_obj
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
 
         # Контракты — загружаем схемы для валидации
-        self._input_contract_schema_cache = {}  # Dict[(capability, version), Type[BaseModel]]
-        self._output_contract_schema_cache = {}
+        self.input_contract_cache = {}  # Dict[(capability, version), Type[BaseModel]]
+        self.output_contract_cache = {}
 
         # Глобальные контракты из AppConfig
         # Ключи имеют вид "final_answer.generate", используем их напрямую
         for cap, ver in self.config.input_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
-                self._input_contract_schema_cache[(cap, ver)] = schema_cls
+                self.input_contract_cache[(cap, ver)] = schema_cls
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
         for cap, ver in self.config.output_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
-                self._output_contract_schema_cache[(cap, ver)] = schema_cls
+                self.output_contract_cache[(cap, ver)] = schema_cls
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
@@ -470,10 +470,10 @@ class ApplicationContext(BaseSystemContext):
                             # Ключи имеют вид "final_answer.generate", используем их напрямую
 
                             # Загружаем схему в кэш
-                            if (cap, ver) not in self._input_contract_schema_cache:
+                            if (cap, ver) not in self.input_contract_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
-                                    self._input_contract_schema_cache[(cap, ver)] = schema_cls
+                                    self.input_contract_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
 
@@ -490,10 +490,10 @@ class ApplicationContext(BaseSystemContext):
                             # Ключи имеют вид "final_answer.generate", используем их напрямую
 
                             # Загружаем схему в кэш
-                            if (cap, ver) not in self._output_contract_schema_cache:
+                            if (cap, ver) not in self.output_contract_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
-                                    self._output_contract_schema_cache[(cap, ver)] = schema_cls
+                                    self.output_contract_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
 
@@ -585,13 +585,13 @@ class ApplicationContext(BaseSystemContext):
             version = self.config.prompt_versions.get(capability)
             if version is None:
                 return ""
-        
+
         key = (capability, version)
-        if key in self._prompt_cache:
-            if hasattr(self._prompt_cache[key], 'content'):
-                return self._prompt_cache[key].content
+        if key in self.prompt_cache:
+            if hasattr(self.prompt_cache[key], 'content'):
+                return self.prompt_cache[key].content
             else:
-                return str(self._prompt_cache[key])
+                return str(self.prompt_cache[key])
         return ""
 
     async def _preload_all_prompts(self) -> Dict[tuple, str]:
@@ -1049,7 +1049,7 @@ class ApplicationContext(BaseSystemContext):
                             f"Не удалось загрузить или получить статус для промпта {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
-                        # Если не удалось прочитать статус, в песочнице разрешаем, в проде - нет
+                        # Если не удалось прочитать стату��, в песочнице разрешаем, в проде - нет
                         if self.profile == "prod":
                             return False
             except Exception as e:

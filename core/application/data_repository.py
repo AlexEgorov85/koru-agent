@@ -1,4 +1,4 @@
-"""
+﻿"""
 Централизованный репозиторий с единой точкой валидации структуры данных.
 """
 import asyncio
@@ -31,8 +31,8 @@ class DataRepository:
         self._manifest_cache: Dict[str, Manifest] = {}  # Добавляем кэш для манифестов
 
         # Кэши для ленивой загрузки (уже объекты, но для контента/схем)
-        self._prompt_content_cache: Dict[Tuple[str, str], str] = {}
-        self._contract_schema_cache: Dict[Tuple[str, str, str], Type[BaseModel]] = {}
+        self.prompt_cache: Dict[Tuple[str, str], str] = {}
+        self.contract_schema_cache: Dict[Tuple[str, str, str], Type[BaseModel]] = {}
 
         self._validation_errors: List[str] = []
         self._validation_warnings: List[str] = []
@@ -228,12 +228,12 @@ class DataRepository:
         Ленивая загрузка с кэшированием.
         """
         contract = self.get_contract(capability, version, direction)
-        
+
         cache_key = (capability, version, direction)
-        if cache_key not in self._contract_schema_cache:
-            self._contract_schema_cache[cache_key] = contract.pydantic_schema
-        
-        return self._contract_schema_cache[cache_key]
+        if cache_key not in self.contract_schema_cache:
+            self.contract_schema_cache[cache_key] = contract.pydantic_schema
+
+        return self.contract_schema_cache[cache_key]
     
     def get_validation_report(self) -> str:
         """Полный отчёт о проблемах структуры"""

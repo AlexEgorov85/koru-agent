@@ -1,4 +1,4 @@
-"""
+﻿"""
 Единый базовый класс для всех компонентов (навыков, инструментов, сервисов).
 
 АРХИТЕКТУРНЫЕ ГАРАНТИИ:
@@ -55,24 +55,26 @@ class BaseComponent(ABC):
         import logging
         self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
 
-        # НОВЫЕ кэши для типизированных объектов (без приставки _cached)
+        # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
-        self.input_schemas: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
-        self.output_schemas: Dict[str, Type[BaseModel]] = {}
+        self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
+        self.output_contracts: Dict[str, Type[BaseModel]] = {}
 
-        # Временные метки кэша для возможности инвалидации
+        # Временные метки для TTL
         self.prompt_timestamps: Dict[str, float] = {}
-        self.input_schema_timestamps: Dict[str, float] = {}
-        self.output_schema_timestamps: Dict[str, float] = {}
+        self.input_contract_timestamps: Dict[str, float] = {}
+        self.output_contract_timestamps: Dict[str, float] = {}
 
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
 
-        # === АЛИАСЫ для обратной совместимости ===
-        # Старый код использует _cached_* имена, новый код использует *_schemas
-        self._cached_prompts = self.prompts  # Алиас для совместимости
-        self._cached_input_contracts = self.input_schemas  # Алиас для совместимости
-        self._cached_output_contracts = self.output_schemas  # Алиас для совместимости
+        # === АЛИАСЫ для обратной совместимости (deprecated) ===
+        # Старый код использует _cached_* имена, новый код использует prompts/input_contracts/output_contracts
+        import warnings
+        # Создаём дескрипторы для предупреждений при доступе к старым именам
+        self._cached_prompts = self.prompts
+        self._cached_input_contracts = self.input_contracts
+        self._cached_output_contracts = self.output_contracts
 
     async def initialize(self) -> bool:
         """
@@ -104,7 +106,7 @@ class BaseComponent(ABC):
                 self.logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
                 return False
 
-            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_schemas={len(self.input_schemas)}, output_schemas={len(self.output_schemas)}")
+            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}")
             self._initialized = True
             return True
 
@@ -231,11 +233,11 @@ class BaseComponent(ABC):
                             self.application_context.data_repository
                             .get_contract_schema(cap_name, version, "input")
                         )
-                        self.input_schemas[cap_name] = schema_cls
+                        self.input_contracts[cap_name] = schema_cls
                     else:
                         # Старый путь: получаем из контекста
                         schema_cls = self.application_context.get_input_contract_schema(cap_name, version)
-                        self.input_schemas[cap_name] = schema_cls
+                        self.input_contracts[cap_name] = schema_cls
                         self.logger.warning(f"Используется совместимый режим для входной схемы {cap_name}")
 
                 except Exception as e:
@@ -252,10 +254,10 @@ class BaseComponent(ABC):
                             self.application_context.data_repository
                             .get_contract_schema(cap_name, version, "output")
                         )
-                        self.output_schemas[cap_name] = schema_cls
+                        self.output_contracts[cap_name] = schema_cls
                     else:
                         # Старый путь: используем базовый класс
-                        self.output_schemas[cap_name] = BaseModel
+                        self.output_contracts[cap_name] = BaseModel
                         self.logger.warning(f"Используется совместимый режим для выходной схемы {cap_name}")
 
                 except Exception as e:
@@ -267,10 +269,10 @@ class BaseComponent(ABC):
             # Устанавливаем временные метки для всех загруженных ресурсов
             for prompt_key in self.prompts:
                 self.prompt_timestamps[prompt_key] = current_time
-            for schema_key in self.input_schemas:
-                self.input_schema_timestamps[schema_key] = current_time
-            for schema_key in self.output_schemas:
-                self.output_schema_timestamps[schema_key] = current_time
+            for schema_key in self.input_contracts:
+                self.input_contract_timestamps[schema_key] = current_time
+            for schema_key in self.output_contracts:
+                self.output_contract_timestamps[schema_key] = current_time
 
             return True
 
@@ -281,7 +283,7 @@ class BaseComponent(ABC):
     async def _validate_loaded_resources(self) -> bool:
         """
         Валидация загруженных ресурсов.
-        
+
         Проверяет:
         1. Все промпты из component_config загружены
         2. Все контракты из component_config загружены
@@ -289,10 +291,10 @@ class BaseComponent(ABC):
         4. Input/output контракты согласованы
         """
         errors = []
-        
+
         if not self.component_config:
             return True
-        
+
         # Проверка промптов
         for capability, version in self.component_config.prompt_versions.items():
             if capability not in self.prompts:
@@ -302,36 +304,36 @@ class BaseComponent(ABC):
 
         # Проверка входных контрактов
         for capability, version in self.component_config.input_contract_versions.items():
-            if capability not in self.input_schemas:
+            if capability not in self.input_contracts:
                 errors.append(f"Входной контракт '{capability}@{version}' не загружен")
-            elif not self.input_schemas[capability]:
+            elif not self.input_contracts[capability]:
                 errors.append(f"Входной контракт '{capability}' пустой")
 
         # Проверка выходных контрактов
         for capability, version in self.component_config.output_contract_versions.items():
-            if capability not in self.output_schemas:
+            if capability not in self.output_contracts:
                 errors.append(f"Выходной контракт '{capability}@{version}' не загружен")
-            elif not self.output_schemas[capability]:
+            elif not self.output_contracts[capability]:
                 errors.append(f"Выходной контракт '{capability}' пустой")
-        
+
         # Проверка согласованности input/output
         input_caps = set(self.component_config.input_contract_versions.keys())
         output_caps = set(self.component_config.output_contract_versions.keys())
-        
+
         # Capability должны иметь и input, и output контракты
         missing_input = output_caps - input_caps
         missing_output = input_caps - output_caps
-        
+
         if missing_input:
             errors.append(f"Отсутствуют input контракты для: {missing_input}")
         if missing_output:
             errors.append(f"Отсутствуют output контракты для: {missing_output}")
-        
+
         if errors:
             for error in errors:
                 self.logger.error(f"{self.name}: {error}")
             return False
-        
+
         self.logger.info(f"{self.name}: Все ресурсы валидированы успешно")
         return True
 
@@ -358,7 +360,7 @@ class BaseComponent(ABC):
         Инвалидация кэша компонента.
 
         ARGS:
-        - cache_type: тип кэша для инвалидации ('prompts', 'input_schemas', 'output_schemas', или None для всех)
+        - cache_type: тип кэша для инвалидации ('prompts', 'input_contracts', 'output_contracts', или None для всех)
         - key: конкретный ключ для инвалидации (или None для инвалидации всего типа кэша)
         """
         import time
@@ -374,32 +376,32 @@ class BaseComponent(ABC):
                 self.prompts.clear()
                 self.prompt_timestamps.clear()
 
-        if cache_type is None or cache_type == 'input_schemas':
+        if cache_type is None or cache_type == 'input_contracts':
             if key:
-                if key in self.input_schemas:
-                    del self.input_schemas[key]
-                if key in self.input_schema_timestamps:
-                    del self.input_schema_timestamps[key]
+                if key in self.input_contracts:
+                    del self.input_contracts[key]
+                if key in self.input_contract_timestamps:
+                    del self.input_contract_timestamps[key]
             else:
-                self.input_schemas.clear()
-                self.input_schema_timestamps.clear()
+                self.input_contracts.clear()
+                self.input_contract_timestamps.clear()
 
-        if cache_type is None or cache_type == 'output_schemas':
+        if cache_type is None or cache_type == 'output_contracts':
             if key:
-                if key in self.output_schemas:
-                    del self.output_schemas[key]
-                if key in self.output_schema_timestamps:
-                    del self.output_schema_timestamps[key]
+                if key in self.output_contracts:
+                    del self.output_contracts[key]
+                if key in self.output_contract_timestamps:
+                    del self.output_contract_timestamps[key]
             else:
-                self.output_schemas.clear()
-                self.output_schema_timestamps.clear()
+                self.output_contracts.clear()
+                self.output_contract_timestamps.clear()
 
     def _is_cache_expired(self, cache_type: str, key: str) -> bool:
         """
         Проверяет, истек ли срок действия элемента кэша.
 
         ARGS:
-        - cache_type: тип кэша ('prompts', 'input_schemas', 'output_schemas')
+        - cache_type: тип кэша ('prompts', 'input_contracts', 'output_contracts')
         - key: ключ элемента кэша
 
         RETURNS:
@@ -412,8 +414,8 @@ class BaseComponent(ABC):
 
         timestamps = {
             'prompts': self.prompt_timestamps,
-            'input_schemas': self.input_schema_timestamps,
-            'output_schemas': self.output_schema_timestamps
+            'input_contracts': self.input_contract_timestamps,
+            'output_contracts': self.output_contract_timestamps
         }.get(cache_type)
 
         if not timestamps or key not in timestamps:
@@ -448,7 +450,7 @@ class BaseComponent(ABC):
             return prompt_obj.content
         return str(prompt_obj)
 
-    def get_cached_input_schema_safe(self, capability_name: str) -> Type[BaseModel]:
+    def get_cached_input_contract_safe(self, capability_name: str) -> Type[BaseModel]:
         """
         Безопасное получение входной схемы из кэша с обработкой ошибок и проверкой срока действия.
 
@@ -460,18 +462,18 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
 
-        if capability_name not in self.input_schemas:
+        if capability_name not in self.input_contracts:
             return BaseModel
 
         # Проверяем, не истек ли срок действия кэша
-        if self._is_cache_expired('input_schemas', capability_name):
+        if self._is_cache_expired('input_contracts', capability_name):
             # Инвалидируем просроченный элемент
-            self.invalidate_cache('input_schemas', capability_name)
+            self.invalidate_cache('input_contracts', capability_name)
             return BaseModel
 
-        return self.input_schemas[capability_name]
+        return self.input_contracts[capability_name]
 
-    def get_cached_output_schema_safe(self, capability_name: str) -> Type[BaseModel]:
+    def get_cached_output_contract_safe(self, capability_name: str) -> Type[BaseModel]:
         """
         Безопасное получение выходной схемы из кэша с обработкой ошибок и проверкой срока действия.
 
@@ -483,16 +485,16 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
 
-        if capability_name not in self.output_schemas:
+        if capability_name not in self.output_contracts:
             return BaseModel
 
         # Проверяем, не истек ли срок действия кэша
-        if self._is_cache_expired('output_schemas', capability_name):
+        if self._is_cache_expired('output_contracts', capability_name):
             # Инвалидируем просроченный элемент
-            self.invalidate_cache('output_schemas', capability_name)
+            self.invalidate_cache('output_contracts', capability_name)
             return BaseModel
 
-        return self.output_schemas[capability_name]
+        return self.output_contracts[capability_name]
 
     # === БЕЗОПАСНЫЙ ДОСТУП К РЕСУРСАМ (ТОЛЬКО ИЗ КЭША) ===
 
@@ -518,14 +520,14 @@ class BaseComponent(ABC):
         но используем типизированный объект.
         """
         self._ensure_initialized()
-        if capability_name not in self.input_schemas:
+        if capability_name not in self.input_contracts:
             self.logger.warning(
                 f"Входная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self.input_schemas.keys())}. Возвращаем пустой словарь."
+                f"Доступные: {list(self.input_contracts.keys())}. Возвращаем пустой словарь."
             )
             return {}  # Возвращаем пустой словарь вместо ошибки
 
-        schema_cls = self.input_schemas[capability_name]
+        schema_cls = self.input_contracts[capability_name]
         # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
@@ -535,14 +537,14 @@ class BaseComponent(ABC):
         но используем типизированный объект.
         """
         self._ensure_initialized()
-        if capability_name not in self.output_schemas:
+        if capability_name not in self.output_contracts:
             self.logger.warning(
                 f"Выходная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self.output_schemas.keys())}. Возвращаем пустой словарь."
+                f"Доступные: {list(self.output_contracts.keys())}. Возвращаем пустой словарь."
             )
             return {}  # Возвращаем пустой словарь вместо ошибки
 
-        schema_cls = self.output_schemas[capability_name]
+        schema_cls = self.output_contracts[capability_name]
         # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
@@ -550,11 +552,11 @@ class BaseComponent(ABC):
         """
         Типобезопасная валидация через скомпилированную схему.
         """
-        if capability_name not in self.input_schemas:
+        if capability_name not in self.input_contracts:
             self.logger.warning(f"Схема для {capability_name} не загружена, пропускаем валидацию")
             return True
 
-        schema_cls = self.input_schemas[capability_name]
+        schema_cls = self.input_contracts[capability_name]
         try:
             # Pydantic автоматически валидирует и конвертирует типы
             validated = schema_cls.model_validate(data)
@@ -571,7 +573,7 @@ class BaseComponent(ABC):
             raise ValueError(f"Промпт '{capability_name}' не загружен")
 
         prompt_obj: Prompt = self.prompts[capability_name]
-        
+
         # Используем встроенный метод рендеринга с валидацией
         try:
             return prompt_obj.render(**kwargs)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Базовый класс для поведенческих паттернов (Behavior Patterns).
 
 АРХИТЕКТУРА:
@@ -86,7 +86,7 @@ class BaseBehavior(BaseComponent):
         - str: текст промта или пустая строка если не найден
         """
         self._ensure_initialized()
-        return self._cached_prompts.get(capability_name, "")
+        return self.prompts.get(capability_name, "")
 
     def get_cached_input_contract_safe(self, capability_name: str) -> Dict:
         """
@@ -99,7 +99,7 @@ class BaseBehavior(BaseComponent):
         - Dict: схема контракта или пустой словарь если не найден
         """
         self._ensure_initialized()
-        return self._cached_input_contracts.get(capability_name, {})
+        return self.input_contracts.get(capability_name, {})
 
     def get_cached_output_contract_safe(self, capability_name: str) -> Dict:
         """
@@ -112,7 +112,7 @@ class BaseBehavior(BaseComponent):
         - Dict: схема контракта или пустой словарь если не найден
         """
         self._ensure_initialized()
-        return self._cached_output_contracts.get(capability_name, {})
+        return self.output_contracts.get(capability_name, {})
 
     @abstractmethod
     async def execute(self, input_data: BehaviorInput) -> BehaviorOutput:

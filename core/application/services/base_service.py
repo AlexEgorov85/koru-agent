@@ -1,4 +1,4 @@
-"""
+﻿"""
 Базовый класс для инфраструктурных сервисов.
 """
 import logging
@@ -361,23 +361,23 @@ class BaseService(BaseComponent):
         """Расширенная валидация для сервисов."""
         if not await super()._validate_loaded_resources():
             return False
-        
+
         # ← НОВОЕ: Валидация методов сервиса
         if hasattr(self, 'methods'):
             for method_name in self.methods:
                 cap_name = f"{self.name}.{method_name}"
-                
+
                 # Проверка наличия контрактов для метода
-                if cap_name not in self._cached_input_contracts:
+                if cap_name not in self.input_contracts:
                     self.logger.warning(
                         f"{self.name}: Метод '{method_name}' не имеет input контракта"
                     )
-                
-                if cap_name not in self._cached_output_contracts:
+
+                if cap_name not in self.output_contracts:
                     self.logger.warning(
                         f"{self.name}: Метод '{method_name}' не имеет output контракта"
                     )
-        
+
         return True
     
     def get_timeout_seconds(self) -> int:

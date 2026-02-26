@@ -1,4 +1,4 @@
-"""
+﻿"""
 Базовый класс навыка (Skill) с поддержкой архитектуры портов и адаптеров.
 
 ОСНОВНЫЕ ИЗМЕНЕНИЯ:
@@ -58,25 +58,25 @@ class BaseSkill(BaseComponent):
         """
         # Вызов родительского метода инициализации
         success = await super().initialize()
-        
+
         if success:
             self._is_initialized = True
             if hasattr(self.application_context, 'logger'):
                 self.application_context.logger.info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
                     f"Загружено: промпты={len(self.prompts)}, "
-                    f"input-контракты={len(self._cached_input_contracts)}, "
-                    f"output-контракты={len(self._cached_output_contracts)}"
+                    f"input-контракты={len(self.input_contracts)}, "
+                    f"output-контракты={len(self.output_contracts)}"
                 )
             else:
                 import logging
                 logging.getLogger(__name__).info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
                     f"Загружено: промпты={len(self.prompts)}, "
-                    f"input-контракты={len(self._cached_input_contracts)}, "
-                    f"output-контракты={len(self._cached_output_contracts)}"
+                    f"input-контракты={len(self.input_contracts)}, "
+                    f"output-контракты={len(self.output_contracts)}"
                 )
-        
+
         return success
 
     # Метод _preload_contracts больше не нужен, так как предзагрузка
@@ -135,29 +135,29 @@ class BaseSkill(BaseComponent):
         # Вызываем базовую валидацию
         if not await super()._validate_loaded_resources():
             return False
-        
+
         # ← НОВОЕ: Валидация capability навыков
         if hasattr(self, 'capabilities'):
             for cap in self.capabilities:
                 cap_name = f"{self.name}.{cap.name}"
-                
+
                 # Проверка наличия промпта для capability
                 if cap_name not in self.prompts:
                     self.logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет промпта"
                     )
-                
+
                 # Проверка наличия контрактов для capability
-                if cap_name not in self._cached_input_contracts:
+                if cap_name not in self.input_contracts:
                     self.logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет input контракта"
                     )
-                
-                if cap_name not in self._cached_output_contracts:
+
+                if cap_name not in self.output_contracts:
                     self.logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет output контракта"
                     )
-        
+
         return True
     
     def get_required_capabilities_from_manifest(self) -> List[str]:

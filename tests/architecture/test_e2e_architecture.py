@@ -47,11 +47,11 @@ async def test_full_architecture_cycle():
     # 6. Проверяем кэши (обновленные имена атрибутов)
     prompt_service = app_ctx.get_service('prompt_service')
     if prompt_service:
-        assert hasattr(prompt_service, '_cached_prompts')
-    
+        assert hasattr(prompt_service, 'prompts')
+
     contract_service = app_ctx.get_service('contract_service')
     if contract_service:
-        assert hasattr(contract_service, '_cached_contracts')
+        assert hasattr(contract_service, 'contracts')
     
     # 7. Проверяем, что репозиторий данных инициализирован
     if app_ctx.data_repository:

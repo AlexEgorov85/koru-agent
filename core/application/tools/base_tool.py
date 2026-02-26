@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+﻿from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -77,25 +77,25 @@ class BaseTool(BaseComponent):
         """Расширенная валидация для инструментов."""
         if not await super()._validate_loaded_resources():
             return False
-        
+
         # ← НОВОЕ: Валидация операций инструмента
         if hasattr(self, 'operations'):
             for op_name in self.operations:
                 cap_name = f"{self.name}.{op_name}"
-                
+
                 # Проверка наличия контрактов для операции
-                if cap_name not in self._cached_input_contracts:
+                if cap_name not in self.input_contracts:
                     self.logger.error(
                         f"{self.name}: Операция '{op_name}' не имеет input контракта"
                     )
                     return False
-                
-                if cap_name not in self._cached_output_contracts:
+
+                if cap_name not in self.output_contracts:
                     self.logger.error(
                         f"{self.name}: Операция '{op_name}' не имеет output контракта"
                     )
                     return False
-        
+
         return True
     
     def get_allowed_operations(self) -> List[str]:

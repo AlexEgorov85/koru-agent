@@ -99,7 +99,7 @@ class TestLogCollectorInitialization:
         await collector.initialize()
 
         assert collector.is_initialized is True
-        assert collector.subscriptions_count == 9  # 9 типов событий
+        assert collector.subscriptions_count == 11  # 11 типов событий
 
     @pytest.mark.asyncio
     async def test_double_initialization(self, collector):

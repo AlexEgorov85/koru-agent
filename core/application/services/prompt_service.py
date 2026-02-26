@@ -1,4 +1,4 @@
-"""
+﻿"""
 Сервис промптов с изолированным кэшем.
 """
 from typing import Dict, Optional, Any
@@ -27,7 +27,7 @@ class PromptService(BaseService):
         # Call the parent constructor with proper parameters
         super().__init__(name, application_context, component_config=component_config, executor=executor)
         # Кэш: {capability: {version: prompt_obj}} - структура для совместимости с BaseComponent
-        self._cached_prompts: Dict[str, Dict[str, Any]] = {}  # ← Изолированный кэш!
+        self.prompts: Dict[str, Dict[str, Any]] = {}  # ← Изолированный кэш!
     
     async def initialize(self) -> bool:
         """Инициализация PromptService с использованием предзагруженных ресурсов из ComponentConfig."""
@@ -49,22 +49,22 @@ class PromptService(BaseService):
                         variables=[],
                         metadata={}
                     )
-                    
-                    if capability not in self._cached_prompts:
-                        self._cached_prompts[capability] = {}
-                    self._cached_prompts[capability][version] = prompt_obj
+
+                    if capability not in self.prompts:
+                        self.prompts[capability] = {}
+                    self.prompts[capability][version] = prompt_obj
                 else:
                     self.logger.warning(f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
 
             self._initialized = True
             self.logger.info(
-                f"PromptService инициализирован: загружено {len(self._cached_prompts)} промптов"
+                f"PromptService инициализирован: загружено {len(self.prompts)} промптов"
             )
             return True
         except Exception as e:
             self.logger.error(f"Ошибка инициализации PromptService: {e}")
             return False
-    
+
     def get_prompt(self, capability_name: str, version: Optional[str] = None) -> str:
         """Возвращает промпт из ИЗОЛИРОВАННОГО кэша."""
         if not self._initialized:
@@ -73,37 +73,37 @@ class PromptService(BaseService):
                 f"Вызовите .initialize() перед использованием."
             )
 
-        if capability_name not in self._cached_prompts:
+        if capability_name not in self.prompts:
             raise KeyError(
                 f"Промпт для capability '{capability_name}' не найден в кэше. "
-                f"Доступные: {list(self._cached_prompts.keys())}"
+                f"Доступные: {list(self.prompts.keys())}"
             )
 
         # Если версия не указана, берем первую доступную
         if version is None:
             # Берем первую доступную версию
-            available_versions = list(self._cached_prompts[capability_name].keys())
+            available_versions = list(self.prompts[capability_name].keys())
             if not available_versions:
                 raise KeyError(
                     f"Нет доступных версий промпта для capability '{capability_name}'"
                 )
             version = available_versions[0]
 
-        if version not in self._cached_prompts[capability_name]:
+        if version not in self.prompts[capability_name]:
             raise KeyError(
                 f"Версия '{version}' промпта для capability '{capability_name}' не найдена в кэше. "
-                f"Доступные версии: {list(self._cached_prompts[capability_name].keys())}"
+                f"Доступные версии: {list(self.prompts[capability_name].keys())}"
             )
 
         # Получаем элемент из кэша
-        cached_item = self._cached_prompts[capability_name][version]
+        cached_item = self.prompts[capability_name][version]
         # Если элемент - это объект Prompt, возвращаем его content
         if hasattr(cached_item, 'content'):
             return cached_item.content
         # Если элемент - это строка, возвращаем его напрямую
         else:
             return cached_item
-    
+
     def get_all_prompts(self) -> Dict[str, Dict[str, Any]]:
         """Возвращает копию кэша промптов (для отладки)."""
         if not self._initialized:
@@ -111,7 +111,7 @@ class PromptService(BaseService):
                 f"Сервис '{self.name}' не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
             )
-        return self._cached_prompts.copy()
+        return self.prompts.copy()
 
     async def preload_prompts(self, component_config) -> bool:
         """
@@ -130,10 +130,10 @@ class PromptService(BaseService):
                 prompt_obj = await storage.load(capability_name, version)
 
                 # Помещаем в кэш для быстрого доступа
-                if capability_name not in self._cached_prompts:
-                    self._cached_prompts[capability_name] = {}
+                if capability_name not in self.prompts:
+                    self.prompts[capability_name] = {}
 
-                self._cached_prompts[capability_name][version] = prompt_obj
+                self.prompts[capability_name][version] = prompt_obj
 
                 self.logger.debug(f"Предзагружен промпт {capability_name} версии {version}")
 
@@ -149,33 +149,33 @@ class PromptService(BaseService):
         """
         # Если версия не указана, берем первую доступную
         if version is None:
-            if capability not in self._cached_prompts or not self._cached_prompts[capability]:
+            if capability not in self.prompts or not self.prompts[capability]:
                 raise KeyError(f"Нет доступных версий промпта для capability '{capability}'")
-            version = list(self._cached_prompts[capability].keys())[0]
+            version = list(self.prompts[capability].keys())[0]
 
-        if capability not in self._cached_prompts or version not in self._cached_prompts[capability]:
+        if capability not in self.prompts or version not in self.prompts[capability]:
             # Загружаем из хранилища, если нет в кэше
             storage = self.application_context.infrastructure_context.get_prompt_storage()
             prompt_obj = await storage.load(capability, version)
-            
+
             # Сохраняем в кэш
-            if capability not in self._cached_prompts:
-                self._cached_prompts[capability] = {}
-            self._cached_prompts[capability][version] = prompt_obj
-            
+            if capability not in self.prompts:
+                self.prompts[capability] = {}
+            self.prompts[capability][version] = prompt_obj
+
             return prompt_obj
 
-        return self._cached_prompts[capability][version]
+        return self.prompts[capability][version]
 
     def get_prompt_from_cache(self, capability_name: str, version: Optional[str] = None) -> Optional[str]:
         """
         Получение промпта ТОЛЬКО из кэша (без обращения к файловой системе).
         Совместимость с BaseComponent.
         """
-        if capability_name in self._cached_prompts:
+        if capability_name in self.prompts:
             if version:
-                if version in self._cached_prompts[capability_name]:
-                    cached_item = self._cached_prompts[capability_name][version]
+                if version in self.prompts[capability_name]:
+                    cached_item = self.prompts[capability_name][version]
                     # Если элемент - это объект Prompt, возвращаем его content
                     if hasattr(cached_item, 'content'):
                         return cached_item.content
@@ -184,10 +184,10 @@ class PromptService(BaseService):
                         return cached_item
             else:
                 # Если нет версии, возвращаем первую доступную
-                if self._cached_prompts[capability_name]:
+                if self.prompts[capability_name]:
                     # Возвращаем контент первой доступной версии
-                    first_version = list(self._cached_prompts[capability_name].keys())[0]  # берем первую доступную
-                    cached_item = self._cached_prompts[capability_name][first_version]
+                    first_version = list(self.prompts[capability_name].keys())[0]  # берем первую доступную
+                    cached_item = self.prompts[capability_name][first_version]
                     # Если элемент - это объект Prompt, возвращаем его content
                     if hasattr(cached_item, 'content'):
                         return cached_item.content
