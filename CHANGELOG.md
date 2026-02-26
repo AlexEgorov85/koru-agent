@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## [5.9.0] - 2026-02-26
+
+### Added
+- **Универсальный механизм логирования** — централизованное логирование для всех компонентов
+  - `core/infrastructure/logging/log_config.py`: конфигурация (LogConfig, LogLevel)
+  - `core/infrastructure/logging/log_decorator.py`: декоратор @log_execution
+  - `core/infrastructure/logging/log_mixin.py`: LogComponentMixin для ручного управления
+  - `core/infrastructure/logging/log_formatter.py`: LogFormatter (text/json форматы)
+  - Санитизация чувствительных данных (password, token, api_key, secret)
+  - Автоматическое логирование параметров и результатов с ограничением длины
+
+- **EventBus события для логирования**:
+  - EXECUTION_STARTED: начало выполнения операции
+  - EXECUTION_COMPLETED: успешное завершение операции
+  - EXECUTION_FAILED: ошибка выполнения операции
+  - COMPONENT_INITIALIZED: инициализация компонента
+  - COMPONENT_SHUTDOWN: завершение работы компонента
+
+- **Интеграция с BaseComponent**:
+  - Добавлен LogComponentMixin в базовый класс
+  - Автоматическое логирование в методе execute()
+  - Методы log_start(), log_success(), log_error() доступны во всех компонентах
+
+- **Конфигурация**:
+  - `core/config/logging_config.yaml`: YAML конфигурация логирования
+  - Гибкие настройки уровней, форматов, исключений
+
+- **Тесты**: 27 тестов для механизма логирования
+  - Тесты конфигурации, декоратора, миксина, форматтера
+  - Интеграционные тесты
+
+### Changed
+- `BaseComponent`: удалено дублирование инициализации логгера
+- `BaseComponent`: self.logger теперь алиас на _logger из миксина
+
+### Documentation
+- `core/infrastructure/logging/README.md`: полная документация API
+- Примеры использования для навыков, инструментов, сервисов
+- Лучшие практики и руководство по отладке
+
 ## [5.8.0] - 2026-02-26
 
 ### Refactored
