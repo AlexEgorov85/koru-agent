@@ -10,12 +10,17 @@ from core.application.agent.components.action_executor import ExecutionContext, 
 
 class PlanningSkill(BaseComponent):
     """НАВЫК ПЛАНИРОВАНИЯ С ПОЛНОЙ ИЗОЛЯЦИЕЙ"""
-    
+
     def __init__(self, name: str, application_context: Any, component_config=None, executor=None):
         super().__init__(name, application_context, component_config=component_config, executor=executor)
         # Инициализация логгера
         import logging
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения навыка планирования."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED
 
     def get_capabilities(self) -> List[Capability]:
         return [
@@ -57,57 +62,36 @@ class PlanningSkill(BaseComponent):
             )
         ]
 
-    async def execute(
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
-    ) -> ActionResult:
+    ) -> Dict[str, Any]:
         """
-        ЕДИНСТВЕННЫЙ метод выполнения логики компонента.
-        
-        ЗАПРЕЩЕНО:
-        - Вызывать другие компоненты напрямую
-        - Обращаться к сервисам (PromptService, ContractService)
-        - Работать с файловой системой
-        
-        РАЗРЕШЕНО:
-        - Использовать предзагруженные ресурсы из кэшей
-        - Вызывать другие действия через self.executor.execute_action()
-        - Валидировать входные/выходные данные через контракты из кэша
-        """
-        # 1. Валидация входных данных через КЭШИРОВАННЫЙ контракт
-        try:
-            input_contract = self.get_input_contract(capability.name)
-            # Валидация через метод базового класса
-            if not self.validate_input(capability.name, parameters):
-                return ActionResult(
-                    success=False,
-                    error=f"Валидация входных данных для {capability.name} не пройдена"
-                )
-        except KeyError:
-            # Если контракт не найден в кэше, используем переданные параметры без валидации
-            # Это обеспечивает обратную совместимость
-            self.logger.warning(f"Контракт для {capability.name} не найден в кэше, валидация пропущена")
+        Реализация бизнес-логики навыка планирования.
 
-        # 2. Делегирование конкретным методам
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
-            return await self._create_plan(parameters, execution_context)
+            result = await self._create_plan(parameters, execution_context)
         elif capability.name == "planning.update_plan":
-            return await self._update_plan(parameters, execution_context)
+            result = await self._update_plan(parameters, execution_context)
         elif capability.name == "planning.get_next_step":
-            return await self._get_next_step(parameters, execution_context)
+            result = await self._get_next_step(parameters, execution_context)
         elif capability.name == "planning.update_step_status":
-            return await self._update_step_status(parameters, execution_context)
+            result = await self._update_step_status(parameters, execution_context)
         elif capability.name == "planning.decompose_task":
-            return await self._decompose_task(parameters, execution_context)
+            result = await self._decompose_task(parameters, execution_context)
         elif capability.name == "planning.mark_task_completed":
-            return await self._mark_task_completed(parameters, execution_context)
+            result = await self._mark_task_completed(parameters, execution_context)
         else:
-            return ActionResult(
-                success=False,
-                error=f"Неизвестная capability: {capability.name}"
-            )
+            raise ValueError(f"Неизвестная capability: {capability.name}")
+        
+        # Возвращаем данные из ActionResult
+        return result.data if hasattr(result, 'data') else result
     
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""

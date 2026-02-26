@@ -81,8 +81,9 @@ class BaseComponent(LogComponentMixin, ABC):
         # Инициализация флага инициализации
         self._initialized = False
 
-        # LogComponentMixin автоматически инициализирует _logger и _log_config
-        # Добавляем алиас для обратной совместимости
+        # Инициализация логгера
+        import logging
+        self._logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
         self.logger = self._logger
 
         # Основные данные компонента (не кэш!)

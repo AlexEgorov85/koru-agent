@@ -164,23 +164,28 @@ class BookLibrarySkill(BaseComponent):
         self.logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
-    async def execute(self, capability: str, parameters: Dict[str, Any], execution_context: Any) -> Dict[str, Any]:
-        """
-        Выполнение действия навыка.
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения навыка библиотеки."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED
 
-        Args:
-            capability: название capability для выполнения
-            parameters: параметры действия
-            execution_context: контекст выполнения
-
-        Returns:
-            Dict[str, Any]: результат выполнения
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: Any
+    ) -> Dict[str, Any]:
         """
-        if capability not in self.supported_capabilities:
-            raise ValueError(f"Навык не поддерживает capability: {capability}")
+        Реализация бизнес-логики навыка библиотеки.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        if capability.name not in self.supported_capabilities:
+            raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
         # Выполняем действие
-        result = await self.supported_capabilities[capability](parameters)
+        result = await self.supported_capabilities[capability.name](parameters)
         return result
 
     async def _search_books_dynamic(self, params: Dict[str, Any]) -> Dict[str, Any]:

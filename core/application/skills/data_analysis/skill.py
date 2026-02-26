@@ -80,136 +80,86 @@ class DataAnalysisSkill(BaseSkill):
         self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
-    async def execute(
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения навыка анализа данных."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED
+
+    async def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> ExecutionResult:
+    ) -> Dict[str, Any]:
         """
-        Выполнение анализа данных.
+        Реализация бизнес-логики анализа данных.
 
-        Args:
-            capability: Capability для выполнения
-            parameters: Параметры выполнения
-            execution_context: Контекст выполнения
-
-        Returns:
-            ExecutionResult с результатом анализа
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
         """
-        start_time = time.time()
+        step_id = parameters.get("step_id")
+        question = parameters.get("question")
+        data_source = parameters.get("data_source", {})
+        analysis_config = parameters.get("analysis_config", {})
 
-        try:
-            # 1. Валидация входных параметров через контракт
-            if not self.validate_input(capability.name, parameters):
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    result=None,
-                    error="Входные параметры не соответствуют контракту",
-                    metadata={
-                        "error_category": ErrorCategory.INVALID_INPUT.value,
-                        "summary": "Ошибка валидации входных параметров"
-                    }
-                )
+        # 1. Загрузка данных из источника
+        raw_data, data_metadata = await self._load_data(
+            data_source=data_source,
+            config=analysis_config
+        )
 
-            step_id = parameters.get("step_id")
-            question = parameters.get("question")
-            data_source = parameters.get("data_source", {})
-            analysis_config = parameters.get("analysis_config", {})
+        # 2. Обработка больших данных через чанкинг при необходимости
+        chunks = await self._chunk_data_if_needed(
+            data=raw_data,
+            config=analysis_config,
+            metadata=data_metadata
+        )
 
-            # 2. Загрузка данных из источника
-            raw_data, data_metadata = await self._load_data(
-                data_source=data_source,
-                config=analysis_config
-            )
+        # 3. Подготовка переменных для промпта
+        prompt_vars = {
+            "step_id": step_id,
+            "question": question,
+            "data_source": data_source,
+            "aggregation_method": analysis_config.get("aggregation_method", "summary")
+        }
 
-            # 3. Обработка больших данных через чанкинг при необходимости
-            chunks = await self._chunk_data_if_needed(
-                data=raw_data,
-                config=analysis_config,
-                metadata=data_metadata
-            )
+        if chunks:
+            prompt_vars["chunks"] = chunks
+        else:
+            prompt_vars["raw_data"] = raw_data[:10000]  # Ограничение для безопасности
 
-            # 4. Подготовка переменных для промпта
-            prompt_vars = {
-                "step_id": step_id,
-                "question": question,
-                "data_source": data_source,
-                "aggregation_method": analysis_config.get("aggregation_method", "summary")
-            }
+        # 4. Получение и рендеринг промпта (из изолированного кэша)
+        prompt_content = self.get_prompt(capability.name)
+        if not prompt_content:
+            raise ValueError(f"Промпт для {capability.name} не загружен")
 
-            if chunks:
-                prompt_vars["chunks"] = chunks
-            else:
-                prompt_vars["raw_data"] = raw_data[:10000]  # Ограничение для безопасности
+        rendered_prompt = self._render_prompt(prompt_content, prompt_vars)
 
-            # 5. Получение и рендеринг промпта (из изолированного кэша)
-            prompt_content = self.get_prompt(capability.name)
-            if not prompt_content:
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    result=None,
-                    error=f"Промпт для {capability.name} не загружен",
-                    metadata={
-                        "error_category": ErrorCategory.TOOL_FAILURE.value,
-                        "summary": "Промпт не найден"
-                    }
-                )
+        # 5. Вызов LLM для анализа
+        llm_request = LLMRequest(
+            prompt=rendered_prompt,
+            max_tokens=analysis_config.get("max_response_tokens", 2000),
+            temperature=0.1,  # Низкая температура для аналитических задач
+            stop_sequences=["```", "END"]
+        )
 
-            rendered_prompt = self._render_prompt(prompt_content, prompt_vars)
+        llm_provider = self.application_context.get_llm_provider()
+        llm_response = await llm_provider.generate(llm_request)
 
-            # 6. Вызов LLM для анализа
-            llm_request = LLMRequest(
-                prompt=rendered_prompt,
-                max_tokens=analysis_config.get("max_response_tokens", 2000),
-                temperature=0.1,  # Низкая температура для аналитических задач
-                stop_sequences=["```", "END"]
-            )
+        # 6. Парсинг и валидация ответа
+        answer_data = self._parse_llm_response(llm_response.content)
 
-            llm_provider = self.application_context.get_llm_provider()
-            llm_response = await llm_provider.generate(llm_request)
+        # Добавляем метаданные в ответ
+        if "metadata" not in answer_data:
+            answer_data["metadata"] = {}
 
-            # 7. Парсинг и валидация ответа
-            answer_data = self._parse_llm_response(llm_response.content)
-            
-            # Добавляем метаданные в ответ
-            if "metadata" not in answer_data:
-                answer_data["metadata"] = {}
-            
-            answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-            answer_data["metadata"]["total_tokens"] = llm_response.tokens_used
-            answer_data["metadata"]["processing_time_ms"] = (time.time() - start_time) * 1000
-            answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
+        answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
+        answer_data["metadata"]["total_tokens"] = llm_response.tokens_used
+        answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
 
-            validated_answer = self._validate_output(answer_data, capability.name)
+        validated_answer = self._validate_output(answer_data, capability.name)
 
-            # 8. Формирование результата
-            result = ExecutionResult(
-                status=ExecutionStatus.COMPLETED,
-                result=validated_answer,
-                error=None,
-                metadata={
-                    "chunks_processed": len(chunks) if chunks else 1,
-                    "total_tokens": llm_response.tokens_used,
-                    "processing_time_ms": (time.time() - start_time) * 1000,
-                    "data_size_mb": data_metadata.get("size_mb", 0),
-                    "summary": f"Анализ данных шага {step_id} завершён. Уверенность: {validated_answer.get('confidence'):.2f}"
-                }
-            )
-
-            return result
-
-        except Exception as e:
-            self.logger.error(f"Ошибка при анализе данных: {e}", exc_info=True)
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                result=None,
-                error=str(e),
-                metadata={
-                    "error_category": ErrorCategory.TOOL_FAILURE.value,
-                    "summary": f"Ошибка анализа: {str(e)}"
-                }
-            )
+        return validated_answer
 
     async def _analyze_step_data(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """

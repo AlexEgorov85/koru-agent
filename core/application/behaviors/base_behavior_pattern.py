@@ -135,24 +135,45 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
-    
-    async def execute(
+
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения паттерна."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.AGENT_STARTED
+
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> Any:
+    ) -> Dict[str, Any]:
         """
-        Заглушка execute для совместимости с BaseComponent.
-        
-        ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ — они генерируют решения через generate_decision().
-        Этот метод нужен только для совместимости с интерфейсом BaseComponent.
-        
-        RAISES:
-        - NotImplementedError: Всегда, так как паттерны не выполняют действия напрямую
+        Реализация бизнес-логики паттерна поведения.
+
+        ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ напрямую — они генерируют решения через generate_decision().
+        Этот метод предоставляет интерфейс для BaseComponent.execute().
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
         """
-        raise NotImplementedError(
-            f"BehaviorPattern не выполняет действия напрямую. "
-            f"Используйте generate_decision() для получения решения. "
-            f"Component: {self.component_name}"
-        )
+        # Паттерны поведения работают через generate_decision()
+        # Этот метод предоставляет совместимость с интерфейсом BaseComponent
+        
+        # Извлекаем session_context из execution_context
+        session_context = None
+        if hasattr(execution_context, 'session_context'):
+            session_context = execution_context.session_context
+        
+        available_capabilities = execution_context.available_capabilities if hasattr(execution_context, 'available_capabilities') else []
+        
+        # Анализируем контекст и генерируем решение
+        context_analysis = await self.analyze_context(session_context, available_capabilities)
+        decision = await self.generate_decision(session_context, available_capabilities, context_analysis)
+        
+        # Возвращаем решение в виде словаря
+        return {
+            "decision_type": decision.decision_type.value if hasattr(decision.decision_type, 'value') else str(decision.decision_type),
+            "capability_name": decision.capability_name,
+            "parameters": decision.parameters,
+            "reasoning": decision.reasoning
+        }

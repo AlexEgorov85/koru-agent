@@ -113,80 +113,32 @@ class FinalAnswerSkill(BaseSkill):
         self.logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
         return True
 
-    async def execute(
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения навыка финального ответа."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.SKILL_EXECUTED
+
+    async def _execute_impl(
         self,
         capability: str,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Выполнение capability навыка.
-        
-        ПАРАМЕТРЫ:
-        - capability: название capability для выполнения
-        - parameters: параметры действия
-        - execution_context: контекст выполнения
-        
-        ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: результат выполнения
+        Реализация бизнес-логики навыка финального ответа.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
         """
-        start_time = time.time()
-        
-        if capability != "final_answer.generate":
-            error_msg = f"Неподдерживаемая capability: {capability}"
-            self.logger.error(error_msg)
-            return {
-                "error": error_msg,
-                "success": False
-            }
+        if capability.name != "final_answer.generate":
+            raise ValueError(f"Неподдерживаемая capability: {capability.name}")
 
-        try:
-            # Валидация входных параметров через кэшированную схему
-            input_schema = self.get_cached_input_contract_safe(capability)
-            if input_schema:
-                try:
-                    validated_params = input_schema.model_validate(parameters)
-                    parameters = validated_params.model_dump()
-                    self.logger.debug("Входные параметры валидированы успешно")
-                except Exception as e:
-                    self.logger.error(f"Ошибка валидации параметров: {e}")
-                    return {
-                        "error": f"Неверные параметры: {str(e)}",
-                        "success": False
-                    }
-            else:
-                self.logger.warning("Схема валидации не найдена, используем параметры без валидации")
+        # Извлечение контекста сессии
+        session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
 
-            # Извлечение контекста сессии
-            session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
-            
-            # Генерация финального ответа
-            result = await self._generate_final_answer(session_context, parameters)
-            
-            # Добавляем метаданные выполнения
-            execution_time = time.time() - start_time
-            result["metadata"]["generation_time_ms"] = execution_time * 1000
-            
-            # Валидация выходных данных через кэшированную схему
-            output_schema = self.get_cached_output_contract_safe(capability)
-            if output_schema:
-                try:
-                    validated_result = output_schema.model_validate(result)
-                    return validated_result.model_dump()
-                except Exception as e:
-                    self.logger.error(f"Ошибка валидации результата: {e}")
-                    return result
-            else:
-                return result
-
-        except Exception as e:
-            self.logger.error(f"Неожиданная ошибка при генерации финального ответа: {str(e)}", exc_info=True)
-            return {
-                "error": f"Внутренняя ошибка: {str(e)}",
-                "success": False,
-                "final_answer": "",
-                "confidence_score": 0.0
-            }
+        # Генерация финального ответа
+        result = await self._generate_final_answer(session_context, parameters)
+        return result
 
     async def _generate_final_answer(
         self,
