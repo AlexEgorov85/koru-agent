@@ -1,9 +1,9 @@
 # CHANGELOG
 
-## [5.11.0] - 2026-02-26
+## [5.12.0] - 2026-02-26
 
 ### Added
-- **6 архитектурных улучшений (P0 + P1 завершены)**:
+- **7 архитектурных улучшений (P0 + P1 + P2 завершены)**:
 
 #### 1. Event Bus — разделение на доменные шины (P0)
 - `EventBusManager`: менеджер доменных шин событий
@@ -65,6 +65,24 @@
 - `load_component()`: динамическая загрузка экземпляра
 - 22 теста
 
+#### 7. Security Manager (P2)
+- `SecurityManager`: централизованная система безопасности
+- `SecurityValidator`: базовый класс валидаторов
+- `SQLSecurityValidator`: валидация SQL операций
+  - Запрет DROP, DELETE, TRUNCATE, ALTER
+  - Обнаружение SQL injection (UNION SELECT)
+- `FileSecurityValidator`: валидация файловых операций
+  - Обнаружение path traversal (..)
+  - Проверка запрещённых путей (/etc, /proc)
+  - Разрешённые расширения файлов
+- `SecurityResourceType`: типы ресурсов (SQL, FILE, API, DATABASE, etc.)
+- `SecurityAuditEvent`: событие аудита
+- `validate_and_audit()`: валидация с автоматическим аудитом
+- `get_audit_log()`: получение лога аудита
+- Аудит действий через Event Bus (SECURITY domain)
+- Статистика: by_action, by_user, success_rate
+- 26 тестов
+
 ### Changed
 - `core/infrastructure/event_bus/__init__.py`: экспорт новых классов
 - `core/config/__init__.py`: экспорт DynamicConfigManager
@@ -72,6 +90,7 @@
 - `core/components/__init__.py`: новый модуль
 - `core/observability/__init__.py`: новый модуль
 - `core/errors/__init__.py`: новый модуль
+- `core/security/__init__.py`: новый модуль
 
 ### Files
 - `core/infrastructure/event_bus/domain_event_bus.py` (новый)
@@ -82,12 +101,13 @@
 - `core/errors/exceptions.py` (новый)
 - `core/observability/observability_manager.py` (новый)
 - `core/components/component_discovery.py` (новый)
+- `core/security/security_manager.py` (новый)
 
 ### Tests
-- Всего: 130+ новых тестов (19+23+18+27+21+22)
-- Покрытие: Event Bus, Providers, Config, Errors, Observability, Components
+- Всего: 156+ новых тестов (19+23+18+27+21+22+26)
+- Покрытие: Event Bus, Providers, Config, Errors, Observability, Components, Security
 
-## [5.10.0] - 2026-02-26
+## [5.11.0] - 2026-02-26
 
 ### Added
 - **Универсальный механизм логирования** — централизованное логирование для всех компонентов
