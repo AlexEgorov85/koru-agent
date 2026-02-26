@@ -1,4 +1,4 @@
-from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+﻿from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
@@ -51,10 +51,16 @@ class FallbackPattern(BaseBehaviorPattern):
         # Анализ последних ошибок
         recent_errors = context_analysis["recent_errors"]
 
+        # Версии паттернов из конфигурации (ПРАВИЛЬНО)
+        default_fallback_pattern = self.component_config.parameters.get(
+            "default_fallback_pattern",
+            "react_pattern"
+        ) if self.component_config else "react_pattern"
+
         if self._is_transient_error(recent_errors):
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
-                next_pattern="react.v1.0.0",  # Повторить с простой стратегией
+                next_pattern=default_fallback_pattern,  # Из конфига
                 reason="fallback_transient_error"
             )
         elif self._is_capability_error(recent_errors):
@@ -70,7 +76,7 @@ class FallbackPattern(BaseBehaviorPattern):
             # Ошибка планирования - переключение на реактивный режим
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
-                next_pattern="react.v1.0.0",
+                next_pattern=default_fallback_pattern,  # Из конфига
                 reason="fallback_planning_error_use_react"
             )
         else:

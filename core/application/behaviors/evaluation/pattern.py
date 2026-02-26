@@ -1,4 +1,4 @@
-from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+﻿from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
@@ -50,22 +50,23 @@ class EvaluationPattern(BaseBehaviorPattern):
     ) -> BehaviorDecision:
         """
         Оценка достижения цели через LLM.
-        
+
         АРХИТЕКТУРА:
-        - Использует промпт из component_config (через get_prompt())
-        - Использует output контракт из component_config (через get_output_contract())
+        - Использует промпт из self.prompts (загружен BaseComponent.initialize())
+        - Использует output контракт из self.output_contracts
+        - LLM через infrastructure_context (не session_context!)
         """
         # Подготовка контекста для оценки
         goal = context_analysis["goal"]
         context_summary = context_analysis["context_summary"]
 
-        # Получение промпта из кэша (загружен из component_config)
-        assessment_prompt = self.get_prompt("behavior.react.think")  # Или другой ключ из registry
-        
+        # Получение промпта из кэша BaseComponent
+        assessment_prompt = self.get_prompt("behavior.evaluation.assess")
+
         if not assessment_prompt:
             self.logger.warning("Промпт для оценки не загружен, используем fallback")
             assessment_prompt = "Оцени достижение цели: {goal}\nКонтекст: {context_summary}"
-        
+
         # Заменяем переменные в промпте
         evaluation_prompt = self._render_prompt(assessment_prompt, {
             "goal": str(goal),
@@ -73,32 +74,37 @@ class EvaluationPattern(BaseBehaviorPattern):
         })
 
         try:
-            # Вызов LLM для оценки через сервис, доступный через контекст
-            llm_provider = session_context.get_llm_provider()
-            
-            # Получаем output контракт для структурированного вывода
-            output_schema = self.get_output_contract("behavior.react.think")
-            
+            # LLM через infrastructure_context (ПРАВИЛЬНО)
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+
+            # Получаем output контракт из кэша BaseComponent (ПРАВИЛЬНО)
+            output_schema = self.get_output_contract("behavior.evaluation.assess")
+
             if not output_schema:
                 self.logger.warning("Output контракт не загружен, используем fallback схему")
-                output_schema = {
-                    "type": "object",
-                    "properties": {
-                        "achieved": {"type": "boolean"},
-                        "partial_progress": {"type": "boolean"},
-                        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "summary": {"type": "string"},
-                        "reasoning": {"type": "string"}
-                    },
-                    "required": ["achieved", "partial_progress", "confidence", "summary", "reasoning"]
-                }
+                from pydantic import BaseModel, Field
+                from typing import Optional
+                
+                class EvaluationResult(BaseModel):
+                    achieved: bool = Field(description="Достигнута ли цель")
+                    partial_progress: bool = Field(description="Есть ли частичный прогресс")
+                    confidence: float = Field(ge=0.0, le=1.0, description="Уверенность в оценке")
+                    summary: str = Field(description="Краткое резюме")
+                    reasoning: str = Field(description="Обоснование оценки")
+                
+                output_schema = EvaluationResult.model_json_schema()
 
-            response = await llm_provider.generate_structured(
+            from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+            
+            llm_request = LLMRequest(
                 prompt=evaluation_prompt,
-                schema=output_schema,
-                temperature=0.1,
-                max_tokens=500
+                structured_output=StructuredOutputConfig(
+                    output_model="EvaluationResult",
+                    schema_def=output_schema
+                )
             )
+            
+            response = await llm_provider.generate_structured_request(llm_request)
 
             # Обработка результата
             result = response.content if hasattr(response, 'content') else response

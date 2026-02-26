@@ -1,4 +1,4 @@
-"""
+﻿"""
 Основной класс выполнения агента - runtime цикл рассуждений для новой архитектуры.
 
 СОДЕРЖИТ:
@@ -7,7 +7,6 @@
 - Обработку действий и результатов
 - Интеграцию с инфраструктурными сервисами
 """
-import asyncio
 import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
@@ -15,7 +14,6 @@ import uuid
 
 from core.application.context.application_context import ApplicationContext
 from core.execution.gateway import ExecutionGateway
-from core.session.step_context import StepContext
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
 
@@ -313,18 +311,8 @@ class AgentRuntime:
 
         # В любом случае увеличиваем номер текущего шага для следующей итерации
         self.state.step += 1
-        
-        return None
 
-    async def _decide_next_action(self) -> Optional[Dict[str, Any]]:
-        """Принятие решения о следующем действии."""
-        # В реальной реализации здесь будет вызов LLM для планирования
-        # или принятия решения о следующем действии
-        # Пока что возвращаем заглушку
-        return {
-            "action_type": "continue",
-            "description": "Продолжить выполнение задачи"
-        }
+        return None
 
     def _is_final_result(self, step_result: Any) -> bool:
         """Проверка, является ли результат финальным."""

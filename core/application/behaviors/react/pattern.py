@@ -1,4 +1,4 @@
-"""ReActPattern - реактивная стратегия без логики планирования.
+﻿"""ReActPattern - реактивная стратегия без логики планирования.
 ОСОБЕННОСТИ:
 - Полный анализ текущей ситуации и прогресса
 - Структурированное принятие решений
@@ -17,7 +17,6 @@ from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionTy
 from core.application.agent.strategies.react.schema_validator import SchemaValidator
 from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
-from core.application.agent.strategies.react.prompts import build_reasoning_prompt, build_system_prompt_for_reasoning
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.enums.common_enums import ExecutionStatus
@@ -54,51 +53,33 @@ class ReActPattern(BaseBehaviorPattern):
         - executor: ActionExecutor для взаимодействия (требуется BaseComponent)
         """
         super().__init__(component_name, component_config, application_context, executor)
-        
+
         # Специфичные для ReAct атрибуты
-        self.reasoning_schema = None  # Будет загружено из component_config
-        self.reasoning_prompt_template = None  # Будет загружено из component_config
+        self.reasoning_schema = None  # Будет загружено из self.output_contracts
+        self.reasoning_prompt_template = None  # Будет загружено из self.prompts
+        self.system_prompt_template = None  # Системный промпт из self.prompts
         self.last_reasoning_time = 0.0
         self.error_count = 0
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
 
-        # Промпт и контракт уже разрешены в ComponentConfig.resolved_prompts/contracts
-        if self.component_config:
-            # Получаем промпт из resolved_prompts (первый доступный)
-            resolved_prompts = getattr(self.component_config, 'resolved_prompts', {})
-            if resolved_prompts:
-                self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
+        # Примечание: Промпты и контракты загружаются через BaseComponent.initialize()
+        # и доступны в self.prompts / self.output_contracts
 
-            # Получаем контракт из resolved_output_contracts
-            resolved_output_contracts = getattr(self.component_config, 'resolved_output_contracts', {})
-            if resolved_output_contracts:
-                self.reasoning_schema = next(iter(resolved_output_contracts.values()))
-
-    async def _ensure_prompt_and_contract_loaded(self) -> bool:
+    def _load_reasoning_resources(self) -> bool:
         """
-        Гарантирует загрузку промпта и контракта.
-
-        Порядок загрузки:
-        1. Из self.prompts / self.output_schemas (загружено BaseComponent._preload_resources())
-        2. Из component_config.resolved_prompts (fallback)
-        3. Fallback на ReasoningResult.model_json_schema()
+        Загружает промпт и схему для рассуждения из кэша BaseComponent.
 
         ВОЗВРАЩАЕТ:
-        - bool: True если успешно, False иначе
+        - bool: True если успешно загружено
         """
         # Если уже загружено, ничего не делаем
         if self.reasoning_prompt_template and self.reasoning_schema:
             return True
 
-        if not self.application_context:
-            logger.error("ApplicationContext не доступен для загрузки промпта и контракта")
-            return False
-
         try:
-            # === ПРИОРИТЕТ 1: Используем кэш BaseComponent (self.prompts / self.output_schemas) ===
-            # Промпты уже загружены в self.prompts через BaseComponent.initialize() → _preload_resources()
+            # Загружаем из self.prompts / self.output_contracts (уже загружены BaseComponent.initialize())
             if self.prompts:
                 # Ищем промпт behavior.react.think (приоритет) или первый доступный
                 if "behavior.react.think" in self.prompts:
@@ -114,42 +95,29 @@ class ReActPattern(BaseBehaviorPattern):
                             logger.info(f"Загружен промпт из self.prompts[{cap_name}] (fallback)")
                             break
 
-            # Контракты уже загружены в self.output_schemas через BaseComponent.initialize()
-            if self.output_schemas:
+            # Контракты уже загружены в self.output_contracts
+            if self.output_contracts:
                 # Ищем контракт behavior.react.think (приоритет) или первый доступный
-                if "behavior.react.think" in self.output_schemas:
-                    schema_cls = self.output_schemas["behavior.react.think"]
+                if "behavior.react.think" in self.output_contracts:
+                    schema_cls = self.output_contracts["behavior.react.think"]
                     if schema_cls:
                         if hasattr(schema_cls, 'model_json_schema'):
                             self.reasoning_schema = schema_cls.model_json_schema()
                         else:
                             self.reasoning_schema = schema_cls
-                        logger.info("Загружен контракт behavior.react.think из self.output_schemas")
+                        logger.info("Загружен контракт behavior.react.think из self.output_contracts")
                 else:
                     # Fallback: берём первую доступную схему
-                    for cap_name, schema_cls in self.output_schemas.items():
+                    for cap_name, schema_cls in self.output_contracts.items():
                         if schema_cls:
                             if hasattr(schema_cls, 'model_json_schema'):
                                 self.reasoning_schema = schema_cls.model_json_schema()
                             else:
                                 self.reasoning_schema = schema_cls
-                            logger.info(f"Загружен контракт из self.output_schemas[{cap_name}] (fallback)")
+                            logger.info(f"Загружен контракт из self.output_contracts[{cap_name}] (fallback)")
                             break
 
-            # === ПРИОРИТЕТ 2: Fallback на component_config.resolved_prompts ===
-            if not self.reasoning_prompt_template and self.component_config:
-                resolved_prompts = getattr(self.component_config, 'resolved_prompts', {})
-                if resolved_prompts:
-                    self.reasoning_prompt_template = next(iter(resolved_prompts.values()))
-                    logger.warning("Использован fallback: component_config.resolved_prompts")
-
-            if not self.reasoning_schema and self.component_config:
-                resolved_output_contracts = getattr(self.component_config, 'resolved_output_contracts', {})
-                if resolved_output_contracts:
-                    self.reasoning_schema = next(iter(resolved_output_contracts.values()))
-                    logger.warning("Использован fallback: component_config.resolved_output_contracts")
-
-            # === ПРИОРИТЕТ 3: Fallback на модель ===
+            # Fallback на модель если контракт не найден
             if not self.reasoning_schema:
                 logger.warning("Контракт не загружен, используем ReasoningResult.model_json_schema()")
                 self.reasoning_schema = ReasoningResult.model_json_schema()
@@ -162,116 +130,126 @@ class ReActPattern(BaseBehaviorPattern):
     def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
         """
         Рендерит шаблон промпта с подстановкой переменных.
-        
-        Если промпт загружен из PromptService, используем его шаблон.
-        Иначе используем fallback реализацию.
-        
+
+        Использует промпт из PromptService (загружен в component_config.resolved_prompts).
+        Fallback на дефолтный шаблон только если промпт не загружен.
+
         ПАРАМЕТРЫ:
         - context_analysis: анализ контекста
         - available_capabilities: доступные capability
-        
+
         ВОЗВРАЩАЕТ:
         - str: отрендеренный промпт
-        """
-        if self.reasoning_prompt_template:
-            # Рендерим шаблон из PromptService
-            # В простейшем случае просто добавляем контекст к шаблону
-            # В продакшене здесь должен быть proper template rendering
-            goal = context_analysis.get("goal", "Неизвестная цель")
-            last_steps = context_analysis.get("last_steps", [])
-            no_progress_steps = context_analysis.get("no_progress_steps", 0)
-            consecutive_errors = context_analysis.get("consecutive_errors", 0)
-            
-            # Формируем контекст для подстановки в шаблон
-            prompt_context = {
-                "goal": goal,
-                "step_history": "\n".join([f"{i+1}. {s}" for i, s in enumerate(last_steps[-3:])]),
-                "observation": last_steps[-1] if last_steps else "Нет наблюдений",
-                "available_tools": "\n".join([f"- {cap['name']}: {cap['description']}" for cap in available_capabilities]),
-                "no_progress_steps": no_progress_steps,
-                "consecutive_errors": consecutive_errors
-            }
-            
-            # Простой рендеринг (в продакшене использовать Jinja2 или аналог)
-            rendered = self.reasoning_prompt_template
-            for key, value in prompt_context.items():
-                rendered = rendered.replace(f"{{{key}}}", str(value))
-            
-            return rendered
-        else:
-            # Fallback: используем старую реализацию
-            return self._build_fallback_reasoning_prompt(context_analysis, available_capabilities)
-
-    def _build_fallback_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
-        """
-        Fallback реализация промпта (если не загружен из PromptService).
-        
-        ПАРАМЕТРЫ:
-        - context_analysis: анализ контекста
-        - available_capabilities: доступные capability
-        
-        ВОЗВРАЩАЕТ:
-        - str: промпт для рассуждения
         """
         goal = context_analysis.get("goal", "Неизвестная цель")
         last_steps = context_analysis.get("last_steps", [])
         no_progress_steps = context_analysis.get("no_progress_steps", 0)
         consecutive_errors = context_analysis.get("consecutive_errors", 0)
 
-        prompt_parts = [
-            f"ЦЕЛЬ: {goal}\n",
-            "=== ТЕКУЩИЙ КОНТЕКСТ ===\n",
-            f"- Шагов без прогресса: {no_progress_steps}",
-            f"- Последовательных ошибок: {consecutive_errors}",
-            f"- Последние шаги ({len(last_steps)}):"
+        # Формируем контекст для подстановки в шаблон
+        prompt_context = {
+            "input": self._build_input_context(context_analysis, available_capabilities),
+            "goal": goal,
+            "step_history": "\n".join([f"{i+1}. {s}" for i, s in enumerate(last_steps[-3:])]) if last_steps else "Шаги не выполнены",
+            "observation": last_steps[-1] if last_steps else "Нет наблюдений",
+            "available_tools": "\n".join([f"- {cap['name']}: {cap['description']}" for cap in available_capabilities]),
+            "no_progress_steps": no_progress_steps,
+            "consecutive_errors": consecutive_errors
+        }
+
+        if self.reasoning_prompt_template:
+            # Рендерим шаблон из PromptService
+            rendered = self.reasoning_prompt_template
+            for key, value in prompt_context.items():
+                rendered = rendered.replace(f"{{{key}}}", str(value))
+            return rendered
+        else:
+            # Fallback: минимальный шаблон (только если промпт не загружен из registry)
+            logger.warning("reasoning_prompt_template не загружен, используем минимальный fallback")
+            return self._build_minimal_fallback_prompt(prompt_context)
+
+    def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
+        """
+        Формирует {input} секцию для промпта.
+
+        ПАРАМЕТРЫ:
+        - context_analysis: анализ контекста
+        - available_capabilities: доступные capability
+
+        ВОЗВРАЩАЕТ:
+        - str: контекст для {input}
+        """
+        goal = context_analysis.get("goal", "Неизвестная цель")
+        last_steps = context_analysis.get("last_steps", [])
+        
+        parts = [
+            f"ЦЕЛЬ: {goal}",
+            f"Шагов выполнено: {len(last_steps)}",
+            f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
+            f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
         ]
-
-        for i, step in enumerate(last_steps[-3:], 1):
-            prompt_parts.append(f"  {i}. {step}")
-
-        prompt_parts.extend([
-            "\n=== ДОСТУПНЫЕ CAPABILITIES ===\n",
-            "Доступные действия (ВЫБИРАЙ ТОЛЬКО ИЗ ЭТОГО СПИСКА):"
-        ])
-
+        
+        if last_steps:
+            parts.append("\nПОСЛЕДНИЕ ШАГИ:")
+            for i, step in enumerate(last_steps[-3:], 1):
+                parts.append(f"  {i}. {step}")
+        
+        parts.append("\nДОСТУПНЫЕ ИНСТРУМЕНТЫ:")
         for cap in available_capabilities:
-            cap_desc = cap.get('description', 'Без описания')
-            cap_params = cap.get('parameters_schema', {})
-            prompt_parts.append(f"- {cap['name']}: {cap_desc}")
-            if cap_params:
-                prompt_parts.append(f"  Параметры: {list(cap_params.keys())}")
+            parts.append(f"  - {cap['name']}: {cap['description']}")
+        
+        return "\n".join(parts)
 
-        prompt_parts.extend([
-            "\n=== ИНСТРУКЦИЯ ===",
-            "Проанализируй ситуацию и верни РЕШЕНИЕ в формате JSON.",
-            "",
-            "ТРЕБУЕМЫЙ ФОРМАТ JSON (строго следуй структуре):",
-            """{
-  "thought": "Развёрнутое рассуждение о текущей ситуации",
-  "analysis": {
-    "progress": "Опиши прогресс: что сделано, что осталось",
-    "current_state": "Текущее состояние задачи",
+    def _build_minimal_fallback_prompt(self, prompt_context: Dict[str, Any]) -> str:
+        """
+        Минимальный fallback промпт (только если промпт не загружен из registry).
+
+        ПАРАМЕТРЫ:
+        - prompt_context: контекст для подстановки
+
+        ВОЗВРАЩАЕТ:
+        - str: минимальный промпт для рассуждения
+        """
+        return f"""ЦЕЛЬ: {prompt_context.get('goal', 'Неизвестная цель')}
+
+КОНТЕКСТ:
+{prompt_context.get('input', '')}
+
+Верни решение в формате JSON:
+{{
+  "thought": "Рассуждение о ситуации",
+  "analysis": {{
+    "progress": "Прогресс к цели",
+    "current_state": "Текущее состояние",
     "issues": []
-  },
-  "decision": {
-    "next_action": "ТОЧНОЕ ИМЯ capability из списка выше",
-    "reasoning": "Почему выбрано это действие",
-    "parameters": {"input": "параметры для capability"},
+  }},
+  "decision": {{
+    "next_action": "Имя capability",
+    "reasoning": "Обоснование",
+    "parameters": {{}},
     "expected_outcome": "Ожидаемый результат"
-  },
-  "confidence": 0.85,
+  }},
+  "confidence": 0.5,
   "stop_condition": false
-}""",
-            "",
-            "ВАЖНО:",
-            "1. Возвращай ТОЛЬКО JSON без дополнительного текста",
-            "2. next_action ДОЛЖЕН точно совпадать с именем из списка доступных",
-            "3. parameters должны соответствовать ожидаемым параметрам capability",
-            "4. confidence - число от 0.0 до 1.0",
-            "5. stop_condition - true только если цель достигнута"
-        ])
+}}"""
 
-        return "\n".join(prompt_parts)
+    def _get_default_system_prompt(self) -> str:
+        """
+        Возвращает системный промпт по умолчанию (fallback).
+
+        ВОЗВРАЩАЕТ:
+        - str: системный промпт
+        """
+        return """Ты — модуль рассуждения (THINK) в архитектуре ReAct (Reasoning and Acting).
+Твоя задача — анализировать текущую ситуацию и принимать решения о следующих действиях.
+
+Ты должен:
+1. Оценить текущую ситуацию и прогресс к цели
+2. Выбрать следующее действие из доступных инструментов
+3. Обосновать свой выбор
+4. Проверить безопасность и корректность действий
+
+Отвечай ТОЛЬКО в формате JSON согласно схеме."""
 
     async def analyze_context(
         self,
@@ -313,7 +291,7 @@ class ReActPattern(BaseBehaviorPattern):
         """
         Регистрирует схемы входных параметров для всех capability в SchemaValidator.
 
-        Схемы берутся из input_schemas кэша компонента.
+        Схемы берутся из input_contracts кэша компонента.
 
         ARGS:
         - available_capabilities: список capability для регистрации
@@ -327,14 +305,14 @@ class ReActPattern(BaseBehaviorPattern):
         
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
-            # Пытаемся получить схему из input_schemas кэша
+            # Пытаемся получить схему из input_contracts кэша
             # Формат ключа: capability_name (например, "book_library.execute_script")
             schema = None
             
-            # Проверяем, есть ли схема в кэше input_schemas
-            if hasattr(self, 'input_schemas') and cap.name in self.input_schemas:
-                schema = self.input_schemas[cap.name]
-                logger.info(f"Найдена схема в input_schemas для {cap.name}")
+            # Проверяем, есть ли схема в кэше input_contracts
+            if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
+                schema = self.input_contracts[cap.name]
+                logger.info(f"Найдена схема в input_contracts для {cap.name}")
             elif self.application_context.use_data_repository and self.application_context.data_repository:
                 # Пытаемся получить схему из DataRepository
                 try:
@@ -436,8 +414,8 @@ class ReActPattern(BaseBehaviorPattern):
         """Выполняет структурированное рассуждение через LLM."""
         logger.error(f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
 
-        # Гарантируем загрузку промпта и контракта
-        await self._ensure_prompt_and_contract_loaded()
+        # Загружаем промпт и контракт из кэша BaseComponent
+        self._load_reasoning_resources()
 
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
@@ -489,9 +467,12 @@ class ReActPattern(BaseBehaviorPattern):
                 }
 
             # Создаем LLMRequest для структурированного вывода
+            # Системный промпт загружается из component_config.resolved_prompts
+            system_prompt = self.system_prompt_template or self._get_default_system_prompt()
+            
             llm_request = LLMRequest(
                 prompt=reasoning_prompt,
-                system_prompt=build_system_prompt_for_reasoning(),
+                system_prompt=system_prompt,
                 temperature=0.3,
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
