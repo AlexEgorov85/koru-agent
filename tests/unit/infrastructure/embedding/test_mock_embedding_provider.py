@@ -16,9 +16,11 @@ class TestMockEmbeddingProvider:
     @pytest.mark.asyncio
     async def test_initialize(self, provider):
         """Инициализация."""
+        # Mock не требует инициализации, метод должен выполняться без ошибок
         await provider.initialize()
-        # Mock не требует инициализации
-        assert True
+        # Проверяем что provider готов к работе (генерирует векторы)
+        vector = await provider.generate_single("тест")
+        assert len(vector) == provider.dimension
     
     @pytest.mark.asyncio
     async def test_generate_single(self, provider):
@@ -63,6 +65,13 @@ class TestMockEmbeddingProvider:
     @pytest.mark.asyncio
     async def test_shutdown(self, provider):
         """Закрытие."""
+        # Генерируем вектор до shutdown
+        vector_before = await provider.generate_single("тест")
+        assert len(vector_before) == provider.dimension
+        
+        # Mock не требует очистки, метод должен выполняться без ошибок
         await provider.shutdown()
-        # Mock не требует очистки
-        assert True
+        
+        # Для mock shutdown не влияет на работу, проверяем что provider всё ещё работает
+        vector_after = await provider.generate_single("тест2")
+        assert len(vector_after) == provider.dimension

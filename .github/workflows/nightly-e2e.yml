@@ -1,0 +1,68 @@
+name: Nightly E2E Tests
+
+# Запуск каждый день в 2:00 UTC
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Каждый день в 2:00 UTC
+  workflow_dispatch:  # Ручной запуск
+
+jobs:
+  nightly-e2e:
+    name: Nightly E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run E2E tests
+        run: |
+          pytest tests/e2e/ -v --tb=long --maxfail=5
+        timeout-minutes: 30
+
+      - name: Run integration tests with coverage
+        run: |
+          pytest tests/integration/ -v --tb=short --cov=core --cov-report=xml --cov-report=html
+        timeout-minutes: 60
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: integration-tests
+          name: codecov-nightly
+        if: success()
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+        if: always()
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: |
+            pytest-results.xml
+            *.log
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "⚠️ Nightly E2E tests failed!"
+          echo "Check the workflow run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

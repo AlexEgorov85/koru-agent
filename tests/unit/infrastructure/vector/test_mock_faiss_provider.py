@@ -98,14 +98,23 @@ class TestMockFAISSProvider:
     
     @pytest.mark.asyncio
     async def test_save_load(self, provider, tmp_path):
-        """Сохранение и загрузка (mock не сохраняет)."""
+        """Сохранение и загрузка (mock не сохраняет на диск)."""
         path = str(tmp_path / "test_index.faiss")
+
+        # Добавляем векторы перед сохранением
+        vectors = [[0.1] * 384]
+        metadata = [{"book_id": 1}]
+        await provider.add(vectors, metadata)
         
+        initial_count = await provider.count()
+
+        # Mock save/load не делают ничего (данные остаются в памяти)
         await provider.save(path)
         await provider.load(path)
-        
-        # Mock не сохраняет реально
-        assert True
+
+        # После load данные всё ещё в памяти (mock не загружает с диска)
+        assert await provider.count() == initial_count
+        assert initial_count == 1
     
     @pytest.mark.asyncio
     async def test_shutdown(self, provider):
