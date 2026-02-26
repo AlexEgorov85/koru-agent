@@ -487,11 +487,18 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
-            if self.application_context and hasattr(self.application_context, 'event_bus'):
+            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
-                await self.application_context.event_bus.publish(
+                
+                # Получаем agent_id из session_context или application_context
+                agent_id = getattr(session_context, 'agent_id', 'unknown')
+                if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
+                    agent_id = self.application_context.id
+
+                await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_PROMPT_GENERATED,
                     data={
+                        "agent_id": agent_id,
                         "component": "react_pattern",
                         "phase": "think",
                         "system_prompt": llm_request.system_prompt,
@@ -509,9 +516,14 @@ class ReActPattern(BaseBehaviorPattern):
             response = await llm_provider.generate_structured(llm_request)
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
-            if self.application_context and hasattr(self.application_context, 'event_bus'):
+            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
-                
+
+                # Получаем agent_id из session_context или application_context
+                agent_id = getattr(session_context, 'agent_id', 'unknown')
+                if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
+                    agent_id = self.application_context.id
+
                 # Обработка ответа
                 if isinstance(response, dict) and 'raw_response' in response:
                     result = response['raw_response']
@@ -523,9 +535,10 @@ class ReActPattern(BaseBehaviorPattern):
                     result = response
                     response_format = type(response).__name__
 
-                await self.application_context.event_bus.publish(
+                await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_RESPONSE_RECEIVED,
                     data={
+                        "agent_id": agent_id,
                         "component": "react_pattern",
                         "phase": "think",
                         "response_format": response_format,
