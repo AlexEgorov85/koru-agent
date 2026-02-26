@@ -1,0 +1,55 @@
+capability: book_library.search_books
+component_type: skill
+description: Выходной контракт для динамического поиска книг
+direction: output
+schema_data:
+  type: object
+  properties:
+    rows:
+      type: array
+      description: Список найденных книг
+      items:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: ID книги
+          title:
+            type: string
+            description: Название книги
+          author:
+            type: string
+            description: Автор книги
+          year:
+            type: integer
+            description: Год издания
+          isbn:
+            type: string
+            description: ISBN книги
+          genre:
+            type: string
+            description: Жанр книги
+    rowcount:
+      type: integer
+      description: Количество найденных строк
+    execution_time:
+      type: number
+      description: Время выполнения в секундах
+    execution_type:
+      type: string
+      enum:
+        - dynamic
+        - static
+      description: Тип выполнения (dynamic для генерации SQL через LLM)
+    sql_query:
+      type: string
+      description: Сгенерированный SQL-запрос
+    error:
+      type: string
+      description: Сообщение об ошибке (если произошла ошибка)
+  required:
+    - rows
+    - rowcount
+    - execution_type
+status: active
+version: v1.0.0

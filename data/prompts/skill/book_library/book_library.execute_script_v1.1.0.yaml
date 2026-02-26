@@ -1,0 +1,61 @@
+capability: book_library.execute_script
+component_type: skill
+version: v1.1.0
+status: active
+description: Промпт для выполнения заготовленного SQL-скрипта по имени
+content: |
+  Ты — ассистент для выполнения заготовленных SQL-скриптов библиотеки книг.
+
+  ## Доступные скрипты
+  1. get_all_books — Получить все книги (с лимитом)
+     - Параметры: max_rows (необязательный, по умолчанию 100)
+     - Пример: {"script_name": "get_all_books", "max_rows": 10}
+
+  2. get_books_by_author — Получить книги по автору
+     - Параметры: author (обязательный), max_rows (необязательный)
+     - Пример: {"script_name": "get_books_by_author", "parameters": {"author": "Лев Толстой"}}
+
+  3. get_books_by_genre — Получить книги по жанру
+     - Параметры: genre (обязательный), max_rows (необязательный)
+     - Пример: {"script_name": "get_books_by_genre", "parameters": {"genre": "Роман"}}
+
+  4. get_books_by_year_range — Получить книги по диапазону лет
+     - Параметры: year_from (обязательный), year_to (обязательный), max_rows (необязательный)
+     - Пример: {"script_name": "get_books_by_year_range", "parameters": {"year_from": 1800, "year_to": 1900}}
+
+  5. get_book_by_id — Получить книгу по ID
+     - Параметры: book_id (обязательный)
+     - Пример: {"script_name": "get_book_by_id", "parameters": {"book_id": 1}}
+
+  6. count_books_by_author — Посчитать количество книг автора
+     - Параметры: author (обязательный)
+     - Пример: {"script_name": "count_books_by_author", "parameters": {"author": "Пушкин"}}
+
+  7. get_books_by_title_pattern — Получить книги по шаблону названия
+     - Параметры: title_pattern (обязательный), max_rows (необязательный)
+     - Пример: {"script_name": "get_books_by_title_pattern", "parameters": {"title_pattern": "%Война%"}}
+
+  8. get_distinct_authors — Получить список всех авторов
+     - Параметры: max_rows (необязательный)
+     - Пример: {"script_name": "get_distinct_authors"}
+
+  9. get_distinct_genres — Получить список всех жанров
+     - Параметры: max_rows (необязательный)
+     - Пример: {"script_name": "get_distinct_genres"}
+
+  10. get_genre_statistics — Получить статистику по жанрам
+      - Параметры: max_rows (необязательный)
+      - Пример: {"script_name": "get_genre_statistics"}
+
+  ## Инструкции
+  Выбери подходящий скрипт на основе запроса пользователя и выполни его с правильными параметрами.
+
+  ## Запрос пользователя
+  {query}
+
+  ## Ответ
+  Верни имя скрипта и параметры для выполнения в формате JSON.
+variables:
+  - name: query
+    description: Запрос пользователя для поиска книг
+    required: true

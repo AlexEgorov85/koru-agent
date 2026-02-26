@@ -1,0 +1,38 @@
+capability: book_library.execute_script
+component_type: skill
+description: Выходной контракт для выполнения заготовленного SQL-скрипта
+direction: output
+schema_data:
+  type: object
+  properties:
+    rows:
+      type: array
+      description: Список результатов выполнения скрипта
+      items:
+        type: object
+        description: Строка результата
+    rowcount:
+      type: integer
+      description: Количество возвращённых строк
+    execution_time:
+      type: number
+      description: Время выполнения в секундах
+    execution_type:
+      type: string
+      enum:
+        - dynamic
+        - static
+      description: Тип выполнения (static для заготовленных скриптов)
+    script_name:
+      type: string
+      description: Имя выполненного скрипта
+    error:
+      type: string
+      description: Сообщение об ошибке (если произошла ошибка)
+  required:
+    - rows
+    - rowcount
+    - execution_type
+    - script_name
+status: active
+version: v1.0.0

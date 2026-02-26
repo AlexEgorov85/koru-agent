@@ -1,0 +1,11 @@
+capability: book_library.list_scripts
+component_type: skill
+description: Входной контракт для получения списка доступных скриптов
+direction: input
+schema_data:
+  type: object
+  properties: {}
+  required: []
+  additionalProperties: false
+status: active
+version: v1.0.0
