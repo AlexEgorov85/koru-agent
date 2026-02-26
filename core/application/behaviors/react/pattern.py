@@ -363,7 +363,7 @@ class ReActPattern(BaseBehaviorPattern):
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
                     logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
                 else:
-                    logger.warning(f"⚠️ Пустая схема для {cap.name}")
+                    logger.debug(f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
             else:
                 logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
 
