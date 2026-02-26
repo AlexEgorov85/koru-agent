@@ -1,9 +1,9 @@
 # CHANGELOG
 
-## [5.12.0] - 2026-02-26
+## [5.13.0] - 2026-02-26
 
 ### Added
-- **7 архитектурных улучшений (P0 + P1 + P2 завершены)**:
+- **8 архитектурных улучшений (ВСЕ завершены)**:
 
 #### 1. Event Bus — разделение на доменные шины (P0)
 - `EventBusManager`: менеджер доменных шин событий
@@ -83,6 +83,20 @@
 - Статистика: by_action, by_user, success_rate
 - 26 тестов
 
+#### 8. Data Pipeline (P2)
+- `DataPipeline`: конвейер с этапами обработки
+- `PipelineStage`: базовый класс этапа
+- `ValidationStage`: этап валидации данных
+- `TransformationStage`: этап трансформации
+- `EnrichmentStage`: этап обогащения данных
+- `PipelineContext`: контекст выполнения конвейера
+- `PipelineBuilder`: fluent builder для создания конвейеров
+- `rollback()`: откат изменений при ошибках
+- Статистика: execution_count, success_rate, avg_duration
+- Глобальный реестр конвейеров
+- Интеграция с Event Bus и Error Handler
+- 29 тестов
+
 ### Changed
 - `core/infrastructure/event_bus/__init__.py`: экспорт новых классов
 - `core/config/__init__.py`: экспорт DynamicConfigManager
@@ -91,6 +105,7 @@
 - `core/observability/__init__.py`: новый модуль
 - `core/errors/__init__.py`: новый модуль
 - `core/security/__init__.py`: новый модуль
+- `core/pipeline/__init__.py`: новый модуль
 
 ### Files
 - `core/infrastructure/event_bus/domain_event_bus.py` (новый)
@@ -102,12 +117,13 @@
 - `core/observability/observability_manager.py` (новый)
 - `core/components/component_discovery.py` (новый)
 - `core/security/security_manager.py` (новый)
+- `core/pipeline/data_pipeline.py` (новый)
 
 ### Tests
-- Всего: 156+ новых тестов (19+23+18+27+21+22+26)
-- Покрытие: Event Bus, Providers, Config, Errors, Observability, Components, Security
+- Всего: 185+ новых тестов (19+23+18+27+21+22+26+29)
+- Покрытие: Event Bus, Providers, Config, Errors, Observability, Components, Security, Pipeline
 
-## [5.11.0] - 2026-02-26
+## [5.12.0] - 2026-02-26
 
 ### Added
 - **Универсальный механизм логирования** — централизованное логирование для всех компонентов
