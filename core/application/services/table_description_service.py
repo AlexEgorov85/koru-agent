@@ -82,23 +82,31 @@ class TableDescriptionService(BaseService):
             self.logger.error(f"Ошибка инициализации сервиса описания таблицы: {str(e)}")
             return False
 
-    async def execute(self, input_data: TableDescriptionServiceInput) -> TableDescriptionServiceOutput:
-        """
-        Выполнение сервиса - получение метаданных таблицы.
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса описания таблиц."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
 
-        ARGS:
-        - input_data: входные данные с информацией о схеме и таблице
-
-        RETURNS:
-        - TableDescriptionServiceOutput: выходные данные с метаданными таблицы
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """
+        Реализация бизнес-логики сервиса описания таблиц.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Получение метаданных таблицы
         metadata = await self.get_table_metadata(
-            schema_name=input_data.schema_name,
-            table_name=input_data.table_name,
-            context=input_data.context,
-            step_number=input_data.step_number
+            schema_name=parameters.get("schema_name", ""),
+            table_name=parameters.get("table_name", ""),
+            context=parameters.get("context"),
+            step_number=parameters.get("step_number")
         )
-        return TableDescriptionServiceOutput(metadata=metadata)
+        return {"metadata": metadata, "capability": capability.name}
 
     async def shutdown(self) -> None:
         """

@@ -197,8 +197,23 @@ class PromptService(BaseService):
 
         return None
 
-    async def execute(self, input_data: ServiceInput) -> ServiceOutput:
-        """Execute method required by the base class."""
-        # For this service, we can implement a basic execution that returns a prompt
-        # based on input data if needed, but for now just return a dummy output
-        return ServiceOutput()
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса промптов."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса промптов.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Получение промпта по capability
+        prompt_content = self.get_prompt(capability.name)
+        return {"prompt": prompt_content, "capability": capability.name}

@@ -108,29 +108,27 @@ class SQLGenerationService(BaseService):
         """Возвращает список имен промптов, необходимых для сервиса"""
         return ["sql_generation.generate_safe_query", "sql_generation.correct_query"]
 
-    async def execute(self, input_data: ServiceInput) -> SQLGenerationServiceOutput:
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса генерации SQL."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """
-        Выполнение сервиса - в данном случае делегирует генерацию или коррекцию.
-        
-        ARGS:
-        - input_data: ServiceInput - должен быть экземпляром SQLGenerationInput или SQLCorrectionInput
-        
-        RETURNS:
-        - ServiceOutput: результат выполнения
+        Реализация бизнес-логики сервиса генерации SQL.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
         """
-        # Проверяем тип входных данных и вызываем соответствующий метод
-        if isinstance(input_data, SQLGenerationInput):
-            result = await self.generate_query(input_data)
-            # Преобразуем результат в подходящий ServiceOutput
-            # Для этого создадим временный класс или используем словарь
-            from dataclasses import asdict
-            return SQLGenerationServiceOutput(asdict(result))
-        elif isinstance(input_data, SQLCorrectionInput):
-            # Для коррекции нужно больше информации
-            # Этот метод требует дополнительные параметры, которые не передаются через input_data
-            raise NotImplementedError("Direct execution with SQLCorrectionInput not implemented")
-        else:
-            raise ValueError(f"Unsupported input type: {type(input_data)}")
+        # Генерация SQL-запроса на основе параметров
+        result = await self.generate_query(SQLGenerationInput(**parameters))
+        from dataclasses import asdict
+        return asdict(result)
 
     async def restart(self) -> bool:
         """

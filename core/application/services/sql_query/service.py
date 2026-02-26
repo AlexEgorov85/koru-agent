@@ -106,32 +106,30 @@ class SQLQueryService(BaseService):
             self.logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
             return False
 
-    async def execute(self, input_data: SQLQueryServiceInput) -> SQLQueryServiceOutput:
-        """
-        Выполнение безопасного SQL-запроса.
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса SQL-запросов."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
 
-        ARGS:
-        - input_data: SQLQueryServiceInput - содержит SQL-запрос и параметры
-
-        RETURNS:
-        - SQLQueryServiceOutput: результат выполнения запроса
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """
-        # Для совместимости используем метод execute_query_from_user_request
+        Реализация бизнес-логики сервиса SQL-запросов.
+
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
+        """
+        # Выполнение безопасного SQL-запроса
         result = await self.execute_query_from_user_request(
-            user_question=input_data.user_question,
-            tables=input_data.tables,
-            max_rows=input_data.max_rows
+            user_question=parameters.get("user_question", ""),
+            tables=parameters.get("tables", []),
+            max_rows=parameters.get("max_rows", 50)
         )
-
-        # Формируем метаданные
-        metadata = {
-            "service": "SQLQueryService",
-            "input_user_question": input_data.user_question,
-            "input_tables": input_data.tables,
-            "max_rows": input_data.max_rows
-        }
-
-        return SQLQueryServiceOutput(query_result=result, metadata=metadata)
+        return {"query_result": result, "capability": capability.name}
 
     async def execute_query(
         self,

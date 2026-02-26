@@ -91,54 +91,31 @@ class SQLValidatorService(BaseService):
             self.logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
             return False
 
-    async def execute(self, input_data: SQLValidatorServiceInput) -> SQLValidatorServiceOutput:
+    def _get_event_type_for_success(self) -> 'EventType':
+        """Возвращает тип события для успешного выполнения сервиса валидации SQL."""
+        from core.infrastructure.event_bus.event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
+
+    async def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
         """
-        Выполнение валидации SQL-запроса.
+        Реализация бизнес-логики сервиса валидации SQL.
 
-        ARGS:
-        - input_data: SQLValidatorServiceInput - содержит SQL-запрос и параметры
-
-        RETURNS:
-        - SQLValidatorServiceOutput: результат валидации
+        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
+        Здесь только бизнес-логика.
         """
-        # === ЭТАП 1: Валидация входных данных через схему ===
-        input_schema = self.get_cached_input_contract_safe("sql_validator_service.validate")
-        if input_schema:
-            try:
-                # Валидируем входные данные через схему
-                input_schema.model_validate({
-                    "sql": input_data.sql_query,
-                    "parameters": input_data.parameters
-                })
-            except Exception as e:
-                self.logger.error(f"Валидация входных данных не пройдена: {e}")
-                return SQLValidatorServiceOutput(
-                    is_valid=False,
-                    validation_errors=[f"Ошибка входных данных: {str(e)}"]
-                )
-        
-        # === ЭТАП 2: Основная валидация SQL ===
-        result = await self.validate_query(input_data.sql_query, input_data.parameters)
-
-        # === ЭТАП 3: Валидация выходных данных через схему ===
-        output_schema = self.get_cached_output_contract_safe("sql_validator_service.validate")
-        if output_schema:
-            try:
-                output_schema.model_validate({
-                    "is_valid": result.is_valid,
-                    "validation_errors": result.validation_errors,
-                    "sanitized_query": result.sql,
-                    "parameters": result.parameters
-                })
-            except Exception as e:
-                self.logger.error(f"Валидация выходных данных не пройдена: {e}")
-
-        return SQLValidatorServiceOutput(
-            is_valid=result.is_valid,
-            validation_errors=result.validation_errors,
-            sanitized_query=result.sql,
-            parameters=result.parameters
-        )
+        # Валидация SQL-запроса
+        result = await self.validate_query(parameters.get("sql", ""), parameters.get("parameters"))
+        return {
+            "is_valid": result.is_valid,
+            "validation_errors": result.validation_errors,
+            "sanitized_sql": result.sanitized_sql,
+            "capability": capability.name
+        }
 
     async def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> ValidatedSQL:
         """
