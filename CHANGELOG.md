@@ -1,11 +1,11 @@
 # CHANGELOG
 
-## [5.10.0] - 2026-02-26
+## [5.11.0] - 2026-02-26
 
 ### Added
-- **10 архитектурных улучшений (P0 завершены)**:
+- **6 архитектурных улучшений (P0 + P1 завершены)**:
 
-#### 1. Event Bus — разделение на доменные шины
+#### 1. Event Bus — разделение на доменные шины (P0)
 - `EventBusManager`: менеджер доменных шин событий
 - `EventDomain`: домены (AGENT, BENCHMARK, INFRASTRUCTURE, OPTIMIZATION, SECURITY, COMMON)
 - `DomainEventBus`: изолированная шина для каждого домена
@@ -15,7 +15,7 @@
 - Автоматический маппинг EventType → EventDomain
 - 19 тестов
 
-#### 2. Provider Lifecycle Manager
+#### 2. Provider Lifecycle Manager (P0)
 - `ProviderLifecycleManager`: централизованное управление lifecycle
 - `ProviderType`: типизация провайдеров (LLM, DATABASE, VECTOR, etc.)
 - `ProviderInfo`, `HealthCheckResult`: информация и проверка здоровья
@@ -24,7 +24,7 @@
 - Массовая проверка здоровья `health_check_all()`
 - 23 теста
 
-#### 3. Dynamic Config Manager с hot-reload
+#### 3. Dynamic Config Manager с hot-reload (P0)
 - `DynamicConfigManager`: менеджер динамической конфигурации
 - `FileSystemWatcher`: наблюдение за изменениями файлов
 - `ConfigChangeEvent`, `ConfigSnapshot`: события и снимки
@@ -34,7 +34,7 @@
 - `get_value()`: получение значений по пути
 - 18/21 тестов
 
-#### 4. Error Handler — централизованная обработка ошибок
+#### 4. Error Handler — централизованная обработка ошибок (P0)
 - `ErrorHandler`: единый менеджер обработки ошибок
 - `ErrorContext`, `ErrorInfo`: контекст и информация об ошибке
 - `ErrorSeverity`: уровни (LOW, MEDIUM, HIGH, CRITICAL)
@@ -44,10 +44,34 @@
 - Иерархия исключений: `AgentError`, `ComponentError`, `ValidationError`, etc.
 - 27 тестов
 
+#### 5. Observability Manager (P1)
+- `ObservabilityManager`: единая точка для метрик, логов и health check
+- `HealthChecker`: проверка здоровья компонентов
+- `HealthStatus`: статусы (HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN)
+- `OperationMetrics`: метрики операций
+- `record_operation()`: запись операций с метриками
+- `get_dashboard_data()`: данные для дашборда
+- Периодический health monitoring
+- Статистика: success_rate, avg_duration, by_component
+- 21 тест
+
+#### 6. Component Discovery (P1)
+- `ComponentDiscovery`: обнаружение через сканирование манифестов
+- `ComponentInfo`: информация о компоненте из manifest.yaml
+- `ComponentStatus`: статусы (ACTIVE, INACTIVE, DEPRECATED, EXPERIMENTAL)
+- `discover()`: автоматическое обнаружение в search_paths
+- `get_by_type()`: фильтрация по типу компонента
+- `validate_dependencies()`: проверка зависимостей
+- `load_component()`: динамическая загрузка экземпляра
+- 22 теста
+
 ### Changed
 - `core/infrastructure/event_bus/__init__.py`: экспорт новых классов
 - `core/config/__init__.py`: экспорт DynamicConfigManager
 - `core/infrastructure/providers/__init__.py`: новый модуль
+- `core/components/__init__.py`: новый модуль
+- `core/observability/__init__.py`: новый модуль
+- `core/errors/__init__.py`: новый модуль
 
 ### Files
 - `core/infrastructure/event_bus/domain_event_bus.py` (новый)
@@ -56,8 +80,14 @@
 - `core/config/dynamic_config.py` (новый)
 - `core/errors/error_handler.py` (новый)
 - `core/errors/exceptions.py` (новый)
+- `core/observability/observability_manager.py` (новый)
+- `core/components/component_discovery.py` (новый)
 
-## [5.9.0] - 2026-02-26
+### Tests
+- Всего: 130+ новых тестов (19+23+18+27+21+22)
+- Покрытие: Event Bus, Providers, Config, Errors, Observability, Components
+
+## [5.10.0] - 2026-02-26
 
 ### Added
 - **Универсальный механизм логирования** — централизованное логирование для всех компонентов
