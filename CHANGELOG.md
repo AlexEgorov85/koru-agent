@@ -1,6 +1,35 @@
 # CHANGELOG
 
-## [5.5.0] - 2026-02-25
+## [5.6.0] - 2026-02-26
+
+### Added
+- **Логирование LLM промптов и ответов в файлы**
+  - Новые типы логов: `LogType.LLM_PROMPT` и `LogType.LLM_RESPONSE`
+  - `LogCollector`: подписка на `LLM_PROMPT_GENERATED` и `LLM_RESPONSE_RECEIVED`
+  - Сохранение в файлы: `data/logs/by_agent/`, `by_capability/`, `all/`
+  - Полные промпты и ответы сохраняются в JSON формате
+
+- **Контракты и промпты для book_library**
+  - `book_library.search_books_input/output_v1.0.0.yaml` — динамический поиск книг
+  - `book_library.execute_script_input/output_v1.0.0.yaml` — выполнение скриптов
+  - `book_library.list_scripts_input/output_v1.0.0.yaml` — список скриптов
+  - `book_library.search_books_v1.0.0.yaml` — промпт генерации SQL через LLM
+  - `book_library.execute_script_v1.1.0.yaml` — промпт выполнения скриптов
+
+### Fixed
+- **main.py** — исправлено обращение к `event_bus`
+  - Было: `application_context.event_bus`
+  - Стало: `application_context.infrastructure_context.event_bus`
+  - Исправлена ошибка `AttributeError: 'ApplicationContext' object has no attribute 'event_bus'`
+
+### Changed
+- **ReActPattern** — улучшено логирование схем capability
+  - Предупреждение о пустой схеме заменено на debug сообщение
+  - Нормальное поведение для capability без входных параметров
+
+### Technical Details
+- Включено полное логирование LLM в терминал (`log_full_content=True`)
+- Структура логов: JSON с корреляцией по agent_id, session_id, capability
 
 ### Fixed
 - **ReActPattern** — исправлено получение LLM провайдера и обработка ответов
