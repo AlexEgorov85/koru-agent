@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## [5.8.0] - 2026-02-26
+
+### Refactored
+- **Унифицированный шаблон выполнения компонентов** — централизация логики
+  - `BaseComponent`: добавлен универсальный шаблон `execute()` с валидацией, обработкой ошибок и метриками
+  - `BaseComponent`: добавлен метод `_execute_impl()` для бизнес-логики наследников
+  - `BaseComponent`: добавлен метод `_get_event_type_for_success()` для определения типа события
+  - `BaseComponent`: добавлен универсальный метод `_publish_metrics()` для публикации событий
+  - `BaseComponent`: добавлены методы доступа к провайдерам `get_provider()`, `get_llm_provider()`, `get_db_provider()`
+  - `BaseComponent`: добавлена полная документация класса и методов
+
+- **Базовые классы компонентов** — использование шаблона BaseComponent
+  - `BaseSkill`: `execute()` использует шаблон из `BaseComponent`, добавлен `_execute_impl()` по умолчанию
+  - `BaseTool`: `execute()` использует шаблон из `BaseComponent`, добавлен `_execute_impl()` для инструментов
+  - `BaseService`: `execute()` использует шаблон из `BaseComponent`, добавлен `_execute_impl()` для сервисов
+  - `BaseBehavior`: добавлен `_get_event_type_for_success()`, сохранён собственный интерфейс `execute(input_data)`
+  - `BaseSkill`: удалено дублирование `_publish_metrics()` (теперь наследуется из `BaseComponent`)
+
+- **Инструменты** — обновлены для нового API
+  - `SQLTool`: `get_db_provider()` вместо прямого доступа к инфраструктуре
+  - `SQLTool`: переименован `execute_specific()` в `_execute_impl()`
+  - `SQLTool`: удалено дублирование `execute()` (теперь наследуется из `BaseTool`)
+  - `FileTool`: добавлен `_convert_params_to_input()` для преобразования параметров
+  - `FileTool`: переименован `execute()` в `_execute_impl()`
+
+### Fixed
+- **_execute_impl()** — изменён с abstract на конкретную реализацию с NotImplementedError
+- **Обратная совместимость** — все существующие компоненты работают без изменений
+
+### Technical Details
+- Все 452 теста прошли успешно
+- Сохранена полная обратная совместимость через реализацию по умолчанию в `BaseSkill._execute_impl()`
+- Унифицирована публикация метрик через `_publish_metrics()` в `BaseComponent`
+
 ## [5.7.0] - 2026-02-26
 
 ### Refactored
