@@ -1,0 +1,56 @@
+# core/config/logging_config.yaml
+# Конфигурация универсального механизма логирования
+
+logging:
+  # Уровень логирования: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  
+  # Формат логов
+  format: "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+  
+  # Тип формата: "text" или "json"
+  format_type: text
+  
+  # Использовать цвета для консольного вывода
+  use_colors: true
+  
+  # Что логировать
+  log_execution_start: true
+  log_execution_end: true
+  log_parameters: true
+  log_result: true
+  log_errors: true
+  log_duration: true
+  
+  # Исключения (чувствительные данные)
+  exclude_parameters:
+    - password
+    - token
+    - api_key
+    - secret
+    - credential
+    - authorization
+    - access_token
+    - refresh_token
+  
+  # Ограничения
+  max_parameter_length: 1000
+  max_result_length: 5000
+  
+  # EventBus интеграция
+  enable_event_bus: true
+  
+  # Файловое логирование (опционально)
+  log_file: null  # "logs/agent.log" для включения
+  log_file_max_size: 10485760  # 10MB
+  log_file_backup_count: 5
+  
+  # Настройки для конкретных модулей (опционально)
+  module_levels:
+    # Пример: более детальное логирование для отладки
+    # core.components.skills: DEBUG
+    # core.infrastructure.providers: DEBUG
+    
+    # Снижение шума от слишком болтливых модулей
+    # urllib3: WARNING
+    # httpx: WARNING
