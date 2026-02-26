@@ -10,17 +10,15 @@ FEATURES:
 - Очистка старых метрик
 - Потокобезопасная запись
 """
-import asyncio
-import json
-import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 from core.models.data.metrics import MetricRecord, AggregatedMetrics, MetricType
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
+from core.infrastructure.storage.base.base_storage import FileSystemStorage
 
 
-class FileSystemMetricsStorage(IMetricsStorage):
+class FileSystemMetricsStorage(FileSystemStorage[MetricRecord], IMetricsStorage):
     """
     Хранилище метрик на файловой системе.
 
@@ -50,25 +48,45 @@ class FileSystemMetricsStorage(IMetricsStorage):
         if base_dir is None:
             base_dir = Path('data/metrics')
 
-        self.base_dir = base_dir
-        self._lock = asyncio.Lock()
-        self._ensure_base_dir()
+        super().__init__(base_dir, file_prefix='metrics')
 
-    def _ensure_base_dir(self) -> None:
-        """Создание базовой директории если не существует"""
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+    def _parse_item(self, data: Dict[str, Any]) -> Optional[MetricRecord]:
+        """Парсинг метрики из словаря"""
+        try:
+            return MetricRecord.from_dict(data)
+        except (KeyError, ValueError):
+            return None
+
+    def _item_to_dict(self, item: MetricRecord) -> Dict[str, Any]:
+        """Преобразование метрики в словарь"""
+        return item.to_dict()
+
+    # Методы для обратной совместимости с тестами
+    def _load_metrics_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Загрузка метрик из файла (для обратной совместимости)"""
+        return self._load_json_file(file_path)
+
+    def _save_metrics_file(self, file_path: Path, metrics: List[Dict[str, Any]]) -> None:
+        """Сохранение метрик в файл (для обратной совместимости)"""
+        self._save_json_file(file_path, metrics)
+
+    def _load_metrics_from_file(self, file_path: Path) -> List[MetricRecord]:
+        """Загрузка метрик из файла с парсингом (для обратной совместимости)"""
+        data = self._load_json_file(file_path)
+        records = []
+        for item in data:
+            record = self._parse_item(item)
+            if record is not None:
+                records.append(record)
+        return records
 
     def _get_capability_dir(self, capability: str) -> Path:
         """Получение директории для capability"""
-        # Замена недопустимых символов в имени capability
-        safe_capability = capability.replace('/', '_').replace('\\', '_')
-        return self.base_dir / safe_capability
+        return self.get_dir(capability)
 
     def _get_version_dir(self, capability: str, version: str) -> Path:
         """Получение директории для версии"""
         capability_dir = self._get_capability_dir(capability)
-        capability_dir.mkdir(parents=True, exist_ok=True)
-
         safe_version = version.replace('/', '_').replace('\\', '_')
         return capability_dir / safe_version
 
@@ -114,13 +132,13 @@ class FileSystemMetricsStorage(IMetricsStorage):
             )
 
             # Загрузка существующих метрик
-            existing_metrics = self._load_metrics_file(metrics_file)
+            existing_metrics = self._load_json_file(metrics_file)
 
             # Добавление новой метрики
             existing_metrics.append(metric.to_dict())
 
             # Сохранение
-            self._save_metrics_file(metrics_file, existing_metrics)
+            self._save_json_file(metrics_file, existing_metrics)
 
             # Обновление aggregated метрик
             await self._update_aggregated_metrics(
@@ -130,44 +148,6 @@ class FileSystemMetricsStorage(IMetricsStorage):
 
             # Обновление latest файла
             self._update_latest_metrics(metric)
-
-    def _load_metrics_file(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Загрузка метрик из файла"""
-        if not file_path.exists():
-            return []
-
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data if isinstance(data, list) else []
-        except (json.JSONDecodeError, IOError):
-            return []
-
-    def _save_metrics_file(self, file_path: Path, metrics: List[Dict[str, Any]]) -> None:
-        """Сохранение метрик в файл"""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(metrics, f, indent=2, ensure_ascii=False)
-
-    async def _update_aggregated_metrics(self, capability: str, version: str) -> None:
-        """Обновление агрегированных метрик"""
-        records = await self.get_records(capability, version)
-        aggregated = AggregatedMetrics.from_records(capability, version, records)
-
-        agg_file = self._get_aggregated_file(capability, version)
-        self._save_metrics_file(agg_file, [aggregated.to_dict()])
-
-    def _update_latest_metrics(self, metric: MetricRecord) -> None:
-        """Обновление файла последних метрик"""
-        latest_file = self._get_latest_file(metric.capability)
-        existing = self._load_metrics_file(latest_file)
-
-        # Добавление метрики (храним последние 1000)
-        existing.append(metric.to_dict())
-        existing = existing[-1000:]
-
-        self._save_metrics_file(latest_file, existing)
 
     async def get_records(
         self,
@@ -195,7 +175,7 @@ class FileSystemMetricsStorage(IMetricsStorage):
             version_dir = self._get_version_dir(capability, version)
             if version_dir.exists():
                 for file_path in version_dir.glob('metrics_*.json'):
-                    records.extend(self._load_metrics_from_file(file_path))
+                    records.extend(await self._load_items(file_path))
         else:
             # Получение из всех версий
             capability_dir = self._get_capability_dir(capability)
@@ -203,7 +183,7 @@ class FileSystemMetricsStorage(IMetricsStorage):
                 for version_dir in capability_dir.iterdir():
                     if version_dir.is_dir() and version_dir.name != 'latest':
                         for file_path in version_dir.glob('metrics_*.json'):
-                            records.extend(self._load_metrics_from_file(file_path))
+                            records.extend(await self._load_items(file_path))
 
         # Фильтрация по времени
         if time_range:
@@ -216,21 +196,6 @@ class FileSystemMetricsStorage(IMetricsStorage):
         # Ограничение количества
         if limit:
             records = records[:limit]
-
-        return records
-
-    def _load_metrics_from_file(self, file_path: Path) -> List[MetricRecord]:
-        """Загрузка метрик из файла с парсингом"""
-        data = self._load_metrics_file(file_path)
-        records = []
-
-        for item in data:
-            try:
-                record = MetricRecord.from_dict(item)
-                records.append(record)
-            except (KeyError, ValueError):
-                # Пропуск некорректных записей
-                continue
 
         return records
 
@@ -276,7 +241,8 @@ class FileSystemMetricsStorage(IMetricsStorage):
 
                     if file_date < older_than:
                         # Удаление файла
-                        deleted_count += len(self._load_metrics_file(file_path))
+                        data = self._load_json_file(file_path)
+                        deleted_count += len(data)
                         file_path.unlink()
                 except (ValueError, OSError):
                     continue
@@ -308,7 +274,7 @@ class FileSystemMetricsStorage(IMetricsStorage):
         if not agg_file.exists():
             return None
 
-        data = self._load_metrics_file(agg_file)
+        data = self._load_json_file(agg_file)
         if not data:
             return None
 
@@ -344,7 +310,6 @@ class FileSystemMetricsStorage(IMetricsStorage):
         if self.base_dir.exists():
             for item in self.base_dir.iterdir():
                 if item.is_dir() and item.name != '__pycache__':
-                    # Восстановление оригинального имени
                     capabilities.append(item.name.replace('_', '/'))
 
         return capabilities
@@ -368,3 +333,22 @@ class FileSystemMetricsStorage(IMetricsStorage):
                     versions.append(item.name.replace('_', '/'))
 
         return versions
+
+    def _update_latest_metrics(self, metric: MetricRecord) -> None:
+        """Обновление файла последних метрик"""
+        latest_file = self._get_latest_file(metric.capability)
+        existing = self._load_json_file(latest_file)
+
+        # Добавление метрики (храним последние 1000)
+        existing.append(metric.to_dict())
+        existing = existing[-1000:]
+
+        self._save_json_file(latest_file, existing)
+
+    async def _update_aggregated_metrics(self, capability: str, version: str) -> None:
+        """Обновление агрегированных метрик"""
+        records = await self.get_records(capability, version)
+        aggregated = AggregatedMetrics.from_records(capability, version, records)
+
+        agg_file = self._get_aggregated_file(capability, version)
+        self._save_json_file(agg_file, [aggregated.to_dict()])

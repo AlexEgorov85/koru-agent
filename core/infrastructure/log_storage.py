@@ -11,15 +11,15 @@ FEATURES:
 - Потокобезопасная запись
 """
 import asyncio
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from core.models.data.benchmark import LogEntry, LogType
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
+from core.infrastructure.storage.base.base_storage import FileSystemStorage
 
 
-class FileSystemLogStorage(ILogStorage):
+class FileSystemLogStorage(FileSystemStorage[LogEntry], ILogStorage):
     """
     Хранилище логов на файловой системе.
 
@@ -52,18 +52,65 @@ class FileSystemLogStorage(ILogStorage):
         if base_dir is None:
             base_dir = Path('data/logs')
 
-        self.base_dir = base_dir
-        self._lock = asyncio.Lock()
-        self._ensure_base_dir()
-
-    def _ensure_base_dir(self) -> None:
-        """Создание базовой директории если не существует"""
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        super().__init__(base_dir, file_prefix='logs')
 
         # Создание поддиректорий
         (self.base_dir / 'by_agent').mkdir(exist_ok=True)
         (self.base_dir / 'by_capability').mkdir(exist_ok=True)
         (self.base_dir / 'all').mkdir(exist_ok=True)
+
+    def _parse_item(self, data: Dict[str, Any]) -> Optional[LogEntry]:
+        """Парсинг записи лога из словаря"""
+        try:
+            return LogEntry.from_dict(data)
+        except (KeyError, ValueError):
+            return None
+
+    def _item_to_dict(self, item: LogEntry) -> Dict[str, Any]:
+        """Преобразование записи лога в словарь"""
+        return item.to_dict()
+
+    # Методы для обратной совместимости с тестами
+    def _load_json_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Загрузка данных из JSON файла (для обратной совместимости)"""
+        return super()._load_json_file(file_path)
+
+    def _save_json_file(self, file_path: Path, data: List[Dict[str, Any]]) -> None:
+        """Сохранение данных в JSON файл (для обратной совместимости)"""
+        super()._save_json_file(file_path, data)
+
+    def _parse_log_entry(self, data: Dict[str, Any]) -> Optional[LogEntry]:
+        """Парсинг записи лога из словаря (для обратной совместимости)"""
+        return self._parse_item(data)
+
+    async def save(self, entry: LogEntry) -> None:
+        """
+        Сохранение записи лога.
+
+        ARGS:
+        - entry: объект записи лога
+
+        FEATURES:
+        - Сохранение в 3 места:
+          1. by_agent/{agent_id}/{session_id}/logs.json
+          2. by_capability/{capability}/logs.json (если указан)
+          3. all/logs_{date}.json
+        - Потокобезопасная запись через lock
+        """
+        async with self._lock:
+            # 1. Сохранение в директорию агента/сессии
+            if entry.agent_id and entry.session_id:
+                agent_file = self._get_agent_session_file(entry.agent_id, entry.session_id)
+                await self._atomic_append(agent_file, entry, max_items=10000)
+
+            # 2. Сохранение в директорию capability
+            if entry.capability:
+                cap_file = self._get_capability_file(entry.capability)
+                await self._atomic_append(cap_file, entry, max_items=10000)
+
+            # 3. Сохранение в общие логи
+            all_file = self._get_all_logs_file(entry.timestamp)
+            await self._atomic_append(all_file, entry, max_items=100000)
 
     def _get_agent_session_dir(self, agent_id: str, session_id: str) -> Path:
         """Получение директории для сессии агента"""
@@ -100,70 +147,6 @@ class FileSystemLogStorage(ILogStorage):
         dir_path = self._get_capability_dir(capability)
         return dir_path / 'logs.json'
 
-    def _load_json_file(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Загрузка данных из JSON файла"""
-        if not file_path.exists():
-            return []
-
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data if isinstance(data, list) else []
-        except (json.JSONDecodeError, IOError):
-            return []
-
-    def _save_json_file(self, file_path: Path, data: List[Dict[str, Any]]) -> None:
-        """Сохранение данных в JSON файл"""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-    def _parse_log_entry(self, data: Dict[str, Any]) -> Optional[LogEntry]:
-        """Парсинг записи лога из словаря"""
-        try:
-            return LogEntry.from_dict(data)
-        except (KeyError, ValueError):
-            return None
-
-    async def save(self, entry: LogEntry) -> None:
-        """
-        Сохранение записи лога.
-
-        ARGS:
-        - entry: объект записи лога
-
-        FEATURES:
-        - Сохранение в 3 места:
-          1. by_agent/{agent_id}/{session_id}/logs.json
-          2. by_capability/{capability}/logs.json (если указан)
-          3. all/logs_{date}.json
-        - Потокобезопасная запись через lock
-        """
-        async with self._lock:
-            # 1. Сохранение в директорию агента/сессии
-            if entry.agent_id and entry.session_id:
-                agent_file = self._get_agent_session_file(entry.agent_id, entry.session_id)
-                existing = self._load_json_file(agent_file)
-                existing.append(entry.to_dict())
-                existing = existing[-10000:]  # Храним последние 10000 записей
-                self._save_json_file(agent_file, existing)
-
-            # 2. Сохранение в директорию capability
-            if entry.capability:
-                cap_file = self._get_capability_file(entry.capability)
-                existing = self._load_json_file(cap_file)
-                existing.append(entry.to_dict())
-                existing = existing[-10000:]  # Храним последние 10000 записей
-                self._save_json_file(cap_file, existing)
-
-            # 3. Сохранение в общие логи
-            all_file = self._get_all_logs_file(entry.timestamp)
-            existing = self._load_json_file(all_file)
-            existing.append(entry.to_dict())
-            existing = existing[-100000:]  # Храним последние 100000 записей
-            self._save_json_file(all_file, existing)
-
     async def get_by_session(
         self,
         agent_id: str,
@@ -182,13 +165,7 @@ class FileSystemLogStorage(ILogStorage):
         - List[LogEntry]: список записей лога
         """
         file_path = self._get_agent_session_file(agent_id, session_id)
-        data = self._load_json_file(file_path)
-
-        entries = []
-        for item in data:
-            entry = self._parse_log_entry(item)
-            if entry:
-                entries.append(entry)
+        entries = await self._load_items(file_path)
 
         # Сортировка по времени
         entries.sort(key=lambda e: e.timestamp)
@@ -217,16 +194,11 @@ class FileSystemLogStorage(ILogStorage):
         - List[LogEntry]: список записей лога
         """
         file_path = self._get_capability_file(capability)
-        data = self._load_json_file(file_path)
+        entries = await self._load_items(file_path)
 
-        entries = []
-        for item in data:
-            entry = self._parse_log_entry(item)
-            if entry:
-                # Фильтрация по типу лога
-                if log_type and entry.log_type.value != log_type:
-                    continue
-                entries.append(entry)
+        # Фильтрация по типу лога
+        if log_type:
+            entries = [e for e in entries if e.log_type.value == log_type]
 
         # Сортировка по времени
         entries.sort(key=lambda e: e.timestamp, reverse=True)
@@ -309,13 +281,7 @@ class FileSystemLogStorage(ILogStorage):
             date = datetime.now()
 
         file_path = self._get_all_logs_file(date)
-        data = self._load_json_file(file_path)
-
-        entries = []
-        for item in data:
-            entry = self._parse_log_entry(item)
-            if entry:
-                entries.append(entry)
+        entries = await self._load_items(file_path)
 
         # Сортировка по времени
         entries.sort(key=lambda e: e.timestamp, reverse=True)
