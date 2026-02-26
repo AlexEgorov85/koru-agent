@@ -554,11 +554,15 @@ class LogType(Enum):
     - ERROR: ошибка выполнения
     - BENCHMARK: событие бенчмарка
     - OPTIMIZATION: событие оптимизации
+    - LLM_PROMPT: сгенерированный промпт для LLM
+    - LLM_RESPONSE: полученный ответ от LLM
     """
     CAPABILITY_SELECTION = "capability_selection"
     ERROR = "error"
     BENCHMARK = "benchmark"
     OPTIMIZATION = "optimization"
+    LLM_PROMPT = "llm_prompt"
+    LLM_RESPONSE = "llm_response"
 
 
 @dataclass

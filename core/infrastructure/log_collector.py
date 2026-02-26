@@ -66,6 +66,8 @@ class LogCollector:
         - EventType.BENCHMARK_COMPLETED: завершение бенчмарков
         - EventType.OPTIMIZATION_CYCLE_STARTED: оптимизация
         - EventType.OPTIMIZATION_CYCLE_COMPLETED: завершение оптимизации
+        - EventType.LLM_PROMPT_GENERATED: сгенерированный промпт для LLM
+        - EventType.LLM_RESPONSE_RECEIVED: полученный ответ от LLM
         """
         if self._initialized:
             logger.warning("LogCollector уже инициализирован")
@@ -81,6 +83,10 @@ class LogCollector:
         self._subscribe(EventType.OPTIMIZATION_CYCLE_COMPLETED, self._on_optimization_event)
         self._subscribe(EventType.VERSION_PROMOTED, self._on_version_event)
         self._subscribe(EventType.VERSION_REJECTED, self._on_version_event)
+        
+        # Подписка на LLM события для логирования промптов и ответов
+        self._subscribe(EventType.LLM_PROMPT_GENERATED, self._on_llm_prompt_generated)
+        self._subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response_received)
 
         self._initialized = True
         logger.info("LogCollector инициализирован: подписан на %d событий", len(self._subscriptions))
@@ -296,6 +302,99 @@ class LogCollector:
 
         except Exception as e:
             logger.error("Ошибка логирования версии: %s", e)
+
+    async def _on_llm_prompt_generated(self, event: Event) -> None:
+        """
+        Обработчик события LLM_PROMPT_GENERATED.
+
+        Логирует:
+        - Сгенерированный промпт (system + user)
+        - Компонент и фазу выполнения
+        - Параметры генерации (temperature, max_tokens)
+        - Session ID для корреляции
+        """
+        try:
+            data = event.data
+
+            agent_id = data.get('agent_id', 'unknown')
+            session_id = data.get('session_id', 'unknown')
+            capability = data.get('component', 'unknown')
+
+            log_entry = LogEntry(
+                timestamp=event.timestamp,
+                agent_id=agent_id,
+                session_id=session_id,
+                log_type=LogType.LLM_PROMPT,
+                data={
+                    'component': data.get('component', 'unknown'),
+                    'phase': data.get('phase', 'unknown'),
+                    'system_prompt': data.get('system_prompt', ''),
+                    'user_prompt': data.get('user_prompt', ''),
+                    'prompt_length': data.get('prompt_length', 0),
+                    'temperature': data.get('temperature', 0.7),
+                    'max_tokens': data.get('max_tokens', 1000),
+                    'goal': data.get('goal', 'unknown'),
+                },
+                correlation_id=event.correlation_id,
+                capability=capability,
+                version='v1.0.0'
+            )
+
+            await self.storage.save(log_entry)
+
+        except Exception as e:
+            logger.error("Ошибка логирования LLM промпта: %s", e)
+
+    async def _on_llm_response_received(self, event: Event) -> None:
+        """
+        Обработчик события LLM_RESPONSE_RECEIVED.
+
+        Логирует:
+        - Полученный ответ от LLM
+        - Компонент и фазу выполнения
+        - Формат ответа
+        - Session ID для корреляции
+        """
+        try:
+            data = event.data
+
+            agent_id = data.get('agent_id', 'unknown')
+            session_id = data.get('session_id', 'unknown')
+            capability = data.get('component', 'unknown')
+
+            # Обработка ответа
+            response = data.get('response', {})
+            if isinstance(response, dict) and 'raw_response' in response:
+                result = response['raw_response']
+                response_format = "dict.raw_response"
+            elif hasattr(response, 'content'):
+                result = response.content
+                response_format = "object.content"
+            else:
+                result = response
+                response_format = type(response).__name__
+
+            log_entry = LogEntry(
+                timestamp=event.timestamp,
+                agent_id=agent_id,
+                session_id=session_id,
+                log_type=LogType.LLM_RESPONSE,
+                data={
+                    'component': data.get('component', 'unknown'),
+                    'phase': data.get('phase', 'unknown'),
+                    'response_format': data.get('response_format', response_format),
+                    'response': result,
+                    'goal': data.get('goal', 'unknown'),
+                },
+                correlation_id=event.correlation_id,
+                capability=capability,
+                version='v1.0.0'
+            )
+
+            await self.storage.save(log_entry)
+
+        except Exception as e:
+            logger.error("Ошибка логирования LLM ответа: %s", e)
 
     def _sanitize_data(self, data: Any) -> Any:
         """
