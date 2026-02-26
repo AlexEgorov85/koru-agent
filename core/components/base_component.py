@@ -7,6 +7,11 @@
 - Обязательная инициализация через ComponentConfig
 - Изолированные кэши для каждого экземпляра
 - Взаимодействие ТОЛЬКО через ActionExecutor
+
+ИНТЕГРИРОВАННОЕ ЛОГИРОВАНИЕ:
+- BaseComponent наследует LogComponentMixin для универсального логирования
+- Используйте self.log_start(), self.log_success(), self.log_error() для ручного логирования
+- Или используйте декоратор @log_execution для автоматического логирования
 """
 from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
@@ -14,15 +19,16 @@ from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from pydantic import BaseModel
+from core.infrastructure.logging.log_mixin import LogComponentMixin
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
     from core.application.agent.components.executor import ActionExecutor
 
 
-class BaseComponent(ABC):
+class BaseComponent(LogComponentMixin, ABC):
     """
-    БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ.
+    БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
     АРХИТЕКТУРНЫЕ ГАРАНТИИ:
     - Никаких обращений к сервисам во время выполнения
@@ -75,9 +81,9 @@ class BaseComponent(ABC):
         # Инициализация флага инициализации
         self._initialized = False
 
-        # Инициализация логгера
-        import logging
-        self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
+        # LogComponentMixin автоматически инициализирует _logger и _log_config
+        # Добавляем алиас для обратной совместимости
+        self.logger = self._logger
 
         # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
@@ -701,13 +707,14 @@ class BaseComponent(ABC):
         execution_context: 'ExecutionContext'
     ) -> 'ExecutionResult':
         """
-        УНИВЕРСАЛЬНЫЙ ШАБЛОН ВЫПОЛНЕНИЯ КОМПОНЕНТА.
+        УНИВЕРСАЛЬНЫЙ ШАБЛОН ВЫПОЛНЕНИЯ КОМПОНЕНТА С ЛОГИРОВАНИЕМ.
 
         Этот метод реализует полный цикл выполнения с:
         - Валидацией входных/выходных данных
         - Обработкой ошибок
         - Публикацией метрик
         - Измерением времени выполнения
+        - Логированием через LogComponentMixin
 
         НАСЛЕДНИКИ должны переопределить только _execute_impl() для своей бизнес-логики.
 
@@ -726,6 +733,12 @@ class BaseComponent(ABC):
         from core.infrastructure.event_bus.event_bus import EventType
 
         start_time = time.time()
+
+        # Логирование начала выполнения
+        self.log_start("execute", {
+            'capability': capability.name,
+            'parameters_count': len(parameters)
+        })
         
         try:
             # === ЭТАП 1: Валидация входных данных ===
@@ -772,7 +785,13 @@ class BaseComponent(ABC):
 
             # === ЭТАП 4: Публикация метрик успеха ===
             execution_time_ms = (time.time() - start_time) * 1000
-            
+
+            # Логирование успешного завершения
+            self.log_success("execute", {
+                'status': 'completed',
+                'execution_time_ms': execution_time_ms
+            }, execution_time_ms)
+
             # Определяем тип события в зависимости от типа компонента
             event_type = self._get_event_type_for_success()
             
@@ -795,7 +814,10 @@ class BaseComponent(ABC):
 
         except Exception as e:
             execution_time_ms = (time.time() - start_time) * 1000
-            
+
+            # Логирование ошибки
+            self.log_error("execute", e, execution_time_ms)
+
             # Публикация метрик ошибки
             await self._publish_metrics(
                 EventType.ERROR_OCCURRED,
