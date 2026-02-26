@@ -96,6 +96,13 @@ class EventType(Enum):
     VERSION_REJECTED = "version.rejected"
     VERSION_CREATED = "version.created"
 
+    # События универсального логирования
+    EXECUTION_STARTED = "execution.started"
+    EXECUTION_COMPLETED = "execution.completed"
+    EXECUTION_FAILED = "execution.failed"
+    COMPONENT_INITIALIZED = "component.initialized"
+    COMPONENT_SHUTDOWN = "component.shutdown"
+
 
 class EventBus:
     """
