@@ -58,9 +58,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         # Подписка на события LLM для логирования
         from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
-        llm_subscriber = LLMEventSubscriber(log_full_content=False)  # True для полного логирования
-        llm_subscriber.subscribe(application_context.event_bus)
-        logger.info("Подписчик на события LLM активирован")
+        llm_subscriber = LLMEventSubscriber(log_full_content=True)  # True для полного логирования в терминал
+        llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
+        logger.info("Подписчик на события LLM активирован (полное логирование в терминал + файлы)")
 
         # Проверяем, что компоненты зарегистрированы
         from core.models.enums.common_enums import ComponentType
