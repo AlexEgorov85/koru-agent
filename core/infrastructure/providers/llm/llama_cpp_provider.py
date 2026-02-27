@@ -64,6 +64,34 @@ class LlamaCppProvider(BaseLLMProvider):
 
         self.llm = None
         logger.info(f"Инициализация Llama.cpp провайдера для модели: {model_name}")
+        
+        # Контекст вызова для логирования
+        self._event_bus = None
+        self._session_id = None
+        self._agent_id = None
+        self._component = None
+        self._phase = None
+        self._goal = None
+
+    def set_call_context(self, event_bus, session_id: str, agent_id: str = None, 
+                         component: str = None, phase: str = None, goal: str = None):
+        """
+        Установка контекста вызова для логирования событий.
+        
+        ПАРАМЕТРЫ:
+        - event_bus: EventBus для публикации событий
+        - session_id: ID сессии
+        - agent_id: ID агента
+        - component: компонент вызывающий LLM
+        - phase: фаза выполнения (think/act)
+        - goal: цель выполнения
+        """
+        self._event_bus = event_bus
+        self._session_id = session_id
+        self._agent_id = agent_id
+        self._component = component
+        self._phase = phase
+        self._goal = goal
 
     async def initialize(self) -> bool:
         """
@@ -247,6 +275,30 @@ class LlamaCppProvider(BaseLLMProvider):
                 logger.debug(f"LLM вызов завершён успешно")
             except TimeoutError:
                 logger.error(f"LLM вызов превысил таймаут {self.timeout_seconds} секунд")
+                
+                # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
+                # Публикуем событие даже при ошибке чтобы логирование зафиксировало результат
+                if hasattr(self, '_event_bus') and self._event_bus:
+                    from core.infrastructure.event_bus.event_bus import EventType, Event
+                    await self._event_bus.publish(
+                        event=EventType.LLM_RESPONSE_RECEIVED,
+                        data={
+                            "agent_id": getattr(self, '_agent_id', 'unknown'),
+                            "component": getattr(self, '_component', 'llama_cpp'),
+                            "phase": getattr(self, '_phase', 'generation'),
+                            "response_format": "error",
+                            "response": {"error": "timeout", "message": f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)"},
+                            "session_id": getattr(self, '_session_id', 'unknown'),
+                            "goal": getattr(self, '_goal', 'unknown'),
+                            "error": True,
+                            "error_type": "timeout",
+                            "error_message": f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)",
+                            "timeout_seconds": self.timeout_seconds
+                        },
+                        source="llama_cpp_provider",
+                        correlation_id=getattr(self, '_session_id', '')
+                    )
+                
                 raise TimeoutError(f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)")
 
             # Обрабатываем результат

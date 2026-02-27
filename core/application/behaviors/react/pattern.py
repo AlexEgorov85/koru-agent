@@ -557,6 +557,19 @@ class ReActPattern(BaseBehaviorPattern):
                 )
                 logger.debug("Событие LLM_PROMPT_GENERATED опубликовано")
 
+            # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
+            # Это нужно для публикации событий при ошибках/таймаутах
+            if hasattr(llm_provider, 'set_call_context'):
+                llm_provider.set_call_context(
+                    event_bus=self.application_context.infrastructure_context.event_bus,
+                    session_id=getattr(session_context, 'session_id', 'unknown'),
+                    agent_id=agent_id,
+                    component="react_pattern",
+                    phase="think",
+                    goal=session_context.get_goal() if session_context else 'unknown'
+                )
+                logger.debug("Контекст вызова установлен в LLM провайдере")
+
             logger.debug("Вызов llm_provider.generate_structured()...")
             
             # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
@@ -597,7 +610,7 @@ class ReActPattern(BaseBehaviorPattern):
                         # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
                         error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
                         logger.error(error_msg)
-                        
+
                         # Логируем детали для диагностики
                         logger.error(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
                         logger.error(f"Компонент: react_pattern (phase: think)")
@@ -611,10 +624,10 @@ class ReActPattern(BaseBehaviorPattern):
                         logger.error("  1. Увеличьте таймаут в конфигурации (timeout_seconds)")
                         logger.error("  2. Проверьте доступность LLM модели")
                         logger.error("  3. Уменьшите max_tokens или упростите запрос")
-                        
+
                         # Прерываем работу агента с ошибкой
                         raise TimeoutError(error_msg) from e
-                        
+
                 except Exception as e:
                     logger.error(f"Ошибка LLM вызова: {type(e).__name__}: {e}")
                     raise  # Пробрасываем другие ошибки дальше
@@ -639,9 +652,9 @@ class ReActPattern(BaseBehaviorPattern):
                     error_msg = "Неизвестная ошибка LLM"
                     if hasattr(llm_response, 'metadata') and llm_response.metadata:
                         error_msg = llm_response.metadata.get('error', error_msg)
-                    
+
                     logger.error(f"LLM вернул ошибку: {error_msg}")
-                    
+
                     # Возвращаем fallback решение
                     return {
                         "analysis": {
