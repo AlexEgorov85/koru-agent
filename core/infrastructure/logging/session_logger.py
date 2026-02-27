@@ -119,30 +119,34 @@ class SessionLogger:
             data: данные промпта
         """
         self._setup_logger()
-        
-        self._logger.info("-" * 80)
-        self._logger.info(f"LLM PROMPT | Component: {component} | Phase: {phase}")
-        self._logger.info("-" * 80)
-        self._logger.info(f"Timestamp: {datetime.now().isoformat()}")
-        self._logger.info(f"Component: {component}")
-        self._logger.info(f"Phase: {phase}")
-        
+
+        self._logger.debug("-" * 80)
+        self._logger.debug(f"LLM PROMPT | Component: {component} | Phase: {phase}")
+        self._logger.debug("-" * 80)
+        self._logger.debug(f"Timestamp: {datetime.now().isoformat()}")
+        self._logger.debug(f"Component: {component}")
+        self._logger.debug(f"Phase: {phase}")
+
         if data.get('goal'):
-            self._logger.info(f"Goal: {data['goal']}")
-        
-        self._logger.info(f"System prompt ({len(data.get('system_prompt', ''))} chars):")
+            self._logger.debug(f"Goal: {data['goal']}")
+
+        self._logger.debug(f"System prompt ({len(data.get('system_prompt', ''))} chars):")
         system_prompt = data.get('system_prompt', '')
         if len(system_prompt) > 500:
-            self._logger.info(system_prompt[:500] + "...")
+            self._logger.debug(system_prompt[:500] + "...")
         else:
-            self._logger.info(system_prompt)
-        
+            self._logger.debug(system_prompt)
+
         user_prompt = data.get('user_prompt', '')
-        self._logger.info(f"User prompt ({len(user_prompt)} chars):")
-        self._logger.info(user_prompt)
-        
-        self._logger.info(f"Temperature: {data.get('temperature', 0.0)} | Max tokens: {data.get('max_tokens', 1000)}")
-        self._logger.info("-" * 80)
+        self._logger.debug(f"User prompt ({len(user_prompt)} chars):")
+        # Логируем только первые 1000 символов чтобы не блокировать
+        if len(user_prompt) > 1000:
+            self._logger.debug(user_prompt[:1000] + f"... [ещё {len(user_prompt) - 1000} символов]")
+        else:
+            self._logger.debug(user_prompt)
+
+        self._logger.debug(f"Temperature: {data.get('temperature', 0.0)} | Max tokens: {data.get('max_tokens', 1000)}")
+        self._logger.debug("-" * 80)
 
     async def log_llm_response(self, component: str, phase: str, data: Dict[str, Any]):
         """
