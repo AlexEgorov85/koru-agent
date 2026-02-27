@@ -19,7 +19,6 @@ from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-from core.models.enums.common_enums import ExecutionStatus
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
@@ -561,6 +560,71 @@ class ReActPattern(BaseBehaviorPattern):
             logger.debug("Вызов llm_provider.generate_structured()...")
             response = await llm_provider.generate_structured(llm_request)
             logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
+
+            # === ПРОВЕРКА НА ОШИБКУ LLM ===
+            # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)
+            llm_response = None
+            if isinstance(response, dict) and 'raw_response' in response:
+                raw_resp = response['raw_response']
+                if hasattr(raw_resp, 'finish_reason'):
+                    llm_response = raw_resp
+            elif hasattr(response, 'finish_reason'):
+                llm_response = response
+            elif hasattr(response, 'content') and hasattr(response, 'metadata'):
+                # LLMResponse object
+                llm_response = response
+
+            if llm_response is not None:
+                # Проверяем finish_reason на ошибку
+                if getattr(llm_response, 'finish_reason', None) == 'error':
+                    error_msg = "Неизвестная ошибка LLM"
+                    if hasattr(llm_response, 'metadata') and llm_response.metadata:
+                        error_msg = llm_response.metadata.get('error', error_msg)
+                    logger.error(f"LLM вернул ошибку: {error_msg}")
+                    # Возвращаем fallback решение
+                    return {
+                        "analysis": {
+                            "current_situation": f"Ошибка LLM: {error_msg}",
+                            "progress_assessment": "Неизвестно",
+                            "confidence": 0.3,
+                            "errors_detected": True,
+                            "consecutive_errors": self.error_count + 1,
+                            "execution_time": context_analysis.get("execution_time_seconds", 0),
+                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                        },
+                        "recommended_action": {
+                            "action_type": "execute_capability",
+                            "capability_name": "book_library.search_books",
+                            "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
+                            "reasoning": f"fallback после ошибки LLM: {error_msg}"
+                        },
+                        "available_capabilities": available_capabilities,
+                        "needs_rollback": False
+                    }
+
+                # Проверяем metadata на наличие ошибки
+                if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
+                    error_msg = llm_response.metadata['error']
+                    logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                    return {
+                        "analysis": {
+                            "current_situation": f"Ошибка LLM: {error_msg}",
+                            "progress_assessment": "Неизвестно",
+                            "confidence": 0.3,
+                            "errors_detected": True,
+                            "consecutive_errors": self.error_count + 1,
+                            "execution_time": context_analysis.get("execution_time_seconds", 0),
+                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                        },
+                        "recommended_action": {
+                            "action_type": "execute_capability",
+                            "capability_name": "book_library.search_books",
+                            "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
+                            "reasoning": f"fallback после ошибки LLM: {error_msg}"
+                        },
+                        "available_capabilities": available_capabilities,
+                        "needs_rollback": False
+                    }
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):

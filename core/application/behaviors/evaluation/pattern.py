@@ -106,6 +106,23 @@ class EvaluationPattern(BaseBehaviorPattern):
             
             response = await llm_provider.generate_structured_request(llm_request)
 
+            # === ПРОВЕРКА НА ОШИБКУ LLM ===
+            llm_response = response
+            if isinstance(response, dict) and 'raw_response' in response:
+                llm_response = response['raw_response']
+            
+            if getattr(llm_response, 'finish_reason', None) == 'error':
+                error_msg = "Неизвестная ошибка LLM"
+                if hasattr(llm_response, 'metadata') and llm_response.metadata:
+                    error_msg = llm_response.metadata.get('error', error_msg)
+                self.logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
+                raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
+
+            if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
+                error_msg = llm_response.metadata['error']
+                self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
+
             # Обработка результата
             result = response.content if hasattr(response, 'content') else response
             if isinstance(result, str):
