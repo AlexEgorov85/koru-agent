@@ -195,17 +195,27 @@ class LlamaCppProvider(BaseLLMProvider):
                 max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
 
             # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
+            # Используем run_in_executor для совместимости
             import asyncio
-            response = await asyncio.to_thread(
-                self.llm,
-                request.prompt,
-                max_tokens=max_tokens,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                frequency_penalty=request.frequency_penalty,
-                presence_penalty=request.presence_penalty,
-                echo=False,  # не включать входной промпт в ответ
-                stop=request.stop_sequences or None
+            from concurrent.futures import ThreadPoolExecutor
+            
+            # Создаём executor если нет
+            if not hasattr(self, '_executor'):
+                self._executor = ThreadPoolExecutor(max_workers=2)
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                self._executor,
+                lambda: self.llm(
+                    request.prompt,
+                    max_tokens=max_tokens,
+                    temperature=request.temperature,
+                    top_p=request.top_p,
+                    frequency_penalty=request.frequency_penalty,
+                    presence_penalty=request.presence_penalty,
+                    echo=False,
+                    stop=request.stop_sequences or None
+                )
             )
 
             # Обрабатываем результат
