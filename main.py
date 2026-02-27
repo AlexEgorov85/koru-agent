@@ -214,22 +214,22 @@ def main() -> int:
         ))
 
         # Пользователь видит результат
-        logger.user_message("\n" + "="*60)
-        logger.user_message("✅ ОТВЕТ:")
-        logger.user_message("="*60)
+        logger.info("\n" + "="*60)
+        logger.info("✅ ОТВЕТ:")
+        logger.info("="*60)
         # Краткий вывод результата
         result_text = str(result)[:500] if len(str(result)) > 500 else str(result)
-        logger.user_message(result_text)
-        
+        logger.info(f"✅ Результат: {result_text}")
+
         # Полный результат → в файл (DEBUG)
         logger.debug(f"Полный результат: {result}")
         if hasattr(result, 'metadata'):
             logger.debug(f"Метрики: {result.metadata}")
-        
+
         return 0
 
     except KeyboardInterrupt:
-        logger.user_message("\n⏸️ Прервано пользователем")
+        logger.info("\n⏸️ Прервано пользователем")
         return 0
     except Exception as e:
         logger.error(f"❌ Произошла ошибка: {str(e)[:200]}", exc_info=True)
