@@ -2,11 +2,11 @@
 Инициализация модуля событий.
 
 АРХИТЕКТУРА:
-- event_bus: базовый класс EventBus (для обратной совместимости)
-- domain_event_bus: менеджер доменных шин (новое, рекомендуется)
+- event_bus: базовый класс EventBus
+- domain_event_bus: менеджер доменных шин (рекомендуется)
 - event_handlers: обработчики событий
 """
-from .event_bus import EventBus, EventType, Event, get_event_bus as get_legacy_event_bus
+from .event_bus import EventBus, EventType, Event
 from .domain_event_bus import (
     EventBusManager,
     DomainEventBus,
@@ -20,13 +20,12 @@ from .domain_event_bus import (
 from .event_handlers import MetricsEventHandler, AuditEventHandler, DebuggingEventHandler
 
 __all__ = [
-    # Базовые классы (обратная совместимость)
+    # Базовые классы
     'EventBus',
     'EventType',
     'Event',
-    'get_legacy_event_bus',
-    
-    # Доменные шины (новое, рекомендуется)
+
+    # Доменные шины (рекомендуется)
     'EventBusManager',
     'DomainEventBus',
     'DomainEvent',

@@ -99,14 +99,6 @@ class BaseComponent(LogComponentMixin, ABC):
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
 
-        # === АЛИАСЫ для обратной совместимости (deprecated) ===
-        # Старый код использует _cached_* имена, новый код использует prompts/input_contracts/output_contracts
-        import warnings
-        # Создаём дескрипторы для предупреждений при доступе к старым именам
-        self._cached_prompts = self.prompts
-        self._cached_input_contracts = self.input_contracts
-        self._cached_output_contracts = self.output_contracts
-
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,

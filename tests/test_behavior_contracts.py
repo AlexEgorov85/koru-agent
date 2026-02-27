@@ -56,21 +56,19 @@ class TestBehaviorPatternStructure:
 
     def test_react_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у ReActPattern."""
-        from core.application.behaviors.react_pattern import ReActPattern
-        
+        from core.application.behaviors.base import ReActInput, ReActOutput
+
         # Проверяем наличие классов входа/выхода
-        from core.application.behaviors.react_pattern import ReActInput, ReActOutput
-        
         assert ReActInput is not None
         assert ReActOutput is not None
-        
+
         # Проверяем атрибуты ReActInput
         input_obj = ReActInput(goal="Test goal")
         assert input_obj.goal == "Test goal"
         assert input_obj.context == {}
         assert input_obj.history == []
         assert input_obj.available_tools == []
-        
+
         # Проверяем атрибуты ReActOutput
         output_obj = ReActOutput(thought="Test thought", is_final=False)
         assert output_obj.thought == "Test thought"
@@ -78,11 +76,11 @@ class TestBehaviorPatternStructure:
 
     def test_planning_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у PlanningPattern."""
-        from core.application.behaviors.planning_pattern import PlanningInput, PlanningOutput
-        
+        from core.application.behaviors.base import PlanningInput, PlanningOutput
+
         assert PlanningInput is not None
         assert PlanningOutput is not None
-        
+
         # Проверяем атрибуты PlanningInput
         input_obj = PlanningInput(goal="Test goal")
         assert input_obj.goal == "Test goal"

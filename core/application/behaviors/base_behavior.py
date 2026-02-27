@@ -28,6 +28,47 @@ class BehaviorOutput(ABC):
     pass
 
 
+# ============================================================================
+# КОНКРЕТНЫЕ КЛАССЫ ВХОДА/ВЫХОДА ДЛЯ ПАТТЕРНОВ (для совместимости с тестами)
+# ============================================================================
+
+class ReActInput(BehaviorInput):
+    """Входные данные для ReAct паттерна."""
+    def __init__(self, goal: str, context: Dict[str, Any] = None, history: list = None, available_tools: list = None):
+        self.goal = goal
+        self.context = context or {}
+        self.history = history or []
+        self.available_tools = available_tools or []
+
+
+class ReActOutput(BehaviorOutput):
+    """Выходные данные для ReAct паттерна."""
+    def __init__(self, thought: str = None, action: Dict[str, Any] = None, observation: str = None, is_final: bool = False, updated_context: Dict[str, Any] = None):
+        self.thought = thought
+        self.action = action
+        self.observation = observation
+        self.is_final = is_final
+        self.updated_context = updated_context or {}
+
+
+class PlanningInput(BehaviorInput):
+    """Входные данные для Planning паттерна."""
+    def __init__(self, goal: str, context: Dict[str, Any] = None, available_tools: list = None, constraints: list = None):
+        self.goal = goal
+        self.context = context or {}
+        self.available_tools = available_tools or []
+        self.constraints = constraints or []
+
+
+class PlanningOutput(BehaviorOutput):
+    """Выходные данные для Planning паттерна."""
+    def __init__(self, plan: list = None, decomposition_reasoning: str = None, sequence_reasoning: str = None, is_complete: bool = False):
+        self.plan = plan or []
+        self.decomposition_reasoning = decomposition_reasoning
+        self.sequence_reasoning = sequence_reasoning
+        self.is_complete = is_complete
+
+
 class BaseBehavior(BaseComponent):
     """
     БАЗОВЫЙ КЛАСС ДЛЯ ПОВЕДЕНИЧЕСКИХ ПАТТЕРНОВ.

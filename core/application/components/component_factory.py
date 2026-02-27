@@ -230,10 +230,10 @@ class ComponentFactory:
             # Обработка паттернов поведения
             # Проверяем специфичные паттерны поведения
             if name == "react_pattern":
-                from core.application.behaviors.react_pattern import ReActPattern
+                from core.application.behaviors.react.pattern import ReActPattern
                 return ReActPattern
             elif name == "planning_pattern":
-                from core.application.behaviors.planning_pattern import PlanningPattern
+                from core.application.behaviors.planning.pattern import PlanningPattern
                 return PlanningPattern
             elif name == "fallback_pattern":
                 from core.application.behaviors.fallback.pattern import FallbackPattern

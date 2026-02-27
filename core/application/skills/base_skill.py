@@ -311,44 +311,6 @@ class BaseSkill(BaseComponent):
 
         return Metadata(schema)
 
-    async def run(
-        self,
-        action_payload: Dict[str, Any],
-        session: BaseSessionContext
-    ) -> Dict[str, Any]:
-        """
-        Метод для совместимости с предыдущими версиями.
-        Выполняет действие с помощью execute метода.
-
-        ПАРАМЕТРЫ:
-        - action_payload: Параметры действия
-        - session: Контекст сессии
-
-        ВОЗВРАЩАЕТ:
-        - Результат выполнения в виде словаря
-        """
-        # Создаем фиктивную capability для совместимости
-        # В новой архитектуре все должно происходить через execute с конкретной capability
-        # Этот метод предоставлен для обратной совместимости
-        capabilities = self.get_capabilities()
-        capability = capabilities[0] if capabilities else Capability(
-            name=f"{self.name}.default",
-            description="Default capability for backward compatibility",
-            skill_name=self.name
-        )
-
-        result = await self.execute(
-            capability=capability,
-            parameters=action_payload,
-            context=session
-        )
-
-        # Возвращаем content из ExecutionResult или сам результат
-        if hasattr(result, 'content') and result.content:
-            return result.content
-        else:
-            return {"result": "executed", "status": "success"}
-
     async def restart(self) -> bool:
         """
         Перезапуск навыка без полной перезагрузки системного контекста.
