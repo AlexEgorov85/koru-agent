@@ -203,27 +203,45 @@ class LlamaCppProvider(BaseLLMProvider):
             if not self.llm:
                 logger.error("LLM не инициализирован! Вызываем initialize()...")
                 await self.initialize()
-            
+
             # Логирование перед вызовом
             logger.debug(f"Вызов LLM: prompt_length={len(request.prompt)}, max_tokens={max_tokens}")
+
+            # Явно создаём ThreadPoolExecutor для LLM вызовов
+            from concurrent.futures import ThreadPoolExecutor
+            if not hasattr(self, '_executor'):
+                self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='llm_worker')
+                logger.debug("Создан ThreadPoolExecutor для LLM")
+
+            # Вызов LLM с таймаутом
+            from asyncio import wait_for, TimeoutError
             
-            # llama_cpp освобождает GIL во время inference, поэтому ThreadPoolExecutor должен работать
-            # Но если есть проблемы - можно попробовать ProcessPoolExecutor
-            loop = asyncio.get_event_loop()
+            def _call_llm_sync():
+                logger.debug(f"[LLM Thread] Начало вызова self.llm()...")
+                result = self.llm(
+                    request.prompt,
+                    max_tokens=max_tokens,
+                    temperature=request.temperature,
+                    top_p=request.top_p,
+                    frequency_penalty=request.frequency_penalty,
+                    presence_penalty=request.presence_penalty,
+                    echo=False,
+                    stop=request.stop_sequences or None
+                )
+                logger.debug(f"[LLM Thread] Вызов завершён, получен результат")
+                return result
             
-            # Синхронный вызов llama_cpp (он сам освобождает GIL)
-            logger.debug("Синхронный вызов self.llm()...")
-            response = self.llm(
-                request.prompt,
-                max_tokens=max_tokens,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                frequency_penalty=request.frequency_penalty,
-                presence_penalty=request.presence_penalty,
-                echo=False,
-                stop=request.stop_sequences or None
-            )
-            logger.debug(f"LLM вызов завершён, получен ответ")
+            try:
+                # Таймаут 120 секунд на генерацию
+                logger.debug("Начало LLM inference с таймаутом 120с...")
+                response = await wait_for(
+                    asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
+                    timeout=120.0
+                )
+                logger.debug(f"LLM вызов завершён успешно")
+            except TimeoutError:
+                logger.error(f"LLM вызов превысил таймаут 120 секунд")
+                raise TimeoutError("Превышено время ожидания ответа от LLM (120 секунд)")
 
             # Обрабатываем результат
             choices = response.get('choices', [])
