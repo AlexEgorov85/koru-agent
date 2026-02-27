@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
 from core.models.data.benchmark import LogEntry, LogType
+from core.models.data.execution import ExecutionContextSnapshot
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
 
@@ -105,8 +106,9 @@ class LogCollector(BaseEventCollector):
         - Причины выбора (reasoning)
         - Использованный паттерн
         - Параметры выполнения
+        - Контекст выполнения (для обучения)
 
-        ВАЖНО для обучения: reasoning помогает понять决策 процесс агента
+        ВАЖНО для обучения: reasoning помогает понять процесс принятия решения агентом
         """
         try:
             data = event.data
@@ -118,6 +120,12 @@ class LogCollector(BaseEventCollector):
             if not capability:
                 return
 
+            # Извлечение контекста выполнения (если передан)
+            execution_context = data.get('execution_context')
+            
+            # Расчёт оценки качества шага
+            quality_score = await self._calculate_quality_score(data)
+
             log_entry = LogEntry(
                 timestamp=event.timestamp,
                 agent_id=agent_id,
@@ -126,13 +134,17 @@ class LogCollector(BaseEventCollector):
                 data={
                     'capability': capability,
                     'parameters': data.get('parameters', {}),
-                    'reasoning': data.get('reasoning', ''),  # ← Важно для обучения!
+                    'reasoning': data.get('reasoning', ''),
                     'pattern_id': data.get('pattern_id'),
                     'confidence': data.get('confidence'),
+                    'execution_context': execution_context,
+                    'step_quality_score': quality_score,
                 },
                 correlation_id=event.correlation_id,
                 capability=capability,
-                version=data.get('version')
+                version=data.get('version'),
+                execution_context=execution_context,
+                step_quality_score=quality_score
             )
 
             await self.storage.save(log_entry)
@@ -191,6 +203,7 @@ class LogCollector(BaseEventCollector):
         - ID сценария бенчмарка
         - Результаты выполнения
         - Метрики
+        - benchmark_scenario_id для связи с execution logs
         """
         try:
             data = event.data
@@ -198,6 +211,7 @@ class LogCollector(BaseEventCollector):
             agent_id = data.get('agent_id', 'benchmark_system')
             session_id = data.get('session_id', f"benchmark_{event.timestamp.strftime('%Y%m%d_%H%M%S')}")
             capability = data.get('capability', 'benchmark')
+            scenario_id = data.get('scenario_id')
 
             log_entry = LogEntry(
                 timestamp=event.timestamp,
@@ -206,16 +220,18 @@ class LogCollector(BaseEventCollector):
                 log_type=LogType.BENCHMARK,
                 data={
                     'event_type': event.event_type,
-                    'scenario_id': data.get('scenario_id'),
+                    'scenario_id': scenario_id,
                     'capability': capability,
                     'version': data.get('version'),
                     'metrics': data.get('metrics', {}),
                     'success': data.get('success'),
                     'overall_score': data.get('overall_score'),
+                    'benchmark_scenario_id': scenario_id,
                 },
                 correlation_id=event.correlation_id,
                 capability=capability,
-                version=data.get('version')
+                version=data.get('version'),
+                benchmark_scenario_id=scenario_id
             )
 
             await self.storage.save(log_entry)
@@ -394,6 +410,50 @@ class LogCollector(BaseEventCollector):
 
         except Exception as e:
             logger.error("Ошибка логирования LLM ответа: %s", e)
+
+    async def _calculate_quality_score(self, data: Dict[str, Any]) -> float:
+        """
+        Расчёт оценки качества шага (0.0 - 1.0).
+        
+        КРИТЕРИИ:
+        1. Успешность выполнения (0.5 базовых)
+        2. Время выполнения (до +0.2)
+        3. Использование токенов (до +0.1)
+        4. Достижение прогресса (до +0.2)
+        
+        ARGS:
+        - data: данные события
+        
+        RETURNS:
+        - float: оценка качества от 0.0 до 1.0
+        """
+        score = 0.5  # Базовая оценка за выполнение
+        
+        # Успешность
+        if data.get('success', False):
+            score += 0.3
+        else:
+            return 0.2  # Неудачный шаг
+        
+        # Время выполнения (быстрее = лучше)
+        execution_time = data.get('execution_time_ms', 0)
+        if execution_time < 100:  # < 100мс
+            score += 0.2
+        elif execution_time < 500:  # < 500мс
+            score += 0.1
+        
+        # Токены (меньше = лучше)
+        tokens = data.get('tokens_used', 0)
+        if tokens < 100:
+            score += 0.1
+        elif tokens < 500:
+            score += 0.05
+        
+        # Прогресс к цели
+        progress = data.get('goal_progress', 0)
+        score += progress * 0.2
+        
+        return min(1.0, max(0.0, score))
 
     def _sanitize_data(self, data: Any) -> Any:
         """
