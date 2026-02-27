@@ -215,80 +215,88 @@ class LlamaCppProvider(BaseLLMProvider):
         start_time = time.time()
 
         try:
-            # === ПОЛНОЕ ЛОГИРОВАНИЕ ПАРАМЕТРОВ ВЫЗОВА ===
-            logger.info("=" * 70)
-            logger.info("LLM ВЫЗОВ — ДЕТАЛЬНАЯ ИНФОРМАЦИЯ")
-            logger.info("=" * 70)
-            logger.info(f"Провайдер: {type(self).__name__}")
-            logger.info(f"Модель: {self.model_name}")
-            logger.info(f"Инициализирован: {self.is_initialized}")
-            logger.info(f"Время начала: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            logger.info("-" * 70)
-            logger.info("ПАРАМЕТРЫ ЗАПРОСА:")
-            logger.info(f"  • prompt_length: {len(request.prompt)} символов")
-            logger.info(f"  • max_tokens: {request.max_tokens}")
-            logger.info(f"  • temperature: {request.temperature}")
-            logger.info(f"  • top_p: {request.top_p}")
-            logger.info(f"  • frequency_penalty: {request.frequency_penalty}")
-            logger.info(f"  • presence_penalty: {request.presence_penalty}")
-            logger.info(f"  • stop_sequences: {request.stop_sequences}")
-            
-            # Проверяем структурированный вывод
-            if hasattr(request, 'structured_output') and request.structured_output:
-                logger.info("  • structured_output: True")
-                logger.info(f"    - output_model: {getattr(request.structured_output, 'output_model', 'N/A')}")
-                logger.info(f"    - max_retries: {getattr(request.structured_output, 'max_retries', 3)}")
-                logger.info(f"    - strict_mode: {getattr(request.structured_output, 'strict_mode', False)}")
-            else:
-                logger.info("  • structured_output: False")
-            
-            logger.info("-" * 70)
-            logger.info("КОНТЕКСТ ВЫЗОВА (из set_call_context):")
-            logger.info(f"  • session_id: {getattr(self, '_session_id', 'N/A')}")
-            logger.info(f"  • agent_id: {getattr(self, '_agent_id', 'N/A')}")
-            logger.info(f"  • component: {getattr(self, '_component', 'N/A')}")
-            logger.info(f"  • phase: {getattr(self, '_phase', 'N/A')}")
-            logger.info(f"  • goal: {getattr(self, '_goal', 'N/A')[:100] if getattr(self, '_goal', None) else 'N/A'}")
-            logger.info("=" * 70)
+            # === ПУБЛИКАЦИЯ СОБЫТИЯ: НАЧАЛО LLM ВЫЗОВА ===
+            # Публикуем событие с полной информацией для логирования в сессию
+            if hasattr(self, '_event_bus') and self._event_bus:
+                from core.infrastructure.event_bus.event_bus import EventType
+                await self._event_bus.publish(
+                    event=EventType.LLM_CALL_STARTED,
+                    data={
+                        "agent_id": getattr(self, '_agent_id', 'unknown'),
+                        "session_id": getattr(self, '_session_id', 'unknown'),
+                        "component": getattr(self, '_component', 'llama_cpp'),
+                        "phase": getattr(self, '_phase', 'generation'),
+                        "goal": getattr(self, '_goal', 'unknown'),
+                        "provider": type(self).__name__,
+                        "model": self.model_name,
+                        "is_initialized": self.is_initialized,
+                        "prompt_length": len(request.prompt),
+                        "max_tokens": request.max_tokens,
+                        "temperature": request.temperature,
+                        "top_p": request.top_p,
+                        "frequency_penalty": request.frequency_penalty,
+                        "presence_penalty": request.presence_penalty,
+                        "stop_sequences": request.stop_sequences,
+                        "structured_output": hasattr(request, 'structured_output') and request.structured_output,
+                        "timeout_seconds": self.timeout_seconds
+                    },
+                    source="llama_cpp_provider.execute",
+                    correlation_id=getattr(self, '_session_id', '')
+                )
 
             # Подготовим параметры для вызова модели
             max_tokens = request.max_tokens
             if hasattr(request, 'structured_output') and request.structured_output:
                 # Если запрошена структурированная генерация
                 max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
-                logger.info(f"max_tokens ограничен до {max_tokens} для структурированного вывода")
-
-            # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
-            # llama_cpp может блокировать GIL, поэтому используем ProcessPoolExecutor
-            import asyncio
-            from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
             # Проверка что модель инициализирована
             if not self.llm:
-                logger.error("LLM не инициализирован! Вызываем initialize()...")
+                # Публикуем событие о проблеме инициализации
+                if hasattr(self, '_event_bus') and self._event_bus:
+                    from core.infrastructure.event_bus.event_bus import EventType
+                    await self._event_bus.publish(
+                        event=EventType.ERROR_OCCURRED,
+                        data={
+                            "agent_id": getattr(self, '_agent_id', 'unknown'),
+                            "session_id": getattr(self, '_session_id', 'unknown'),
+                            "component": getattr(self, '_component', 'llama_cpp'),
+                            "error_type": "initialization_error",
+                            "error_message": "LLM не инициализирован, вызываем initialize()",
+                        },
+                        source="llama_cpp_provider.execute",
+                        correlation_id=getattr(self, '_session_id', '')
+                    )
                 await self.initialize()
 
-            # Явно создаём ThreadPoolExecutor для LLM вызовов
+            # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
+            import asyncio
             from concurrent.futures import ThreadPoolExecutor
-            if not hasattr(self, '_executor'):
-                self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='llm_worker')
-                logger.info("Создан ThreadPoolExecutor для LLM (max_workers=1)")
-
-            # Вызов LLM с таймаутом
             from asyncio import wait_for, TimeoutError
             import threading
+
+            # Явно создаём ThreadPoolExecutor для LLM вызовов
+            if not hasattr(self, '_executor'):
+                self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='llm_worker')
+                # Публикуем событие о создании executor
+                if hasattr(self, '_event_bus') and self._event_bus:
+                    from core.infrastructure.event_bus.event_bus import EventType
+                    await self._event_bus.publish(
+                        event=EventType.COMPONENT_INITIALIZED,
+                        data={
+                            "component": "ThreadPoolExecutor",
+                            "component_type": "executor",
+                            "max_workers": 1
+                        },
+                        source="llama_cpp_provider.execute",
+                        correlation_id=getattr(self, '_session_id', '')
+                    )
 
             # Флаг для отслеживания завершения вызова
             call_completed = {'done': False, 'error': None}
 
             def _call_llm_sync():
                 try:
-                    logger.info(f"[LLM Thread] НАЧАЛО ВЫЗОВА self.llm()...")
-                    logger.info(f"[LLM Thread] Параметры: prompt_length={len(request.prompt)}, max_tokens={max_tokens}")
-                    logger.info(f"[LLM Thread] Модель: {self.model_name}, инициализирован: {self.llm is not None}")
-                    logger.info(f"[LLM Thread] Температура: {request.temperature}, top_p: {request.top_p}")
-                    logger.info(f"[LLM Thread] Частотный штраф: {request.frequency_penalty}, Присутствие: {request.presence_penalty}")
-
                     result = self.llm(
                         request.prompt,
                         max_tokens=max_tokens,
@@ -301,54 +309,61 @@ class LlamaCppProvider(BaseLLMProvider):
                     )
 
                     call_completed['done'] = True
-                    logger.info(f"[LLM Thread] ВЫЗОВ ЗАВЕРШЁН УСПЕШНО, получен результат")
-                    logger.info(f"[LLM Thread] Длина результата: {len(result.get('choices', [{}])[0].get('text', '')) if result.get('choices') else 0} символов")
                     return result
                 except Exception as e:
                     call_completed['error'] = str(e)
-                    logger.error(f"[LLM Thread] ОШИБКА LLM вызова: {type(e).__name__}: {str(e)}", exc_info=True)
                     raise  # Пробрасываем ошибку дальше
 
             try:
-                # Таймаут из конфигурации
-                logger.info(f"Начало LLM inference с таймаутом {self.timeout_seconds}с...")
-                logger.info(f"[MAIN Thread] Ожидание результата от LLM...")
-
                 response = await wait_for(
                     asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
                     timeout=self.timeout_seconds
                 )
 
                 elapsed_time = time.time() - start_time
-                logger.info(f"LLM вызов завершён успешно (время={elapsed_time:.2f}с)")
-                logger.info(f"Время завершения: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            except TimeoutError:
-                logger.error(f"LLM вызов превысил таймаут {self.timeout_seconds} секунд")
-                logger.error(f"Состояние вызова: completed={call_completed['done']}, error={call_completed['error']}")
-                logger.error(f"Активные потоки: {threading.active_count()}")
-                for thread in threading.enumerate():
-                    logger.error(f"  - {thread.name}: alive={thread.is_alive()}, daemon={thread.daemon}")
                 
-                # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
-                # Публикуем событие даже при ошибке чтобы логирование зафиксировало результат
+                # === ПУБЛИКАЦИЯ СОБЫТИЯ: LLM ВЫЗОВ ЗАВЕРШЁН ===
                 if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.event_bus import EventType, Event
+                    from core.infrastructure.event_bus.event_bus import EventType
                     await self._event_bus.publish(
-                        event=EventType.LLM_RESPONSE_RECEIVED,
+                        event=EventType.LLM_CALL_COMPLETED,
                         data={
                             "agent_id": getattr(self, '_agent_id', 'unknown'),
+                            "session_id": getattr(self, '_session_id', 'unknown'),
                             "component": getattr(self, '_component', 'llama_cpp'),
                             "phase": getattr(self, '_phase', 'generation'),
-                            "response_format": "error",
-                            "response": {"error": "timeout", "message": f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)"},
-                            "session_id": getattr(self, '_session_id', 'unknown'),
                             "goal": getattr(self, '_goal', 'unknown'),
-                            "error": True,
+                            "provider": type(self).__name__,
+                            "model": self.model_name,
+                            "success": True,
+                            "elapsed_time": elapsed_time,
+                            "result_length": len(response.get('choices', [{}])[0].get('text', '')) if response.get('choices') else 0
+                        },
+                        source="llama_cpp_provider.execute",
+                        correlation_id=getattr(self, '_session_id', '')
+                    )
+            except TimeoutError:
+                # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
+                if hasattr(self, '_event_bus') and self._event_bus:
+                    from core.infrastructure.event_bus.event_bus import EventType
+                    await self._event_bus.publish(
+                        event=EventType.LLM_CALL_FAILED,
+                        data={
+                            "agent_id": getattr(self, '_agent_id', 'unknown'),
+                            "session_id": getattr(self, '_session_id', 'unknown'),
+                            "component": getattr(self, '_component', 'llama_cpp'),
+                            "phase": getattr(self, '_phase', 'generation'),
+                            "goal": getattr(self, '_goal', 'unknown'),
+                            "provider": type(self).__name__,
+                            "model": self.model_name,
+                            "success": False,
                             "error_type": "timeout",
                             "error_message": f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)",
-                            "timeout_seconds": self.timeout_seconds
+                            "timeout_seconds": self.timeout_seconds,
+                            "call_completed": call_completed['done'],
+                            "active_threads": threading.active_count()
                         },
-                        source="llama_cpp_provider",
+                        source="llama_cpp_provider.execute",
                         correlation_id=getattr(self, '_session_id', '')
                     )
                 
@@ -380,8 +395,21 @@ class LlamaCppProvider(BaseLLMProvider):
             return llm_response
 
         except Exception as e:
-            logger.error(f"Ошибка выполнения запроса к Llama.cpp: {str(e)}")
-            logger.error(f"Запрос был: {request.prompt[:100]}...")
+            # Публикуем событие об ошибке
+            if hasattr(self, '_event_bus') and self._event_bus:
+                from core.infrastructure.event_bus.event_bus import EventType
+                await self._event_bus.publish(
+                    event=EventType.ERROR_OCCURRED,
+                    data={
+                        "agent_id": getattr(self, '_agent_id', 'unknown'),
+                        "session_id": getattr(self, '_session_id', 'unknown'),
+                        "component": getattr(self, '_component', 'llama_cpp'),
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                    source="llama_cpp_provider.execute",
+                    correlation_id=getattr(self, '_session_id', '')
+                )
 
             self._update_metrics(time.time() - start_time, success=False)
 

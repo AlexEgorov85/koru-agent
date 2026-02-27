@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 class SessionLogHandler:
     """
     Обработчик событий для логирования в сессию.
-    
+
     Подписывается на:
     - AGENT_STARTED, AGENT_COMPLETED, AGENT_FAILED
     - SKILL_EXECUTED, ACTION_PERFORMED
     - LLM_CALL_STARTED, LLM_CALL_COMPLETED
+    - LLAMA_CPP_CALL (детальное логирование LLM вызова)
     - и другие события
     """
 
@@ -98,7 +99,20 @@ class SessionLogHandler:
             data = event.data
             session_logger.log_event(
                 "LLM_CALL_COMPLETED",
-                f"Component: {data.get('component', 'unknown')} | Phase: {data.get('phase', 'unknown')}"
+                f"Component: {data.get('component', 'unknown')} | Phase: {data.get('phase', 'unknown')} | Time: {data.get('elapsed_time', 0):.2f}s"
+            )
+
+    async def on_llm_call_failed(self, event: Event):
+        """Обработка ошибки LLM вызова."""
+        session_logger = self._get_logger()
+        if session_logger:
+            data = event.data
+            session_logger.error(
+                f"LLM_CALL_FAILED: {data.get('error_type', 'unknown')} - {data.get('error_message', 'unknown')}",
+                component=data.get('component', 'unknown'),
+                phase=data.get('phase', 'unknown'),
+                model=data.get('model', 'unknown'),
+                timeout=data.get('timeout_seconds', 'unknown')
             )
 
     async def on_component_initialized(self, event: Event):
@@ -148,10 +162,11 @@ class SessionLogHandler:
         event_bus.subscribe(EventType.ACTION_PERFORMED, self.on_action_performed)
         event_bus.subscribe(EventType.LLM_CALL_STARTED, self.on_llm_call_started)
         event_bus.subscribe(EventType.LLM_CALL_COMPLETED, self.on_llm_call_completed)
+        event_bus.subscribe(EventType.LLM_CALL_FAILED, self.on_llm_call_failed)
         event_bus.subscribe(EventType.COMPONENT_INITIALIZED, self.on_component_initialized)
         event_bus.subscribe(EventType.ERROR_OCCURRED, self.on_error)
         event_bus.subscribe(EventType.SYSTEM_INITIALIZED, self.on_system_initialized)
-        
+
         logger.info("SessionLogHandler подписан на события")
 
 
