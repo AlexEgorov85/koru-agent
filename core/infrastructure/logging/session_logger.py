@@ -1,274 +1,361 @@
 """
-Логирование сессий агента.
+SessionLogger - логирование сессий с использованием LogManager.
 
-Каждая сессия (запуск агента) записывается в отдельный файл:
-logs/sessions/{timestamp}_{session_id}.log
-
-Пример:
-logs/sessions/2026-02-27_15-30-45_015135fc-9196-4aaf-9ebf-5f76133ca0e8.log
-
-Содержит:
-- Все LLM вызовы (промпты + ответы)
-- Техническую информацию (ошибки, предупреждения, этапы выполнения)
+FEATURES:
+- JSONL формат для структурированности
+- Автоматическая индексация
+- Интеграция с LogManager
 
 USAGE:
-    from core.infrastructure.logging.session_logger import SessionLogger, get_session_logger
-    
-    # При запуске агента
+    from core.infrastructure.logging import get_session_logger
+
     logger = get_session_logger(session_id)
+    await logger.start(goal="Найти книги Пушкина")
     await logger.log_llm_prompt(...)
-    await logger.log_llm_response(...)
-    logger.info("Техническое сообщение")
+    await logger.end(success=True)
 """
-import os
+import json
 import logging
-import logging.handlers
 from datetime import datetime
-from typing import Optional, Dict, Any
-from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+from core.infrastructure.logging.log_manager import LogManager, get_log_manager
+from core.infrastructure.logging.log_indexer import LogIndexer
+
+
+logger = logging.getLogger(__name__)
 
 
 class SessionLogger:
     """
-    Логгер сессии агента.
-    
-    Все логи сессии пишутся в один файл:
-    logs/sessions/{timestamp}_{session_id}.log
+    Логгер сессии с использованием LogManager.
+
+    FEATURES:
+    - JSONL формат для всех записей
+    - Автоматическая индексация
+    - Интеграция с системой логирования
     """
 
-    def __init__(self, session_id: str, log_dir: str = "logs/sessions"):
+    def __init__(self, session_id: str, agent_id: Optional[str] = None,
+                 log_manager: Optional[LogManager] = None):
         """
         Инициализация логгера сессии.
 
         ARGS:
             session_id: ID сессии
-            log_dir: директория для логов сессий
+            agent_id: ID агента (опционально)
+            log_manager: LogManager (опционально)
         """
         self.session_id = session_id
-        self.log_dir = log_dir
-        self._logger: Optional[logging.Logger] = None
-        self._file_handler: Optional[logging.FileHandler] = None
-        self.start_timestamp = datetime.now()  # Сохраняем время старта
-        
-        # Создаём директорию
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        self.agent_id = agent_id or "unknown"
+        self._log_manager = log_manager or get_log_manager()
 
-    def _setup_logger(self):
-        """Настройка логгера."""
-        if self._logger is not None:
-            return
-        
-        # Формируем имя файла с timestamp для удобной сортировки
-        timestamp_str = self.start_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"{timestamp_str}_{self.session_id}.log"
-        filepath = os.path.join(self.log_dir, filename)
-        
-        # Создаём логгер
-        self._logger = logging.getLogger(f"session.{self.session_id}")
-        self._logger.setLevel(logging.DEBUG)
-        self._logger.handlers = []  # Очищаем обработчики
-        
-        # Файловый обработчик с ротацией
-        self._file_handler = logging.handlers.RotatingFileHandler(
-            filepath,
-            maxBytes=52428800,  # 50MB
-            backupCount=10,
-            encoding='utf-8'
-        )
-        self._file_handler.setLevel(logging.DEBUG)
-        self._file_handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        ))
-        self._logger.addHandler(self._file_handler)
-        
-        # Отключаем распространение
-        self._logger.propagate = False
-        
-        # Заголовок сессии
-        self._logger.info("=" * 80)
-        self._logger.info(f"AGENT SESSION STARTED | Session ID: {self.session_id}")
-        self._logger.info(f"Timestamp: {datetime.now().isoformat()}")
-        self._logger.info("=" * 80)
+        self._start_time: Optional[datetime] = None
+        self._steps: int = 0
+        self._llm_calls: List[Dict[str, Any]] = []
+        self._active = False
 
-    def info(self, message: str, **kwargs):
-        """Логирование INFO сообщения."""
-        self._setup_logger()
-        extra = " | ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-        self._logger.info(f"{message} {extra}".strip())
+    async def start(self, goal: str, **kwargs) -> None:
+        """
+        Начало сессии.
 
-    def debug(self, message: str, **kwargs):
-        """Логирование DEBUG сообщения."""
-        self._setup_logger()
-        extra = " | ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-        self._logger.debug(f"{message} {extra}".strip())
+        ARGS:
+            goal: Цель сессии
+            **kwargs: Дополнительные данные
+        """
+        self._start_time = datetime.now()
+        self._active = True
 
-    def warning(self, message: str, **kwargs):
-        """Логирование WARNING сообщения."""
-        self._setup_logger()
-        extra = " | ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-        self._logger.warning(f"{message} {extra}".strip())
+        event_data = {
+            'type': 'session_started',
+            'session_id': self.session_id,
+            'agent_id': self.agent_id,
+            'goal': goal,
+            'timestamp': self._start_time.isoformat() + 'Z',
+            **kwargs
+        }
 
-    def error(self, message: str, exc_info: bool = False, **kwargs):
-        """Логирование ERROR сообщения."""
-        self._setup_logger()
-        extra = " | ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-        self._logger.error(f"{message} {extra}".strip(), exc_info=exc_info)
+        self._log_manager.log_session(self.session_id, event_data)
 
-    async def log_llm_prompt(self, component: str, phase: str, data: Dict[str, Any]):
+        if self._log_manager._indexer:
+            await self._log_manager._indexer.add_session(
+                self.session_id,
+                self.agent_id,
+                goal
+            )
+
+        logger.info(f"Сессия начата: {self.session_id} (goal: {goal})")
+
+    async def log_llm_prompt(self, component: str, phase: str,
+                              system_prompt: str, user_prompt: str,
+                              **kwargs) -> None:
         """
         Логирование LLM промпта.
 
         ARGS:
-            component: компонент
-            phase: фаза (think/act/observe)
-            data: данные промпта
+            component: Компонент
+            phase: Фаза (think/act/observe)
+            system_prompt: Системный промпт
+            user_prompt: Пользовательский промпт
+            **kwargs: Дополнительные данные
         """
-        self._setup_logger()
+        if not self._active:
+            logger.warning("Сессия не активна")
+            return
 
-        self._logger.debug("-" * 80)
-        self._logger.debug(f"LLM PROMPT | Component: {component} | Phase: {phase}")
-        self._logger.debug("-" * 80)
-        self._logger.debug(f"Timestamp: {datetime.now().isoformat()}")
-        self._logger.debug(f"Component: {component}")
-        self._logger.debug(f"Phase: {phase}")
+        timestamp = datetime.now()
 
-        if data.get('goal'):
-            self._logger.debug(f"Goal: {data['goal']}")
+        event_data = {
+            'type': 'llm_prompt',
+            'session_id': self.session_id,
+            'component': component,
+            'phase': phase,
+            'system_prompt': system_prompt,
+            'user_prompt': user_prompt,
+            'prompt_length': len(system_prompt) + len(user_prompt),
+            'timestamp': timestamp.isoformat() + 'Z',
+            **kwargs
+        }
 
-        self._logger.debug(f"System prompt ({len(data.get('system_prompt', ''))} chars):")
-        system_prompt = data.get('system_prompt', '')
-        if len(system_prompt) > 500:
-            self._logger.debug(system_prompt[:500] + "...")
-        else:
-            self._logger.debug(system_prompt)
+        self._log_manager.log_session(self.session_id, event_data)
+        self._log_manager.log_llm(self.session_id, event_data)
+        self._llm_calls.append(event_data)
+        
+        logger.debug(f"LLM промпт logged: {component}/{phase}")
 
-        user_prompt = data.get('user_prompt', '')
-        self._logger.debug(f"User prompt ({len(user_prompt)} chars):")
-        # Логируем только первые 1000 символов чтобы не блокировать
-        if len(user_prompt) > 1000:
-            self._logger.debug(user_prompt[:1000] + f"... [ещё {len(user_prompt) - 1000} символов]")
-        else:
-            self._logger.debug(user_prompt)
-
-        self._logger.debug(f"Temperature: {data.get('temperature', 0.0)} | Max tokens: {data.get('max_tokens', 1000)}")
-        self._logger.debug("-" * 80)
-
-    async def log_llm_response(self, component: str, phase: str, data: Dict[str, Any]):
+    async def log_llm_response(self, component: str, phase: str,
+                                response: Any, tokens: Optional[int] = None,
+                                latency_ms: Optional[float] = None,
+                                **kwargs) -> None:
         """
         Логирование LLM ответа.
 
         ARGS:
-            component: компонент
-            phase: фаза
-            data: данные ответа
+            component: Компонент
+            phase: Фаза
+            response: Ответ LLM
+            tokens: Количество токенов
+            latency_ms: Задержка в мс
+            **kwargs: Дополнительные данные
         """
-        self._setup_logger()
-        
-        self._logger.info("-" * 80)
-        self._logger.info(f"LLM RESPONSE | Component: {component} | Phase: {phase}")
-        self._logger.info("-" * 80)
-        self._logger.info(f"Timestamp: {datetime.now().isoformat()}")
-        
-        response = data.get('response', {})
-        if isinstance(response, dict):
-            import json
-            self._logger.info("Response (JSON):")
-            self._logger.info(json.dumps(response, ensure_ascii=False, indent=2))
-        else:
-            self._logger.info(f"Response ({type(response).__name__}):")
-            self._logger.info(str(response))
-        
-        self._logger.info("-" * 80)
+        if not self._active:
+            logger.warning("Сессия не активна")
+            return
 
-    def log_event(self, event_type: str, message: str, **kwargs):
+        timestamp = datetime.now()
+
+        event_data = {
+            'type': 'llm_response',
+            'session_id': self.session_id,
+            'component': component,
+            'phase': phase,
+            'response': response if isinstance(response, (str, int, float, bool, type(None))) else str(response),
+            'tokens': tokens,
+            'latency_ms': latency_ms,
+            'timestamp': timestamp.isoformat() + 'Z',
+            **kwargs
+        }
+
+        self._log_manager.log_session(self.session_id, event_data)
+        self._log_manager.log_llm(self.session_id, event_data)
+        self._llm_calls.append(event_data)
+        
+        logger.debug(f"LLM ответ logged: {component}/{phase}")
+
+    async def log_step(self, step_number: int, capability: str,
+                        success: bool, latency_ms: Optional[float] = None,
+                        **kwargs) -> None:
         """
-        Логирование произвольного события.
+        Логирование шага выполнения.
 
         ARGS:
-            event_type: тип события (COMPONENT_INIT, SKILL_EXEC, OBSERVATION, и т.д.)
-            message: сообщение
-            **kwargs: дополнительные данные
+            step_number: Номер шага
+            capability: Название способности
+            success: Успешность
+            latency_ms: Задержка в мс
+            **kwargs: Дополнительные данные
         """
-        self._setup_logger()
-        extra = " | ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
-        self._logger.info(f"[{event_type}] {message} {extra}".strip())
+        if not self._active:
+            logger.warning("Сессия не активна")
+            return
 
-    def log_component_init(self, component_type: str, component_name: str, **kwargs):
-        """Логирование инициализации компонента."""
-        self.log_event("COMPONENT_INIT", f"{component_type}.{component_name}", **kwargs)
+        self._steps += 1
 
-    def log_component_result(self, component_type: str, component_name: str, result: Any, **kwargs):
-        """Логирование результата компонента."""
-        self._setup_logger()
-        if isinstance(result, dict):
-            import json
-            self._logger.info(f"[COMPONENT_RESULT] {component_type}.{component_name}")
-            self._logger.info(json.dumps(result, ensure_ascii=False, indent=2, default=str)[:2000])
-        else:
-            self.log_event("COMPONENT_RESULT", f"{component_type}.{component_name}", result=str(result)[:500], **kwargs)
+        event_data = {
+            'type': 'step_executed',
+            'session_id': self.session_id,
+            'step_number': step_number,
+            'capability': capability,
+            'success': success,
+            'latency_ms': latency_ms,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
 
-    def log_observation(self, observation: str, **kwargs):
-        """Логирование наблюдения."""
-        self._setup_logger()
-        self._logger.info(f"[OBSERVATION] {observation[:1000]}")
-        if kwargs:
-            self._logger.info(f"Details: {kwargs}")
+        self._log_manager.log_session(self.session_id, event_data)
+        logger.debug(f"Шаг {step_number} logged: {capability} (success={success})")
 
-    def log_action(self, action: str, parameters: Dict[str, Any], **kwargs):
-        """Логирование действия."""
-        self._setup_logger()
-        self._logger.info(f"[ACTION] {action}")
-        if parameters:
-            import json
-            self._logger.info(f"Parameters: {json.dumps(parameters, ensure_ascii=False, indent=2, default=str)[:1000]}")
+    async def log_error(self, error_type: str, error_message: str,
+                         capability: Optional[str] = None,
+                         **kwargs) -> None:
+        """
+        Логирование ошибки.
+
+        ARGS:
+            error_type: Тип ошибки
+            error_message: Сообщение об ошибке
+            capability: Способность (опционально)
+            **kwargs: Дополнительные данные
+        """
+        if not self._active:
+            logger.warning("Сессия не активна")
+            return
+
+        event_data = {
+            'type': 'error',
+            'session_id': self.session_id,
+            'error_type': error_type,
+            'error_message': error_message,
+            'capability': capability,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+
+        self._log_manager.log_session(self.session_id, event_data)
+        logger.error(f"Ошибка logged: {error_type} - {error_message}")
+
+    async def end(self, success: bool = True, result: Optional[str] = None,
+                   **kwargs) -> None:
+        """
+        Завершение сессии.
+
+        ARGS:
+            success: Успешность
+            result: Результат
+            **kwargs: Дополнительные данные
+        """
+        if not self._active:
+            logger.warning("Сессия не активна")
+            return
+
+        self._active = False
+
+        end_time = datetime.now()
+        total_time_ms = (end_time - self._start_time).total_seconds() * 1000 if self._start_time else 0
+
+        event_data = {
+            'type': 'session_completed' if success else 'session_failed',
+            'session_id': self.session_id,
+            'agent_id': self.agent_id,
+            'success': success,
+            'result': result,
+            'steps': self._steps,
+            'total_time_ms': int(total_time_ms),
+            'llm_calls_count': len(self._llm_calls),
+            'timestamp': end_time.isoformat() + 'Z',
+            **kwargs
+        }
+
+        self._log_manager.log_session(self.session_id, event_data)
+
+        if self._log_manager._indexer:
+            await self._log_manager._indexer.update_session_status(
+                self.session_id,
+                'completed' if success else 'failed',
+                self._steps,
+                int(total_time_ms)
+            )
+
+        logger.info(f"Сессия завершена: {self.session_id} (success={success}, steps={self._steps})")
+
+    def info(self, message: str, **kwargs):
+        """INFO сообщение."""
+        event_data = {
+            'type': 'log_info',
+            'session_id': self.session_id,
+            'message': message,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+        self._log_manager.log_session(self.session_id, event_data)
+
+    def debug(self, message: str, **kwargs):
+        """DEBUG сообщение."""
+        event_data = {
+            'type': 'log_debug',
+            'session_id': self.session_id,
+            'message': message,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+        self._log_manager.log_session(self.session_id, event_data)
+
+    def warning(self, message: str, **kwargs):
+        """WARNING сообщение."""
+        event_data = {
+            'type': 'log_warning',
+            'session_id': self.session_id,
+            'message': message,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+        self._log_manager.log_session(self.session_id, event_data)
+
+    def error(self, message: str, **kwargs):
+        """ERROR сообщение."""
+        event_data = {
+            'type': 'log_error',
+            'session_id': self.session_id,
+            'message': message,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+        self._log_manager.log_session(self.session_id, event_data)
+
+    def log_event(self, event_type: str, message: str, **kwargs):
+        """Произвольное событие."""
+        event_data = {
+            'type': event_type.lower(),
+            'session_id': self.session_id,
+            'message': message,
+            'timestamp': datetime.now().isoformat() + 'Z',
+            **kwargs
+        }
+        self._log_manager.log_session(self.session_id, event_data)
 
     def close(self):
-        """Завершение сессии."""
-        if self._logger:
-            self._logger.info("=" * 80)
-            self._logger.info(f"AGENT SESSION ENDED | Session ID: {self.session_id}")
-            self._logger.info("=" * 80)
-            
-            for handler in self._logger.handlers:
-                handler.close()
-            self._logger.handlers = []
-
-    @property
-    def filepath(self) -> Optional[str]:
-        """Путь к файлу лога."""
-        if self._logger:
-            timestamp_str = self.start_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-            return os.path.join(self.log_dir, f"{timestamp_str}_{self.session_id}.log")
-        return None
+        """Закрытие сессии."""
+        if self._active:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(self.end(success=True))
+            except RuntimeError:
+                pass
 
 
-# Глобальные сессии
+# Глобальные активные сессии
 _active_sessions: Dict[str, SessionLogger] = {}
 
 
-def get_session_logger(session_id: str) -> SessionLogger:
+def get_session_logger(session_id: str, agent_id: Optional[str] = None) -> SessionLogger:
     """
     Получение или создание логгера сессии.
 
     ARGS:
         session_id: ID сессии
+        agent_id: ID агента (опционально)
 
     RETURNS:
-        логгер сессии
+        SessionLogger
     """
     if session_id not in _active_sessions:
-        _active_sessions[session_id] = SessionLogger(session_id)
+        _active_sessions[session_id] = SessionLogger(session_id, agent_id)
     return _active_sessions[session_id]
 
 
 def close_session_logger(session_id: str):
-    """
-    Закрытие логгера сессии.
-
-    ARGS:
-        session_id: ID сессии
-    """
+    """Закрытие логгера сессии."""
     if session_id in _active_sessions:
         _active_sessions[session_id].close()
         del _active_sessions[session_id]
@@ -277,20 +364,16 @@ def close_session_logger(session_id: str):
 def cleanup_old_sessions(max_sessions: int = 100, log_dir: str = "logs/sessions"):
     """
     Очистка старых сессий.
-
+    
+    NOTE: В новой системе логи хранятся в logs/archive/YYYY/MM/sessions/
+    и управляются через LogRotator.
+    
+    Эта функция оставлена для обратной совместимости.
+    
     ARGS:
         max_sessions: максимальное количество хранимых сессий
-        log_dir: директория логов
+        log_dir: директория логов (не используется в новой системе)
     """
-    try:
-        files = sorted(
-            Path(log_dir).glob("*.log"),
-            key=lambda f: f.stat().st_mtime,
-            reverse=True
-        )
-        
-        # Удаляем файлы сверх лимита
-        for old_file in files[max_sessions:]:
-            old_file.unlink()
-    except Exception:
-        pass
+    # В новой системе очистка выполняется через LogRotator
+    # Эта функция оставлена для совместимости
+    pass
