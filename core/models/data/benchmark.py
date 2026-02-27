@@ -579,6 +579,9 @@ class LogEntry:
     - correlation_id: идентификатор корреляции
     - capability: название способности (опционально)
     - version: версия (опционально)
+    - execution_context: контекст выполнения (опционально)
+    - step_quality_score: оценка качества шага 0.0-1.0 (опционально)
+    - benchmark_scenario_id: ID сценария бенчмарка (опционально)
     """
     timestamp: datetime
     agent_id: str
@@ -588,6 +591,9 @@ class LogEntry:
     correlation_id: str = ""
     capability: Optional[str] = None
     version: Optional[str] = None
+    execution_context: Optional[Dict[str, Any]] = None
+    step_quality_score: Optional[float] = None
+    benchmark_scenario_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация в словарь"""
@@ -599,7 +605,10 @@ class LogEntry:
             'data': self.data,
             'correlation_id': self.correlation_id,
             'capability': self.capability,
-            'version': self.version
+            'version': self.version,
+            'execution_context': self.execution_context,
+            'step_quality_score': self.step_quality_score,
+            'benchmark_scenario_id': self.benchmark_scenario_id
         }
 
     @classmethod
@@ -613,5 +622,8 @@ class LogEntry:
             data=data['data'],
             correlation_id=data.get('correlation_id', ''),
             capability=data.get('capability'),
-            version=data.get('version')
+            version=data.get('version'),
+            execution_context=data.get('execution_context'),
+            step_quality_score=data.get('step_quality_score'),
+            benchmark_scenario_id=data.get('benchmark_scenario_id')
         )
