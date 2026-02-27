@@ -209,33 +209,64 @@ class LlamaCppProvider(BaseLLMProvider):
         Выполнение запроса к LLM.
         """
         if not self.is_initialized or not self.llm:
+            logger.warning("LLM не инициализирован! Вызываем initialize()...")
             await self.initialize()
 
         start_time = time.time()
 
         try:
-            # Логируем запрос при необходимости
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"Выполнение запроса к Llama.cpp: {request.prompt[:50]}...")
+            # === ПОЛНОЕ ЛОГИРОВАНИЕ ПАРАМЕТРОВ ВЫЗОВА ===
+            logger.info("=" * 70)
+            logger.info("LLM ВЫЗОВ — ДЕТАЛЬНАЯ ИНФОРМАЦИЯ")
+            logger.info("=" * 70)
+            logger.info(f"Провайдер: {type(self).__name__}")
+            logger.info(f"Модель: {self.model_name}")
+            logger.info(f"Инициализирован: {self.is_initialized}")
+            logger.info(f"Время начала: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+            logger.info("-" * 70)
+            logger.info("ПАРАМЕТРЫ ЗАПРОСА:")
+            logger.info(f"  • prompt_length: {len(request.prompt)} символов")
+            logger.info(f"  • max_tokens: {request.max_tokens}")
+            logger.info(f"  • temperature: {request.temperature}")
+            logger.info(f"  • top_p: {request.top_p}")
+            logger.info(f"  • frequency_penalty: {request.frequency_penalty}")
+            logger.info(f"  • presence_penalty: {request.presence_penalty}")
+            logger.info(f"  • stop_sequences: {request.stop_sequences}")
+            
+            # Проверяем структурированный вывод
+            if hasattr(request, 'structured_output') and request.structured_output:
+                logger.info("  • structured_output: True")
+                logger.info(f"    - output_model: {getattr(request.structured_output, 'output_model', 'N/A')}")
+                logger.info(f"    - max_retries: {getattr(request.structured_output, 'max_retries', 3)}")
+                logger.info(f"    - strict_mode: {getattr(request.structured_output, 'strict_mode', False)}")
+            else:
+                logger.info("  • structured_output: False")
+            
+            logger.info("-" * 70)
+            logger.info("КОНТЕКСТ ВЫЗОВА (из set_call_context):")
+            logger.info(f"  • session_id: {getattr(self, '_session_id', 'N/A')}")
+            logger.info(f"  • agent_id: {getattr(self, '_agent_id', 'N/A')}")
+            logger.info(f"  • component: {getattr(self, '_component', 'N/A')}")
+            logger.info(f"  • phase: {getattr(self, '_phase', 'N/A')}")
+            logger.info(f"  • goal: {getattr(self, '_goal', 'N/A')[:100] if getattr(self, '_goal', None) else 'N/A'}")
+            logger.info("=" * 70)
 
             # Подготовим параметры для вызова модели
             max_tokens = request.max_tokens
             if hasattr(request, 'structured_output') and request.structured_output:
                 # Если запрошена структурированная генерация
                 max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
+                logger.info(f"max_tokens ограничен до {max_tokens} для структурированного вывода")
 
             # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
             # llama_cpp может блокировать GIL, поэтому используем ProcessPoolExecutor
             import asyncio
             from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-            
+
             # Проверка что модель инициализирована
             if not self.llm:
                 logger.error("LLM не инициализирован! Вызываем initialize()...")
                 await self.initialize()
-
-            # Логирование перед вызовом
-            logger.debug(f"Вызов LLM: prompt_length={len(request.prompt)}, max_tokens={max_tokens}")
 
             # Явно создаём ThreadPoolExecutor для LLM вызовов
             from concurrent.futures import ThreadPoolExecutor
@@ -252,10 +283,12 @@ class LlamaCppProvider(BaseLLMProvider):
 
             def _call_llm_sync():
                 try:
-                    logger.info(f"[LLM Thread] Начало вызова self.llm()... (prompt_length={len(request.prompt)}, max_tokens={max_tokens})")
-                    logger.info(f"[LLM Thread] Параметры: temperature={request.temperature}, top_p={request.top_p}")
+                    logger.info(f"[LLM Thread] НАЧАЛО ВЫЗОВА self.llm()...")
+                    logger.info(f"[LLM Thread] Параметры: prompt_length={len(request.prompt)}, max_tokens={max_tokens}")
                     logger.info(f"[LLM Thread] Модель: {self.model_name}, инициализирован: {self.llm is not None}")
-                    
+                    logger.info(f"[LLM Thread] Температура: {request.temperature}, top_p: {request.top_p}")
+                    logger.info(f"[LLM Thread] Частотный штраф: {request.frequency_penalty}, Присутствие: {request.presence_penalty}")
+
                     result = self.llm(
                         request.prompt,
                         max_tokens=max_tokens,
@@ -266,26 +299,29 @@ class LlamaCppProvider(BaseLLMProvider):
                         echo=False,
                         stop=request.stop_sequences or None
                     )
-                    
+
                     call_completed['done'] = True
-                    logger.info(f"[LLM Thread] Вызов завершён успешно, получен результат")
+                    logger.info(f"[LLM Thread] ВЫЗОВ ЗАВЕРШЁН УСПЕШНО, получен результат")
+                    logger.info(f"[LLM Thread] Длина результата: {len(result.get('choices', [{}])[0].get('text', '')) if result.get('choices') else 0} символов")
                     return result
                 except Exception as e:
                     call_completed['error'] = str(e)
-                    logger.error(f"[LLM Thread] Ошибка LLM вызова: {type(e).__name__}: {str(e)}", exc_info=True)
+                    logger.error(f"[LLM Thread] ОШИБКА LLM вызова: {type(e).__name__}: {str(e)}", exc_info=True)
                     raise  # Пробрасываем ошибку дальше
 
             try:
                 # Таймаут из конфигурации
                 logger.info(f"Начало LLM inference с таймаутом {self.timeout_seconds}с...")
                 logger.info(f"[MAIN Thread] Ожидание результата от LLM...")
-                
+
                 response = await wait_for(
                     asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
                     timeout=self.timeout_seconds
                 )
-                
-                logger.info(f"LLM вызов завершён успешно (время={time.time() - start_time:.2f}с)")
+
+                elapsed_time = time.time() - start_time
+                logger.info(f"LLM вызов завершён успешно (время={elapsed_time:.2f}с)")
+                logger.info(f"Время завершения: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             except TimeoutError:
                 logger.error(f"LLM вызов превысил таймаут {self.timeout_seconds} секунд")
                 logger.error(f"Состояние вызова: completed={call_completed['done']}, error={call_completed['error']}")
