@@ -11,6 +11,7 @@
 import json
 import time
 import logging
+from datetime import datetime
 from typing import Any, Dict, List
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
@@ -642,7 +643,30 @@ class ReActPattern(BaseBehaviorPattern):
                     error_msg = "Неизвестная ошибка LLM"
                     if hasattr(llm_response, 'metadata') and llm_response.metadata:
                         error_msg = llm_response.metadata.get('error', error_msg)
+                    
+                    # === ЛОГИРОВАНИЕ ОШИБКИ LLM ===
                     logger.error(f"LLM вернул ошибку: {error_msg}")
+                    logger.error(f"LLM Response details:")
+                    logger.error(f"  - finish_reason: {getattr(llm_response, 'finish_reason', 'unknown')}")
+                    logger.error(f"  - content: {getattr(llm_response, 'content', 'N/A')[:200] if hasattr(llm_response, 'content') else 'N/A'}")
+                    if hasattr(llm_response, 'metadata'):
+                        logger.error(f"  - metadata: {llm_response.metadata}")
+                    
+                    # Сохраняем ошибку в лог сессии
+                    if session_context:
+                        session_context.record_error(
+                            error_data={
+                                "error_type": "LLM_ERROR",
+                                "error_message": error_msg,
+                                "component": "react_pattern",
+                                "phase": "think",
+                                "finish_reason": getattr(llm_response, 'finish_reason', 'unknown'),
+                                "timestamp": datetime.now().isoformat()
+                            },
+                            error_type="LLMError",
+                            step_number=len(getattr(session_context, 'steps', []))
+                        )
+                    
                     # Возвращаем fallback решение
                     return {
                         "analysis": {
@@ -667,7 +691,29 @@ class ReActPattern(BaseBehaviorPattern):
                 # Проверяем metadata на наличие ошибки
                 if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
                     error_msg = llm_response.metadata['error']
+                    
+                    # === ЛОГИРОВАНИЕ ОШИБКИ LLM ===
                     logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                    logger.error(f"LLM Response details:")
+                    logger.error(f"  - finish_reason: {getattr(llm_response, 'finish_reason', 'unknown')}")
+                    logger.error(f"  - content: {getattr(llm_response, 'content', 'N/A')[:200] if hasattr(llm_response, 'content') else 'N/A'}")
+                    logger.error(f"  - metadata: {llm_response.metadata}")
+                    
+                    # Сохраняем ошибку в лог сессии
+                    if session_context:
+                        session_context.record_error(
+                            error_data={
+                                "error_type": "LLM_METADATA_ERROR",
+                                "error_message": error_msg,
+                                "component": "react_pattern",
+                                "phase": "think",
+                                "metadata": llm_response.metadata,
+                                "timestamp": datetime.now().isoformat()
+                            },
+                            error_type="LLMError",
+                            step_number=len(getattr(session_context, 'steps', []))
+                        )
+                    
                     return {
                         "analysis": {
                             "current_situation": f"Ошибка LLM: {error_msg}",
@@ -687,6 +733,31 @@ class ReActPattern(BaseBehaviorPattern):
                         "available_capabilities": available_capabilities,
                         "needs_rollback": False
                     }
+                
+                # Проверяем на пустой или обрезанный ответ
+                content = getattr(llm_response, 'content', '')
+                if not content or (isinstance(content, str) and len(content.strip()) == 0):
+                    # === ЛОГИРОВАНИЕ ПУСТОГО ОТВЕТА ===
+                    logger.warning("LLM вернул пустой ответ!")
+                    logger.warning(f"LLM Response details:")
+                    logger.warning(f"  - finish_reason: {getattr(llm_response, 'finish_reason', 'unknown')}")
+                    logger.warning(f"  - content: '{content}'")
+                    logger.warning(f"  - metadata: {getattr(llm_response, 'metadata', 'N/A')}")
+                    
+                    # Сохраняем в лог сессии
+                    if session_context:
+                        session_context.record_error(
+                            error_data={
+                                "error_type": "LLM_EMPTY_RESPONSE",
+                                "error_message": "LLM вернул пустой ответ",
+                                "component": "react_pattern",
+                                "phase": "think",
+                                "finish_reason": getattr(llm_response, 'finish_reason', 'unknown'),
+                                "timestamp": datetime.now().isoformat()
+                            },
+                            error_type="LLMError",
+                            step_number=len(getattr(session_context, 'steps', []))
+                        )
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
