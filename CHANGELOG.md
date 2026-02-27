@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## [5.16.0] - 2026-02-27
+
+### Added
+- **Система логирования для самообучения агента**
+
+#### Модели данных
+- `LogEntry`: добавлены поля `execution_context`, `step_quality_score`, `benchmark_scenario_id`
+- `ExecutionContextSnapshot`: новая модель для снимка контекста выполнения
+  - Контекст решения: available_capabilities, selected_capability, behavior_pattern, reasoning
+  - Метрики: execution_time_ms, tokens_used, success
+  - Версии ресурсов: prompt_version, contract_version
+  - Оценка качества: step_quality_score
+- Обновлены методы to_dict/from_dict для сериализации
+
+#### LogCollector
+- `_calculate_quality_score()`: расчёт оценки шага 0.0-1.0
+  - 0.5 базовых за выполнение
+  - +0.3 за успешность, +0.2 за скорость (<100мс), +0.1 за токены (<100), +0.2 за прогресс
+- `_on_capability_selected()`: сохранение execution_context и step_quality_score
+- `_on_benchmark_event()`: связь через benchmark_scenario_id
+
+#### Скрипты
+- `scripts/learning/aggregate_training_data.py`: агрегация логов в датасет для обучения
+  - positive_examples: шаги с quality score > 0.8
+  - negative_examples: ошибки
+  - benchmark_results: результаты бенчмарков
+- `scripts/maintenance/cleanup_logs.py`: автоматическая очистка старых логов
+  - Очистка data/logs/, data/metrics/, logs/sessions/, logs/llm_calls/
+  - Настройка через --days (по умолчанию 30 дней)
+
+#### Тесты
+- `tests/unit/learning/test_models.py`: 8 тестов для ExecutionContextSnapshot и LogEntry
+- `tests/unit/learning/test_log_collector_extended.py`: 11 тестов для quality score и логирования
+- Результат: 19/19 тестов пройдено
+
+### Fixed
+- `main.py`: замена logger.user_message на logger.info (AttributeError)
+
+### Changed
+- Версия проекта: 5.15.0 → 5.16.0
+
 ## [5.15.0] - 2026-02-27
 
 ### Added

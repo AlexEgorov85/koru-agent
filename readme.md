@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.15.0-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.16.0-orange.svg)]()
 [![Tests](https://img.shields.io/badge/tests-954%20passed-green.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 
@@ -24,19 +24,20 @@
 
 ---
 
-## 📊 Последние изменения (v5.15.0)
+## 📊 Последние изменения (v5.16.0)
 
-**Версия 5.15.0** (27 февраля 2026) — Масштабный рефакторинг: устранение дублирования кода
+**Версия 5.16.0** (27 февраля 2026) — Система логирования для самообучения агента
 
 ### Улучшения:
-- ✅ Удалено 7 файлов дублирующегося кода
-- ✅ Создан базовый класс `VersionedStorage[T]` для хранилищ
-- ✅ Сокращено ~1300 строк кода (-2.6%)
-- ✅ Снижено дублирование с ~15% до ~8% (-47%)
-- ✅ Coverage сохранён на уровне ≥98%
-- ✅ Все 954 теста проходят
+- ✅ Расширена модель LogEntry: execution_context, step_quality_score, benchmark_scenario_id
+- ✅ Создана модель ExecutionContextSnapshot для снимка контекста выполнения
+- ✅ Добавлен расчёт качества шага (0.0-1.0) по метрикам выполнения
+- ✅ Скрипт агрегации данных для обучения: positive/negative примеры, бенчмарки
+- ✅ Скрипт автоматической очистки старых логов (настраиваемый период)
+- ✅ 19 новых тестов для системы логирования (100% passing)
+- ✅ Исправлена ошибка logger.user_message в main.py
 
-📄 **Подробности:** См. [REFACTORING_REPORT_5.15.0.md](REFACTORING_REPORT_5.15.0.md) и [CHANGELOG.md](CHANGELOG.md)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
