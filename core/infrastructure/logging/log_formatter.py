@@ -189,7 +189,7 @@ class LogFormatter(logging.Formatter):
             'levelname', 'levelno', 'lineno', 'module', 'msecs',
             'pathname', 'process', 'processName', 'relativeCreated',
             'stack_info', 'exc_info', 'exc_text', 'thread', 'threadName',
-            'message', 'asctime'
+            'message', 'asctime', 'taskName'  # asyncio task name (не нужен в логах)
         }
         
         extra_fields = {}
