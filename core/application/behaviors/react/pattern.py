@@ -152,7 +152,7 @@ class ReActPattern(BaseBehaviorPattern):
             "goal": goal,
             "step_history": "\n".join([f"{i+1}. {s}" for i, s in enumerate(last_steps[-3:])]) if last_steps else "Шаги не выполнены",
             "observation": last_steps[-1] if last_steps else "Нет наблюдений",
-            "available_tools": "\n".join([f"- {cap['name']}: {cap['description']}" for cap in available_capabilities]),
+            "available_tools": self._format_available_tools(available_capabilities),
             "no_progress_steps": no_progress_steps,
             "consecutive_errors": consecutive_errors
         }
@@ -197,8 +197,49 @@ class ReActPattern(BaseBehaviorPattern):
         parts.append("\nДОСТУПНЫЕ ИНСТРУМЕНТЫ:")
         for cap in available_capabilities:
             parts.append(f"  - {cap['name']}: {cap['description']}")
-        
+
         return "\n".join(parts)
+
+    def _format_available_tools(self, available_capabilities: List[Dict[str, Any]]) -> str:
+        """
+        Форматирует список доступных инструментов с параметрами.
+
+        ПАРАМЕТРЫ:
+        - available_capabilities: список capability
+
+        ВОЗВРАЩАЕТ:
+        - str: отформатированный список инструментов с параметрами
+        """
+        lines = []
+        for cap in available_capabilities:
+            name = cap.get('name', 'unknown')
+            description = cap.get('description', 'Нет описания')
+            
+            # Получаем схему параметров из schema_validator
+            params_schema = None
+            if hasattr(self, 'schema_validator') and self.schema_validator:
+                params_schema = self.schema_validator.get_capability_schema(name)
+            
+            # Формируем строку инструмента
+            line = f"- {name}: {description}"
+            
+            # Добавляем параметры если есть схема
+            if params_schema:
+                params_list = []
+                for param_name, param_info in params_schema.items():
+                    param_type = param_info.get('type', 'string') if isinstance(param_info, dict) else 'string'
+                    required = param_info.get('required', False) if isinstance(param_info, dict) else False
+                    req_mark = "(required)" if required else "(optional)"
+                    params_list.append(f"{param_name}: {param_type} {req_mark}")
+                
+                if params_list:
+                    line += "\n    Параметры:"
+                    for p in params_list:
+                        line += f"\n      - {p}"
+            
+            lines.append(line)
+        
+        return "\n".join(lines)
 
     def _build_minimal_fallback_prompt(self, prompt_context: Dict[str, Any]) -> str:
         """
