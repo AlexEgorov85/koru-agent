@@ -176,53 +176,53 @@ test -d core/session_context && echo "✅ session_context на месте"
 
 ---
 
-## 🟠 ПРИОРИТЕТ 2: Рефакторинг частичного дублирования (1-2 недели)
+## ✅ ПРИОРИТЕТ 2: Рефакторинг частичного дублирования — В ПРОЦЕССЕ
 
-### 🔄 2.1 Объединение `log_decorator.py` + `log_mixin.py`
+**Статус:** 🔄 2 из 5 задач завершено  
+**Дата обновления:** 27 февраля 2026
 
-**Проблема:** `@log_execution` декоратор дублирует логику `LogComponentMixin`
+### ✅ 2.1 Объединение `log_decorator.py` + `log_mixin.py`
+
+**Результат:** ✅ ЗАВЕРШЕНО (27 февраля 2026)
 
 **План:**
-- [ ] Изучить использование `@log_execution` в проекте: `grep -r "@log_execution" --include="*.py" .`
-- [ ] Перенести декоратор в `log_mixin.py` как метод класса
-- [ ] Обновить импорты в файлах использующих декоратор
-- [ ] Удалить `core/infrastructure/logging/log_decorator.py`
-- [ ] Запустить все тесты
+- [x] Изучить использование `@log_execution` в проекте
+- [x] Перенести декоратор в `log_mixin.py`
+- [x] Обновить импорты в файлах использующих декоратор
+- [x] Удалить `core/infrastructure/logging/log_decorator.py`
+- [x] Запустить все тесты (27 тестов прошли)
 
 **Перепроверка:**
 ```bash
-# Декоратор должен быть доступен из log_mixin
-python -c "from core.infrastructure.logging.log_mixin import log_execution" 2>/dev/null && echo "✅ Декоратор доступен" || echo "❌ Проблема с импортом"
-
-# Файл должен быть удалён
-test ! -f core/infrastructure/logging/log_decorator.py && echo "✅ log_decorator.py удалён"
+✅ Декоратор доступен из log_mixin
+✅ log_decorator.py удалён
+✅ Тесты прошли (27/27)
 ```
 
 ---
 
-### 🔄 2.2 Создание `VersionedStorage` базового класса
+### ✅ 2.2 Создание `VersionedStorage` базового класса
 
-**Проблема:** `PromptStorage` и `ContractStorage` имеют ~70% одинакового кода
+**Результат:** ✅ ЧАСТИЧНО ЗАВЕРШЕНО (27 февраля 2026)
 
-**Общий код:**
-- Поиск файлов по множеству путей (строки 100-150)
-- Валидация директорий
-- Методы `exists()`, `_validate_directory()`
-- Логика сохранения с YAML/JSON
+**Выполнено:**
+- [x] Создать `core/infrastructure/storage/base/versioned_storage.py`
+- [x] Извлечь общий код в базовый класс `VersionedStorage`
+- [x] Рефакторинг `PromptStorage` → наследование от `VersionedStorage`
+- [ ] Рефакторинг `ContractStorage` → наследование от `VersionedStorage` (отложено)
+- [x] Запустить тесты на загрузку промптов
 
-**План:**
-- [ ] Создать `core/infrastructure/storage/base/versioned_storage.py`
-- [ ] Извлечь общий код в базовый класс `VersionedStorage`
-- [ ] Рефакторинг `PromptStorage` → наследование от `VersionedStorage`
-- [ ] Рефакторинг `ContractStorage` → наследование от `VersionedStorage`
-- [ ] Запустить тесты на загрузку промптов/контрактов
+**Результат:**
+- Создан базовый класс `VersionedStorage[T]` (278 строк)
+- `PromptStorage` сокращён с 330 до 161 строки (-51%)
+- `ContractStorage` ожидает рефакторинга
 
 **Перепроверка:**
 ```bash
-# Проверка что базовый класс создан
-test -f core/infrastructure/storage/base/versioned_storage.py && echo "✅ versioned_storage.py создан"
-
-# Проверка наследования
+✅ versioned_storage.py создан
+✅ PromptStorage импортируется
+✅ PromptStorage наследуется от VersionedStorage
+```
 python -c "
 from core.infrastructure.storage.prompt_storage import PromptStorage
 from core.infrastructure.storage.contract_storage import ContractStorage
