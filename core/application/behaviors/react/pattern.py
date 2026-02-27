@@ -559,51 +559,69 @@ class ReActPattern(BaseBehaviorPattern):
 
             logger.debug("Вызов llm_provider.generate_structured()...")
             
-            # === ОБРАБОТКА ТАЙМАУТА LLM ===
+            # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
             import asyncio
             from asyncio import TimeoutError as AsyncTimeoutError
             
-            try:
-                # Получаем таймаут из конфигурации LLM провайдера
-                llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-                logger.debug(f"Вызов LLM с таймаутом {llm_timeout}с...")
-                
-                # Используем asyncio.wait_for для гарантии таймаута
-                response = await asyncio.wait_for(
-                    llm_provider.generate_structured(llm_request),
-                    timeout=llm_timeout
-                )
-                logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
-                
-            except (AsyncTimeoutError, TimeoutError) as e:
-                logger.error(f"LLM вызов превысил таймаут {llm_timeout}с: {e}")
-                # Возвращаем fallback решение при таймауте
-                return {
-                    "analysis": {
-                        "current_situation": f"Таймаут LLM ({llm_timeout}с)",
-                        "progress_assessment": "Неизвестно",
-                        "confidence": 0.3,
-                        "errors_detected": True,
-                        "consecutive_errors": self.error_count + 1,
-                        "execution_time": context_analysis.get("execution_time_seconds", 0),
-                        "no_progress_steps": context_analysis.get("no_progress_steps", 0),
-                        "error_type": "LLM_TIMEOUT"
-                    },
-                    "recommended_action": {
-                        "action_type": "execute_capability",
-                        "capability_name": "book_library.execute_script",
-                        "parameters": {
-                            "script_name": "get_books_by_author",
-                            "parameters": {"author": "Александр Пушкин", "max_rows": 20}
-                        },
-                        "reasoning": f"fallback после таймаута LLM — используем быстрый SQL скрипт"
-                    },
-                    "available_capabilities": available_capabilities,
-                    "needs_rollback": False
-                }
-            except Exception as e:
-                logger.error(f"Ошибка LLM вызова: {type(e).__name__}: {e}")
-                raise  # Пробрасываем другие ошибки дальше
+            # Параметры retry
+            max_retries = 3
+            retry_delay = 5.0  # секунд между попытками
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    # Получаем таймаут из конфигурации LLM провайдера
+                    llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
+                    logger.debug(f"Вызов LLM с таймаутом {llm_timeout}с (попытка {retry_count + 1}/{max_retries})...")
+                    
+                    # Используем asyncio.wait_for для гарантии таймаута
+                    response = await asyncio.wait_for(
+                        llm_provider.generate_structured(llm_request),
+                        timeout=llm_timeout
+                    )
+                    logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
+                    break  # Успех, выходим из цикла retry
+                    
+                except (AsyncTimeoutError, TimeoutError) as e:
+                    retry_count += 1
+                    error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
+                    logger.error(error_msg)
+                    
+                    if retry_count < max_retries:
+                        # Ждём перед следующей попыткой
+                        logger.info(f"Повторная попытка через {retry_delay}с...")
+                        await asyncio.sleep(retry_delay)
+                        # Увеличиваем задержку для следующей попытки (exponential backoff)
+                        retry_delay *= 1.5
+                    else:
+                        # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
+                        error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
+                        logger.error(error_msg)
+                        
+                        # Выводим ошибку в терминал пользователю
+                        print(f"\n{'='*80}")
+                        print(f"❌ {error_msg}")
+                        print(f"{'='*80}")
+                        print(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+                        print(f"Компонент: react_pattern (phase: think)")
+                        print(f"Таймаут: {llm_timeout} секунд")
+                        print(f"Попыток: {retry_count}")
+                        print(f"\nВозможные причины:")
+                        print(f"  1. LLM модель слишком медленная для текущего запроса")
+                        print(f"  2. LLM модель зависла или недоступна")
+                        print(f"  3. Недостаточно ресурсов (память/CPU) для инференса")
+                        print(f"\nРекомендации:")
+                        print(f"  1. Увеличьте таймаут в конфигурации (timeout_seconds)")
+                        print(f"  2. Проверьте доступность LLM модели")
+                        print(f"  3. Уменьшите max_tokens или упростите запрос")
+                        print(f"{'='*80}\n")
+                        
+                        # Прерываем работу агента с ошибкой
+                        raise TimeoutError(error_msg) from e
+                        
+                except Exception as e:
+                    logger.error(f"Ошибка LLM вызова: {type(e).__name__}: {e}")
+                    raise  # Пробрасываем другие ошибки дальше
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
             # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)
