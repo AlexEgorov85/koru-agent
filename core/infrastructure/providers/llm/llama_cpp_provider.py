@@ -195,28 +195,35 @@ class LlamaCppProvider(BaseLLMProvider):
                 max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
 
             # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
-            # Используем run_in_executor для совместимости
+            # llama_cpp может блокировать GIL, поэтому используем ProcessPoolExecutor
             import asyncio
-            from concurrent.futures import ThreadPoolExecutor
+            from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
             
-            # Создаём executor если нет
-            if not hasattr(self, '_executor'):
-                self._executor = ThreadPoolExecutor(max_workers=2)
+            # Проверка что модель инициализирована
+            if not self.llm:
+                logger.error("LLM не инициализирован! Вызываем initialize()...")
+                await self.initialize()
             
+            # Логирование перед вызовом
+            logger.debug(f"Вызов LLM: prompt_length={len(request.prompt)}, max_tokens={max_tokens}")
+            
+            # llama_cpp освобождает GIL во время inference, поэтому ThreadPoolExecutor должен работать
+            # Но если есть проблемы - можно попробовать ProcessPoolExecutor
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self._executor,
-                lambda: self.llm(
-                    request.prompt,
-                    max_tokens=max_tokens,
-                    temperature=request.temperature,
-                    top_p=request.top_p,
-                    frequency_penalty=request.frequency_penalty,
-                    presence_penalty=request.presence_penalty,
-                    echo=False,
-                    stop=request.stop_sequences or None
-                )
+            
+            # Синхронный вызов llama_cpp (он сам освобождает GIL)
+            logger.debug("Синхронный вызов self.llm()...")
+            response = self.llm(
+                request.prompt,
+                max_tokens=max_tokens,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                frequency_penalty=request.frequency_penalty,
+                presence_penalty=request.presence_penalty,
+                echo=False,
+                stop=request.stop_sequences or None
             )
+            logger.debug(f"LLM вызов завершён, получен ответ")
 
             # Обрабатываем результат
             choices = response.get('choices', [])
