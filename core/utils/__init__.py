@@ -14,7 +14,7 @@ from .error_handling import (
     ErrorContext,
     ErrorCollector
 )
-from .module_reloader import safe_reload_component, safe_reload_component_with_module_reload
+from .module_reloader import safe_reload_component_with_module_reload
 
 __all__ = [
     # Lifecycle
@@ -22,7 +22,7 @@ __all__ = [
     "DependencyResolver",
     "InputValidator",
     "RestartableComponent",
-    
+
     # Error handling
     "handle_errors",
     "log_errors",
@@ -30,8 +30,7 @@ __all__ = [
     "safe_execute_async",
     "ErrorContext",
     "ErrorCollector",
-    
+
     # Module reloader
-    "safe_reload_component",
     "safe_reload_component_with_module_reload",
 ]

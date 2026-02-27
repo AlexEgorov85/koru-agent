@@ -102,6 +102,12 @@ class EventType(Enum):
     EXECUTION_FAILED = "execution.failed"
     COMPONENT_INITIALIZED = "component.initialized"
     COMPONENT_SHUTDOWN = "component.shutdown"
+    
+    # События логирования (заменяют logging.info)
+    LOG_INFO = "log.info"
+    LOG_DEBUG = "log.debug"
+    LOG_WARNING = "log.warning"
+    LOG_ERROR = "log.error"
 
 
 class EventBus:

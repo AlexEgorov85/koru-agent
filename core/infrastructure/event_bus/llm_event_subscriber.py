@@ -9,11 +9,15 @@ from core.infrastructure.event_bus.event_bus import get_event_bus
 subscriber = LLMEventSubscriber()
 subscriber.subscribe(get_event_bus())
 ```
+
+ВАЖНО: Технические логи (промпты, ответы) пишутся в файл сессии:
+logs/sessions/{session_id}.log
 """
 import logging
 import json
 from typing import Optional
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from core.infrastructure.logging.session_logger import get_session_logger
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +30,10 @@ class LLMEventSubscriber:
     ПУБЛИКУЕМЫЕ СОБЫТИЯ:
     - LLM_PROMPT_GENERATED: сгенерирован промпт для LLM
     - LLM_RESPONSE_RECEIVED: получен ответ от LLM
+    
+    ВАЖНО: Технические логи (промпты, ответы) выводятся на уровне DEBUG,
+    чтобы не засорять консоль. Полные промпты/ответы пишутся в отдельные файлы:
+    logs/llm_calls/{session_id}_{timestamp}_{component}_{phase}.log
     """
 
     def __init__(self, log_full_content: bool = False):
@@ -48,30 +56,20 @@ class LLMEventSubscriber:
         """
         self._prompt_count += 1
         data = event.data
+        session_id = data.get('session_id', 'unknown')
+        component = data.get('component', 'unknown')
+        phase = data.get('phase', 'unknown')
 
-        logger.info("=" * 80)
-        logger.info(f"=== LLM ПРОМПТ #{self._prompt_count} ({data.get('component', 'unknown')}) ===")
-        logger.info("=" * 80)
-        logger.info(f"Компонент: {data.get('component', 'unknown')}")
-        logger.info(f"Фаза: {data.get('phase', 'unknown')}")
-        logger.info(f"Session ID: {data.get('session_id', 'unknown')}")
-        logger.info(f"Цель: {data.get('goal', 'unknown')}")
-        logger.info("-" * 80)
-        logger.info(f"System prompt ({len(data.get('system_prompt', ''))} символов):")
-        logger.info(f"{data.get('system_prompt', '')[:500]}...")
-        logger.info("-" * 80)
+        # Пишем в лог сессии
+        session_logger = get_session_logger(session_id)
+        await session_logger.log_llm_prompt(component, phase, data)
 
-        if self.log_full_content:
-            logger.info(f"User prompt (полный, {data.get('prompt_length', 0)} символов):")
-            logger.info(f"{data.get('user_prompt', '')}")
-        else:
-            logger.info(f"User prompt (первые 2000 символов из {data.get('prompt_length', 0)}):")
-            logger.info(f"{data.get('user_prompt', '')[:2000]}...")
+        # Краткое уведомление в лог (DEBUG → только файл)
+        logger.debug(f"LLM Prompt #{self._prompt_count} | {component}/{phase} | Session: {session_id}")
+        logger.debug(f"Prompt length: {data.get('prompt_length', len(data.get('user_prompt', '')))} chars")
 
-        logger.info("-" * 80)
-        logger.info(f"Temperature: {data.get('temperature', 0.0)}")
-        logger.info(f"Max tokens: {data.get('max_tokens', 1000)}")
-        logger.info("=" * 80)
+        # Пользователь видит только факт (INFO)
+        logger.info(f"📝 Промпт #{self._prompt_count} ({data.get('prompt_length', 0)} символов)")
 
     async def on_llm_response_received(self, event: Event):
         """
@@ -82,25 +80,24 @@ class LLMEventSubscriber:
         """
         self._response_count += 1
         data = event.data
+        session_id = data.get('session_id', 'unknown')
+        component = data.get('component', 'unknown')
+        phase = data.get('phase', 'unknown')
 
-        logger.info("=" * 80)
-        logger.info(f"=== LLM ОТВЕТ #{self._response_count} ({data.get('component', 'unknown')}) ===")
-        logger.info("=" * 80)
-        logger.info(f"Компонент: {data.get('component', 'unknown')}")
-        logger.info(f"Фаза: {data.get('phase', 'unknown')}")
-        logger.info(f"Session ID: {data.get('session_id', 'unknown')}")
-        logger.info(f"Формат ответа: {data.get('response_format', 'unknown')}")
-        logger.info("-" * 80)
+        # Пишем в лог сессии
+        session_logger = get_session_logger(session_id)
+        await session_logger.log_llm_response(component, phase, data)
 
+        # Краткое уведомление в лог (DEBUG → только файл)
         response = data.get('response', {})
         if isinstance(response, dict):
-            logger.info(f"Результат (JSON):")
-            logger.info(f"{json.dumps(response, ensure_ascii=False, indent=2)[:3000]}...")
+            response_str = json.dumps(response, ensure_ascii=False)[:200]
         else:
-            logger.info(f"Результат ({type(response).__name__}):")
-            logger.info(f"{str(response)[:3000]}...")
+            response_str = str(response)[:200]
+        logger.debug(f"LLM Response #{self._response_count} | {component}/{phase} | {response_str}...")
 
-        logger.info("=" * 80)
+        # Пользователь видит только факт (INFO)
+        logger.info(f"✅ Ответ #{self._response_count} получен")
 
     def subscribe(self, event_bus: EventBus):
         """
@@ -111,7 +108,7 @@ class LLMEventSubscriber:
         """
         event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self.on_llm_prompt_generated)
         event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self.on_llm_response_received)
-        logger.info(f"LLMEventSubscriber подписан на события LLM (log_full_content={self.log_full_content})")
+        logger.info(f"LLMEventSubscriber подписан (log_full={self.log_full_content})")
 
     def get_stats(self) -> dict:
         """

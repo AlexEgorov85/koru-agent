@@ -4,13 +4,15 @@
 USAGE:
     from core.infrastructure.logging.log_formatter import LogFormatter
     import logging
-    
+
     handler = logging.StreamHandler()
     handler.setFormatter(LogFormatter())
     logger.addHandler(handler)
 """
 import logging
+import logging.handlers
 import json
+import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -202,46 +204,70 @@ def setup_logging(
     level: int = logging.INFO,
     format_type: str = "text",
     log_file: Optional[str] = None,
-    use_colors: bool = True
+    log_file_max_size: int = 10485760,  # 10MB
+    log_file_backup_count: int = 5,
+    use_colors: bool = True,
+    module_levels: Optional[Dict[str, int]] = None
 ) -> logging.Logger:
     """
     Настройка базового логирования для приложения.
-    
+
     ARGS:
         level: уровень логирования
         format_type: тип формата ("text" или "json")
         log_file: путь к файлу логов (опционально)
+        log_file_max_size: максимальный размер файла лога в байтах (по умолчанию 10MB)
+        log_file_backup_count: количество резервных файлов лога (по умолчанию 5)
         use_colors: использовать цвета для консольного вывода
-    
+        module_levels: словарь с уровнями логирования для конкретных модулей
+
     RETURNS:
         настроенный корневой логгер
-    
-    EXAMPLE:
-        from core.infrastructure.logging.log_formatter import setup_logging
-        import logging
-        
-        setup_logging(level=logging.DEBUG, format_type="text")
-        logger = logging.getLogger(__name__)
     """
     # Создание форматера
     formatter = LogFormatter(
         format_type=format_type,
         use_colors=use_colors
     )
-    
-    # Консольный обработчик
+
+    # Консольный обработчик - ТОЛЬКО WARNING и выше
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.WARNING)
     console_handler.setFormatter(formatter)
-    
-    # Настройка корневого логгера
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
-    root_logger.addHandler(console_handler)
-    
-    # Файловый обработчик (если указан)
+
+    # Файловый обработчик с ротацией (если указан)
     if log_file:
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        # Создание директории для логов если не существует
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+
+        # RotatingFileHandler для ротации логов
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=log_file_max_size,
+            backupCount=log_file_backup_count,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(LogFormatter(format_type="text", use_colors=False))
+        
+        # Настройка корневого логгера
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(console_handler)
         root_logger.addHandler(file_handler)
+    else:
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+        root_logger.addHandler(console_handler)
+    
+    # Применение уровней для конкретных модулей
+    if module_levels:
+        for module_name, module_level in module_levels.items():
+            module_logger = logging.getLogger(module_name)
+            module_logger.setLevel(module_level)
+            # Отключаем распространение в корневой логгер
+            module_logger.propagate = False
     
     return root_logger

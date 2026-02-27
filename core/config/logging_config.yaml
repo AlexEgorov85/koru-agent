@@ -4,16 +4,16 @@
 logging:
   # Уровень логирования: DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: INFO
-  
+
   # Формат логов
   format: "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
-  
+
   # Тип формата: "text" или "json"
   format_type: text
-  
+
   # Использовать цвета для консольного вывода
   use_colors: true
-  
+
   # Что логировать
   log_execution_start: true
   log_execution_end: true
@@ -21,7 +21,7 @@ logging:
   log_result: true
   log_errors: true
   log_duration: true
-  
+
   # Исключения (чувствительные данные)
   exclude_parameters:
     - password
@@ -32,25 +32,31 @@ logging:
     - authorization
     - access_token
     - refresh_token
-  
+
   # Ограничения
   max_parameter_length: 1000
   max_result_length: 5000
-  
+
   # EventBus интеграция
   enable_event_bus: true
-  
-  # Файловое логирование (опционально)
-  log_file: null  # "logs/agent.log" для включения
+
+  # Файловое логирование (включено!)
+  log_file: "logs/agent.log"  # ← Включено для записи логов в файл
   log_file_max_size: 10485760  # 10MB
   log_file_backup_count: 5
-  
+
   # Настройки для конкретных модулей (опционально)
   module_levels:
-    # Пример: более детальное логирование для отладки
-    # core.components.skills: DEBUG
-    # core.infrastructure.providers: DEBUG
+    # Снижение шума от слишком болтливых модулей → только CRITICAL в консоль (остальное в файл)
+    core.application.context.application_context: CRITICAL
+    core.application.components.component_factory: CRITICAL
+    core.components.base_component: CRITICAL
+    core.application.services: CRITICAL
+    core.application.skills: CRITICAL
+    core.application.tools: CRITICAL
+    core.application.behaviors: CRITICAL
+    core.infrastructure.context: CRITICAL
+    core.application.agent.runtime: CRITICAL
     
-    # Снижение шума от слишком болтливых модулей
-    # urllib3: WARNING
-    # httpx: WARNING
+    # LLM события → только в файл (DEBUG)
+    core.infrastructure.event_bus.llm_event_subscriber: DEBUG
