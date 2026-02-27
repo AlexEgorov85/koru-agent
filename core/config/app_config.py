@@ -47,6 +47,7 @@ class AppConfig(BaseModel):
     # Параметры производительности
     max_steps: int = Field(default=10, description="Максимальное количество шагов")
     max_retries: int = Field(default=3, description="Максимальное количество попыток")
+    llm_timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут ожидания ответа от LLM в секундах (глобальный)")
 
     # Температура модели
     temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура модели")
@@ -321,6 +322,7 @@ class AppConfig(BaseModel):
             detailed_metrics=agent_config.get('detailed_metrics', False),
             max_steps=agent_config.get('max_steps', 10),
             max_retries=agent_config.get('max_retries', 3),
+            llm_timeout_seconds=agent_config.get('llm_timeout_seconds', 120.0),
             temperature=agent_config.get('temperature', 0.7),
             enable_self_reflection=agent_config.get('enable_self_reflection', True),
             enable_context_window_management=agent_config.get('enable_context_window_management', True),

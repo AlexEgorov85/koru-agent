@@ -49,6 +49,7 @@ class LLMProviderConfig(BaseModel):
     parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
     enabled: bool = Field(default=True, description="Включен ли провайдер")
     fallback_providers: List[str] = Field(default_factory=list, description="Резервные провайдеры")
+    timeout_seconds: float = Field(default=120.0, description="Таймаут ожидания ответа от LLM в секундах")
     # Поддержка обратной совместимости
     type_provider: Optional[str] = Field(default=None, description="Устаревшее поле, используйте provider_type")
 
@@ -65,6 +66,13 @@ class LLMProviderConfig(BaseModel):
         if v.lower() not in valid_types:
             raise ValueError(f"Неподдерживаемый тип LLM провайдера: {v}. Допустимые значения: {valid_types}")
         return v.lower()
+
+    @field_validator('timeout_seconds')
+    @classmethod
+    def validate_timeout(cls, v):
+        if v <= 0:
+            raise ValueError("timeout_seconds должен быть положительным числом")
+        return v
 
     def get_full_model_path(self) -> str:
         """Получение полного пути к модели из параметров конфигурации"""
