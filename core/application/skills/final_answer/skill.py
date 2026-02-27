@@ -331,7 +331,20 @@ class FinalAnswerSkill(BaseSkill):
                 max_tokens=request.max_tokens,
                 temperature=request.temperature
             )
-            
+
+            # === ПРОВЕРКА НА ОШИБКУ LLM ===
+            if getattr(response, 'finish_reason', None) == 'error':
+                error_msg = "Неизвестная ошибка LLM"
+                if hasattr(response, 'metadata') and response.metadata:
+                    error_msg = response.metadata.get('error', error_msg)
+                self.logger.error(f"LLM вернул ошибку при формировании ответа: {error_msg}")
+                raise RuntimeError(f"Ошибка LLM: {error_msg}")
+
+            if hasattr(response, 'metadata') and response.metadata and 'error' in response.metadata:
+                error_msg = response.metadata['error']
+                self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                raise RuntimeError(f"Ошибка LLM: {error_msg}")
+
             return response.content if hasattr(response, 'content') else str(response)
             
         except Exception as e:

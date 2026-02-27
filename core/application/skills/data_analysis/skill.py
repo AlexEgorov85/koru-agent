@@ -146,6 +146,24 @@ class DataAnalysisSkill(BaseSkill):
         llm_provider = self.application_context.get_llm_provider()
         llm_response = await llm_provider.generate(llm_request)
 
+        # === ПРОВЕРКА НА ОШИБКУ LLM ===
+        if getattr(llm_response, 'finish_reason', None) == 'error':
+            error_msg = "Неизвестная ошибка LLM"
+            if hasattr(llm_response, 'metadata') and llm_response.metadata:
+                error_msg = llm_response.metadata.get('error', error_msg)
+            self.logger.error(f"LLM вернул ошибку при анализе данных: {error_msg}")
+            return {
+                "error": f"Ошибка LLM: {error_msg}",
+                "answer": "",
+                "confidence": 0.0,
+                "evidence": [],
+                "metadata": {
+                    "chunks_processed": len(chunks) if chunks else 1,
+                    "total_tokens": 0,
+                    "data_size_mb": data_metadata.get("size_mb", 0)
+                }
+            }
+
         # 6. Парсинг и валидация ответа
         answer_data = self._parse_llm_response(llm_response.content)
 
