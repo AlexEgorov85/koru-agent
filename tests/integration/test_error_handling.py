@@ -507,6 +507,134 @@ class TestVectorSearchErrors:
             await context.shutdown()
 
 
+class TestLLMResponseErrorHandling:
+    """Тесты обработки ошибок в ответах LLM (finish_reason='error')"""
+
+    def test_llm_response_error_detection(self):
+        """Тест: Детектирование ошибки LLM по finish_reason и metadata"""
+        from core.models.types.llm_types import LLMResponse
+        
+        # Создаем LLMResponse с ошибкой (как в примере пользователя)
+        error_response = LLMResponse(
+            content='',
+            model='llama-model',
+            tokens_used=0,
+            generation_time=119.98599743843079,
+            finish_reason='error',
+            metadata={'error': 'Превышено время ожидания ответа от LLM (120 секунд)'}
+        )
+        
+        # Проверяем что ошибка детектируется
+        assert getattr(error_response, 'finish_reason', None) == 'error'
+        assert hasattr(error_response, 'metadata')
+        assert error_response.metadata
+        assert 'error' in error_response.metadata
+        assert error_response.metadata['error'] == 'Превышено время ожидания ответа от LLM (120 секунд)'
+        
+        # Проверяем логику детектирования которая используется в коде
+        has_finish_reason_error = getattr(error_response, 'finish_reason', None) == 'error'
+        has_metadata_error = hasattr(error_response, 'metadata') and error_response.metadata and 'error' in error_response.metadata
+        
+        assert has_finish_reason_error is True
+        assert has_metadata_error is True
+
+    def test_llm_response_metadata_error_only(self):
+        """Тест: Детектирование ошибки только в metadata"""
+        from core.models.types.llm_types import LLMResponse
+        
+        # Создаем LLMResponse с ошибкой только в metadata
+        error_response = LLMResponse(
+            content='Частичный ответ',
+            model='llama-model',
+            tokens_used=100,
+            generation_time=50.0,
+            finish_reason='stop',
+            metadata={'error': 'Внутренняя ошибка LLM'}
+        )
+        
+        # finish_reason не error, но metadata содержит ошибку
+        assert getattr(error_response, 'finish_reason', None) == 'stop'
+        assert hasattr(error_response, 'metadata')
+        assert error_response.metadata
+        assert 'error' in error_response.metadata
+        
+        # Проверяем логику детектирования
+        has_finish_reason_error = getattr(error_response, 'finish_reason', None) == 'error'
+        has_metadata_error = hasattr(error_response, 'metadata') and error_response.metadata and 'error' in error_response.metadata
+        
+        assert has_finish_reason_error is False
+        assert has_metadata_error is True
+
+    def test_llm_response_no_error(self):
+        """Тест: Нормальный ответ без ошибок"""
+        from core.models.types.llm_types import LLMResponse
+        
+        # Создаем нормальный LLMResponse
+        normal_response = LLMResponse(
+            content='Это нормальный ответ',
+            model='llama-model',
+            tokens_used=50,
+            generation_time=2.5,
+            finish_reason='stop',
+            metadata={}
+        )
+        
+        # Проверяем что ошибка не детектируется
+        has_finish_reason_error = getattr(normal_response, 'finish_reason', None) == 'error'
+        has_metadata_error = bool(hasattr(normal_response, 'metadata') and normal_response.metadata and 'error' in normal_response.metadata)
+        
+        assert has_finish_reason_error is False
+        assert has_metadata_error is False
+
+
+class TestLLMTimeoutConfiguration:
+    """Тесты конфигурации таймаута LLM"""
+
+    def test_llm_provider_config_timeout_default(self):
+        """Тест: Значение таймаута по умолчанию в LLMProviderConfig"""
+        from core.config.models import LLMProviderConfig
+        
+        config = LLMProviderConfig()
+        assert config.timeout_seconds == 120.0
+
+    def test_llm_provider_config_timeout_custom(self):
+        """Тест: Кастомное значение таймаута в LLMProviderConfig"""
+        from core.config.models import LLMProviderConfig
+        
+        config = LLMProviderConfig(timeout_seconds=300.0)
+        assert config.timeout_seconds == 300.0
+
+    def test_llm_provider_config_timeout_validation(self):
+        """Тест: Валидация отрицательного таймаута"""
+        from core.config.models import LLMProviderConfig
+        import pytest
+        
+        with pytest.raises(ValueError):
+            LLMProviderConfig(timeout_seconds=-10.0)
+
+    def test_app_config_timeout_default(self):
+        """Тест: Значение таймаута по умолчанию в AppConfig"""
+        from core.config.app_config import AppConfig
+        
+        config = AppConfig()
+        assert config.llm_timeout_seconds == 120.0
+
+    def test_app_config_timeout_custom(self):
+        """Тест: Кастомное значение таймаута в AppConfig"""
+        from core.config.app_config import AppConfig
+        
+        config = AppConfig(llm_timeout_seconds=180.0)
+        assert config.llm_timeout_seconds == 180.0
+
+    def test_app_config_timeout_validation(self):
+        """Тест: Валидация отрицательного таймаута в AppConfig"""
+        from core.config.app_config import AppConfig
+        import pytest
+        
+        with pytest.raises(ValueError):
+            AppConfig(llm_timeout_seconds=-5.0)
+
+
 class TestInfrastructureContextErrorRecovery:
     """Тесты восстановления InfrastructureContext после ошибок"""
 
