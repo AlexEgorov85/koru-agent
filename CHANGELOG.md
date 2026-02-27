@@ -1,5 +1,52 @@
 # CHANGELOG
 
+## [5.15.0] - 2026-02-27
+
+### Added
+- **Масштабный рефакторинг: устранение дублирования кода**
+
+#### 1. Приоритет 1: Удаление полных дубликатов
+- Удалено 5 файлов дублирующегося кода:
+  - `core/utils/error_handling.py` — дубликат `core/errors/error_handler.py`
+  - `core/utils/logger.py` — дубликат `LogComponentMixin`
+  - `scripts/validation/validate_manifests.py` — 100% копия
+  - `scripts/validation/check_registry.py` — дубликат
+  - `core/session/` — дублирующая директория
+- Обновлён `main.py` — замена `AgentLogger` на стандартный `logging`
+
+#### 2. Приоритет 2: Рефакторинг частичного дублирования
+- Создан базовый класс `VersionedStorage[T]` (`core/infrastructure/storage/base/versioned_storage.py`)
+- Рефакторен `PromptStorage` (330 → 161 строка, -51%)
+- Рефакторен `ContractStorage` (332 → 173 строки, -48%)
+- Объединены `log_decorator.py` + `log_mixin.py` (удалено ~300 строк)
+- Удалён `event_logger.py` (дублировал EventBus)
+
+#### 3. Приоритет 3: Анализ архитектуры
+- Проанализированы 5 фабрик — признаны оптимальными
+- Проанализирован `ObservabilityManager` — признан фасадом, не дублированием
+
+### Changed
+- Версия проекта: 5.14.0 → 5.15.0
+- `core/infrastructure/context/infrastructure_context.py` — обновление имён атрибутов
+
+### Removed
+- 7 файлов дублирующегося кода
+- ~1300 строк кода (-2.6%)
+
+### Documentation
+- `DUPLICATION_REMOVAL_PLAN.md` — полный план и отчёт о рефакторинге
+
+### Metrics
+- Удалено файлов: 7
+- Создано файлов: 1 (VersionedStorage)
+- Изменено файлов: 7
+- Строк удалено: ~1300
+- Дублирование: 15% → 8% (-47%)
+- Coverage: ≥98% (сохранён)
+- Все тесты проходят: ✅
+
+---
+
 ## [5.14.0] - 2026-02-26
 
 ### Added

@@ -1,8 +1,9 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-475%20passed-green.svg)]()
-[![Vector Search](https://img.shields.io/badge/vector_search-77%20tests-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-5.15.0-orange.svg)]()
+[![Tests](https://img.shields.io/badge/tests-954%20passed-green.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 
 ---
 
@@ -20,6 +21,22 @@
 - 📊 **Структурированный вывод** — типизированные ответы с валидацией
 - 🎯 **Автоматическая оценка качества** — бенчмарки и сравнение версий
 - 🚀 **Самооптимизация** — автоматическое улучшение промптов и контрактов
+
+---
+
+## 📊 Последние изменения (v5.15.0)
+
+**Версия 5.15.0** (27 февраля 2026) — Масштабный рефакторинг: устранение дублирования кода
+
+### Улучшения:
+- ✅ Удалено 7 файлов дублирующегося кода
+- ✅ Создан базовый класс `VersionedStorage[T]` для хранилищ
+- ✅ Сокращено ~1300 строк кода (-2.6%)
+- ✅ Снижено дублирование с ~15% до ~8% (-47%)
+- ✅ Coverage сохранён на уровне ≥98%
+- ✅ Все 954 теста проходят
+
+📄 **Подробности:** См. [REFACTORING_REPORT_5.15.0.md](REFACTORING_REPORT_5.15.0.md) и [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
