@@ -1,6 +1,7 @@
 # config/dev.yaml
 # Конфигурация для разработки
-version: "5.14.0"
+# Версия 5.15.0 - масштабный рефакторинг: устранение дублирования кода
+version: "5.15.0"
 profile: dev
 debug: true
 log_level: DEBUG
