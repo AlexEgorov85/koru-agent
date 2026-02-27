@@ -241,14 +241,21 @@ class LlamaCppProvider(BaseLLMProvider):
             from concurrent.futures import ThreadPoolExecutor
             if not hasattr(self, '_executor'):
                 self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='llm_worker')
-                logger.debug("Создан ThreadPoolExecutor для LLM")
+                logger.info("Создан ThreadPoolExecutor для LLM (max_workers=1)")
 
             # Вызов LLM с таймаутом
             from asyncio import wait_for, TimeoutError
+            import threading
+
+            # Флаг для отслеживания завершения вызова
+            call_completed = {'done': False, 'error': None}
 
             def _call_llm_sync():
                 try:
-                    logger.debug(f"[LLM Thread] Начало вызова self.llm()...")
+                    logger.info(f"[LLM Thread] Начало вызова self.llm()... (prompt_length={len(request.prompt)}, max_tokens={max_tokens})")
+                    logger.info(f"[LLM Thread] Параметры: temperature={request.temperature}, top_p={request.top_p}")
+                    logger.info(f"[LLM Thread] Модель: {self.model_name}, инициализирован: {self.llm is not None}")
+                    
                     result = self.llm(
                         request.prompt,
                         max_tokens=max_tokens,
@@ -259,22 +266,32 @@ class LlamaCppProvider(BaseLLMProvider):
                         echo=False,
                         stop=request.stop_sequences or None
                     )
-                    logger.debug(f"[LLM Thread] Вызов завершён, получен результат")
+                    
+                    call_completed['done'] = True
+                    logger.info(f"[LLM Thread] Вызов завершён успешно, получен результат")
                     return result
                 except Exception as e:
-                    logger.error(f"[LLM Thread] Ошибка LLM вызова: {type(e).__name__}: {str(e)}")
+                    call_completed['error'] = str(e)
+                    logger.error(f"[LLM Thread] Ошибка LLM вызова: {type(e).__name__}: {str(e)}", exc_info=True)
                     raise  # Пробрасываем ошибку дальше
-            
+
             try:
                 # Таймаут из конфигурации
-                logger.debug(f"Начало LLM inference с таймаутом {self.timeout_seconds}с...")
+                logger.info(f"Начало LLM inference с таймаутом {self.timeout_seconds}с...")
+                logger.info(f"[MAIN Thread] Ожидание результата от LLM...")
+                
                 response = await wait_for(
                     asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
                     timeout=self.timeout_seconds
                 )
-                logger.debug(f"LLM вызов завершён успешно")
+                
+                logger.info(f"LLM вызов завершён успешно (время={time.time() - start_time:.2f}с)")
             except TimeoutError:
                 logger.error(f"LLM вызов превысил таймаут {self.timeout_seconds} секунд")
+                logger.error(f"Состояние вызова: completed={call_completed['done']}, error={call_completed['error']}")
+                logger.error(f"Активные потоки: {threading.active_count()}")
+                for thread in threading.enumerate():
+                    logger.error(f"  - {thread.name}: alive={thread.is_alive()}, daemon={thread.daemon}")
                 
                 # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
                 # Публикуем событие даже при ошибке чтобы логирование зафиксировало результат

@@ -570,31 +570,39 @@ class ReActPattern(BaseBehaviorPattern):
                 )
                 logger.debug("Контекст вызова установлен в LLM провайдере")
 
-            logger.debug("Вызов llm_provider.generate_structured()...")
-            
+            logger.info("=" * 60)
+            logger.info("НАЧАЛО LLM ВЫЗОВА")
+            logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+            logger.info(f"Провайдер: {type(llm_provider).__name__}")
+            logger.info(f"Модель: {getattr(llm_provider, 'model_name', 'unknown')}")
+            logger.info(f"Длина промпта: {len(reasoning_prompt)} символов")
+            logger.info(f"Таймаут: {getattr(llm_provider, 'timeout_seconds', 120.0)}с")
+            logger.info("=" * 60)
+
             # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
             import asyncio
             from asyncio import TimeoutError as AsyncTimeoutError
-            
+
             # Параметры retry
             max_retries = 3
             retry_delay = 5.0  # секунд между попытками
             retry_count = 0
-            
+
             while retry_count < max_retries:
                 try:
                     # Получаем таймаут из конфигурации LLM провайдера
                     llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-                    logger.debug(f"Вызов LLM с таймаутом {llm_timeout}с (попытка {retry_count + 1}/{max_retries})...")
-                    
+                    logger.info(f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
+                    logger.info(f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
+
                     # Используем asyncio.wait_for для гарантии таймаута
                     response = await asyncio.wait_for(
                         llm_provider.generate_structured(llm_request),
                         timeout=llm_timeout
                     )
-                    logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
+                    logger.info(f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
                     break  # Успех, выходим из цикла retry
-                    
+
                 except (AsyncTimeoutError, TimeoutError) as e:
                     retry_count += 1
                     error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
