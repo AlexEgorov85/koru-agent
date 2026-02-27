@@ -200,7 +200,7 @@ def create_react_pattern():
 
     Тесты с этим фикстурой должны создавать собственный ApplicationContext.
     """
-    from core.application.behaviors.base_behavior import ReActInput, ReActOutput
+    from core.application.behaviors.base import ReActInput, ReActOutput
     from core.config.component_config import ComponentConfig
 
     def _create(application_context=None):
@@ -222,7 +222,6 @@ def create_react_pattern():
         )
 
         # Возвращаем класс для совместимости
-        from core.application.behaviors.base_behavior import ReActInput, ReActOutput
         return type('ReActPatternMock', (), {
             'ReActInput': ReActInput,
             'ReActOutput': ReActOutput
@@ -234,7 +233,7 @@ def create_react_pattern():
 @pytest.fixture
 def create_planning_pattern():
     """Factory fixture для создания PlanningPattern в тестах."""
-    from core.application.behaviors.base_behavior import PlanningInput, PlanningOutput
+    from core.application.behaviors.base import PlanningInput, PlanningOutput
     from core.config.component_config import ComponentConfig
 
     def _create(application_context=None):
@@ -255,7 +254,6 @@ def create_planning_pattern():
         )
 
         # Возвращаем класс для совместимости
-        from core.application.behaviors.base_behavior import PlanningInput, PlanningOutput
         return type('PlanningPatternMock', (), {
             'PlanningInput': PlanningInput,
             'PlanningOutput': PlanningOutput
