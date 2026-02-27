@@ -222,7 +222,10 @@ class DynamicConfigManager:
     
     # Регистрация callback на изменения
     async def on_config_change(old, new):
-        print(f"Конфигурация изменена: {new}")
+        # Логирование через logger вместо print
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Конфигурация изменена: {new}")
     
     config_manager.on_config_change(on_config_change)
     

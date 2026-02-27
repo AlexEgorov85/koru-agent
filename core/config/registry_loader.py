@@ -94,6 +94,9 @@ class RegistryLoader:
             if not matched:
                 # Не удалось определить — помечаем как 'skill' по умолчанию + предупреждение
                 capability_types[cap] = ComponentType.SKILL
-                print(f"[WARN] Предположен тип 'skill' для capability '{cap}'. Проверьте и исправьте вручную!")
+                # Логирование через logger вместо print
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[WARN] Предположен тип 'skill' для capability '{cap}'. Проверьте и исправьте вручную!")
 
         return capability_types

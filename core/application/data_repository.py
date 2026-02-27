@@ -74,12 +74,15 @@ class DataRepository:
         manifests = await asyncio.get_event_loop().run_in_executor(
             None, self.data_source.list_manifests
         )
-        
+
         for manifest in manifests:
             key = f"{manifest.component_type.value}.{manifest.component_id}"
             self._manifest_cache[key] = manifest
-        
-        print(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
+
+        # Логирование через logger вместо print
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
         return self._manifest_cache
 
     def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
