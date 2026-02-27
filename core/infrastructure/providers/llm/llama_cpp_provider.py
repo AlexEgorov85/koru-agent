@@ -194,8 +194,10 @@ class LlamaCppProvider(BaseLLMProvider):
                 # Если запрошена структурированная генерация
                 max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
 
-            # Выполняем запрос к модели
-            response = self.llm(
+            # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
+            import asyncio
+            response = await asyncio.to_thread(
+                self.llm,
                 request.prompt,
                 max_tokens=max_tokens,
                 temperature=request.temperature,
