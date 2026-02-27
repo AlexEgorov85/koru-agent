@@ -1322,6 +1322,41 @@ class ApplicationContext(BaseSystemContext):
         """Получение провайдера через инфраструктурный контекст."""
         return self.infrastructure_context.get_provider(name)
 
+    def get_llm_timeout(self, provider_name: str = "default_llm") -> float:
+        """
+        Получение таймаута для LLM провайдера.
+
+        ПАРАМЕТРЫ:
+        - provider_name: Имя LLM провайдера (по умолчанию "default_llm")
+
+        ВОЗВРАЩАЕТ:
+        - float: Таймаут в секундах
+
+        ПРИОРИТЕТ:
+        1. Таймаут из конфигурации LLMProviderConfig (если доступен провайдер)
+        2. Глобальный llm_timeout_seconds из AppConfig
+        3. Значение по умолчанию 120.0 секунд
+        """
+        # Пытаемся получить таймаут из конфигурации провайдера
+        llm_provider = self.get_provider(provider_name)
+        if llm_provider and hasattr(llm_provider, 'timeout_seconds'):
+            return llm_provider.timeout_seconds
+
+        # Пытаемся получить из конфигурации LLMProviderConfig через инфраструктуру
+        try:
+            llm_config = self.infrastructure_context.config.llm_providers.get(provider_name)
+            if llm_config and hasattr(llm_config, 'timeout_seconds'):
+                return llm_config.timeout_seconds
+        except (AttributeError, KeyError):
+            pass
+
+        # Используем глобальный таймаут из AppConfig
+        if hasattr(self.config, 'llm_timeout_seconds'):
+            return self.config.llm_timeout_seconds
+
+        # Значение по умолчанию
+        return 120.0
+
     def get_tool(self, name: str):
         """Получение инструмента через изолированный контекст приложения."""
         return self.components.get(ComponentType.TOOL, name)
