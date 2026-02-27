@@ -79,10 +79,10 @@ class FileSystemDataSource(ResourceDataSource):
         # Установить флаг инициализации
         self._initialized = True
 
-        # Вывести список загруженных ресурсов
-        print(f"[DataSource] Loaded Prompts: {sorted(self._loaded_prompts.keys())}")
-        print(f"[DataSource] Loaded Contracts: {sorted(self._loaded_contracts.keys())}")
-        print(f"[DataSource] Loaded Manifests: {sorted(self._loaded_manifests.keys())}")
+        # Логирование загруженных ресурсов
+        self.logger.info(f"[DataSource] Loaded Prompts: {sorted(self._loaded_prompts.keys())}")
+        self.logger.info(f"[DataSource] Loaded Contracts: {sorted(self._loaded_contracts.keys())}")
+        self.logger.info(f"[DataSource] Loaded Manifests: {sorted(self._loaded_manifests.keys())}")
 
     def _get_component_type(self, capability: str) -> ManifestComponentType:
         """
