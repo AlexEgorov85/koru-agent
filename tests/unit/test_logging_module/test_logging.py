@@ -21,7 +21,7 @@ from core.infrastructure.logging.log_config import (
     get_log_config,
     DEFAULT_LOG_CONFIG,
 )
-from core.infrastructure.logging.log_decorator import (
+from core.infrastructure.logging.log_mixin import (
     log_execution,
     _sanitize_params,
     _sanitize_result,

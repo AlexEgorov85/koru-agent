@@ -10,256 +10,87 @@ import logging
 from core.models.data.prompt import Prompt
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
+from core.infrastructure.storage.base.versioned_storage import VersionedStorage
+from core.models.enums.common_enums import ComponentType
 
 
-class PromptStorage(IPromptStorage):
+class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
     """
     Хранилище промптов БЕЗ кэширования.
     Единственный источник истины для промптов.
     Создаётся ОДИН раз в InfrastructureContext.
+
+    INHERITS: VersionedStorage[Prompt]
     """
 
     def __init__(self, prompts_dir: Path):
-        self.prompts_dir = prompts_dir.resolve()
-        self._validate_directory()
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.logger.info(f"PromptStorage инициализировано: {self.prompts_dir}")
-
-    def _validate_directory(self):
-        if not self.prompts_dir.exists():
-            self.prompts_dir.mkdir(parents=True, exist_ok=True)
-        if not self.prompts_dir.is_dir():
-            raise ValueError(f"Путь не является директорией: {self.prompts_dir}")
+        super().__init__(prompts_dir)
 
     async def load(self, capability_name: str, version: str, component_type: Optional['ComponentType'] = None) -> Prompt:
         """
         Загружает промпт из файловой системы.
         Вызывается ТОЛЬКО при инициализации ApplicationContext.
         """
-        # Поддержка обоих форматов путей: точки → слэши
-        capability_path = capability_name.replace(".", "/")
+        # Построение списка путей для поиска
+        files_to_check = self._build_file_search_paths(
+            capability_name=capability_name,
+            version=version,
+            extensions=['.json', '.yaml', '.yml'],
+            component_type=component_type,
+            include_flat=True,
+            include_category=True
+        )
 
-        # Определяем возможные подкаталоги для поиска
-        # Если указан component_type, используем его для более точного поиска
-        if component_type:
-            # Используем компонент-специфичные подкаталоги
-            if component_type == ComponentType.SKILL:
-                standard_subdirs = ['skills']
-            elif component_type == ComponentType.SERVICE:
-                standard_subdirs = ['services']
-            elif component_type == ComponentType.TOOL:
-                standard_subdirs = ['tools']
-            elif component_type == ComponentType.SQL_GENERATION:
-                standard_subdirs = ['sql_generation']
-            elif component_type == ComponentType.CONTRACT:
-                standard_subdirs = ['contracts']
-            elif component_type == ComponentType.BEHAVIOR:
-                standard_subdirs = ['behaviors']
-            else:
-                # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'sql_generation', 'contracts', 'behaviors']
-        else:
-            # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'sql_generation', 'contracts', 'behaviors']
-
-        # Разбиваем capability_name на части
-        parts = capability_name.split('.')
-        if len(parts) >= 2:
-            category = parts[0]  # например, "planning"
-            specific = parts[1]  # например, "create_plan"
-
-            # Проверяем в компонент-специфичных подкаталогах
-            subdir_specific_files = []
-            for subdir in standard_subdirs:
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.json")
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.yaml")
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.yml")
-        else:
-            # Если только одна часть, используем как есть
-            category = parts[0]  # например, "planning"
-            specific = ""  # нет конкретного подтипа
-            subdir_specific_files = []
-
-        # Проверяем в подкаталоге категории (например, planning/ если он существует)
-        if specific:
-            category_specific_json = self.prompts_dir / category / f"{specific}_{version}.json"
-            category_specific_yaml = self.prompts_dir / category / f"{specific}_{version}.yaml"
-            category_specific_yml = self.prompts_dir / category / f"{specific}_{version}.yml"
-        else:
-            category_specific_json = self.prompts_dir / category / f"{version}.json"
-            category_specific_yaml = self.prompts_dir / category / f"{version}.yaml"
-            category_specific_yml = self.prompts_dir / category / f"{version}.yml"
-
-        # Проверяем сначала JSON файлы в основном пути
-        prompt_file_json = self.prompts_dir / capability_path / f"{version}.json"
-        prompt_file_yaml = self.prompts_dir / capability_path / f"{version}.yaml"
-        prompt_file_yml = self.prompts_dir / capability_path / f"{version}.yml"
-
-        # Альтернативные форматы (плоская структура)
-        alt_file_json = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.json"
-        alt_file_yaml = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.yaml"
-        alt_file_yml = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.yml"
-
-        # Проверяем файлы в порядке приоритета
-        files_to_check = [
-            prompt_file_json, prompt_file_yaml, prompt_file_yml,
-            alt_file_json, alt_file_yaml, alt_file_yml
-        ]
-
-        # Добавляем файлы из подкаталогов (компонент-специфичные)
-        # Исправляем ошибку: нужно создать список subdir_specific_files
-        subdir_specific_files = []
-        for subdir in standard_subdirs:
-            subdir_path = self.prompts_dir / subdir / capability_path
-            subdir_specific_files.extend([
-                subdir_path / f"{version}.json",
-                subdir_path / f"{version}.yaml", 
-                subdir_path / f"{version}.yml"
-            ])
-        files_to_check.extend(subdir_specific_files)
-
-        # Добавляем файлы из подкаталога категории (например, planning/ если он существует)
-        if specific:
-            files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
-
-        prompt_file = None
-        file_format = None
-
-        for file_path in files_to_check:
-            if file_path and file_path.exists():
-                prompt_file = file_path
-                if file_path.suffix.lower() == '.json':
-                    file_format = 'json'
-                elif file_path.suffix.lower() in ['.yaml', '.yml']:
-                    file_format = 'yaml'
-                break
+        # Поиск существующего файла
+        prompt_file, file_format = self._find_existing_file(files_to_check)
 
         if prompt_file is None:
-            raise VersionNotFoundError(
-                f"Промпт не найден: capability={capability_name}, version={version}, component_type={component_type}\n"
-                f"Проверьте пути:\n  1. {prompt_file_json}\n  2. {prompt_file_yaml}\n  3. {prompt_file_yml}\n"
-                f"  4. {alt_file_json}\n  5. {alt_file_yaml}\n  6. {alt_file_yml}\n"
-                f"  7+ Component-specific subdirectory files ({', '.join(standard_subdirs)})\n"
-                f"  8. {category_specific_json or 'N/A'}\n  9. {category_specific_yaml or 'N/A'}\n 10. {category_specific_yml or 'N/A'}"
+            raise self._create_file_not_found_error(
+                capability_name=capability_name,
+                version=version,
+                files_to_check=files_to_check,
+                component_type=component_type,
+                item_type="Промпт"
             )
 
-        try:
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                if file_format == 'json':
-                    data = json.load(f)
-                    # Для JSON формата используем поля из модели Prompt
-                    result = Prompt(
-                        capability=data.get('capability', capability_name),
-                        version=data.get('version', version),
-                        status=data.get('status', 'draft'),
-                        component_type=data.get('component_type', 'service'),  # по умолчанию
-                        content=data.get('content', ''),
-                        variables=data.get('variables', []),
-                        metadata=data.get('metadata', {})
-                    )
-                    return result
-                elif file_format == 'yaml':
-                    data = yaml.safe_load(f)
+        # Загрузка и парсинг файла
+        data = self._load_file(prompt_file, file_format)
+        return self._parse_prompt_data(data, capability_name, version)
 
-                    # Для YAML формата используем поля из модели Prompt
-                    result = Prompt(
-                        capability=data.get('capability', capability_name),
-                        version=data.get('version', version),
-                        status=data.get('status', 'draft'),
-                        component_type=data.get('component_type', 'service'),  # по умолчанию
-                        content=data.get('content', ''),
-                        variables=data.get('variables', []),
-                        metadata=data.get('metadata', {})
-                    )
-                    return result
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Ошибка парсинга JSON промпта {capability_name}@{version}: {e}")
-        except yaml.YAMLError as e:
-            raise RuntimeError(f"Ошибка парсинга YAML промпта {capability_name}@{version}: {e}")
-        except KeyError as e:
-            raise RuntimeError(f"Отсутствует обязательное поле в промпте {capability_name}@{version}: {e}")
-        except Exception as e:
-            raise RuntimeError(f"Ошибка загрузки промпта {capability_name}@{version}: {type(e).__name__}: {e}")
+    def _parse_prompt_data(self, data: dict, capability_name: str, version: str) -> Prompt:
+        """
+        Парсинг данных промпта.
+
+        ARGS:
+        - data: данные из файла
+        - capability_name: имя capability
+        - version: версия
+
+        RETURNS:
+        - Prompt: объект промпта
+        """
+        return Prompt(
+            capability=data.get('capability', capability_name),
+            version=data.get('version', version),
+            status=data.get('status', 'draft'),
+            component_type=data.get('component_type', 'service'),
+            content=data.get('content', ''),
+            variables=data.get('variables', []),
+            metadata=data.get('metadata', {})
+        )
 
     async def exists(self, capability_name: str, version: str, component_type: Optional['ComponentType'] = None) -> bool:
         """Проверяет существование промпта без загрузки содержимого."""
-        capability_path = capability_name.replace(".", "/")
-
-        # Определяем возможные подкаталоги для поиска
-        # Если указан component_type, используем его для более точного поиска
-        if component_type:
-            # Используем компонент-специфичные подкаталоги
-            if component_type == ComponentType.SKILL:
-                standard_subdirs = ['skills']
-            elif component_type == ComponentType.SERVICE:
-                standard_subdirs = ['services']
-            elif component_type == ComponentType.TOOL:
-                standard_subdirs = ['tools']
-            elif component_type == ComponentType.SQL_GENERATION:
-                standard_subdirs = ['sql_generation']
-            elif component_type == ComponentType.CONTRACT:
-                standard_subdirs = ['contracts']
-            elif component_type == ComponentType.BEHAVIOR:
-                standard_subdirs = ['behaviors']
-            else:
-                # DEFAULT или неизвестный тип - используем все стандартные подкаталоги
-                standard_subdirs = ['skills', 'sql_generation', 'contracts', 'behaviors']
-        else:
-            # Если тип компонента не указан, используем все стандартные подкаталоги
-            standard_subdirs = ['skills', 'sql_generation', 'contracts', 'behaviors']
-
-        # Определяем возможные подкаталоги для поиска
-        parts = capability_name.split('.')
-        if len(parts) >= 2:
-            category = parts[0]  # например, "planning"
-            specific = parts[1]  # например, "create_plan"
-
-            # Проверяем в компонент-специфичных подкаталогах
-            subdir_specific_files = []
-            for subdir in standard_subdirs:
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.json")
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.yaml")
-                subdir_specific_files.append(self.prompts_dir / subdir / category / f"{specific}_{version}.yml")
-        else:
-            # Если только одна часть, используем как есть
-            category = parts[0]  # например, "planning"
-            specific = ""  # нет конкретного подтипа
-            subdir_specific_files = []
-
-        # Проверяем в подкаталоге категории (например, planning/ если он существует)
-        if specific:
-            category_specific_json = self.prompts_dir / category / f"{specific}_{version}.json"
-            category_specific_yaml = self.prompts_dir / category / f"{specific}_{version}.yaml"
-            category_specific_yml = self.prompts_dir / category / f"{specific}_{version}.yml"
-        else:
-            category_specific_json = self.prompts_dir / category / f"{version}.json"
-            category_specific_yaml = self.prompts_dir / category / f"{version}.yaml"
-            category_specific_yml = self.prompts_dir / category / f"{version}.yml"
-
-        # Проверяем JSON и YAML файлы
-        prompt_file_json = self.prompts_dir / capability_path / f"{version}.json"
-        prompt_file_yaml = self.prompts_dir / capability_path / f"{version}.yaml"
-        prompt_file_yml = self.prompts_dir / capability_path / f"{version}.yml"
-
-        # Альтернативные форматы (плоская структура)
-        alt_file_json = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.json"
-        alt_file_yaml = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.yaml"
-        alt_file_yml = self.prompts_dir / f"{capability_name.replace('.', '_')}_{version}.yml"
-
-        files_to_check = [
-            prompt_file_json, prompt_file_yaml, prompt_file_yml,
-            alt_file_json, alt_file_yaml, alt_file_yml
-        ]
-
-        # Добавляем файлы из подкаталогов (компонент-специфичные)
-        files_to_check.extend(subdir_specific_files)
-
-        if category_specific_json:
-            files_to_check.extend([category_specific_json, category_specific_yaml, category_specific_yml])
-
-        result = any(file_path.exists() for file_path in files_to_check if file_path)
-        
-        return result
+        files_to_check = self._build_file_search_paths(
+            capability_name=capability_name,
+            version=version,
+            extensions=['.json', '.yaml', '.yml'],
+            component_type=component_type,
+            include_flat=True,
+            include_category=True
+        )
+        prompt_file, _ = self._find_existing_file(files_to_check)
+        return prompt_file is not None
 
     async def save(self, capability_name: str, version: str, prompt: Prompt, component_type: Optional['ComponentType'] = None) -> None:
         """Сохраняет промпт в файловую систему."""
