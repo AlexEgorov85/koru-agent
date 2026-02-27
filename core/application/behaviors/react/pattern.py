@@ -468,21 +468,26 @@ class ReActPattern(BaseBehaviorPattern):
             })
 
         # Рендерим промпт из шаблона (загружен из PromptService/ComponentConfig)
+        logger.debug("Начало рендеринга промпта...")
         reasoning_prompt = self._render_reasoning_prompt(
             context_analysis=context_analysis,
             available_capabilities=formatted_capabilities
         )
+        logger.debug(f"Промпт сформирован, длина={len(reasoning_prompt)}")
 
         start_time = time.time()
 
         try:
             # Генерация структурированного ответа через LLM
             # Получаем LLM провайдер через ApplicationContext
+            logger.debug("Получение LLM провайдера...")
             llm_provider = None
 
             # Пытаемся получить через application_context
             if self.application_context:
                 llm_provider = self.application_context.get_provider("default_llm")
+            
+            logger.debug(f"LLM провайдер получен: {llm_provider is not None}")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
@@ -527,12 +532,13 @@ class ReActPattern(BaseBehaviorPattern):
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
-                
+
                 # Получаем agent_id из session_context или application_context
                 agent_id = getattr(session_context, 'agent_id', 'unknown')
                 if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
                     agent_id = self.application_context.id
 
+                logger.debug("Публикация события LLM_PROMPT_GENERATED...")
                 await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_PROMPT_GENERATED,
                     data={
@@ -550,8 +556,11 @@ class ReActPattern(BaseBehaviorPattern):
                     source="react_pattern.think",
                     correlation_id=getattr(session_context, 'session_id', '')
                 )
+                logger.debug("Событие LLM_PROMPT_GENERATED опубликовано")
 
+            logger.debug("Вызов llm_provider.generate_structured()...")
             response = await llm_provider.generate_structured(llm_request)
+            logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
