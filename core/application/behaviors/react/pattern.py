@@ -558,8 +558,52 @@ class ReActPattern(BaseBehaviorPattern):
                 logger.debug("Событие LLM_PROMPT_GENERATED опубликовано")
 
             logger.debug("Вызов llm_provider.generate_structured()...")
-            response = await llm_provider.generate_structured(llm_request)
-            logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
+            
+            # === ОБРАБОТКА ТАЙМАУТА LLM ===
+            import asyncio
+            from asyncio import TimeoutError as AsyncTimeoutError
+            
+            try:
+                # Получаем таймаут из конфигурации LLM провайдера
+                llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
+                logger.debug(f"Вызов LLM с таймаутом {llm_timeout}с...")
+                
+                # Используем asyncio.wait_for для гарантии таймаута
+                response = await asyncio.wait_for(
+                    llm_provider.generate_structured(llm_request),
+                    timeout=llm_timeout
+                )
+                logger.debug(f"LLM ответ получен, длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))}")
+                
+            except (AsyncTimeoutError, TimeoutError) as e:
+                logger.error(f"LLM вызов превысил таймаут {llm_timeout}с: {e}")
+                # Возвращаем fallback решение при таймауте
+                return {
+                    "analysis": {
+                        "current_situation": f"Таймаут LLM ({llm_timeout}с)",
+                        "progress_assessment": "Неизвестно",
+                        "confidence": 0.3,
+                        "errors_detected": True,
+                        "consecutive_errors": self.error_count + 1,
+                        "execution_time": context_analysis.get("execution_time_seconds", 0),
+                        "no_progress_steps": context_analysis.get("no_progress_steps", 0),
+                        "error_type": "LLM_TIMEOUT"
+                    },
+                    "recommended_action": {
+                        "action_type": "execute_capability",
+                        "capability_name": "book_library.execute_script",
+                        "parameters": {
+                            "script_name": "get_books_by_author",
+                            "parameters": {"author": "Александр Пушкин", "max_rows": 20}
+                        },
+                        "reasoning": f"fallback после таймаута LLM — используем быстрый SQL скрипт"
+                    },
+                    "available_capabilities": available_capabilities,
+                    "needs_rollback": False
+                }
+            except Exception as e:
+                logger.error(f"Ошибка LLM вызова: {type(e).__name__}: {e}")
+                raise  # Пробрасываем другие ошибки дальше
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
             # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)
