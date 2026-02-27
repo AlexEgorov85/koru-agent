@@ -7,10 +7,12 @@
 - Единая точка для метрик и логирования
 - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
-from core.application.context.application_context import ApplicationContext
+
+if TYPE_CHECKING:
+    from core.application.context.application_context import ApplicationContext
 
 
 class ActionResult:
@@ -36,17 +38,19 @@ class ExecutionContext:
 class ActionExecutor:
     """
     ЕДИНСТВЕННЫЙ ПОСРЕДНИК ДЛЯ ВЗАИМОДЕЙСТВИЯ КОМПОНЕНТОВ.
-    
+
     ГАРАНТИИ:
     - Изоляция компонентов друг от друга
     - Контроль зависимостей и порядка выполнения
     - Единая точка для метрик и логирования
     - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
     """
-    
+
     def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
-        self.logger = self.application_context.logger if hasattr(application_context, 'logger') else None
+        # Ленивое получение logger чтобы избежать циклического импорта
+        import logging
+        self.logger = logging.getLogger(__name__)
     
     async def execute_action(
         self,

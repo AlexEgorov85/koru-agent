@@ -1,12 +1,12 @@
 ﻿from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 
-from core.application.agent.components.action_executor import ExecutionContext
 from core.infrastructure.event_bus.event_bus import EventType
 from core.models.data.capability import Capability
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.action_executor import ExecutionContext
 
 
 from core.config.component_config import ComponentConfig

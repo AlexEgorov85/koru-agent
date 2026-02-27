@@ -11,9 +11,8 @@
 7. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from core.session_context.base_session_context import BaseSessionContext
-from core.session_context.model import ContextItemType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.config.app_config import AppConfig
