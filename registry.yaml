@@ -276,3 +276,14 @@ tools:
       sql_tool.execute_query: v1.0.0
     parameters:
       max_rows: 1000
+
+# Параметры агента
+agent:
+  max_steps: 10
+  max_retries: 3
+  llm_timeout_seconds: 120.0
+  temperature: 0.7
+  side_effects_enabled: true
+  detailed_metrics: false
+  enable_self_reflection: true
+  enable_context_window_management: true
