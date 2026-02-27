@@ -17,7 +17,7 @@ from core.application.context.application_context import ApplicationContext
 from core.application.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
 from core.config.app_config import AppConfig
-from core.utils.logger import AgentLogger
+import logging
 
 # === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
 GOAL = "Какие книги написал Александр Пушкин?"
@@ -105,7 +105,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     from core.infrastructure.logging.session_logger import get_session_logger, close_session_logger
 
     # Инициализация логгера
-    logger = AgentLogger("main")
+    logger = logging.getLogger("main")
 
     # Загрузка конфигурации
     config = get_config(profile='dev')
@@ -199,13 +199,13 @@ def main() -> int:
 
     # Настройка логирования
     setup_logging_from_config()
-    
+
     # Инициализация логгера
-    logger = AgentLogger("main")
+    logger = logging.getLogger("main")
 
     try:
         # Пользователь видит начало работы
-        logger.user_message(f"🤔 Анализирую вопрос: {GOAL}")
+        logger.info(f"Анализирую вопрос: {GOAL}")
         
         result = asyncio.run(run_agent(
             goal=GOAL,
