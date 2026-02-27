@@ -2,7 +2,10 @@
 Логирование сессий агента.
 
 Каждая сессия (запуск агента) записывается в отдельный файл:
-logs/sessions/{session_id}.log
+logs/sessions/{timestamp}_{session_id}.log
+
+Пример:
+logs/sessions/2026-02-27_15-30-45_015135fc-9196-4aaf-9ebf-5f76133ca0e8.log
 
 Содержит:
 - Все LLM вызовы (промпты + ответы)
@@ -30,7 +33,7 @@ class SessionLogger:
     Логгер сессии агента.
     
     Все логи сессии пишутся в один файл:
-    logs/sessions/{session_id}.log
+    logs/sessions/{timestamp}_{session_id}.log
     """
 
     def __init__(self, session_id: str, log_dir: str = "logs/sessions"):
@@ -45,6 +48,7 @@ class SessionLogger:
         self.log_dir = log_dir
         self._logger: Optional[logging.Logger] = None
         self._file_handler: Optional[logging.FileHandler] = None
+        self.start_timestamp = datetime.now()  # Сохраняем время старта
         
         # Создаём директорию
         Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -54,7 +58,9 @@ class SessionLogger:
         if self._logger is not None:
             return
         
-        filename = f"{self.session_id}.log"
+        # Формируем имя файла с timestamp для удобной сортировки
+        timestamp_str = self.start_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{timestamp_str}_{self.session_id}.log"
         filepath = os.path.join(self.log_dir, filename)
         
         # Создаём логгер
@@ -232,7 +238,8 @@ class SessionLogger:
     def filepath(self) -> Optional[str]:
         """Путь к файлу лога."""
         if self._logger:
-            return os.path.join(self.log_dir, f"{self.session_id}.log")
+            timestamp_str = self.start_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+            return os.path.join(self.log_dir, f"{timestamp_str}_{self.session_id}.log")
         return None
 
 
