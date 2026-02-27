@@ -45,8 +45,6 @@ class FileSystemDataSource(ResourceDataSource):
         self._loaded_prompts = {}
         self._loaded_contracts = {}
         self._loaded_manifests = {}  # Добавляем кэш для манифестов
-        import logging
-        self.logger = logging.getLogger(__name__)
 
     def _assert_initialized(self):
         """Проверяет, что DataSource инициализирован."""
@@ -59,30 +57,58 @@ class FileSystemDataSource(ResourceDataSource):
         1. Проверка существования базовой директории
         2. Создание директорий prompts/, contracts/ и manifests/, если отсутствуют
         3. Выполнение preload всех ресурсов
-        4. Вывод списка загруженных ресурсов
+        4. Публикация события о загрузке ресурсов (не print/log!)
         5. Установка _initialized = True
         """
+        from core.infrastructure.event_bus.event_bus import get_event_bus, EventType
+        import asyncio
+
         # Проверить существование базовой директории
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
         # Создать директории prompts/, contracts/ и manifests/, если отсутствуют
         self.prompts_dir.mkdir(exist_ok=True)
         self.contracts_dir.mkdir(exist_ok=True)
-        
+
         # Создание директорий для манифестов
         for type_dir in self.MANIFEST_TYPE_TO_DIR.values():
             (self.manifests_dir / type_dir).mkdir(parents=True, exist_ok=True)
-        
+
         # Выполнить preload всех ресурсов
         self._preload_all_resources()
 
         # Установить флаг инициализации
         self._initialized = True
 
-        # Логирование загруженных ресурсов
-        self.logger.info(f"[DataSource] Loaded Prompts: {sorted(self._loaded_prompts.keys())}")
-        self.logger.info(f"[DataSource] Loaded Contracts: {sorted(self._loaded_contracts.keys())}")
-        self.logger.info(f"[DataSource] Loaded Manifests: {sorted(self._loaded_manifests.keys())}")
+        # Публикация события о загрузке ресурсов (вместо print/log)
+        event_bus = get_event_bus()
+        if event_bus:
+            # Создаём задачу для публикации события
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(event_bus.publish(EventType.SYSTEM_INITIALIZED, {
+                        "component": "FileSystemDataSource",
+                        "prompts_loaded": len(self._loaded_prompts),
+                        "contracts_loaded": len(self._loaded_contracts),
+                        "manifests_loaded": len(self._loaded_manifests),
+                        "prompts": sorted(self._loaded_prompts.keys()),
+                        "contracts": sorted(self._loaded_contracts.keys()),
+                        "manifests": sorted(self._loaded_manifests.keys())
+                    }, source="FileSystemDataSource"))
+                else:
+                    loop.run_until_complete(event_bus.publish(EventType.SYSTEM_INITIALIZED, {
+                        "component": "FileSystemDataSource",
+                        "prompts_loaded": len(self._loaded_prompts),
+                        "contracts_loaded": len(self._loaded_contracts),
+                        "manifests_loaded": len(self._loaded_manifests),
+                        "prompts": sorted(self._loaded_prompts.keys()),
+                        "contracts": sorted(self._loaded_contracts.keys()),
+                        "manifests": sorted(self._loaded_manifests.keys())
+                    }, source="FileSystemDataSource"))
+            except RuntimeError:
+                # Нет активного event loop - пропускаем
+                pass
 
     def _get_component_type(self, capability: str) -> ManifestComponentType:
         """

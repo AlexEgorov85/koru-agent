@@ -121,6 +121,19 @@ class SessionLogHandler:
                 exc_info=data.get('exc_info', False)
             )
 
+    async def on_system_initialized(self, event: Event):
+        """Обработка инициализации системы."""
+        session_logger = self._get_logger()
+        if session_logger:
+            data = event.data
+            session_logger.log_event(
+                "SYSTEM_INITIALIZED",
+                f"Component: {data.get('component', 'unknown')}",
+                prompts_loaded=data.get('prompts_loaded', 0),
+                contracts_loaded=data.get('contracts_loaded', 0),
+                manifests_loaded=data.get('manifests_loaded', 0)
+            )
+
     def subscribe(self, event_bus: EventBus):
         """
         Подписка на события.
@@ -137,6 +150,7 @@ class SessionLogHandler:
         event_bus.subscribe(EventType.LLM_CALL_COMPLETED, self.on_llm_call_completed)
         event_bus.subscribe(EventType.COMPONENT_INITIALIZED, self.on_component_initialized)
         event_bus.subscribe(EventType.ERROR_OCCURRED, self.on_error)
+        event_bus.subscribe(EventType.SYSTEM_INITIALIZED, self.on_system_initialized)
         
         logger.info("SessionLogHandler подписан на события")
 
