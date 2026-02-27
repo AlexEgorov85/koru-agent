@@ -109,14 +109,14 @@ class InfrastructureContext:
         self.logger.info(f"Используем путь для промтов: {prompts_dir}")
 
         self.prompt_storage = PromptStorage(prompts_dir)
-        self.logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.prompts_dir}")
+        self.logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
 
         # Для ContractStorage используем директорию из конфигурации
         contracts_dir = Path(self.config.data_dir) / "contracts"
         self.logger.info(f"Используем путь для контрактов: {contracts_dir}")
 
         self.contract_storage = ContractStorage(contracts_dir)
-        self.logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.contracts_dir}")
+        self.logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
         # Инициализация хранилищ метрик и логов
         from pathlib import Path
