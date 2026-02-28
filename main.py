@@ -97,16 +97,25 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         get_session_logger,
         close_session_logger,
         _active_sessions,
+        load_config_from_yaml,
     )
 
     logger = logging.getLogger("main")
 
-    # Загрузка конфигурации
-    config = get_config(profile='dev')
+    # Загрузка конфигурации логирования из YAML
+    try:
+        log_config = load_config_from_yaml("core/config/logging_config.yaml")
+        logger.debug(f"Конфигурация логирования загружена: update_interval_sec={log_config.indexing.update_interval_sec}")
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить logging_config.yaml, используем значения по умолчанию: {e}")
+        log_config = None
 
     # Инициализация системы логирования
-    await init_logging_system()
+    await init_logging_system(config=log_config)
     logger.debug("Система логирования инициализирована")
+
+    # Загрузка конфигурации приложения
+    config = get_config(profile='dev')
 
     # Создание и инициализация инфраструктурного контекста
     infrastructure_context = InfrastructureContext(config)
