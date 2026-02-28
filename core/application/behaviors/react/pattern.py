@@ -522,10 +522,15 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
+        logger.error(f"=== НАЧАЛО _perform_structured_reasoning ===")
         logger.error(f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
+        logger.error(f"_perform_structured_reasoning: session_context={session_context}")
+        logger.error(f"_perform_structured_reasoning: goal={session_context.get_goal() if session_context else 'None'}")
 
         # Загружаем промпт и контракт из кэша BaseComponent
+        logger.error("_perform_structured_reasoning: вызов _load_reasoning_resources()...")
         self._load_reasoning_resources()
+        logger.error("_perform_structured_reasoning: _load_reasoning_resources() завершён")
 
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
@@ -592,8 +597,11 @@ class ReActPattern(BaseBehaviorPattern):
 
             # Создаем LLMRequest для структурированного вывода
             # Системный промпт загружается из component_config.resolved_prompts
+            logger.error("_perform_structured_reasoning: получение system_prompt...")
             system_prompt = self.system_prompt_template or self._get_default_system_prompt()
-            
+            logger.error(f"_perform_structured_reasoning: system_prompt получен, длина={len(system_prompt) if system_prompt else 0}")
+
+            logger.error("_perform_structured_reasoning: создание LLMRequest...")
             llm_request = LLMRequest(
                 prompt=reasoning_prompt,
                 system_prompt=system_prompt,
@@ -606,6 +614,7 @@ class ReActPattern(BaseBehaviorPattern):
                     strict_mode=False
                 )
             )
+            logger.error(f"_perform_structured_reasoning: LLMRequest создан, prompt_length={len(reasoning_prompt)}")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
@@ -666,20 +675,26 @@ class ReActPattern(BaseBehaviorPattern):
             max_retries = 3
             retry_delay = 5.0  # секунд между попытками
             retry_count = 0
+            
+            logger.error("=== ПЕРЕД ЦИКЛОМ LLM RETRY ===")
 
             while retry_count < max_retries:
                 try:
                     # Получаем таймаут из конфигурации LLM провайдера
                     llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-                    logger.info(f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
-                    logger.info(f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
+                    logger.error(f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
+                    logger.error(f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
+                    logger.error(f"[Попытка {retry_count + 1}] llm_provider={llm_provider}")
+                    logger.error(f"[Попытка {retry_count + 1}] llm_request.prompt[:100]={llm_request.prompt[:100]}...")
 
                     # Используем asyncio.wait_for для гарантии таймаута
+                    logger.error(f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
                     response = await asyncio.wait_for(
                         llm_provider.generate_structured(llm_request),
                         timeout=llm_timeout
                     )
-                    logger.info(f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
+                    logger.error(f"[Попытка {retry_count + 1}] LLM ответ ПОЛУЧЕН!")
+                    logger.error(f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
                     break  # Успех, выходим из цикла retry
 
                 except (AsyncTimeoutError, TimeoutError) as e:
