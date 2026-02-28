@@ -154,6 +154,15 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
         logger.info("✅ LLMEventSubscriber активирован")
 
+        # Подписка на события логирования для структурированного вывода в терминал
+        from core.infrastructure.logging.event_bus_log_handler import setup_event_bus_logging
+        log_handler = setup_event_bus_logging(
+            application_context.infrastructure_context.event_bus,
+            use_colors=True,
+            show_debug=False
+        )
+        logger.info("✅ EventBusLogHandler активирован")
+
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
         logger.info("✅ AgentFactory создан")

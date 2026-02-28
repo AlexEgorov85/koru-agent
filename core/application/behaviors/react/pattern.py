@@ -12,7 +12,6 @@ import json
 import time
 import logging
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
@@ -26,104 +25,6 @@ from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
 logger = logging.getLogger(__name__)
 
-
-class ReActLogMessageType(Enum):
-    """Типы сообщений для структурированного логирования ReAct паттерна."""
-    # Жизненный цикл LLM вызова
-    LLM_CALL_START = "llm.call.start"
-    LLM_CALL_PROGRESS = "llm.call.progress"
-    LLM_CALL_SUCCESS = "llm.call.success"
-    LLM_CALL_RETRY = "llm.call.retry"
-    LLM_CALL_TIMEOUT = "llm.call.timeout"
-    LLM_CALL_ERROR = "llm.call.error"
-    
-    # Рассуждение
-    REASONING_START = "reasoning.start"
-    REASONING_COMPLETE = "reasoning.complete"
-    REASONING_ERROR = "reasoning.error"
-    
-    # Анализ контекста
-    CONTEXT_ANALYSIS = "context.analysis"
-    CAPABILITY_REGISTER = "capability.register"
-    
-    # Принятие решений
-    DECISION_MADE = "decision.made"
-    DECISION_VALIDATION = "decision.validation"
-    
-    # Ошибки и предупреждения
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-    
-    # Информация
-    INFO = "info"
-    DEBUG = "debug"
-
-
-class ReActLogColors:
-    """ANSI цвета для форматирования вывода в терминал."""
-    # Основные цвета
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    
-    # Цвета по уровням
-    INFO = "\033[36m"      # Cyan
-    DEBUG = "\033[37m"     # White
-    WARNING = "\033[33m"   # Yellow
-    ERROR = "\033[31m"     # Red
-    CRITICAL = "\033[35m"  # Magenta
-    SUCCESS = "\033[32m"   # Green
-    
-    # Цвета для компонентов
-    LLM = "\033[34m"       # Blue
-    REASONING = "\033[38;5;39m"  # Light blue
-    DECISION = "\033[38;5;208m"  # Orange
-    CAPABILITY = "\033[38;5;148m"  # Light green
-    
-    # Фоны
-    BG_HEADER = "\033[44m"  # Blue background
-    BG_ERROR = "\033[41m"   # Red background
-    BG_SUCCESS = "\033[42m" # Green background
-
-
-class ReActStructuredLogEvent:
-    """Структурированное событие логирования для ReAct паттерна."""
-    
-    def __init__(
-        self,
-        message_type: ReActLogMessageType,
-        message: str,
-        session_id: str = "unknown",
-        agent_id: str = "unknown",
-        component: str = "react_pattern",
-        phase: str = "think",
-        goal: str = "unknown",
-        **extra_data
-    ):
-        self.message_type = message_type
-        self.message = message
-        self.session_id = session_id
-        self.agent_id = agent_id
-        self.component = component
-        self.phase = phase
-        self.goal = goal
-        self.timestamp = datetime.now().isoformat() + 'Z'
-        self.extra_data = extra_data
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Преобразует событие в словарь для публикации в EventBus."""
-        return {
-            "type": self.message_type.value,
-            "session_id": self.session_id,
-            "agent_id": self.agent_id,
-            "component": self.component,
-            "phase": self.phase,
-            "goal": self.goal,
-            "timestamp": self.timestamp,
-            "message": self.message,
-            **self.extra_data
-        }
 
 class ReActPattern(BaseBehaviorPattern):
     """ReAct паттерн поведения без логики планирования.
@@ -164,184 +65,43 @@ class ReActPattern(BaseBehaviorPattern):
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
 
+        # EventBusLogger для логирования через шину событий
+        self.event_bus_logger = None  # Будет инициализирован когда будет доступен event_bus
+
         # Примечание: Промпты и контракты загружаются через BaseComponent.initialize()
         # и доступны в self.prompts / self.output_contracts
 
-    # =========================================================================
-    # МЕТОДЫ СТРУКТУРИРОВАННОГО ЛОГИРОВАНИЯ
-    # =========================================================================
-    
-    def _get_context_info(self, session_context=None) -> Dict[str, str]:
-        """Получает информацию о контексте для логирования."""
-        if session_context:
-            return {
-                "session_id": getattr(session_context, 'session_id', 'unknown'),
-                "agent_id": getattr(session_context, 'agent_id', 'unknown'),
-                "goal": session_context.get_goal() if hasattr(session_context, 'get_goal') else 'unknown'
-            }
-        # Пытаемся получить из application_context
-        if self.application_context:
-            return {
-                "session_id": getattr(self.application_context, 'session_id', 'unknown'),
-                "agent_id": getattr(self.application_context, 'id', 'unknown'),
-                "goal": 'unknown'
-            }
-        return {"session_id": "unknown", "agent_id": "unknown", "goal": "unknown"}
-    
-    def _format_log_message(
-        self,
-        message_type: ReActLogMessageType,
-        message: str,
-        extra_data: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Форматирует сообщение с цветами и структурой для терминала.
-        
-        ФОРМАТ:
-        ┌─────────────────────────────────────────────────────────────┐
-        │ [ТИП] Компонент/Фаза │ Сообщение                           │
-        │ [12:34:56] session=xxx                                      │
-        └─────────────────────────────────────────────────────────────┘
-        """
-        c = ReActLogColors
-        ts = datetime.now().strftime("%H:%M:%S")
-        
-        # Определяем цвета и иконки по типу сообщения
-        type_colors = {
-            ReActLogMessageType.LLM_CALL_START: (c.LLM, "🔄"),
-            ReActLogMessageType.LLM_CALL_PROGRESS: (c.LLM, "⏳"),
-            ReActLogMessageType.LLM_CALL_SUCCESS: (c.SUCCESS, "✅"),
-            ReActLogMessageType.LLM_CALL_RETRY: (c.WARNING, "🔁"),
-            ReActLogMessageType.LLM_CALL_TIMEOUT: (c.ERROR, "⏱️"),
-            ReActLogMessageType.LLM_CALL_ERROR: (c.ERROR, "❌"),
-            ReActLogMessageType.REASONING_START: (c.REASONING, "🧠"),
-            ReActLogMessageType.REASONING_COMPLETE: (c.SUCCESS, "💡"),
-            ReActLogMessageType.REASONING_ERROR: (c.ERROR, "🔥"),
-            ReActLogMessageType.CONTEXT_ANALYSIS: (c.INFO, "📊"),
-            ReActLogMessageType.CAPABILITY_REGISTER: (c.CAPABILITY, "🔧"),
-            ReActLogMessageType.DECISION_MADE: (c.DECISION, "🎯"),
-            ReActLogMessageType.DECISION_VALIDATION: (c.DECISION, "✔️"),
-            ReActLogMessageType.WARNING: (c.WARNING, "⚠️"),
-            ReActLogMessageType.ERROR: (c.ERROR, "❌"),
-            ReActLogMessageType.CRITICAL: (c.CRITICAL, "🚨"),
-            ReActLogMessageType.INFO: (c.INFO, "ℹ️"),
-            ReActLogMessageType.DEBUG: (c.DEBUG, "🔍"),
-        }
-        
-        color, icon = type_colors.get(message_type, (c.RESET, "•"))
-        
-        # Формируем заголовок
-        header = f"{color}{c.BOLD}[{icon} {message_type.value}]{c.RESET}"
-        
-        # Формируем основную часть
-        lines = []
-        lines.append(f"{header}")
-        lines.append(f"  {c.DIM}└─{c.RESET} {message}")
-        
-        # Добавляем дополнительные данные если есть
-        if extra_data:
-            for key, value in extra_data.items():
-                # Ограничиваем длину значения
-                str_value = str(value)
-                if len(str_value) > 200:
-                    str_value = str_value[:197] + "..."
-                lines.append(f"  {c.DIM}└─{c.RESET} {c.DIM}{key}:{c.RESET} {str_value}")
-        
-        return "\n".join(lines)
-    
-    async def _log_structured(
-        self,
-        message_type: ReActLogMessageType,
-        message: str,
-        session_context=None,
-        **extra_data
-    ) -> None:
-        """
-        Структурированное логирование через шину событий с выводом в терминал.
-        
-        ПАРАМЕТРЫ:
-        - message_type: Тип сообщения (ReActLogMessageType)
-        - message: Текст сообщения
-        - session_context: Контекст сессии для извлечения session_id, agent_id, goal
-        - **extra_data: Дополнительные данные для логирования
-        """
-        # Получаем контекстную информацию
-        ctx = self._get_context_info(session_context)
-        
-        # Создаем структурированное событие
-        log_event = ReActStructuredLogEvent(
-            message_type=message_type,
-            message=message,
-            session_id=ctx["session_id"],
-            agent_id=ctx["agent_id"],
-            goal=ctx["goal"],
-            **extra_data
-        )
-        
-        # Форматируем сообщение для терминала
-        formatted_message = self._format_log_message(
-            message_type, 
-            message,
-            extra_data if extra_data else None
-        )
-        
-        # Публикуем в шину событий если доступна
+    def _init_event_bus_logger(self):
+        """Инициализирует EventBusLogger когда становится доступен event_bus."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            try:
-                from core.infrastructure.event_bus.event_bus import Event, EventType
-                
-                # Определяем тип события EventBus на основе типа сообщения
-                event_type_map = {
-                    ReActLogMessageType.ERROR: EventType.LOG_ERROR,
-                    ReActLogMessageType.CRITICAL: EventType.LOG_ERROR,
-                    ReActLogMessageType.WARNING: EventType.LOG_WARNING,
-                    ReActLogMessageType.INFO: EventType.LOG_INFO,
-                    ReActLogMessageType.DEBUG: EventType.LOG_DEBUG,
-                }
-                event_type = event_type_map.get(message_type, EventType.LOG_INFO)
-                
-                await self.application_context.infrastructure_context.event_bus.publish(
-                    event=event_type,
-                    data=log_event.to_dict(),
-                    source="react_pattern.think",
-                    correlation_id=ctx["session_id"]
-                )
-            except Exception as e:
-                # Fallback на стандартный logger если шина недоступна
-                logger.debug(f"Не удалось опубликовать событие в EventBus: {e}")
-        
-        # Вывод в терминал (всегда, независимо от EventBus)
-        # Используем logger для консистентности, но с отформатированным сообщением
-        if message_type in [ReActLogMessageType.ERROR, ReActLogMessageType.CRITICAL]:
-            logger.error(f"\n{formatted_message}")
-        elif message_type == ReActLogMessageType.WARNING:
-            logger.warning(f"\n{formatted_message}")
-        elif message_type == ReActLogMessageType.DEBUG:
-            logger.debug(f"\n{formatted_message}")
-        else:
-            logger.info(f"\n{formatted_message}")
-    
-    async def _log_header(self, title: str, session_context=None, **extra_data) -> None:
-        """Выводит заголовок раздела с рамкой."""
-        c = ReActLogColors
-        width = 60
-        border = "═" * (width - 2)
-        lines = [
-            f"{c.BOLD}{c.BG_HEADER}╔{border}╗{c.RESET}",
-            f"{c.BOLD}{c.BG_HEADER}║{c.RESET}{c.BOLD} {title.center(width-4)} {c.RESET}{c.BOLD}{c.BG_HEADER}║{c.RESET}",
-            f"{c.BOLD}{c.BG_HEADER}╚{border}╝{c.RESET}",
-        ]
-        formatted = "\n".join(lines)
-        logger.info(f"\n{formatted}")
-        
-        # Дополнительные данные
-        if extra_data:
-            for key, value in extra_data.items():
-                logger.info(f"{c.DIM}  {key}:{c.RESET} {value}")
+            from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+            self.event_bus_logger = EventBusLogger(
+                event_bus=self.application_context.infrastructure_context.event_bus,
+                source="react_pattern.think"
+            )
 
-    # =========================================================================
-    # КОНЕЦ МЕТОДОВ ЛОГИРОВАНИЯ
-    # =========================================================================
+    async def _log(self, level: str, message: str, **extra_data):
+        """
+        Универсальный метод логирования через EventBusLogger с fallback на обычный logger.
+
+        ПАРАМЕТРЫ:
+        - level: уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: сообщение
+        - **extra_data: дополнительные данные
+        """
+        # Инициализируем event_bus_logger если ещё не инициализирован
+        if self.event_bus_logger is None:
+            self._init_event_bus_logger()
+
+        if self.event_bus_logger:
+            log_method = getattr(self.event_bus_logger, level, None)
+            if log_method:
+                await log_method(message, **extra_data)
+                return
+
+        # Fallback на обычный logger если EventBusLogger не доступен
+        log_method = getattr(logger, level, logger.info)
+        log_method(message)
 
     def _load_reasoning_resources(self) -> bool:
         """
@@ -457,19 +217,19 @@ class ReActPattern(BaseBehaviorPattern):
         """
         goal = context_analysis.get("goal", "Неизвестная цель")
         last_steps = context_analysis.get("last_steps", [])
-        
+
         parts = [
             f"ЦЕЛЬ: {goal}",
             f"Шагов выполнено: {len(last_steps)}",
             f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
             f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
         ]
-        
+
         if last_steps:
             parts.append("\nПОСЛЕДНИЕ ШАГИ:")
             for i, step in enumerate(last_steps[-3:], 1):
                 parts.append(f"  {i}. {step}")
-        
+
         parts.append("\nДОСТУПНЫЕ ИНСТРУМЕНТЫ:")
         for cap in available_capabilities:
             parts.append(f"  - {cap['name']}: {cap['description']}")
@@ -490,15 +250,15 @@ class ReActPattern(BaseBehaviorPattern):
         for cap in available_capabilities:
             name = cap.get('name', 'unknown')
             description = cap.get('description', 'Нет описания')
-            
+
             # Получаем схему параметров из schema_validator
             params_schema = None
             if hasattr(self, 'schema_validator') and self.schema_validator:
                 params_schema = self.schema_validator.get_capability_schema(name)
-            
+
             # Формируем строку инструмента
             line = f"- {name}: {description}"
-            
+
             # Добавляем параметры если есть схема
             if params_schema:
                 params_list = []
@@ -507,14 +267,14 @@ class ReActPattern(BaseBehaviorPattern):
                     required = param_info.get('required', False) if isinstance(param_info, dict) else False
                     req_mark = "(required)" if required else "(optional)"
                     params_list.append(f"{param_name}: {param_type} {req_mark}")
-                
+
                 if params_list:
                     line += "\n    Параметры:"
                     for p in params_list:
                         line += f"\n      - {p}"
-            
+
             lines.append(line)
-        
+
         return "\n".join(lines)
 
     def _build_minimal_fallback_prompt(self, prompt_context: Dict[str, Any]) -> str:
@@ -575,13 +335,13 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Анализ контекста без принятия решений"""
-        logger.error(f"[ReAct] analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
+        await self._log("info", f"[ReAct] analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
 
         # Если available_capabilities пустой, получаем их из ApplicationContext
         if not available_capabilities and self.application_context:
-            logger.error("[ReAct] analyze_context: available_capabilities пуст, получаем из ApplicationContext")
+            await self._log("info", "[ReAct] analyze_context: available_capabilities пуст, получаем из ApplicationContext")
             available_capabilities = self.application_context.get_all_capabilities()
-            logger.error(f"[ReAct] analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
+            await self._log("info", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
 
         # Регистрируем схемы для всех capability в SchemaValidator
         self._register_capability_schemas(available_capabilities)
@@ -595,7 +355,7 @@ class ReActPattern(BaseBehaviorPattern):
             required_skills=["book_library", "sql_query", "generic"]
         )
 
-        logger.error(f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
+        await self._log("info", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
 
         # Добавляем информацию о прогрессе
         # В новой архитектуре используем атрибуты или возвращаем 0, если метод не существует
@@ -619,13 +379,13 @@ class ReActPattern(BaseBehaviorPattern):
 
         logger.info(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
         logger.info(f"[ReAct] Всего capability: {len(available_capabilities)}")
-        
+
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
             # Пытаемся получить схему из input_contracts кэша
             # Формат ключа: capability_name (например, "book_library.execute_script")
             schema = None
-            
+
             # Проверяем, есть ли схема в кэше input_contracts
             if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
                 schema = self.input_contracts[cap.name]
@@ -637,14 +397,14 @@ class ReActPattern(BaseBehaviorPattern):
                     contract_version = cap.meta.get('contract_version', 'v1.0.0')
                     logger.debug(f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
                     schema = self.application_context.data_repository.get_contract_schema(
-                        cap.name, 
-                        contract_version, 
+                        cap.name,
+                        contract_version,
                         "input"
                     )
                     logger.info(f"Загружена схема из DataRepository для {cap.name}")
                 except Exception as e:
                     logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
-            
+
             # Если схема найдена, регистрируем её в SchemaValidator
             if schema:
                 # Преобразуем схему в словарь параметров
@@ -669,7 +429,7 @@ class ReActPattern(BaseBehaviorPattern):
                             'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string',
                             'required': prop_name in required
                         }
-                
+
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
                     logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
@@ -687,7 +447,7 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> None:
         """
         Публикует событие llm.response.received независимо от результата.
-        
+
         ПАРАМЕТРЫ:
         - session_context: Контекст сессии
         - response: Ответ от LLM (может быть None при ошибке)
@@ -695,7 +455,7 @@ class ReActPattern(BaseBehaviorPattern):
         - error_type: Тип ошибки (timeout, llm_error, provider_unavailable, etc.)
         """
         if not (self.application_context and hasattr(self.application_context, 'infrastructure_context')):
-            logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
+            await self._log("debug", "EventBus недоступен, пропускаем публикацию llm.response.received")
             return
 
         from core.infrastructure.event_bus.event_bus import EventType
@@ -744,9 +504,9 @@ class ReActPattern(BaseBehaviorPattern):
                 source="react_pattern.think",
                 correlation_id=getattr(session_context, 'session_id', '')
             )
-            logger.debug("Событие LLM_RESPONSE_RECEIVED опубликовано")
+            await self._log("debug", "Событие LLM_RESPONSE_RECEIVED опубликовано")
         except Exception as e:
-            logger.error(f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
+            await self._log("error", f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
 
     async def generate_decision(
         self,
@@ -755,39 +515,39 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа"""
-        logger.error("=== НАЧАЛО generate_decision ===")
+        await self._log("info", "=== НАЧАЛО generate_decision ===")
         try:
             # Структурированное рассуждение
-            logger.error("generate_decision: вызов _perform_structured_reasoning...")
+            await self._log("info", "generate_decision: вызов _perform_structured_reasoning...")
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
                 available_capabilities=context_analysis["available_capabilities"]
             )
-            logger.error(f"generate_decision: reasoning_result получен, keys={list(reasoning_result.keys())}")
-            logger.error(f"generate_decision: decision={reasoning_result.get('decision', {})}")
+            await self._log("debug", f"generate_decision: reasoning_result получен, keys={list(reasoning_result.keys())}")
+            await self._log("debug", f"generate_decision: decision={reasoning_result.get('decision', {})}")
 
             # Принятие решения
-            logger.error("generate_decision: вызов _make_decision_from_reasoning...")
+            await self._log("info", "generate_decision: вызов _make_decision_from_reasoning...")
             decision = await self._make_decision_from_reasoning(
                 session_context=session_context,
                 reasoning_result=reasoning_result
             )
-            logger.error(f"generate_decision: decision получен: action={decision.action}")
+            await self._log("info", f"generate_decision: decision получен: action={decision.action}")
 
             # Сброс счетчика ошибок при успешном решении
             self.error_count = 0
-            logger.error("=== КОНЕЦ generate_decision (УСПЕХ) ===")
+            await self._log("info", "=== КОНЕЦ generate_decision (УСПЕХ) ===")
             return decision
 
         except Exception as e:
-            logger.error(f"=== КОНЕЦ generate_decision (ОШИБКА) ===")
-            logger.error(f"Критическая ошибка в ReActPattern: {str(e)}", exc_info=True)
+            await self._log("error", f"=== КОНЕЦ generate_decision (ОШИБКА) ===")
+            await self._log("error", f"Критическая ошибка в ReActPattern: {str(e)}", exc_info=True)
             self.error_count += 1
 
             # Fallback при множественных ошибках
             if self.error_count >= self.max_consecutive_errors:
-                logger.warning("Достигнут лимит ошибок, переключаемся на fallback паттерн")
+                await self._log("warning", "Достигнут лимит ошибок, переключаемся на fallback паттерн")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
                     next_pattern="fallback.v1.0.0",
@@ -807,15 +567,15 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
-        logger.error(f"=== НАЧАЛО _perform_structured_reasoning ===")
-        logger.error(f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
-        logger.error(f"_perform_structured_reasoning: session_context={session_context}")
-        logger.error(f"_perform_structured_reasoning: goal={session_context.get_goal() if session_context else 'None'}")
+        await self._log("info", f"=== НАЧАЛО _perform_structured_reasoning ===")
+        await self._log("debug", f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
+        await self._log("debug", f"_perform_structured_reasoning: session_context={session_context}")
+        await self._log("debug", f"_perform_structured_reasoning: goal={session_context.get_goal() if session_context else 'None'}")
 
         # Загружаем промпт и контракт из кэша BaseComponent
-        logger.error("_perform_structured_reasoning: вызов _load_reasoning_resources()...")
+        await self._log("info", "_perform_structured_reasoning: вызов _load_reasoning_resources()...")
         self._load_reasoning_resources()
-        logger.error("_perform_structured_reasoning: _load_reasoning_resources() завершён")
+        await self._log("info", "_perform_structured_reasoning: _load_reasoning_resources() завершён")
 
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
@@ -827,31 +587,31 @@ class ReActPattern(BaseBehaviorPattern):
             })
 
         # Рендерим промпт из шаблона (загружен из PromptService/ComponentConfig)
-        logger.debug("Начало рендеринга промпта...")
+        await self._log("debug", "Начало рендеринга промпта...")
         reasoning_prompt = self._render_reasoning_prompt(
             context_analysis=context_analysis,
             available_capabilities=formatted_capabilities
         )
-        logger.debug(f"Промпт сформирован, длина={len(reasoning_prompt)}")
+        await self._log("debug", f"Промпт сформирован, длина={len(reasoning_prompt)}")
 
         start_time = time.time()
 
         try:
             # Генерация структурированного ответа через LLM
             # Получаем LLM провайдер через ApplicationContext
-            logger.debug("Получение LLM провайдера...")
+            await self._log("debug", "Получение LLM провайдера...")
             llm_provider = None
 
             # Пытаемся получить через application_context
             if self.application_context:
                 llm_provider = self.application_context.get_provider("default_llm")
-            
-            logger.debug(f"LLM провайдер получен: {llm_provider is not None}")
+
+            await self._log("debug", f"LLM провайдер получен: {llm_provider is not None}")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
-                logger.warning("LLM провайдер недоступен, используем упрощенную логику рассуждения")
-                
+                await self._log("warning", "LLM провайдер недоступен, используем упрощенную логику рассуждения")
+
                 # Публикуем событие об ошибке
                 await self._publish_llm_response_received(
                     session_context=session_context,
@@ -859,7 +619,7 @@ class ReActPattern(BaseBehaviorPattern):
                     error_message="LLM провайдер недоступен",
                     error_type="provider_unavailable"
                 )
-                
+
                 return {
                     "analysis": {
                         "current_situation": "LLM провайдер недоступен",
@@ -882,11 +642,11 @@ class ReActPattern(BaseBehaviorPattern):
 
             # Создаем LLMRequest для структурированного вывода
             # Системный промпт загружается из component_config.resolved_prompts
-            logger.error("_perform_structured_reasoning: получение system_prompt...")
+            await self._log("info", "_perform_structured_reasoning: получение system_prompt...")
             system_prompt = self.system_prompt_template or self._get_default_system_prompt()
-            logger.error(f"_perform_structured_reasoning: system_prompt получен, длина={len(system_prompt) if system_prompt else 0}")
+            await self._log("debug", f"_perform_structured_reasoning: system_prompt получен, длина={len(system_prompt) if system_prompt else 0}")
 
-            logger.error("_perform_structured_reasoning: создание LLMRequest...")
+            await self._log("info", "_perform_structured_reasoning: создание LLMRequest...")
             llm_request = LLMRequest(
                 prompt=reasoning_prompt,
                 system_prompt=system_prompt,
@@ -899,10 +659,10 @@ class ReActPattern(BaseBehaviorPattern):
                     strict_mode=False
                 )
             )
-            logger.error(f"_perform_structured_reasoning: LLMRequest создан, prompt_length={len(reasoning_prompt)}")
+            await self._log("debug", f"_perform_structured_reasoning: LLMRequest создан, prompt_length={len(reasoning_prompt)}")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
-            logger.error("_perform_structured_reasoning: ПЕРЕД ПУБЛИКАЦИЕЙ СОБЫТИЯ LLM_PROMPT_GENERATED")
+            await self._log("debug", "_perform_structured_reasoning: ПЕРЕД ПУБЛИКАЦИЕЙ СОБЫТИЯ LLM_PROMPT_GENERATED")
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
 
@@ -910,9 +670,9 @@ class ReActPattern(BaseBehaviorPattern):
                 agent_id = getattr(session_context, 'agent_id', 'unknown')
                 if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
                     agent_id = self.application_context.id
-                
-                logger.error(f"_perform_structured_reasoning: agent_id={agent_id}, session_id={getattr(session_context, 'session_id', 'unknown')}")
-                logger.error("_perform_structured_reasoning: ВЫЗОВ event_bus.publish()...")
+
+                await self._log("debug", f"_perform_structured_reasoning: agent_id={agent_id}, session_id={getattr(session_context, 'session_id', 'unknown')}")
+                await self._log("debug", "_perform_structured_reasoning: ВЫЗОВ event_bus.publish()...")
 
                 await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_PROMPT_GENERATED,
@@ -931,10 +691,10 @@ class ReActPattern(BaseBehaviorPattern):
                     source="react_pattern.think",
                     correlation_id=getattr(session_context, 'session_id', '')
                 )
-                logger.error("_perform_structured_reasoning: event_bus.publish() ЗАВЕРШЁН")
-                logger.debug("Событие LLM_PROMPT_GENERATED опубликовано")
+                await self._log("debug", "_perform_structured_reasoning: event_bus.publish() ЗАВЕРШЁН")
+                await self._log("debug", "Событие LLM_PROMPT_GENERATED опубликовано")
             else:
-                logger.error("_perform_structured_reasoning: application_context или infrastructure_context отсутствует")
+                await self._log("warning", "_perform_structured_reasoning: application_context или infrastructure_context отсутствует")
 
             # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
             # Это нужно для публикации событий при ошибках/таймаутах
@@ -947,16 +707,16 @@ class ReActPattern(BaseBehaviorPattern):
                     phase="think",
                     goal=session_context.get_goal() if session_context else 'unknown'
                 )
-                logger.debug("Контекст вызова установлен в LLM провайдере")
+                await self._log("debug", "Контекст вызова установлен в LLM провайдере")
 
-            logger.info("=" * 60)
-            logger.info("НАЧАЛО LLM ВЫЗОВА")
-            logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
-            logger.info(f"Провайдер: {type(llm_provider).__name__}")
-            logger.info(f"Модель: {getattr(llm_provider, 'model_name', 'unknown')}")
-            logger.info(f"Длина промпта: {len(reasoning_prompt)} символов")
-            logger.info(f"Таймаут: {getattr(llm_provider, 'timeout_seconds', 120.0)}с")
-            logger.info("=" * 60)
+            await self._log("info", "=" * 60)
+            await self._log("info", "НАЧАЛО LLM ВЫЗОВА")
+            await self._log("info", f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+            await self._log("info", f"Провайдер: {type(llm_provider).__name__}")
+            await self._log("info", f"Модель: {getattr(llm_provider, 'model_name', 'unknown')}")
+            await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
+            await self._log("info", f"Таймаут: {getattr(llm_provider, 'timeout_seconds', 120.0)}с")
+            await self._log("info", "=" * 60)
 
             # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
             import asyncio
@@ -966,57 +726,57 @@ class ReActPattern(BaseBehaviorPattern):
             max_retries = 3
             retry_delay = 5.0  # секунд между попытками
             retry_count = 0
-            
-            logger.error("=== ПЕРЕД ЦИКЛОМ LLM RETRY ===")
+
+            await self._log("debug", "=== ПЕРЕД ЦИКЛОМ LLM RETRY ===")
 
             while retry_count < max_retries:
                 try:
                     # Получаем таймаут из конфигурации LLM провайдера
                     llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-                    logger.error(f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
-                    logger.error(f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
-                    logger.error(f"[Попытка {retry_count + 1}] llm_provider={llm_provider}")
-                    logger.error(f"[Попытка {retry_count + 1}] llm_request.prompt[:100]={llm_request.prompt[:100]}...")
+                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
+                    await self._log("info", f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
+                    await self._log("debug", f"[Попытка {retry_count + 1}] llm_provider={llm_provider}")
+                    await self._log("debug", f"[Попытка {retry_count + 1}] llm_request.prompt[:100]={llm_request.prompt[:100]}...")
 
                     # Используем asyncio.wait_for для гарантии таймаута
-                    logger.error(f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
+                    await self._log("info", f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
                     response = await asyncio.wait_for(
                         llm_provider.generate_structured(llm_request),
                         timeout=llm_timeout
                     )
-                    logger.error(f"[Попытка {retry_count + 1}] LLM ответ ПОЛУЧЕН!")
-                    logger.error(f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
+                    await self._log("info", f"[Попытка {retry_count + 1}] LLM ответ ПОЛУЧЕН!")
+                    await self._log("debug", f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
                     break  # Успех, выходим из цикла retry
 
                 except (AsyncTimeoutError, TimeoutError) as e:
                     retry_count += 1
                     error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
-                    logger.error(error_msg)
-                    
+                    await self._log("warning", error_msg)
+
                     if retry_count < max_retries:
                         # Ждём перед следующей попыткой
-                        logger.info(f"Повторная попытка через {retry_delay}с...")
+                        await self._log("info", f"Повторная попытка через {retry_delay}с...")
                         await asyncio.sleep(retry_delay)
                         # Увеличиваем задержку для следующей попытки (exponential backoff)
                         retry_delay *= 1.5
                     else:
                         # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
                         error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
-                        logger.error(error_msg)
+                        await self._log("error", error_msg)
 
                         # Логируем детали для диагностики
-                        logger.error(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
-                        logger.error(f"Компонент: react_pattern (phase: think)")
-                        logger.error(f"Таймаут: {llm_timeout} секунд")
-                        logger.error(f"Попыток: {retry_count}")
-                        logger.error("Возможные причины:")
-                        logger.error("  1. LLM модель слишком медленная для текущего запроса")
-                        logger.error("  2. LLM модель зависла или недоступна")
-                        logger.error("  3. Недостаточно ресурсов (память/CPU) для инференса")
-                        logger.error("Рекомендации:")
-                        logger.error("  1. Увеличьте таймаут в конфигурации (timeout_seconds)")
-                        logger.error("  2. Проверьте доступность LLM модели")
-                        logger.error("  3. Уменьшите max_tokens или упростите запрос")
+                        await self._log("error", f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+                        await self._log("error", f"Компонент: react_pattern (phase: think)")
+                        await self._log("error", f"Таймаут: {llm_timeout} секунд")
+                        await self._log("error", f"Попыток: {retry_count}")
+                        await self._log("error", "Возможные причины:")
+                        await self._log("error", "  1. LLM модель слишком медленная для текущего запроса")
+                        await self._log("error", "  2. LLM модель зависла или недоступна")
+                        await self._log("error", "  3. Недостаточно ресурсов (память/CPU) для инференса")
+                        await self._log("error", "Рекомендации:")
+                        await self._log("error", "  1. Увеличьте таймаут в конфигурации (timeout_seconds)")
+                        await self._log("error", "  2. Проверьте доступность LLM модели")
+                        await self._log("error", "  3. Уменьшите max_tokens или упростите запрос")
 
                         # Публикуем событие о таймауте
                         await self._publish_llm_response_received(
@@ -1031,8 +791,8 @@ class ReActPattern(BaseBehaviorPattern):
 
                 except Exception as e:
                     error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
-                    logger.error(error_msg)
-                    
+                    await self._log("error", error_msg)
+
                     # Публикуем событие об ошибке перед выбрасыванием исключения
                     await self._publish_llm_response_received(
                         session_context=session_context,
@@ -1040,7 +800,7 @@ class ReActPattern(BaseBehaviorPattern):
                         error_message=error_msg,
                         error_type="llm_call_error"
                     )
-                    
+
                     raise  # Пробрасываем другие ошибки дальше
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
@@ -1064,7 +824,7 @@ class ReActPattern(BaseBehaviorPattern):
                     if hasattr(llm_response, 'metadata') and llm_response.metadata:
                         error_msg = llm_response.metadata.get('error', error_msg)
 
-                    logger.error(f"LLM вернул ошибку: {error_msg}")
+                    await self._log("error", f"LLM вернул ошибку: {error_msg}")
 
                     # Публикуем событие об ошибке LLM
                     await self._publish_llm_response_received(
@@ -1098,7 +858,7 @@ class ReActPattern(BaseBehaviorPattern):
                 # Проверяем metadata на наличие ошибки
                 if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
                     error_msg = llm_response.metadata['error']
-                    logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                    await self._log("error", f"LLM вернул ошибку в metadata: {error_msg}")
 
                     # Публикуем событие об ошибке LLM
                     await self._publish_llm_response_received(
@@ -1127,11 +887,11 @@ class ReActPattern(BaseBehaviorPattern):
                         "available_capabilities": available_capabilities,
                         "needs_rollback": False
                     }
-                
+
                 # Проверяем на пустой или обрезанный ответ
                 content = getattr(llm_response, 'content', '')
                 if not content or (isinstance(content, str) and len(content.strip()) == 0):
-                    logger.warning("LLM вернул пустой ответ!")
+                    await self._log("warning", "LLM вернул пустой ответ!")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
@@ -1175,25 +935,25 @@ class ReActPattern(BaseBehaviorPattern):
                     result = response.content
                 else:
                     result = response
-                
+
             reasoning_result = validate_reasoning_result(result)
 
-            # Добавляем available_capabilities в результат для последующего использ��вания
+            # Добавляем available_capabilities в результат для последующего использования
             reasoning_result['available_capabilities'] = available_capabilities
-            
+
             # Логирование результата для отладки
-            logger.error(f"=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
-            logger.error(f"decision: {reasoning_result.get('decision', {})}")
-            logger.error(f"next_action: {reasoning_result.get('decision', {}).get('next_action', 'NOT FOUND')}")
-            logger.error(f"parameters: {reasoning_result.get('decision', {}).get('parameters', {})}")
-            logger.error(f"===========================")
+            await self._log("info", f"=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
+            await self._log("debug", f"decision: {reasoning_result.get('decision', {})}")
+            await self._log("debug", f"next_action: {reasoning_result.get('decision', {}).get('next_action', 'NOT FOUND')}")
+            await self._log("debug", f"parameters: {reasoning_result.get('decision', {}).get('parameters', {})}")
+            await self._log("info", f"===========================")
 
             self.last_reasoning_time = time.time() - start_time
-            logger.debug(f"Структ��рированное рассуждение выпол��ено за {self.last_reasoning_time:.2f} секунд")
+            await self._log("debug", f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
             return reasoning_result
         except Exception as e:
             error_msg = f"Ошибка в процессе рассуждения: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            await self._log("error", error_msg, exc_info=True)
 
             # Публикуем событие об ошибке
             await self._publish_llm_response_received(
@@ -1205,7 +965,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             # Попытка fallback рассуждения с упрощенной схемой
             if self.error_count < self.max_consecutive_errors:
-                logger.info("Попытка упрощенного рассуждения после ошибки")
+                await self._log("info", "Попытка упрощенного рассуждения после ошибки")
                 return {
                     "analysis": {
                         "current_situation": "Ошибка в основном процессе рассуждения",
@@ -1246,7 +1006,7 @@ class ReActPattern(BaseBehaviorPattern):
             return self._build_capability_decision(session_context, reasoning_result)
 
         except Exception as e:
-            logger.error(f"Ошибка при построении решения из рассуждения: {str(e)}", exc_info=True)
+            await self._log("error", f"Ошибка при построении решения из рассуждения: {str(e)}", exc_info=True)
             raise
 
     def _build_rollback_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
@@ -1295,8 +1055,8 @@ class ReActPattern(BaseBehaviorPattern):
 
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
-        
-        logger.error(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
+
+        logger.info(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
 
         capability = None
         for cap in available_caps:
@@ -1321,7 +1081,7 @@ class ReActPattern(BaseBehaviorPattern):
         logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
         logger.info(f"capability: {capability.name}")
         logger.info(f"raw_params: {parameters}")
-        
+
         validated_params = self.schema_validator.validate_parameters(
             capability=capability,
             raw_params=parameters,
@@ -1333,7 +1093,7 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
         logger.info(f"validated_params: {validated_params}")
-        
+
         if not validated_params:
             # Попытка создать минимально необходимые параметры
             validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
@@ -1358,8 +1118,8 @@ class ReActPattern(BaseBehaviorPattern):
         """Создает fallback-решение при ошибках."""
         # Вместо прямого доступа к runtime.system, полагаемся на переданные capability
         # В новой архитектуре получаем capability из другого источника
-        available_caps = []  # Возвращаем пу��той список, так как в session_context нет такого метода
-        
+        available_caps = []  # Во�������вращаем п��стой список, так как в session_context нет такого метода
+
         for cap in available_caps:
             if any(s.lower() == "react" for s in cap.supported_strategies or []):
                 return BehaviorDecision(
@@ -1373,7 +1133,7 @@ class ReActPattern(BaseBehaviorPattern):
                 )
 
         # Критический fallback - остановка
-        logger.critical("Нет доступных capability для реактивной стратегии. Принудительная остановка.")
+        await self._log("error", "Нет доступных capability для реактивной стратегии. Принудительная остановка.")
         return BehaviorDecision(
             action=BehaviorDecisionType.STOP,
             reason=f"emergency_stop_no_capabilities_{reason}"

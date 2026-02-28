@@ -80,6 +80,17 @@ from core.infrastructure.logging.llm_call_logger import (
     init_llm_call_logger,
 )
 
+from core.infrastructure.logging.event_bus_log_handler import (
+    EventBusLogHandler,
+    EventBusLogFormatter,
+    setup_event_bus_logging,
+    EventBusLogger,
+    log_info,
+    log_debug,
+    log_warning,
+    log_error,
+)
+
 # Для обратной совместимости
 from core.infrastructure.logging.log_formatter import (
     LogFormatter,
@@ -135,6 +146,16 @@ __all__ = [
     'LLMCallLogger',
     'get_llm_call_logger',
     'init_llm_call_logger',
+
+    # EventBus Log Handler
+    'EventBusLogHandler',
+    'EventBusLogFormatter',
+    'setup_event_bus_logging',
+    'EventBusLogger',
+    'log_info',
+    'log_debug',
+    'log_warning',
+    'log_error',
 
     # Backward compatibility
     'LogFormatter',

@@ -602,8 +602,9 @@ class LlamaCppProvider(BaseLLMProvider):
                 
                 # Логирование полного ответа для отладки
                 self.logger.error(f"=== ПОЛНЫЙ ОТВЕТ LLM ===")
-                self.logger.error(f"raw_response.content[:2000]: {raw_response.content[:2000]}")
-                self.logger.error(f"json_content[:1000]: {json_content[:1000] if json_content else 'None'}")
+                self.logger.error(f"raw_response.content[:2000]: {raw_response.content[:2000] if raw_response.content else 'None'}")
+                json_log = json_content if isinstance(json_content, str) else str(json_content) if json_content else 'None'
+                self.logger.error(f"json_content[:1000]: {json_log[:1000]}")
                 self.logger.error(f"=======================")
 
                 return StructuredLLMResponse(
