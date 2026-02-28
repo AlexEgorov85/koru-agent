@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [5.26.1] - 2026-02-28
+
+### Added
+- **Логирование llm.response.received при всех сценариях**
+  - Событие публикуется всегда: при успехе, таймауте, ошибке LLM, недоступности провайдера
+  - В данные события добавляются поля `error` и `error_type` при ошибках
+  - Реализовано в `ReActPattern` и `EvaluationPattern`
+
+### Fixed
+- **Конфликт event loop при завершении сессии**
+  - Исправлен метод `close()` в `SessionLogger` для безопасной работы с `asyncio.run()`
+  - Убран вызов `close_session_logger()` из `finally` в `main.py`
+  - Сессия теперь завершается внутри event loop через `end()`
+
+### Changed
+- **Увеличены таймауты LLM для больших моделей**
+  - `LlamaCppConfig.timeout_seconds`: 120с → 600с (10 минут)
+  - `dev.yaml`: `llm_providers.default.timeout_seconds`: 120с → 1200с
+  - `dev.yaml`: `agent.llm_timeout_seconds`: 120с → 1200с
+  - Причина: Qwen3-4B-Instruct требует больше времени для генерации с большими промптами
+
+### Features
+- **Добавлено свойство `is_initialized` в `LogIndexer`**
+  - Позволяет проверить состояние инициализации индексатора
+
+---
+
 ## [5.25.1] - 2026-02-28
 
 ### Fixed
