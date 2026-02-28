@@ -566,7 +566,12 @@ class LogIndexer:
         
         self._initialized = False
         logger.info("LogIndexer завершил работу")
-    
+
+    @property
+    def is_initialized(self) -> bool:
+        """Проверка инициализации."""
+        return self._initialized
+
     @property
     def sessions_count(self) -> int:
         """Количество проиндексированных сессий."""
