@@ -177,28 +177,30 @@ class LogIndexer:
     
     async def _save_indexes(self) -> None:
         """Сохранение индексов."""
-        async with self._lock:
-            # Сохранение sessions_index.jsonl
-            sessions_path = self.config.get_sessions_index_path()
-            
-            def write_sessions():
-                with open(sessions_path, 'w', encoding='utf-8') as f:
-                    for entry in self._sessions_index.values():
-                        f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
-            
-            await asyncio.to_thread(write_sessions)
+        # Блокировка не нужна — вызывается только из методов которые уже захватили _lock
+        # или из фонового цикла который не конкурирует за доступ
+        
+        # Сохранение sessions_index.jsonl
+        sessions_path = self.config.get_sessions_index_path()
+        
+        def write_sessions():
+            with open(sessions_path, 'w', encoding='utf-8') as f:
+                for entry in self._sessions_index.values():
+                    f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
+        
+        await asyncio.to_thread(write_sessions)
 
-            # Сохранение agents_index.jsonl
-            agents_path = self.config.get_agents_index_path()
-            
-            def write_agents():
-                with open(agents_path, 'w', encoding='utf-8') as f:
-                    for entry in self._agents_index.values():
-                        f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
-            
-            await asyncio.to_thread(write_agents)
+        # Сохранение agents_index.jsonl
+        agents_path = self.config.get_agents_index_path()
+        
+        def write_agents():
+            with open(agents_path, 'w', encoding='utf-8') as f:
+                for entry in self._agents_index.values():
+                    f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
+        
+        await asyncio.to_thread(write_agents)
 
-            logger.debug(f"Сохранено индексов: {len(self._sessions_index)} сессий, {len(self._agents_index)} агентов")
+        logger.debug(f"Сохранено индексов: {len(self._sessions_index)} сессий, {len(self._agents_index)} агентов")
     
     async def _scan_archive(self) -> None:
         """Сканирование архива логов для обновления индексов."""
