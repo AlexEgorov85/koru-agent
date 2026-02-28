@@ -60,6 +60,10 @@ logging:
 
     # LLM события → только в файл (DEBUG)
     core.infrastructure.event_bus.llm_event_subscriber: DEBUG
+    
+    # LLM провайдеры → INFO в файл (промпты и ответы)
+    llm.LlamaCppProvider: INFO
+    llm.MockProvider: INFO
 
   # Индексация логов (для поиска сессий)
   indexing:
