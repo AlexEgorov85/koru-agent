@@ -174,18 +174,36 @@ class BaseLLMProvider(BaseProvider, ABC):
             raise
 
     @abstractmethod
-    async def generate_structured(
-        self, 
+    async def _generate_structured_impl(
+        self,
         request: LLMRequest
     ) -> StructuredLLMResponse:
         """
-        Генерация структурированных данных по JSON Schema с гарантией валидности.
+        Реализация генерации структурированных данных в подклассе.
         
-        АРХИТЕКТУРНЫЕ ПРИНЦИПЫ:
-        1. Retry логика при ошибках парсинга JSON
-        2. Валидация против JSON Schema
-        3. Возврат Pydantic модели вместо dict
-        4. Логирование попыток парсинга
+        ПАРАМЕТРЫ:
+        - request (LLMRequest): Запрос с configuration структурированного вывода
+        
+        ВОЗВРАЩАЕТ:
+        - StructuredLLMResponse: Типизированный ответ с валидной моделью
+        
+        RAISES:
+        - StructuredOutputError: Если не удалось получить валидный ответ
+        - ValueError: Если request.structured_output не указан
+        """
+        pass
+
+    async def generate_structured(
+        self,
+        request: LLMRequest
+    ) -> StructuredLLMResponse:
+        """
+        Генерация структурированных данных по JSON Schema с логированием.
+
+        ЛОГИРОВАНИЕ:
+        - Начало вызова: промт, параметры, схема
+        - Завершение: ответ, время генерации, количество попыток
+        - Ошибки: тип и сообщение
 
         ПАРАМЕТРЫ:
         - request (LLMRequest): Запрос с configuration структурированного вывода
@@ -205,23 +223,40 @@ class BaseLLMProvider(BaseProvider, ABC):
         RAISES:
         - StructuredOutputError: Если не удалось получить валидный ответ после всех попыток
         - ValueError: Если request.structured_output не указан
-
-        ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-        ```python
-        request = LLMRequest(
-            prompt="Сгенерируй план",
-            structured_output=StructuredOutputConfig(
-                output_model="PlanOutput",
-                schema_def=schema,
-                max_retries=3
-            )
-        )
-        response = await provider.generate_structured(request)
-        print(response.parsed_content)  # Pydantic модель
-        print(response.parsing_attempts)  # 1 если успех с первой попытки
-        ```
         """
-        pass
+        start_time = time.time()
+        
+        # Логирование начала вызова
+        self._llm_logger.info(
+            f"📝 LLM структурированный вызов | Модель: {self.model_name} | "
+            f"Промт: {len(request.prompt)} симв. | "
+            f"Schema: {request.structured_output.output_model if request.structured_output else 'unknown'} | "
+            f"Max retries: {request.structured_output.max_retries if request.structured_output else 3}"
+        )
+        
+        try:
+            # Вызов реализации
+            response = await self._generate_structured_impl(request)
+            
+            # Логирование завершения
+            elapsed = time.time() - start_time
+            self._llm_logger.info(
+                f"✅ LLM структурированный ответ | Модель: {self.model_name} | "
+                f"Время: {elapsed:.2f}с | "
+                f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1}"
+            )
+            
+            return response
+            
+        except Exception as e:
+            # Логирование ошибки
+            elapsed = time.time() - start_time
+            self._llm_logger.error(
+                f"❌ LLM структурированная ошибка | Модель: {self.model_name} | "
+                f"{type(e).__name__}: {str(e)[:200]} | "
+                f"Время: {elapsed:.2f}с"
+            )
+            raise
 
     async def generate_for_capability(self, system_prompt: str, user_input: str, capabilities) -> tuple:
         """

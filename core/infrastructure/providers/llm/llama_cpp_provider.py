@@ -506,13 +506,15 @@ class LlamaCppProvider(BaseLLMProvider):
                 metadata={"error": str(e)}
             )
 
-    async def generate_structured(
-        self, 
+    async def _generate_structured_impl(
+        self,
         request: LLMRequest
     ) -> StructuredLLMResponse:
         """
         Генерация с гарантированным структурным выводом.
         
+        Логирование выполняется в базовом классе BaseLLMProvider.
+
         АЛГОРИТМ:
         1. Проверяем наличие structured_output в запросе
         2. Добавляем схему в промпт

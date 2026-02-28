@@ -239,19 +239,21 @@ class MockLLMProvider(BaseLLMProvider):
         self.initialized = False
         self.is_initialized = False
 
-    async def generate_structured(
-        self, 
+    async def _generate_structured_impl(
+        self,
         request: LLMRequest
     ) -> StructuredLLMResponse:
         """
         Генерация структурированных данных для тестирования.
         
+        Логирование выполняется в базовом классе BaseLLMProvider.
+
         Поддерживает:
         - Регистрацию ответов для конкретных схем
         - Автоматическую валидацию
         - Историю вызовов
         - Retry логику при ошибках
-        
+
         ARGS:
         - request: Запрос с configuration структурированного вывода
         
