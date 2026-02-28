@@ -2,7 +2,7 @@
 Фабрика для создания LLM провайдеров.
 """
 from typing import Dict, Type
-from core.infrastructure.providers.llm.base import BaseLLMProvider
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.llm.mock_provider import MockProvider
 
