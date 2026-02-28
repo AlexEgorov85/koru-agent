@@ -13,6 +13,7 @@ EventBusLogHandler - универсальный обработчик событ�
 - Форматирует и выводит сообщения в терминал
 - Дополнительно публикует в LogManager для сохранения в файлы
 """
+import asyncio
 import logging
 import sys
 from datetime import datetime
@@ -369,7 +370,7 @@ class EventBusLogHandler:
     def unsubscribe(self, event_bus):
         """
         Отписаться от событий логирования.
-        
+
         ARGS:
             event_bus: экземпляр EventBus
         """
@@ -377,6 +378,28 @@ class EventBusLogHandler:
         event_bus.unsubscribe(EventType.LOG_DEBUG, self.handle_log_event)
         event_bus.unsubscribe(EventType.LOG_WARNING, self.handle_log_event)
         event_bus.unsubscribe(EventType.LOG_ERROR, self.handle_log_event)
+
+    async def info(self, message: str, **extra_data):
+        """Опубликовать INFO сообщение в EventBus."""
+        await log_info(self.event_bus, message, source="main", **extra_data)
+
+    async def debug(self, message: str, **extra_data):
+        """Опубликовать DEBUG сообщение в EventBus."""
+        await log_debug(self.event_bus, message, source="main", **extra_data)
+
+    async def warning(self, message: str, **extra_data):
+        """Опубликовать WARNING сообщение в EventBus."""
+        await log_warning(self.event_bus, message, source="main", **extra_data)
+
+    async def error(self, message: str, **extra_data):
+        """Опубликовать ERROR сообщение в EventBus."""
+        await log_error(self.event_bus, message, source="main", **extra_data)
+
+    @property
+    def event_bus(self):
+        """Получить шину событий."""
+        from core.infrastructure.event_bus.event_bus import get_event_bus
+        return get_event_bus()
 
 
 def setup_event_bus_logging(
@@ -498,6 +521,9 @@ class EventBusLogger:
             async def do_something(self):
                 await self.logger.info("Запуск")
                 await self.logger.debug("Детали", extra={"key": "value"})
+    
+    ТАКЖЕ ПОДДЕРЖИВАЕТСЯ СИНХРОННЫЙ ВЫЗОВ (для main.py):
+        log_handler.info("Сообщение")  # Автоматически публикует в EventBus
     """
     
     def __init__(self, event_bus, source: str = "", correlation_id: str = ""):
@@ -516,3 +542,24 @@ class EventBusLogger:
     
     async def error(self, message: str, **extra_data):
         await log_error(self.event_bus, message, source=self.source, correlation_id=self.correlation_id, **extra_data)
+    
+    # Синхронные версии (для использования в main.py до полной асинхронности)
+    def info_sync(self, message: str, **extra_data):
+        """Синхронная версия info (публикует в EventBus без await)."""
+        data = {"message": message, "level": "INFO", **extra_data}
+        asyncio.create_task(self.event_bus.publish(EventType.LOG_INFO, data=data, source=self.source, correlation_id=self.correlation_id))
+    
+    def debug_sync(self, message: str, **extra_data):
+        """Синхронная версия debug."""
+        data = {"message": message, "level": "DEBUG", **extra_data}
+        asyncio.create_task(self.event_bus.publish(EventType.LOG_DEBUG, data=data, source=self.source, correlation_id=self.correlation_id))
+    
+    def warning_sync(self, message: str, **extra_data):
+        """Синхронная версия warning."""
+        data = {"message": message, "level": "WARNING", **extra_data}
+        asyncio.create_task(self.event_bus.publish(EventType.LOG_WARNING, data=data, source=self.source, correlation_id=self.correlation_id))
+    
+    def error_sync(self, message: str, **extra_data):
+        """Синхронная версия error."""
+        data = {"message": message, "level": "ERROR", **extra_data}
+        asyncio.create_task(self.event_bus.publish(EventType.LOG_ERROR, data=data, source=self.source, correlation_id=self.correlation_id))

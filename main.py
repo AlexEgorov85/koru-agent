@@ -121,6 +121,14 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
 
+    # ПОДПИСКА НА СОБЫТИЯ ЛОГИРОВАНИЯ (как можно раньше!)
+    from core.infrastructure.logging.event_bus_log_handler import setup_event_bus_logging
+    log_handler = setup_event_bus_logging(
+        infrastructure_context.event_bus,
+        use_colors=True,
+        show_debug=False
+    )
+
     # Получаем session_id и создаём логгер сессии
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
@@ -128,11 +136,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     try:
         # Начало сессии
         await session_logger.start(goal=goal)
-        logger.info(f"Сессия начата: {session_id}")
+        await log_handler.info(f"Сессия начата: {session_id}")
 
         # Создание прикладного контекста
         app_config = AppConfig.from_registry(profile="prod")
-        logger.debug(f"app_config loaded: service_configs={list(getattr(app_config, 'service_configs', {}).keys())}")
+        await log_handler.debug(f"app_config loaded: service_configs={list(getattr(app_config, 'service_configs', {}).keys())}")
 
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
@@ -141,31 +149,25 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         )
 
         await application_context.initialize()
-        logger.info("✅ ApplicationContext инициализирован")
+        await log_handler.info("✅ ApplicationContext инициализирован")
 
         # DEBUG: Проверка что компоненты загрузились
         from core.models.enums.common_enums import ComponentType
         skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
-        logger.info(f"✅ Загружено навыков: {skill_count}")
+        await log_handler.info(f"✅ Загружено навыков: {skill_count}")
 
         # Подписка на события LLM для логирования через SessionLogger
         from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
         llm_subscriber = LLMEventSubscriber(log_full_content=True)
         llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
-        logger.info("✅ LLMEventSubscriber активирован")
+        await log_handler.info("✅ LLMEventSubscriber активирован")
 
-        # Подписка на события логирования для структурированного вывода в терминал
-        from core.infrastructure.logging.event_bus_log_handler import setup_event_bus_logging
-        log_handler = setup_event_bus_logging(
-            application_context.infrastructure_context.event_bus,
-            use_colors=True,
-            show_debug=False
-        )
-        logger.info("✅ EventBusLogHandler активирован")
+        # EventBusLogHandler уже активирован выше
+        await log_handler.info("✅ EventBusLogHandler активирован")
 
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
-        logger.info("✅ AgentFactory создан")
+        await log_handler.info("✅ AgentFactory создан")
 
         # Подготовка конфигурации агента
         agent_config_kwargs = {}
@@ -175,16 +177,16 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             agent_config_kwargs['temperature'] = temperature
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
-        logger.info("✅ AgentConfig создан")
+        await log_handler.info("✅ AgentConfig создан")
 
         # Создание и запуск агента
-        logger.info("🔄 Создание агента...")
+        await log_handler.info("🔄 Создание агента...")
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
-        logger.info(f"✅ Агент создан: {type(agent).__name__}")
+        await log_handler.info(f"✅ Агент создан: {type(agent).__name__}")
 
-        logger.info("🚀 Запуск агента...")
+        await log_handler.info("🚀 Запуск агента...")
         result = await agent.run(goal)
-        logger.info(f"✅ Агент завершил работу: {result}")
+        await log_handler.info(f"✅ Агент завершил работу: {result}")
 
         # Проверка на ошибку
         if hasattr(result, 'metadata') and result.metadata and 'error' in result.metadata:
