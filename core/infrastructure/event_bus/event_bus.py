@@ -230,13 +230,20 @@ class EventBus:
                 tasks.append(task)
             except Exception as e:
                 self._internal_logger.error(f"Ошибка при создании задачи для обработчика: {e}")
-        
+
         # Ожидание выполнения всех задач
         if tasks:
             try:
-                await asyncio.gather(*tasks, return_exceptions=True)
+                # Запускаем все задачи асинхронно, но НЕ ждём их завершения
+                # Это предотвращает блокировку при зависании одного из обработчиков
+                for task in tasks:
+                    # Добавляем обработчик ошибок для каждой задачи
+                    task.add_done_callback(
+                        lambda t: self._internal_logger.error(f"Ошибка в обработчике: {t.exception()}")
+                        if t.exception() else None
+                    )
             except Exception as e:
-                self._internal_logger.error(f"Ошибка при выполнении обработчиков события: {e}")
+                self._internal_logger.error(f"Ошибка при запуске обработчиков события: {e}")
     
     async def _wrap_sync_handler(self, handler: Callable, event: Event):
         """
