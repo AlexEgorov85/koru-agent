@@ -62,7 +62,13 @@ class LLMEventSubscriber:
 
         # Пишем в лог сессии
         session_logger = get_session_logger(session_id)
-        await session_logger.log_llm_prompt(component, phase, data)
+        await session_logger.log_llm_prompt(
+            component=component,
+            phase=phase,
+            system_prompt=data.get('system_prompt', ''),
+            user_prompt=data.get('user_prompt', ''),
+            **data
+        )
 
         # Краткое уведомление в лог (DEBUG → только файл)
         logger.debug(f"LLM Prompt #{self._prompt_count} | {component}/{phase} | Session: {session_id}")

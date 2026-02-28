@@ -108,6 +108,11 @@ class LlamaCppProvider(BaseLLMProvider):
 
         self.llm = None
         self._executor = None  # ThreadPoolExecutor для LLM вызовов
+        
+        # Логгер для LLM вызовов
+        self.logger = logging.getLogger(f"llm.{self.__class__.__name__}")
+        self.logger.setLevel(logging.INFO)
+        
         logger.info(f"Инициализация Llama.cpp провайдера для модели: {model_name}")
 
         # Контекст вызова для логирования
