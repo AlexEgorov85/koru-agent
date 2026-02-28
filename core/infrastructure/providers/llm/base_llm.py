@@ -43,9 +43,21 @@ class BaseLLMProvider(BaseProvider, ABC):
         self.model_name = model_name
         self.health_status = LLMHealthStatus.UNKNOWN
         self.last_health_check = None
-        
+
         # Логгер для LLM вызовов (отдельный от общего логгера класса)
         self._llm_logger = logging.getLogger(f"llm.{self.__class__.__name__}")
+        
+        # Принудительно устанавливаем уровень INFO чтобы логи писались в файл
+        self._llm_logger.setLevel(logging.INFO)
+        
+        # Добавляем handler для записи в agent.log если ещё не добавлен
+        if not self._llm_logger.handlers:
+            # Получаем root logger handlers (файловый handler)
+            root_logger = logging.getLogger()
+            for handler in root_logger.handlers:
+                if isinstance(handler, logging.FileHandler):
+                    self._llm_logger.addHandler(handler)
+                    break
 
     async def _log_llm_call_start(self, request: LLMRequest) -> None:
         """
