@@ -50,9 +50,10 @@ class ComponentFactory:
 
         self.logger.info(f"Параметры конструктора {component_class.__name__}: {list(params.keys())}")
 
-        # Специальная обработка для FallbackPattern (использует component_name вместо name)
-        if component_class.__name__ == "FallbackPattern":
-            self.logger.info(f"Создание FallbackPattern с component_name={name}")
+        # Специальная обработка для behavior patterns (используют component_name вместо name)
+        from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+        if issubclass(component_class, BaseBehaviorPattern):
+            self.logger.info(f"Создание behavior pattern {component_class.__name__} с component_name={name}")
             component = component_class(
                 component_name=name,
                 component_config=component_config,
