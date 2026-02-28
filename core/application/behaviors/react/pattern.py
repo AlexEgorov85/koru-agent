@@ -895,6 +895,13 @@ class ReActPattern(BaseBehaviorPattern):
 
             # Добавляем available_capabilities в результат для последующего использования
             reasoning_result['available_capabilities'] = available_capabilities
+            
+            # Логирование результата для отладки
+            logger.error(f"=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
+            logger.error(f"decision: {reasoning_result.get('decision', {})}")
+            logger.error(f"next_action: {reasoning_result.get('decision', {}).get('next_action', 'NOT FOUND')}")
+            logger.error(f"parameters: {reasoning_result.get('decision', {}).get('parameters', {})}")
+            logger.error(f"===========================")
 
             self.last_reasoning_time = time.time() - start_time
             logger.debug(f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
