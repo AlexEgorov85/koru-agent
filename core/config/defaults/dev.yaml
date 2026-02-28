@@ -15,7 +15,7 @@ llm_providers:
     model_name: qwen-4b
     enabled: true
     fallback_providers: []
-    timeout_seconds: 120.0
+    timeout_seconds: 1200.0
     parameters:
       model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
       n_ctx: 20048
@@ -45,7 +45,7 @@ db_providers:
 agent:
   max_steps: 10
   max_retries: 3
-  llm_timeout_seconds: 120.0
+  llm_timeout_seconds: 1200.0
   temperature: 0.2
   default_strategy: "react"
   enable_self_reflection: true
