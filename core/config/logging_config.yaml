@@ -48,19 +48,19 @@ logging:
   # Настройки для конкретных модулей (опционально)
   module_levels:
     # Снижение шума от слишком болтливых модулей → только CRITICAL в консоль (остальное в файл)
-    core.application.context.application_context: CRITICAL
-    core.application.components.component_factory: CRITICAL
+    core.application.context.application_context: INFO  # INFO для логирования создания компонентов
+    core.application.components.component_factory: INFO  # INFO для логирования создания компонентов
     core.components.base_component: CRITICAL
-    core.application.services: CRITICAL
+    core.application.services: INFO  # INFO для логирования инициализации сервисов
     core.application.skills: CRITICAL
     core.application.tools: CRITICAL
-    core.application.behaviors: CRITICAL
+    core.application.behaviors: INFO  # INFO для логирования вызовов behavior
     core.infrastructure.context: CRITICAL
-    core.application.agent.runtime: CRITICAL
+    core.application.agent.runtime: INFO  # INFO для логирования запуска агента
 
     # LLM события → только в файл (DEBUG)
     core.infrastructure.event_bus.llm_event_subscriber: DEBUG
-    
+
     # LLM провайдеры → INFO в файл (промпты и ответы)
     llm.LlamaCppProvider: INFO
     llm.MockProvider: INFO
