@@ -572,11 +572,11 @@ class LlamaCppProvider(BaseLLMProvider):
         for attempt in range(1, config.max_retries + 1):
             try:
                 self.logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
-                
+
                 # 3. Генерация
-                raw_response = await self.execute(structured_request)
+                raw_response = await self._generate_impl(structured_request)
                 last_raw_response = raw_response
-                
+
                 self.logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
                 
                 # 4. Извлечение JSON из ответа

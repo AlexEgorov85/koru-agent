@@ -66,8 +66,7 @@ class LLMEventSubscriber:
             component=component,
             phase=phase,
             system_prompt=data.get('system_prompt', ''),
-            user_prompt=data.get('user_prompt', ''),
-            **data
+            user_prompt=data.get('user_prompt', '')
         )
 
         # Краткое уведомление в лог (DEBUG → только файл)
