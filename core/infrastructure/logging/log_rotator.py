@@ -96,17 +96,32 @@ class LogRotator:
             try:
                 await asyncio.sleep(3600)  # 1 час
                 
-                # Проверка размера логов
-                await self._check_log_sizes()
-                
+                # Проверяем флаг остановки после сна
+                if self._stop_event.is_set():
+                    break
+
+                # Проверка размера логов с таймаутом
+                try:
+                    await asyncio.wait_for(self._check_log_sizes(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Таймаут при проверке размера логов")
+                except Exception as e:
+                    logger.error(f"Ошибка проверки размера логов: {e}")
+
                 # Очистка старых логов (раз в сутки)
                 if datetime.now().hour == 3:  # В 3 часа ночи
-                    await self.cleanup_old_logs()
-                    
+                    try:
+                        await asyncio.wait_for(self.cleanup_old_logs(), timeout=60.0)
+                    except asyncio.TimeoutError:
+                        logger.warning("Таймаут при очистке старых логов")
+                    except Exception as e:
+                        logger.error(f"Ошибка очистки старых логов: {e}")
+
             except asyncio.CancelledError:
+                logger.debug("Фоновая очистка отменена")
                 break
             except Exception as e:
-                logger.error(f"Ошибка фоновой очистки: {e}")
+                logger.error(f"Ошибка фоновой очистки: {e}", exc_info=True)
     
     async def _check_log_sizes(self) -> None:
         """Проверка размера логов и ротация при необходимости."""
@@ -435,16 +450,21 @@ class LogRotator:
     async def shutdown(self) -> None:
         """Завершение работы ротатора."""
         logger.info("Завершение работы LogRotator...")
-        
+
         # Остановка фоновой очистки
         self._stop_event.set()
         if self._background_task:
             self._background_task.cancel()
             try:
-                await self._background_task
+                # Ждем завершения задачи с таймаутом
+                await asyncio.wait_for(self._background_task, timeout=5.0)
             except asyncio.CancelledError:
-                pass
-        
+                logger.debug("Фоновая задача отменена")
+            except asyncio.TimeoutError:
+                logger.warning("Таймаут при ожидании завершения фоновой задачи")
+            except Exception as e:
+                logger.debug(f"Ошибка при завершении фоновой задачи: {e}")
+
         self._initialized = False
         logger.info("LogRotator завершил работу")
     

@@ -180,51 +180,81 @@ class LogIndexer:
         async with self._lock:
             # Сохранение sessions_index.jsonl
             sessions_path = self.config.get_sessions_index_path()
-            with open(sessions_path, 'w', encoding='utf-8') as f:
-                for entry in self._sessions_index.values():
-                    f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
             
+            def write_sessions():
+                with open(sessions_path, 'w', encoding='utf-8') as f:
+                    for entry in self._sessions_index.values():
+                        f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
+            
+            await asyncio.to_thread(write_sessions)
+
             # Сохранение agents_index.jsonl
             agents_path = self.config.get_agents_index_path()
-            with open(agents_path, 'w', encoding='utf-8') as f:
-                for entry in self._agents_index.values():
-                    f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
             
+            def write_agents():
+                with open(agents_path, 'w', encoding='utf-8') as f:
+                    for entry in self._agents_index.values():
+                        f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + '\n')
+            
+            await asyncio.to_thread(write_agents)
+
             logger.debug(f"Сохранено индексов: {len(self._sessions_index)} сессий, {len(self._agents_index)} агентов")
     
     async def _scan_archive(self) -> None:
         """Сканирование архива логов для обновления индексов."""
         if not self.config.archive_dir.exists():
             return
-        
+
         # Поиск всех файлов сессий
         sessions_pattern = re.compile(r'(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_session_([a-f0-9-]+)\.log')
-        
-        for year_dir in self.config.archive_dir.iterdir():
+
+        try:
+            # Используем asyncio.to_thread для неблокирующего чтения директорий
+            archive_contents = await asyncio.to_thread(list, self.config.archive_dir.iterdir())
+        except Exception as e:
+            logger.debug(f"Ошибка чтения архива: {e}")
+            return
+
+        for year_dir in archive_contents:
             if not year_dir.is_dir() or not year_dir.name.isdigit():
                 continue
-            
-            for month_dir in year_dir.iterdir():
+
+            try:
+                month_dirs = await asyncio.to_thread(list, year_dir.iterdir())
+            except Exception:
+                continue
+
+            for month_dir in month_dirs:
                 if not month_dir.is_dir() or not month_dir.name.isdigit():
                     continue
-                
+
                 sessions_dir = month_dir / "sessions"
                 if not sessions_dir.exists():
                     continue
-                
-                for log_file in sessions_dir.glob("*.log"):
+
+                try:
+                    log_files = await asyncio.to_thread(list, sessions_dir.glob("*.log"))
+                except Exception:
+                    continue
+
+                for log_file in log_files:
+                    # Проверяем флаг остановки в цикле
+                    if self._stop_event.is_set():
+                        logger.debug("Сканирование архива прервано")
+                        return
+
                     match = sessions_pattern.match(log_file.name)
                     if match:
                         timestamp_str = match.group(1)
                         session_id = match.group(2)
-                        
+
                         # Если сессия уже в индексе, пропускаем
                         if session_id in self._sessions_index:
                             continue
-                        
+
                         # Извлечение метаданных из файла
                         metadata = await self._extract_metadata(log_file)
-                        
+
                         # Создание записи индекса
                         entry = SessionIndexEntry(
                             session_id=session_id,
@@ -236,62 +266,67 @@ class LogIndexer:
                             steps=metadata.get('steps'),
                             total_time_ms=metadata.get('total_time_ms'),
                         )
-                        
+
                         self._sessions_index[session_id] = entry
-                        
+
                         # Обновление индекса агента
                         if entry.agent_id:
                             await self._update_agent_index(entry.agent_id, session_id, entry.timestamp)
-        
+
         logger.debug(f"Отсканировано архивов: {len(self._sessions_index)} сессий найдено")
     
     async def _extract_metadata(self, log_file: Path) -> Dict[str, Any]:
         """
         Извлечение метаданных из файла сессии.
-        
+
         ARGS:
             log_file: Путь к файлу сессии
-            
+
         RETURNS:
             Dict с метаданными (agent_id, goal, status, etc.)
         """
         metadata = {}
-        
+
         try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                
-                for line in lines[:100]:  # Читаем первые 100 строк
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    try:
-                        data = json.loads(line)
-                        
-                        if data.get('type') == 'session_started':
-                            metadata['agent_id'] = data.get('agent_id')
-                            metadata['goal'] = data.get('goal')
-                            metadata['status'] = 'started'
-                        
-                        elif data.get('type') == 'session_completed':
-                            metadata['status'] = 'completed'
-                            metadata['steps'] = data.get('steps')
-                            metadata['total_time_ms'] = data.get('total_time_ms')
-                        
-                        elif data.get('type') == 'session_failed':
-                            metadata['status'] = 'failed'
-                        
-                        # Если нашли и start и complete, прекращаем
-                        if metadata.get('agent_id') and metadata.get('status') in ('completed', 'failed'):
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
-                        
+            # Асинхронное чтение файла через to_thread
+            def read_file_lines():
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    return f.readlines()
+
+            lines = await asyncio.to_thread(read_file_lines)
+
+            # Читаем первые 100 строк
+            for line in lines[:100]:
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    data = json.loads(line)
+
+                    if data.get('type') == 'session_started':
+                        metadata['agent_id'] = data.get('agent_id')
+                        metadata['goal'] = data.get('goal')
+                        metadata['status'] = 'started'
+
+                    elif data.get('type') == 'session_completed':
+                        metadata['status'] = 'completed'
+                        metadata['steps'] = data.get('steps')
+                        metadata['total_time_ms'] = data.get('total_time_ms')
+
+                    elif data.get('type') == 'session_failed':
+                        metadata['status'] = 'failed'
+
+                    # Если нашли и start и complete, прекращаем
+                    if metadata.get('agent_id') and metadata.get('status') in ('completed', 'failed'):
+                        break
+
+                except json.JSONDecodeError:
+                    continue
+
         except Exception as e:
             logger.debug(f"Ошибка извлечения метаданных из {log_file}: {e}")
-        
+
         return metadata
     
     async def _update_agent_index(self, agent_id: str, session_id: str, timestamp: str) -> None:
@@ -335,12 +370,36 @@ class LogIndexer:
         while not self._stop_event.is_set():
             try:
                 await asyncio.sleep(self.config.indexing.update_interval_sec)
-                await self._scan_archive()
-                await self._save_indexes()
+                
+                # Проверяем флаг остановки после сна
+                if self._stop_event.is_set():
+                    break
+                
+                # Выполняем сканирование с таймаутом
+                try:
+                    await asyncio.wait_for(self._scan_archive(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Таймаут при сканировании архива (>30с)")
+                except Exception as e:
+                    logger.error(f"Ошибка при сканировании архива: {e}")
+                
+                # Проверяем флаг остановки перед сохранением
+                if self._stop_event.is_set():
+                    break
+                
+                # Сохраняем индексы с таймаутом
+                try:
+                    await asyncio.wait_for(self._save_indexes(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Таймаут при сохранении индексов (>10с)")
+                except Exception as e:
+                    logger.error(f"Ошибка при сохранении индексов: {e}")
+                    
             except asyncio.CancelledError:
+                logger.debug("Фоновое обновление индекса отменено")
                 break
             except Exception as e:
-                logger.error(f"Ошибка фонового обновления индекса: {e}")
+                logger.error(f"Ошибка фонового обновления индекса: {e}", exc_info=True)
     
     async def add_session(self, session_id: str, agent_id: Optional[str] = None, 
                           goal: Optional[str] = None) -> None:
@@ -551,19 +610,29 @@ class LogIndexer:
     async def shutdown(self) -> None:
         """Завершение работы индексатора."""
         logger.info("Завершение работы LogIndexer...")
-        
+
         # Остановка фонового обновления
         self._stop_event.set()
         if self._background_task:
             self._background_task.cancel()
             try:
-                await self._background_task
+                # Ждем завершения задачи с таймаутом
+                await asyncio.wait_for(self._background_task, timeout=5.0)
             except asyncio.CancelledError:
-                pass
-        
+                logger.debug("Фоновая задача отменена")
+            except asyncio.TimeoutError:
+                logger.warning("Таймаут при ожидании завершения фоновой задачи")
+            except Exception as e:
+                logger.debug(f"Ошибка при завершении фоновой задачи: {e}")
+
         # Сохранение индексов
-        await self._save_indexes()
-        
+        try:
+            await asyncio.wait_for(self._save_indexes(), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Таймаут при сохранении индексов")
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении индексов: {e}")
+
         self._initialized = False
         logger.info("LogIndexer завершил работу")
 

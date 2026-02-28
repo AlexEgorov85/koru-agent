@@ -57,6 +57,21 @@ logging:
     core.application.behaviors: CRITICAL
     core.infrastructure.context: CRITICAL
     core.application.agent.runtime: CRITICAL
-    
+
     # LLM события → только в файл (DEBUG)
     core.infrastructure.event_bus.llm_event_subscriber: DEBUG
+
+  # Индексация логов (для поиска сессий)
+  indexing:
+    enabled: true           # Отключите для ускорения разработки
+    update_interval_sec: 900  # 15 минут
+
+  # Хранение логов
+  retention:
+    active_days: 7
+    archive_months: 3       # 3 месяца вместо 12 для разработки
+    max_size_mb: 100
+
+  # Symlinks
+  symlinks:
+    enabled: true
