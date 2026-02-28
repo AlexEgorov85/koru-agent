@@ -29,6 +29,70 @@ class EvaluationPattern(BaseBehaviorPattern):
         """
         super().__init__(component_name, component_config, application_context, executor)
 
+    async def _publish_llm_response_received(
+        self,
+        session_context,
+        response,
+        error_message: str = None,
+        error_type: str = None
+    ) -> None:
+        """
+        Публикует событие llm.response.received независимо от результата.
+        """
+        if not (self.application_context and hasattr(self.application_context, 'infrastructure_context')):
+            self.logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
+            return
+
+        from core.infrastructure.event_bus.event_bus import EventType
+
+        # Получаем agent_id из session_context или application_context
+        agent_id = getattr(session_context, 'agent_id', 'unknown')
+        if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
+            agent_id = self.application_context.id
+
+        # Обработка ответа для логирования
+        if response is not None:
+            if isinstance(response, dict) and 'raw_response' in response:
+                result = response['raw_response']
+                response_format = "dict.raw_response"
+            elif hasattr(response, 'content'):
+                result = response.content
+                response_format = "object.content"
+            else:
+                result = response
+                response_format = type(response).__name__
+        else:
+            result = None
+            response_format = "none"
+
+        # Формируем данные события
+        event_data = {
+            "agent_id": agent_id,
+            "component": "evaluation_pattern",
+            "phase": "assess",
+            "response_format": response_format,
+            "response": result,
+            "session_id": getattr(session_context, 'session_id', 'unknown'),
+            "goal": session_context.get_goal() if session_context else 'unknown'
+        }
+
+        # Добавляем информацию об ошибке если есть
+        if error_message:
+            event_data["error"] = error_message
+        if error_type:
+            event_data["error_type"] = error_type
+
+        try:
+            await self.application_context.infrastructure_context.event_bus.publish(
+                event=EventType.LLM_RESPONSE_RECEIVED,
+                data=event_data,
+                source="evaluation_pattern.assess",
+                correlation_id=getattr(session_context, 'session_id', '')
+            )
+            self.logger.debug("Событие LLM_RESPONSE_RECEIVED опубликовано")
+        except Exception as e:
+            self.logger.error(f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
+
     async def analyze_context(
         self,
         session_context: SessionContext,
@@ -106,21 +170,47 @@ class EvaluationPattern(BaseBehaviorPattern):
             
             response = await llm_provider.generate_structured_request(llm_request)
 
+            # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
+            await self._publish_llm_response_received(
+                session_context=session_context,
+                response=response,
+                error_message=None,
+                error_type=None
+            )
+
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
             llm_response = response
             if isinstance(response, dict) and 'raw_response' in response:
                 llm_response = response['raw_response']
-            
+
             if getattr(llm_response, 'finish_reason', None) == 'error':
                 error_msg = "Неизвестная ошибка LLM"
                 if hasattr(llm_response, 'metadata') and llm_response.metadata:
                     error_msg = llm_response.metadata.get('error', error_msg)
                 self.logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
+                
+                # Публикуем событие об ошибке
+                await self._publish_llm_response_received(
+                    session_context=session_context,
+                    response=response,
+                    error_message=error_msg,
+                    error_type="finish_reason_error"
+                )
+                
                 raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
 
             if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
                 error_msg = llm_response.metadata['error']
                 self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                
+                # Публикуем событие об ошибке
+                await self._publish_llm_response_received(
+                    session_context=session_context,
+                    response=response,
+                    error_message=error_msg,
+                    error_type="metadata_error"
+                )
+                
                 raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
 
             # Обработка результата
@@ -160,7 +250,17 @@ class EvaluationPattern(BaseBehaviorPattern):
                 )
 
         except Exception as e:
-            self.logger.error(f"Ошибка при оценке цели: {e}", exc_info=True)
+            error_msg = f"Ошибка при оценке цели: {e}"
+            self.logger.error(error_msg, exc_info=True)
+            
+            # Публикуем событие об ошибке
+            await self._publish_llm_response_received(
+                session_context=session_context,
+                response=None,
+                error_message=error_msg,
+                error_type="evaluation_error"
+            )
+            
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="fallback.v1.0.0",
