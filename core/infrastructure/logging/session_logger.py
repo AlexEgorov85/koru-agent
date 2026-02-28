@@ -100,7 +100,9 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            logger.warning("Сессия не активна")
+            # Сессия не активна — это нормально если логирование происходит
+            # вне контекста сессии (например, при инициализации)
+            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
             return
 
         timestamp = datetime.now()
@@ -139,7 +141,9 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            logger.warning("Сессия не активна")
+            # Сессия не активна — это нормально если логирование происходит
+            # вне контекста сессии (например, при инициализации)
+            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
             return
 
         timestamp = datetime.now()
@@ -176,7 +180,9 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            logger.warning("Сессия не активна")
+            # Сессия не активна — это нормально если логирование происходит
+            # вне контекста сессии (например, при инициализации)
+            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
             return
 
         self._steps += 1
@@ -208,7 +214,9 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            logger.warning("Сессия не активна")
+            # Сессия не активна — это нормально если логирование происходит
+            # вне контекста сессии (например, при инициализации)
+            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
             return
 
         event_data = {
@@ -235,7 +243,9 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            logger.warning("Сессия не активна")
+            # Сессия не активна — это нормально если логирование происходит
+            # вне контекста сессии (например, при инициализации)
+            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
             return
 
         self._active = False
