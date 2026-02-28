@@ -617,6 +617,7 @@ class ReActPattern(BaseBehaviorPattern):
             logger.error(f"_perform_structured_reasoning: LLMRequest создан, prompt_length={len(reasoning_prompt)}")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
+            logger.error("_perform_structured_reasoning: ПЕРЕД ПУБЛИКАЦИЕЙ СОБЫТИЯ LLM_PROMPT_GENERATED")
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
 
@@ -624,8 +625,10 @@ class ReActPattern(BaseBehaviorPattern):
                 agent_id = getattr(session_context, 'agent_id', 'unknown')
                 if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
                     agent_id = self.application_context.id
+                
+                logger.error(f"_perform_structured_reasoning: agent_id={agent_id}, session_id={getattr(session_context, 'session_id', 'unknown')}")
+                logger.error("_perform_structured_reasoning: ВЫЗОВ event_bus.publish()...")
 
-                logger.debug("Публикация события LLM_PROMPT_GENERATED...")
                 await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_PROMPT_GENERATED,
                     data={
@@ -643,7 +646,10 @@ class ReActPattern(BaseBehaviorPattern):
                     source="react_pattern.think",
                     correlation_id=getattr(session_context, 'session_id', '')
                 )
+                logger.error("_perform_structured_reasoning: event_bus.publish() ЗАВЕРШЁН")
                 logger.debug("Событие LLM_PROMPT_GENERATED опубликовано")
+            else:
+                logger.error("_perform_structured_reasoning: application_context или infrastructure_context отсутствует")
 
             # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
             # Это нужно для публикации событий при ошибках/таймаутах
