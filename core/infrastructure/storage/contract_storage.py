@@ -24,6 +24,11 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
 
     def __init__(self, contracts_dir: Path):
         super().__init__(contracts_dir)
+    
+    @property
+    def contracts_dir(self) -> Path:
+        """Свойство для обратной совместимости."""
+        return self.storage_dir
 
     async def load(self, capability_name: str, version: str, direction: str, component_type: Optional['ComponentType'] = None) -> Contract:
         """

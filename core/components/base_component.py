@@ -604,6 +604,130 @@ class BaseComponent(LogComponentMixin, ABC):
             self.logger.error(f"Ошибка рендеринга промпта {capability_name}: {e}")
             raise
 
+    def _format_contract_section(
+        self,
+        json_schema: Dict[str, Any],
+        title: str,
+        description: str
+    ) -> str:
+        """
+        Форматирует JSON схему для добавления в промпт.
+
+        ARGS:
+        - json_schema: JSON Schema словарь
+        - title: Заголовок секции (например, "ВХОДНОЙ КОНТРАКТ")
+        - description: Описание назначения контракта
+
+        RETURNS:
+        - str: Отформатированная секция контракта
+        """
+        import json
+
+        schema_json = json.dumps(json_schema, indent=2, ensure_ascii=False)
+
+        return f"""
+### {title} ###
+{description}
+
+```json
+{schema_json}
+```
+"""
+
+    def _render_prompt_with_contract(
+        self,
+        capability_name: str,
+        include_input_contract: bool = True,
+        include_output_contract: bool = True,
+        position: str = "end"
+    ) -> str:
+        """
+        Рендерит промпт с добавлением схем контрактов.
+
+        ARGS:
+        - capability_name: имя capability для получения контрактов
+        - include_input_contract: добавить ли входную схему
+        - include_output_contract: добавить ли выходную схему
+        - position: куда добавить схемы ("start", "end", "after_variables")
+
+        RETURNS:
+        - str: Промпт с секциями контрактов
+
+        NOTE:
+        - Если контракты не найдены, они пропускаются с предупреждением в лог
+        - Выходной контракт всегда добавляется в конце с инструкцией для LLM
+        """
+        # Получаем базовый промпт
+        prompt_template = self.get_prompt(capability_name)
+        parts = [prompt_template]
+
+        # Добавляем входной контракт
+        if include_input_contract and capability_name in self.input_contracts:
+            schema_cls = self.input_contracts[capability_name]
+            json_schema = schema_cls.model_json_schema()
+            contract_section = self._format_contract_section(
+                json_schema,
+                "ВХОДНОЙ КОНТРАКТ",
+                "Опиши входные данные в этом формате"
+            )
+            if position == "start":
+                parts.insert(0, contract_section)
+            elif position == "after_variables":
+                parts.insert(1, contract_section)
+            else:  # end
+                parts.append(contract_section)
+        elif include_input_contract and capability_name not in self.input_contracts:
+            self.logger.debug(f"Входной контракт для {capability_name} не найден, пропускаем")
+
+        # Добавляем выходной контракт
+        if include_output_contract and capability_name in self.output_contracts:
+            schema_cls = self.output_contracts[capability_name]
+            json_schema = schema_cls.model_json_schema()
+            contract_section = self._format_contract_section(
+                json_schema,
+                "ВЫХОДНОЙ КОНТРАКТ",
+                "Твой ответ ДОЛЖЕН точно соответствовать этой JSON схеме"
+            )
+            parts.append(contract_section)
+            # Критически важное указание для LLM
+            parts.append("\n\n⚠️ **ОТВЕТЬ ТОЛЬКО В ФОРМАТЕ JSON СОГЛАСНО ВЫХОДНОМУ КОНТРАКТУ ВЫШЕ!**")
+        elif include_output_contract and capability_name not in self.output_contracts:
+            self.logger.debug(f"Выходной контракт для {capability_name} не найден, пропускаем")
+
+        return "\n".join(parts)
+
+    def get_prompt_with_contract(
+        self,
+        capability_name: str,
+        include_input_contract: bool = True,
+        include_output_contract: bool = True,
+        position: str = "end"
+    ) -> str:
+        """
+        Публичный метод для получения промпта с контрактами.
+
+        ARGS:
+        - capability_name: имя capability для получения промпта
+        - include_input_contract: добавить ли входную схему
+        - include_output_contract: добавить ли выходную схему
+        - position: куда добавить схемы ("start", "end", "after_variables")
+
+        RETURNS:
+        - str: Промпт с секциями контрактов
+
+        USAGE:
+        ```python
+        prompt = self.get_prompt_with_contract("planning.create_plan")
+        rendered = prompt.format(goal="...", capabilities_list="...")
+        ```
+        """
+        return self._render_prompt_with_contract(
+            capability_name,
+            include_input_contract=include_input_contract,
+            include_output_contract=include_output_contract,
+            position=position
+        )
+
     # === ДОСТУП К ПРОВАЙДЕРАМ ИНФРАСТРУКТУРЫ ===
 
     def get_provider(self, name: str):

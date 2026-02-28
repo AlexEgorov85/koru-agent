@@ -193,11 +193,11 @@ class FinalAnswerSkill(BaseSkill):
         confidence_threshold = parameters.get("confidence_threshold", 0.7)
         max_sources = parameters.get("max_sources", 10)
 
-        # Получение промпта из кэша (через BaseComponent.get_prompt)
+        # Получение промпта С КОНТРАКТАМИ из кэша (через BaseComponent.get_prompt_with_contract)
         capability_name = "final_answer.generate"
-        prompt_content = self.get_prompt(capability_name)
-        
-        if not prompt_content:
+        prompt_with_contract = self.get_prompt_with_contract(capability_name)
+
+        if not prompt_with_contract:
             self.logger.error(f"Промпт для {capability_name} не найден в кэше")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
@@ -227,13 +227,14 @@ class FinalAnswerSkill(BaseSkill):
                 max_sources=max_sources
             )
 
-        # Вызов LLM для генерации ответа
+        # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
         try:
-            llm_response = await self._call_llm(rendered_prompt)
-            
-            # Парсинг ответа LLM
-            parsed_response = self._parse_llm_response(llm_response, format_type)
-            
+            llm_response = await self._call_llm(rendered_prompt, execution_context)
+
+            # Получаем структурированные данные (уже parsed_content из structured output)
+            # _parse_llm_response больше не нужен, так как LLM вернул валидную структуру
+            parsed_response = llm_response if isinstance(llm_response, dict) else self._parse_llm_response(str(llm_response), format_type)
+
             # Формирование финального результата
             result = {
                 "final_answer": parsed_response.get("answer", ""),
@@ -245,12 +246,13 @@ class FinalAnswerSkill(BaseSkill):
                     "total_observations": len(observations),
                     "total_steps": len(steps_taken),
                     "generation_time_ms": 0,  # Будет установлено в execute()
-                    "format_type": format_type
+                    "format_type": format_type,
+                    "structured_output": True
                 }
             }
-            
+
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка вызова LLM: {str(e)}")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
@@ -297,56 +299,55 @@ class FinalAnswerSkill(BaseSkill):
         
         return "\n".join(prompt_parts)
 
-    async def _call_llm(self, prompt: str) -> str:
+    async def _call_llm(self, prompt: str, execution_context=None) -> Dict[str, Any]:
         """
-        Вызов LLM для генерации ответа.
-        
+        Вызов LLM для генерации ответа С STRUCTURED OUTPUT.
+
         ПАРАМЕТРЫ:
         - prompt: отрендеренный промпт
-        
+        - execution_context: контекст выполнения (опционально)
+
         ВОЗВРАЩАЕТ:
-        - str: ответ от LLM
+        - Dict[str, Any]: структурированный ответ от LLM (parsed_content)
         """
         try:
-            from core.models.types.llm_types import LLMRequest
-            
-            request = LLMRequest(
-                prompt=prompt,
-                system_prompt=(
-                    "Ты — помощник, который генерирует финальные ответы на основе собранной информации. "
-                    "Отвечай точно, структурировано и вежливо. "
-                    "Не выдумывай информацию, которой нет в контексте."
-                ),
-                temperature=0.3,
-                max_tokens=1500
-            )
-            
-            # Получение LLM-провайдера
-            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-            
-            # Вызов LLM
-            response = await llm_provider.generate(
-                user_prompt=request.prompt,
-                system_prompt=request.system_prompt,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature
+            from core.models.types.llm_types import StructuredOutputConfig
+
+            # Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("final_answer.generate")
+
+            # Вызов LLM С STRUCTURED OUTPUT через executor
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": prompt,
+                    "structured_output": {
+                        "output_model": "final_answer.generate.output",
+                        "schema_def": output_schema if output_schema else {},
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.3,
+                    "max_tokens": 1500
+                },
+                context=execution_context if execution_context else ExecutionContext()
             )
 
-            # === ПРОВЕРКА НА ОШИБКУ LLM ===
-            if getattr(response, 'finish_reason', None) == 'error':
-                error_msg = "Неизвестная ошибка LLM"
-                if hasattr(response, 'metadata') and response.metadata:
-                    error_msg = response.metadata.get('error', error_msg)
-                self.logger.error(f"LLM вернул ошибку при формировании ответа: {error_msg}")
+            # Проверка на ошибку
+            if not llm_result.success:
+                error_msg = llm_result.error
+                error_type = llm_result.metadata.get("error_type", "unknown")
+                self.logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
-            if hasattr(response, 'metadata') and response.metadata and 'error' in response.metadata:
-                error_msg = response.metadata['error']
-                self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
-                raise RuntimeError(f"Ошибка LLM: {error_msg}")
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
 
-            return response.content if hasattr(response, 'content') else str(response)
-            
+            # Возвращаем структурированные данные (Pydantic model_dump())
+            return llm_result.data.get("parsed_content", {})
+
         except Exception as e:
             self.logger.error(f"Ошибка вызова LLM: {str(e)}")
             raise

@@ -14,7 +14,14 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Pattern, Union
 from pydantic import BaseModel, Field
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.models.types.llm_types import LLMRequest, LLMResponse
+from core.models.types.llm_types import (
+    LLMRequest, 
+    LLMResponse, 
+    StructuredLLMResponse,
+    RawLLMResponse,
+    StructuredOutputConfig
+)
+from pydantic import BaseModel, ValidationError, create_model, Field
 from core.models.enums.common_enums import ExecutionStatus
 
 
@@ -45,11 +52,14 @@ class MockLLMProvider(BaseLLMProvider):
         self.config = config
         self.initialized = False
         
+        # Инициализация логгера
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
         # Маппинг паттернов → ответы
         self._prompt_responses: Dict[Union[str, Pattern], str] = {}
         self._default_response = config.default_response
         self._call_history: List[Dict[str, Any]] = []
-        
+
         logger.info(f"Создан MockLLMProvider для модели: {model_name}")
     
     def register_response(self, prompt_pattern: str, response: str):
@@ -233,49 +243,160 @@ class MockLLMProvider(BaseLLMProvider):
         """Генерация текста (совместимость с базовым интерфейсом)."""
         return await self.execute(request)
 
-    async def generate_structured(self, request: LLMRequest, output_schema: Dict = None, system_prompt: str = None) -> Dict[str, Any]:
+    async def generate_structured(
+        self, 
+        request: LLMRequest
+    ) -> StructuredLLMResponse:
         """
-        Генерация структурированных данных.
+        Генерация структурированных данных для тестирования.
         
-        Args:
-            request: Запрос к LLM
-            output_schema: JSON схема для валидации (опционально)
-            system_prompt: Системный промпт (опционально)
-            
-        Returns:
-            Словарь с распарсенными данными
+        Поддерживает:
+        - Регистрацию ответов для конкретных схем
+        - Автоматическую валидацию
+        - Историю вызовов
+        - Retry логику при ошибках
+        
+        ARGS:
+        - request: Запрос с configuration структурированного вывода
+        
+        RETURNS:
+        - StructuredLLMResponse: Типизированный ответ
+        
+        RAISES:
+        - StructuredOutputError: если не удалось получить валидный ответ
         """
+        from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
+        import json
+        
+        if not request.structured_output:
+            raise ValueError("structured_output не указан в запросе")
+        
+        config: StructuredOutputConfig = request.structured_output
+        schema_def = config.schema_def
+        
+        start_time = time.time()
+        
         # Если есть output_schema, добавляем его в промпт
-        if output_schema:
-            schema_prompt = f"\n\nExpected JSON schema: {output_schema}"
-            if isinstance(request, LLMRequest):
-                request = LLMRequest(
-                    prompt=request.prompt + schema_prompt,
-                    system_prompt=system_prompt or request.system_prompt,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens
+        schema_prompt = f"\n\nExpected JSON schema: {json.dumps(schema_def, indent=2)}"
+        enhanced_request = LLMRequest(
+            prompt=request.prompt + schema_prompt,
+            system_prompt=request.system_prompt,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            structured_output=request.structured_output
+        )
+        
+        validation_errors = []
+        
+        # Retry цикл
+        for attempt in range(1, config.max_retries + 1):
+            try:
+                # Получаем ответ через execute
+                raw_response = await self.execute(enhanced_request)
+                
+                # Пытаемся распарсить JSON ответ
+                parsed_data = json.loads(raw_response.content)
+                
+                # Создаём Pydantic модель из схемы
+                temp_model = self._create_pydantic_from_schema(
+                    config.output_model,
+                    schema_def
+                )
+                
+                # Валидируем
+                parsed_content = temp_model.model_validate(parsed_data)
+                
+                # Успех!
+                return StructuredLLMResponse(
+                    parsed_content=parsed_content,
+                    raw_response=RawLLMResponse(
+                        content=raw_response.content,
+                        model=raw_response.model,
+                        tokens_used=raw_response.tokens_used,
+                        generation_time=raw_response.generation_time,
+                        finish_reason=raw_response.finish_reason,
+                        metadata=raw_response.metadata
+                    ),
+                    parsing_attempts=attempt,
+                    validation_errors=[],
+                    provider_native_validation=False
+                )
+                
+            except (json.JSONDecodeError, ValidationError) as e:
+                error_info = {
+                    "attempt": attempt,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "response_snippet": raw_response.content[:200] if 'raw_response' in locals() else "N/A"
+                }
+                validation_errors.append(error_info)
+                
+                self.logger.warning(
+                    f"Mock: Попытка {attempt}/{config.max_retries} не удалась: {e}"
                 )
         
-        response = await self.execute(request)
+        # Все попытки исчерпаны
+        raise StructuredOutputError(
+            message="Mock: Не удалось получить валидный структурированный ответ",
+            model_name=self.model_name,
+            attempts=config.max_retries,
+            correlation_id=request.correlation_id,
+            validation_errors=validation_errors
+        )
+    
+    def _create_pydantic_from_schema(
+        self, 
+        model_name: str, 
+        schema_def: Dict[str, Any]
+    ) -> type[BaseModel]:
+        """
+        Создаёт Pydantic модель из JSON Schema.
         
-        # Пытаемся распарсить JSON ответ
-        try:
-            import json
-            parsed = json.loads(response.content)
-            return {
-                "parsed": parsed,
-                "raw_response": response.content,
-                "tokens_used": response.tokens_used,
-                "is_valid": True
+        ARGS:
+        - model_name: Имя создаваемой модели
+        - schema_def: JSON Schema словарь
+        
+        RETURNS:
+        - type[BaseModel]: Класс Pydantic модели
+        """
+        from typing import List, Optional, Any
+        
+        def build_field(field_schema: Dict) -> tuple:
+            field_type = field_schema.get('type', 'string')
+            description = field_schema.get('description', '')
+            default = field_schema.get('default', ...)
+            
+            type_mapping = {
+                'string': str,
+                'integer': int,
+                'number': float,
+                'boolean': bool,
+                'array': List[Any],
+                'object': Dict[str, Any]
             }
-        except (json.JSONDecodeError, AttributeError):
-            return {
-                "parsed": None,
-                "raw_response": response.content,
-                "tokens_used": response.tokens_used,
-                "is_valid": False,
-                "error": "Failed to parse JSON response"
-            }
+            
+            python_type = type_mapping.get(field_type, Any)
+            
+            if description:
+                field_info = Field(default=default, description=description) if default is not ... else Field(description=description)
+            else:
+                field_info = Field(default=default) if default is not ... else Field()
+            
+            return (python_type, field_info)
+        
+        fields = {}
+        properties = schema_def.get('properties', {})
+        required = schema_def.get('required', [])
+        
+        for field_name, field_schema in properties.items():
+            if field_name in required:
+                fields[field_name] = build_field(field_schema)
+            else:
+                # Необязательное поле
+                field_type, field_info = build_field(field_schema)
+                fields[field_name] = (Optional[field_type], field_info)
+        
+        return create_model(model_name, **fields)
 
 
 # Alias для совместимости с фабрикой

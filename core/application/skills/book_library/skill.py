@@ -227,9 +227,9 @@ class BookLibrarySkill(BaseComponent):
                 "execution_type": "dynamic"
             }
 
-        # 2. Получение промпта для генерации SQL
-        prompt_content = self.get_cached_prompt_safe("book_library.search_books")
-        if not prompt_content:
+        # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
+        prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
+        if not prompt_with_contract:
             return {
                 "error": "Промпт для поиска книг не найден",
                 "rows": [],
@@ -249,7 +249,8 @@ class BookLibrarySkill(BaseComponent):
                 action_name="sql_generation.generate_query",
                 parameters={
                     "natural_language_request": params.get('query', ''),
-                    "table_schema": "books(id INTEGER, title TEXT, author TEXT, year INTEGER, isbn TEXT, genre TEXT)"
+                    "table_schema": "books(id INTEGER, title TEXT, author TEXT, year INTEGER, isbn TEXT, genre TEXT)",
+                    "prompt": prompt_with_contract  # Передаём промпт с контрактами
                 },
                 context=exec_context
             )

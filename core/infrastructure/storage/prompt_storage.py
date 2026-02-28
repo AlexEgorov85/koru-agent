@@ -25,6 +25,11 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
 
     def __init__(self, prompts_dir: Path):
         super().__init__(prompts_dir)
+    
+    @property
+    def prompts_dir(self) -> Path:
+        """Свойство для обратной совместимости."""
+        return self.storage_dir
 
     async def load(self, capability_name: str, version: str, component_type: Optional['ComponentType'] = None) -> Prompt:
         """

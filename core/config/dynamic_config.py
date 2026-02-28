@@ -332,26 +332,32 @@ class DynamicConfigManager:
     async def _load_config(self) -> bool:
         """
         Загрузка конфигурации из файла.
-        
+
         RETURNS:
         - bool: True если загрузка успешна
         """
         try:
             self._logger.debug(f"Загрузка конфигурации из {self._config_path}")
-            
-            # Сохранение текущего снимка для отката
+
+            # Сохранение текущего снимка для отката (если есть предыдущая конфигурация)
             if self._config:
                 self._save_snapshot(self._config)
-            
+
             # Загрузка через ConfigLoader
             self._system_config = self._config_loader.load()
-            
+
             # Загрузка raw конфигурации для сравнения
-            self._config = await self._load_raw_config()
+            new_config = await self._load_raw_config()
             
+            # Сохраняем снимок после загрузки (включая первую загрузку)
+            if new_config:
+                self._save_snapshot(new_config)
+            
+            self._config = new_config
+
             self._logger.info(f"Конфигурация загружена: profile={self._profile}")
             return True
-            
+
         except Exception as e:
             self._logger.error(f"Ошибка загрузки конфигурации: {e}", exc_info=True)
             
@@ -590,11 +596,15 @@ class DynamicConfigManager:
     async def reload_config(self) -> bool:
         """
         Принудительная перезагрузка конфигурации.
-        
+
         RETURNS:
         - bool: True если перезагрузка успешна
         """
         self._logger.info("Принудительная перезагрузка конфигурации")
+        
+        # Создание бэкапа перед перезагрузкой
+        self._create_backup()
+        
         return await self._load_config()
     
     def get_snapshot(self, index: int = -1) -> Optional[ConfigSnapshot]:

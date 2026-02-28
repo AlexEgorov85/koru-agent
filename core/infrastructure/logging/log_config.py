@@ -61,7 +61,7 @@ class LoggingConfig:
     - indexing: Настройки индексации
     - symlinks: Настройки symlink
     """
-    base_dir: str = "logs"
+    base_dir: Path = field(default_factory=lambda: Path("logs"))
 
     agent_format: LogFormat = LogFormat.TEXT
     session_format: LogFormat = LogFormat.JSONL
@@ -77,22 +77,22 @@ class LoggingConfig:
     @property
     def active_dir(self) -> Path:
         """Директория активных логов."""
-        return Path(self.base_dir) / "active"
+        return self.base_dir / "active"
 
     @property
     def archive_dir(self) -> Path:
         """Директория архива."""
-        return Path(self.base_dir) / "archive"
+        return self.base_dir / "archive"
 
     @property
     def indexed_dir(self) -> Path:
         """Директория индексов."""
-        return Path(self.base_dir) / "indexed"
+        return self.base_dir / "indexed"
 
     @property
     def config_dir(self) -> Path:
         """Директория конфигурации."""
-        return Path(self.base_dir) / "config"
+        return self.base_dir / "config"
 
     def get_active_sessions_dir(self) -> Path:
         """Директория активных сессий."""
@@ -195,7 +195,7 @@ def load_config_from_yaml(yaml_path: str) -> LoggingConfig:
             return LogFormat.TEXT
 
     config = LoggingConfig(
-        base_dir=logging_data.get('paths', {}).get('base', 'logs'),
+        base_dir=Path(logging_data.get('paths', {}).get('base', 'logs')),
         agent_format=parse_format(formats_data.get('agent', 'text')),
         session_format=parse_format(formats_data.get('session', 'jsonl')),
         llm_format=parse_format(formats_data.get('llm', 'jsonl')),
@@ -262,3 +262,21 @@ def save_config_to_yaml(config: LoggingConfig, yaml_path: str) -> None:
 
     with open(yaml_path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+
+
+# Alias для обратной совместимости
+LogConfig = LoggingConfig
+
+# LogLevel как Enum для обратной совместимости
+from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+class LogLevel:
+    """Уровни логирования для обратной совместимости."""
+    DEBUG = DEBUG
+    INFO = INFO
+    WARNING = WARNING
+    ERROR = ERROR
+    CRITICAL = CRITICAL
+
+get_log_config = get_logging_config  # Alias для функции
+configure_logging = configure_logging  # Alias для функции

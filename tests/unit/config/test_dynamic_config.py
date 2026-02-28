@@ -208,26 +208,37 @@ class TestConfigChangeCallback:
     async def test_config_change_callback(self, real_config_manager, temp_config_file):
         """Callback при изменении конфигурации."""
         await real_config_manager.initialize()
-        
+
         changes = []
-        
+
         async def on_change(event: ConfigChangeEvent):
             changes.append(event)
-        
+
         real_config_manager.on_config_change(on_change)
-        
+
         # Проверяем что callback зарегистрирован
         assert len(real_config_manager._callbacks) == 1
-        
+
+        # Изменяем файл конфигурации перед вызовом _on_config_changed
+        import yaml
+        new_config = {
+            "profile": "test",
+            "debug": True,
+            "agent": {"max_steps": 999},  # Изменяем значение
+        }
+        with open(temp_config_file, 'w') as f:
+            yaml.dump(new_config, f)
+
         # Имитируем изменение через вызов _on_config_changed
         await real_config_manager._on_config_changed(temp_config_file)
-        
+
         # Ждем обработки
         await asyncio.sleep(0.1)
-        
+
         assert len(changes) == 1
-        assert changes[0].changed_keys  # Какие-то ключи изменились
-        
+        # Проверяем что ключи изменились (max_steps изменился с 10 на 999)
+        assert "agent" in changes[0].changed_keys or "max_steps" in str(changes[0].changed_keys)
+
         await real_config_manager.shutdown()
 
     @pytest.mark.asyncio
@@ -274,32 +285,32 @@ class TestSnapshots:
     async def test_snapshot_rollback(self, real_config_manager, temp_config_file):
         """Откат к снимку конфигурации."""
         await real_config_manager.initialize()
-        
+
         # Запоминаем начальную конфигурацию
         initial_config = real_config_manager.get_config().copy()
-        
+
         # Изменяем конфигурацию
         new_config = {
             "profile": "test",
             "debug": False,
             "agent": {"max_steps": 999},
         }
-        
+
         with open(temp_config_file, 'w') as f:
             yaml.dump(new_config, f)
-        
+
         await real_config_manager.reload_config()
-        
+
         # Проверяем что конфигурация изменилась
         assert real_config_manager.get_config()["agent"]["max_steps"] == 999
-        
-        # Откат к предыдущему снимку
-        result = await real_config_manager.rollback_to_snapshot(-1)
-        
+
+        # Откат к первому снимку (индекс 0) - начальная конфигурация
+        result = await real_config_manager.rollback_to_snapshot(0)
+
         assert result is True
         # После отката конфигурация должна восстановиться
         assert real_config_manager.get_config()["agent"]["max_steps"] == 10
-        
+
         await real_config_manager.shutdown()
 
     @pytest.mark.asyncio

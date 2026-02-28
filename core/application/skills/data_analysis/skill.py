@@ -128,30 +128,38 @@ class DataAnalysisSkill(BaseSkill):
         else:
             prompt_vars["raw_data"] = raw_data[:10000]  # Ограничение для безопасности
 
-        # 4. Получение и рендеринг промпта (из изолированного кэша)
-        prompt_content = self.get_prompt(capability.name)
-        if not prompt_content:
+        # 4. Получение и рендеринг промпта С КОНТРАКТАМИ (из изолированного кэша)
+        prompt_with_contract = self.get_prompt_with_contract(capability.name)
+        if not prompt_with_contract:
             raise ValueError(f"Промпт для {capability.name} не загружен")
 
-        rendered_prompt = self._render_prompt(prompt_content, prompt_vars)
+        rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
 
-        # 5. Вызов LLM для анализа
-        llm_request = LLMRequest(
-            prompt=rendered_prompt,
-            max_tokens=analysis_config.get("max_response_tokens", 2000),
-            temperature=0.1,  # Низкая температура для аналитических задач
-            stop_sequences=["```", "END"]
+        # 5. Получаем схему выхода для structured output
+        output_schema = self.get_output_contract(capability.name)
+
+        # 6. Вызов LLM для анализа С STRUCTURED OUTPUT через executor
+        llm_result = await self.executor.execute_action(
+            action_name="llm.generate_structured",
+            parameters={
+                "prompt": rendered_prompt,
+                "structured_output": {
+                    "output_model": f"{capability.name}.output",
+                    "schema_def": output_schema,
+                    "max_retries": 3,
+                    "strict_mode": True
+                },
+                "temperature": 0.1,  # Низкая температура для аналитических задач
+                "max_tokens": analysis_config.get("max_response_tokens", 2000)
+            },
+            context=execution_context
         )
 
-        llm_provider = self.application_context.get_llm_provider()
-        llm_response = await llm_provider.generate(llm_request)
-
-        # === ПРОВЕРКА НА ОШИБКУ LLM ===
-        if getattr(llm_response, 'finish_reason', None) == 'error':
-            error_msg = "Неизвестная ошибка LLM"
-            if hasattr(llm_response, 'metadata') and llm_response.metadata:
-                error_msg = llm_response.metadata.get('error', error_msg)
-            self.logger.error(f"LLM вернул ошибку при анализе данных: {error_msg}")
+        # === ПРОВЕРКА НА ОШИБКУ ===
+        if not llm_result.success:
+            error_msg = llm_result.error
+            error_type = llm_result.metadata.get("error_type", "unknown")
+            self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             return {
                 "error": f"Ошибка LLM: {error_msg}",
                 "answer": "",
@@ -160,21 +168,31 @@ class DataAnalysisSkill(BaseSkill):
                 "metadata": {
                     "chunks_processed": len(chunks) if chunks else 1,
                     "total_tokens": 0,
-                    "data_size_mb": data_metadata.get("size_mb", 0)
+                    "data_size_mb": data_metadata.get("size_mb", 0),
+                    "error_type": error_type,
+                    "attempts": llm_result.metadata.get("attempts", 0)
                 }
             }
 
-        # 6. Парсинг и валидация ответа
-        answer_data = self._parse_llm_response(llm_response.content)
+        # 7. Получаем структурированные данные (Pydantic model_dump())
+        answer_data = llm_result.data.get("parsed_content", {})
+
+        # Логирование успешного structured output
+        self.logger.info(
+            f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+        )
 
         # Добавляем метаданные в ответ
         if "metadata" not in answer_data:
             answer_data["metadata"] = {}
 
         answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-        answer_data["metadata"]["total_tokens"] = llm_response.tokens_used
+        answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0)
         answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
+        answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1)
+        answer_data["metadata"]["structured_output"] = True
 
+        # 8. Валидация выхода (уже валидно через structured output, но проверяем для безопасности)
         validated_answer = self._validate_output(answer_data, capability.name)
 
         return validated_answer
@@ -246,9 +264,9 @@ class DataAnalysisSkill(BaseSkill):
         else:
             prompt_vars["raw_data"] = raw_data[:10000]
 
-        # 5. Получение промпта
-        prompt_content = self.get_cached_prompt_safe("data_analysis.analyze_step_data")
-        if not prompt_content:
+        # 5. Получение промпта С КОНТРАКТАМИ
+        prompt_with_contract = self.get_prompt_with_contract("data_analysis.analyze_step_data")
+        if not prompt_with_contract:
             return {
                 "error": "Промпт не найден",
                 "answer": "",
@@ -256,32 +274,60 @@ class DataAnalysisSkill(BaseSkill):
                 "evidence": []
             }
 
-        rendered_prompt = self._render_prompt(prompt_content, prompt_vars)
+        rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
 
-        # 6. Вызов LLM
+        # 6. Получаем схему выхода для structured output
+        output_schema = self.get_cached_output_contract_safe("data_analysis.analyze_step_data")
+
+        # 7. Вызов LLM С STRUCTURED OUTPUT через executor
         try:
-            llm_provider = self.application_context.get_llm_provider()
-            llm_request = LLMRequest(
-                prompt=rendered_prompt,
-                max_tokens=analysis_config.get("max_response_tokens", 2000),
-                temperature=0.1,
-                stop_sequences=["```", "END"]
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": rendered_prompt,
+                    "structured_output": {
+                        "output_model": "data_analysis.analyze_step_data.output",
+                        "schema_def": output_schema if output_schema else {},
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.1,
+                    "max_tokens": analysis_config.get("max_response_tokens", 2000)
+                },
+                context=execution_context
             )
 
-            llm_response = await llm_provider.generate(llm_request)
+            # Проверка на ошибку
+            if not llm_result.success:
+                return {
+                    "error": f"Ошибка LLM: {llm_result.error}",
+                    "answer": "",
+                    "confidence": 0.0,
+                    "evidence": [],
+                    "metadata": {
+                        "error_type": llm_result.metadata.get("error_type", "unknown"),
+                        "attempts": llm_result.metadata.get("attempts", 0)
+                    }
+                }
 
-            # 7. Парсинг ответа
-            answer_data = self._parse_llm_response(llm_response.content)
+            # 8. Получаем структурированные данные (Pydantic model_dump())
+            answer_data = llm_result.data.get("parsed_content", {})
 
-            # 8. Добавление метаданных
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
+
+            # 9. Добавление метаданных
             answer_data["metadata"] = answer_data.get("metadata", {})
             answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-            answer_data["metadata"]["total_tokens"] = llm_response.tokens_used
+            answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0)
             answer_data["metadata"]["processing_time_ms"] = (time.time() - start_time) * 1000
             answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
+            answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1)
+            answer_data["metadata"]["structured_output"] = True
 
-            # 9. Валидация выхода
-            output_schema = self.get_cached_output_contract_safe("data_analysis.analyze_step_data")
+            # 10. Валидация выхода (уже валидно через structured output)
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(answer_data)

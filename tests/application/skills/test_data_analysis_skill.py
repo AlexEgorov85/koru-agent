@@ -80,20 +80,13 @@ def data_analysis_skill(mock_application_context, mock_component_config, mock_ex
     skill.input_schemas = {"data_analysis.analyze_step_data": MagicMock()}
     skill.output_schemas = {"data_analysis.analyze_step_data": MagicMock()}
     skill._initialized = True
-    
+
     # Устанавливаем _log_config вручную для тестов
-    from core.infrastructure.logging.log_config import LogConfig, LogLevel
-    skill._log_config = LogConfig(
-        level=LogLevel.ERROR,
-        log_execution_start=False,
-        log_execution_end=False,
-        log_parameters=False,
-        log_result=False,
-        log_errors=False,
-        log_duration=False,
-        enable_event_bus=False
+    from core.infrastructure.logging.log_config import LoggingConfig
+    skill._log_config = LoggingConfig(
+        level="ERROR"
     )
-    
+
     # Добавляем заглушку для validate_output
     skill.validate_output = MagicMock(return_value=True)
 

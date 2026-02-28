@@ -74,15 +74,52 @@ class BaseLLMProvider(BaseProvider, ABC):
         pass
 
     @abstractmethod
-    async def generate_structured(self, request: LLMRequest) -> Dict[str, Any]:
+    async def generate_structured(
+        self, 
+        request: LLMRequest
+    ) -> StructuredLLMResponse:
         """
-        Генерация структурированных данных по JSON Schema.
+        Генерация структурированных данных по JSON Schema с гарантией валидности.
+        
+        АРХИТЕКТУРНЫЕ ПРИНЦИПЫ:
+        1. Retry логика при ошибках парсинга JSON
+        2. Валидация против JSON Schema
+        3. Возврат Pydantic модели вместо dict
+        4. Логирование попыток парсинга
 
-        Args:
-            request (LLMRequest): Запрос к LLM с информацией о структурированном выводе
+        ПАРАМЕТРЫ:
+        - request (LLMRequest): Запрос с configuration структурированного вывода
+          request.structured_output должен содержать:
+          - output_model: Имя модели
+          - schema_def: JSON Schema
+          - max_retries: Количество попыток
+          - strict_mode: Строгая валидация
 
-        Returns:
-            Dict[str, Any]: Структурированные данные
+        ВОЗВРАЩАЕТ:
+        - StructuredLLMResponse: Типизированный ответ с валидной моделью
+          - parsed_content: Pydantic модель с данными
+          - raw_response: Сырой ответ для отладки
+          - parsing_attempts: Количество попыток парсинга
+          - validation_errors: Ошибки предыдущих попыток
+
+        RAISES:
+        - StructuredOutputError: Если не удалось получить валидный ответ после всех попыток
+        - ValueError: Если request.structured_output не указан
+
+        ПРИМЕР ИСПОЛЬЗОВАНИЯ:
+        ```python
+        request = LLMRequest(
+            prompt="Сгенерируй план",
+            structured_output=StructuredOutputConfig(
+                output_model="PlanOutput",
+                schema_def=schema,
+                max_retries=3
+            )
+        )
+        response = await provider.generate_structured(request)
+        print(response.parsed_content)  # Pydantic модель
+        print(response.parsing_attempts)  # 1 если успех с первой попытки
+        ```
         """
         pass
 

@@ -120,40 +120,58 @@ class PlanningSkill(BaseComponent):
             # 1. Валидация через КЭШИРОВАННЫЙ контракт (без обращения к сервису!)
             input_contract = self.get_input_contract("planning.create_plan")
             # validate_against_schema(input_data, input_contract)
-            
-            # 2. Получение промпта ИЗ КЭША
-            prompt_template = self.get_prompt("planning.create_plan")
-            rendered_prompt = prompt_template.format(
+
+            # 2. Получение промпта С КОНТРАКТАМИ ИЗ КЭША
+            prompt_with_contract = self.get_prompt_with_contract("planning.create_plan")
+            rendered_prompt = prompt_with_contract.format(
                 goal=input_data.get("goal", ""),
-                capabilities_list=self._format_capabilities(execution_context.available_capabilities)
+                capabilities_list=self._format_capabilities(execution_context.available_capabilities),
+                context=input_data.get("context", ""),
+                max_steps=input_data.get("max_steps", 10)
             )
-            
-            # 3. Вызов LLM ЧЕРЕЗ EXECUTOR (не напрямую!)
+
+            # 3. Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("planning.create_plan")
+
+            # 4. Вызов LLM ЧЕРЕЗ EXECUTOR С STRUCTURED OUTPUT
             llm_result = await self.executor.execute_action(
-                action_name="llm.generate",
+                action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
-                    "model": "gpt-4",
-                    "temperature": 0.2
+                    "structured_output": {
+                        "output_model": "planning.create_plan.output",
+                        "schema_def": output_schema,
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.1  # Низкая температура для точности
                 },
                 context=execution_context
             )
-            
+
             if not llm_result.success:
                 return ActionResult(
                     success=False,
-                    error=f"Ошибка генерации плана: {llm_result.error}"
+                    error=f"Ошибка генерации плана: {llm_result.error}",
+                    metadata={
+                        "error_type": llm_result.metadata.get("error_type", "unknown"),
+                        "attempts": llm_result.metadata.get("attempts", 0)
+                    }
                 )
-            
-            # 4. Валидация выхода через КЭШИРОВАННЫЙ контракт
-            output_contract = self.get_output_contract("planning.create_plan")
-            # validate_against_schema(llm_result.data, output_contract)
 
-            # 5. Сохранение плана в контекст
+            # 5. Получаем структурированные данные (Pydantic model_dump())
+            plan_data = llm_result.data.get("parsed_content", {})
+            
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
+
+            # 6. Сохранение плана в контекст
             save_result = await self.executor.execute_action(
                 action_name="context.record_plan",
                 parameters={
-                    "plan_data": llm_result.data,
+                    "plan_data": plan_data,
                     "plan_type": "initial"
                 },
                 context=execution_context
@@ -165,12 +183,12 @@ class PlanningSkill(BaseComponent):
                     error=f"Не удалось сохранить план: {save_result.error}"
                 )
 
-            # 6. Публикация события о создании плана
+            # 7. Публикация события о создании плана
             await self._publish_event(
                 event_type="planning.plan_created",
                 data={
-                    "plan_id": llm_result.data.get("plan_id", ""),
-                    "steps_count": len(llm_result.data.get("steps", [])),
+                    "plan_id": plan_data.get("plan_id", ""),
+                    "steps_count": len(plan_data.get("plan", [])),
                     "goal": input_data.get("goal", "")
                 },
                 execution_context=execution_context
@@ -178,10 +196,12 @@ class PlanningSkill(BaseComponent):
 
             return ActionResult(
                 success=True,
-                data=llm_result.data,
+                data=plan_data,
                 metadata={
-                    "steps_count": len(llm_result.data.get("steps", [])),
-                    "plan_id": llm_result.data.get("plan_id", "")
+                    "steps_count": len(plan_data.get("plan", [])),
+                    "plan_id": plan_data.get("plan_id", ""),
+                    "parsing_attempts": llm_result.metadata.get("parsing_attempts", 1),
+                    "structured_output": True
                 }
             )
 
@@ -233,22 +253,30 @@ class PlanningSkill(BaseComponent):
                     )
                 current_plan = plan_result.data
 
-            # 3. Подготовка промпта для обновления плана
-            prompt_template = self.get_prompt("planning.update_plan")
-            rendered_prompt = prompt_template.format(
+            # 3. Подготовка промпта для обновления плана С КОНТРАКТАМИ
+            prompt_with_contract = self.get_prompt_with_contract("planning.update_plan")
+            rendered_prompt = prompt_with_contract.format(
                 current_plan=str(current_plan),
                 new_requirements=str(updates),
                 constraints="Сохранить логическую связность плана, не нарушать зависимости шагов",
                 context=f"Причина обновления: {reason}" if reason else ""
             )
 
-            # 4. Вызов LLM для обновления плана через executor
+            # 4. Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("planning.update_plan")
+
+            # 5. Вызов LLM для обновления плана через executor С STRUCTURED OUTPUT
             llm_result = await self.executor.execute_action(
-                action_name="llm.generate",
+                action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
-                    "model": "gpt-4",
-                    "temperature": 0.3
+                    "structured_output": {
+                        "output_model": "planning.update_plan.output",
+                        "schema_def": output_schema,
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.1  # Низкая температура для точности
                 },
                 context=execution_context
             )
@@ -256,10 +284,20 @@ class PlanningSkill(BaseComponent):
             if not llm_result.success:
                 return ActionResult(
                     success=False,
-                    error=f"Ошибка обновления плана: {llm_result.error}"
+                    error=f"Ошибка обновления плана: {llm_result.error}",
+                    metadata={
+                        "error_type": llm_result.metadata.get("error_type", "unknown"),
+                        "attempts": llm_result.metadata.get("attempts", 0)
+                    }
                 )
 
-            updated_plan = llm_result.data
+            # 6. Получаем структурированные данные (Pydantic model_dump())
+            updated_plan = llm_result.data.get("parsed_content", {})
+            
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
 
             # 5. Сохранение обновленного плана
             save_result = await self.executor.execute_action(
@@ -548,21 +586,30 @@ class PlanningSkill(BaseComponent):
         Автоматическая коррекция плана после ошибки выполнения шага.
         """
         try:
-            # Формируем промпт коррекции
-            correction_prompt = self.get_prompt("planning.update_plan").format(
+            # Формируем промпт коррекции С КОНТРАКТАМИ
+            prompt_with_contract = self.get_prompt_with_contract("planning.update_plan")
+            correction_prompt = prompt_with_contract.format(
                 current_plan=str(current_plan),
                 new_requirements=f"Исправить шаг {failed_step.get('step_id')} из-за ошибки: {error_info}",
                 constraints="Сохранить логическую связность плана, не увеличивать общее количество шагов",
                 context=f"Ошибка: {error_info}"
             )
 
-            # Вызов LLM для коррекции плана через executor
+            # Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("planning.update_plan")
+
+            # Вызов LLM для коррекции плана через executor С STRUCTURED OUTPUT
             llm_result = await self.executor.execute_action(
-                action_name="llm.generate",
+                action_name="llm.generate_structured",
                 parameters={
                     "prompt": correction_prompt,
-                    "model": "gpt-4",
-                    "temperature": 0.3
+                    "structured_output": {
+                        "output_model": "planning.update_plan.output",
+                        "schema_def": output_schema,
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.1  # Низкая температура для точности
                 },
                 context=execution_context
             )
@@ -570,14 +617,26 @@ class PlanningSkill(BaseComponent):
             if not llm_result.success:
                 return ActionResult(
                     success=False,
-                    error=f"Ошибка коррекции плана: {llm_result.error}"
+                    error=f"Ошибка коррекции плана: {llm_result.error}",
+                    metadata={
+                        "error_type": llm_result.metadata.get("error_type", "unknown"),
+                        "attempts": llm_result.metadata.get("attempts", 0)
+                    }
                 )
+
+            # Получаем структурированные данные (Pydantic model_dump())
+            corrected_plan = llm_result.data.get("parsed_content", {})
+            
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
 
             # Сохраняем исправленный план
             update_result = await self.executor.execute_action(
                 action_name="context.record_plan",
                 parameters={
-                    "plan_data": llm_result.data,
+                    "plan_data": corrected_plan,
                     "plan_type": "update"
                 },
                 context=execution_context
@@ -606,22 +665,30 @@ class PlanningSkill(BaseComponent):
         Декомпозиция сложной задачи на иерархию подзадач.
         """
         try:
-            # Получение промпта декомпозиции
-            prompt_template = self.get_prompt("planning.decompose_task")
-            rendered_prompt = prompt_template.format(
+            # Получение промпта декомпозиции С КОНТРАКТАМИ
+            prompt_with_contract = self.get_prompt_with_contract("planning.decompose_task")
+            rendered_prompt = prompt_with_contract.format(
                 task_id=input_data.get("task_id", ""),
                 task_description=input_data.get("task_description", ""),
                 context=input_data.get("context", ""),
                 capabilities_list=self._format_capabilities(execution_context.available_capabilities)
             )
 
-            # Вызов LLM для декомпозиции через executor
+            # Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("planning.decompose_task")
+
+            # Вызов LLM для декомпозиции через executor С STRUCTURED OUTPUT
             llm_result = await self.executor.execute_action(
-                action_name="llm.generate",
+                action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
-                    "model": "gpt-4",
-                    "temperature": 0.3
+                    "structured_output": {
+                        "output_model": "planning.decompose_task.output",
+                        "schema_def": output_schema,
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.1  # Низкая температура для точности
                 },
                 context=execution_context
             )
@@ -629,12 +696,24 @@ class PlanningSkill(BaseComponent):
             if not llm_result.success:
                 return ActionResult(
                     success=False,
-                    error=f"Ошибка декомпозиции задачи: {llm_result.error}"
+                    error=f"Ошибка декомпозиции задачи: {llm_result.error}",
+                    metadata={
+                        "error_type": llm_result.metadata.get("error_type", "unknown"),
+                        "attempts": llm_result.metadata.get("attempts", 0)
+                    }
                 )
+
+            # Получаем структурированные данные (Pydantic model_dump())
+            decompose_data = llm_result.data.get("parsed_content", {})
+            
+            # Логирование успешного structured output
+            self.logger.info(
+                f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
 
             # Создание вложенных планов для подзадач
             sub_plans = []
-            subtasks_list = llm_result.data.get('subtasks', []) if isinstance(llm_result.data, dict) else llm_result.data
+            subtasks_list = decompose_data.get('subtasks', [])
 
             for subtask in subtasks_list:
                 if isinstance(subtask, dict):

@@ -77,7 +77,11 @@ class ActionExecutor:
             if action_name.startswith("context."):
                 return await self._execute_context_action(action_name, parameters, context)
 
-            # 2. Находим целевой компонент по имени действия
+            # 2. Обработка LLM действий (llm.*)
+            if action_name.startswith("llm."):
+                return await self._execute_llm_action(action_name, parameters, context)
+
+            # 3. Находим целевой компонент по имени действия
             target_component = self._resolve_component_for_action(action_name)
 
             if not target_component:
@@ -357,7 +361,7 @@ class ActionExecutor:
         """
         # В реальной реализации здесь будет логика разрешения capability
         # из реестра capability по имени действия
-        
+
         # Для простоты создаем capability с именем действия
         from core.models.data.capability import Capability
         return Capability(
@@ -366,3 +370,171 @@ class ActionExecutor:
             input_schema={},
             output_schema={}
         )
+
+    async def _execute_llm_action(
+        self,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> ActionResult:
+        """
+        Выполнение LLM действий (llm.*).
+
+        Поддерживаемые действия:
+        - llm.generate: обычная генерация текста
+        - llm.generate_structured: структурированная генерация с JSON Schema
+
+        ARGS:
+        - action_name: имя действия (llm.generate или llm.generate_structured)
+        - parameters: параметры для LLM запроса
+        - context: контекст выполнения
+
+        RETURNS:
+        - ActionResult: результат выполнения
+        """
+        try:
+            # Получаем LLM провайдер
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+            
+            if not llm_provider:
+                return ActionResult(
+                    success=False,
+                    error="LLM провайдер 'default_llm' не найден"
+                )
+
+            # Определяем тип действия
+            if action_name == "llm.generate":
+                return await self._llm_generate(llm_provider, parameters)
+            elif action_name == "llm.generate_structured":
+                return await self._llm_generate_structured(llm_provider, parameters)
+            else:
+                return ActionResult(
+                    success=False,
+                    error=f"Неизвестное LLM действие: {action_name}"
+                )
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                error=str(e)
+            )
+
+    async def _llm_generate(
+        self,
+        llm_provider,
+        parameters: Dict[str, Any]
+    ) -> ActionResult:
+        """
+        Обычная генерация текста через LLM.
+
+        PARAMETERS:
+        - prompt: текст запроса
+        - model: имя модели (опционально)
+        - temperature: температура (опционально)
+        - max_tokens: максимум токенов (опционально)
+        """
+        from core.models.types.llm_types import LLMRequest
+        
+        prompt = parameters.get("prompt", "")
+        if not prompt:
+            return ActionResult(success=False, error="Параметр 'prompt' обязателен")
+        
+        request = LLMRequest(
+            prompt=prompt,
+            system_prompt=parameters.get("system_prompt"),
+            temperature=parameters.get("temperature", 0.7),
+            max_tokens=parameters.get("max_tokens", 500),
+            top_p=parameters.get("top_p", 0.95),
+            frequency_penalty=parameters.get("frequency_penalty", 0.0),
+            presence_penalty=parameters.get("presence_penalty", 0.0),
+            stop_sequences=parameters.get("stop_sequences")
+        )
+        
+        response = await llm_provider.generate(request)
+        
+        return ActionResult(
+            success=True,
+            data={"content": response.content},
+            metadata={
+                "model": response.model,
+                "tokens_used": response.tokens_used,
+                "generation_time": response.generation_time,
+                "finish_reason": response.finish_reason
+            }
+        )
+
+    async def _llm_generate_structured(
+        self,
+        llm_provider,
+        parameters: Dict[str, Any]
+    ) -> ActionResult:
+        """
+        Структурированная генерация через LLM с JSON Schema.
+
+        PARAMETERS:
+        - prompt: текст запроса
+        - structured_output: StructuredOutputConfig или dict с schema_def
+        - model: имя модели (опционально)
+        - temperature: температура (опционально, по умолчанию 0.1 для точности)
+        - max_tokens: максимум токенов (опционально)
+        """
+        from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+        from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
+        
+        prompt = parameters.get("prompt", "")
+        if not prompt:
+            return ActionResult(success=False, error="Параметр 'prompt' обязателен")
+        
+        # Получаем конфигурацию структурированного вывода
+        structured_output = parameters.get("structured_output")
+        if not structured_output:
+            return ActionResult(success=False, error="Параметр 'structured_output' обязателен")
+        
+        # Если передан dict, создаём StructuredOutputConfig
+        if isinstance(structured_output, dict):
+            structured_output = StructuredOutputConfig(**structured_output)
+        
+        request = LLMRequest(
+            prompt=prompt,
+            system_prompt=parameters.get("system_prompt"),
+            temperature=parameters.get("temperature", 0.1),  # Низкая температура для точности
+            max_tokens=parameters.get("max_tokens", 1000),
+            structured_output=structured_output
+        )
+        
+        try:
+            response = await llm_provider.generate_structured(request)
+            
+            return ActionResult(
+                success=True,
+                data={
+                    "parsed_content": response.parsed_content.model_dump(),
+                    "raw_content": response.raw_response.content
+                },
+                metadata={
+                    "model": response.raw_response.model,
+                    "tokens_used": response.raw_response.tokens_used,
+                    "generation_time": response.raw_response.generation_time,
+                    "parsing_attempts": response.parsing_attempts,
+                    "success": response.success
+                }
+            )
+            
+        except StructuredOutputError as e:
+            return ActionResult(
+                success=False,
+                error=f"Structured output error: {e.message}",
+                metadata={
+                    "attempts": e.attempts,
+                    "validation_errors": e.validation_errors,
+                    "error_type": "StructuredOutputError"
+                }
+            )
+        except ValueError as e:
+            return ActionResult(
+                success=False,
+                error=f"Invalid request: {str(e)}",
+                metadata={"error_type": "ValueError"}
+            )
