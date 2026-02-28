@@ -15,9 +15,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 
-from core.infrastructure.logging.log_config_new import (
-    LoggingConfig, 
-    LogFormat, 
+from core.infrastructure.logging.log_config import (
+    LoggingConfig,
+    LogFormat,
     get_logging_config,
     configure_logging
 )
@@ -368,8 +368,8 @@ class LogManager:
     def _save_config(self) -> None:
         """Сохранение конфигурации в logs/config/."""
         try:
-            from core.infrastructure.logging.log_config_new import save_config_to_yaml
-            
+            from core.infrastructure.logging.log_config import save_config_to_yaml
+
             config_path = self.config.config_dir / "logging_config.yaml"
             save_config_to_yaml(self.config, str(config_path))
             logger.debug(f"Конфигурация сохранена: {config_path}")

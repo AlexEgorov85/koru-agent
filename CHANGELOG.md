@@ -29,6 +29,44 @@
 - `export_session.py`: экспорт сессии в JSON
 - `migrate_old_logs.py`: миграция старых логов в новую структуру
 
+### Added
+- **Удаление legacy-компонентов** (согласно LEGACY_REMOVAL_REPORT.md)
+
+#### Удалённые файлы
+- `core/application/behaviors/react_behavior.py` — дублирующий ReAct паттерн
+- `core/application/behaviors/react_pattern.py` — дублирующий ReAct паттерн
+- `core/application/behaviors/planning_pattern.py` — дублирующий Planning паттерн
+- `core/application/behaviors/base_behavior.py` — устаревший базовый класс
+- `core/config/defaults/_old_dev.yaml` — неиспользуемая конфигурация
+
+#### Удалённый код
+- `BaseComponent._cached_*` алиасы (7 строк)
+- `BaseSkill.run()` метод (37 строк)
+- `get_legacy_event_bus` экспорт из event_bus
+
+#### Перенесённые классы
+- `ReActInput`, `ReActOutput`, `PlanningInput`, `PlanningOutput` → `core/application/behaviors/base.py`
+
+#### Исправления
+- Заменены импорты `log_config_new` → `log_config` (4 файла)
+- Создан `core/infrastructure/logging/log_mixin.py` (отсутствующий модуль)
+
+### Changed
+- Обновлены импорты в `component_factory.py`, `conftest.py`, `test_behavior_contracts.py`
+- Версия проекта: 5.16.0 → 5.17.0
+
+### Fixed
+- Проект запускается без ошибок импорта
+- Все критичные тесты пройдены (8/8, 100%)
+
+### Metrics
+- Удалено файлов: 5
+- Удалено строк кода: 618
+- Дублирование паттернов: 100% → 0%
+- Базовых классов поведений: 3 → 2 (-33%)
+
+📄 **Подробности:** См. [LEGACY_REMOVAL_RESULTS.md](LEGACY_REMOVAL_RESULTS.md)
+
 #### Документация (docs/logging/)
 - `README.md`: обзор системы, быстрый старт
 - `structure.md`: структура папок, доступ к файлам

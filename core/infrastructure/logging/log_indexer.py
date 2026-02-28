@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Set
 from dataclasses import dataclass, asdict
 
-from core.infrastructure.logging.log_config_new import LoggingConfig, get_logging_config
+from core.infrastructure.logging.log_config import LoggingConfig, get_logging_config
 
 
 logger = logging.getLogger(__name__)

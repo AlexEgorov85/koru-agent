@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.16.0-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.17.0-orange.svg)]()
 [![Tests](https://img.shields.io/badge/tests-954%20passed-green.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 
@@ -21,6 +21,37 @@
 - 📊 **Структурированный вывод** — типизированные ответы с валидацией
 - 🎯 **Автоматическая оценка качества** — бенчмарки и сравнение версий
 - 🚀 **Самооптимизация** — автоматическое улучшение промптов и контрактов
+
+---
+
+## 📊 Последние изменения (v5.17.0)
+
+**Версия 5.17.0** (27 февраля 2026) — Удаление legacy-компонентов и рефакторинг
+
+### Удалено
+- ✅ Дублирующиеся паттерны поведения: `react_behavior.py`, `react_pattern.py`, `planning_pattern.py`
+- ✅ Устаревший класс `BaseBehavior` (классы входа/выхода перенесены в `base.py`)
+- ✅ Метод обратной совместимости `BaseSkill.run()`
+- ✅ Алиасы `_cached_prompts`, `_cached_input_contracts`, `_cached_output_contracts`
+- ✅ Конфигурация `_old_dev.yaml`
+- ✅ Экспорт `get_legacy_event_bus` из event_bus
+
+### Исправлено
+- ✅ Заменены импорты `log_config_new` → `log_config` (4 файла)
+- ✅ Создан отсутствующий модуль `log_mixin.py`
+- ✅ Проект запускается без ошибок импорта
+
+### Изменено
+- ✅ Обновлены импорты в `component_factory.py`, тестах
+- ✅ Версия проекта: 5.16.0 → 5.17.0
+
+### Метрики
+- Удалено файлов: 5
+- Удалено строк кода: 618
+- Дублирование паттернов: 100% → 0%
+- Все критичные тесты пройдены: 8/8 (100%)
+
+📄 **Подробности:** См. [LEGACY_REMOVAL_RESULTS.md](LEGACY_REMOVAL_RESULTS.md)
 
 ---
 
