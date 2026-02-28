@@ -263,9 +263,11 @@ class LlamaCppProvider(BaseLLMProvider):
                 "is_initialized": self.is_initialized
             }
 
-    async def execute(self, request: LLMRequest) -> LLMResponse:
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
         """
-        Выполнение запроса к LLM.
+        Реализация генерации текста для Llama.cpp.
+        
+        Логирование выполняется в базовом классе BaseLLMProvider.
         """
         if not self.is_initialized or not self.llm:
             logger.warning("LLM не инициализирован! Вызываем initialize()...")
@@ -503,12 +505,6 @@ class LlamaCppProvider(BaseLLMProvider):
                 finish_reason="error",
                 metadata={"error": str(e)}
             )
-
-    async def generate(self, request: LLMRequest) -> LLMResponse:
-        """
-        Генерация текста (совместимость с базовым интерфейсом).
-        """
-        return await self.execute(request)
 
     async def generate_structured(
         self, 

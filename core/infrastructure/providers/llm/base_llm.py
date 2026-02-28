@@ -25,19 +25,10 @@ class BaseLLMProvider(BaseProvider, ABC):
     4. Наблюдаемость: Автоматическое логирование и метрики
     5. Отказоустойчивость: Грациозная деградация при ошибках
 
-    МЕТОДЫ:
-    - initialize(): Асинхронная инициализация провайдера
-    - shutdown(): Корректное завершение работы
-    - health_check(): Проверка состояния здоровья
-    - generate(): Генерация текста
-    - generate_structured(): Генерация структурированных данных
-    - _update_metrics(): Обновление внутренних метрик
-
-    ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-    provider = VLLMProvider("mistral-7b", config)
-    await provider.initialize()
-    response = await provider.generate(LLMRequest(prompt="Привет!"))
-    print(response.content)
+    ЛОГИРОВАНИЕ LLM ВЫЗОВОВ:
+    - Промты и ответы логируются на уровне INFO в файл agent.log
+    - Включает: длину промта, длину ответа, время генерации, модель
+    - Реализовано в базовом классе для всех провайдеров автоматически
     """
 
     def __init__(self, model_name: str, config: Optional[Dict[str, Any]] = None):
@@ -52,6 +43,71 @@ class BaseLLMProvider(BaseProvider, ABC):
         self.model_name = model_name
         self.health_status = LLMHealthStatus.UNKNOWN
         self.last_health_check = None
+        
+        # Логгер для LLM вызовов (отдельный от общего логгера класса)
+        self._llm_logger = logging.getLogger(f"llm.{self.__class__.__name__}")
+
+    async def _log_llm_call_start(self, request: LLMRequest) -> None:
+        """
+        Логирование начала LLM вызова.
+
+        Логирует:
+        - Длину промта
+        - Параметры генерации (temperature, max_tokens)
+        - Модель
+        """
+        self._llm_logger.info(
+            f"📝 LLM вызов | Модель: {self.model_name} | "
+            f"Промт: {len(request.prompt)} симв. | "
+            f"Max tokens: {request.max_tokens} | "
+            f"Temperature: {request.temperature}"
+        )
+        
+        # DEBUG: полный промт (только в файл)
+        self._llm_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
+
+    async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
+        """
+        Логирование завершения LLM вызова.
+
+        Логирует:
+        - Длину ответа
+        - Время генерации
+        - Статус (успех/ошибка)
+        """
+        if response.finish_reason == "error":
+            self._llm_logger.error(
+                f"❌ LLM ответ | Модель: {self.model_name} | "
+                f"Ошибка: {response.metadata.get('error', 'unknown') if response.metadata else 'unknown'} | "
+                f"Время: {elapsed_time:.2f}с"
+            )
+        else:
+            content_length = len(response.content) if response.content else 0
+            self._llm_logger.info(
+                f"✅ LLM ответ | Модель: {self.model_name} | "
+                f"Ответ: {content_length} симв. | "
+                f"Токенов: {response.tokens_used} | "
+                f"Время: {elapsed_time:.2f}с | "
+                f"Причина: {response.finish_reason}"
+            )
+            
+            # DEBUG: полный ответ (только в файл)
+            if response.content:
+                self._llm_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
+
+    async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
+        """
+        Логирование ошибки LLM вызова.
+
+        Логирует:
+        - Тип ошибки
+        - Время до ошибки
+        """
+        self._llm_logger.error(
+            f"❌ LLM ошибка | Модель: {self.model_name} | "
+            f"{type(error).__name__}: {str(error)[:200]} | "
+            f"Время: {elapsed_time:.2f}с"
+        )
     
     @abstractmethod
     async def initialize(self) -> bool:
@@ -69,9 +125,53 @@ class BaseLLMProvider(BaseProvider, ABC):
         pass
 
     @abstractmethod
-    async def generate(self, request: LLMRequest) -> LLMResponse:
-        """Генерация текста на основе запроса."""
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
+        """
+        Реализация генерации текста в подклассе.
+        
+        ПАРАМЕТРЫ:
+        - request (LLMRequest): Запрос на генерацию
+        
+        ВОЗВРАЩАЕТ:
+        - LLMResponse: Ответ от модели
+        """
         pass
+
+    async def generate(self, request: LLMRequest) -> LLMResponse:
+        """
+        Генерация текста на основе запроса с логированием.
+        
+        ЛОГИРОВАНИЕ:
+        - Начало вызова: промт, параметры
+        - Завершение: ответ, время генерации
+        - Ошибки: тип и сообщение
+        
+        ПАРАМЕТРЫ:
+        - request (LLMRequest): Запрос на генерацию
+        
+        ВОЗВРАЩАЕТ:
+        - LLMResponse: Ответ от модели
+        """
+        start_time = time.time()
+        
+        # Логирование начала вызова
+        await self._log_llm_call_start(request)
+        
+        try:
+            # Вызов реализации
+            response = await self._generate_impl(request)
+            
+            # Логирование завершения
+            elapsed = time.time() - start_time
+            await self._log_llm_call_end(response, elapsed)
+            
+            return response
+            
+        except Exception as e:
+            # Логирование ошибки
+            elapsed = time.time() - start_time
+            await self._log_llm_call_error(e, elapsed)
+            raise
 
     @abstractmethod
     async def generate_structured(

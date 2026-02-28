@@ -175,17 +175,17 @@ class MockLLMProvider(BaseLLMProvider):
             "registered_patterns": len(self._prompt_responses)
         }
 
-    async def execute(self, request: LLMRequest) -> LLMResponse:
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
         """
-        Выполнить запрос к LLM.
+        Реализация генерации для Mock провайдера.
         
-        Ищет подходящий ответ среди зарегистрированных паттернов.
+        Логирование выполняется в базовом классе BaseLLMProvider.
         """
         if not self.initialized:
             await self.initialize()
 
         start_time = time.time()
-        
+
         # Логирование вызова
         logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
 
@@ -238,10 +238,6 @@ class MockLLMProvider(BaseLLMProvider):
         logger.info("Mock LLM провайдер завершает работу")
         self.initialized = False
         self.is_initialized = False
-
-    async def generate(self, request: LLMRequest) -> LLMResponse:
-        """Генерация текста (совместимость с базовым интерфейсом)."""
-        return await self.execute(request)
 
     async def generate_structured(
         self, 
