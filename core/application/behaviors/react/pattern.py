@@ -401,6 +401,76 @@ class ReActPattern(BaseBehaviorPattern):
             else:
                 logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
 
+    async def _publish_llm_response_received(
+        self,
+        session_context,
+        response: Any,
+        error_message: str = None,
+        error_type: str = None
+    ) -> None:
+        """
+        Публикует событие llm.response.received независимо от результата.
+        
+        ПАРАМЕТРЫ:
+        - session_context: Контекст сессии
+        - response: Ответ от LLM (может быть None при ошибке)
+        - error_message: Сообщение об ошибке (если была)
+        - error_type: Тип ошибки (timeout, llm_error, provider_unavailable, etc.)
+        """
+        if not (self.application_context and hasattr(self.application_context, 'infrastructure_context')):
+            logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
+            return
+
+        from core.infrastructure.event_bus.event_bus import EventType
+
+        # Получаем agent_id из session_context или application_context
+        agent_id = getattr(session_context, 'agent_id', 'unknown')
+        if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
+            agent_id = self.application_context.id
+
+        # Обработка ответа для логирования
+        if response is not None:
+            if isinstance(response, dict) and 'raw_response' in response:
+                result = response['raw_response']
+                response_format = "dict.raw_response"
+            elif hasattr(response, 'content'):
+                result = response.content
+                response_format = "object.content"
+            else:
+                result = response
+                response_format = type(response).__name__
+        else:
+            result = None
+            response_format = "none"
+
+        # Формируем данные события
+        event_data = {
+            "agent_id": agent_id,
+            "component": "react_pattern",
+            "phase": "think",
+            "response_format": response_format,
+            "response": result,
+            "session_id": getattr(session_context, 'session_id', 'unknown'),
+            "goal": session_context.get_goal() if session_context else 'unknown'
+        }
+
+        # Добавляем информацию об ошибке если есть
+        if error_message:
+            event_data["error"] = error_message
+        if error_type:
+            event_data["error_type"] = error_type
+
+        try:
+            await self.application_context.infrastructure_context.event_bus.publish(
+                event=EventType.LLM_RESPONSE_RECEIVED,
+                data=event_data,
+                source="react_pattern.think",
+                correlation_id=getattr(session_context, 'session_id', '')
+            )
+            logger.debug("Событие LLM_RESPONSE_RECEIVED опубликовано")
+        except Exception as e:
+            logger.error(f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
+
     async def generate_decision(
         self,
         session_context: 'SessionContext',
@@ -491,6 +561,15 @@ class ReActPattern(BaseBehaviorPattern):
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
                 logger.warning("LLM провайдер недоступен, используем упрощенную логику рассуждения")
+                
+                # Публикуем событие об ошибке
+                await self._publish_llm_response_received(
+                    session_context=session_context,
+                    response=None,
+                    error_message="LLM провайдер недоступен",
+                    error_type="provider_unavailable"
+                )
+                
                 return {
                     "analysis": {
                         "current_situation": "LLM провайдер недоступен",
@@ -633,11 +712,29 @@ class ReActPattern(BaseBehaviorPattern):
                         logger.error("  2. Проверьте доступность LLM модели")
                         logger.error("  3. Уменьшите max_tokens или упростите запрос")
 
+                        # Публикуем событие о таймауте
+                        await self._publish_llm_response_received(
+                            session_context=session_context,
+                            response=None,
+                            error_message=error_msg,
+                            error_type="timeout"
+                        )
+
                         # Прерываем работу агента с ошибкой
                         raise TimeoutError(error_msg) from e
 
                 except Exception as e:
-                    logger.error(f"Ошибка LLM вызова: {type(e).__name__}: {e}")
+                    error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
+                    logger.error(error_msg)
+                    
+                    # Публикуем событие об ошибке перед выбрасыванием исключения
+                    await self._publish_llm_response_received(
+                        session_context=session_context,
+                        response=None,
+                        error_message=error_msg,
+                        error_type="llm_call_error"
+                    )
+                    
                     raise  # Пробрасываем другие ошибки дальше
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
@@ -662,6 +759,14 @@ class ReActPattern(BaseBehaviorPattern):
                         error_msg = llm_response.metadata.get('error', error_msg)
 
                     logger.error(f"LLM вернул ошибку: {error_msg}")
+
+                    # Публикуем событие об ошибке LLM
+                    await self._publish_llm_response_received(
+                        session_context=session_context,
+                        response=response,
+                        error_message=error_msg,
+                        error_type="finish_reason_error"
+                    )
 
                     # Возвращаем fallback решение
                     return {
@@ -688,7 +793,15 @@ class ReActPattern(BaseBehaviorPattern):
                 if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
                     error_msg = llm_response.metadata['error']
                     logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
-                    
+
+                    # Публикуем событие об ошибке LLM
+                    await self._publish_llm_response_received(
+                        session_context=session_context,
+                        response=response,
+                        error_message=error_msg,
+                        error_type="metadata_error"
+                    )
+
                     return {
                         "analysis": {
                             "current_situation": f"Ошибка LLM: {error_msg}",
@@ -766,7 +879,16 @@ class ReActPattern(BaseBehaviorPattern):
             logger.debug(f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
             return reasoning_result
         except Exception as e:
-            logger.error(f"Ошибка в процессе рассуждения: {str(e)}", exc_info=True)
+            error_msg = f"Ошибка в процессе рассуждения: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+
+            # Публикуем событие об ошибке
+            await self._publish_llm_response_received(
+                session_context=session_context,
+                response=None,
+                error_message=error_msg,
+                error_type="reasoning_error"
+            )
 
             # Попытка fallback рассуждения с упрощенной схемой
             if self.error_count < self.max_consecutive_errors:
