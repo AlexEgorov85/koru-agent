@@ -23,6 +23,17 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         # Если результат уже словарь, используем его напрямую
         if isinstance(result, dict):
             validated_result = result
+        # Если результат - StructuredLLMResponse, извлекаем parsed_content
+        elif hasattr(result, 'parsed_content') and hasattr(result, 'raw_response'):
+            # StructuredLLMResponse — извлекаем содержимое
+            parsed = result.parsed_content
+            if hasattr(parsed, 'model_dump'):
+                validated_result = parsed.model_dump()
+            elif isinstance(parsed, dict):
+                validated_result = parsed
+            else:
+                # Пытаемся конвертировать в dict
+                validated_result = vars(parsed) if hasattr(parsed, '__dict__') else {'data': str(parsed)}
         # Если результат - объект Pydantic, конвертируем его в словарь
         elif hasattr(result, 'model_dump'):
             validated_result = result.model_dump()
