@@ -326,12 +326,27 @@ class SessionLogger:
     def close(self):
         """Закрытие сессии."""
         if self._active:
+            # Синхронная обёртка для завершения сессии
+            # Используем asyncio.run() только если нет текущего event loop
             import asyncio
             try:
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self.end(success=True))
+                # Проверяем, есть ли запущенный event loop
+                loop = asyncio.get_running_loop()
+                # Если loop запущен, не пытаемся завершить сессию здесь
+                # Это будет сделано в другом месте
+                logger.debug(f"Сессия {self.session_id} активна, но event loop запущен")
+                self._active = False
             except RuntimeError:
-                pass
+                # Нет запущенного event loop, можно безопасно использовать asyncio.run()
+                try:
+                    asyncio.run(self.end(success=True))
+                except Exception as e:
+                    logger.error(f"Ошибка при завершении сессии {self.session_id}: {e}")
+                finally:
+                    self._active = False
+        else:
+            # Сессия уже завершена через end(), просто удаляем из активных
+            pass
 
 
 # Глобальные активные сессии

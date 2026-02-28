@@ -96,6 +96,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         shutdown_logging_system,
         get_session_logger,
         close_session_logger,
+        _active_sessions,
     )
 
     logger = logging.getLogger("main")
@@ -132,6 +133,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         await application_context.initialize()
         logger.debug("ApplicationContext инициализирован")
+        
+        # DEBUG: Проверка что компоненты загрузились
+        from core.models.enums.common_enums import ComponentType
+        skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
+        logger.debug(f"Загружено навыков: {skill_count}")
 
         # Подписка на события LLM для логирования через SessionLogger
         from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
@@ -139,12 +145,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
         logger.debug("LLMEventSubscriber активирован")
 
-        # Проверка компонентов
-        from core.models.enums.common_enums import ComponentType
-        logger.debug(f"Компоненты: SKILL={list(application_context.components._components[ComponentType.SKILL].keys())}")
-
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
+        logger.debug("AgentFactory создан")
 
         # Подготовка конфигурации агента
         agent_config_kwargs = {}
@@ -154,10 +157,16 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             agent_config_kwargs['temperature'] = temperature
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
+        logger.debug("AgentConfig создан")
 
         # Создание и запуск агента
+        logger.debug("Создание агента...")
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
+        logger.debug(f"Агент создан: {agent}")
+        
+        logger.debug("Запуск агента...")
         result = await agent.run(goal)
+        logger.debug(f"Агент завершил работу: {result}")
 
         # Проверка на ошибку
         if hasattr(result, 'metadata') and result.metadata and 'error' in result.metadata:
@@ -173,13 +182,17 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
     except Exception as e:
         logger.error(f"Ошибка в run_agent: {e}", exc_info=True)
-        await session_logger.log_error(type(e).__name__, str(e))
-        await session_logger.end(success=False, result=str(e))
+        if session_logger and session_logger._active:
+            await session_logger.log_error(type(e).__name__, str(e))
+            await session_logger.end(success=False, result=str(e))
         raise
 
     finally:
         # Завершение работы
-        close_session_logger(session_id)
+        # SessionLogger уже завершён через end(), просто удаляем из активных сессий
+        if session_id in _active_sessions:
+            del _active_sessions[session_id]
+        
         await shutdown_logging_system()
         await infrastructure_context.shutdown()
         logger.debug("Ресурсы освобождены")

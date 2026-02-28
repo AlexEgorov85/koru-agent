@@ -71,6 +71,7 @@ from core.infrastructure.logging.session_logger import (
     SessionLogger,
     get_session_logger,
     close_session_logger,
+    _active_sessions,
 )
 
 from core.infrastructure.logging.llm_call_logger import (
@@ -128,6 +129,7 @@ __all__ = [
     'SessionLogger',
     'get_session_logger',
     'close_session_logger',
+    '_active_sessions',
 
     # LLM Call Logger
     'LLMCallLogger',
