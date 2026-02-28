@@ -69,7 +69,7 @@ class LlamaCppConfig(BaseModel):
     temperature: float = Field(default=0.7, description="Температура генерации")
     max_tokens: int = Field(default=512, description="Максимальное количество токенов")
     verbose: bool = Field(default=False, description="Подробный вывод")
-    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут ожидания ответа от LLM в секундах")
+    timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут ожидания ответа от LLM в секундах")
 
 
 # Для обратной совместимости с существующим кодом
