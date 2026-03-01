@@ -514,51 +514,61 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
-        """Генерация решения на основе анализа"""
-        self.logger.info(f"=== НАЧАЛО generate_decision ===")
-        self.logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+        """Генерация решения на основе анализа."""
+        
+        # Логирование начала через EventBusLogger
+        await self._log("info", "generate_decision: started",
+                       step=session_context.current_step if hasattr(session_context, 'current_step') else 0)
+        
         try:
-            # Структурированное рассуждение
-            self.logger.info("Вызов _perform_structured_reasoning...")
+            # 1. Структурированное рассуждение через LLM
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
-                available_capabilities=context_analysis["available_capabilities"]
+                available_capabilities=available_capabilities
             )
-            self.logger.info(f"reasoning_result получен")
-            self.logger.info(f"decision: {reasoning_result.get('decision', {})}")
-
-            # Принятие решения
-            self.logger.info("Вызов _make_decision_from_reasoning...")
+            
+            # Логирование результата рассуждения
+            await self._log("debug", f"generate_decision: reasoning_result получен",
+                           decision=reasoning_result.get('decision', {}))
+            
+            # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
                 session_context=session_context,
-                reasoning_result=reasoning_result
+                reasoning_result=reasoning_result,
+                available_capabilities=available_capabilities  # КРИТИЧНО: передаём available_capabilities
             )
-            self.logger.info(f"decision получен: action={decision.action}, capability_name={decision.capability_name}")
-
-            # Сброс счетчика ошибок при успешном решении
+            
+            # Логирование финального решения
+            await self._log("info", f"generate_decision: decision получен",
+                           action=decision.action.value,
+                           capability_name=decision.capability_name)
+            
+            # 3. Сброс счётчика ошибок при успешном решении
             self.error_count = 0
-            self.logger.info(f"=== КОНЕЦ generate_decision (УСПЕХ) ===")
+            
             return decision
-
+            
         except Exception as e:
-            await self._log("error", f"=== КОНЕЦ generate_decision (ОШИБКА) ===")
-            await self._log("error", f"Критическая ошибка в ReActPattern: {str(e)}", exc_info=True)
+            # Логирование ошибки через EventBusLogger
+            await self._log("error", f"generate_decision: критическая ошибка",
+                           error=str(e),
+                           exc_info=True)
+            
             self.error_count += 1
-
+            
             # Fallback при множественных ошибках
             if self.error_count >= self.max_consecutive_errors:
-                await self._log("warning", "Достигнут лимит ошибок, переключаемся на fallback паттерн")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
                     next_pattern="fallback.v1.0.0",
-                    reason=f"too_many_errors_{self.error_count}"
+                    reason=f"too_many_errors:{self.error_count}"
                 )
-
+            
             # Базовый fallback
             return await self._create_fallback_decision(
                 session_context=session_context,
-                reason=f"critical_error_{str(e)}"
+                reason=f"critical_error:{str(e)}"
             )
 
     async def _perform_structured_reasoning(
