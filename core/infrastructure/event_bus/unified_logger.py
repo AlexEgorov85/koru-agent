@@ -231,13 +231,15 @@ async def shutdown_logging_system(timeout: float = 30.0):
 def get_session_logger(session_id: str, agent_id: str = "unknown") -> EventBusLogger:
     """
     ЗАМЕНА: core.infrastructure.logging.get_session_logger
-    
+
     Получение логгера для сессии.
     """
+    global _global_event_bus
+    
     if _global_event_bus is None:
         from core.infrastructure.event_bus.event_bus_concurrent import get_event_bus
         _global_event_bus = get_event_bus()
-    
+
     return EventBusLogger(_global_event_bus, session_id, agent_id, 'session')
 
 
