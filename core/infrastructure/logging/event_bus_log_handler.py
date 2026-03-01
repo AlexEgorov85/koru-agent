@@ -338,12 +338,17 @@ class EventBusLogHandler:
         """
         if not self._enabled:
             return
-        
+
+        # Игнорируем события от своего собственного logger чтобы избежать бесконечного цикла
+        source = event.data.get('source', '')
+        if source == 'EventBusLog':
+            return
+
         # Форматируем сообщение
         formatted = self.formatter.format(event)
         if not formatted:
             return
-        
+
         # Определяем уровень логирования для вывода
         event_type = event.event_type
         if event_type in ["log.error"]:
