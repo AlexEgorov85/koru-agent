@@ -25,54 +25,23 @@ TEMPERATURE = 0.7
 
 
 def setup_logging_from_config():
-    """Настройка логирования из конфигурации."""
+    """Настройка базового логирования для консоли."""
     import os
-    from core.infrastructure.logging import LogFormatter, setup_logging
-    import yaml
-
+    
     os.makedirs("logs", exist_ok=True)
-
-    module_levels = {}
-    try:
-        with open("core/config/logging_config.yaml", "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-            if config and 'logging' in config:
-                logging_config = config['logging']
-                if 'module_levels' in logging_config:
-                    level_map = {
-                        'DEBUG': logging.DEBUG,
-                        'INFO': logging.INFO,
-                        'WARNING': logging.WARNING,
-                        'ERROR': logging.ERROR,
-                        'CRITICAL': logging.CRITICAL
-                    }
-                    for module_name, level_str in logging_config['module_levels'].items():
-                        if isinstance(level_str, str):
-                            module_levels[module_name] = level_map.get(level_str.upper(), logging.INFO)
-                        else:
-                            module_levels[module_name] = level_str
-    except Exception:
-        pass
-
-    root_logger = setup_logging(
-        level=logging.WARNING,
-        format_type="text",
-        log_file="logs/agent.log",
-        log_file_max_size=10485760,
-        log_file_backup_count=5,
-        use_colors=True,
-        module_levels=module_levels
+    
+    # Базовая настройка logging для консоли
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler("logs/agent.log", encoding="utf-8")
+        ]
     )
-
-    formatter = LogFormatter(format_type="text", use_colors=True)
-    console_info_handler = logging.StreamHandler()
-    console_info_handler.setLevel(logging.INFO)
-    console_info_handler.setFormatter(formatter)
-
-    main_logger = logging.getLogger("main")
-    main_logger.setLevel(logging.INFO)
-    main_logger.addHandler(console_info_handler)
-    main_logger.propagate = False
+    
+    # Уменьшаем шум от asyncio
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
