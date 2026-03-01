@@ -515,29 +515,30 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа"""
-        await self._log("info", "=== НАЧАЛО generate_decision ===")
+        self.logger.info(f"=== НАЧАЛО generate_decision ===")
+        self.logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
         try:
             # Структурированное рассуждение
-            await self._log("info", "generate_decision: вызов _perform_structured_reasoning...")
+            self.logger.info("Вызов _perform_structured_reasoning...")
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
                 available_capabilities=context_analysis["available_capabilities"]
             )
-            await self._log("debug", f"generate_decision: reasoning_result получен, keys={list(reasoning_result.keys())}")
-            await self._log("debug", f"generate_decision: decision={reasoning_result.get('decision', {})}")
+            self.logger.info(f"reasoning_result получен")
+            self.logger.info(f"decision: {reasoning_result.get('decision', {})}")
 
             # Принятие решения
-            await self._log("info", "generate_decision: вызов _make_decision_from_reasoning...")
+            self.logger.info("Вызов _make_decision_from_reasoning...")
             decision = await self._make_decision_from_reasoning(
                 session_context=session_context,
                 reasoning_result=reasoning_result
             )
-            await self._log("info", f"generate_decision: decision получен: action={decision.action}")
+            self.logger.info(f"decision получен: action={decision.action}, capability_name={decision.capability_name}")
 
             # Сброс счетчика ошибок при успешном решении
             self.error_count = 0
-            await self._log("info", "=== КОНЕЦ generate_decision (УСПЕХ) ===")
+            self.logger.info(f"=== КОНЕЦ generate_decision (УСПЕХ) ===")
             return decision
 
         except Exception as e:
@@ -567,15 +568,8 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
-        await self._log("info", f"=== НАЧАЛО _perform_structured_reasoning ===")
-        await self._log("debug", f"_perform_structured_reasoning: received available_capabilities count={len(available_capabilities)}")
-        await self._log("debug", f"_perform_structured_reasoning: session_context={session_context}")
-        await self._log("debug", f"_perform_structured_reasoning: goal={session_context.get_goal() if session_context else 'None'}")
-
         # Загружаем промпт и контракт из кэша BaseComponent
-        await self._log("info", "_perform_structured_reasoning: вызов _load_reasoning_resources()...")
         self._load_reasoning_resources()
-        await self._log("info", "_perform_structured_reasoning: _load_reasoning_resources() завершён")
 
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
@@ -586,27 +580,19 @@ class ReActPattern(BaseBehaviorPattern):
                 'parameters_schema': getattr(cap, 'parameters_schema', {}) or {}
             })
 
-        # Рендерим промпт из шаблона (загружен из PromptService/ComponentConfig)
-        await self._log("debug", "Начало рендеринга промпта...")
+        # Рендерим промпт из шаблона
         reasoning_prompt = self._render_reasoning_prompt(
             context_analysis=context_analysis,
             available_capabilities=formatted_capabilities
         )
-        await self._log("debug", f"Промпт сформирован, длина={len(reasoning_prompt)}")
 
         start_time = time.time()
 
         try:
             # Генерация структурированного ответа через LLM
-            # Получаем LLM провайдер через ApplicationContext
-            await self._log("debug", "Получение LLM провайдера...")
             llm_provider = None
-
-            # Пытаемся получить через application_context
             if self.application_context:
                 llm_provider = self.application_context.get_provider("default_llm")
-
-            await self._log("debug", f"LLM провайдер получен: {llm_provider is not None}")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
@@ -641,12 +627,8 @@ class ReActPattern(BaseBehaviorPattern):
                 }
 
             # Создаем LLMRequest для структурированного вывода
-            # Системный промпт загружается из component_config.resolved_prompts
-            await self._log("info", "_perform_structured_reasoning: получение system_prompt...")
             system_prompt = self.system_prompt_template or self._get_default_system_prompt()
-            await self._log("debug", f"_perform_structured_reasoning: system_prompt получен, длина={len(system_prompt) if system_prompt else 0}")
 
-            await self._log("info", "_perform_structured_reasoning: создание LLMRequest...")
             llm_request = LLMRequest(
                 prompt=reasoning_prompt,
                 system_prompt=system_prompt,
@@ -659,20 +641,14 @@ class ReActPattern(BaseBehaviorPattern):
                     strict_mode=False
                 )
             )
-            await self._log("debug", f"_perform_structured_reasoning: LLMRequest создан, prompt_length={len(reasoning_prompt)}")
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
-            await self._log("debug", "_perform_structured_reasoning: ПЕРЕД ПУБЛИКАЦИЕЙ СОБЫТИЯ LLM_PROMPT_GENERATED")
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.event_bus.event_bus import Event, EventType
 
-                # Получаем agent_id из session_context или application_context
                 agent_id = getattr(session_context, 'agent_id', 'unknown')
                 if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
                     agent_id = self.application_context.id
-
-                await self._log("debug", f"_perform_structured_reasoning: agent_id={agent_id}, session_id={getattr(session_context, 'session_id', 'unknown')}")
-                await self._log("debug", "_perform_structured_reasoning: ВЫЗОВ event_bus.publish()...")
 
                 await self.application_context.infrastructure_context.event_bus.publish(
                     event=EventType.LLM_PROMPT_GENERATED,
@@ -691,13 +667,8 @@ class ReActPattern(BaseBehaviorPattern):
                     source="react_pattern.think",
                     correlation_id=getattr(session_context, 'session_id', '')
                 )
-                await self._log("debug", "_perform_structured_reasoning: event_bus.publish() ЗАВЕРШЁН")
-                await self._log("debug", "Событие LLM_PROMPT_GENERATED опубликовано")
-            else:
-                await self._log("warning", "_perform_structured_reasoning: application_context или infrastructure_context отсутствует")
 
             # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
-            # Это нужно для публикации событий при ошибках/таймаутах
             if hasattr(llm_provider, 'set_call_context'):
                 llm_provider.set_call_context(
                     event_bus=self.application_context.infrastructure_context.event_bus,
@@ -707,31 +678,20 @@ class ReActPattern(BaseBehaviorPattern):
                     phase="think",
                     goal=session_context.get_goal() if session_context else 'unknown'
                 )
-                await self._log("debug", "Контекст вызова установлен в LLM провайдере")
 
-            await self._log("info", "=" * 60)
-            await self._log("info", "НАЧАЛО LLM ВЫЗОВА")
-            await self._log("info", f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
-            await self._log("info", f"Провайдер: {type(llm_provider).__name__}")
-            await self._log("info", f"Модель: {getattr(llm_provider, 'model_name', 'unknown')}")
+            await self._log("info", f"🧠 Запуск рассуждения ReAct | Цель: {session_context.get_goal() if session_context else 'unknown'}")
             await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
-            await self._log("info", f"Таймаут: {getattr(llm_provider, 'timeout_seconds', 120.0)}с")
-            await self._log("info", "=" * 60)
 
             # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
             import asyncio
             from asyncio import TimeoutError as AsyncTimeoutError
 
-            # Параметры retry
             max_retries = 3
-            retry_delay = 5.0  # секунд между попытками
+            retry_delay = 5.0
             retry_count = 0
-
-            await self._log("debug", "=== ПЕРЕД ЦИКЛОМ LLM RETRY ===")
 
             while retry_count < max_retries:
                 try:
-                    # Получаем таймаут из конфигурации LLM провайдера
                     llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
                     await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
                     await self._log("info", f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")

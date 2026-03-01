@@ -145,12 +145,16 @@ class EventBus:
         ```
         """
         event_type_str = event_type.value if isinstance(event_type, EventType) else event_type
-        
+
         if event_type_str not in self._subscribers:
             self._subscribers[event_type_str] = []
-        
-        self._subscribers[event_type_str].append(handler)
-        self._internal_logger.debug(f"Подписан обработчик на событие: {event_type_str}")
+
+        # Проверка на дублирование подписчика
+        if handler not in self._subscribers[event_type_str]:
+            self._subscribers[event_type_str].append(handler)
+            # self._internal_logger.debug(f"Подписан обработчик на событие: {event_type_str}")
+        # else:
+            # self._internal_logger.debug(f"Обработчик уже подписан на событие: {event_type_str}")
     
     def subscribe_all(self, handler: Callable):
         """
@@ -202,10 +206,11 @@ class EventBus:
         else:
             # Уже является объектом Event
             event_obj = event
-        
-        # Логирование публикации события для отладки
-        self._internal_logger.debug(f"Публикация события: {event_obj.event_type} (источник: {event_obj.source})")
-        
+
+        # Логирование публикации события (только для важных событий)
+        if event_obj.event_type in ["error.occurred", "agent.started", "agent.completed"]:
+            self._internal_logger.info(f"Публикация события: {event_obj.event_type} (источник: {event_obj.source})")
+
         # Получение списка подписчиков
         event_type_handlers = self._subscribers.get(event_obj.event_type, [])
         all_handlers = self._all_subscribers[:]

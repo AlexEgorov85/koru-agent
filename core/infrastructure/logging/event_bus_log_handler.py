@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 from dataclasses import dataclass
 
 from core.infrastructure.event_bus.event_bus import Event, EventType
+from .logging_to_event_bus import LOGGING_SYSTEM_LOGGERS
 
 
 class LogMessageType(Enum):
@@ -308,7 +309,7 @@ class EventBusLogHandler:
     ):
         """
         Инициализация обработчика.
-        
+
         ARGS:
             use_colors: использовать ANSI цвета
             show_debug: показывать DEBUG сообщения
@@ -319,6 +320,7 @@ class EventBusLogHandler:
             show_debug=show_debug
         )
         self.logger = logging.getLogger(logger_name)
+        self.logger.propagate = False  # Отключаем передачу в родительские логгеры (чтобы не дублировалось в файле)
         self._enabled = True
     
     def enable(self):
@@ -332,16 +334,16 @@ class EventBusLogHandler:
     async def handle_log_event(self, event: Event) -> None:
         """
         Обработчик событий логирования.
-        
+
         ARGS:
             event: событие из EventBus
         """
         if not self._enabled:
             return
 
-        # Игнорируем события от своего собственного logger чтобы избежать бесконечного цикла
-        source = event.data.get('source', '')
-        if source == 'EventBusLog':
+        # Игнорируем события от логгеров системы логирования чтобы избежать бесконечного цикла
+        logger_name = event.data.get('logger_name', '')
+        if logger_name in LOGGING_SYSTEM_LOGGERS or logger_name.startswith("koru."):
             return
 
         # Форматируем сообщение
@@ -454,11 +456,11 @@ async def log_info(
 ):
     """
     Опубликовать INFO сообщение в EventBus.
-    
+
     USAGE:
         await log_info(event_bus, "Запуск процесса", source="my_component", session_id="123")
     """
-    data = {"message": message, "level": "INFO", **extra_data}
+    data = {"message": message, "level": "INFO", "logger_name": source, **extra_data}
     await event_bus.publish(EventType.LOG_INFO, data=data, source=source, correlation_id=correlation_id)
 
 
@@ -471,11 +473,11 @@ async def log_debug(
 ):
     """
     Опубликовать DEBUG сообщение в EventBus.
-    
+
     USAGE:
         await log_debug(event_bus, "Детали процесса", source="my_component")
     """
-    data = {"message": message, "level": "DEBUG", **extra_data}
+    data = {"message": message, "level": "DEBUG", "logger_name": source, **extra_data}
     await event_bus.publish(EventType.LOG_DEBUG, data=data, source=source, correlation_id=correlation_id)
 
 
@@ -488,11 +490,11 @@ async def log_warning(
 ):
     """
     Опубликовать WARNING сообщение в EventBus.
-    
+
     USAGE:
         await log_warning(event_bus, "Предупреждение", source="my_component")
     """
-    data = {"message": message, "level": "WARNING", **extra_data}
+    data = {"message": message, "level": "WARNING", "logger_name": source, **extra_data}
     await event_bus.publish(EventType.LOG_WARNING, data=data, source=source, correlation_id=correlation_id)
 
 
@@ -505,11 +507,11 @@ async def log_error(
 ):
     """
     Опубликовать ERROR сообщение в EventBus.
-    
+
     USAGE:
         await log_error(event_bus, "Ошибка", source="my_component", error_type="timeout")
     """
-    data = {"message": message, "level": "ERROR", **extra_data}
+    data = {"message": message, "level": "ERROR", "logger_name": source, **extra_data}
     await event_bus.publish(EventType.LOG_ERROR, data=data, source=source, correlation_id=correlation_id)
 
 

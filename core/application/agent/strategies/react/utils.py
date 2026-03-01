@@ -43,7 +43,7 @@ def analyze_context(session_context: 'SessionContext') -> Dict[str, Any]:
         
         # Проверяем, что goal - это строка, прежде чем применять срез
         goal_str = str(goal) if goal is not None else "Неизвестная цель"
-        logger.debug(f"Контекст проанализирован. Цель: {goal_str[:50]}...")
+        # logger.debug(f"Контекст проанализирован. Цель: {goal_str[:50]}...")
         return context_analysis
         
     except Exception as e:

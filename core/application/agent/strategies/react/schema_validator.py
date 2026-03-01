@@ -62,7 +62,7 @@ class SchemaValidator:
         # Получаем схему из кэша по имени capability
         params_schema = self.get_capability_schema(capability.name)
 
-        logger.info(f"validate_parameters: capability={capability.name}, raw_params={raw_params}, params_schema={params_schema}")
+        # logger.info(f"validate_parameters: capability={capability.name}, raw_params={raw_params}, params_schema={params_schema}")
 
         # Если схема не найдена в кэше, пробуем получить из meta capability
         if not params_schema:
@@ -125,13 +125,13 @@ class SchemaValidator:
                             continue
 
                 validated_params[param_name] = param_value
-                logger.debug(f"Валидирован параметр {param_name}={param_value}")
+                # logger.debug(f"Валидирован параметр {param_name}={param_value}")
             elif param_info.get('required', False):
                 # Если параметр обязательный, но отсутствует, возвращаем None
                 logger.warning(f"Обязательный параметр {param_name} отсутствует")
                 return None
 
-        logger.info(f"validate_parameters: result={validated_params}")
+        # logger.info(f"validate_parameters: result={validated_params}")
         return validated_params
 
     def _try_fix_book_library_params(

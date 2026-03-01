@@ -24,8 +24,8 @@ USAGE:
     llm_calls = await search.get_session_llm_calls(session_id)
 """
 import os
+import sys
 import json
-import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +35,25 @@ from core.infrastructure.logging.log_config import LoggingConfig, get_logging_co
 from core.infrastructure.logging.log_indexer import LogIndexer, SessionIndexEntry, get_log_indexer
 
 
-logger = logging.getLogger(__name__)
+def _debug(msg: str) -> None:
+    """Отладочный вывод (не через logging)."""
+    if os.environ.get("KORU_DEBUG"):
+        print(f"[LogSearch DEBUG] {msg}", file=sys.stderr)
+
+
+def _info(msg: str) -> None:
+    """Информационный вывод (не через logging)."""
+    print(f"[LogSearch] {msg}", file=sys.stderr)
+
+
+def _error(msg: str) -> None:
+    """Вывод ошибок (не через logging)."""
+    print(f"[LogSearch ERROR] {msg}", file=sys.stderr)
+
+
+def _warning(msg: str) -> None:
+    """Вывод предупреждений (не через logging)."""
+    print(f"[LogSearch WARNING] {msg}", file=sys.stderr)
 
 
 class LogSearch:
@@ -77,59 +95,59 @@ class LogSearch:
     async def initialize(self) -> None:
         """Инициализация поиска."""
         if self._initialized:
-            logger.warning("LogSearch уже инициализирован")
+            _error("LogSearch уже инициализирован")
             return
-        
+
         # Инициализация индексатора если не передан
         if self._indexer is None:
             self._indexer = get_log_indexer()
             if not self._indexer.is_initialized:
                 await self._indexer.initialize()
-        
+
         self._initialized = True
-        logger.info("LogSearch инициализирован")
+        _info("LogSearch инициализирован")
     
     async def get_latest_session(self) -> Optional[SessionIndexEntry]:
         """
         Получение последней сессии.
-        
+
         RETURNS:
             SessionIndexEntry или None
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return None
-        
+
         return await self._indexer.get_latest_session()
-    
+
     async def find_session(self, session_id: str) -> Optional[SessionIndexEntry]:
         """
         Поиск сессии по ID.
-        
+
         ARGS:
             session_id: ID сессии
-            
+
         RETURNS:
             SessionIndexEntry или None
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return None
-        
+
         return await self._indexer.find_session(session_id)
-    
+
     async def get_session_logs(self, session_id: str) -> Optional[List[Dict[str, Any]]]:
         """
         Получение всех логов сессии.
-        
+
         ARGS:
             session_id: ID сессии
-            
+
         RETURNS:
             Список записей лога или None
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return None
         
         # Поиск файла сессии
@@ -161,11 +179,11 @@ class LogSearch:
                     except json.JSONDecodeError:
                         # Текстовый формат
                         logs.append({'raw': line})
-            
+
             return logs
-            
+
         except Exception as e:
-            logger.error(f"Ошибка чтения логов сессии {session_id}: {e}")
+            _error(f"Ошибка чтения логов сессии {session_id}: {e}")
             return None
     
     def _find_session_file(self, session_id: str) -> Optional[Path]:
@@ -205,7 +223,7 @@ class LogSearch:
             Список LLM вызовов
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return []
         
         # Поиск файла LLM логов
@@ -243,11 +261,11 @@ class LogSearch:
                             calls.append(data)
                     except json.JSONDecodeError:
                         continue
-            
+
             return calls
-            
+
         except Exception as e:
-            logger.error(f"Ошибка чтения LLM логов сессии {session_id}: {e}")
+            _error(f"Ошибка чтения LLM логов сессии {session_id}: {e}")
             return []
     
     async def get_last_llm_call(self, session_id: str, 
@@ -281,54 +299,54 @@ class LogSearch:
                               limit: Optional[int] = None) -> List[SessionIndexEntry]:
         """
         Поиск сессий по паттерну в goal.
-        
+
         ARGS:
             goal_pattern: Паттерн для поиска
             limit: Максимальное количество результатов
-            
+
         RETURNS:
             Список SessionIndexEntry
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return []
-        
+
         return await self._indexer.search_sessions(goal_pattern=goal_pattern, limit=limit)
-    
+
     async def search_by_agent(self, agent_id: str,
                                limit: Optional[int] = None) -> List[SessionIndexEntry]:
         """
         Поиск всех сессий агента.
-        
+
         ARGS:
             agent_id: ID агента
             limit: Максимальное количество результатов
-            
+
         RETURNS:
             Список SessionIndexEntry
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return []
-        
+
         return await self._indexer.get_agent_sessions(agent_id, limit)
-    
+
     async def search_by_status(self, status: str,
                                 limit: Optional[int] = None) -> List[SessionIndexEntry]:
         """
         Поиск сессий по статусу.
-        
+
         ARGS:
             status: Статус (started, completed, failed)
             limit: Максимальное количество результатов
-            
+
         RETURNS:
             Список SessionIndexEntry
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return []
-        
+
         return await self._indexer.search_sessions(status=status, limit=limit)
     
     async def search_by_date_range(self, date_from: datetime,
@@ -341,14 +359,14 @@ class LogSearch:
             date_from: Дата от
             date_to: Дата до
             limit: Максимальное количество результатов
-            
+
         RETURNS:
             Список SessionIndexEntry
         """
         if not self._initialized:
-            logger.warning("LogSearch не инициализирован")
+            _error("LogSearch не инициализирован")
             return []
-        
+
         return await self._indexer.search_sessions(
             date_from=date_from,
             date_to=date_to,
@@ -379,7 +397,7 @@ class LogSearch:
         try:
             regex = re.compile(pattern, flags)
         except re.error as e:
-            logger.error(f"Неверный regex паттерн: {e}")
+            _error(f"Неверный regex паттерн: {e}")
             return []
         
         # Поиск совпадений
@@ -412,7 +430,7 @@ class LogSearch:
         logs = await self.get_session_logs(session_id)
         
         if not logs:
-            logger.warning(f"Сессия {session_id} не найдена")
+            _warning(f"Сессия {session_id} не найдена")
             return None
         
         # Генерация пути
@@ -435,14 +453,14 @@ class LogSearch:
                             f.write(json.dumps(log_entry, ensure_ascii=False, default=str) + '\n')
             
             else:
-                logger.error(f"Неизвестный формат экспорта: {format}")
+                _error(f"Неизвестный формат экспорта: {format}")
                 return None
-            
-            logger.info(f"Сессия экспортирована: {export_path}")
+
+            _info(f"Сессия экспортирована: {export_path}")
             return str(export_path)
-            
+
         except Exception as e:
-            logger.error(f"Ошибка экспорта сессии: {e}")
+            _error(f"Ошибка экспорта сессии: {e}")
             return None
     
     async def get_statistics(self) -> Dict[str, Any]:
@@ -462,7 +480,7 @@ class LogSearch:
     
     async def shutdown(self) -> None:
         """Завершение работы поиска."""
-        logger.info("Завершение работы LogSearch...")
+        _info("Завершение работы LogSearch...")
         self._initialized = False
     
     @property

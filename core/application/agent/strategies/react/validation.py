@@ -112,7 +112,7 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         if 'alternative_actions' not in validated_result:
             validated_result['alternative_actions'] = []
 
-        logger.debug("Результат рассуждения успешно валидирован")
+        # logger.debug("Результат рассуждения успешно валидирован")
         return validated_result
 
     except Exception as e:

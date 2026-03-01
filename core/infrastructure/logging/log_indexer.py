@@ -13,9 +13,9 @@ logs/indexed/
 └── agents_index.jsonl         ← {agent_id, session_ids[], last_session_timestamp}
 """
 import os
+import sys
 import json
 import asyncio
-import logging
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,7 +25,20 @@ from dataclasses import dataclass, asdict
 from core.infrastructure.logging.log_config import LoggingConfig, get_logging_config
 
 
-logger = logging.getLogger(__name__)
+def _debug(msg: str) -> None:
+    """Отладочный вывод (не через logging)."""
+    if os.environ.get("KORU_DEBUG"):
+        print(f"[LogIndexer DEBUG] {msg}", file=sys.stderr)
+
+
+def _info(msg: str) -> None:
+    """Информационный вывод (не через logging)."""
+    print(f"[LogIndexer] {msg}", file=sys.stderr)
+
+
+def _error(msg: str) -> None:
+    """Вывод ошибок (не через logging)."""
+    print(f"[LogIndexer ERROR] {msg}", file=sys.stderr)
 
 
 @dataclass
@@ -119,29 +132,29 @@ class LogIndexer:
         - Запуск фонового обновления
         """
         if self._initialized:
-            logger.warning("LogIndexer уже инициализирован")
+            _error("LogIndexer уже инициализирован")
             return
-        
-        logger.info("Инициализация LogIndexer...")
-        
+
+        _info("Инициализация LogIndexer...")
+
         # Создание директории индексов
         self.config.indexed_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Загрузка существующих индексов
         await self._load_indexes()
-        
+
         # Сканирование архива
         await self._scan_archive()
-        
+
         # Сохранение индексов
         await self._save_indexes()
-        
+
         # Запуск фонового обновления
         if self.config.indexing.enabled:
             await self._start_background_update()
-        
+
         self._initialized = True
-        logger.info(f"LogIndexer инициализирован ({len(self._sessions_index)} сессий, {len(self._agents_index)} агентов)")
+        _info(f"LogIndexer инициализирован ({len(self._sessions_index)} сессий, {len(self._agents_index)} агентов)")
     
     async def _load_indexes(self) -> None:
         """Загрузка существующих индексов."""
@@ -156,10 +169,10 @@ class LogIndexer:
                             data = json.loads(line)
                             entry = SessionIndexEntry.from_dict(data)
                             self._sessions_index[entry.session_id] = entry
-                logger.debug(f"Загружено {len(self._sessions_index)} записей сессий")
+                _debug(f"Загружено {len(self._sessions_index)} записей сессий")
             except Exception as e:
-                logger.error(f"Ошибка загрузки sessions_index: {e}")
-        
+                _error(f"Ошибка загрузки sessions_index: {e}")
+
         # Загрузка agents_index.jsonl
         agents_path = self.config.get_agents_index_path()
         if agents_path.exists():
@@ -171,9 +184,9 @@ class LogIndexer:
                             data = json.loads(line)
                             entry = AgentIndexEntry.from_dict(data)
                             self._agents_index[entry.agent_id] = entry
-                logger.debug(f"Загружено {len(self._agents_index)} записей агентов")
+                _debug(f"Загружено {len(self._agents_index)} записей агентов")
             except Exception as e:
-                logger.error(f"Ошибка загрузки agents_index: {e}")
+                _error(f"Ошибка загрузки agents_index: {e}")
     
     async def _save_indexes(self) -> None:
         """Сохранение индексов."""
@@ -200,8 +213,8 @@ class LogIndexer:
         
         await asyncio.to_thread(write_agents)
 
-        logger.debug(f"Сохранено индексов: {len(self._sessions_index)} сессий, {len(self._agents_index)} агентов")
-    
+        _debug(f"Сохранено индексов: {len(self._sessions_index)} сессий, {len(self._agents_index)} агентов")
+
     async def _scan_archive(self) -> None:
         """Сканирование архива логов для обновления индексов."""
         if not self.config.archive_dir.exists():
@@ -214,7 +227,7 @@ class LogIndexer:
             # Используем asyncio.to_thread для неблокирующего чтения директорий
             archive_contents = await asyncio.to_thread(list, self.config.archive_dir.iterdir())
         except Exception as e:
-            logger.debug(f"Ошибка чтения архива: {e}")
+            _debug(f"Ошибка чтения архива: {e}")
             return
 
         for year_dir in archive_contents:
@@ -242,7 +255,7 @@ class LogIndexer:
                 for log_file in log_files:
                     # Проверяем флаг остановки в цикле
                     if self._stop_event.is_set():
-                        logger.debug("Сканирование архива прервано")
+                        _debug("Сканирование архива прервано")
                         return
 
                     match = sessions_pattern.match(log_file.name)
@@ -275,7 +288,7 @@ class LogIndexer:
                         if entry.agent_id:
                             await self._update_agent_index(entry.agent_id, session_id, entry.timestamp)
 
-        logger.debug(f"Отсканировано архивов: {len(self._sessions_index)} сессий найдено")
+        _debug(f"Отсканировано архивов: {len(self._sessions_index)} сессий найдено")
     
     async def _extract_metadata(self, log_file: Path) -> Dict[str, Any]:
         """
@@ -327,7 +340,7 @@ class LogIndexer:
                     continue
 
         except Exception as e:
-            logger.debug(f"Ошибка извлечения метаданных из {log_file}: {e}")
+            _debug(f"Ошибка извлечения метаданных из {log_file}: {e}")
 
         return metadata
     
@@ -365,7 +378,7 @@ class LogIndexer:
         """Запуск фонового обновления индекса."""
         self._stop_event.clear()
         self._background_task = asyncio.create_task(self._background_update_loop())
-        logger.debug(f"Запущено фоновое обновление индекса (интервал: {self.config.indexing.update_interval_sec}с)")
+        _debug(f"Запущено фоновое обновление индекса (интервал: {self.config.indexing.update_interval_sec}с)")
     
     async def _background_update_loop(self) -> None:
         """Фоновый цикл обновления индекса."""
@@ -381,27 +394,27 @@ class LogIndexer:
                 try:
                     await asyncio.wait_for(self._scan_archive(), timeout=30.0)
                 except asyncio.TimeoutError:
-                    logger.warning("Таймаут при сканировании архива (>30с)")
+                    _error("Таймаут при сканировании архива (>30с)")
                 except Exception as e:
-                    logger.error(f"Ошибка при сканировании архива: {e}")
-                
+                    _error(f"Ошибка при сканировании архива: {e}")
+
                 # Проверяем флаг остановки перед сохранением
                 if self._stop_event.is_set():
                     break
-                
+
                 # Сохраняем индексы с таймаутом
                 try:
                     await asyncio.wait_for(self._save_indexes(), timeout=10.0)
                 except asyncio.TimeoutError:
-                    logger.warning("Таймаут при сохранении индексов (>10с)")
+                    _error("Таймаут при сохранении индексов (>10с)")
                 except Exception as e:
-                    logger.error(f"Ошибка при сохранении индексов: {e}")
-                    
+                    _error(f"Ошибка при сохранении индексов: {e}")
+
             except asyncio.CancelledError:
-                logger.debug("Фоновое обновление индекса отменено")
+                _debug("Фоновое обновление индекса отменено")
                 break
             except Exception as e:
-                logger.error(f"Ошибка фонового обновления индекса: {e}", exc_info=True)
+                _error(f"Ошибка фонового обновления индекса: {e}", exc_info=True)
     
     async def add_session(self, session_id: str, agent_id: Optional[str] = None, 
                           goal: Optional[str] = None) -> None:
@@ -590,28 +603,28 @@ class LogIndexer:
     async def rebuild_index(self) -> int:
         """
         Перестроение индекса с нуля.
-        
+
         RETURNS:
             Количество проиндексированных сессий
         """
-        logger.info("Перестроение индекса...")
-        
+        _info("Перестроение индекса...")
+
         # Очистка кэшей
         self._sessions_index.clear()
         self._agents_index.clear()
-        
+
         # Сканирование архива
         await self._scan_archive()
-        
+
         # Сохранение
         await self._save_indexes()
-        
-        logger.info(f"Индекс перестроен: {len(self._sessions_index)} сессий")
+
+        _info(f"Индекс перестроен: {len(self._sessions_index)} сессий")
         return len(self._sessions_index)
-    
+
     async def shutdown(self) -> None:
         """Завершение работы индексатора."""
-        logger.info("Завершение работы LogIndexer...")
+        _info("Завершение работы LogIndexer...")
 
         # Остановка фонового обновления
         self._stop_event.set()
@@ -621,22 +634,22 @@ class LogIndexer:
                 # Ждем завершения задачи с таймаутом
                 await asyncio.wait_for(self._background_task, timeout=5.0)
             except asyncio.CancelledError:
-                logger.debug("Фоновая задача отменена")
+                _debug("Фоновая задача отменена")
             except asyncio.TimeoutError:
-                logger.warning("Таймаут при ожидании завершения фоновой задачи")
+                _error("Таймаут при ожидании завершения фоновой задачи")
             except Exception as e:
-                logger.debug(f"Ошибка при завершении фоновой задачи: {e}")
+                _debug(f"Ошибка при завершении фоновой задачи: {e}")
 
         # Сохранение индексов
         try:
             await asyncio.wait_for(self._save_indexes(), timeout=10.0)
         except asyncio.TimeoutError:
-            logger.warning("Таймаут при сохранении индексов")
+            _error("Таймаут при сохранении индексов")
         except Exception as e:
-            logger.error(f"Ошибка при сохранении индексов: {e}")
+            _error(f"Ошибка при сохранении индексов: {e}")
 
         self._initialized = False
-        logger.info("LogIndexer завершил работу")
+        _info("LogIndexer завершил работу")
 
     @property
     def is_initialized(self) -> bool:

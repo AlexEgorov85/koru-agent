@@ -16,18 +16,34 @@ from typing import Optional
 from core.infrastructure.event_bus.event_bus import EventBus, EventType
 
 
+# Логгеры системы логирования, которые НЕ должны перенаправляться в EventBus
+# (чтобы избежать бесконечного цикла: логгер → EventBus → логгер → EventBus...)
+LOGGING_SYSTEM_LOGGERS = frozenset({
+    "EventBusLog",           # EventBusLogHandler - форматирует сообщения из EventBus
+    "koru.log_manager",      # LogManager - пишет в файлы
+    "koru.log_indexer",      # LogIndexer - индексирует логи
+    "koru.log_rotator",      # LogRotator - ротирует логи
+    "koru.log_search",       # LogSearch - поиск по логам
+    "koru.session_logger",   # SessionLogger - логирование сессий
+    "koru.llm_call_logger",  # LLMCallLogger - логирование LLM вызовов
+})
+
+
 class LoggingToEventBusHandler(logging.Handler):
     """
     Logging handler который публикует записи в EventBus.
-    
+
     Все вызовы logger.info/error/debug/warning перенаправляются в EventBus
     и затем форматируются через EventBusLogHandler.
+
+    ВАЖНО: Игнорирует сообщения от логгеров системы логирования,
+    чтобы избежать бесконечного цикла.
     """
-    
+
     def __init__(self, event_bus: EventBus, source: str = "app"):
         """
         Инициализация обработчика.
-        
+
         ARGS:
             event_bus: шина событий для публикации
             source: источник событий (по умолчанию "app")
@@ -36,23 +52,27 @@ class LoggingToEventBusHandler(logging.Handler):
         self.event_bus = event_bus
         self.source = source
         self.setLevel(logging.DEBUG)  # Перехватываем все уровни
-    
+
     def emit(self, record: logging.LogRecord):
         """
         Публикация записи лога в EventBus.
-        
+
         ARGS:
             record: запись лога от logging
         """
+        # ИГНОРИРУЕМ логгеры системы логирования чтобы избежать бесконечного цикла
+        if record.name in LOGGING_SYSTEM_LOGGERS or record.name.startswith("koru."):
+            return
+
         try:
             # Получаем сообщение
             message = self.format(record)
-            
+
             # Определяем уровень
             level_name = record.levelname.lower()
             if level_name == 'critical':
                 level_name = 'error'
-            
+
             # Маппинг уровней logging на EventType
             event_type_map = {
                 'debug': EventType.LOG_DEBUG,
@@ -61,9 +81,9 @@ class LoggingToEventBusHandler(logging.Handler):
                 'error': EventType.LOG_ERROR,
                 'critical': EventType.LOG_ERROR,
             }
-            
+
             event_type = event_type_map.get(level_name, EventType.LOG_INFO)
-            
+
             # Формируем данные события
             data = {
                 "message": message,
@@ -74,13 +94,13 @@ class LoggingToEventBusHandler(logging.Handler):
                 "function": record.funcName,
                 "line": record.lineno,
             }
-            
+
             # Публикуем в EventBus (асинхронно)
             # Используем create_task так как emit() синхронный
             asyncio.create_task(
                 self.event_bus.publish(event_type, data=data, source=self.source)
             )
-            
+
         except Exception as e:
             # Если ошибка при публикации - пишем в stderr
             self.handleError(record)

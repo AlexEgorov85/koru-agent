@@ -77,11 +77,7 @@ class BaseEventCollector(ABC):
         """
         self.event_bus.subscribe(event_type, handler)
         self._subscriptions.append(event_type)
-        logger.debug(
-            "%s подписан на %s",
-            self.__class__.__name__,
-            event_type.value
-        )
+        # logger.debug("%s подписан на %s", self.__class__.__name__, event_type.value)
 
     async def shutdown(self) -> None:
         """

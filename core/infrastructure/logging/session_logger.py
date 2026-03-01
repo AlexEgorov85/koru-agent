@@ -100,9 +100,7 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            # Сессия не активна — это нормально если логирование происходит
-            # вне контекста сессии (например, при инициализации)
-            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
+            # Сессия не активна — пропускаем без шума
             return
 
         timestamp = datetime.now()
@@ -122,8 +120,6 @@ class SessionLogger:
         self._log_manager.log_session(self.session_id, event_data)
         self._log_manager.log_llm(self.session_id, event_data)
         self._llm_calls.append(event_data)
-        
-        logger.debug(f"LLM промпт logged: {component}/{phase}")
 
     async def log_llm_response(self, component: str, phase: str,
                                 response: Any, tokens: Optional[int] = None,
@@ -141,9 +137,7 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            # Сессия не активна — это нормально если логирование происходит
-            # вне контекста сессии (например, при инициализации)
-            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
+            # Сессия не активна — пропускаем без шума
             return
 
         timestamp = datetime.now()
@@ -163,8 +157,6 @@ class SessionLogger:
         self._log_manager.log_session(self.session_id, event_data)
         self._log_manager.log_llm(self.session_id, event_data)
         self._llm_calls.append(event_data)
-        
-        logger.debug(f"LLM ответ logged: {component}/{phase}")
 
     async def log_step(self, step_number: int, capability: str,
                         success: bool, latency_ms: Optional[float] = None,
@@ -180,9 +172,7 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            # Сессия не активна — это нормально если логирование происходит
-            # вне контекста сессии (например, при инициализации)
-            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
+            # Сессия не активна — пропускаем без шума
             return
 
         self._steps += 1
@@ -199,7 +189,6 @@ class SessionLogger:
         }
 
         self._log_manager.log_session(self.session_id, event_data)
-        logger.debug(f"Шаг {step_number} logged: {capability} (success={success})")
 
     async def log_error(self, error_type: str, error_message: str,
                          capability: Optional[str] = None,
@@ -214,9 +203,7 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            # Сессия не активна — это нормально если логирование происходит
-            # вне контекста сессии (например, при инициализации)
-            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
+            # Сессия не активна — пропускаем без шума
             return
 
         event_data = {
@@ -230,7 +217,6 @@ class SessionLogger:
         }
 
         self._log_manager.log_session(self.session_id, event_data)
-        logger.error(f"Ошибка logged: {error_type} - {error_message}")
 
     async def end(self, success: bool = True, result: Optional[str] = None,
                    **kwargs) -> None:
@@ -243,9 +229,7 @@ class SessionLogger:
             **kwargs: Дополнительные данные
         """
         if not self._active:
-            # Сессия не активна — это нормально если логирование происходит
-            # вне контекста сессии (например, при инициализации)
-            logger.debug(f"Сессия не активна: {self.session_id}, пропускаем логирование")
+            # Сессия не активна — пропускаем без шума
             return
 
         self._active = False

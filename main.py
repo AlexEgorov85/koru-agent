@@ -126,7 +126,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     log_handler = setup_event_bus_logging(
         infrastructure_context.event_bus,
         use_colors=True,
-        show_debug=False
+        show_debug=True  # Включить DEBUG сообщения для отладки
     )
 
     # ПЕРЕНАПРАВЛЕНИЕ СТАНДАРТНОГО logging В EventBus

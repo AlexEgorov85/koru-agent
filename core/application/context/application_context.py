@@ -150,9 +150,9 @@ class ApplicationContext(BaseSystemContext):
 
         msg = f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}"
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.error(msg))
+            asyncio.create_task(self.event_bus_logger.debug(msg))
         else:
-            self.logger.error(msg)
+            self.logger.debug(msg)
 
         return {
             ComponentType.SERVICE: service_configs,
@@ -1405,41 +1405,50 @@ class ApplicationContext(BaseSystemContext):
         - Используется behavior_manager для принятия решений
         - Включает capability от skills и tools
         """
-        import logging
-        logger = logging.getLogger(__name__)
+        import asyncio
         
         all_capabilities = []
 
         # Логируем все зарегистрированные компоненты
-        logger.error(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}")
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}"))
 
         # Получаем capability от всех навыков
         for skill in self.components.all_of_type(ComponentType.SKILL):
-            logger.error(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}")
+            if self.event_bus_logger:
+                asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}"))
             if hasattr(skill, 'get_capabilities'):
                 try:
                     caps = skill.get_capabilities()
                     all_capabilities.extend(caps)
-                    logger.error(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
+                    if self.event_bus_logger:
+                        asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
                 except Exception as e:
-                    logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}")
+                    if self.event_bus_logger:
+                        asyncio.create_task(self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}"))
             else:
-                logger.error(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities")
+                if self.event_bus_logger:
+                    asyncio.create_task(self.event_bus_logger.warning(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities"))
 
         # Получаем capability от всех инструментов
         for tool in self.components.all_of_type(ComponentType.TOOL):
-            logger.error(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}")
+            if self.event_bus_logger:
+                asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}"))
             if hasattr(tool, 'get_capabilities'):
                 try:
                     caps = tool.get_capabilities()
                     all_capabilities.extend(caps)
-                    logger.error(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
+                    if self.event_bus_logger:
+                        asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
                 except Exception as e:
-                    logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}")
+                    if self.event_bus_logger:
+                        asyncio.create_task(self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}"))
             else:
-                logger.error(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities")
+                if self.event_bus_logger:
+                    asyncio.create_task(self.event_bus_logger.warning(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities"))
 
-        logger.error(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}")
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}"))
         return all_capabilities
 
     def get_resource(self, name: str):

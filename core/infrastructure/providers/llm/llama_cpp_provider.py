@@ -599,13 +599,16 @@ class LlamaCppProvider(BaseLLMProvider):
                     f"Structured output успешен с попытки {attempt}/{config.max_retries} "
                     f"для {config.output_model}"
                 )
-                
-                # Логирование полного ответа для отладки
-                self.logger.error(f"=== ПОЛНЫЙ ОТВЕТ LLM ===")
-                self.logger.error(f"raw_response.content: {raw_response.content}")
-                self.logger.error(f"json_content: {json_content}")
-                self.logger.error(f"parsed_content: {parsed_content}")
-                self.logger.error(f"=======================")
+
+                # Логирование ответа LLM для отладки
+                self.logger.info(f"=== ОТВЕТ LLM ===")
+                # Логируем только decision, так как это основная информация
+                decision = parsed_content.get('decision', {}) if hasattr(parsed_content, 'get') else getattr(parsed_content, 'decision', 'N/A')
+                next_action = decision.get('next_action', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'next_action', 'N/A')
+                reasoning = decision.get('reasoning', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'reasoning', 'N/A')
+                self.logger.info(f"📋 next_action: {next_action}")
+                self.logger.info(f"💡 reasoning: {reasoning}")
+                self.logger.info(f"=================")
 
                 return StructuredLLMResponse(
                     parsed_content=parsed_content,

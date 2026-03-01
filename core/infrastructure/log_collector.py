@@ -95,7 +95,7 @@ class LogCollector(BaseEventCollector):
         """Подписка на событие"""
         self.event_bus.subscribe(event_type, handler)
         self._subscriptions.append(event_type)
-        logger.debug("LogCollector подписан на %s", event_type.value)
+        # logger.debug("LogCollector подписан на %s", event_type.value)
 
     async def _on_capability_selected(self, event: Event) -> None:
         """

@@ -14,9 +14,9 @@ POLICIES:
 - max_files_per_day: Макс файлов в день
 """
 import os
+import sys
 import shutil
 import gzip
-import logging
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,7 +25,20 @@ from typing import Optional, List, Tuple, Dict, Any
 from core.infrastructure.logging.log_config import LoggingConfig, get_logging_config
 
 
-logger = logging.getLogger(__name__)
+def _debug(msg: str) -> None:
+    """Отладочный вывод (не через logging)."""
+    if os.environ.get("KORU_DEBUG"):
+        print(f"[LogRotator DEBUG] {msg}", file=sys.stderr)
+
+
+def _info(msg: str) -> None:
+    """Информационный вывод (не через logging)."""
+    print(f"[LogRotator] {msg}", file=sys.stderr)
+
+
+def _error(msg: str) -> None:
+    """Вывод ошибок (не через logging)."""
+    print(f"[LogRotator ERROR] {msg}", file=sys.stderr)
 
 
 class LogRotator:
@@ -69,10 +82,10 @@ class LogRotator:
     async def initialize(self) -> None:
         """Инициализация ротатора."""
         if self._initialized:
-            logger.warning("LogRotator уже инициализирован")
+            _error("LogRotator уже инициализирован")
             return
-        
-        logger.info("Инициализация LogRotator...")
+
+        _info("Инициализация LogRotator...")
         
         # Создание директорий
         self.config.archive_dir.mkdir(parents=True, exist_ok=True)
@@ -80,15 +93,15 @@ class LogRotator:
         
         # Запуск фоновой очистки (раз в час)
         await self._start_background_cleanup()
-        
+
         self._initialized = True
-        logger.info("LogRotator инициализирован")
+        _info("LogRotator инициализирован")
     
     async def _start_background_cleanup(self) -> None:
         """Запуск фоновой очистки."""
         self._stop_event.clear()
         self._background_task = asyncio.create_task(self._background_cleanup_loop())
-        logger.debug("Запущена фоновая очистка логов")
+        _debug("Запущена фоновая очистка логов")
     
     async def _background_cleanup_loop(self) -> None:
         """Фоновый цикл очистки (каждые 60 минут)."""
@@ -104,24 +117,24 @@ class LogRotator:
                 try:
                     await asyncio.wait_for(self._check_log_sizes(), timeout=30.0)
                 except asyncio.TimeoutError:
-                    logger.warning("Таймаут при проверке размера логов")
+                    _error("Таймаут при проверке размера логов")
                 except Exception as e:
-                    logger.error(f"Ошибка проверки размера логов: {e}")
+                    _error(f"Ошибка проверки размера логов: {e}")
 
                 # Очистка старых логов (раз в сутки)
                 if datetime.now().hour == 3:  # В 3 часа ночи
                     try:
                         await asyncio.wait_for(self.cleanup_old_logs(), timeout=60.0)
                     except asyncio.TimeoutError:
-                        logger.warning("Таймаут при очистке старых логов")
+                        _error("Таймаут при очистке старых логов")
                     except Exception as e:
-                        logger.error(f"Ошибка очистки старых логов: {e}")
+                        _error(f"Ошибка очистки старых логов: {e}")
 
             except asyncio.CancelledError:
-                logger.debug("Фоновая очистка отменена")
+                _debug("Фоновая очистка отменена")
                 break
             except Exception as e:
-                logger.error(f"Ошибка фоновой очистки: {e}", exc_info=True)
+                _error(f"Ошибка фоновой очистки: {e}", exc_info=True)
     
     async def _check_log_sizes(self) -> None:
         """Проверка размера логов и ротация при необходимости."""
@@ -131,9 +144,9 @@ class LogRotator:
             
             if agent_log.exists():
                 size_mb = agent_log.stat().st_size / (1024 * 1024)
-                
+
                 if size_mb > self.config.retention.max_size_mb:
-                    logger.info(f"Ротация agent.log: размер {size_mb:.1f}MB > лимита {self.config.retention.max_size_mb}MB")
+                    _info(f"Ротация agent.log: размер {size_mb:.1f}MB > лимита {self.config.retention.max_size_mb}MB")
                     await self._rotate_file(agent_log)
     
     async def _rotate_file(self, file_path: Path, keep_original: bool = False) -> Optional[Path]:
@@ -164,17 +177,17 @@ class LogRotator:
                     else:
                         # Переименование
                         file_path.rename(rotated_path)
-                    
-                    logger.debug(f"Ротация: {file_path} → {rotated_path}")
+
+                    _debug(f"Ротация: {file_path} → {rotated_path}")
                     return rotated_path
-                
+
                 counter += 1
-            
-            logger.warning(f"Не удалось ротировать {file_path}: слишком много ротаций")
+
+            _error(f"Не удалось ротировать {file_path}: слишком много ротаций")
             return None
-            
+
         except Exception as e:
-            logger.error(f"Ошибка ротации файла {file_path}: {e}")
+            _error(f"Ошибка ротации файла {file_path}: {e}")
             return None
     
     async def rotate_agent_log(self) -> Optional[Path]:
@@ -223,11 +236,11 @@ class LogRotator:
                 try:
                     shutil.move(str(file_path), str(target_path))
                     moved_count += 1
-                    logger.debug(f"Архивировано: {file_path} → {target_path}")
+                    _debug(f"Архивировано: {file_path} → {target_path}")
                 except Exception as e:
-                    logger.error(f"Ошибка архивации {file_path}: {e}")
-        
-        logger.info(f"Архивировано {moved_count} файлов из active/")
+                    _error(f"Ошибка архивации {file_path}: {e}")
+
+        _info(f"Архивировано {moved_count} файлов из active/")
         return moved_count
     
     async def cleanup_old_logs(self, dry_run: bool = False) -> Dict[str, Any]:
@@ -240,7 +253,7 @@ class LogRotator:
         RETURNS:
             Dict со статистикой очистки
         """
-        logger.info(f"Начало очистки старых логов (dry_run={dry_run})...")
+        _info(f"Начало очистки старых логов (dry_run={dry_run})...")
         
         stats = {
             'deleted_files': 0,
@@ -268,14 +281,14 @@ class LogRotator:
                             
                             if not dry_run:
                                 file_path.unlink()
-                            
+
                             stats['deleted_files'] += 1
                             stats['deleted_size_bytes'] += size
-                            logger.debug(f"Удалено (active): {file_path} ({size} байт)")
-                            
+                            _debug(f"Удалено (active): {file_path} ({size} байт)")
+
                     except Exception as e:
                         stats['errors'].append(str(e))
-                        logger.error(f"Ошибка очистки {file_path}: {e}")
+                        _error(f"Ошибка очистки {file_path}: {e}")
             
             # Очистка archive/ (старше archive_months)
             if self.config.archive_dir.exists():
@@ -304,23 +317,23 @@ class LogRotator:
                                 
                                 if not dry_run:
                                     shutil.rmtree(month_dir)
-                                
+
                                 stats['deleted_files'] += len(list(month_dir.rglob("*")))
                                 stats['deleted_size_bytes'] += dir_size
-                                logger.debug(f"Удалён месяц: {month_dir} ({dir_size} байт)")
-                                
+                                _debug(f"Удалён месяц: {month_dir} ({dir_size} байт)")
+
                         except (ValueError, OSError) as e:
                             stats['errors'].append(str(e))
-                            logger.error(f"Ошибка очистки {month_dir}: {e}")
-            
+                            _error(f"Ошибка очистки {month_dir}: {e}")
+
             # Очистка indexed/ (оставляем только текущие индексы)
             if self.config.indexed_dir.exists():
                 for file_path in self.config.indexed_dir.glob("*.jsonl"):
                     # Индексы не удаляем, они перестраиваются
                     pass
-        
+
         # Логирование результатов
-        logger.info(
+        _info(
             f"Очистка завершена: {stats['deleted_files']} файлов, "
             f"{stats['deleted_size_bytes'] / (1024*1024):.2f} MB"
         )
@@ -369,14 +382,14 @@ class LogRotator:
                                 
                                 # Удаление оригинала
                                 file_path.unlink()
-                                
+
                                 compressed_count += 1
-                                logger.debug(f"Сжато: {file_path} → {gz_path}")
-                                
+                                _debug(f"Сжато: {file_path} → {gz_path}")
+
                         except Exception as e:
-                            logger.error(f"Ошибка сжатия {file_path}: {e}")
-        
-        logger.info(f"Сжато {compressed_count} файлов")
+                            _error(f"Ошибка сжатия {file_path}: {e}")
+
+        _info(f"Сжато {compressed_count} файлов")
         return compressed_count
     
     async def get_log_statistics(self) -> Dict[str, Any]:
@@ -449,7 +462,7 @@ class LogRotator:
     
     async def shutdown(self) -> None:
         """Завершение работы ротатора."""
-        logger.info("Завершение работы LogRotator...")
+        _info("Завершение работы LogRotator...")
 
         # Остановка фоновой очистки
         self._stop_event.set()
@@ -459,14 +472,14 @@ class LogRotator:
                 # Ждем завершения задачи с таймаутом
                 await asyncio.wait_for(self._background_task, timeout=5.0)
             except asyncio.CancelledError:
-                logger.debug("Фоновая задача отменена")
+                _debug("Фоновая задача отменена")
             except asyncio.TimeoutError:
-                logger.warning("Таймаут при ожидании завершения фоновой задачи")
+                _error("Таймаут при ожидании завершения фоновой задачи")
             except Exception as e:
-                logger.debug(f"Ошибка при завершении фоновой задачи: {e}")
+                _debug(f"Ошибка при завершении фоновой задачи: {e}")
 
         self._initialized = False
-        logger.info("LogRotator завершил работу")
+        _info("LogRotator завершил работу")
     
     @property
     def is_initialized(self) -> bool:

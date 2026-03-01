@@ -55,6 +55,7 @@ logging:
     core.application.skills: CRITICAL
     core.application.tools: CRITICAL
     core.application.behaviors: INFO  # INFO для логирования вызовов behavior
+    core.application.behaviors.react.pattern: INFO  # INFO для логирования ReAct рассуждений
     core.infrastructure.context: CRITICAL
     core.application.agent.runtime: INFO  # INFO для логирования запуска агента
 
