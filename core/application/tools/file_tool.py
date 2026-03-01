@@ -6,12 +6,14 @@
 - Зависимости запрашиваются из инфраструктуры при выполнении
 - Поддержка sandbox режима для безопасного выполнения операций
 """
+import asyncio
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class FileToolInput(ToolInput):
@@ -42,6 +44,16 @@ class FileTool(BaseTool):
 
     def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
         super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     async def initialize(self) -> bool:
         """Инициализация инструмента."""

@@ -8,12 +8,14 @@ Capabilities:
 - query: SQL запрос к базе книг
 """
 
+import asyncio
 from typing import Optional, Dict, Any, List
 from core.application.tools.base_tool import BaseTool
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.types.vector_types import VectorSearchResult, VectorQuery
 from core.models.types.analysis import AnalysisResult
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class VectorBooksTool(BaseTool):
@@ -37,7 +39,7 @@ class VectorBooksTool(BaseTool):
     ):
         # Вызываем родительский конструктор
         super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
-        
+
         # Провайдеры будут получены из инфраструктуры при выполнении
         self._faiss_provider = None
         self._sql_provider = None
@@ -45,6 +47,16 @@ class VectorBooksTool(BaseTool):
         self._llm_provider = None
         self._cache_service = None
         self._chunking_strategy = None
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     @property
     def description(self) -> str:
@@ -233,7 +245,10 @@ class VectorBooksTool(BaseTool):
         prompt_template = self.get_prompt(capability_name)
         
         if not prompt_template:
-            self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
+            else:
+                self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
             # Fallback шаблон
             prompt_template = "{prompt}\n\nКонтекст:\n{context}\n\nОтветь в формате JSON:\n{{\n    \"result\": {{...}},\n    \"confidence\": 0.0-1.0,\n    \"reasoning\": \"обоснование\"\n}}"
         

@@ -6,6 +6,7 @@
 - Зависимости запрашиваются из инфраструктуры при выполнении
 - Поддержка sandbox режима для безопасного выполнения запросов
 """
+import asyncio
 from asyncio.log import logger
 import time
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from typing import Dict, Optional, Any
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 @dataclass
@@ -40,6 +42,16 @@ class SQLTool(BaseTool):
 
     def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
         super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
@@ -80,7 +92,10 @@ class SQLTool(BaseTool):
                     "max_rows": input_data.max_rows
                 })
             except Exception as e:
-                self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
+                else:
+                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
                 return {
                     "rows": [],
                     "columns": [],
@@ -94,7 +109,10 @@ class SQLTool(BaseTool):
         db_provider = self.get_db_provider("default_db")
 
         if not db_provider:
-            self.logger.error("DB провайдер не найден")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error("DB провайдер не найден")
+            else:
+                self.logger.error("DB провайдер не найден")
             return {
                 "rows": [],
                 "columns": [],
@@ -144,7 +162,10 @@ class SQLTool(BaseTool):
                 from dataclasses import asdict
                 output_schema.model_validate(output)
             except Exception as e:
-                self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
+                else:
+                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
 
         return output
 
