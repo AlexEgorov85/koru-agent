@@ -3,12 +3,14 @@
 """
 import logging
 import inspect
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, ClassVar, List
 from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class ServiceInput(ABC):
@@ -97,29 +99,61 @@ class BaseService(BaseComponent):
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
         # Логгер уже инициализирован в базовом классе
-        self.logger.info(f"Инициализирован сервис: {self.name}")
+        # Инициализация EventBusLogger
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+        
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.info(f"Инициализирован сервис: {self.name}"))
+        else:
+            self.logger.info(f"Инициализирован сервис: {self.name}")
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     async def initialize(self) -> bool:
         """
         Единая точка входа для инициализации с разрешением зависимостей.
         """
-        self.logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+        else:
+            self.logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
         if getattr(self, '_initialized', False):
-            self.logger.warning(f"Сервис '{self.name}' уже инициализирован")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
+            else:
+                self.logger.warning(f"Сервис '{self.name}' уже инициализирован")
             return True
 
         # 1. Загрузка зависимостей
         if not await self._resolve_dependencies():
-            self.logger.error(f"Загрузка зависимостей не удалась для {self.name}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
+            else:
+                self.logger.error(f"Загрузка зависимостей не удалась для {self.name}")
             return False
 
         # 2. Вызов родительской инициализации (BaseComponent)
         try:
-            self.logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
+            else:
+                self.logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
             base_result = await super().initialize()
-            self.logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
+            else:
+                self.logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
             if not base_result:
-                self.logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                else:
+                    self.logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
                 return False
         except Exception as e:
             self.logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
@@ -128,7 +162,10 @@ class BaseService(BaseComponent):
         # 3. Специфичная инициализация потомка
         try:
             if not await self._custom_initialize():
-                self.logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
+                else:
+                    self.logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
                 return False
         except Exception as e:
             self.logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
@@ -136,66 +173,91 @@ class BaseService(BaseComponent):
 
         # 4. Финальная проверка
         if not await self._verify_readiness():
-            self.logger.error(f"Проверка готовности '{self.name}' не пройдена")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
+            else:
+                self.logger.error(f"Проверка готовности '{self.name}' не пройдена")
             return False
 
         # Устанавливаем флаг инициализации
         self._initialized = True
-        self.logger.info(
-            f"Сервис '{self.name}' инициализирован. "
-            f"Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, "
-            f"_initialized flag set to: {self._initialized}"
-        )
+        msg = f"Сервис '{self.name}' инициализирован. Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, _initialized flag set to: {self._initialized}"
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(msg)
+        else:
+            self.logger.info(msg)
         return True
 
     async def _resolve_dependencies(self) -> bool:
         """
         Загрузка всех декларированных зависимостей.
         """
-        self.logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
-        
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+        else:
+            self.logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+
         missing_deps = []
         for dep_name in self.DEPENDENCIES:
-            self.logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
+            else:
+                self.logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
             dependency = self.get_dependency(dep_name)
             if not dependency:
-                self.logger.warning(
-                    f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. "
-                    f"Возможные причины:\n"
-                    f"  1. Зависимость еще не инициализирована\n"
-                    f"  2. Циклическая зависимость в графе сервисов\n"
-                    f"  3. Сервис '{dep_name}' отключён в конфигурации\n"
-                    f"  4. Ошибка в декларации зависимостей"
-                )
-                self.logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
+                msg = f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. Возможные причины: 1) Зависимость еще не инициализирована 2) Циклическая зависимость в графе сервисов 3) Сервис '{dep_name}' отключён в конфигурации 4) Ошибка в декларации зависимостей"
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(msg)
+                else:
+                    self.logger.warning(msg)
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
+                else:
+                    self.logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
                 missing_deps.append(dep_name)
                 # Continue instead of returning False immediately
                 continue
             else:
-                self.logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+                else:
+                    self.logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
-                self.logger.warning(
-                    f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. "
-                    "Это допустимо при топологической сортировке, но требует осторожности."
-                )
+                msg = f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. Это допустимо при топологической сортировке, но требует осторожности."
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(msg)
+                else:
+                    self.logger.warning(msg)
             else:
-                self.logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                else:
+                    self.logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
 
         # Return False only if ALL dependencies are missing
         if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
-            self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            else:
+                self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
 
         # Log warning if some dependencies are missing
         if missing_deps:
-            self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+            else:
+                self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
         else:
-            self.logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+            else:
+                self.logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
 
         return True
 
@@ -353,7 +415,10 @@ class BaseService(BaseComponent):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            else:
+                self.logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
             return False
 
     async def restart_with_module_reload(self):
@@ -365,7 +430,10 @@ class BaseService(BaseComponent):
         - Новый экземпляр сервиса из перезагруженного модуля
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
-        self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        else:
+            self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         return safe_reload_component_with_module_reload(self)
 
     def _validate_input(self, data: Dict[str, Any], required_fields: list) -> bool:
@@ -418,14 +486,18 @@ class BaseService(BaseComponent):
 
                 # Проверка наличия контрактов для метода
                 if cap_name not in self.input_contracts:
-                    self.logger.warning(
-                        f"{self.name}: Метод '{method_name}' не имеет input контракта"
-                    )
+                    msg = f"{self.name}: Метод '{method_name}' не имеет input контракта"
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.logger.warning(msg)
 
                 if cap_name not in self.output_contracts:
-                    self.logger.warning(
-                        f"{self.name}: Метод '{method_name}' не имеет output контракта"
-                    )
+                    msg = f"{self.name}: Метод '{method_name}' не имеет output контракта"
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.logger.warning(msg)
 
         return True
     

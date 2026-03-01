@@ -129,6 +129,13 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         show_debug=False
     )
 
+    # ПЕРЕНАПРАВЛЕНИЕ СТАНДАРТНОГО logging В EventBus
+    from core.infrastructure.logging.logging_to_event_bus import setup_logging_to_event_bus
+    import logging as std_logging
+    std_handler = setup_logging_to_event_bus(infrastructure_context.event_bus, source="app")
+    std_logging.getLogger().addHandler(std_handler)
+    std_logging.getLogger().setLevel(std_logging.DEBUG)
+
     # Получаем session_id и создаём логгер сессии
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
@@ -147,6 +154,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             config=app_config,
             profile="prod"
         )
+
+        # Инициализируем EventBusLogger в application_context
+        application_context._init_event_bus_logger()
 
         await application_context.initialize()
         await log_handler.info("✅ ApplicationContext инициализирован")

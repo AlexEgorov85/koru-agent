@@ -13,6 +13,7 @@
 - Используйте self.log_start(), self.log_success(), self.log_error() для ручного логирования
 - Или используйте декоратор @log_execution для автоматического логирования
 """
+import asyncio
 from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig
@@ -20,6 +21,7 @@ from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from pydantic import BaseModel
 from core.infrastructure.logging.log_mixin import LogComponentMixin
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
@@ -85,6 +87,10 @@ class BaseComponent(LogComponentMixin, ABC):
         import logging
         self._logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
         self.logger = self._logger
+        
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
 
         # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
@@ -99,6 +105,13 @@ class BaseComponent(LogComponentMixin, ABC):
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
 
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,
@@ -111,30 +124,49 @@ class BaseComponent(LogComponentMixin, ABC):
         import time
         logger = logging.getLogger(__name__)
         current_time = time.time()
-        logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
+        else:
+            logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
 
         try:
             # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
             if not await self._validate_manifest():
-                self.logger.error(f"{self.name}: Валидация манифеста не пройдена")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"{self.name}: Валидация манифеста не пройдена")
+                else:
+                    self.logger.error(f"{self.name}: Валидация манифеста не пройдена")
                 return False
 
             # === ЭТАП 2: Предзагрузка ресурсов ===
             if not await self._preload_resources(current_time):
-                self.logger.error(f"{self.name}: Предзагрузка ресурсов не удалась")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"{self.name}: Предзагрузка ресурсов не удалась")
+                else:
+                    self.logger.error(f"{self.name}: Предзагрузка ресурсов не удалась")
                 return False
 
             # === ЭТАП 3: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
-                self.logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
+                else:
+                    self.logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
                 return False
 
-            logger.info(f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}")
+            msg = f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}"
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(msg)
+            else:
+                logger.info(msg)
             self._initialized = True
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка инициализации компонента '{self.name}': {e}")
+            else:
+                logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
             self._initialized = False
             return False
 

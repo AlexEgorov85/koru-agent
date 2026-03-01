@@ -10,6 +10,7 @@
 """
 import uuid
 import logging
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Literal, Type
 from datetime import datetime
@@ -27,6 +28,7 @@ from core.application.services.contract_service import ContractService
 from core.application.context.base_system_context import BaseSystemContext
 from core.application.data_repository import DataRepository
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 from core.models.enums.common_enums import ComponentType
@@ -99,6 +101,10 @@ class ApplicationContext(BaseSystemContext):
 
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
+        
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None  # Инициализируется позже через _init_event_bus_logger()
+        self._init_event_bus_logger()
 
         # Создаём репозиторий с явным источником данных
         if use_data_repository:
@@ -124,6 +130,13 @@ class ApplicationContext(BaseSystemContext):
         else:
             self.data_repository = None  # ← Старый путь (для отката)
 
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'infrastructure_context') and self.infrastructure_context:
+            event_bus = getattr(self.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+
     def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
         """
         ЕДИНЫЙ источник конфигурации для всех компонентов.
@@ -135,7 +148,11 @@ class ApplicationContext(BaseSystemContext):
         tool_configs = getattr(self.config, 'tool_configs', {})
         behavior_configs = getattr(self.config, 'behavior_configs', {})
 
-        self.logger.error(f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}")
+        msg = f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}"
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.error(msg))
+        else:
+            self.logger.error(msg)
 
         return {
             ComponentType.SERVICE: service_configs,
@@ -156,7 +173,10 @@ class ApplicationContext(BaseSystemContext):
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
-        self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"Начало создания компонента {component_type.value}.{name}")
+        else:
+            self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
 
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
@@ -181,7 +201,11 @@ class ApplicationContext(BaseSystemContext):
                 dependencies=getattr(config, 'dependencies', [])
             )
 
-        self.logger.info(f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}")
+        msg = f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}"
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(msg)
+        else:
+            self.logger.info(msg)
 
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
@@ -192,7 +216,10 @@ class ApplicationContext(BaseSystemContext):
             executor=executor  # Передаем ActionExecutor
         )
 
-        self.logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
+        else:
+            self.logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
 
         return component
 
@@ -202,10 +229,16 @@ class ApplicationContext(BaseSystemContext):
         1. Загрузка ВСЕХ промптов/контрактов из хранилищ (один раз!) → 2. Создание и регистрация → 3. Инициализация с учетом зависимостей → 4. Валидация
         """
         if self._initialized:
-            self.logger.warning("ApplicationContext уже инициализирован")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("ApplicationContext уже инициализирован")
+            else:
+                self.logger.warning("ApplicationContext уже инициализирован")
             return True
 
-        self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
+        else:
+            self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
 
         # === Авто-заполнение конфигурации если она была создана пустой ===
         # Это нужно для случая, когда config=None был передан в __init__
@@ -1046,7 +1079,7 @@ class ApplicationContext(BaseSystemContext):
                                 )
                     except Exception as e:
                         self.logger.error(
-                            f"Не удалось загрузить или получить статус для промпта {capability}@{version}: {e}. "
+                            f"��е удалось загрузить или получить статус для промпта {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
                         # Если не удалось прочитать стату��, в песочнице разрешаем, в проде - нет
