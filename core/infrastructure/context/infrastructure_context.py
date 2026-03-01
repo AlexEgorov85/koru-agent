@@ -44,6 +44,7 @@ class InfrastructureContext:
         self.id = str(uuid.uuid4())
         self.config = config
         self._initialized = False
+        self.event_bus_logger = None  # Будет инициализирован после создания event_bus
 
         # Основные компоненты инфраструктуры
         self.lifecycle_manager: Optional[LifecycleManager] = None
@@ -71,8 +72,6 @@ class InfrastructureContext:
         self._embedding_provider: Optional[Any] = None
         self._chunking_strategy: Optional[Any] = None
 
-        # Удаляем _tools, так как инструменты должны быть в прикладном контексте
-
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
 
@@ -96,6 +95,15 @@ class InfrastructureContext:
 
         # Инициализация шины событий
         self.event_bus = EventBus()
+        
+        # Инициализация event_bus_logger после создания event_bus
+        from core.infrastructure.event_bus.unified_logger import EventBusLogger
+        self.event_bus_logger = EventBusLogger(
+            self.event_bus,
+            session_id=self.id,
+            agent_id="infrastructure",
+            component="InfrastructureContext"
+        )
 
         # Инициализация фабрик провайдеров
         self.llm_provider_factory = LLMProviderFactory()
