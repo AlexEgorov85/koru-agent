@@ -89,7 +89,7 @@ class LogCollector(BaseEventCollector):
         self._subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response_received)
 
         self._initialized = True
-        self.event_bus_logger.info("LogCollector инициализирован: подписан на %d событий", len(self._subscriptions))
+        await self.event_bus_logger.info("LogCollector инициализирован: подписан на %d событий", len(self._subscriptions))
 
     def _subscribe(self, event_type: EventType, handler) -> None:
         """Подписка на событие"""

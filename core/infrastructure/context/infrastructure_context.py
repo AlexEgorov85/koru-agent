@@ -87,7 +87,7 @@ class InfrastructureContext:
             return True
 
         # Инициализация менеджера жизненного цикла
-        self.lifecycle_manager = LifecycleManager()
+        self.lifecycle_manager = LifecycleManager(self.event_bus)
 
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
@@ -142,11 +142,11 @@ class InfrastructureContext:
         # Инициализация сборщиков метрик и логов
         self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
         await self.metrics_collector.initialize()
-        self.event_bus_logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
+        await self.event_bus_logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
 
         self.log_collector = LogCollector(self.event_bus, self.log_storage)
         await self.log_collector.initialize()
-        self.event_bus_logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
+        await self.event_bus_logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
 
         # Инициализация Vector Search
         if self.config.vector_search and self.config.vector_search.enabled:
