@@ -10,7 +10,7 @@ from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.event_bus.unified_logger import EventBusLogger, create_logger
 
 
 class ServiceInput(ABC):
@@ -102,7 +102,7 @@ class BaseService(BaseComponent):
         # Инициализация EventBusLogger
         self.event_bus_logger = None
         self._init_event_bus_logger()
-        
+
         if self.event_bus_logger:
             asyncio.create_task(self.event_bus_logger.info(f"Инициализирован сервис: {self.name}"))
         else:
@@ -112,8 +112,15 @@ class BaseService(BaseComponent):
         """Инициализация EventBusLogger для асинхронного логирования."""
         if hasattr(self, 'application_context') and self.application_context:
             event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            session_id = getattr(self.application_context.infrastructure_context, 'id', 'unknown')
+            agent_id = getattr(self, 'name', 'unknown')
             if event_bus:
-                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+                self.event_bus_logger = create_logger(
+                    event_bus,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    component=self.__class__.__name__
+                )
 
     async def initialize(self) -> bool:
         """
@@ -121,42 +128,31 @@ class BaseService(BaseComponent):
         """
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
-        else:
-            self.logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
         if getattr(self, '_initialized', False):
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
-            else:
-                self.logger.warning(f"Сервис '{self.name}' уже инициализирован")
             return True
 
         # 1. Загрузка зависимостей
         if not await self._resolve_dependencies():
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
-            else:
-                self.logger.error(f"Загрузка зависимостей не удалась для {self.name}")
             return False
 
         # 2. Вызов родительской инициализации (BaseComponent)
         try:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
-            else:
-                self.logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
             base_result = await super().initialize()
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
-            else:
-                self.logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
             if not base_result:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
-                else:
-                    self.logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
                 return False
         except Exception as e:
-            self.logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
             return False
 
         # 3. Специфичная инициализация потомка
@@ -164,19 +160,16 @@ class BaseService(BaseComponent):
             if not await self._custom_initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
-                else:
-                    self.logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
                 return False
         except Exception as e:
-            self.logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
             return False
 
         # 4. Финальная проверка
         if not await self._verify_readiness():
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
-            else:
-                self.logger.error(f"Проверка готовности '{self.name}' не пройдена")
             return False
 
         # Устанавливаем флаг инициализации
@@ -184,8 +177,6 @@ class BaseService(BaseComponent):
         msg = f"Сервис '{self.name}' инициализирован. Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, _initialized flag set to: {self._initialized}"
         if self.event_bus_logger:
             await self.event_bus_logger.info(msg)
-        else:
-            self.logger.info(msg)
         return True
 
     async def _resolve_dependencies(self) -> bool:
@@ -194,26 +185,18 @@ class BaseService(BaseComponent):
         """
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
-        else:
-            self.logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
 
         missing_deps = []
         for dep_name in self.DEPENDENCIES:
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
-            else:
-                self.logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
             dependency = self.get_dependency(dep_name)
             if not dependency:
                 msg = f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. Возможные причины: 1) Зависимость еще не инициализирована 2) Циклическая зависимость в графе сервисов 3) Сервис '{dep_name}' отключён в конфигурации 4) Ошибка в декларации зависимостей"
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(msg)
-                else:
-                    self.logger.warning(msg)
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
-                else:
-                    self.logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
                 missing_deps.append(dep_name)
                 # Continue instead of returning False immediately
                 continue
