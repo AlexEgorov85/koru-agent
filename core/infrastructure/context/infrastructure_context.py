@@ -17,7 +17,7 @@ from core.infrastructure.providers.database.factory import DBProviderFactory
 from core.infrastructure.storage.prompt_storage import PromptStorage
 from core.infrastructure.storage.contract_storage import ContractStorage
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IContractStorage
-from core.infrastructure.event_bus.event_bus import EventBus
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
 from core.models.data.resource import ResourceInfo

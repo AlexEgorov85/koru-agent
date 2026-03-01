@@ -499,12 +499,13 @@ class EventBus:
 
     async def publish(
         self,
-        event_type: Union[Event, str, EventType],
+        event_type: Union[Event, str, EventType] = None,
         data: Optional[Dict[str, Any]] = None,
         source: str = "",
         session_id: str = "",
         agent_id: str = "",
-        correlation_id: str = ""
+        correlation_id: str = "",
+        event: Union[Event, str, EventType, None] = None  # Для обратной совместимости
     ):
         """
         Публикация события.
@@ -521,42 +522,51 @@ class EventBus:
         - session_id: ID сессии (обязательно для маршрутизации)
         - agent_id: ID агента
         - correlation_id: идентификатор корреляции
+        - event: альтернативный параметр для обратной совместимости
         """
+        # Обратная совместимость: если передан event= вместо event_type=
+        if event_type is None and event is not None:
+            event_type = event
+        
+        if event_type is None:
+            self._internal_logger.warning("publish() вызван без event_type")
+            return
+            
         if not self._running:
             self._internal_logger.warning("EventBus остановлен, событие отклонено")
             return
 
         # Создаём Event объект
-        event = self._create_event(event_type, data, source, session_id, agent_id, correlation_id)
+        event_obj = self._create_event(event_type, data, source, session_id, agent_id, correlation_id)
 
         # Гарантируем наличие session_id
-        if not event.session_id:
+        if not event_obj.session_id:
             # Генерируем временный session_id для системных событий
-            event.session_id = f"system_{uuid.uuid4().hex[:8]}"
-            self._internal_logger.debug(f"Сгенерирован session_id для события: {event.session_id}")
+            event_obj.session_id = f"system_{uuid.uuid4().hex[:8]}"
+            self._internal_logger.debug(f"Сгенерирован session_id для события: {event_obj.session_id}")
 
         # Получаем или создаём очередь для сессии
-        queue = await self._get_or_create_queue(event.session_id, event.agent_id)
+        queue = await self._get_or_create_queue(event_obj.session_id, event_obj.agent_id)
 
         # Backpressure — проверка размера очереди
         if queue.qsize() >= self._queue_max_size:
             self._internal_logger.warning(
-                f"Queue overflow для сессии {event.session_id}: {queue.qsize}/{self._queue_max_size}"
+                f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size}"
             )
             # Публикуем событие переполнения
             await self._publish_internal(
                 EventType.QUEUE_OVERFLOW,
                 {
-                    "session_id": event.session_id,
+                    "session_id": event_obj.session_id,
                     "queue_size": queue.qsize(),
                     "max_size": self._queue_max_size,
-                    "event_type": event.event_type
+                    "event_type": event_obj.event_type
                 }
             )
             # Блокируем пока очередь не освободится
-            await queue.put(event)
+            await queue.put(event_obj)
         else:
-            await queue.put(event)
+            await queue.put(event_obj)
 
     def _create_event(
         self,
