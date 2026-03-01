@@ -2,6 +2,7 @@
 Хранилище контрактов - только загрузка из файловой системы.
 НЕ содержит кэширования - кэширование происходит в прикладном слое.
 """
+import asyncio
 from pathlib import Path
 from typing import Optional
 import json
@@ -11,6 +12,7 @@ from core.models.data.contract import Contract
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IContractStorage, ComponentType
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class ContractStorage(VersionedStorage[Contract], IContractStorage):
@@ -24,6 +26,14 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
 
     def __init__(self, contracts_dir: Path):
         super().__init__(contracts_dir)
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        # ContractStorage не имеет application_context, поэтому event_bus_logger не инициализируется
+        pass
     
     @property
     def contracts_dir(self) -> Path:
@@ -207,4 +217,7 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
         contract_dict = contract.model_dump()
         self._save_file(contract_file, contract_dict, 'yaml')
 
-        self.logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+        else:
+            self.logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")

@@ -2,6 +2,7 @@
 Хранилище промптов - только загрузка из файловой системы.
 НЕ содержит кэширования - кэширование происходит в прикладном слое.
 """
+import asyncio
 from pathlib import Path
 from typing import Optional
 import json
@@ -12,6 +13,7 @@ from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
 from core.models.enums.common_enums import ComponentType
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
@@ -25,6 +27,14 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
 
     def __init__(self, prompts_dir: Path):
         super().__init__(prompts_dir)
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        # PromptStorage не имеет application_context, поэтому event_bus_logger не инициализируется
+        pass
     
     @property
     def prompts_dir(self) -> Path:
@@ -163,4 +173,7 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
         with open(prompt_file, 'w', encoding='utf-8') as f:
             yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
 
-        self.logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
+        else:
+            self.logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")

@@ -1,10 +1,12 @@
 ﻿"""
 Реестр возможностей (capabilities) - хранит метаданные о возможностях системы.
 """
+import asyncio
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class CapabilityRegistry:
@@ -15,11 +17,22 @@ class CapabilityRegistry:
         self.capabilities_dir = Path("contracts")
         self._capabilities: Dict[str, Dict[str, Any]] = {}
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        # CapabilityRegistry не имеет application_context, поэтому event_bus_logger не инициализируется
+        pass
 
     async def initialize(self):
         """Инициализация реестра возможностей."""
         if not self.capabilities_dir.exists():
-            self.logger.warning(f"Директория контрактов не существует: {self.capabilities_dir}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Директория контрактов не существует: {self.capabilities_dir}")
+            else:
+                self.logger.warning(f"Директория контрактов не существует: {self.capabilities_dir}")
             return
 
         # Загрузка метаданных возможностей из файлов контрактов
@@ -54,7 +67,10 @@ class CapabilityRegistry:
                             else:
                                 capability_meta["versions"][version]["input"] = True
                     except Exception as e:
-                        self.logger.warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
+                        else:
+                            self.logger.warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
 
                 if output_contract_path.exists():
                     capability_meta["has_output_contract"] = True
@@ -69,7 +85,10 @@ class CapabilityRegistry:
                             else:
                                 capability_meta["versions"][version]["output"] = True
                     except Exception as e:
-                        self.logger.warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
+                        else:
+                            self.logger.warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
 
                 # Также проверим поддиректории с версиями
                 for version_dir in capability_dir.iterdir():
@@ -94,7 +113,10 @@ class CapabilityRegistry:
                                     else:
                                         capability_meta["versions"][version_from_file]["input"] = True
                             except Exception as e:
-                                self.logger.warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
+                                if self.event_bus_logger:
+                                    await self.event_bus_logger.warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
+                                else:
+                                    self.logger.warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
 
                         if version_output_contract.exists():
                             capability_meta["versions"][version]["output"] = True
@@ -108,7 +130,10 @@ class CapabilityRegistry:
                                     else:
                                         capability_meta["versions"][version_from_file]["output"] = True
                             except Exception as e:
-                                self.logger.warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
+                                if self.event_bus_logger:
+                                    await self.event_bus_logger.warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
+                                else:
+                                    self.logger.warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
 
                 self._capabilities[capability_name] = capability_meta
 
@@ -141,4 +166,7 @@ class CapabilityRegistry:
 
     async def shutdown(self):
         """Завершение работы реестра."""
-        self.logger.info("Реестр возможностей завершает работу")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info("Реестр возможностей завершает работу")
+        else:
+            self.logger.info("Реестр возможностей завершает работу")

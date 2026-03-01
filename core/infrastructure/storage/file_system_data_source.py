@@ -1,6 +1,7 @@
 ﻿"""
 Реализация источника данных с файловой системой и строгой архитектурой.
 """
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
@@ -11,6 +12,7 @@ from core.config.models import ComponentType, RegistryConfig
 import yaml
 import re
 import json
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class FileSystemDataSource(ResourceDataSource):
@@ -45,6 +47,14 @@ class FileSystemDataSource(ResourceDataSource):
         self._loaded_prompts = {}
         self._loaded_contracts = {}
         self._loaded_manifests = {}  # Добавляем кэш для манифестов
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        # FileSystemDataSource не имеет application_context, поэтому event_bus_logger не инициализируется
+        pass
 
     def _assert_initialized(self):
         """Проверяет, что DataSource инициализирован."""
