@@ -22,6 +22,7 @@ from core.models.enums.common_enums import ErrorCategory
 from core.models.types.llm_types import LLMRequest
 from core.application.tools.file_tool import FileToolInput
 from core.application.tools.sql_tool import SQLToolInput
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class DataAnalysisSkill(BaseSkill):
@@ -37,11 +38,21 @@ class DataAnalysisSkill(BaseSkill):
         executor: Any
     ):
         super().__init__(name, application_context, component_config=component_config, executor=executor)
-        
+
         # Регистрируем поддерживаемые capability
         self.supported_capabilities = {
             "data_analysis.analyze_step_data": self._analyze_step_data
         }
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список capability навыка."""
@@ -69,15 +80,27 @@ class DataAnalysisSkill(BaseSkill):
 
         # Проверяем наличие необходимых ресурсов
         if "data_analysis.analyze_step_data" not in self.prompts:
-            self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+            else:
+                self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
 
         if "data_analysis.analyze_step_data" not in self.input_contracts:
-            self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
 
         if "data_analysis.analyze_step_data" not in self.output_contracts:
-            self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
 
-        self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        else:
+            self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -159,7 +182,10 @@ class DataAnalysisSkill(BaseSkill):
         if not llm_result.success:
             error_msg = llm_result.error
             error_type = llm_result.metadata.get("error_type", "unknown")
-            self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
+            else:
+                self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             return {
                 "error": f"Ошибка LLM: {error_msg}",
                 "answer": "",
@@ -178,9 +204,14 @@ class DataAnalysisSkill(BaseSkill):
         answer_data = llm_result.data.get("parsed_content", {})
 
         # Логирование успешного structured output
-        self.logger.info(
-            f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-        )
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(
+                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
+        else:
+            self.logger.info(
+                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+            )
 
         # Добавляем метаданные в ответ
         if "metadata" not in answer_data:
@@ -216,7 +247,10 @@ class DataAnalysisSkill(BaseSkill):
                 validated_params = input_schema.model_validate(params)
                 params = validated_params.model_dump()
             except Exception as e:
-                self.logger.error(f"Ошибка валидации параметров: {e}")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+                else:
+                    self.logger.error(f"Ошибка валидации параметров: {e}")
                 return {
                     "error": f"Неверные параметры: {str(e)}",
                     "answer": "",
@@ -236,7 +270,10 @@ class DataAnalysisSkill(BaseSkill):
                 config=analysis_config
             )
         except Exception as e:
-            self.logger.error(f"Ошибка загрузки данных: {e}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
+            else:
+                self.logger.error(f"Ошибка загрузки данных: {e}")
             return {
                 "error": f"Ошибка загрузки данных: {str(e)}",
                 "answer": "",
@@ -314,9 +351,14 @@ class DataAnalysisSkill(BaseSkill):
             answer_data = llm_result.data.get("parsed_content", {})
 
             # Логирование успешного structured output
-            self.logger.info(
-                f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # 9. Добавление метаданных
             answer_data["metadata"] = answer_data.get("metadata", {})
@@ -333,12 +375,18 @@ class DataAnalysisSkill(BaseSkill):
                     validated_result = output_schema.model_validate(answer_data)
                     return validated_result.model_dump()
                 except Exception as e:
-                    self.logger.error(f"Ошибка валидации результата: {e}")
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+                    else:
+                        self.logger.error(f"Ошибка валидации результата: {e}")
 
             return answer_data
 
         except Exception as e:
-            self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
             return {
                 "error": f"Ошибка анализа: {str(e)}",
                 "answer": "",
@@ -515,7 +563,10 @@ class DataAnalysisSkill(BaseSkill):
                 current_tokens += line_tokens
 
             if len(chunks) >= max_chunks:
-                self.logger.warning(f"Достигнут лимит чанков ({max_chunks})")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(f"Достигнут лимит чанков ({max_chunks})")
+                else:
+                    self.logger.warning(f"Достигнут лимит чанков ({max_chunks})")
                 break
 
         if current_chunk:

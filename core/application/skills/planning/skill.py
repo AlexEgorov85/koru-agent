@@ -1,11 +1,13 @@
 ﻿"""
 НАВЫК ПЛАНИРОВАНИЯ С ПОЛНОЙ ИЗОЛЯЦИЕЙ
 """
+import asyncio
 import time
 from typing import Any, Dict, List
 from core.components.base_component import BaseComponent
 from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext, ActionResult
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class PlanningSkill(BaseComponent):
@@ -16,6 +18,16 @@ class PlanningSkill(BaseComponent):
         # Инициализация логгера
         import logging
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        # EventBusLogger для асинхронного логирования
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, 'application_context') and self.application_context:
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка планирования."""
@@ -113,7 +125,10 @@ class PlanningSkill(BaseComponent):
                 source="planning_skill"
             )
         except Exception as e:
-            self.logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
+            else:
+                self.logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
 
     async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
         try:
@@ -161,11 +176,16 @@ class PlanningSkill(BaseComponent):
 
             # 5. Получаем структурированные данные (Pydantic model_dump())
             plan_data = llm_result.data.get("parsed_content", {})
-            
+
             # Логирование успешного structured output
-            self.logger.info(
-                f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # 6. Сохранение плана в контекст
             save_result = await self.executor.execute_action(
@@ -206,7 +226,10 @@ class PlanningSkill(BaseComponent):
             )
 
         except Exception as e:
-            self.logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось создать план: {str(e)[:100]}"
@@ -293,11 +316,16 @@ class PlanningSkill(BaseComponent):
 
             # 6. Получаем структурированные данные (Pydantic model_dump())
             updated_plan = llm_result.data.get("parsed_content", {})
-            
+
             # Логирование успешного structured output
-            self.logger.info(
-                f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # 5. Сохранение обновленного плана
             save_result = await self.executor.execute_action(
@@ -339,7 +367,10 @@ class PlanningSkill(BaseComponent):
             )
 
         except Exception as e:
-            self.logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось обновить план: {str(e)[:100]}"
@@ -397,7 +428,10 @@ class PlanningSkill(BaseComponent):
                 )
 
         except Exception as e:
-            self.logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось получить следующего шага: {str(e)[:100]}"
@@ -569,7 +603,10 @@ class PlanningSkill(BaseComponent):
             )
 
         except Exception as e:
-            self.logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось обновить статус шага: {str(e)[:100]}"
@@ -626,11 +663,16 @@ class PlanningSkill(BaseComponent):
 
             # Получаем структурированные данные (Pydantic model_dump())
             corrected_plan = llm_result.data.get("parsed_content", {})
-            
+
             # Логирование успешного structured output
-            self.logger.info(
-                f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # Сохраняем исправленный план
             update_result = await self.executor.execute_action(
@@ -654,7 +696,10 @@ class PlanningSkill(BaseComponent):
                 metadata={"correction_applied": True}
             )
         except Exception as e:
-            self.logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Ошибка коррекции плана: {str(e)[:100]}"
@@ -705,11 +750,16 @@ class PlanningSkill(BaseComponent):
 
             # Получаем структурированные данные (Pydantic model_dump())
             decompose_data = llm_result.data.get("parsed_content", {})
-            
+
             # Логирование успешного structured output
-            self.logger.info(
-                f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # Создание вложенных планов для подзадач
             sub_plans = []
@@ -771,7 +821,10 @@ class PlanningSkill(BaseComponent):
                 metadata={"subtasks_count": len(sub_plans)}
             )
         except Exception as e:
-            self.logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось декомпозировать задачу: {str(e)[:100]}"
@@ -912,7 +965,10 @@ class PlanningSkill(BaseComponent):
             )
 
         except Exception as e:
-            self.logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Не удалось отметить задачу как завершенную: {str(e)[:100]}"
