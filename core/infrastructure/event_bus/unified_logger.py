@@ -47,20 +47,28 @@ class EventBusLogger:
         self.agent_id = agent_id
         self.component = component
 
-    async def info(self, message: str, **extra_data):
+    async def info(self, message: str, *args, **extra_data):
         """INFO сообщение."""
+        if args:
+            message = message % args
         await self._publish(EventType.LOG_INFO, message, "INFO", **extra_data)
 
-    async def debug(self, message: str, **extra_data):
+    async def debug(self, message: str, *args, **extra_data):
         """DEBUG сообщение."""
+        if args:
+            message = message % args
         await self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
 
-    async def warning(self, message: str, **extra_data):
+    async def warning(self, message: str, *args, **extra_data):
         """WARNING сообщение."""
+        if args:
+            message = message % args
         await self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data)
 
-    async def error(self, message: str, **extra_data):
+    async def error(self, message: str, *args, **extra_data):
         """ERROR сообщение."""
+        if args:
+            message = message % args
         await self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data)
 
     async def exception(self, message: str, exc: Exception, **extra_data):
