@@ -1,13 +1,12 @@
 """
 Точка входа для запуска агента.
 
-Использует новую систему логирования через LogManager.
+Использует новую систему логирования через EventBus.
 """
 import asyncio
 import sys
 import warnings
 import logging
-import os
 
 # Подавляем предупреждения Pydantic
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.json_schema")
@@ -26,25 +25,19 @@ TEMPERATURE = 0.7
 
 
 def setup_logging_from_config():
-    """
-    Настройка логирования из конфигурации.
-    
-    Использует новую систему логирования через LogManager.
-    """
+    """Настройка логирования из конфигурации."""
+    import os
     from core.infrastructure.logging import LogFormatter, setup_logging
     import yaml
 
-    # Создаём директорию для логов
     os.makedirs("logs", exist_ok=True)
 
-    # Читаем конфигурацию логирования из YAML
     module_levels = {}
     try:
         with open("core/config/logging_config.yaml", "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
             if config and 'logging' in config:
                 logging_config = config['logging']
-                
                 if 'module_levels' in logging_config:
                     level_map = {
                         'DEBUG': logging.DEBUG,
@@ -61,7 +54,6 @@ def setup_logging_from_config():
     except Exception:
         pass
 
-    # Настраиваем базовое логирование
     root_logger = setup_logging(
         level=logging.WARNING,
         format_type="text",
@@ -72,21 +64,15 @@ def setup_logging_from_config():
         module_levels=module_levels
     )
 
-    # Консольный обработчик для пользовательских сообщений
     formatter = LogFormatter(format_type="text", use_colors=True)
     console_info_handler = logging.StreamHandler()
     console_info_handler.setLevel(logging.INFO)
     console_info_handler.setFormatter(formatter)
 
-    main_logger = logging.getLogger("koru.main")
+    main_logger = logging.getLogger("main")
     main_logger.setLevel(logging.INFO)
     main_logger.addHandler(console_info_handler)
     main_logger.propagate = False
-
-    agent_logger = logging.getLogger("koru.agent")
-    agent_logger.setLevel(logging.INFO)
-    agent_logger.addHandler(console_info_handler)
-    agent_logger.propagate = False
 
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
@@ -116,12 +102,12 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
     try:
         # Начало сессии
-        await session_logger.start(goal=goal)
-        await log_handler.info(f"Сессия начата: {session_id}")
+        await session_logger.start_session(goal=goal)
+        await session_logger.info(f"Сессия начата: {session_id}")
 
         # Создание прикладного контекста
         app_config = AppConfig.from_registry(profile="prod")
-        await log_handler.debug(f"app_config loaded: service_configs={list(getattr(app_config, 'service_configs', {}).keys())}")
+        await session_logger.debug(f"app_config loaded")
 
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
@@ -129,29 +115,23 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             profile="prod"
         )
 
-        # Инициализируем EventBusLogger в application_context
-        application_context._init_event_bus_logger()
-
         await application_context.initialize()
-        await log_handler.info("✅ ApplicationContext инициализирован")
+        await session_logger.info("✅ ApplicationContext инициализирован")
 
         # DEBUG: Проверка что компоненты загрузились
         from core.models.enums.common_enums import ComponentType
         skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
-        await log_handler.info(f"✅ Загружено навыков: {skill_count}")
+        await session_logger.info(f"✅ Загружено навыков: {skill_count}")
 
-        # Подписка на события LLM для логирования через SessionLogger
+        # Подписка на события LLM
         from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
         llm_subscriber = LLMEventSubscriber(log_full_content=True)
         llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
-        await log_handler.info("✅ LLMEventSubscriber активирован")
-
-        # EventBusLogHandler уже активирован выше
-        await log_handler.info("✅ EventBusLogHandler активирован")
+        await session_logger.info("✅ LLMEventSubscriber активирован")
 
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
-        await log_handler.info("✅ AgentFactory создан")
+        await session_logger.info("✅ AgentFactory создан")
 
         # Подготовка конфигурации агента
         agent_config_kwargs = {}
@@ -161,42 +141,36 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             agent_config_kwargs['temperature'] = temperature
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
-        await log_handler.info("✅ AgentConfig создан")
+        await session_logger.info("✅ AgentConfig создан")
 
         # Создание и запуск агента
-        await log_handler.info("🔄 Создание агента...")
+        await session_logger.info("🔄 Создание агента...")
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
-        await log_handler.info(f"✅ Агент создан: {type(agent).__name__}")
+        await session_logger.info(f"✅ Агент создан: {type(agent).__name__}")
 
-        await log_handler.info("🚀 Запуск агента...")
+        await session_logger.info("🚀 Запуск агента...")
         result = await agent.run(goal)
-        await log_handler.info(f"✅ Агент завершил работу: {result}")
+        await session_logger.info(f"✅ Агент завершил работу")
 
         # Проверка на ошибку
         if hasattr(result, 'metadata') and result.metadata and 'error' in result.metadata:
             error_msg = result.metadata['error']
-            await session_logger.log_error("AgentError", error_msg)
+            await session_logger.error(f"AgentError: {error_msg}")
             raise RuntimeError(f"Ошибка агента: {error_msg}")
 
         # Завершение сессии успешно
-        await session_logger.end(success=True, result=str(result)[:500])
+        await session_logger.end_session(success=True, result=str(result)[:500])
         logger.info(f"Сессия завершена успешно: {session_id}")
 
         return result
 
     except Exception as e:
         logger.error(f"Ошибка в run_agent: {e}", exc_info=True)
-        if session_logger and session_logger._active:
-            await session_logger.log_error(type(e).__name__, str(e))
-            await session_logger.end(success=False, result=str(e))
+        await session_logger.exception(f"Ошибка сессии: {e}", e)
+        await session_logger.end_session(success=False, result=str(e))
         raise
 
     finally:
-        # Завершение работы
-        # SessionLogger уже завершён через end(), просто удаляем из активных сессий
-        if session_id in _active_sessions:
-            del _active_sessions[session_id]
-        
         await shutdown_logging_system()
         await infrastructure_context.shutdown()
         logger.debug("Ресурсы освобождены")
@@ -204,7 +178,6 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
 def main() -> int:
     """Точка входа."""
-    # Настройка логирования
     setup_logging_from_config()
 
     logger = logging.getLogger("main")
@@ -221,7 +194,7 @@ def main() -> int:
         logger.info("\n" + "="*60)
         logger.info("✅ ОТВЕТ:")
         logger.info("="*60)
-        
+
         result_text = str(result)[:500] if len(str(result)) > 500 else str(result)
         logger.info(f"✅ Результат: {result_text}")
         logger.debug(f"Полный результат: {result}")

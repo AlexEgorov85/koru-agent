@@ -22,7 +22,13 @@ from typing import Any, Dict, Optional
 from dataclasses import dataclass
 
 from core.infrastructure.event_bus.event_bus import Event, EventType
-from .logging_to_event_bus import LOGGING_SYSTEM_LOGGERS
+
+# Константа для фильтрации системных логгеров
+LOGGING_SYSTEM_LOGGERS = {
+    "EventBusLog",
+    "EventBus",
+    "SessionWorker",
+}
 
 
 class LogMessageType(Enum):
