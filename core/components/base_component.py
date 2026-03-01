@@ -20,15 +20,14 @@ from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from pydantic import BaseModel
-from core.infrastructure.logging.log_mixin import LogComponentMixin
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.event_bus.unified_logger import EventBusLogger
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
     from core.application.agent.components.executor import ActionExecutor
 
 
-class BaseComponent(LogComponentMixin, ABC):
+class BaseComponent(ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 

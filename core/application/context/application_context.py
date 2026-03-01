@@ -150,8 +150,9 @@ class ApplicationContext(BaseSystemContext):
 
         msg = f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}"
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_self.event_bus_logger.debug(msg))
-        
+            asyncio.create_task(self.event_bus_logger.debug(msg))
+        else:
+            self.logger.debug(msg)
 
         return {
             ComponentType.SERVICE: service_configs,
@@ -173,8 +174,9 @@ class ApplicationContext(BaseSystemContext):
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"Начало создания компонента {component_type.value}.{name}")
-        
+            await self.event_bus_logger.info(f"Начало создания компонента {component_type.value}.{name}")
+        else:
+            self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
 
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
@@ -201,8 +203,9 @@ class ApplicationContext(BaseSystemContext):
 
         msg = f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}"
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(msg)
-        
+            await self.event_bus_logger.info(msg)
+        else:
+            self.logger.info(msg)
 
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
@@ -214,8 +217,9 @@ class ApplicationContext(BaseSystemContext):
         )
 
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
-        
+            await self.event_bus_logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
+        else:
+            self.logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
 
         return component
 
@@ -226,13 +230,15 @@ class ApplicationContext(BaseSystemContext):
         """
         if self._initialized:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning("ApplicationContext уже инициализирован")
-            
+                await self.event_bus_logger.warning("ApplicationContext уже инициализирован")
+            else:
+                self.logger.warning("ApplicationContext уже инициализирован")
             return True
 
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
-        
+            await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
+        else:
+            self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
 
         # === Авто-заполнение конфигурации если она была создана пустой ===
         # Это нужно для случая, когда config=None был передан в __init__
@@ -249,7 +255,7 @@ class ApplicationContext(BaseSystemContext):
                 )
                 return False
 
-            self.event_bus_logger.info(
+            self.logger.info(
                 f"✅ DataRepository инициализирован успешно:\n"
                 f"{self.data_repository.get_validation_report()}"
             )
@@ -269,12 +275,12 @@ class ApplicationContext(BaseSystemContext):
                     return False
 
                 if validation_report['warnings']:
-                    self.event_bus_logger.warning(
+                    self.logger.warning(
                         f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
                         f"{chr(10).join(validation_report['warning_details'])}"  # chr(10) = \n
                     )
 
-                self.event_bus_logger.info(
+                self.logger.info(
                     f"✅ Валидация манифестов завершена:\n"
                     f"  - Проверено: {validation_report['total_manifests']}\n"
                     f"  - Критических ошибок: {validation_report['critical_errors']}\n"
@@ -289,7 +295,7 @@ class ApplicationContext(BaseSystemContext):
             # Валидация дублирования
             duplicate_report = await validation_service.validate_no_duplicates()
             if not duplicate_report['is_valid']:
-                self.event_bus_logger.error(
+                self.logger.error(
                     f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
                     f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
                     f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
@@ -301,7 +307,7 @@ class ApplicationContext(BaseSystemContext):
             # Валидация целостности схем
             schema_report = await validation_service.validate_schema_integrity()
             if not schema_report['is_valid']:
-                self.event_bus_logger.error(
+                self.logger.error(
                     f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
                     f"- Missing input: {len(schema_report['missing_input'])}\n"
                     f"- Missing output: {len(schema_report['missing_output'])}"
@@ -309,18 +315,19 @@ class ApplicationContext(BaseSystemContext):
                 if self.profile == "prod":
                     return False
             
-            self.event_bus_logger.info(
+            self.logger.info(
                 f"✅ Валидация целостности завершена:\n"
                 f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
                 f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
             )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
-            self.event_bus_logger.error(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
+            self.logger.error(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
             if self.use_data_repository and self.data_repository:
-                self.event_bus_logger.error("Вызов _preload_resources_via_repository...")
+                self.logger.error("Вызов _preload_resources_via_repository...")
                 await self._preload_resources_via_repository()
-            ")
+            else:
+                self.logger.error("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
 
             # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
             # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
@@ -328,12 +335,12 @@ class ApplicationContext(BaseSystemContext):
             executor = ActionExecutor(self)
 
             # Сначала создаем и регистрируем все компоненты
-            self.event_bus_logger.error("Начало создания компонентов...")
+            self.logger.error("Начало создания компонентов...")
             component_configs = self._resolve_component_configs()
-            self.event_bus_logger.error(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
+            self.logger.error(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
-                    self.event_bus_logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")
+                    self.logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")
                     try:
                         # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                         component = await self._create_component(comp_type, name, enriched_config, executor)
@@ -341,20 +348,20 @@ class ApplicationContext(BaseSystemContext):
                         # Регистрация компонента ДО инициализации
                         self.components.register(comp_type, name, component)
 
-                        self.event_bus_logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован (новый путь)")
+                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован (новый путь)")
 
                     except Exception as e:
-                        self.event_bus_logger.error(f"Ошибка создания {comp_type.value}.{name} (новый путь): {e}", exc_info=True)
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name} (новый путь): {e}", exc_info=True)
                         return False
 
             # Логируем все зарегистрированные компоненты
-            self.event_bus_logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
+            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
             # Инициализируем компоненты в правильном порядке
             success = await self._initialize_components_with_dependencies()
             if not success:
-                self.event_bus_logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
                 return False
 
             # === ЭТАП 5: Валидация готовности системы ===
@@ -388,7 +395,7 @@ class ApplicationContext(BaseSystemContext):
             # Сначала создаем и регистрируем все компоненты
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
-                    self.event_bus_logger.info(f"Создание компонента {comp_type.value}.{name}")
+                    self.logger.info(f"Создание компонента {comp_type.value}.{name}")
                     try:
                         # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                         component = await self._create_component(comp_type, name, enriched_config, executor)
@@ -396,20 +403,20 @@ class ApplicationContext(BaseSystemContext):
                         # Регистрация компонента ДО инициализации
                         self.components.register(comp_type, name, component)
 
-                        self.event_bus_logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован")
+                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован")
 
                     except Exception as e:
-                        self.event_bus_logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
                         return False
 
             # Логируем все зарегистрированные компоненты
-            self.event_bus_logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
+            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
             # Инициализируем компоненты в правильном порядке
             success = await self._initialize_components_with_dependencies()
             if not success:
-                self.event_bus_logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
                 return False
 
             # === ЭТАП 5: Валидация готовности системы ===
@@ -420,7 +427,7 @@ class ApplicationContext(BaseSystemContext):
         # Инициализируем компоненты в правильном порядке
         success = await self._initialize_components_with_dependencies()
         if not success:
-            self.event_bus_logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+            self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
             return False
 
         # === ЭТАП 5: Валидация готовности системы ===
@@ -428,7 +435,7 @@ class ApplicationContext(BaseSystemContext):
             return False
 
         self._initialized = True
-        self.event_bus_logger.info(f"ApplicationContext {self.id} успешно инициализирован")
+        self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
 
@@ -437,7 +444,7 @@ class ApplicationContext(BaseSystemContext):
         Предзагрузка ресурсов через новый репозиторий.
         Компоненты будут получать готовые объекты при инициализации.
         """
-        self.event_bus_logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
+        self.logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
         # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
         self.prompt_cache = {}  # Dict[(capability, version), Prompt]
 
@@ -446,7 +453,7 @@ class ApplicationContext(BaseSystemContext):
                 prompt_obj = self.data_repository.get_prompt(cap, ver)
                 self.prompt_cache[(cap, ver)] = prompt_obj
             except Exception as e:
-                self.event_bus_logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
+                self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
 
         # Также загружаем промпты из компонентных конфигураций
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
@@ -460,7 +467,7 @@ class ApplicationContext(BaseSystemContext):
                                     prompt_obj = self.data_repository.get_prompt(cap, ver)
                                     self.prompt_cache[(cap, ver)] = prompt_obj
                                 except Exception as e:
-                                    self.event_bus_logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
+                                    self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
 
         # Контракты — загружаем схемы для валидации
         self.input_contract_cache = {}  # Dict[(capability, version), Type[BaseModel]]
@@ -473,24 +480,24 @@ class ApplicationContext(BaseSystemContext):
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                 self.input_contract_cache[(cap, ver)] = schema_cls
             except Exception as e:
-                self.event_bus_logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
+                self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
         for cap, ver in self.config.output_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                 self.output_contract_cache[(cap, ver)] = schema_cls
             except Exception as e:
-                self.event_bus_logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
+                self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
         # Загружаем контракты из компонентных конфигураций и заполняем resolved_*
-        self.event_bus_logger.info(f"_preload_resources_via_repository: Начало загрузки контрактов из компонентных конфигураций")
+        self.logger.info(f"_preload_resources_via_repository: Начало загрузки контрактов из компонентных конфигураций")
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
-            self.event_bus_logger.info(f"_preload_resources_via_repository: Обработка {comp_type_attr}")
+            self.logger.info(f"_preload_resources_via_repository: Обработка {comp_type_attr}")
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
-                self.event_bus_logger.info(f"_preload_resources_via_repository: {comp_type_attr} содержит {len(comp_configs)} компонентов: {list(comp_configs.keys())}")
+                self.logger.info(f"_preload_resources_via_repository: {comp_type_attr} содержит {len(comp_configs)} компонентов: {list(comp_configs.keys())}")
                 for comp_name, comp_config in comp_configs.items():
-                    self.event_bus_logger.info(f"_preload_resources_via_repository: Обработка {comp_name}, input_contract_versions={getattr(comp_config, 'input_contract_versions', {})}")
+                    self.logger.info(f"_preload_resources_via_repository: Обработка {comp_name}, input_contract_versions={getattr(comp_config, 'input_contract_versions', {})}")
                     if hasattr(comp_config, 'input_contract_versions'):
                         for cap, ver in comp_config.input_contract_versions.items():
                             # Ключи имеют вид "final_answer.generate", используем их напрямую
@@ -501,15 +508,15 @@ class ApplicationContext(BaseSystemContext):
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                                     self.input_contract_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
-                                    self.event_bus_logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                                    self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
 
                             # Заполняем resolved_input_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "input")
                                 comp_config.resolved_input_contracts[cap] = contract.schema_data
-                                self.event_bus_logger.info(f"Загружен входной контракт {cap}@{ver} для {comp_name}")
+                                self.logger.info(f"Загружен входной контракт {cap}@{ver} для {comp_name}")
                             except Exception as e:
-                                self.event_bus_logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
 
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap, ver in comp_config.output_contract_versions.items():
@@ -521,14 +528,14 @@ class ApplicationContext(BaseSystemContext):
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                                     self.output_contract_cache[(cap, ver)] = schema_cls
                                 except Exception as e:
-                                    self.event_bus_logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                                    self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
 
                             # Заполняем resolved_output_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "output")
                                 comp_config.resolved_output_contracts[cap] = contract.schema_data
                             except Exception as e:
-                                self.event_bus_logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output) для {comp_name}: {e}")
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output) для {comp_name}: {e}")
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
@@ -638,11 +645,11 @@ class ApplicationContext(BaseSystemContext):
                 prompt_obj = await storage.load(capability, version)
                 prompts[(capability, version)] = prompt_obj.content
             except Exception as e:
-                self.event_bus_logger.warning(f"Промпт {capability}@{version} не найден или ошибка загрузки: {e}. Пропускаем.")
+                self.logger.warning(f"Промпт {capability}@{version} не найден или ошибка загрузки: {e}. Пропускаем.")
                 # Добавляем пустую строку для отсутствующего промпта, чтобы не было KeyError позже
                 prompts[(capability, version)] = ""
         
-        self.event_bus_logger.info(f"Предзагружено {len(prompts)} промптов")
+        self.logger.info(f"Предзагружено {len(prompts)} промптов")
         return prompts
 
     async def _preload_all_contracts(self) -> Dict[tuple, Dict]:
@@ -662,7 +669,7 @@ class ApplicationContext(BaseSystemContext):
                 for cap, ver in getattr(config, 'output_contract_versions', {}).items():
                     unique_contracts.add((cap, ver, "output"))
 
-        self.event_bus_logger.info(f"Найдено {len(unique_contracts)} уникальных контрактов для предзагрузки")
+        self.logger.info(f"Найдено {len(unique_contracts)} уникальных контрактов для предзагрузки")
         
         # Загружаем ОДИН РАЗ через инфраструктурное хранилище
         loaded_count = 0
@@ -671,13 +678,13 @@ class ApplicationContext(BaseSystemContext):
                 contract_obj = await storage.load(capability, version, direction)
                 contracts[(capability, version, direction)] = contract_obj.schema_data
                 loaded_count += 1
-                self.event_bus_logger.debug(f"Загружен контракт {capability}@{version} ({direction}) (поля: {len(contract_obj.schema_data)})")
+                self.logger.debug(f"Загружен контракт {capability}@{version} ({direction}) (поля: {len(contract_obj.schema_data)})")
             except Exception as e:
-                self.event_bus_logger.warning(f"Не удалось загрузить контракт {capability}@{version} ({direction}): {e}")
+                self.logger.warning(f"Не удалось загрузить контракт {capability}@{version} ({direction}): {e}")
                 # Добавляем пустой словарь для отсутствующего контракта, чтобы не было KeyError позже
                 contracts[(capability, version, direction)] = {}
 
-        self.event_bus_logger.info(f"Предзагружено {loaded_count} из {len(unique_contracts)} контрактов успешно, {len(unique_contracts) - loaded_count} пропущено")
+        self.logger.info(f"Предзагружено {loaded_count} из {len(unique_contracts)} контрактов успешно, {len(unique_contracts) - loaded_count} пропущено")
         return contracts
 
     def _enrich_config_with_resources(
@@ -699,7 +706,7 @@ class ApplicationContext(BaseSystemContext):
             else:
                 # Если промпт не найден, всё равно добавляем его с пустой строкой
                 enriched.resolved_prompts[cap] = ""
-                self.event_bus_logger.warning(f"Промпт {key} не найден в предзагруженных ресурсах")
+                self.logger.warning(f"Промпт {key} не найден в предзагруженных ресурсах")
         
         # Заполняем контракты
         enriched.resolved_input_contracts = {}
@@ -710,7 +717,7 @@ class ApplicationContext(BaseSystemContext):
             else:
                 # Если контракт не найден, всё равно добавляем его с пустым словарем
                 enriched.resolved_input_contracts[cap] = {}
-                self.event_bus_logger.warning(f"Входной контракт {key} не найден в предзагруженных ресурсах")
+                self.logger.warning(f"Входной контракт {key} не найден в предзагруженных ресурсах")
         
         enriched.resolved_output_contracts = {}
         for cap, ver in base_config.output_contract_versions.items():
@@ -720,7 +727,7 @@ class ApplicationContext(BaseSystemContext):
             else:
                 # Если контракт не найден, всё равно добавляем его с пустым словарем
                 enriched.resolved_output_contracts[cap] = {}
-                self.event_bus_logger.warning(f"Выходной контракт {key} не найден в предзагруженных ресурсах")
+                self.logger.warning(f"Выходной контракт {key} не найден в предзагруженных ресурсах")
         
         return enriched
 
@@ -729,7 +736,7 @@ class ApplicationContext(BaseSystemContext):
         Инициализация компонентов с учетом зависимостей.
         Использует топологическую сортировку для правильного порядка инициализации.
         """
-        self.event_bus_logger.info("=== НАЧАЛО _initialize_components_with_dependencies ===")
+        self.logger.info("=== НАЧАЛО _initialize_components_with_dependencies ===")
         from core.application.context.application_context import ComponentType
         from collections import defaultdict, deque
 
@@ -790,7 +797,7 @@ class ApplicationContext(BaseSystemContext):
         if len(initialization_order) != len(all_components):
             # Обнаружена циклическая зависимость
             remaining_components = set(in_degree.keys()) - set(initialization_order)
-            self.event_bus_logger.error(f"Обнаружена циклическая зависимость между компонентами: {remaining_components}")
+            self.logger.error(f"Обнаружена циклическая зависимость между компонентами: {remaining_components}")
             
             # Попробуем инициализировать оставшиеся компоненты в любом порядке
             all_initialized_names = set(initialization_order)
@@ -801,11 +808,11 @@ class ApplicationContext(BaseSystemContext):
         # Инициализируем компоненты в порядке топологической сортировки
         initialized_components = set()
 
-        self.event_bus_logger.info(f"Инициализация компонентов в порядке зависимостей: {initialization_order}")
+        self.logger.info(f"Инициализация компонентов в порядке зависимостей: {initialization_order}")
         
         for component_name in initialization_order:
             if component_name not in component_map:
-                self.event_bus_logger.warning(f"Компонент {component_name} не найден в карте компонентов")
+                self.logger.warning(f"Компонент {component_name} не найден в карте компонентов")
                 continue
                 
             component = component_map[component_name]
@@ -814,24 +821,25 @@ class ApplicationContext(BaseSystemContext):
                 if hasattr(component, 'initialize') and callable(component.initialize):
                     if await component.initialize():
                         initialized_components.add(component.name)
-                        self.event_bus_logger.debug(f"Компонент {component.name} инициализирован")
-                    
+                        self.logger.debug(f"Компонент {component.name} инициализирован")
+                    else:
+                        self.logger.error(f"Компонент {component.name} не смог инициализироваться")
                         return False
                 else:
                     initialized_components.add(component.name)
-                    self.event_bus_logger.debug(f"Компонент {component.name} не требует инициализации")
+                    self.logger.debug(f"Компонент {component.name} не требует инициализации")
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
+                self.logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
                 return False
 
         # Проверяем, все ли компоненты были инициализированы
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
-            self.event_bus_logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
+            self.logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
             return False
 
-        self.event_bus_logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
+        self.logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
         return True
 
     async def _validate_manifests_by_profile(self) -> Dict[str, Any]:
@@ -886,33 +894,35 @@ class ApplicationContext(BaseSystemContext):
         # Получаем все компоненты, которые должны быть загружены
         declared_components = self._resolve_component_configs()
 
-        self.event_bus_logger.info(f"Проверка готовности компонентов: {[(k.value, list(v.keys())) for k, v in declared_components.items()]}")
+        self.logger.info(f"Проверка готовности компонентов: {[(k.value, list(v.keys())) for k, v in declared_components.items()]}")
 
         for comp_type, names in declared_components.items():
             for name in names:
-                self.event_bus_logger.debug(f"Проверка компонента: {comp_type.value}.{name}")
+                self.logger.debug(f"Проверка компонента: {comp_type.value}.{name}")
                 component = self.components.get(comp_type, name)
                 if component is None:
-                    self.event_bus_logger.error(f"Компонент {comp_type.value}.{name} был объявлен в конфигурации, но не загружен")
+                    self.logger.error(f"Компонент {comp_type.value}.{name} был объявлен в конфигурации, но не загружен")
                     # Дополнительная диагностика
                     all_registered_components = {}
                     for ct in self.components._components:
                         all_registered_components[ct.value] = list(self.components._components[ct].keys())
-                    self.event_bus_logger.error(f"Все зарегистрированные компоненты: {all_registered_components}")
+                    self.logger.error(f"Все зарегистрированные компоненты: {all_registered_components}")
                     return False
                 # Проверяем, что компонент инициализирован
                 if hasattr(component, '_initialized'):
                     if not component._initialized:
-                        self.event_bus_logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
+                        self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
                         return False
-                    
+                    else:
+                        self.logger.debug(f"Компонент {comp_type.value}.{name} инициализирован успешно")
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
-                        self.event_bus_logger.error(f"Компонент {component.name} не готов к работе")
+                        self.logger.error(f"Компонент {component.name} не готов к работе")
                         return False
-                
+                else:
+                    self.logger.warning(f"Компонент {component.name} не имеет атрибута _initialized или метода is_ready")
 
-        self.event_bus_logger.info("Все компоненты успешно проверены")
+        self.logger.info("Все компоненты успешно проверены")
         return True
 
     async def health_check(self) -> Dict[str, Any]:
@@ -997,7 +1007,7 @@ class ApplicationContext(BaseSystemContext):
         # Добавляем время выполнения проверки
         health_report['metrics']['check_duration'] = time.time() - start_time
         
-        self.event_bus_logger.info(f"Health check completed: {health_report['overall_status']}, "
+        self.logger.info(f"Health check completed: {health_report['overall_status']}, "
                          f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} components healthy")
         
         return health_report
@@ -1029,7 +1039,7 @@ class ApplicationContext(BaseSystemContext):
                         # Проверяем существование файла версии через хранилище
                         exists = await prompt_repository.exists(capability, version)
                         if not exists:
-                            self.event_bus_logger.error(
+                            self.logger.error(
                                 f"[{self.profile.upper()}] Промпт версия {capability}@{version} не существует. Отклонено."
                             )
                             return False
@@ -1046,13 +1056,16 @@ class ApplicationContext(BaseSystemContext):
                             else:
                                 # Если status уже строка
                                 status = str(status_obj)
-                        
+                        else:
+                            self.logger.warning(
+                                f"Не удалось получить статус для промпта {capability}@{version}, используем 'draft'"
+                            )
                             status = 'draft'
                         
                         if self.profile == "prod":
                             # В продакшне ТОЛЬКО активные версии
                             if status != "active":
-                                self.event_bus_logger.error(
+                                self.logger.error(
                                     f"[PROD] Промпт версия {capability}@{version} имеет статус '{status}', "
                                     f"но требуется 'active'. Отклонено."
                                 )
@@ -1061,11 +1074,11 @@ class ApplicationContext(BaseSystemContext):
                         elif self.profile == "sandbox":
                             # В песочнице разрешены draft + active (но не archived)
                             if status == "archived":
-                                self.event_bus_logger.warning(
+                                self.logger.warning(
                                     f"[SANDBOX] Промпт версия {capability}@{version} архивирована"
                                 )
                     except Exception as e:
-                        self.event_bus_logger.error(
+                        self.logger.error(
                             f"��е удалось загрузить или получить статус для промпта {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
@@ -1073,7 +1086,7 @@ class ApplicationContext(BaseSystemContext):
                         if self.profile == "prod":
                             return False
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка при доступе к хранилищу промптов: {e}")
+                self.logger.error(f"Ошибка при доступе к хранилищу промптов: {e}")
                 return False
 
         # Валидация входных контрактов
@@ -1086,7 +1099,7 @@ class ApplicationContext(BaseSystemContext):
                         # Проверяем существование файла версии через хранилище
                         exists = await contract_repository.exists(capability, version, "input")
                         if not exists:
-                            self.event_bus_logger.error(
+                            self.logger.error(
                                 f"[{self.profile.upper()}] Входной контракт версия {capability}@{version} не существует. Отклонено."
                             )
                             return False
@@ -1098,7 +1111,7 @@ class ApplicationContext(BaseSystemContext):
                         # В продакшне можно добавить проверки на соответствие определенным критер��ям
                         
                     except Exception as e:
-                        self.event_bus_logger.error(
+                        self.logger.error(
                             f"Н�� удалось загрузить входной контрак�� {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
@@ -1107,7 +1120,7 @@ class ApplicationContext(BaseSystemContext):
                             return False
             except Exception:
                 # Если хранилище контрактов не существует или недос��упно, пропускаем валидацию
-                self.event_bus_logger.warning("Хранилище контрактов недоступно, пропускаем валидацию в��одных контрактов")
+                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию в��одных контрактов")
                 pass
 
         # Валидация выходных ко��тра��тов
@@ -1120,7 +1133,7 @@ class ApplicationContext(BaseSystemContext):
                         # Проверяем существование файла версии через хранилище
                         exists = await contract_repository.exists(capability, version, "output")
                         if not exists:
-                            self.event_bus_logger.error(
+                            self.logger.error(
                                 f"[{self.profile.upper()}] Выходной контракт версия {capability}@{version} не существует. Отклонено."
                             )
                             return False
@@ -1131,7 +1144,7 @@ class ApplicationContext(BaseSystemContext):
                         # Для контрактов пока не проверяем статус, но можно добавить в будущем
                         
                     except Exception as e:
-                        self.event_bus_logger.error(
+                        self.logger.error(
                             f"Не удалось загрузить выходной контракт {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
@@ -1140,7 +1153,7 @@ class ApplicationContext(BaseSystemContext):
                             return False
             except Exception:
                 # Если хранилище контрактов не сущест��ует или недоступно, пропускаем валидацию
-                self.event_bus_logger.warning("Хранилище контрактов недоступно, пропускаем валидацию выходных контрактов")
+                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию выходных контрактов")
                 pass
 
         return True
@@ -1398,44 +1411,44 @@ class ApplicationContext(BaseSystemContext):
 
         # Логируем все зарегистрированные компоненты
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}"))
+            asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}"))
 
         # Получаем capability от всех навыков
         for skill in self.components.all_of_type(ComponentType.SKILL):
             if self.event_bus_logger:
-                asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}"))
+                asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}"))
             if hasattr(skill, 'get_capabilities'):
                 try:
                     caps = skill.get_capabilities()
                     all_capabilities.extend(caps)
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
+                        asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
                 except Exception as e:
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}"))
+                        asyncio.create_task(self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}"))
             else:
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_self.event_bus_logger.warning(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities"))
+                    asyncio.create_task(self.event_bus_logger.warning(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities"))
 
         # Получаем capability от всех инструментов
         for tool in self.components.all_of_type(ComponentType.TOOL):
             if self.event_bus_logger:
-                asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}"))
+                asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}"))
             if hasattr(tool, 'get_capabilities'):
                 try:
                     caps = tool.get_capabilities()
                     all_capabilities.extend(caps)
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
+                        asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}"))
                 except Exception as e:
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}"))
+                        asyncio.create_task(self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}"))
             else:
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_self.event_bus_logger.warning(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities"))
+                    asyncio.create_task(self.event_bus_logger.warning(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities"))
 
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}"))
+            asyncio.create_task(self.event_bus_logger.debug(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}"))
         return all_capabilities
 
     def get_resource(self, name: str):
@@ -1486,7 +1499,7 @@ class ApplicationContext(BaseSystemContext):
                 raise ValueError(f"Версия {capability}@{version} не существует")
         
         self._prompt_overrides[capability] = version
-        self.event_bus_logger.info(f"Установлен оверрайд: {capability}@{version} для песочницы")
+        self.logger.info(f"Установлен оверрайд: {capability}@{version} для песочницы")
 
     async def clone_with_version_override(
         self,

@@ -73,7 +73,7 @@ class AgentFactory:
             correlation_id=correlation_id
         )
 
-        self.event_bus_logger.info(
+        self.logger.info(
             f"Создан агент с ID {app_context.id}. "
             f"Версии: из конфигурации"
         )

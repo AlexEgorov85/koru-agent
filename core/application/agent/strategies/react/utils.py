@@ -47,7 +47,7 @@ def analyze_context(session_context: 'SessionContext') -> Dict[str, Any]:
         return context_analysis
         
     except Exception as e:
-        self.event_bus_logger.error(f"Ошибка при анализе контекста: {str(e)}", exc_info=True)
+        logger.error(f"Ошибка при анализе контекста: {str(e)}", exc_info=True)
         # Возвращаем минимальный анализ в случае ошибки
         return {
             "goal": "Неизвестная цель",

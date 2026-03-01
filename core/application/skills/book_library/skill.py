@@ -142,26 +142,26 @@ class BookLibrarySkill(BaseComponent):
         for capability in required_capabilities:
             # Проверяем наличие промпта
             if capability not in self.prompts:
-                self.event_bus_logger.warning(f"Промпт для {capability} не загружен")
+                self.logger.warning(f"Промпт для {capability} не загружен")
 
             # Проверяем наличие входной схемы
             if capability not in self.input_contracts:
-                self.event_bus_logger.warning(f"Входная схема для {capability} не загружена")
+                self.logger.warning(f"Входная схема для {capability} не загружена")
 
             # Проверяем наличие выходной схемы
             if capability not in self.output_contracts:
-                self.event_bus_logger.warning(f"Выходная схема для {capability} не загружена")
+                self.logger.warning(f"Выходная схема для {capability} не загружена")
 
         # Загружаем реестр скриптов
         try:
             from .scripts_registry import get_all_scripts
             self._scripts_registry = get_all_scripts()
-            self.event_bus_logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
+            self.logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+            self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
             self._scripts_registry = {}
 
-        self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        self.logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -201,7 +201,7 @@ class BookLibrarySkill(BaseComponent):
         - Требует валидации сгенерированного SQL
         """
         start_time = time.time()
-        self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
+        self.logger.info(f"Запуск динамического поиска книг: {params}")
 
         # 1. Валидация входных параметров через кэшированную схему из YAML контракта
         input_schema = self.get_cached_input_contract_safe("book_library.search_books")
@@ -210,7 +210,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_params = input_schema.model_validate(params)
                 params = validated_params.model_dump()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+                self.logger.error(f"Ошибка валидации параметров: {e}")
                 return {
                     "error": f"Неверные параметры: {str(e)}",
                     "rows": [],
@@ -219,7 +219,7 @@ class BookLibrarySkill(BaseComponent):
                 }
         else:
             # Критическая ошибка: контракт не загружен в кэш
-            self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
+            self.logger.error("Контракт book_library.search_books.input не загружен в кэш")
             return {
                 "error": "Внутренняя ошибка: контракт не загружен",
                 "rows": [],
@@ -257,17 +257,18 @@ class BookLibrarySkill(BaseComponent):
 
             if gen_result.success and gen_result.data:
                 sql_query = gen_result.data.get('sql_query', '')
-                self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
-            
+                self.logger.info(f"Сгенерированный SQL: {sql_query}")
+            else:
+                self.logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
+            self.logger.error(f"Ошибка генерации SQL: {e}")
 
         # Fallback: простой SQL запрос если генерация не удалась
         if not sql_query:
             query = params.get('query', '')
             sql_query = f"SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE '%{query}%' OR author ILIKE '%{query}%' LIMIT {params.get('max_results', 10)}"
-            self.event_bus_logger.info(f"Использован fallback SQL: {sql_query}")
+            self.logger.info(f"Использован fallback SQL: {sql_query}")
 
         # 4. Выполнение SQL через sql_query_service
         rows = []
@@ -288,10 +289,10 @@ class BookLibrarySkill(BaseComponent):
             if query_result.success and query_result.data:
                 rows = query_result.data.get('rows', [])
                 execution_time = query_result.data.get('execution_time', 0.0)
-                self.event_bus_logger.info(f"Найдено строк: {len(rows)}")
+                self.logger.info(f"Найдено строк: {len(rows)}")
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
+            self.logger.error(f"Ошибка выполнения SQL: {e}")
 
         # Если результаты пустые, возвращаем демонстрационные данные
         if not rows:
@@ -301,7 +302,7 @@ class BookLibrarySkill(BaseComponent):
                 {"title": "Машинное обучение", "author": "Том Митчелл", "year": 1997}
             ]
             rows = fake_results
-            self.event_bus_logger.info("Возвращаем демонстрационные данные")
+            self.logger.info("Возвращаем демонстрационные данные")
 
         # Формируем результат
         total_time = time.time() - start_time
@@ -326,7 +327,7 @@ class BookLibrarySkill(BaseComponent):
                 script_name=None
             )
         except Exception as e:
-            self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
+            self.logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 6. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.search_books")
@@ -335,7 +336,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result)
                 return validated_result.model_dump()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+                self.logger.error(f"Ошибка валидации результата: {e}")
                 return result
         else:
             return result
@@ -353,7 +354,7 @@ class BookLibrarySkill(BaseComponent):
         - Ограничено заранее определёнными запросами
         """
         start_time = time.time()
-        self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
+        self.logger.info(f"Запуск статического скрипта: {params}")
 
         # 1. Валидация входных параметров
         script_name = params.get('script_name')
@@ -435,10 +436,10 @@ class BookLibrarySkill(BaseComponent):
             if query_result.success and query_result.data:
                 rows = query_result.data.get('rows', [])
                 execution_time = query_result.data.get('execution_time', 0.0)
-                self.event_bus_logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
+                self.logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
+            self.logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
             return {
                 "error": f"Ошибка выполнения скрипта: {str(e)}",
                 "rows": [],
@@ -470,7 +471,7 @@ class BookLibrarySkill(BaseComponent):
                 script_name=script_name
             )
         except Exception as e:
-            self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
+            self.logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 8. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
@@ -479,7 +480,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result)
                 return validated_result.model_dump()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+                self.logger.error(f"Ошибка валидации результата: {e}")
                 return result
         else:
             return result
@@ -496,7 +497,7 @@ class BookLibrarySkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Список скриптов с описаниями и примерами использования
         """
-        self.event_bus_logger.info("Запрос списка доступных скриптов")
+        self.logger.info("Запрос списка доступных скриптов")
         
         allowed_scripts = self._get_allowed_scripts()
         scripts_list = []
@@ -544,7 +545,7 @@ class BookLibrarySkill(BaseComponent):
             "total_count": len(scripts_list)
         }
 
-        self.event_bus_logger.info(f"Возвращено {len(scripts_list)} скриптов")
+        self.logger.info(f"Возвращено {len(scripts_list)} скриптов")
 
         # Валидация через схему из сервиса контрактов
         output_schema = self.get_cached_output_contract_safe("book_library.list_scripts")
@@ -554,7 +555,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result_data)
                 return validated_result.model_dump()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
+                self.logger.error(f"Ошибка валидации через контракт: {e}")
                 # Возвращаем данные без валидации (fallback)
         
         # Если схема не загружена - возвращаем данные напрямую
@@ -736,7 +737,7 @@ class BookLibrarySkill(BaseComponent):
 
         except Exception as e:
             # Логгируем но не выбрасываем ошибку - метрики не должны ломать основную логику
-            self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
+            self.logger.debug(f"Ошибка публикации метрик: {e}")
 
 
 # ============================================================================

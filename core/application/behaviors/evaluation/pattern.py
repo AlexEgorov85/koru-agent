@@ -40,7 +40,7 @@ class EvaluationPattern(BaseBehaviorPattern):
         Публикует событие llm.response.received независимо от результата.
         """
         if not (self.application_context and hasattr(self.application_context, 'infrastructure_context')):
-            self.event_bus_logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
+            self.logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
             return
 
         from core.infrastructure.event_bus.event_bus import EventType
@@ -89,9 +89,9 @@ class EvaluationPattern(BaseBehaviorPattern):
                 source="evaluation_pattern.assess",
                 correlation_id=getattr(session_context, 'session_id', '')
             )
-            self.event_bus_logger.debug("Событие LLM_RESPONSE_RECEIVED опубликовано")
+            self.logger.debug("Событие LLM_RESPONSE_RECEIVED опубликовано")
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
+            self.logger.error(f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
 
     async def analyze_context(
         self,
@@ -128,7 +128,7 @@ class EvaluationPattern(BaseBehaviorPattern):
         assessment_prompt = self.get_prompt("behavior.evaluation.assess")
 
         if not assessment_prompt:
-            self.event_bus_logger.warning("Промпт для оценки не загружен, используем fallback")
+            self.logger.warning("Промпт для оценки не загружен, используем fallback")
             assessment_prompt = "Оцени достижение цели: {goal}\nКонтекст: {context_summary}"
 
         # Заменяем переменные в промпте
@@ -145,7 +145,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             output_schema = self.get_output_contract("behavior.evaluation.assess")
 
             if not output_schema:
-                self.event_bus_logger.warning("Output контракт не загружен, используем fallback схему")
+                self.logger.warning("Output контракт не загружен, используем fallback схему")
                 from pydantic import BaseModel, Field
                 from typing import Optional
                 
@@ -187,7 +187,7 @@ class EvaluationPattern(BaseBehaviorPattern):
                 error_msg = "Неизвестная ошибка LLM"
                 if hasattr(llm_response, 'metadata') and llm_response.metadata:
                     error_msg = llm_response.metadata.get('error', error_msg)
-                self.event_bus_logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
+                self.logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
                 
                 # Публикуем событие об ошибке
                 await self._publish_llm_response_received(
@@ -201,7 +201,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
                 error_msg = llm_response.metadata['error']
-                self.event_bus_logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
+                self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
                 
                 # Публикуем событие об ошибке
                 await self._publish_llm_response_received(
@@ -251,7 +251,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
         except Exception as e:
             error_msg = f"Ошибка при оценке цели: {e}"
-            self.event_bus_logger.error(error_msg, exc_info=True)
+            self.logger.error(error_msg, exc_info=True)
             
             # Публикуем событие об ошибке
             await self._publish_llm_response_received(

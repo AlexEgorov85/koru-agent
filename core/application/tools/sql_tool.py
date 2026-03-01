@@ -61,7 +61,7 @@ class SQLTool(BaseTool):
 
     async def shutdown(self) -> None:
         """Корректное завершение работы (базовая реализация)."""
-        self.event_bus_logger.debug(f"Базовое завершение работы для инструмента {self.name}")
+        logger.debug(f"Базовое завершение работы для инструмента {self.name}")
 
     def _is_write_query(self, sql: str) -> bool:
         """Проверяет, является ли SQL-запрос write-операцией."""
@@ -93,8 +93,9 @@ class SQLTool(BaseTool):
                 })
             except Exception as e:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
-                
+                    await self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
+                else:
+                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
                 return {
                     "rows": [],
                     "columns": [],
@@ -109,8 +110,9 @@ class SQLTool(BaseTool):
 
         if not db_provider:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error("DB провайдер не найден")
-            
+                await self.event_bus_logger.error("DB провайдер не найден")
+            else:
+                self.logger.error("DB провайдер не найден")
             return {
                 "rows": [],
                 "columns": [],
@@ -161,8 +163,9 @@ class SQLTool(BaseTool):
                 output_schema.model_validate(output)
             except Exception as e:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
-                
+                    await self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
+                else:
+                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
 
         return output
 

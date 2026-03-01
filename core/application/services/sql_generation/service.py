@@ -82,7 +82,7 @@ class SQLGenerationService(BaseService):
             # В новой архитектуре SQLErrorAnalyzer может использовать application_context
             self.error_analyzer = SQLErrorAnalyzer(self.application_context)
             if not await self.error_analyzer.initialize():
-                self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
             # Инициализация движка коррекции
@@ -90,12 +90,12 @@ class SQLGenerationService(BaseService):
 
             # Проверка критических зависимостей
             if not self.table_description_service_instance:
-                self.event_bus_logger.error("table_description_service не загружен (архитектурная ошибка)")
+                self.logger.error("table_description_service не загружен (архитектурная ошибка)")
                 return False
 
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
+            self.logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
             return False
 
     async def _load_service_prompts(self):
@@ -144,7 +144,7 @@ class SQLGenerationService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
+            self.logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:

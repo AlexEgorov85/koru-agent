@@ -104,8 +104,9 @@ class BaseService(BaseComponent):
         self._init_event_bus_logger()
 
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"Инициализирован сервис: {self.name}"))
-        
+            asyncio.create_task(self.event_bus_logger.info(f"Инициализирован сервис: {self.name}"))
+        else:
+            self.logger.info(f"Инициализирован сервис: {self.name}")
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
@@ -126,28 +127,28 @@ class BaseService(BaseComponent):
         Единая точка входа для инициализации с разрешением зависимостей.
         """
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+            await self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
         if getattr(self, '_initialized', False):
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
+                await self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
             return True
 
         # 1. Загрузка зависимостей
         if not await self._resolve_dependencies():
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
+                await self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
             return False
 
         # 2. Вызов родительской инициализации (BaseComponent)
         try:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
+                await self.event_bus_logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
             base_result = await super().initialize()
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
+                await self.event_bus_logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
             if not base_result:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                    await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
                 return False
         except Exception as e:
             if self.event_bus_logger:
@@ -158,7 +159,7 @@ class BaseService(BaseComponent):
         try:
             if not await self._custom_initialize():
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
+                    await self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
                 return False
         except Exception as e:
             if self.event_bus_logger:
@@ -168,14 +169,14 @@ class BaseService(BaseComponent):
         # 4. Финальная проверка
         if not await self._verify_readiness():
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
+                await self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
             return False
 
         # Устанавливаем флаг инициализации
         self._initialized = True
         msg = f"Сервис '{self.name}' инициализирован. Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, _initialized flag set to: {self._initialized}"
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(msg)
+            await self.event_bus_logger.info(msg)
         return True
 
     async def _resolve_dependencies(self) -> bool:
@@ -183,37 +184,40 @@ class BaseService(BaseComponent):
         Загрузка всех декларированных зависимостей.
         """
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+            await self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
 
         missing_deps = []
         for dep_name in self.DEPENDENCIES:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
+                await self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
             dependency = self.get_dependency(dep_name)
             if not dependency:
                 msg = f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. Возможные причины: 1) Зависимость еще не инициализирована 2) Циклическая зависимость в графе сервисов 3) Сервис '{dep_name}' отключён в конфигурации 4) Ошибка в декларации зависимостей"
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.warning(msg)
+                    await self.event_bus_logger.warning(msg)
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
                 missing_deps.append(dep_name)
                 # Continue instead of returning False immediately
                 continue
             else:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
-                
+                    await self.event_bus_logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+                else:
+                    self.logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
                 msg = f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. Это допустимо при топологической сортировке, но требует осторожности."
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.warning(msg)
-                
+                    await self.event_bus_logger.warning(msg)
+                else:
+                    self.logger.warning(msg)
             else:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
-                
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                else:
+                    self.logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
@@ -221,19 +225,22 @@ class BaseService(BaseComponent):
         # Return False only if ALL dependencies are missing
         if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
-            
+                await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            else:
+                self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
 
         # Log warning if some dependencies are missing
         if missing_deps:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
-            
+                await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+            else:
+                self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
         else:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
-            
+                await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+            else:
+                self.logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
 
         return True
 
@@ -259,11 +266,11 @@ class BaseService(BaseComponent):
         Безопасное получение зависимости по имени.
         Сначала ищем в локальном кэше, затем в прикладном контексте.
         """
-        self.event_bus_logger.debug(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
+        self.logger.debug(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
         
         # Сначала ищем в локальном кэше
         if name in self._dependencies:
-            self.event_bus_logger.debug(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
+            self.logger.debug(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
             return self._dependencies[name]
 
         # Затем ищем в прикладном контексте
@@ -271,29 +278,33 @@ class BaseService(BaseComponent):
             # Пытаемся получить сервис из прикладного контекста
             service = self.application_context.get_service(name)
             if service:
-                self.event_bus_logger.debug(f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.logger.debug(f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return service
-            
+            else:
+                self.logger.debug(f"get_dependency: сервис '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
                 # Дополнительная диагностика - проверим, что есть в компонентах
                 all_services = list(self.application_context.components.all_of_type(ComponentType.SERVICE))
-                self.event_bus_logger.debug(f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
+                self.logger.debug(f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
 
             # Если не сервис, пробуем другие типы компонентов
             skill = self.application_context.get_skill(name)
             if skill:
-                self.event_bus_logger.debug(f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.logger.debug(f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return skill
-            
+            else:
+                self.logger.debug(f"get_dependency: навык '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
 
             tool = self.application_context.get_tool(name)
             if tool:
-                self.event_bus_logger.debug(f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.logger.debug(f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return tool
-            
+            else:
+                self.logger.debug(f"get_dependency: инструмент '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
 
-        
+        else:
+            self.logger.error(f"get_dependency: application_context отсутствует для компонента '{self.name}'")
 
-        self.event_bus_logger.debug(f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
+        self.logger.debug(f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
         return None
 
     def _convert_params_to_input(self, parameters: Dict[str, Any]) -> ServiceInput:
@@ -389,6 +400,8 @@ class BaseService(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            else:
+                self.logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
             return False
 
     async def restart_with_module_reload(self):
@@ -401,8 +414,9 @@ class BaseService(BaseComponent):
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
-        
+            await self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        else:
+            self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         return safe_reload_component_with_module_reload(self)
 
     def _validate_input(self, data: Dict[str, Any], required_fields: list) -> bool:
@@ -418,7 +432,7 @@ class BaseService(BaseComponent):
         """
         for field in required_fields:
             if field not in data or data[field] is None:
-                self.event_bus_logger.error(f"Отсутствует обязательное поле: {field}")
+                self.logger.error(f"Отсутствует обязательное поле: {field}")
                 return False
         return True
 
@@ -436,7 +450,7 @@ class BaseService(BaseComponent):
         # В реальном приложении может потребоваться более сложная логика
         sanitized = data.replace(';', '').replace('--', '').replace('/*', '').replace('*/', '')
         if sanitized != data:
-            self.event_bus_logger.warning("Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
+            self.logger.warning("Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
         return sanitized
 
     def _get_component_type(self) -> str:
@@ -457,14 +471,16 @@ class BaseService(BaseComponent):
                 if cap_name not in self.input_contracts:
                     msg = f"{self.name}: Метод '{method_name}' не имеет input контракта"
                     if self.event_bus_logger:
-                        await self.event_bus_self.event_bus_logger.warning(msg)
-                    
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.logger.warning(msg)
 
                 if cap_name not in self.output_contracts:
                     msg = f"{self.name}: Метод '{method_name}' не имеет output контракта"
                     if self.event_bus_logger:
-                        await self.event_bus_self.event_bus_logger.warning(msg)
-                    
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.logger.warning(msg)
 
         return True
     

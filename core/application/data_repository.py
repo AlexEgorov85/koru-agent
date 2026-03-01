@@ -82,7 +82,7 @@ class DataRepository:
         # Логирование через logger вместо print
         import logging
         logger = logging.getLogger(__name__)
-        self.event_bus_logger.info(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
+        logger.info(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
         return self._manifest_cache
 
     def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
@@ -357,7 +357,7 @@ class DataRepository:
         """
         key = (capability, version)
         if key not in self._prompts_index:
-            self.event_bus_logger.warning(f"Промпт {capability}@{version} не найден")
+            self.logger.warning(f"Промпт {capability}@{version} не найден")
             return False
 
         prompt = self._prompts_index[key]
@@ -367,10 +367,10 @@ class DataRepository:
         try:
             new_prompt = prompt.model_copy(update={'status': new_status})
             self._prompts_index[key] = new_prompt
-            self.event_bus_logger.info(f"Статус промпта {capability}@{version} изменён: {old_status.value} → {new_status.value}")
+            self.logger.info(f"Статус промпта {capability}@{version} изменён: {old_status.value} → {new_status.value}")
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка обновления статуса промпта {capability}@{version}: {e}")
+            self.logger.error(f"Ошибка обновления статуса промпта {capability}@{version}: {e}")
             return False
 
     def update_contract_status(
@@ -394,7 +394,7 @@ class DataRepository:
         """
         key = (capability, version, direction)
         if key not in self._contracts_index:
-            self.event_bus_logger.warning(f"Контракт {capability}@{version} ({direction}) не найден")
+            self.logger.warning(f"Контракт {capability}@{version} ({direction}) не найден")
             return False
 
         contract = self._contracts_index[key]
@@ -404,10 +404,10 @@ class DataRepository:
         try:
             new_contract = contract.model_copy(update={'status': new_status})
             self._contracts_index[key] = new_contract
-            self.event_bus_logger.info(f"Статус контракта {capability}@{version} ({direction}) изменён: {old_status.value} → {new_status.value}")
+            self.logger.info(f"Статус контракта {capability}@{version} ({direction}) изменён: {old_status.value} → {new_status.value}")
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка обновления статуса контракта {capability}@{version} ({direction}): {e}")
+            self.logger.error(f"Ошибка обновления статуса контракта {capability}@{version} ({direction}): {e}")
             return False
 
     def add_prompt(self, prompt: Prompt) -> bool:
@@ -422,11 +422,11 @@ class DataRepository:
         """
         key = (prompt.capability, prompt.version)
         if key in self._prompts_index:
-            self.event_bus_logger.warning(f"Промпт {prompt.capability}@{prompt.version} уже существует")
+            self.logger.warning(f"Промпт {prompt.capability}@{prompt.version} уже существует")
             return False
 
         self._prompts_index[key] = prompt
-        self.event_bus_logger.info(f"Добавлен промпт {prompt.capability}@{prompt.version}")
+        self.logger.info(f"Добавлен промпт {prompt.capability}@{prompt.version}")
         return True
 
     def add_contract(self, contract: Contract) -> bool:
@@ -441,9 +441,9 @@ class DataRepository:
         """
         key = (contract.capability, contract.version, contract.direction.value)
         if key in self._contracts_index:
-            self.event_bus_logger.warning(f"Контракт {contract.capability}@{contract.version} ({contract.direction.value}) уже существует")
+            self.logger.warning(f"Контракт {contract.capability}@{contract.version} ({contract.direction.value}) уже существует")
             return False
 
         self._contracts_index[key] = contract
-        self.event_bus_logger.info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
+        self.logger.info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
         return True

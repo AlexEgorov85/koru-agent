@@ -70,7 +70,7 @@ class SQLQueryService(BaseService):
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(self.application_context)
             if not await self.error_analyzer.initialize():
-                self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
             # Дополнительная валидация - проверяем зависимости
@@ -79,31 +79,31 @@ class SQLQueryService(BaseService):
             generation_service = getattr(self, 'sql_generation_service_instance', None)
 
             if not validator_service:
-                self.event_bus_logger.warning("sql_validator_service не загружен, пытаемся получить напрямую")
+                self.logger.warning("sql_validator_service не загружен, пытаемся получить напрямую")
                 # Попробуем получить зависимость напрямую из контекста
                 validator_service = self.application_context.get_service('sql_validator_service')
                 if validator_service:
-                    self.event_bus_logger.info("sql_validator_service получен из контекста, устанавливаем вручную")
+                    self.logger.info("sql_validator_service получен из контекста, устанавливаем вручную")
                     setattr(self, 'sql_validator_service_instance', validator_service)
                     if not hasattr(self, '_dependencies'):
                         self._dependencies = {}
                     self._dependencies['sql_validator_service'] = validator_service
 
             if not generation_service:
-                self.event_bus_logger.warning("sql_generation_service не загружен, пытаемся получить напрямую")
+                self.logger.warning("sql_generation_service не загружен, пытаемся получить напрямую")
                 # Попробуем получить зависимость напрямую из контекста
                 generation_service = self.application_context.get_service('sql_generation_service')
                 if generation_service:
-                    self.event_bus_logger.info("sql_generation_service получен из контекста, устанавливаем вручную")
+                    self.logger.info("sql_generation_service получен из контекста, устанавливаем вручную")
                     setattr(self, 'sql_generation_service_instance', generation_service)
                     if not hasattr(self, '_dependencies'):
                         self._dependencies = {}
                     self._dependencies['sql_generation_service'] = generation_service
 
-            self.event_bus_logger.info("SQLQueryService успешно инициализирован")
+            self.logger.info("SQLQueryService успешно инициализирован")
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
+            self.logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -162,7 +162,7 @@ class SQLQueryService(BaseService):
                         "max_rows": max_rows
                     })
                 except Exception as e:
-                    self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
+                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
                     return DBQueryResult(
                         success=False,
                         rows=[],
@@ -221,7 +221,7 @@ class SQLQueryService(BaseService):
                         "execution_time": tool_result.data.get('execution_time', 0)
                     })
                 except Exception as e:
-                    self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
+                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
 
             # Преобразуем результат в DBQueryResult
             if tool_result.success and tool_result.data:
@@ -242,7 +242,7 @@ class SQLQueryService(BaseService):
                 )
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
             return DBQueryResult(
                 success=False,
                 rows=[],
@@ -300,7 +300,7 @@ class SQLQueryService(BaseService):
             return result
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
             return DBQueryResult(
                 success=False,
                 rows=[],
@@ -342,11 +342,11 @@ class SQLQueryService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
+            self.logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        self.event_bus_logger.info("Завершение работы SQLQueryService")
+        self.logger.info("Завершение работы SQLQueryService")
         # Закрытие ресурсов при необходимости
         await self.error_analyzer.shutdown()

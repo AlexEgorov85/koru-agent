@@ -63,7 +63,7 @@ class VersionedStorage(ABC, Generic[T]):
         self.storage_dir = storage_dir.resolve()
         self._validate_directory()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.event_bus_logger.info(f"{self.__class__.__name__} инициализировано: {self.storage_dir}")
+        self.logger.info(f"{self.__class__.__name__} инициализировано: {self.storage_dir}")
 
     def _validate_directory(self) -> None:
         """Валидация директории хранилища."""

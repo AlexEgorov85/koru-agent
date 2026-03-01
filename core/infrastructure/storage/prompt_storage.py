@@ -175,3 +175,5 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
+        else:
+            self.logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")

@@ -139,7 +139,7 @@ class FallbackPattern(BaseBehaviorPattern):
 
             return None
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка при поиске альтернативной capability: {str(e)}")
+            self.logger.error(f"Ошибка при поиске альтернативной capability: {str(e)}")
             return None
 
     def _generate_failure_report(self, session_context: SessionContext):

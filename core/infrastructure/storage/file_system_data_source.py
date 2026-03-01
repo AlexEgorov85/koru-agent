@@ -221,7 +221,7 @@ class FileSystemDataSource(ResourceDataSource):
                     except Exception as e:
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
-                        self.event_bus_logger.error(f"Ошибка при загрузке промпта из {file_path}: {e}")
+                        self.logger.error(f"Ошибка при загрузке промпта из {file_path}: {e}")
                         raise ValueError(f"Ошибка при загрузке промпта из {file_path}: {e}")
 
     def _preload_contracts(self):
@@ -267,7 +267,7 @@ class FileSystemDataSource(ResourceDataSource):
                     except Exception as e:
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
-                        self.event_bus_logger.error(f"Ошибка при загрузке контракта из {file_path}: {e}")
+                        self.logger.error(f"Ошибка при загрузке контракта из {file_path}: {e}")
                         raise ValueError(f"Ошибка при загрузке контракта из {file_path}: {e}")
 
     def load_all_prompts(self) -> List[Prompt]:

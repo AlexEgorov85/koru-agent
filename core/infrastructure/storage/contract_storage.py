@@ -219,3 +219,5 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+        else:
+            self.logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")

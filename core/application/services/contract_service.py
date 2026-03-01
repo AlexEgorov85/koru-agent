@@ -48,7 +48,8 @@ class ContractService(BaseService):
                 if capability in self.component_config.resolved_input_contracts:
                     schema = self.component_config.resolved_input_contracts[capability]
                     self.contracts[(capability, "input")] = schema
-                
+                else:
+                    self.logger.error(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
                     missing_contracts.append(f"{capability}@{version} (input)")
 
             # Загружаем выходные контракты
@@ -58,24 +59,25 @@ class ContractService(BaseService):
                 if capability in self.component_config.resolved_output_contracts:
                     schema = self.component_config.resolved_output_contracts[capability]
                     self.contracts[(capability, "output")] = schema
-                
+                else:
+                    self.logger.error(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
                     missing_contracts.append(f"{capability}@{version} (output)")
 
             # Проверяем, все ли контракты загружены
             if missing_contracts:
-                self.event_bus_logger.error(f"ContractService: отсутствуют критические контракты: {missing_contracts}")
+                self.logger.error(f"ContractService: отсутствуют критические контракты: {missing_contracts}")
                 self._initialized = False
                 return False
 
             self._initialized = True
-            self.event_bus_logger.info(
+            self.logger.info(
                 f"ContractService инициализирован: "
                 f"загружено {len(self.contracts)} контрактов"
             )
             return True
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации ContractService: {e}")
+            self.logger.error(f"Ошибка инициализации ContractService: {e}")
             return False
 
     def get_contract(self, capability_name: str, direction: str) -> Dict:
@@ -123,14 +125,14 @@ class ContractService(BaseService):
                 contract = await storage.load(capability, version, "output")
                 self.contracts[(capability, "output")] = contract.schema_data
 
-            self.event_bus_logger.info(
+            self.logger.info(
                 f"Контракты предзагружены: "
                 f"загружено {len(self.contracts)} контрактов"
             )
             return True
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка предзагрузки контрактов: {e}")
+            self.logger.error(f"Ошибка предзагрузки контрактов: {e}")
             return False
 
     def get_contract_schema_from_cache(self, capability_name: str, direction: str) -> Dict:

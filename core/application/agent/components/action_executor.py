@@ -70,7 +70,7 @@ class ActionExecutor:
         - ActionResult: результат выполнения
         """
         if self.logger:
-            self.event_bus_logger.debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
+            self.logger.debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
 
         try:
             # 1. Обработка действий контекста (context.*)
@@ -115,7 +115,7 @@ class ActionExecutor:
 
         except Exception as e:
             if self.logger:
-                self.event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
+                self.logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=str(e)
@@ -163,7 +163,7 @@ class ActionExecutor:
                 )
         except Exception as e:
             if self.logger:
-                self.event_bus_logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True)
+                self.logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=f"Ошибка действия контекста: {str(e)}"
@@ -415,7 +415,7 @@ class ActionExecutor:
 
         except Exception as e:
             if self.logger:
-                self.event_bus_logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
+                self.logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
             return ActionResult(
                 success=False,
                 error=str(e)

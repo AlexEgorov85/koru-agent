@@ -81,22 +81,26 @@ class DataAnalysisSkill(BaseSkill):
         # Проверяем наличие необходимых ресурсов
         if "data_analysis.analyze_step_data" not in self.prompts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-            
+                await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+            else:
+                self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
 
         if "data_analysis.analyze_step_data" not in self.input_contracts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-            
+                await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
 
         if "data_analysis.analyze_step_data" not in self.output_contracts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-            
+                await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
 
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-        )}")
+            await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        else:
+            self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -179,8 +183,9 @@ class DataAnalysisSkill(BaseSkill):
             error_msg = llm_result.error
             error_type = llm_result.metadata.get("error_type", "unknown")
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
-            ")
+                await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
+            else:
+                self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             return {
                 "error": f"Ошибка LLM: {error_msg}",
                 "answer": "",
@@ -200,10 +205,12 @@ class DataAnalysisSkill(BaseSkill):
 
         # Логирование успешного structured output
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(
+            await self.event_bus_logger.info(
                 f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
             )
-        })"
+        else:
+            self.logger.info(
+                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
             )
 
         # Добавляем метаданные в ответ
@@ -241,8 +248,9 @@ class DataAnalysisSkill(BaseSkill):
                 params = validated_params.model_dump()
             except Exception as e:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                
+                    await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+                else:
+                    self.logger.error(f"Ошибка валидации параметров: {e}")
                 return {
                     "error": f"Неверные параметры: {str(e)}",
                     "answer": "",
@@ -263,8 +271,9 @@ class DataAnalysisSkill(BaseSkill):
             )
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
-            
+                await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
+            else:
+                self.logger.error(f"Ошибка загрузки данных: {e}")
             return {
                 "error": f"Ошибка загрузки данных: {str(e)}",
                 "answer": "",
@@ -343,10 +352,12 @@ class DataAnalysisSkill(BaseSkill):
 
             # Логирование успешного structured output
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(
+                await self.event_bus_logger.info(
                     f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
                 )
-            })"
+            else:
+                self.logger.info(
+                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
                 )
 
             # 9. Добавление метаданных
@@ -365,15 +376,17 @@ class DataAnalysisSkill(BaseSkill):
                     return validated_result.model_dump()
                 except Exception as e:
                     if self.event_bus_logger:
-                        await self.event_bus_self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-                    
+                        await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+                    else:
+                        self.logger.error(f"Ошибка валидации результата: {e}")
 
             return answer_data
 
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
-            
+                await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
+            else:
+                self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
             return {
                 "error": f"Ошибка анализа: {str(e)}",
                 "answer": "",
@@ -551,8 +564,9 @@ class DataAnalysisSkill(BaseSkill):
 
             if len(chunks) >= max_chunks:
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.warning(f"Достигнут лимит чанков ({max_chunks})")
-                ")
+                    await self.event_bus_logger.warning(f"Достигнут лимит чанков ({max_chunks})")
+                else:
+                    self.logger.warning(f"Достигнут лимит чанков ({max_chunks})")
                 break
 
         if current_chunk:
@@ -605,7 +619,7 @@ class DataAnalysisSkill(BaseSkill):
 
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            self.event_bus_logger.warning(f"Ошибка парсинга JSON: {e}")
+            self.logger.warning(f"Ошибка парсинга JSON: {e}")
             return {
                 "answer": content.strip(),
                 "confidence": 0.5,

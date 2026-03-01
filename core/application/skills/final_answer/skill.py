@@ -107,36 +107,43 @@ class FinalAnswerSkill(BaseSkill):
         # Проверяем промпт
         if capability_name not in self.prompts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning(f"Промпт для {capability_name} не загружен")
-            
+                await self.event_bus_logger.warning(f"Промпт для {capability_name} не загружен")
+            else:
+                self.logger.warning(f"Промпт для {capability_name} не загружен")
         else:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"Промпт для {capability_name} загружен: {self.prompts[capability_name].version}")
-            
+                await self.event_bus_logger.info(f"Промпт для {capability_name} загружен: {self.prompts[capability_name].version}")
+            else:
+                self.logger.info(f"Промпт для {capability_name} загружен: {self.prompts[capability_name].version}")
 
         # Проверяем входную схему
         if capability_name not in self.input_contracts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning(f"Входная схема для {capability_name} не загружена")
-            
+                await self.event_bus_logger.warning(f"Входная схема для {capability_name} не загружена")
+            else:
+                self.logger.warning(f"Входная схема для {capability_name} не загружена")
         else:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"Входная схема для {capability_name} загружена")
-            
+                await self.event_bus_logger.info(f"Входная схема для {capability_name} загружена")
+            else:
+                self.logger.info(f"Входная схема для {capability_name} загружена")
 
         # Проверяем выходную схему
         if capability_name not in self.output_contracts:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning(f"Выходная схема для {capability_name} не загружена")
-            
+                await self.event_bus_logger.warning(f"Выходная схема для {capability_name} не загружена")
+            else:
+                self.logger.warning(f"Выходная схема для {capability_name} не загружена")
         else:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(f"Выходная схема для {capability_name} загружена")
-            
+                await self.event_bus_logger.info(f"Выходная схема для {capability_name} загружена")
+            else:
+                self.logger.info(f"Выходная схема для {capability_name} загружена")
 
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
-        )}")
+            await self.event_bus_logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
+        else:
+            self.logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -225,8 +232,9 @@ class FinalAnswerSkill(BaseSkill):
 
         if not prompt_with_contract:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
-            
+                await self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
+            else:
+                self.logger.error(f"Промпт для {capability_name} не найден в кэше")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
@@ -244,8 +252,9 @@ class FinalAnswerSkill(BaseSkill):
             )
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
-            
+                await self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
+            else:
+                self.logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
             rendered_prompt = self._render_prompt_fallback(
                 goal=goal,
                 observations=observations,
@@ -285,8 +294,9 @@ class FinalAnswerSkill(BaseSkill):
 
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
-            }")
+                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
+            else:
+                self.logger.error(f"Ошибка вызова LLM: {str(e)}")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
     def _render_prompt_fallback(
@@ -370,16 +380,19 @@ class FinalAnswerSkill(BaseSkill):
                 error_msg = llm_result.error
                 error_type = llm_result.metadata.get("error_type", "unknown")
                 if self.event_bus_logger:
-                    await self.event_bus_self.event_bus_logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
-                ")
+                    await self.event_bus_logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
+                else:
+                    self.logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Логирование успешного structured output
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.info(
+                await self.event_bus_logger.info(
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
                 )
-            })"
+            else:
+                self.logger.info(
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
                 )
 
             # Возвращаем структурированные данные (Pydantic model_dump())
@@ -387,8 +400,9 @@ class FinalAnswerSkill(BaseSkill):
 
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
-            }")
+                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
+            else:
+                self.logger.error(f"Ошибка вызова LLM: {str(e)}")
             raise
 
     def _parse_llm_response(self, llm_response: str, format_type: str) -> Dict[str, Any]:

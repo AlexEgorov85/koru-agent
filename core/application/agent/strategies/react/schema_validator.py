@@ -68,7 +68,7 @@ class SchemaValidator:
         if not params_schema:
             # Пытаемся получить из meta (если там есть contract_schema)
             params_schema = capability.meta.get('contract_schema', {})
-            self.event_bus_logger.debug(f"Схема не найдена в кэше, пробуем из meta: {params_schema}")
+            logger.debug(f"Схема не найдена в кэше, пробуем из meta: {params_schema}")
 
         # Если схема всё ещё пуста, создаём минимальную схему с "input"
         if not params_schema:
@@ -76,14 +76,14 @@ class SchemaValidator:
             params_schema = {
                 "input": {"type": "string", "required": True}
             }
-            self.event_bus_logger.debug(f"Используем дефолтную схему: {params_schema}")
+            logger.debug(f"Используем дефолтную схему: {params_schema}")
 
         # СПЕЦИАЛЬНАЯ ЛОГИКА для book_library.execute_script
         # Если LLM передал только {"input": "..."}, пытаемся извлечь автора и создать правильные параметры
         if capability.name == "book_library.execute_script":
             validated_params = self._try_fix_book_library_params(raw_params, params_schema)
             if validated_params:
-                self.event_bus_logger.info(f"✅ Параметры для book_library.execute_script исправлены: {validated_params}")
+                logger.info(f"✅ Параметры для book_library.execute_script исправлены: {validated_params}")
                 return validated_params
 
         validated_params = {}
@@ -103,32 +103,32 @@ class SchemaValidator:
                             param_value = str(param_value)
                         except:
                             # Если не удается преобразовать, пропускаем этот параметр
-                            self.event_bus_logger.warning(f"Не удалось преобразовать параметр {param_name} к строке")
+                            logger.warning(f"Не удалось преобразовать параметр {param_name} к строке")
                             continue
                     elif expected_type == 'integer' and not isinstance(param_value, int):
                         try:
                             param_value = int(param_value)
                         except:
-                            self.event_bus_logger.warning(f"Не удалось преобразовать параметр {param_name} к integer")
+                            logger.warning(f"Не удалось преобразовать параметр {param_name} к integer")
                             continue
                     elif expected_type == 'number' and not isinstance(param_value, (int, float)):
                         try:
                             param_value = float(param_value)
                         except:
-                            self.event_bus_logger.warning(f"Не удалось преобразовать параметр {param_name} к number")
+                            logger.warning(f"Не удалось преобразовать параметр {param_name} к number")
                             continue
                     elif expected_type == 'boolean' and not isinstance(param_value, bool):
                         try:
                             param_value = bool(param_value)
                         except:
-                            self.event_bus_logger.warning(f"Не удалось преобразовать параметр {param_name} к boolean")
+                            logger.warning(f"Не удалось преобразовать параметр {param_name} к boolean")
                             continue
 
                 validated_params[param_name] = param_value
                 # logger.debug(f"Валидирован параметр {param_name}={param_value}")
             elif param_info.get('required', False):
                 # Если параметр обязательный, но отсутствует, возвращаем None
-                self.event_bus_logger.warning(f"Обязательный параметр {param_name} отсутствует")
+                logger.warning(f"Обязательный параметр {param_name} отсутствует")
                 return None
 
         # logger.info(f"validate_parameters: result={validated_params}")
@@ -154,16 +154,16 @@ class SchemaValidator:
 
         # Если уже есть script_name, ничего не делаем
         if 'script_name' in raw_params:
-            self.event_bus_logger.debug("script_name уже присутствует, пропускаем исправление")
+            logger.debug("script_name уже присутствует, пропускаем исправление")
             return None
 
         # Если есть только input, пытаемся извлечь информацию
         input_text = raw_params.get('input', '')
         if not input_text:
-            self.event_bus_logger.debug("input текст пустой")
+            logger.debug("input текст пустой")
             return None
 
-        self.event_bus_logger.info(f"_try_fix_book_library_params: Пытаемся исправить параметры для input='{input_text}'")
+        logger.info(f"_try_fix_book_library_params: Пытаемся исправить параметры для input='{input_text}'")
 
         # Паттерны для извлечения авторов (русские имена)
         author_patterns = [
@@ -183,7 +183,7 @@ class SchemaValidator:
                 author = match.group(1).strip()
                 # Очищаем от лишних окончаний
                 author = re.sub(r'(?:ова|ева|ина|ская|цкого|ого|ему|ым|ою|е)$', '', author)
-                self.event_bus_logger.info(f"Найден автор по паттерну #{i} '{pattern}': {author}")
+                logger.info(f"Найден автор по паттерну #{i} '{pattern}': {author}")
                 break
 
         # Если автор найден, создаём правильные параметры
@@ -195,7 +195,7 @@ class SchemaValidator:
                     "max_rows": 20
                 }
             }
-            self.event_bus_logger.info(f"✅ Созданы исправленные параметры: {result}")
+            logger.info(f"✅ Созданы исправленные параметры: {result}")
             return result
 
         # Если автора нет, пробуем определить тип запроса
@@ -207,9 +207,9 @@ class SchemaValidator:
                     "max_rows": 50
                 }
             }
-            self.event_bus_logger.info(f"✅ Определён запрос 'все книги': {result}")
+            logger.info(f"✅ Определён запрос 'все книги': {result}")
             return result
 
         # Для других запросов - используем fallback на dynamic search
-        self.event_bus_logger.warning(f"❌ Не удалось определить параметры для input='{input_text}'")
+        logger.warning(f"❌ Не удалось определить параметры для input='{input_text}'")
         return None

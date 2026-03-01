@@ -122,13 +122,13 @@ class ReActPattern(BaseBehaviorPattern):
                     prompt_obj = self.prompts["behavior.react.think"]
                     if hasattr(prompt_obj, 'content') and prompt_obj.content:
                         self.reasoning_prompt_template = prompt_obj.content
-                        self.event_bus_logger.info("[ReAct] Загружен промпт behavior.react.think из self.prompts")
+                        logger.info("[ReAct] Загружен промпт behavior.react.think из self.prompts")
                 else:
                     # Fallback: берём первый доступный промпт
                     for cap_name, prompt_obj in self.prompts.items():
                         if hasattr(prompt_obj, 'content') and prompt_obj.content:
                             self.reasoning_prompt_template = prompt_obj.content
-                            self.event_bus_logger.info(f"[ReAct] Загружен промпт из self.prompts[{cap_name}] (fallback)")
+                            logger.info(f"[ReAct] Загружен промпт из self.prompts[{cap_name}] (fallback)")
                             break
 
             # Контракты уже загружены в self.output_contracts
@@ -141,7 +141,7 @@ class ReActPattern(BaseBehaviorPattern):
                             self.reasoning_schema = schema_cls.model_json_schema()
                         else:
                             self.reasoning_schema = schema_cls
-                        self.event_bus_logger.info("[ReAct] Загружен контракт behavior.react.think из self.output_contracts")
+                        logger.info("[ReAct] Загружен контракт behavior.react.think из self.output_contracts")
                 else:
                     # Fallback: берём первую доступную схему
                     for cap_name, schema_cls in self.output_contracts.items():
@@ -150,17 +150,17 @@ class ReActPattern(BaseBehaviorPattern):
                                 self.reasoning_schema = schema_cls.model_json_schema()
                             else:
                                 self.reasoning_schema = schema_cls
-                            self.event_bus_logger.info(f"[ReAct] Загружен контракт из self.output_contracts[{cap_name}] (fallback)")
+                            logger.info(f"[ReAct] Загружен контракт из self.output_contracts[{cap_name}] (fallback)")
                             break
 
             # Fallback на модель если контракт не найден
             if not self.reasoning_schema:
-                self.event_bus_logger.warning("[ReAct] Контракт не загружен, используем ReasoningResult.model_json_schema()")
+                logger.warning("[ReAct] Контракт не загружен, используем ReasoningResult.model_json_schema()")
                 self.reasoning_schema = ReasoningResult.model_json_schema()
 
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"[ReAct] Ошибка загрузки промпта/контракта: {e}", exc_info=True)
+            logger.error(f"[ReAct] Ошибка загрузки промпта/контракта: {e}", exc_info=True)
             return False
 
     def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
@@ -201,7 +201,7 @@ class ReActPattern(BaseBehaviorPattern):
             return rendered
         else:
             # Fallback: минимальный шаблон (только если промпт не загружен из registry)
-            self.event_bus_logger.warning("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
+            logger.warning("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
             return self._build_minimal_fallback_prompt(prompt_context)
 
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
@@ -374,11 +374,11 @@ class ReActPattern(BaseBehaviorPattern):
         - available_capabilities: список capability для регистрации
         """
         if not self.application_context:
-            self.event_bus_logger.warning("[ReAct] _register_capability_schemas: application_context не доступен")
+            logger.warning("[ReAct] _register_capability_schemas: application_context не доступен")
             return
 
-        self.event_bus_logger.info(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
-        self.event_bus_logger.info(f"[ReAct] Всего capability: {len(available_capabilities)}")
+        logger.info(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
+        logger.info(f"[ReAct] Всего capability: {len(available_capabilities)}")
 
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
@@ -389,21 +389,21 @@ class ReActPattern(BaseBehaviorPattern):
             # Проверяем, есть ли схема в кэше input_contracts
             if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
                 schema = self.input_contracts[cap.name]
-                self.event_bus_logger.info(f"Найдена схема в input_contracts для {cap.name}")
+                logger.info(f"Найдена схема в input_contracts для {cap.name}")
             elif self.application_context.use_data_repository and self.application_context.data_repository:
                 # Пытаемся получить схему из DataRepository
                 try:
                     # Получаем версию контракта из meta capability
                     contract_version = cap.meta.get('contract_version', 'v1.0.0')
-                    self.event_bus_logger.debug(f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
+                    logger.debug(f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
                     schema = self.application_context.data_repository.get_contract_schema(
                         cap.name,
                         contract_version,
                         "input"
                     )
-                    self.event_bus_logger.info(f"Загружена схема из DataRepository для {cap.name}")
+                    logger.info(f"Загружена схема из DataRepository для {cap.name}")
                 except Exception as e:
-                    self.event_bus_logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
+                    logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
 
             # Если схема найдена, регистрируем её в SchemaValidator
             if schema:
@@ -432,11 +432,11 @@ class ReActPattern(BaseBehaviorPattern):
 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    self.event_bus_logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
+                    logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
                 else:
-                    self.event_bus_logger.debug(f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
+                    logger.debug(f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
             else:
-                self.event_bus_logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
+                logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
 
     async def _publish_llm_response_received(
         self,
@@ -515,30 +515,30 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа"""
-        self.event_bus_logger.info(f"=== НАЧАЛО generate_decision ===")
-        self.event_bus_logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
+        self.logger.info(f"=== НАЧАЛО generate_decision ===")
+        self.logger.info(f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
         try:
             # Структурированное рассуждение
-            self.event_bus_logger.info("Вызов _perform_structured_reasoning...")
+            self.logger.info("Вызов _perform_structured_reasoning...")
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
                 available_capabilities=context_analysis["available_capabilities"]
             )
-            self.event_bus_logger.info(f"reasoning_result получен")
-            self.event_bus_logger.info(f"decision: {reasoning_result.get('decision', {})}")
+            self.logger.info(f"reasoning_result получен")
+            self.logger.info(f"decision: {reasoning_result.get('decision', {})}")
 
             # Принятие решения
-            self.event_bus_logger.info("Вызов _make_decision_from_reasoning...")
+            self.logger.info("Вызов _make_decision_from_reasoning...")
             decision = await self._make_decision_from_reasoning(
                 session_context=session_context,
                 reasoning_result=reasoning_result
             )
-            self.event_bus_logger.info(f"decision получен: action={decision.action}, capability_name={decision.capability_name}")
+            self.logger.info(f"decision получен: action={decision.action}, capability_name={decision.capability_name}")
 
             # Сброс счетчика ошибок при успешном решении
             self.error_count = 0
-            self.event_bus_logger.info(f"=== КОНЕЦ generate_decision (УСПЕХ) ===")
+            self.logger.info(f"=== КОНЕЦ generate_decision (УСПЕХ) ===")
             return decision
 
         except Exception as e:
@@ -1016,7 +1016,7 @@ class ReActPattern(BaseBehaviorPattern):
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
 
-        self.event_bus_logger.info(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
+        logger.info(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
 
         capability = None
         for cap in available_caps:
@@ -1030,17 +1030,17 @@ class ReActPattern(BaseBehaviorPattern):
                 if any(s.lower() == "react" for s in cap.supported_strategies or []):
                     capability = cap
                     capability_name = cap.name
-                    self.event_bus_logger.warning(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
+                    logger.warning(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
                     break
 
         if not capability:
-            self.event_bus_logger.error(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
+            logger.error(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
         # Валидация и корректировка параметров
-        self.event_bus_logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
-        self.event_bus_logger.info(f"capability: {capability.name}")
-        self.event_bus_logger.info(f"raw_params: {parameters}")
+        logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
+        logger.info(f"capability: {capability.name}")
+        logger.info(f"raw_params: {parameters}")
 
         validated_params = self.schema_validator.validate_parameters(
             capability=capability,
@@ -1052,20 +1052,20 @@ class ReActPattern(BaseBehaviorPattern):
             # system_context больше не передается, так как мы изолированы
         )
 
-        self.event_bus_logger.info(f"validated_params: {validated_params}")
+        logger.info(f"validated_params: {validated_params}")
 
         if not validated_params:
             # Попытка создать минимально необходимые параметры
             validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
-            self.event_bus_logger.warning(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
+            logger.warning(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
         else:
-            self.event_bus_logger.info(f"✅ Параметры успешно валидированы")
+            logger.info(f"✅ Параметры успешно валидированы")
 
-        self.event_bus_logger.info(f"=== РЕШЕНИЕ ===")
-        self.event_bus_logger.info(f"action: {BehaviorDecisionType.ACT}")
-        self.event_bus_logger.info(f"capability_name: {capability_name}")
-        self.event_bus_logger.info(f"parameters: {validated_params}")
-        self.event_bus_logger.info(f"reason: {reasoning}")
+        logger.info(f"=== РЕШЕНИЕ ===")
+        logger.info(f"action: {BehaviorDecisionType.ACT}")
+        logger.info(f"capability_name: {capability_name}")
+        logger.info(f"parameters: {validated_params}")
+        logger.info(f"reason: {reasoning}")
 
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,

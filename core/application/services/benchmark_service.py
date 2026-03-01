@@ -107,7 +107,7 @@ class BenchmarkService:
         3. Оценка результата через AccuracyEvaluator
         4. Публикация события BENCHMARK_COMPLETED
         """
-        self.event_bus_logger.info(f"Запуск бенчмарка: {scenario.name} (версия {version})")
+        logger.info(f"Запуск бенчмарка: {scenario.name} (версия {version})")
 
         # Публикация события начала бенчмарка
         await self._publish_benchmark_start(scenario, version)
@@ -145,12 +145,12 @@ class BenchmarkService:
             # Публикация события завершения
             await self._publish_benchmark_complete(result)
 
-            self.event_bus_logger.info(f"Бенчмарк завершён: {scenario.name} (успех={success}, score={overall_score:.2f})")
+            logger.info(f"Бенчмарк завершён: {scenario.name} (успех={success}, score={overall_score:.2f})")
 
             return result
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка бенчмарка {scenario.name}: {e}")
+            logger.error(f"Ошибка бенчмарка {scenario.name}: {e}")
 
             # Публикация события ошибки
             await self._publish_benchmark_failed(scenario, version, str(e))
@@ -185,7 +185,7 @@ class BenchmarkService:
         RETURNS:
         - VersionComparison: результат сравнения
         """
-        self.event_bus_logger.info(f"Сравнение версий: {version_a} vs {version_b} для {capability}")
+        logger.info(f"Сравнение версий: {version_a} vs {version_b} для {capability}")
 
         # Запуск бенчмарков для обеих версий
         results_a = []
@@ -219,7 +219,7 @@ class BenchmarkService:
 
         comparison.details = f"Сравнение по {len(scenarios)} сценариям"
 
-        self.event_bus_logger.info(f"Сравнение завершено: победитель={comparison.winner}, улучшение={comparison.improvement:.1f}%")
+        logger.info(f"Сравнение завершено: победитель={comparison.winner}, улучшение={comparison.improvement:.1f}%")
 
         return comparison
 
@@ -242,7 +242,7 @@ class BenchmarkService:
         RETURNS:
         - bool: успешно ли продвижение
         """
-        self.event_bus_logger.info(f"Продвижение версии: {from_version} → {to_version} для {capability}")
+        logger.info(f"Продвижение версии: {from_version} → {to_version} для {capability}")
 
         try:
             # Публикация события
@@ -261,11 +261,11 @@ class BenchmarkService:
             if hasattr(self, '_on_version_promoted'):
                 await self._on_version_promoted(capability, from_version, to_version)
 
-            self.event_bus_logger.info(f"Версия {to_version} продвинута для {capability}")
+            logger.info(f"Версия {to_version} продвинута для {capability}")
             return True
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка продвижения версии: {e}")
+            logger.error(f"Ошибка продвижения версии: {e}")
             return False
 
     async def reject_version(
@@ -285,7 +285,7 @@ class BenchmarkService:
         RETURNS:
         - bool: успешно ли отклонение
         """
-        self.event_bus_logger.info(f"Отклонение версии: {version} для {capability}")
+        logger.info(f"Отклонение версии: {version} для {capability}")
 
         try:
             await self.event_bus.publish(
@@ -298,11 +298,11 @@ class BenchmarkService:
                 }
             )
 
-            self.event_bus_logger.info(f"Версия {version} отклонена для {capability}")
+            logger.info(f"Версия {version} отклонена для {capability}")
             return True
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка отклонения версии: {e}")
+            logger.error(f"Ошибка отклонения версии: {e}")
             return False
 
     async def auto_promote_if_better(
@@ -328,7 +328,7 @@ class BenchmarkService:
         RETURNS:
         - bool: продвинута ли версия
         """
-        self.event_bus_logger.info(f"Автоматическая проверка продвижения: {candidate_version} vs {current_version}")
+        logger.info(f"Автоматическая проверка продвижения: {candidate_version} vs {current_version}")
 
         # Сравнение версий
         comparison = await self.compare_versions(
@@ -381,7 +381,7 @@ class BenchmarkService:
             )
         else:
             # Mock выполнение (для тестов)
-            self.event_bus_logger.warning("Agent executor не предоставлен, используется mock")
+            logger.warning("Agent executor не предоставлен, используется mock")
             return ActualOutput(
                 content="Mock response",
                 execution_time_ms=100.0,
