@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## [5.27.0] - 2026-03-01
+
+### Added
+- **Универсальная система логирования через EventBus**
+  - `EventBusLogHandler` — перехватывает события LOG_INFO/DEBUG/WARNING/ERROR из EventBus
+  - `EventBusLogFormatter` — форматировщик с цветами, иконками и структурой
+  - `EventBusLogger` — helper-класс для компонентов (async/синхронные версии)
+  - `LoggingToEventBusHandler` — перенаправление стандартного logging в EventBus
+  - Helper-функции: `log_info()`, `log_debug()`, `log_warning()`, `log_error()`
+
+### Features
+- **Структурированный вывод в терминал**
+  - Цвета: cyan (info), yellow (warning), red (error), blue (LLM), green (success)
+  - Иконки: ℹ️ 🔍 ⚠️ ❌ ✅ 🔄 ⏳ 🧠 💡 🎯 🔧 📊
+  - Структура: session | agent | component | extra_data
+  - Разделители между сообщениями
+
+### Changed
+- **Интеграция EventBusLogger в ключевые компоненты**
+  - `main.py` — регистрация обработчиков сразу после `infrastructure_context.initialize()`
+  - `application_context.py` — `_resolve_component_configs()`, `get_all_capabilities()`
+  - `base_service.py` — все async методы инициализации и рестарта
+  - `base_component.py` — метод `initialize()`
+  - `lifecycle.py` — `LifecycleManager`, `DependencyResolver`
+  - `skills/` — planning, final_answer, data_analysis
+  - `tools/` — sql_tool, vector_books_tool, file_tool
+  - `storage/` — prompt_storage, contract_storage, capability_registry
+
+### Technical
+- Все async методы используют `await self.event_bus_logger.*()`
+- Sync методы оставлены с `logger.*` (fallback)
+- Fallback на обычный logger если EventBusLogger не доступен
+- Полная обратная совместимость с существующим кодом
+
+### Metrics
+- Создано файлов: 2
+- Изменено файлов: 20
+- Заменено вызовов: ~106 logger.* → event_bus_logger.*
+- Строк добавлено: +750
+- Строк удалено: -169
+
+---
+
 ## [5.26.1] - 2026-02-28
 
 ### Added
