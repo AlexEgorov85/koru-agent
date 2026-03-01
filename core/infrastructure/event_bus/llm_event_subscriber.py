@@ -17,7 +17,7 @@ import logging
 import json
 from typing import Optional
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
-from core.infrastructure.logging.session_logger import get_session_logger
+from core.infrastructure.event_bus.unified_logger import get_session_logger
 
 
 logger = logging.getLogger(__name__)

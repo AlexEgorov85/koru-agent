@@ -81,3 +81,7 @@ class LifecycleManager:
         self._initialized = False
         if self.event_bus_logger:
             await self.event_bus_logger.info("Все инфраструктурные ресурсы завершены")
+
+    async def cleanup_all(self):
+        """Алиас для shutdown_all (для обратной совместимости)."""
+        await self.shutdown_all()

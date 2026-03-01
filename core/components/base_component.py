@@ -109,7 +109,12 @@ class BaseComponent(ABC):
         if hasattr(self, 'application_context') and self.application_context:
             event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
             if event_bus:
-                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+                self.event_bus_logger = EventBusLogger(
+                    event_bus,
+                    session_id="system",
+                    agent_id="system",
+                    component=self.__class__.__name__
+                )
 
     async def initialize(self) -> bool:
         """
