@@ -116,17 +116,17 @@ class InfrastructureContext:
 
         # Используем директории из конфигурации
         prompts_dir = Path(self.config.data_dir) / "prompts"
-        self.event_bus_logger.info(f"Используем путь для промтов: {prompts_dir}")
+        await self.event_bus_logger.info(f"Используем путь для промтов: {prompts_dir}")
 
         self.prompt_storage = PromptStorage(prompts_dir)
-        self.event_bus_logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
+        await self.event_bus_logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
 
         # Для ContractStorage используем директорию из конфигурации
         contracts_dir = Path(self.config.data_dir) / "contracts"
-        self.event_bus_logger.info(f"Используем путь для контрактов: {contracts_dir}")
+        await self.event_bus_logger.info(f"Используем путь для контрактов: {contracts_dir}")
 
         self.contract_storage = ContractStorage(contracts_dir)
-        self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
+        await self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
         # Инициализация хранилищ метрик и логов
         from pathlib import Path
@@ -134,10 +134,10 @@ class InfrastructureContext:
         logs_dir = Path(self.config.data_dir) / "logs"
 
         self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
-        self.event_bus_logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
+        await self.event_bus_logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
 
         self.log_storage = FileSystemLogStorage(logs_dir)
-        self.event_bus_logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
+        await self.event_bus_logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
 
         # Инициализация сборщиков метрик и логов
         self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)

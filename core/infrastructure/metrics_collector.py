@@ -49,7 +49,7 @@ class MetricsCollector(BaseEventCollector):
         - event_bus: шина событий для подписки
         - storage: хранилище для сохранения метрик
         """
-        super().__init__(event_bus)
+        super().__init__(event_bus, component_name="MetricsCollector")
         self.storage = storage
 
     async def initialize(self) -> None:

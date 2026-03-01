@@ -14,6 +14,7 @@ import logging
 from abc import ABC
 from typing import List, Callable, Any
 
+from core.infrastructure.event_bus.unified_logger import EventBusLogger
 from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
 
 logger = logging.getLogger(__name__)
@@ -39,14 +40,16 @@ class BaseEventCollector(ABC):
                 pass
     """
 
-    def __init__(self, event_bus: EventBus):
+    def __init__(self, event_bus: EventBus, component_name: str = "BaseEventCollector"):
         """
         Инициализация сборщика событий.
 
         ARGS:
         - event_bus: шина событий для подписки
+        - component_name: имя компонента для логирования
         """
         self.event_bus = event_bus
+        self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component=component_name)
         self._initialized = False
         self._subscriptions: List[EventType] = []
 
