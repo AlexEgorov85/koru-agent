@@ -174,5 +174,4 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
             yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
 
         if self.event_bus_logger:
-            await self.event_bus_self.event_bus_logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
-         -> {prompt_file}")
+            await self.event_bus_logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")

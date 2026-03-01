@@ -6,6 +6,7 @@ Unified EventBusLogger — единый API для логирования чер
 - SessionLogger
 - EventBusLogger (старый)
 - logging_to_event_bus
+- init_logging_system/shutdown_logging_system
 
 ИСПОЛЬЗОВАНИЕ:
 ```python
@@ -23,7 +24,7 @@ import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
 
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus, EventType, shutdown_event_bus
 
 
 class EventBusLogger:
@@ -70,6 +71,55 @@ class EventBusLogger:
             "ERROR",
             exception_type=type(exc).__name__,
             **extra_data
+        )
+
+    async def log_llm_prompt(self, component: str, phase: str, system_prompt: str, user_prompt: str, **kwargs):
+        """Логирование LLM промпта."""
+        await self._publish(
+            EventType.LLM_PROMPT_GENERATED,
+            f"LLM Prompt: {component}/{phase}",
+            "INFO",
+            component=component,
+            phase=phase,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            prompt_length=len(system_prompt) + len(user_prompt),
+            **kwargs
+        )
+
+    async def log_llm_response(self, component: str, phase: str, response: Any, tokens: Optional[int] = None, latency_ms: Optional[float] = None, **kwargs):
+        """Логирование LLM ответа."""
+        await self._publish(
+            EventType.LLM_RESPONSE_RECEIVED,
+            f"LLM Response: {component}/{phase}",
+            "INFO",
+            component=component,
+            phase=phase,
+            response=response if isinstance(response, (str, int, float, bool, type(None))) else str(response),
+            tokens=tokens,
+            latency_ms=latency_ms,
+            **kwargs
+        )
+
+    async def start_session(self, goal: str, **kwargs):
+        """Начало сессии."""
+        await self._publish(
+            EventType.SESSION_STARTED,
+            f"Session started: {goal[:100]}...",
+            "INFO",
+            goal=goal,
+            **kwargs
+        )
+
+    async def end_session(self, success: bool = True, result: Optional[str] = None, **kwargs):
+        """Завершение сессии."""
+        await self._publish(
+            EventType.SESSION_COMPLETED if success else EventType.SESSION_FAILED,
+            f"Session {'completed' if success else 'failed'}",
+            "INFO",
+            success=success,
+            result=result,
+            **kwargs
         )
 
     async def _publish(
@@ -127,48 +177,70 @@ def create_logger(
 
 
 # =============================================================================
-# BACKWARD COMPATIBILITY
+# BACKWARD COMPATIBILITY — ЗАМЕНА legacy logging
 # =============================================================================
-
-# Для кода который использует logging.info() напрямую
-# Перенаправляем на EventBusLogger через глобальный event_bus
 
 _global_event_bus: Optional[EventBus] = None
 _default_session_id: str = "system"
 _default_agent_id: str = "system"
+_default_logger: Optional[EventBusLogger] = None
 
 
-def setup_global_logger(event_bus: EventBus, session_id: str, agent_id: str):
-    """Настройка глобального логгера для legacy кода."""
-    global _global_event_bus, _default_session_id, _default_agent_id
-    _global_event_bus = event_bus
-    _default_session_id = session_id
-    _default_agent_id = agent_id
+async def init_logging_system(config: Optional[Dict] = None, **kwargs):
+    """
+    ЗАМЕНА: core.infrastructure.logging.init_logging_system
+    
+    Инициализация системы логирования через EventBus.
+    """
+    global _global_event_bus, _default_session_id, _default_agent_id, _default_logger
+    
+    # EventBus уже инициализирован в InfrastructureContext
+    # Эта функция теперь просто настраивает глобальный logger
+    from core.infrastructure.event_bus.event_bus_concurrent import get_event_bus
+    
+    _global_event_bus = get_event_bus()
+    _default_session_id = kwargs.get('session_id', 'system')
+    _default_agent_id = kwargs.get('agent_id', 'system')
+    _default_logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, 'legacy')
+    
+    return _global_event_bus
 
 
-def legacy_info(message: str, **kwargs):
-    """Legacy logging.info replacement."""
+async def shutdown_logging_system(timeout: float = 30.0):
+    """
+    ЗАМЕНА: core.infrastructure.logging.shutdown_logging_system
+    
+    Корректное завершение системы логирования.
+    """
+    global _global_event_bus, _default_logger
+    
     if _global_event_bus:
-        logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, "legacy")
-        logger.info_sync(message, **kwargs)
+        await shutdown_event_bus(timeout=timeout)
+        _global_event_bus = None
+        _default_logger = None
 
 
-def legacy_debug(message: str, **kwargs):
-    """Legacy logging.debug replacement."""
-    if _global_event_bus:
-        logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, "legacy")
-        logger.debug_sync(message, **kwargs)
+def get_session_logger(session_id: str, agent_id: str = "unknown") -> EventBusLogger:
+    """
+    ЗАМЕНА: core.infrastructure.logging.get_session_logger
+    
+    Получение логгера для сессии.
+    """
+    if _global_event_bus is None:
+        from core.infrastructure.event_bus.event_bus_concurrent import get_event_bus
+        _global_event_bus = get_event_bus()
+    
+    return EventBusLogger(_global_event_bus, session_id, agent_id, 'session')
 
 
-def legacy_warning(message: str, **kwargs):
-    """Legacy logging.warning replacement."""
-    if _global_event_bus:
-        logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, "legacy")
-        logger.warning_sync(message, **kwargs)
+def get_log_manager():
+    """Заглушка для обратной совместимости."""
+    return None
 
 
-def legacy_error(message: str, **kwargs):
-    """Legacy logging.error replacement."""
-    if _global_event_bus:
-        logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, "legacy")
-        logger.error_sync(message, **kwargs)
+def get_log_manager():
+    """Заглушка для обратной совместимости."""
+    class FakeLogManager:
+        is_initialized = False
+        async def shutdown(self): pass
+    return FakeLogManager()

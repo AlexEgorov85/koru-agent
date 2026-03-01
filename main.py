@@ -91,27 +91,16 @@ def setup_logging_from_config():
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
     """Запуск агента с заданной целью."""
-    from core.infrastructure.logging import (
+    from core.infrastructure.event_bus.unified_logger import (
         init_logging_system,
         shutdown_logging_system,
         get_session_logger,
-        close_session_logger,
-        _active_sessions,
-        load_config_from_yaml,
     )
 
     logger = logging.getLogger("main")
 
-    # Загрузка конфигурации логирования из YAML
-    try:
-        log_config = load_config_from_yaml("core/config/logging_config.yaml")
-        logger.debug(f"Конфигурация логирования загружена: update_interval_sec={log_config.indexing.update_interval_sec}")
-    except Exception as e:
-        logger.warning(f"Не удалось загрузить logging_config.yaml, используем значения по умолчанию: {e}")
-        log_config = None
-
-    # Инициализация системы логирования
-    await init_logging_system(config=log_config)
+    # Инициализация системы логирования через EventBus
+    await init_logging_system()
     logger.debug("Система логирования инициализирована")
 
     # Загрузка конфигурации приложения
@@ -120,21 +109,6 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     # Создание и инициализация инфраструктурного контекста
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
-
-    # ПОДПИСКА НА СОБЫТИЯ ЛОГИРОВАНИЯ (как можно раньше!)
-    from core.infrastructure.logging.event_bus_log_handler import setup_event_bus_logging
-    log_handler = setup_event_bus_logging(
-        infrastructure_context.event_bus,
-        use_colors=True,
-        show_debug=True  # Включить DEBUG сообщения для отладки
-    )
-
-    # ПЕРЕНАПРАВЛЕНИЕ СТАНДАРТНОГО logging В EventBus
-    from core.infrastructure.logging.logging_to_event_bus import setup_logging_to_event_bus
-    import logging as std_logging
-    std_handler = setup_logging_to_event_bus(infrastructure_context.event_bus, source="app")
-    std_logging.getLogger().addHandler(std_handler)
-    std_logging.getLogger().setLevel(std_logging.DEBUG)
 
     # Получаем session_id и создаём логгер сессии
     session_id = str(infrastructure_context.id)
