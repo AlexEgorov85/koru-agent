@@ -82,10 +82,9 @@ class InfrastructureContext:
         ВАЖНО: После инициализации контекст становится неизменяемым.
         """
         if self._initialized:
-            self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
             return True
-
-        self.event_bus_logger.info("Начало инициализации InfrastructureContext")
 
         # Инициализация менеджера жизненного цикла
         self.lifecycle_manager = LifecycleManager()
@@ -104,6 +103,9 @@ class InfrastructureContext:
             agent_id="infrastructure",
             component="InfrastructureContext"
         )
+        
+        # Теперь логируем после инициализации event_bus_logger
+        await self.event_bus_logger.info("Начало инициализации InfrastructureContext")
 
         # Инициализация фабрик провайдеров
         self.llm_provider_factory = LLMProviderFactory()
