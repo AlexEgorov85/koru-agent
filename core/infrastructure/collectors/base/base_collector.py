@@ -102,7 +102,7 @@ class BaseEventCollector(ABC):
 
         self._subscriptions.clear()
         self._initialized = False
-        self.event_bus_logger.info("%s завершил работу", self.__class__.__name__)
+        await self.event_bus_logger.info("%s завершил работу", self.__class__.__name__)
 
     @property
     def is_initialized(self) -> bool:

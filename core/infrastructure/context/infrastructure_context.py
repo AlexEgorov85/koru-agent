@@ -160,7 +160,7 @@ class InfrastructureContext:
         success = await self.lifecycle_manager.initialize_all()
         if success:
             self._initialized = True
-            self.event_bus_logger.info("InfrastructureContext успешно инициализирован")
+            await self.event_bus_logger.info("InfrastructureContext успешно инициализирован")
 
         return success
 
@@ -205,9 +205,9 @@ class InfrastructureContext:
                         if not first_llm_registered:
                             first_llm_registered = True
                         self.resource_registry.register_resource(info_llm)
-                        self.event_bus_logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
+                        await self.event_bus_logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    self.event_bus_logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
+                    await self.event_bus_logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
@@ -236,9 +236,9 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
-                        self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
+                        await self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
+                    await self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска."""
@@ -512,7 +512,7 @@ class InfrastructureContext:
         if not self._initialized:
             return
 
-        self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
+        await self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
 
         # Сохранение Vector Search индексов
         if self._faiss_providers and self.config.vector_search:
@@ -545,4 +545,4 @@ class InfrastructureContext:
             await self.lifecycle_manager.cleanup_all()
 
         self._initialized = False
-        self.event_bus_logger.info("InfrastructureContext завершил работу")
+        await self.event_bus_logger.info("InfrastructureContext завершил работу")
