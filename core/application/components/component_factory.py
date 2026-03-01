@@ -40,7 +40,7 @@ class ComponentFactory:
         RETURNS:
         - BaseComponent: созданный и инициализированный компонент
         """
-        self.logger.info(f"Создание компонента {name} типа {component_class.__name__}")
+        self.event_bus_logger.info(f"Создание компонента {name} типа {component_class.__name__}")
 
         # Создание экземпляра компонента с ActionExecutor
         # Проверяем, какой конструктор использовать в зависимости от класса компонента
@@ -48,12 +48,12 @@ class ComponentFactory:
         sig = inspect.signature(component_class.__init__)
         params = sig.parameters
 
-        self.logger.info(f"Параметры конструктора {component_class.__name__}: {list(params.keys())}")
+        self.event_bus_logger.info(f"Параметры конструктора {component_class.__name__}: {list(params.keys())}")
 
         # Специальная обработка для behavior patterns (используют component_name вместо name)
         from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
         if issubclass(component_class, BaseBehaviorPattern):
-            self.logger.info(f"Создание behavior pattern {component_class.__name__} с component_name={name}")
+            self.event_bus_logger.info(f"Создание behavior pattern {component_class.__name__} с component_name={name}")
             component = component_class(
                 component_name=name,
                 component_config=component_config,
@@ -62,7 +62,7 @@ class ComponentFactory:
             )
         elif 'executor' in params:
             # Если класс принимает executor, передаем его
-            self.logger.info(f"Конструктор {component_class.__name__} принимает executor")
+            self.event_bus_logger.info(f"Конструктор {component_class.__name__} принимает executor")
             component = component_class(
                 name=name,
                 application_context=application_context,
@@ -73,7 +73,7 @@ class ComponentFactory:
             # Проверяем, является ли третий параметр app_config или component_config
             param_names = list(params.keys())
             if 'app_config' in param_names:
-                self.logger.info(f"Конструктор {component_class.__name__} принимает app_config")
+                self.event_bus_logger.info(f"Конструктор {component_class.__name__} принимает app_config")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -81,7 +81,7 @@ class ComponentFactory:
                     executor=executor  # Передаем executor даже если класс не ожидает его явно
                 )
             elif 'component_config' in param_names:
-                self.logger.info(f"Конструктор {component_class.__name__} принимает component_config")
+                self.event_bus_logger.info(f"Конструктор {component_class.__name__} принимает component_config")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -90,7 +90,7 @@ class ComponentFactory:
                 )
             else:
                 # По умолчанию используем component_config
-                self.logger.info(f"Конструктор {component_class.__name__} использует component_config по умолчанию")
+                self.event_bus_logger.info(f"Конструктор {component_class.__name__} использует component_config по умолчанию")
                 component = component_class(
                     name=name,
                     application_context=application_context,
@@ -99,14 +99,14 @@ class ComponentFactory:
                 )
         else:
             # Для старых классов без executor
-            self.logger.info(f"Конструктор {component_class.__name__} не принимает executor")
+            self.event_bus_logger.info(f"Конструктор {component_class.__name__} не принимает executor")
             component = component_class(
                 name=name,
                 application_context=application_context,
                 component_config=component_config
             )
 
-        self.logger.info(f"Компонент {name} создан (инициализация будет выполнена позже через топологическую сортировку)")
+        self.event_bus_logger.info(f"Компонент {name} создан (инициализация будет выполнена позже через топологическую сортировку)")
 
         # НЕ вызываем initialize() здесь! Инициализация будет выполнена в _initialize_components_with_dependencies()
         # Это гарантирует, что все зависимости уже зарегистрированы в контексте
@@ -124,18 +124,18 @@ class ComponentFactory:
         RETURNS:
         - Type[BaseComponent]: класс компонента
         """
-        self.logger.info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
+        self.event_bus_logger.info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
         
         import importlib
 
         if component_type == "service":
-            self.logger.info(f"Поиск сервиса: {name}")
+            self.event_bus_logger.info(f"Поиск сервиса: {name}")
             if name == "prompt_service":
-                self.logger.info("Найден PromptService")
+                self.event_bus_logger.info("Найден PromptService")
                 from core.application.services.prompt_service import PromptService
                 return PromptService
             elif name == "contract_service":
-                self.logger.info("Найден ContractService")
+                self.event_bus_logger.info("Найден ContractService")
                 from core.application.services.contract_service import ContractService
                 return ContractService
             elif name == "table_description_service":
@@ -157,7 +157,7 @@ class ComponentFactory:
                 try:
                     module = __import__(module_name, fromlist=[class_name])
                     result = getattr(module, class_name)
-                    self.logger.info(f"Динамически найден сервис: {result}")
+                    self.event_bus_logger.info(f"Динамически найден сервис: {result}")
                     return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
@@ -166,10 +166,10 @@ class ComponentFactory:
                         class_name = f"{name.title().replace('_', '')}Service"
                         module = __import__(module_name, fromlist=[class_name])
                         result = getattr(module, class_name)
-                        self.logger.info(f"Динамически найден сервис (вариант 2): {result}")
+                        self.event_bus_logger.info(f"Динамически найден сервис (вариант 2): {result}")
                         return result
                     except ImportError:
-                        self.logger.error(f"Сервис {name} не найден")
+                        self.event_bus_logger.error(f"Сервис {name} не найден")
                         raise ValueError(f"Сервис {name} не найден")
         elif component_type == "skill":
             # Поддержка ОБОИХ вариантов структуры:
@@ -181,7 +181,7 @@ class ComponentFactory:
                 class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
                 module = importlib.import_module(module_name)
                 result = getattr(module, class_name)
-                self.logger.info(f"Найден навык: {result}")
+                self.event_bus_logger.info(f"Найден навык: {result}")
                 return result
             except ImportError:
                 # Fallback на старый формат
@@ -190,10 +190,10 @@ class ComponentFactory:
                     module = importlib.import_module(module_name)
                     class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
                     result = getattr(module, class_name)
-                    self.logger.info(f"Найден навык (старый формат): {result}")
+                    self.event_bus_logger.info(f"Найден навык (старый формат): {result}")
                     return result
                 except ImportError:
-                    self.logger.error(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
+                    self.event_bus_logger.error(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
                     raise ValueError(f"Навык {name} не найден в core.application.skills.{name}.skill или core.application.skills.{name}_skill")
         elif component_type == "tool":
             # Проверяем специфичные инструменты
@@ -213,7 +213,7 @@ class ComponentFactory:
                 try:
                     module = __import__(module_name, fromlist=[class_name])
                     result = getattr(module, class_name)
-                    self.logger.info(f"Найден инструмент: {result}")
+                    self.event_bus_logger.info(f"Найден инструмент: {result}")
                     return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
@@ -222,10 +222,10 @@ class ComponentFactory:
                         class_name = f"{name.title().replace('_', '')}Tool"
                         module = __import__(module_name, fromlist=[class_name])
                         result = getattr(module, class_name)
-                        self.logger.info(f"Найден инструмент (вариант 2): {result}")
+                        self.event_bus_logger.info(f"Найден инструмент (вариант 2): {result}")
                         return result
                     except ImportError:
-                        self.logger.error(f"Инструмент {name} не найден")
+                        self.event_bus_logger.error(f"Инструмент {name} не найден")
                         raise ValueError(f"Инструмент {name} не найден")
         elif component_type == "behavior":
             # Обработка паттернов поведения
@@ -246,7 +246,7 @@ class ComponentFactory:
                 try:
                     module = __import__(module_name, fromlist=[class_name])
                     result = getattr(module, class_name)
-                    self.logger.info(f"Найден паттерн поведения: {result}")
+                    self.event_bus_logger.info(f"Найден паттерн поведения: {result}")
                     return result
                 except ImportError:
                     # Попробуем другой вариант имени модуля
@@ -255,13 +255,12 @@ class ComponentFactory:
                         class_name = f"{name.title().replace('_', '')}Pattern"
                         module = __import__(module_name, fromlist=[class_name])
                         result = getattr(module, class_name)
-                        self.logger.info(f"Найден паттерн поведения (вариант 2): {result}")
+                        self.event_bus_logger.info(f"Найден паттерн поведения (вариант 2): {result}")
                         return result
                     except ImportError:
-                        self.logger.error(f"Паттерн поведения {name} не найден")
+                        self.event_bus_logger.error(f"Паттерн поведения {name} не найден")
                         raise ValueError(f"Паттерн поведения {name} не найден")
-        else:
-            self.logger.error(f"Неизвестный тип компонента: {component_type}")
+        
             raise ValueError(f"Неизвестный тип компонента: {component_type}")
 
     async def create_by_name(
@@ -285,9 +284,9 @@ class ComponentFactory:
         RETURNS:
         - BaseComponent: созданный и инициализированный компонент
         """
-        self.logger.info(f"ComponentFactory: создание компонента {name} типа {component_type}")
+        self.event_bus_logger.info(f"ComponentFactory: создание компонента {name} типа {component_type}")
         component_class = self._resolve_component_class(component_type, name)
-        self.logger.info(f"ComponentFactory: найден класс {component_class.__name__} для {name}")
+        self.event_bus_logger.info(f"ComponentFactory: найден класс {component_class.__name__} для {name}")
         result = await self.create_and_initialize(
             component_class=component_class,
             name=name,
@@ -295,5 +294,5 @@ class ComponentFactory:
             component_config=component_config,
             executor=executor  # Передаем ActionExecutor
         )
-        self.logger.info(f"ComponentFactory: компонент {name} успешно создан (инициализация будет выполнена позже)")
+        self.event_bus_logger.info(f"ComponentFactory: компонент {name} успешно создан (инициализация будет выполнена позже)")
         return result

@@ -116,7 +116,7 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         return validated_result
 
     except Exception as e:
-        logger.error(f"Ошибка при валидации результата рассуждения: {str(e)}", exc_info=True)
+        self.event_bus_logger.error(f"Ошибка при валидации результата рассуждения: {str(e)}", exc_info=True)
 
         # Возвращаем минимально допустимый результат в случае ошибки
         return {

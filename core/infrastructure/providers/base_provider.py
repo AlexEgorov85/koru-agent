@@ -110,7 +110,7 @@ class BaseProvider(IProvider):
         self.avg_response_time = 0.0
         self.retry_policy: Optional[RetryPolicy] = None
 
-        logger.info(f"Создан провайдер: {name}")
+        self.event_bus_logger.info(f"Создан провайдер: {name}")
 
     def _set_healthy_status(self) -> None:
         """Устанавливает статус здоровья как здоровый после успешной инициализации."""
@@ -142,7 +142,7 @@ class BaseProvider(IProvider):
         """Корректное завершение работы провайдера."""
         self.is_initialized = False
         self.health_status = ProviderHealthStatus.UNKNOWN
-        logger.info("Провайдер %s завершил работу", self.name)
+        self.event_bus_logger.info("Провайдер %s завершил работу", self.name)
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -170,7 +170,7 @@ class BaseProvider(IProvider):
             await self.shutdown()
             return await self.initialize()
         except Exception as e:
-            logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
             return False
 
     def restart_with_module_reload(self):
@@ -182,7 +182,7 @@ class BaseProvider(IProvider):
         - Новый экземпляр провайдера из перезагруженного модуля
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
-        logger.warning(
+        self.event_bus_logger.warning(
             f"Выполняется перезапуск с перезагрузкой модуля для провайдера {self.__class__.__name__}"
         )
         return safe_reload_component_with_module_reload(self)

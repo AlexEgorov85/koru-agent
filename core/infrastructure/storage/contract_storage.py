@@ -218,6 +218,5 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
         self._save_file(contract_file, contract_dict, 'yaml')
 
         if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
-        else:
-            self.logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+            await self.event_bus_self.event_bus_logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+         ({component_type}) -> {contract_file}")

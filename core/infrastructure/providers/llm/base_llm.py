@@ -68,7 +68,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Параметры генерации (temperature, max_tokens)
         - Модель
         """
-        self._llm_logger.info(
+        self._llm_self.event_bus_logger.info(
             f"📝 LLM вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Max tokens: {request.max_tokens} | "
@@ -76,7 +76,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         )
         
         # DEBUG: полный промт (только в файл)
-        self._llm_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
+        self._llm_self.event_bus_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
 
     async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
         """
@@ -88,14 +88,14 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Статус (успех/ошибка)
         """
         if response.finish_reason == "error":
-            self._llm_logger.error(
+            self._llm_self.event_bus_logger.error(
                 f"❌ LLM ответ | Модель: {self.model_name} | "
                 f"Ошибка: {response.metadata.get('error', 'unknown') if response.metadata else 'unknown'} | "
                 f"Время: {elapsed_time:.2f}с"
             )
         else:
             content_length = len(response.content) if response.content else 0
-            self._llm_logger.info(
+            self._llm_self.event_bus_logger.info(
                 f"✅ LLM ответ | Модель: {self.model_name} | "
                 f"Ответ: {content_length} симв. | "
                 f"Токенов: {response.tokens_used} | "
@@ -105,7 +105,7 @@ class BaseLLMProvider(BaseProvider, ABC):
             
             # DEBUG: полный ответ (только в файл)
             if response.content:
-                self._llm_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
+                self._llm_self.event_bus_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
 
     async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
         """
@@ -115,7 +115,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Тип ошибки
         - Время до ошибки
         """
-        self._llm_logger.error(
+        self._llm_self.event_bus_logger.error(
             f"❌ LLM ошибка | Модель: {self.model_name} | "
             f"{type(error).__name__}: {str(error)[:200]} | "
             f"Время: {elapsed_time:.2f}с"
@@ -239,7 +239,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         start_time = time.time()
         
         # Логирование начала вызова
-        self._llm_logger.info(
+        self._llm_self.event_bus_logger.info(
             f"📝 LLM структурированный вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Schema: {request.structured_output.output_model if request.structured_output else 'unknown'} | "
@@ -252,7 +252,7 @@ class BaseLLMProvider(BaseProvider, ABC):
             
             # Логирование завершения
             elapsed = time.time() - start_time
-            self._llm_logger.info(
+            self._llm_self.event_bus_logger.info(
                 f"✅ LLM структурированный ответ | Модель: {self.model_name} | "
                 f"Время: {elapsed:.2f}с | "
                 f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1}"
@@ -263,7 +263,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         except Exception as e:
             # Логирование ошибки
             elapsed = time.time() - start_time
-            self._llm_logger.error(
+            self._llm_self.event_bus_logger.error(
                 f"❌ LLM структурированная ошибка | Модель: {self.model_name} | "
                 f"{type(e).__name__}: {str(e)[:200]} | "
                 f"Время: {elapsed:.2f}с"

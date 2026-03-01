@@ -83,12 +83,12 @@ class SQLValidatorService(BaseService):
             # Зависимости уже загружены родительским методом
             # Доступны через: self.table_description_service_instance
 
-            self.logger.info(
+            self.event_bus_logger.info(
                 f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
             )
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -283,9 +283,9 @@ class SQLValidatorService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        self.logger.info("Завершение работы SQLValidatorService")
+        self.event_bus_logger.info("Завершение работы SQLValidatorService")

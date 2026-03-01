@@ -74,7 +74,7 @@ class LLMCallLogger:
         self._log_manager.log_llm(session_id, event_data)
 
         self._call_count += 1
-        logger.debug(f"LLM промпт logged: {session_id}/{component}/{phase}")
+        self.event_bus_logger.debug(f"LLM промпт logged: {session_id}/{component}/{phase}")
 
     async def log_response(self, session_id: str, component: str,
                             phase: str, data: Dict[str, Any]) -> None:
@@ -110,7 +110,7 @@ class LLMCallLogger:
 
         self._log_manager.log_llm(session_id, event_data)
 
-        logger.debug(f"LLM ответ logged: {session_id}/{component}/{phase}")
+        self.event_bus_logger.debug(f"LLM ответ logged: {session_id}/{component}/{phase}")
 
     def cleanup(self):
         """Очистка счётчиков."""

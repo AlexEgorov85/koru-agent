@@ -99,7 +99,7 @@ class PromptContractGenerator:
         RETURNS:
         - Prompt: новая версия промпта
         """
-        logger.info(f"Генерация новой версии промпта для {original_prompt.capability}")
+        self.event_bus_logger.info(f"Генерация новой версии промпта для {original_prompt.capability}")
 
         # Формирование промпта для генерации
         generation_prompt = self._build_generation_prompt(
@@ -135,7 +135,7 @@ class PromptContractGenerator:
         # Сохранение в историю
         self._record_generation(original_prompt.version, new_version, 'prompt')
 
-        logger.info(f"Сгенерирована версия {new_version}")
+        self.event_bus_logger.info(f"Сгенерирована версия {new_version}")
 
         return new_prompt
 
@@ -156,7 +156,7 @@ class PromptContractGenerator:
         RETURNS:
         - Prompt: новый промпт
         """
-        logger.info(f"Генерация промпта с нуля для {capability}")
+        self.event_bus_logger.info(f"Генерация промпта с нуля для {capability}")
 
         # Формирование промпта для генерации
         generation_prompt = self._build_scratch_prompt(capability, description, examples)
@@ -195,7 +195,7 @@ class PromptContractGenerator:
         RETURNS:
         - Contract: контракт с JSON Schema
         """
-        logger.info(f"Генерация контракта для {prompt.capability}@{prompt.version}")
+        self.event_bus_logger.info(f"Генерация контракта для {prompt.capability}@{prompt.version}")
 
         # Формирование промпта для генерации схемы
         schema_prompt = self._build_schema_prompt(prompt)
@@ -207,7 +207,7 @@ class PromptContractGenerator:
         try:
             schema = self._parse_json_schema(schema_content)
         except json.JSONDecodeError as e:
-            logger.error(f"Ошибка парсинга JSON Schema: {e}")
+            self.event_bus_logger.error(f"Ошибка парсинга JSON Schema: {e}")
             # Возвращаем дефолтную схему
             schema = self._create_default_schema(prompt)
 
@@ -249,11 +249,11 @@ class PromptContractGenerator:
                 prompt=prompt
             )
 
-            logger.info(f"Промпт сохранён: {prompt.capability}@{prompt.version}")
+            self.event_bus_logger.info(f"Промпт сохранён: {prompt.capability}@{prompt.version}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка сохранения промпта: {e}")
+            self.event_bus_logger.error(f"Ошибка сохранения промпта: {e}")
             return False
 
     async def save_contract(self, contract: Contract) -> bool:
@@ -278,11 +278,11 @@ class PromptContractGenerator:
                 contract=contract
             )
 
-            logger.info(f"Контракт сохранён: {contract.capability}@{contract.version}")
+            self.event_bus_logger.info(f"Контракт сохранён: {contract.capability}@{contract.version}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка сохранения контракта: {e}")
+            self.event_bus_logger.error(f"Ошибка сохранения контракта: {e}")
             return False
 
     async def generate_and_save(
@@ -324,7 +324,7 @@ class PromptContractGenerator:
             return new_prompt, contract
 
         except Exception as e:
-            logger.error(f"Ошибка генерации и сохранения: {e}")
+            self.event_bus_logger.error(f"Ошибка генерации и сохранения: {e}")
             return None, None
 
     def _build_generation_prompt(
@@ -424,7 +424,7 @@ JSON SCHEMA:
         # Вызов LLM провайдера
         # Примечание: здесь должна быть реальная интеграция с LLM
         # Для тестов используем заглушку
-        logger.debug("Генерация через LLM...")
+        self.event_bus_logger.debug("Генерация через LLM...")
         return f"Generated content for: {prompt[:100]}..."
 
     def _parse_json_schema(self, content: str) -> Dict[str, Any]:
@@ -517,10 +517,10 @@ JSON SCHEMA:
 
             # Помечаем как активную (через обновление статуса)
             # Это должно быть реализовано в data_source
-            logger.info(f"Откат к версии {version} для {capability}")
+            self.event_bus_logger.info(f"Откат к версии {version} для {capability}")
 
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка отката: {e}")
+            self.event_bus_logger.error(f"Ошибка отката: {e}")
             return False

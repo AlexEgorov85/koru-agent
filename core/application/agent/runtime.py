@@ -164,9 +164,9 @@ class AgentRuntime:
         self._current_step = 0
         self._max_steps = max_steps or self._max_steps
 
-        self.logger.info(f"Запуск агента с целью: {self.goal[:100]}...")
+        self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}...")
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}..."))
+            asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}..."))
 
         try:
             # Инициализация начального контекста выполнения
@@ -194,9 +194,9 @@ class AgentRuntime:
 
                 # Проверка завершения
                 if self._is_final_result(step_result):
-                    self.logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
+                    self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}"))
+                        asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}"))
                     break
 
                 self._current_step += 1
@@ -218,9 +218,9 @@ class AgentRuntime:
             )
 
         except Exception as e:
-            self.logger.error(f"Ошибка выполнения агента: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}")
             if self.event_bus_logger:
-                asyncio.create_task(self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}"))
+                asyncio.create_task(self.event_bus_self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}"))
             self._result = ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 result=str(e),
@@ -238,9 +238,9 @@ class AgentRuntime:
 
     async def _execute_single_step(self) -> Any:
         """Выполнение одного шага рассуждений."""
-        self.logger.debug(f"Выполнение шага {self._current_step + 1}")
+        self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}"))
+            asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}"))
 
         # Получаем доступные capability для использования в паттернах поведения
         # В новой архитектуре используем метод get_all_capabilities() из ApplicationContext
@@ -255,7 +255,7 @@ class AgentRuntime:
             available_caps = []
 
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}"))
+            asyncio.create_task(self.event_bus_self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}"))
 
         # Получаем решение от менеджера поведения
         decision = await self.behavior_manager.generate_next_decision(
@@ -263,9 +263,9 @@ class AgentRuntime:
             available_capabilities=available_caps
         )
 
-        self.logger.info(f"=== DECISION ПОЛУЧЕН ===")
-        self.logger.info(f"decision.action: {decision.action}")
-        self.logger.info(f"decision.capability_name: {getattr(decision, 'capability_name', 'N/A')}")
+        self.event_bus_logger.info(f"=== DECISION ПОЛУЧЕН ===")
+        self.event_bus_logger.info(f"decision.action: {decision.action}")
+        self.event_bus_logger.info(f"decision.capability_name: {getattr(decision, 'capability_name', 'N/A')}")
 
         # Запись решения паттерна поведения
         if decision:
@@ -285,15 +285,15 @@ class AgentRuntime:
 
         if decision.action == StrategyDecisionType.ACT:
             if self.event_bus_logger:
-                asyncio.create_task(self.event_bus_logger.info(f"=== ВЫПОЛНЕНИЕ ACT ==="))
-                asyncio.create_task(self.event_bus_logger.info(f"decision.capability_name: {decision.capability_name}"))
-                asyncio.create_task(self.event_bus_logger.info(f"decision.parameters: {decision.parameters}"))
-            self.logger.info(f"=== ВЫПОЛНЕНИЕ ACT ===")
-            self.logger.info(f"🎯 Выбранный навык: {decision.capability_name}")
-            self.logger.info(f"📦 Параметры: {decision.parameters}")
+                asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"=== ВЫПОЛНЕНИЕ ACT ==="))
+                asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"decision.capability_name: {decision.capability_name}"))
+                asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"decision.parameters: {decision.parameters}"))
+            self.event_bus_logger.info(f"=== ВЫПОЛНЕНИЕ ACT ===")
+            self.event_bus_logger.info(f"🎯 Выбранный навык: {decision.capability_name}")
+            self.event_bus_logger.info(f"📦 Параметры: {decision.parameters}")
             try:
                 # Получаем capability по имени из решения
-                self.logger.info(f"🔍 Поиск capability: {decision.capability_name}...")
+                self.event_bus_logger.info(f"🔍 Поиск capability: {decision.capability_name}...")
                 # В новой архитектуре используем соответствующий метод
                 if hasattr(self.application_context, 'get_skill'):
                     capability = self.application_context.get_skill(decision.capability_name)
@@ -304,24 +304,24 @@ class AgentRuntime:
                     capability = None
 
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_logger.info(f"capability found: {capability is not None}"))
-                self.logger.info(f"✅ capability found: {capability is not None}")
+                    asyncio.create_task(self.event_bus_self.event_bus_logger.info(f"capability found: {capability is not None}"))
+                self.event_bus_logger.info(f"✅ capability found: {capability is not None}")
                 if not capability:
                     if self.event_bus_logger:
-                        asyncio.create_task(self.event_bus_logger.error(f"Capability '{decision.capability_name}' не найдена"))
-                    self.logger.error(f"❌ Capability '{decision.capability_name}' не найдена")
+                        asyncio.create_task(self.event_bus_self.event_bus_logger.error(f"Capability '{decision.capability_name}' не найдена"))
+                    self.event_bus_logger.error(f"❌ Capability '{decision.capability_name}' не найдена")
                     return None
 
                 # Выполняем capability
-                self.logger.info(f"🚀 Запуск выполнения {decision.capability_name}...")
+                self.event_bus_logger.info(f"🚀 Запуск выполнения {decision.capability_name}...")
                 execution_result = await self.executor.execute_capability(
                     capability=capability,
                     parameters=decision.parameters,
                     session_context=self.application_context.session_context,
                     user_context=self.user_context
                 )
-                self.logger.info(f"✅ {decision.capability_name} выполнен успешно")
-                self.logger.info(f"📊 Результат: {execution_result}")
+                self.event_bus_logger.info(f"✅ {decision.capability_name} выполнен успешно")
+                self.event_bus_logger.info(f"📊 Результат: {execution_result}")
 
                 # Обновление контекста выполнения
                 if (hasattr(self.application_context, 'session_context') and 
@@ -341,8 +341,8 @@ class AgentRuntime:
 
             except Exception as e:
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}"))
-                self.logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}", exc_info=True)
+                    asyncio.create_task(self.event_bus_self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}"))
+                self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}", exc_info=True)
                 self.state.register_error()
 
                 # Регистрация ошибки в контексте
@@ -381,8 +381,8 @@ class AgentRuntime:
         """Остановка выполнения агента."""
         self._running = False
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.info("Агент остановлен пользователем"))
-        self.logger.info("Агент остановлен пользователем")
+            asyncio.create_task(self.event_bus_self.event_bus_logger.info("Агент остановлен пользователем"))
+        self.event_bus_logger.info("Агент остановлен пользователем")
 
     def is_running(self) -> bool:
         """Проверка, выполняется ли агент."""

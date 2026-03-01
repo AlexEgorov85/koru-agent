@@ -32,14 +32,14 @@ class PostgreSQLProvider(BaseDBProvider):
         self.pool = None
         self._lock = asyncio.Lock()
 
-        logger.info(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
+        self.event_bus_logger.info(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
 
     async def initialize(self) -> bool:
         """
         Асинхронная инициализация пула соединений.
         """
         try:
-            logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
+            self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
             start_time = time.time()
 
             # Создаем пул соединений
@@ -62,14 +62,14 @@ class PostgreSQLProvider(BaseDBProvider):
             # Проверяем подключение
             async with self.pool.acquire() as conn:
                 version = await conn.fetchval("SELECT version()")
-                logger.info(f"Подключено к PostgreSQL: {version}")
+                self.event_bus_logger.info(f"Подключено к PostgreSQL: {version}")
 
             self.is_initialized = True
             self.health_status = DBHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
             init_time = time.time() - start_time
-            logger.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд")
+            self.event_bus_logger.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд")
 
             return True
 
@@ -85,15 +85,15 @@ class PostgreSQLProvider(BaseDBProvider):
         async with self._lock:
             try:
                 if self.pool:
-                    logger.info("Завершение работы пула соединений PostgreSQL...")
+                    self.event_bus_logger.info("Завершение работы пула соединений PostgreSQL...")
                     await self.pool.close()
                     self.pool = None
 
                 self.is_initialized = False
-                logger.info("PostgreSQL провайдер успешно завершил работу")
+                self.event_bus_logger.info("PostgreSQL провайдер успешно завершил работу")
 
             except Exception as e:
-                logger.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}")
+                self.event_bus_logger.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}")
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -131,7 +131,7 @@ class PostgreSQLProvider(BaseDBProvider):
             }
 
         except Exception as e:
-            logger.error(f"Ошибка health check для PostgreSQL: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка health check для PostgreSQL: {str(e)}")
             return {
                 "status": DBHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -152,9 +152,9 @@ class PostgreSQLProvider(BaseDBProvider):
             async with self.pool.acquire() as conn:
                 # Логируем запрос при необходимости
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"Executing query: {query}")
+                    self.event_bus_logger.debug(f"Executing query: {query}")
                     if params:
-                        logger.debug(f"Query params: {params}")
+                        self.event_bus_logger.debug(f"Query params: {params}")
 
                 # Выполняем запрос
                 if params:
@@ -176,10 +176,10 @@ class PostgreSQLProvider(BaseDBProvider):
                 return rows
 
         except Exception as e:
-            logger.error(f"Ошибка выполнения запроса: {str(e)}")
-            logger.error(f"Query was: {query}")
+            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
+            self.event_bus_logger.error(f"Query was: {query}")
             if params:
-                logger.error(f"Params were: {params}")
+                self.event_bus_logger.error(f"Params were: {params}")
             raise
 
     async def execute(self, query: str, params: Optional[Dict[str, Any]] = None) -> DBQueryResult:
@@ -195,9 +195,9 @@ class PostgreSQLProvider(BaseDBProvider):
             async with self.pool.acquire() as conn:
                 # Логируем запрос при необходимости
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"Executing query: {query}")
+                    self.event_bus_logger.debug(f"Executing query: {query}")
                     if params:
-                        logger.debug(f"Query params: {params}")
+                        self.event_bus_logger.debug(f"Query params: {params}")
 
                 # Выполняем запрос
                 if params:
@@ -238,10 +238,10 @@ class PostgreSQLProvider(BaseDBProvider):
                 return query_result
 
         except Exception as e:
-            logger.error(f"Ошибка выполнения запроса: {str(e)}")
-            logger.error(f"Query was: {query}")
+            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
+            self.event_bus_logger.error(f"Query was: {query}")
             if params:
-                logger.error(f"Params were: {params}")
+                self.event_bus_logger.error(f"Params were: {params}")
 
             self._update_metrics(time.time() - start_time, success=False)
 

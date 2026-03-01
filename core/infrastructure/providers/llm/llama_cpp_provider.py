@@ -113,7 +113,7 @@ class LlamaCppProvider(BaseLLMProvider):
         self.logger = logging.getLogger(f"llm.{self.__class__.__name__}")
         self.logger.setLevel(logging.INFO)
         
-        logger.info(f"Инициализация Llama.cpp провайдера для модели: {model_name}")
+        self.event_bus_logger.info(f"Инициализация Llama.cpp провайдера для модели: {model_name}")
 
         # Контекст вызова для логирования
         self._event_bus = None
@@ -148,7 +148,7 @@ class LlamaCppProvider(BaseLLMProvider):
         Асинхронная инициализация LLM инстанса.
         """
         try:
-            logger.info(f"Загрузка модели из: {self.model_path}")
+            self.event_bus_logger.info(f"Загрузка модели из: {self.model_path}")
             start_time = time.time()
 
             # Инициализация Llama.cpp инстанса
@@ -175,24 +175,24 @@ class LlamaCppProvider(BaseLLMProvider):
                 self.last_health_check = time.time()
 
                 init_time = time.time() - start_time
-                logger.info(f"Llama.cpp провайдер успешно инициализирован за {init_time:.2f} секунд")
-                logger.info(f"Контекст: {self.n_ctx}, потоки: {self.n_threads}, executor workers: 2")
+                self.event_bus_logger.info(f"Llama.cpp провайдер успешно инициализирован за {init_time:.2f} секунд")
+                self.event_bus_logger.info(f"Контекст: {self.n_ctx}, потоки: {self.n_threads}, executor workers: 2")
 
                 return True
             else:
-                logger.error("Не удалось инициализировать LLM инстанс")
+                self.event_bus_logger.error("Не удалось инициализировать LLM инстанс")
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
                 
         except ImportError as e:
-            logger.error(f"Ошибка импорта llama-cpp-python: {str(e)}")
-            logger.error("Установите с помощью: pip install llama-cpp-python")
+            self.event_bus_logger.error(f"Ошибка импорта llama-cpp-python: {str(e)}")
+            self.event_bus_logger.error("Установите с помощью: pip install llama-cpp-python")
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
         except ValueError as e:
             if "not enough values to unpack" in str(e):
-                logger.error(f"Проблема с установкой llama-cpp-python: {str(e)}")
-                logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python")
+                self.event_bus_logger.error(f"Проблема с установкой llama-cpp-python: {str(e)}")
+                self.event_bus_logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python")
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
             else:
@@ -209,21 +209,21 @@ class LlamaCppProvider(BaseLLMProvider):
         Корректное завершение работы провайдера.
         """
         try:
-            logger.info("Завершение работы Llama.cpp провайдера...")
+            self.event_bus_logger.info("Завершение работы Llama.cpp провайдера...")
             
             # Остановка ThreadPoolExecutor
             if self._executor:
                 self._executor.shutdown(wait=False)
                 self._executor = None
-                logger.debug("ThreadPoolExecutor остановлен")
+                self.event_bus_logger.debug("ThreadPoolExecutor остановлен")
             
             # В llama-cpp-python нет явного метода для освобождения ресурсов
             # Но можно обнулить ссылку на модель
             self.llm = None
             self.is_initialized = False
-            logger.info("Llama.cpp провайдер успешно завершен")
+            self.event_bus_logger.info("Llama.cpp провайдер успешно завершен")
         except Exception as e:
-            logger.error(f"Ошибка при завершении работы Llama.cpp провайдера: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка при завершении работы Llama.cpp провайдера: {str(e)}")
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -260,7 +260,7 @@ class LlamaCppProvider(BaseLLMProvider):
             }
 
         except Exception as e:
-            logger.error(f"Ошибка health check для Llama.cpp: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка health check для Llama.cpp: {str(e)}")
             return {
                 "status": LLMHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -275,7 +275,7 @@ class LlamaCppProvider(BaseLLMProvider):
         Логирование выполняется в базовом классе BaseLLMProvider.
         """
         if not self.is_initialized or not self.llm:
-            logger.warning("LLM не инициализирован! Вызываем initialize()...")
+            self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
             await self.initialize()
 
         start_time = time.time()
@@ -347,7 +347,7 @@ class LlamaCppProvider(BaseLLMProvider):
                     max_workers=2,
                     thread_name_prefix='llm_worker'
                 )
-                logger.warning("ThreadPoolExecutor не был создан при инициализации, создан сейчас")
+                self.event_bus_logger.warning("ThreadPoolExecutor не был создан при инициализации, создан сейчас")
 
             # Флаг для отслеживания завершения вызова
             call_completed = {'done': False, 'error': None}
@@ -372,19 +372,19 @@ class LlamaCppProvider(BaseLLMProvider):
                     return result
                 except Exception as e:
                     call_completed['error'] = str(e)
-                    logger.error(f"Ошибка в _call_llm_sync: {e}")
+                    self.event_bus_logger.error(f"Ошибка в _call_llm_sync: {e}")
                     raise  # Пробрасываем ошибку дальше
 
             try:
-                logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
-                logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
+                self.event_bus_logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
+                self.event_bus_logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
                 
                 response = await wait_for(
                     asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
                     timeout=self.timeout_seconds
                 )
                 
-                logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
+                self.event_bus_logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
 
                 elapsed_time = time.time() - start_time
 
@@ -411,13 +411,13 @@ class LlamaCppProvider(BaseLLMProvider):
 
             except TimeoutError as e:
                 elapsed = time.time() - start_time
-                logger.error(f"⏰ LLM TIMEOUT после {elapsed:.2f}с (timeout={self.timeout_seconds}с)")
-                logger.error(f"  - prompt_length: {len(request.prompt)}")
-                logger.error(f"  - max_tokens: {max_tokens}")
-                logger.error(f"  - executor: {self._executor}")
-                logger.error(f"  - llm loaded: {self.llm is not None}")
-                logger.error(f"  - call_completed: {call_completed}")
-                logger.error(f"  - active_threads: {threading.active_count()}")
+                self.event_bus_logger.error(f"⏰ LLM TIMEOUT после {elapsed:.2f}с (timeout={self.timeout_seconds}с)")
+                self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
+                self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
+                self.event_bus_logger.error(f"  - executor: {self._executor}")
+                self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
+                self.event_bus_logger.error(f"  - call_completed: {call_completed}")
+                self.event_bus_logger.error(f"  - active_threads: {threading.active_count()}")
                 
                 # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
                 if hasattr(self, '_event_bus') and self._event_bus:
@@ -477,11 +477,11 @@ class LlamaCppProvider(BaseLLMProvider):
         
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(f"❌ LLM вызов failed после {elapsed:.2f}с: {type(e).__name__}: {str(e)}")
-            logger.error(f"  - prompt_length: {len(request.prompt)}")
-            logger.error(f"  - max_tokens: {max_tokens}")
-            logger.error(f"  - executor: {self._executor}")
-            logger.error(f"  - llm loaded: {self.llm is not None}")
+            self.event_bus_logger.error(f"❌ LLM вызов failed после {elapsed:.2f}с: {type(e).__name__}: {str(e)}")
+            self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
+            self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
+            self.event_bus_logger.error(f"  - executor: {self._executor}")
+            self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
             
             # Публикуем событие об ошибке
             if hasattr(self, '_event_bus') and self._event_bus:
@@ -538,7 +538,7 @@ class LlamaCppProvider(BaseLLMProvider):
         schema_def = config.schema_def
         
         # Логирование начала структурированной генерации
-        self.logger.info(
+        self.event_bus_logger.info(
             f"Запуск structured output для {config.output_model} "
             f"(max_retries={config.max_retries}, strict_mode={config.strict_mode})"
         )
@@ -571,19 +571,19 @@ class LlamaCppProvider(BaseLLMProvider):
         # 2. Retry цикл
         for attempt in range(1, config.max_retries + 1):
             try:
-                self.logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
+                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
 
                 # 3. Генерация
                 raw_response = await self._generate_impl(structured_request)
                 last_raw_response = raw_response
 
-                self.logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
+                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
                 
                 # 4. Извлечение JSON из ответа
                 json_content = self._extract_json_from_response(raw_response.content)
                 last_json_content = json_content
                 
-                self.logger.debug(f"Попытка {attempt}/{config.max_retries}: JSON извлечён ({len(json_content)} ключей)")
+                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: JSON извлечён ({len(json_content)} ключей)")
                 
                 # 5. Валидация против схемы
                 temp_model = self._create_pydantic_from_schema(
@@ -595,20 +595,20 @@ class LlamaCppProvider(BaseLLMProvider):
                 parsed_content = temp_model.model_validate(json_content)
                 
                 # 6. Успех!
-                self.logger.info(
+                self.event_bus_logger.info(
                     f"Structured output успешен с попытки {attempt}/{config.max_retries} "
                     f"для {config.output_model}"
                 )
 
                 # Логирование ответа LLM для отладки
-                self.logger.info(f"=== ОТВЕТ LLM ===")
+                self.event_bus_logger.info(f"=== ОТВЕТ LLM ===")
                 # Логируем только decision, так как это основная информация
                 decision = parsed_content.get('decision', {}) if hasattr(parsed_content, 'get') else getattr(parsed_content, 'decision', 'N/A')
                 next_action = decision.get('next_action', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'next_action', 'N/A')
                 reasoning = decision.get('reasoning', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'reasoning', 'N/A')
-                self.logger.info(f"📋 next_action: {next_action}")
-                self.logger.info(f"💡 reasoning: {reasoning}")
-                self.logger.info(f"=================")
+                self.event_bus_logger.info(f"📋 next_action: {next_action}")
+                self.event_bus_logger.info(f"💡 reasoning: {reasoning}")
+                self.event_bus_logger.info(f"=================")
 
                 return StructuredLLMResponse(
                     parsed_content=parsed_content,
@@ -634,7 +634,7 @@ class LlamaCppProvider(BaseLLMProvider):
                 }
                 validation_errors.append(error_info)
                 
-                self.logger.warning(
+                self.event_bus_logger.warning(
                     f"Попытка {attempt}/{config.max_retries} не удалась (JSON): {e}"
                 )
                 
@@ -656,7 +656,7 @@ class LlamaCppProvider(BaseLLMProvider):
                 }
                 validation_errors.append(error_info)
                 
-                self.logger.warning(
+                self.event_bus_logger.warning(
                     f"Попытка {attempt}/{config.max_retries} не удалась (валидация): {e}"
                 )
                 
@@ -670,7 +670,7 @@ class LlamaCppProvider(BaseLLMProvider):
                     continue
         
         # 7. Все попытки исчерпаны
-        self.logger.error(
+        self.event_bus_logger.error(
             f"Все {config.max_retries} попыток структурированного вывода не удались "
             f"для {config.output_model}. Ошибок валидации: {len(validation_errors)}"
         )
@@ -888,5 +888,5 @@ class LlamaCppProvider(BaseLLMProvider):
         try:
             yield self
         except Exception as e:
-            logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
             raise

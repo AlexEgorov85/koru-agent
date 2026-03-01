@@ -146,7 +146,7 @@ class ProviderLifecycleManager:
         self._shutdown_in_progress = False
         
         self._logger = logging.getLogger(f"{__name__}.LifecycleManager")
-        self._logger.info("ProviderLifecycleManager создан")
+        self._self.event_bus_logger.info("ProviderLifecycleManager создан")
     
     async def register(
         self,
@@ -180,7 +180,7 @@ class ProviderLifecycleManager:
         self._providers[name] = provider_info
         self._providers_by_type[provider_type].append(name)
         
-        self._logger.info(f"Зарегистрирован провайдер '{name}' типа {provider_type.value}")
+        self._self.event_bus_logger.info(f"Зарегистрирован провайдер '{name}' типа {provider_type.value}")
         
         # Событие регистрации
         await self._event_bus_manager.publish(
@@ -203,7 +203,7 @@ class ProviderLifecycleManager:
         - bool: True если провайдер удален, False если не найден
         """
         if name not in self._providers:
-            self._logger.warning(f"Провайдер '{name}' не найден")
+            self._self.event_bus_logger.warning(f"Провайдер '{name}' не найден")
             return False
         
         provider_info = self._providers[name]
@@ -218,7 +218,7 @@ class ProviderLifecycleManager:
         if name in self._providers_by_type[provider_type]:
             self._providers_by_type[provider_type].remove(name)
         
-        self._logger.info(f"Удален провайдер '{name}'")
+        self._self.event_bus_logger.info(f"Удален провайдер '{name}'")
         
         # Событие удаления
         await self._event_bus_manager.publish(
@@ -237,12 +237,12 @@ class ProviderLifecycleManager:
         - Dict[str, bool]: результаты инициализации по каждому провайдеру
         """
         if self._shutdown_in_progress:
-            self._logger.warning("Инициализация во время shutdown запрещена")
+            self._self.event_bus_logger.warning("Инициализация во время shutdown запрещена")
             return {}
         
         results = {}
         
-        self._logger.info(f"Начало инициализации {len(self._providers)} провайдеров")
+        self._self.event_bus_logger.info(f"Начало инициализации {len(self._providers)} провайдеров")
         
         # Инициализация по типам (сначала基础设施, потом остальные)
         init_order = [
@@ -260,7 +260,7 @@ class ProviderLifecycleManager:
             if not provider_names:
                 continue
             
-            self._logger.debug(f"Инициализация провайдеров типа {provider_type.value}: {provider_names}")
+            self._self.event_bus_logger.debug(f"Инициализация провайдеров типа {provider_type.value}: {provider_names}")
             
             for name in provider_names:
                 provider_info = self._providers[name]
@@ -268,7 +268,7 @@ class ProviderLifecycleManager:
                 results[name] = result
         
         self._initialized = True
-        self._logger.info(f"Инициализация завершена: {sum(results.values())}/{len(results)} успешно")
+        self._self.event_bus_logger.info(f"Инициализация завершена: {sum(results.values())}/{len(results)} успешно")
         
         # Событие инициализации
         await self._event_bus_manager.publish(
@@ -297,23 +297,23 @@ class ProviderLifecycleManager:
         provider = provider_info.provider
         
         try:
-            self._logger.debug(f"Инициализация провайдера '{name}'")
+            self._self.event_bus_logger.debug(f"Инициализация провайдера '{name}'")
             
             result = await provider.initialize()
             
             if result:
                 provider_info.initialized = True
                 provider_info.health_status = ProviderHealthStatus.HEALTHY
-                self._logger.info(f"Провайдер '{name}' успешно инициализирован")
+                self._self.event_bus_logger.info(f"Провайдер '{name}' успешно инициализирован")
             else:
                 provider_info.health_status = ProviderHealthStatus.UNHEALTHY
-                self._logger.error(f"Провайдер '{name}' вернул False при инициализации")
+                self._self.event_bus_logger.error(f"Провайдер '{name}' вернул False при инициализации")
             
             return result
             
         except Exception as e:
             provider_info.health_status = ProviderHealthStatus.UNHEALTHY
-            self._logger.error(f"Ошибка инициализации провайдера '{name}': {e}", exc_info=True)
+            self._self.event_bus_logger.error(f"Ошибка инициализации провайдера '{name}': {e}", exc_info=True)
             
             # Событие ошибки
             await self._event_bus_manager.publish(
@@ -339,7 +339,7 @@ class ProviderLifecycleManager:
         self._shutdown_in_progress = True
         results = {}
         
-        self._logger.info("Начало завершения работы провайдеров")
+        self._self.event_bus_logger.info("Начало завершения работы провайдеров")
         
         # Shutdown в обратном порядке инициализации
         # Инициализация: DATABASE -> CACHE -> VECTOR -> EMBEDDING -> LLM -> STORAGE -> OTHER
@@ -370,7 +370,7 @@ class ProviderLifecycleManager:
         self._initialized = False
         self._shutdown_in_progress = False
         
-        self._logger.info(f"Завершение работы провайдеров: {sum(results.values())}/{len(results)} успешно")
+        self._self.event_bus_logger.info(f"Завершение работы провайдеров: {sum(results.values())}/{len(results)} успешно")
         
         # Событие shutdown
         await self._event_bus_manager.publish(
@@ -399,22 +399,22 @@ class ProviderLifecycleManager:
         provider = provider_info.provider
         
         if not provider_info.initialized:
-            self._logger.debug(f"Провайдер '{name}' не инициализирован, пропускаем shutdown")
+            self._self.event_bus_logger.debug(f"Провайдер '{name}' не инициализирован, пропускаем shutdown")
             return True
         
         try:
-            self._logger.debug(f"Завершение работы провайдера '{name}'")
+            self._self.event_bus_logger.debug(f"Завершение работы провайдера '{name}'")
             
             await provider.shutdown()
             
             provider_info.initialized = False
             provider_info.health_status = ProviderHealthStatus.UNKNOWN
-            self._logger.info(f"Провайдер '{name}' корректно завершен")
+            self._self.event_bus_logger.info(f"Провайдер '{name}' корректно завершен")
             
             return True
             
         except Exception as e:
-            self._logger.error(f"Ошибка при завершении провайдера '{name}': {e}", exc_info=True)
+            self._self.event_bus_logger.error(f"Ошибка при завершении провайдера '{name}': {e}", exc_info=True)
             return False
     
     async def health_check_all(self) -> Dict[str, HealthCheckResult]:
@@ -463,7 +463,7 @@ class ProviderLifecycleManager:
             
         except Exception as e:
             provider_info.health_status = ProviderHealthStatus.UNHEALTHY
-            self._logger.error(f"Health check провайдера '{name}' не удался: {e}")
+            self._self.event_bus_logger.error(f"Health check провайдера '{name}' не удался: {e}")
             
             return HealthCheckResult(
                 provider_name=name,

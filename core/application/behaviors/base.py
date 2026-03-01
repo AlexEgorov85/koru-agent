@@ -125,8 +125,8 @@ class BehaviorPatternInterface(ABC):
             )
         ]
         
-        logger.info(f"_filter_capabilities: pattern_id={self.pattern_id}, pattern_prefix={pattern_prefix}, required_skills={required_skills}")
-        logger.info(f"_filter_capabilities: входные capability={[c.name for c in capabilities]}")
-        logger.info(f"_filter_capabilities: отфильтрованные capability={[c.name for c in filtered]}")
+        self.event_bus_logger.info(f"_filter_capabilities: pattern_id={self.pattern_id}, pattern_prefix={pattern_prefix}, required_skills={required_skills}")
+        self.event_bus_logger.info(f"_filter_capabilities: входные capability={[c.name for c in capabilities]}")
+        self.event_bus_logger.info(f"_filter_capabilities: отфильтрованные capability={[c.name for c in filtered]}")
         
         return filtered

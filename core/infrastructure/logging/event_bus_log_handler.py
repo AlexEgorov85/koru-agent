@@ -354,13 +354,12 @@ class EventBusLogHandler:
         # Определяем уровень логирования для вывода
         event_type = event.event_type
         if event_type in ["log.error"]:
-            self.logger.error(f"\n{formatted}")
+            self.event_bus_logger.error(f"\n{formatted}")
         elif event_type in ["log.warning"]:
-            self.logger.warning(f"\n{formatted}")
+            self.event_bus_logger.warning(f"\n{formatted}")
         elif event_type in ["log.debug"]:
-            self.logger.debug(f"\n{formatted}")
-        else:
-            self.logger.info(f"\n{formatted}")
+            self.event_bus_logger.debug(f"\n{formatted}")
+        
     
     def subscribe(self, event_bus):
         """
@@ -526,8 +525,8 @@ class EventBusLogger:
                 self.logger = EventBusLogger(event_bus, source="my_component")
             
             async def do_something(self):
-                await self.logger.info("Запуск")
-                await self.logger.debug("Детали", extra={"key": "value"})
+                await self.event_bus_logger.info("Запуск")
+                await self.event_bus_logger.debug("Детали", extra={"key": "value"})
     
     ТАКЖЕ ПОДДЕРЖИВАЕТСЯ СИНХРОННЫЙ ВЫЗОВ (для main.py):
         log_handler.info("Сообщение")  # Автоматически публикует в EventBus

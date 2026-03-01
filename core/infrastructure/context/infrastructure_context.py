@@ -83,10 +83,10 @@ class InfrastructureContext:
         ВАЖНО: После инициализации контекст становится неизменяемым.
         """
         if self._initialized:
-            self.logger.warning("InfrastructureContext уже инициализирован")
+            self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
             return True
 
-        self.logger.info("Начало инициализации InfrastructureContext")
+        self.event_bus_logger.info("Начало инициализации InfrastructureContext")
 
         # Инициализация менеджера жизненного цикла
         self.lifecycle_manager = LifecycleManager()
@@ -106,17 +106,17 @@ class InfrastructureContext:
 
         # Используем директории из конфигурации
         prompts_dir = Path(self.config.data_dir) / "prompts"
-        self.logger.info(f"Используем путь для промтов: {prompts_dir}")
+        self.event_bus_logger.info(f"Используем путь для промтов: {prompts_dir}")
 
         self.prompt_storage = PromptStorage(prompts_dir)
-        self.logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
+        self.event_bus_logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
 
         # Для ContractStorage используем директорию из конфигурации
         contracts_dir = Path(self.config.data_dir) / "contracts"
-        self.logger.info(f"Используем путь для контрактов: {contracts_dir}")
+        self.event_bus_logger.info(f"Используем путь для контрактов: {contracts_dir}")
 
         self.contract_storage = ContractStorage(contracts_dir)
-        self.logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
+        self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
         # Инициализация хранилищ метрик и логов
         from pathlib import Path
@@ -124,19 +124,19 @@ class InfrastructureContext:
         logs_dir = Path(self.config.data_dir) / "logs"
 
         self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
-        self.logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
+        self.event_bus_logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
 
         self.log_storage = FileSystemLogStorage(logs_dir)
-        self.logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
+        self.event_bus_logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
 
         # Инициализация сборщиков метрик и логов
         self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
         await self.metrics_collector.initialize()
-        self.logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
+        self.event_bus_logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
 
         self.log_collector = LogCollector(self.event_bus, self.log_storage)
         await self.log_collector.initialize()
-        self.logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
+        self.event_bus_logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
 
         # Инициализация Vector Search
         if self.config.vector_search and self.config.vector_search.enabled:
@@ -150,7 +150,7 @@ class InfrastructureContext:
         success = await self.lifecycle_manager.initialize_all()
         if success:
             self._initialized = True
-            self.logger.info("InfrastructureContext успешно инициализирован")
+            self.event_bus_logger.info("InfrastructureContext успешно инициализирован")
 
         return success
 
@@ -195,9 +195,9 @@ class InfrastructureContext:
                         if not first_llm_registered:
                             first_llm_registered = True
                         self.resource_registry.register_resource(info_llm)
-                        self.logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
+                        self.event_bus_logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    self.logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
+                    self.event_bus_logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
@@ -226,9 +226,9 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
-                        self.logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
+                        self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    self.logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
+                    self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска."""
@@ -238,7 +238,7 @@ class InfrastructureContext:
         from pathlib import Path
         
         vs_config = self.config.vector_search
-        self.logger.info("Инициализация Vector Search...")
+        self.event_bus_logger.info("Инициализация Vector Search...")
         
         # Инициализация FAISS провайдеров для каждого источника
         for source, index_file in vs_config.indexes.items():
@@ -253,21 +253,20 @@ class InfrastructureContext:
                 index_path = Path(vs_config.storage.base_path) / index_file
                 if index_path.exists():
                     await provider.load(str(index_path))
-                    self.logger.info(f"✅ Загружен индекс {source}: {index_path}")
-                else:
-                    self.logger.info(f"⚠️ Индекс {source} не найден, будет создан при индексации")
+                    self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path}")
+                
                 
                 self._faiss_providers[source] = provider
             except Exception as e:
-                self.logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
+                self.event_bus_logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
         
         # Инициализация Embedding провайдера
         try:
             self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
             await self._embedding_provider.initialize()
-            self.logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
+            self.event_bus_logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
+            self.event_bus_logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
         
         # Инициализация Chunking стратегии
         try:
@@ -276,9 +275,9 @@ class InfrastructureContext:
                 chunk_overlap=vs_config.chunking.chunk_overlap,
                 min_chunk_size=vs_config.chunking.min_chunk_size
             )
-            self.logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
+            self.event_bus_logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
+            self.event_bus_logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
 
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""
@@ -296,9 +295,9 @@ class InfrastructureContext:
             try:
                 if hasattr(provider, 'shutdown') and callable(provider.shutdown):
                     await provider.shutdown()
-                self.logger.info(f"Провайдер '{provider_name}' завершен")
+                self.event_bus_logger.info(f"Провайдер '{provider_name}' завершен")
             except Exception as e:
-                self.logger.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}")
+                self.event_bus_logger.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}")
 
         # Завершение работы хранилищ
         if self.prompt_storage and hasattr(self.prompt_storage, 'shutdown'):
@@ -411,9 +410,8 @@ class InfrastructureContext:
             resource_info = self.resource_registry.get_resource(provider_name)
             if resource_info:
                 llm = resource_info.instance
-                self.logger.debug(f"Используем LLM провайдер: {provider_name}")
-            else:
-                self.logger.warning(f"LLM провайдер '{provider_name}' не найден")
+                self.event_bus_logger.debug(f"Используем LLM провайдер: {provider_name}")
+            
                 if not fallback:
                     raise ValueError(f"LLM провайдер '{provider_name}' не найден")
         
@@ -421,13 +419,13 @@ class InfrastructureContext:
         if llm is None:
             llm = self._get_default_llm()
             if llm:
-                self.logger.debug("Используем default LLM провайдер")
+                self.event_bus_logger.debug("Используем default LLM провайдер")
         
         # 3. Если всё ещё нет, пробуем первый доступный
         if llm is None:
             llm = self._get_first_available_llm()
             if llm:
-                self.logger.warning("Default LLM не найден, используем первый доступный")
+                self.event_bus_logger.warning("Default LLM не найден, используем первый доступный")
         
         # 4. Если вообще нет LLM → ошибка
         if llm is None:
@@ -438,11 +436,11 @@ class InfrastructureContext:
             response = await llm.generate(request)
             return response
         except Exception as e:
-            self.logger.error(f"Ошибка LLM провайдера: {e}")
+            self.event_bus_logger.error(f"Ошибка LLM провайдера: {e}")
             
             if fallback and provider_name:
                 # Пытаемся использовать backup
-                self.logger.warning("Попытка fallback на backup LLM")
+                self.event_bus_logger.warning("Попытка fallback на backup LLM")
                 backup_llm = self._get_backup_llm(exclude_name=provider_name)
                 
                 if backup_llm:
@@ -450,7 +448,7 @@ class InfrastructureContext:
                         response = await backup_llm.generate(request)
                         return response
                     except Exception as backup_error:
-                        self.logger.error(f"Backup LLM также не удался: {backup_error}")
+                        self.event_bus_logger.error(f"Backup LLM также не удался: {backup_error}")
             
             # Если fallback не помог или не запрошен
             raise
@@ -504,37 +502,37 @@ class InfrastructureContext:
         if not self._initialized:
             return
 
-        self.logger.info("Начало завершения работы InfrastructureContext")
+        self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
 
         # Сохранение Vector Search индексов
         if self._faiss_providers and self.config.vector_search:
-            self.logger.info("Сохранение Vector Search индексов...")
+            self.event_bus_logger.info("Сохранение Vector Search индексов...")
             from pathlib import Path
             for source, provider in self._faiss_providers.items():
                 try:
                     index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
                     index_path.parent.mkdir(parents=True, exist_ok=True)
                     await provider.save(str(index_path))
-                    self.logger.info(f"💾 Сохранён индекс {source}: {index_path}")
+                    self.event_bus_logger.info(f"💾 Сохранён индекс {source}: {index_path}")
                 except Exception as e:
-                    self.logger.error(f"Ошибка сохранения индекса {source}: {e}")
+                    self.event_bus_logger.error(f"Ошибка сохранения индекса {source}: {e}")
         
         # Завершение Vector Search провайдеров
         for source, provider in self._faiss_providers.items():
             try:
                 await provider.shutdown()
             except Exception as e:
-                self.logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
+                self.event_bus_logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
         
         if self._embedding_provider:
             try:
                 await self._embedding_provider.shutdown()
             except Exception as e:
-                self.logger.error(f"Ошибка завершения Embedding провайдера: {e}")
+                self.event_bus_logger.error(f"Ошибка завершения Embedding провайдера: {e}")
 
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:
             await self.lifecycle_manager.cleanup_all()
 
         self._initialized = False
-        self.logger.info("InfrastructureContext завершил работу")
+        self.event_bus_logger.info("InfrastructureContext завершил работу")

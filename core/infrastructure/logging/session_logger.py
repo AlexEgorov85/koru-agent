@@ -84,7 +84,7 @@ class SessionLogger:
                 goal
             )
 
-        logger.info(f"Сессия начата: {self.session_id} (goal: {goal})")
+        self.event_bus_logger.info(f"Сессия начата: {self.session_id} (goal: {goal})")
 
     async def log_llm_prompt(self, component: str, phase: str,
                               system_prompt: str, user_prompt: str,
@@ -260,7 +260,7 @@ class SessionLogger:
                 int(total_time_ms)
             )
 
-        logger.info(f"Сессия завершена: {self.session_id} (success={success}, steps={self._steps})")
+        self.event_bus_logger.info(f"Сессия завершена: {self.session_id} (success={success}, steps={self._steps})")
 
     def info(self, message: str, **kwargs):
         """INFO сообщение."""
@@ -328,14 +328,14 @@ class SessionLogger:
                 loop = asyncio.get_running_loop()
                 # Если loop запущен, не пытаемся завершить сессию здесь
                 # Это будет сделано в другом месте
-                logger.debug(f"Сессия {self.session_id} активна, но event loop запущен")
+                self.event_bus_logger.debug(f"Сессия {self.session_id} активна, но event loop запущен")
                 self._active = False
             except RuntimeError:
                 # Нет запущенного event loop, можно безопасно использовать asyncio.run()
                 try:
                     asyncio.run(self.end(success=True))
                 except Exception as e:
-                    logger.error(f"Ошибка при завершении сессии {self.session_id}: {e}")
+                    self.event_bus_logger.error(f"Ошибка при завершении сессии {self.session_id}: {e}")
                 finally:
                     self._active = False
         else:

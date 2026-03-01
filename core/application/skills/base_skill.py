@@ -61,7 +61,7 @@ class BaseSkill(BaseComponent):
         if success:
             self._is_initialized = True
             if hasattr(self.application_context, 'logger'):
-                self.application_context.logger.info(
+                self.application_context.self.event_bus_logger.info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
                     f"Загружено: промпты={len(self.prompts)}, "
                     f"input-контракты={len(self.input_contracts)}, "
@@ -142,18 +142,18 @@ class BaseSkill(BaseComponent):
 
                 # Проверка наличия промпта для capability
                 if cap_name not in self.prompts:
-                    self.logger.warning(
+                    self.event_bus_logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет промпта"
                     )
 
                 # Проверка наличия контрактов для capability
                 if cap_name not in self.input_contracts:
-                    self.logger.warning(
+                    self.event_bus_logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет input контракта"
                     )
 
                 if cap_name not in self.output_contracts:
-                    self.logger.warning(
+                    self.event_bus_logger.warning(
                         f"{self.name}: Capability '{cap.name}' не имеет output контракта"
                     )
 
@@ -330,7 +330,7 @@ class BaseSkill(BaseComponent):
                 return True
         except Exception as e:
             if hasattr(self.application_context, 'logger'):
-                self.application_context.logger.error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
+                self.application_context.self.event_bus_logger.error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
             else:
                 import logging
                 logging.getLogger(__name__).error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
@@ -346,7 +346,7 @@ class BaseSkill(BaseComponent):
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
         if hasattr(self.application_context, 'logger'):
-            self.application_context.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
+            self.application_context.self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         else:
             import logging
             logging.getLogger(__name__).warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")

@@ -45,7 +45,7 @@ class LogComponentMixin:
         - method_name: имя метода
         - params: параметры метода (опционально)
         """
-        self.logger.debug(f"▶️ {method_name} started{f' with params: {params}' if params else ''}")
+        self.event_bus_logger.debug(f"▶️ {method_name} started{f' with params: {params}' if params else ''}")
 
     def log_success(self, method_name: str, result: Optional[Any] = None, 
                     execution_time_ms: Optional[float] = None) -> None:
@@ -60,7 +60,7 @@ class LogComponentMixin:
         msg = f"✅ {method_name} completed"
         if execution_time_ms is not None:
             msg += f" in {execution_time_ms:.2f}ms"
-        self.logger.debug(msg)
+        self.event_bus_logger.debug(msg)
 
     def log_error(self, method_name: str, error: Exception, 
                   execution_time_ms: Optional[float] = None) -> None:
@@ -75,4 +75,4 @@ class LogComponentMixin:
         msg = f"❌ {method_name} failed: {error}"
         if execution_time_ms is not None:
             msg += f" after {execution_time_ms:.2f}ms"
-        self.logger.error(msg, exc_info=True)
+        self.event_bus_logger.error(msg, exc_info=True)

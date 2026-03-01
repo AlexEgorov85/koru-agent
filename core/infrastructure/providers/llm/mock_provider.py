@@ -60,7 +60,7 @@ class MockLLMProvider(BaseLLMProvider):
         self._default_response = config.default_response
         self._call_history: List[Dict[str, Any]] = []
 
-        logger.info(f"Создан MockLLMProvider для модели: {model_name}")
+        self.event_bus_logger.info(f"Создан MockLLMProvider для модели: {model_name}")
     
     def register_response(self, prompt_pattern: str, response: str):
         """
@@ -71,7 +71,7 @@ class MockLLMProvider(BaseLLMProvider):
             response: Ответ, который будет возвращен при совпадении
         """
         self._prompt_responses[prompt_pattern] = response
-        logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
+        self.event_bus_logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
     
     def register_regex_response(self, pattern: str, response: str):
         """
@@ -83,7 +83,7 @@ class MockLLMProvider(BaseLLMProvider):
         """
         compiled_pattern = re.compile(pattern, re.IGNORECASE | re.DOTALL)
         self._prompt_responses[compiled_pattern] = response
-        logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
+        self.event_bus_logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
     
     def set_default_response(self, response: str):
         """
@@ -93,7 +93,7 @@ class MockLLMProvider(BaseLLMProvider):
             response: Ответ по умолчанию
         """
         self._default_response = response
-        logger.debug(f"Установлен ответ по умолчанию: {response[:50]}...")
+        self.event_bus_logger.debug(f"Установлен ответ по умолчанию: {response[:50]}...")
     
     def get_call_history(self) -> List[Dict[str, Any]]:
         """
@@ -107,7 +107,7 @@ class MockLLMProvider(BaseLLMProvider):
     def clear_history(self):
         """Очистка истории вызовов."""
         self._call_history.clear()
-        logger.debug("История вызовов очищена")
+        self.event_bus_logger.debug("История вызовов очищена")
     
     def get_last_call(self) -> Optional[Dict[str, Any]]:
         """
@@ -156,13 +156,13 @@ class MockLLMProvider(BaseLLMProvider):
     async def initialize(self) -> bool:
         """Инициализация провайдера."""
         try:
-            logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
+            self.event_bus_logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
             self.initialized = True
             self.is_initialized = True
             self._set_healthy_status()
             return True
         except Exception as e:
-            logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
+            self.event_bus_logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
             return False
 
     async def health_check(self) -> Dict[str, Any]:
@@ -187,7 +187,7 @@ class MockLLMProvider(BaseLLMProvider):
         start_time = time.time()
 
         # Логирование вызова
-        logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
+        self.event_bus_logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
 
         # Поиск подходящего ответа
         response = self._default_response
@@ -235,7 +235,7 @@ class MockLLMProvider(BaseLLMProvider):
 
     async def shutdown(self):
         """Завершение работы провайдера."""
-        logger.info("Mock LLM провайдер завершает работу")
+        self.event_bus_logger.info("Mock LLM провайдер завершает работу")
         self.initialized = False
         self.is_initialized = False
 
@@ -329,7 +329,7 @@ class MockLLMProvider(BaseLLMProvider):
                 }
                 validation_errors.append(error_info)
                 
-                self.logger.warning(
+                self.event_bus_logger.warning(
                     f"Mock: Попытка {attempt}/{config.max_retries} не удалась: {e}"
                 )
         

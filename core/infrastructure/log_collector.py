@@ -70,7 +70,7 @@ class LogCollector(BaseEventCollector):
         - EventType.LLM_RESPONSE_RECEIVED: полученный ответ от LLM
         """
         if self._initialized:
-            logger.warning("LogCollector уже инициализирован")
+            self.event_bus_logger.warning("LogCollector уже инициализирован")
             return
 
         # Подписка на события
@@ -89,7 +89,7 @@ class LogCollector(BaseEventCollector):
         self._subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response_received)
 
         self._initialized = True
-        logger.info("LogCollector инициализирован: подписан на %d событий", len(self._subscriptions))
+        self.event_bus_logger.info("LogCollector инициализирован: подписан на %d событий", len(self._subscriptions))
 
     def _subscribe(self, event_type: EventType, handler) -> None:
         """Подписка на событие"""
@@ -150,7 +150,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования CAPABILITY_SELECTED: %s", e)
+            self.event_bus_logger.error("Ошибка логирования CAPABILITY_SELECTED: %s", e)
 
     async def _on_error_occurred(self, event: Event) -> None:
         """
@@ -193,7 +193,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования ERROR_OCCURRED: %s", e)
+            self.event_bus_logger.error("Ошибка логирования ERROR_OCCURRED: %s", e)
 
     async def _on_benchmark_event(self, event: Event) -> None:
         """
@@ -237,7 +237,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования бенчмарка: %s", e)
+            self.event_bus_logger.error("Ошибка логирования бенчмарка: %s", e)
 
     async def _on_optimization_event(self, event: Event) -> None:
         """
@@ -278,7 +278,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования оптимизации: %s", e)
+            self.event_bus_logger.error("Ошибка логирования оптимизации: %s", e)
 
     async def _on_version_event(self, event: Event) -> None:
         """
@@ -316,7 +316,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования версии: %s", e)
+            self.event_bus_logger.error("Ошибка логирования версии: %s", e)
 
     async def _on_llm_prompt_generated(self, event: Event) -> None:
         """
@@ -358,7 +358,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования LLM промпта: %s", e)
+            self.event_bus_logger.error("Ошибка логирования LLM промпта: %s", e)
 
     async def _on_llm_response_received(self, event: Event) -> None:
         """
@@ -409,7 +409,7 @@ class LogCollector(BaseEventCollector):
             await self.storage.save(log_entry)
 
         except Exception as e:
-            logger.error("Ошибка логирования LLM ответа: %s", e)
+            self.event_bus_logger.error("Ошибка логирования LLM ответа: %s", e)
 
     async def _calculate_quality_score(self, data: Dict[str, Any]) -> float:
         """

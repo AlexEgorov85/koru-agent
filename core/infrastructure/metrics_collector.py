@@ -63,7 +63,7 @@ class MetricsCollector(BaseEventCollector):
         - EventType.METRIC_COLLECTED: произвольные метрики
         """
         if self._initialized:
-            logger.warning("MetricsCollector уже инициализирован")
+            self.event_bus_logger.warning("MetricsCollector уже инициализирован")
             return
 
         # Подписка на события
@@ -98,7 +98,7 @@ class MetricsCollector(BaseEventCollector):
             version = data.get('version')
 
             if not capability:
-                logger.debug("Пропущено событие без capability: %s", event.event_type)
+                self.event_bus_logger.debug("Пропущено событие без capability: %s", event.event_type)
                 return
 
             # Метрика успешности
@@ -149,7 +149,7 @@ class MetricsCollector(BaseEventCollector):
                 await self.storage.record(tokens_metric)
 
         except Exception as e:
-            logger.error("Ошибка обработки SKILL_EXECUTED: %s", e)
+            self.event_bus_logger.error("Ошибка обработки SKILL_EXECUTED: %s", e)
 
     async def _on_capability_selected(self, event: Event) -> None:
         """
@@ -187,7 +187,7 @@ class MetricsCollector(BaseEventCollector):
             await self.storage.record(selection_metric)
 
         except Exception as e:
-            logger.error("Ошибка обработки CAPABILITY_SELECTED: %s", e)
+            self.event_bus_logger.error("Ошибка обработки CAPABILITY_SELECTED: %s", e)
 
     async def _on_error_occurred(self, event: Event) -> None:
         """
@@ -241,7 +241,7 @@ class MetricsCollector(BaseEventCollector):
             await self.storage.record(error_count_metric)
 
         except Exception as e:
-            logger.error("Ошибка обработки ERROR_OCCURRED: %s", e)
+            self.event_bus_logger.error("Ошибка обработки ERROR_OCCURRED: %s", e)
 
     async def _on_metric_collected(self, event: Event) -> None:
         """
@@ -269,7 +269,7 @@ class MetricsCollector(BaseEventCollector):
                 await self.storage.record(metric_record)
 
         except Exception as e:
-            logger.error("Ошибка обработки METRIC_COLLECTED: %s", e)
+            self.event_bus_logger.error("Ошибка обработки METRIC_COLLECTED: %s", e)
 
     async def get_aggregated_metrics(
         self,

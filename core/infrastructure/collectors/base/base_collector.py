@@ -57,11 +57,11 @@ class BaseEventCollector(ABC):
         ДОЛЖЕН БЫТЬ ПЕРЕОПРЕДЕЛЁН в наследниках для подписки на конкретные события.
         """
         if self._initialized:
-            logger.warning("%s уже инициализирован", self.__class__.__name__)
+            self.event_bus_logger.warning("%s уже инициализирован", self.__class__.__name__)
             return
 
         self._initialized = True
-        logger.info(
+        self.event_bus_logger.info(
             "%s инициализирован: подписан на %d событий",
             self.__class__.__name__,
             len(self._subscriptions)
@@ -99,7 +99,7 @@ class BaseEventCollector(ABC):
 
         self._subscriptions.clear()
         self._initialized = False
-        logger.info("%s завершил работу", self.__class__.__name__)
+        self.event_bus_logger.info("%s завершил работу", self.__class__.__name__)
 
     @property
     def is_initialized(self) -> bool:

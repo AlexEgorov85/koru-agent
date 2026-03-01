@@ -128,13 +128,13 @@ class BaseTool(BaseComponent):
 
                 # Проверка наличия контрактов для операции
                 if cap_name not in self.input_contracts:
-                    self.logger.error(
+                    self.event_bus_logger.error(
                         f"{self.name}: Операция '{op_name}' не имеет input контракта"
                     )
                     return False
 
                 if cap_name not in self.output_contracts:
-                    self.logger.error(
+                    self.event_bus_logger.error(
                         f"{self.name}: Операция '{op_name}' не имеет output контракта"
                     )
                     return False
@@ -172,7 +172,7 @@ class BaseTool(BaseComponent):
 
         # Получаем список операций из конфигурации
         allowed_operations = self.get_allowed_operations()
-        logger.debug(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
+        self.event_bus_logger.debug(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
 
         if not allowed_operations and self.component_config:
             # Если operations не указаны явно, извлекаем из input_contract_versions
@@ -184,7 +184,7 @@ class BaseTool(BaseComponent):
                     # Для file_tool: file_tool.read_write
                     if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
                         allowed_operations.append(cap_name)
-                logger.debug(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
+                self.event_bus_logger.debug(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
 
         # Создаём capability для каждой операции
         for op_name in allowed_operations:
@@ -204,7 +204,7 @@ class BaseTool(BaseComponent):
                 }
             ))
 
-        logger.info(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        self.event_bus_logger.info(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
         return capabilities
 
     @abstractmethod

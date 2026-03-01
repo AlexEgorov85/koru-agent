@@ -29,27 +29,27 @@ class LifecycleManager:
     async def initialize_all(self) -> bool:
         """Инициализация всех зарегистрированных ресурсов."""
         if self._initialized:
-            self.logger.warning("LifecycleManager уже инициализирован")
+            self.event_bus_logger.warning("LifecycleManager уже инициализирован")
             return True
             
-        self.logger.info("Начало инициализации всех инфраструктурных ресурсов")
+        self.event_bus_logger.info("Начало инициализации всех инфраструктурных ресурсов")
         
         failed_initializers = []
         for i, initializer in enumerate(self._initializers):
             try:
-                self.logger.debug(f"Инициализация ресурса {i+1}/{len(self._initializers)}")
+                self.event_bus_logger.debug(f"Инициализация ресурса {i+1}/{len(self._initializers)}")
                 await initializer()
             except Exception as e:
-                self.logger.error(f"Ошибка инициализации ресурса: {str(e)}")
+                self.event_bus_logger.error(f"Ошибка инициализации ресурса: {str(e)}")
                 failed_initializers.append((initializer, str(e)))
                 
         if failed_initializers:
-            self.logger.error(f"Не удалось инициализировать {len(failed_initializers)} ресурсов")
+            self.event_bus_logger.error(f"Не удалось инициализировать {len(failed_initializers)} ресурсов")
             # В реальной системе можно было бы реализовать стратегию восстановления
             return False
             
         self._initialized = True
-        self.logger.info("Все инфраструктурные ресурсы успешно инициализированы")
+        self.event_bus_logger.info("Все инфраструктурные ресурсы успешно инициализированы")
         return True
         
     async def cleanup_all(self):
@@ -57,17 +57,17 @@ class LifecycleManager:
         if not self._initialized:
             return
             
-        self.logger.info("Начало завершения работы всех инфраструктурных ресурсов")
+        self.event_bus_logger.info("Начало завершения работы всех инфраструктурных ресурсов")
         
         for i, cleanup_func in enumerate(self._cleanup_funcs):
             try:
-                self.logger.debug(f"Завершение ресурса {i+1}/{len(self._cleanup_funcs)}")
+                self.event_bus_logger.debug(f"Завершение ресурса {i+1}/{len(self._cleanup_funcs)}")
                 await cleanup_func()
             except Exception as e:
-                self.logger.error(f"Ошибка при завершении ресурса: {str(e)}")
+                self.event_bus_logger.error(f"Ошибка при завершении ресурса: {str(e)}")
                 
         self._initialized = False
-        self.logger.info("Все инфраструктурные ресурсы завершены")
+        self.event_bus_logger.info("Все инфраструктурные ресурсы завершены")
         
     @asynccontextmanager
     async def managed_context(self):

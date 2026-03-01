@@ -70,11 +70,11 @@ class LLMEventSubscriber:
         )
 
         # Краткое уведомление в лог (DEBUG → только файл)
-        logger.debug(f"LLM Prompt #{self._prompt_count} | {component}/{phase} | Session: {session_id}")
-        logger.debug(f"Prompt length: {data.get('prompt_length', len(data.get('user_prompt', '')))} chars")
+        self.event_bus_logger.debug(f"LLM Prompt #{self._prompt_count} | {component}/{phase} | Session: {session_id}")
+        self.event_bus_logger.debug(f"Prompt length: {data.get('prompt_length', len(data.get('user_prompt', '')))} chars")
 
         # Пользователь видит только факт (INFO)
-        logger.info(f"📝 Промпт #{self._prompt_count} ({data.get('prompt_length', 0)} символов)")
+        self.event_bus_logger.info(f"📝 Промпт #{self._prompt_count} ({data.get('prompt_length', 0)} символов)")
 
     async def on_llm_response_received(self, event: Event):
         """
@@ -99,10 +99,10 @@ class LLMEventSubscriber:
             response_str = json.dumps(response, ensure_ascii=False)[:200]
         else:
             response_str = str(response)[:200]
-        logger.debug(f"LLM Response #{self._response_count} | {component}/{phase} | {response_str}...")
+        self.event_bus_logger.debug(f"LLM Response #{self._response_count} | {component}/{phase} | {response_str}...")
 
         # Пользователь видит только факт (INFO)
-        logger.info(f"✅ Ответ #{self._response_count} получен")
+        self.event_bus_logger.info(f"✅ Ответ #{self._response_count} получен")
 
     def subscribe(self, event_bus: EventBus):
         """
@@ -113,7 +113,7 @@ class LLMEventSubscriber:
         """
         event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self.on_llm_prompt_generated)
         event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self.on_llm_response_received)
-        logger.info(f"LLMEventSubscriber подписан (log_full={self.log_full_content})")
+        self.event_bus_logger.info(f"LLMEventSubscriber подписан (log_full={self.log_full_content})")
 
     def get_stats(self) -> dict:
         """
