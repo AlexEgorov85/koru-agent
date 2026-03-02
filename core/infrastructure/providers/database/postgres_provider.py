@@ -32,7 +32,20 @@ class PostgreSQLProvider(BaseDBProvider):
         self.pool = None
         self._lock = asyncio.Lock()
 
-        self.event_bus_logger.info(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
+        # Инициализация event_bus_logger
+        try:
+            from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+            from core.infrastructure.event_bus.unified_logger import EventBusLogger
+            event_bus = get_event_bus()
+            self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", f"PostgreSQL:{self.config.database}")
+            self.event_bus_logger.info(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
+        except:
+            self.event_bus_logger = type('obj', (object,), {
+                'info': lambda *args, **kwargs: None,
+                'debug': lambda *args, **kwargs: None,
+                'warning': lambda *args, **kwargs: None,
+                'error': lambda *args, **kwargs: None
+            })()
 
     async def initialize(self) -> bool:
         """

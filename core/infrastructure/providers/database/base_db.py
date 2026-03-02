@@ -58,7 +58,7 @@ class BaseDBProvider(BaseProvider, ABC):
 
         super().__init__(
             name=f"{db_config.database}@{db_config.host}",
-            config=config if isinstance(config, dict) else config.model_dump()
+            config=config if isinstance(config, dict) else vars(config) if hasattr(config, '__dict__') else config
         )
         self.config = db_config
         self.health_status = DBHealthStatus.UNKNOWN

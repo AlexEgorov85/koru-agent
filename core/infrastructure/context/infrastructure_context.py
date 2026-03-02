@@ -282,11 +282,17 @@ class InfrastructureContext:
                     sys.stdout.flush()
 
         # Регистрация DB провайдеров
+        sys.stdout.write(f'[DEBUG] Регистрация DB провайдеров. db_providers count={len(self.config.db_providers)}\n')
+        sys.stdout.flush()
         for provider_name, provider_config in self.config.db_providers.items():
+            sys.stdout.write(f'[DEBUG] Обработка DB провайдера {provider_name}: enabled={getattr(provider_config, "enabled", False)}\n')
+            sys.stdout.flush()
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
+                    sys.stdout.write(f'[DEBUG] Создание DB провайдера типа {provider_type}\n')
+                    sys.stdout.flush()
                     from core.models.types.db_types import DBConnectionConfig
                     config_obj = DBConnectionConfig(**provider_config.parameters)
 
@@ -294,11 +300,22 @@ class InfrastructureContext:
                         provider_type=provider_type,
                         config=config_obj
                     )
-                    
+                    sys.stdout.write(f'[DEBUG] DB провайдер создан: {provider is not None}\n')
+                    sys.stdout.flush()
+
                     # Инициализация провайдера
                     if hasattr(provider, 'initialize') and callable(provider.initialize):
-                        await provider.initialize()
-                    
+                        sys.stdout.write(f'[DEBUG] Вызов DB provider.initialize()...\n')
+                        sys.stdout.flush()
+                        try:
+                            await provider.initialize()
+                            sys.stdout.write(f'[DEBUG] DB provider.initialize() завершён\n')
+                            sys.stdout.flush()
+                        except Exception as init_err:
+                            sys.stdout.write(f'[DEBUG] Ошибка в DB initialize(): {init_err}\n')
+                            sys.stdout.flush()
+                            raise
+
                     if provider:
                         # Регистрация DB провайдера в системе
                         info_db = ResourceInfo(
@@ -308,8 +325,12 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
+                        sys.stdout.write(f'[DEBUG] DB провайдер {provider_name} зарегистрирован\n')
+                        sys.stdout.flush()
                         await self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
+                    sys.stdout.write(f'[DEBUG] Ошибка DB {provider_name}: {e}\n')
+                    sys.stdout.flush()
                     await self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _init_vector_search(self):
