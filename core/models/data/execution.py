@@ -9,6 +9,64 @@ from core.models.enums.common_enums import ExecutionStatus
 
 
 @dataclass
+class SkillResult:
+    """
+    Унифицированный результат выполнения Skill.
+
+    ИСПОЛЬЗУЕТСЯ ВО ВСЕХ SKILLS ДЛЯ ЕДИНОГО ФОРМАТА ВОЗВРАТА.
+
+    ATTRIBUTES:
+    - technical_success: технический успех выполнения (True/False)
+    - data: полезные данные результата
+    - error: описание ошибки (если была)
+    - metadata: дополнительные метаданные (время, токены, версии)
+    - side_effect: был ли side-effect (файл, сеть, БД, изменение контекста)
+    """
+    technical_success: bool = True
+    data: Optional[Any] = None
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    side_effect: bool = False
+
+    def __post_init__(self):
+        # Гарантируем, что metadata всегда dict
+        if self.metadata is None:
+            self.metadata = {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертация в словарь для сериализации."""
+        return {
+            "technical_success": self.technical_success,
+            "data": self.data,
+            "error": self.error,
+            "metadata": self.metadata,
+            "side_effect": self.side_effect
+        }
+
+    @classmethod
+    def success(cls, data: Any = None, metadata: Optional[Dict[str, Any]] = None, side_effect: bool = False) -> 'SkillResult':
+        """Factory метод для успешного результата."""
+        return cls(
+            technical_success=True,
+            data=data,
+            error=None,
+            metadata=metadata or {},
+            side_effect=side_effect
+        )
+
+    @classmethod
+    def failure(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'SkillResult':
+        """Factory метод для неудачного результата."""
+        return cls(
+            technical_success=False,
+            data=None,
+            error=error,
+            metadata=metadata or {},
+            side_effect=False
+        )
+
+
+@dataclass
 class ExecutionResult:
     """
     Результат выполнения задачи.
