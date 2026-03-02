@@ -582,25 +582,25 @@ class PipelineBuilder:
         """Добавление произвольного этапа."""
         self._stages.append(stage)
         return self
-    
+
     def build(
         self,
-        event_bus_manager: EventBusManager = None,
+        event_bus=None,
         error_handler: ErrorHandler = None,
     ) -> DataPipeline:
         """
         Построение конвейера.
-        
+
         ARGS:
-        - event_bus_manager: менеджер событий
+        - event_bus: шина событий
         - error_handler: обработчик ошибок
-        
+
         RETURNS:
         - DataPipeline: готовый конвейер
         """
         pipeline = DataPipeline(
             self._name,
-            event_bus_manager=event_bus_manager,
+            event_bus=event_bus,
             error_handler=error_handler,
         )
         

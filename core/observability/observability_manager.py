@@ -561,24 +561,24 @@ def get_observability_manager() -> ObservabilityManager:
 
 
 def create_observability_manager(
-    event_bus_manager: EventBusManager = None,
+    event_bus=None,
     metrics_storage: IMetricsStorage = None,
     log_storage: ILogStorage = None,
 ) -> ObservabilityManager:
     """
     Создание глобального менеджера наблюдаемости.
-    
+
     ARGS:
-    - event_bus_manager: менеджер событий
+    - event_bus: шина событий
     - metrics_storage: хранилище метрик
     - log_storage: хранилище логов
-    
+
     RETURNS:
     - ObservabilityManager: созданный экземпляр
     """
     global _global_observability_manager
     _global_observability_manager = ObservabilityManager(
-        event_bus_manager=event_bus_manager,
+        event_bus=event_bus,
         metrics_storage=metrics_storage,
         log_storage=log_storage,
     )
