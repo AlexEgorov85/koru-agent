@@ -16,8 +16,7 @@ from datetime import datetime
 
 from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
-from core.models.data.manifest import Manifest, ComponentStatus
-from core.models.enums.common_enums import ComponentType
+from core.models.enums.common_enums import ComponentType, ComponentStatus
 
 
 logger = logging.getLogger(__name__)
@@ -65,8 +64,7 @@ class ResourceDiscovery:
         # Кэши загруженных ресурсов
         self._prompts_cache: Dict[Tuple[str, str], Prompt] = {}
         self._contracts_cache: Dict[Tuple[str, str, str], Contract] = {}
-        self._manifests_cache: Dict[str, Manifest] = {}
-        
+
         # Статистика
         self._stats = {
             'prompts_scanned': 0,
@@ -75,11 +73,8 @@ class ResourceDiscovery:
             'contracts_scanned': 0,
             'contracts_loaded': 0,
             'contracts_skipped': 0,
-            'manifests_scanned': 0,
-            'manifests_loaded': 0,
-            'manifests_skipped': 0,
         }
-        
+
         logger.info(f"ResourceDiscovery инициализирован: base_dir={self.base_dir}, profile={self.profile}")
         logger.info(f"Разрешённые статусы промптов: {[s.value for s in self.allowed_prompt_statuses]}")
     
@@ -264,113 +259,14 @@ class ResourceDiscovery:
             self._stats['contracts_loaded'] += 1
             logger.debug(f"Загружен контракт: {capability}@{version} ({direction}) (status={status})")
             return contract
-            
+
         except Exception as e:
             logger.error(f"Ошибка парсинга контракта {file_path}: {e}", exc_info=True)
             return None
-    
-    def _parse_manifest_file(self, file_path: Path) -> Optional[Manifest]:
-        """
-        Парсинг файла манифеста.
-        
-        ПАРАМЕТРЫ:
-        - file_path: Путь к файлу manifest.yaml
-        
-        ВОЗВРАЩАЕТ:
-        - Optional[Manifest]: Объект манифеста или None при ошибке
-        """
-        import yaml
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
-            
-            if not isinstance(data, dict):
-                logger.warning(f"Файл манифеста {file_path} не содержит словарь")
-                return None
-            
-            # Извлекаем обязательные поля
-            component_id = data.get('component_id')
-            component_type = data.get('component_type')
-            version = data.get('version')
-            owner = data.get('owner')
-            status = data.get('status', 'draft')
-            
-            if not component_id or not component_type or not version:
-                logger.warning(f"Манифест {file_path} не содержит обязательные поля")
-                return None
-            
-            # Проверяем статус
-            if not self._should_load_resource(status, 'component'):
-                self._stats['manifests_skipped'] += 1
-                logger.debug(f"Пропущен манифест {component_id} со статусом {status}")
-                return None
-            
-            # Определяем тип компонента
-            try:
-                comp_type = ComponentType(component_type)
-            except ValueError:
-                logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
-                return None
-            
-            # Парсинг опциональных полей
-            contract_data = data.get('contract')
-            constraints = data.get('constraints')
-            
-            quality_metrics = None
-            if data.get('quality_metrics'):
-                from core.models.data.manifest import QualityMetrics
-                try:
-                    quality_metrics = QualityMetrics(**data['quality_metrics'])
-                except Exception as e:
-                    logger.warning(f"Ошибка парсинга quality_metrics в {file_path}: {e}")
-            
-            success_metrics = None
-            if data.get('success_metrics'):
-                from core.models.data.manifest import SuccessMetrics
-                try:
-                    success_metrics = SuccessMetrics(**data['success_metrics'])
-                except Exception as e:
-                    logger.warning(f"Ошибка парсинга success_metrics в {file_path}: {e}")
-            
-            dependencies = data.get('dependencies', {
-                'components': [],
-                'tools': [],
-                'services': []
-            })
-            
-            changelog = []
-            if data.get('changelog'):
-                from core.models.data.manifest import ChangelogEntry
-                for entry in data['changelog']:
-                    try:
-                        changelog.append(ChangelogEntry(**entry))
-                    except Exception as e:
-                        logger.warning(f"Ошибка парсинга changelog entry в {file_path}: {e}")
-            
-            # Создаём объект Manifest
-            manifest = Manifest(
-                component_id=component_id,
-                component_type=comp_type,
-                version=version,
-                owner=owner or 'unknown',
-                status=ComponentStatus(status),
-                contract=contract_data,
-                constraints=constraints,
-                quality_metrics=quality_metrics,
-                success_metrics=success_metrics,
-                dependencies=dependencies,
-                changelog=changelog
-            )
-            
-            self._stats['manifests_loaded'] += 1
-            logger.debug(f"Загружен манифест: {component_id}@{version} (status={status})")
-            return manifest
-            
-        except Exception as e:
-            logger.error(f"Ошибка парсинга манифеста {file_path}: {e}", exc_info=True)
-            return None
-    
+
+    # === Метод _parse_manifest_file() удалён ===
+    # Манифесты удалены из системы
+
     def _infer_component_type_from_path(self, file_path: Path) -> ComponentType:
         """
         Авто-определение типа компонента по пути к файлу.
@@ -525,37 +421,9 @@ class ResourceDiscovery:
         
         logger.info(f"Загружено {len(contracts)} контрактов (пропущено: {self._stats['contracts_skipped']})")
         return contracts
-    
-    def discover_manifests(self) -> List[Manifest]:
-        """
-        Сканирование и загрузка всех манифестов с разрешёнными статусами.
-        
-        ВОЗВРАЩАЕТ:
-        - List[Manifest]: Список загруженных манифестов
-        """
-        manifests = []
-        manifests_dir = self.base_dir / 'manifests'
-        
-        if not manifests_dir.exists():
-            logger.warning(f"Директория манифестов не найдена: {manifests_dir}")
-            return manifests
-        
-        # Поиск всех manifest.yaml файлов
-        manifest_files = list(manifests_dir.rglob('manifest.yaml')) + \
-                        list(manifests_dir.rglob('manifest.yml'))
-        
-        self._stats['manifests_scanned'] = len(manifest_files)
-        logger.info(f"Найдено {len(manifest_files)} файлов манифестов в {manifests_dir}")
-        
-        for file_path in manifest_files:
-            manifest = self._parse_manifest_file(file_path)
-            if manifest:
-                key = f"{manifest.component_type.value}.{manifest.component_id}"
-                self._manifests_cache[key] = manifest
-                manifests.append(manifest)
-        
-        logger.info(f"Загружено {len(manifests)} манифестов (пропущено: {self._stats['manifests_skipped']})")
-        return manifests
+
+    # === Метод discover_manifests() удалён ===
+    # Манифесты удалены из системы. Зависимости объявляются через DEPENDENCIES в коде компонентов.
     
     def get_prompt(self, capability: str, version: str) -> Optional[Prompt]:
         """
@@ -588,19 +456,9 @@ class ResourceDiscovery:
         - Optional[Contract]: Объект контракта или None
         """
         return self._contracts_cache.get((capability, version, direction))
-    
-    def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
-        """
-        Получение конкретного манифеста из кэша.
-        
-        ПАРАМЕТРЫ:
-        - component_type: Тип компонента
-        - component_id: Имя компонента
-        
-        ВОЗВРАЩАЕТ:
-        - Optional[Manifest]: Объект манифеста или None
-        """
-        return self._manifests_cache.get(f"{component_type}.{component_id}")
+
+    # === Метод get_manifest() удалён ===
+    # Манифесты удалены из системы
     
     def get_stats(self) -> Dict[str, int]:
         """
@@ -614,7 +472,7 @@ class ResourceDiscovery:
     def get_validation_report(self) -> str:
         """
         Формирование отчёта о валидации.
-        
+
         ВОЗВРАЩАЕТ:
         - str: Текстовый отчёт
         """
@@ -635,10 +493,7 @@ class ResourceDiscovery:
             f"  - Загружено: {self._stats['contracts_loaded']}",
             f"  - Пропущено (статус): {self._stats['contracts_skipped']}",
             "",
-            "Манифесты:",
-            f"  - Просканировано файлов: {self._stats['manifests_scanned']}",
-            f"  - Загружено: {self._stats['manifests_loaded']}",
-            f"  - Пропущено (статус): {self._stats['manifests_skipped']}",
+            "Манифесты: удалены из системы",
             "=" * 60,
         ]
         return "\n".join(lines)

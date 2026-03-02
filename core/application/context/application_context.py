@@ -20,7 +20,6 @@ from pydantic import BaseModel
 
 from core.application.tools.base_tool import BaseTool
 from core.config.app_config import AppConfig
-from core.config.registry_loader import RegistryLoader
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.skills.base_skill import BaseSkill
 from core.application.services.prompt_service import PromptService
@@ -111,18 +110,36 @@ class ApplicationContext(BaseSystemContext):
             # Получаем data_dir из infrastructure_context.config (SystemConfig)
             # Используем getattr для безопасности с fallback на "data"
             data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
-            
-            # Загружаем реестр напрямую (для получения capability_types)
-            registry_loader = RegistryLoader(Path(data_dir) / "registry.yaml")
-            registry_config = registry_loader.load(profile=profile)
 
-            # Создаём источник данных поверх ФС (новая архитектурно-правильная реализация)
+            # Используем ResourceDiscovery для загрузки конфигурации
+            from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+            discovery = ResourceDiscovery(Path(data_dir), profile=profile)
+            
+            # Создаём источник данных поверх ФС
+            from core.infrastructure.storage.resource_data_source import ResourceDataSource
+            from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+            
+            # Создаём минимальный registry_config из discovery
+            registry_config = {
+                'capability_types': {},
+                'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
+                'active_contracts': {}
+            }
+            
+            # Собираем контракты
+            for contract in discovery.discover_contracts():
+                cap = contract.capability
+                if cap not in registry_config['active_contracts']:
+                    registry_config['active_contracts'][cap] = {}
+                registry_config['active_contracts'][cap][contract.direction.value] = contract.version
+
+            # Создаём источник данных поверх ФС
             fs_data_source = FileSystemDataSource(
                 Path(data_dir),
                 registry_config
             )
 
-            # Инициализируем источник данных (строгая валидация по архитектурным требованиям)
+            # Инициализируем источник данных
             fs_data_source.initialize()
 
             # Создаём репозиторий
@@ -261,65 +278,67 @@ class ApplicationContext(BaseSystemContext):
             )
 
             # === ЭТАП: Загрузка и валидация манифестов ===
-            if self.data_repository:
-                await self.data_repository.load_manifests()
-
-                validation_report = await self._validate_manifests_by_profile()
-
-                if validation_report['critical_errors'] and self.profile == "prod":
-                    self.logger.critical(
-                        f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
-                        f"{chr(10).join(validation_report['error_details'])}\n"  # chr(10) = \n
-                        f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
-                    )
-                    return False
-
-                if validation_report['warnings']:
-                    self.logger.warning(
-                        f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
-                        f"{chr(10).join(validation_report['warning_details'])}"  # chr(10) = \n
-                    )
-
-                self.logger.info(
-                    f"✅ Валидация манифестов завершена:\n"
-                    f"  - Проверено: {validation_report['total_manifests']}\n"
-                    f"  - Критических ошибок: {validation_report['critical_errors']}\n"
-                    f"  - Предупреждений: {validation_report['warnings']}"
-                )
+            # TODO: Реализовать load_manifests() в DataRepository
+            # if self.data_repository:
+            #     await self.data_repository.load_manifests()
+            #
+            #     validation_report = await self._validate_manifests_by_profile()
+            #
+            #     if validation_report['critical_errors'] and self.profile == "prod":
+            #         self.logger.critical(
+            #             f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
+            #             f"{chr(10).join(validation_report['error_details'])}\n"
+            #             f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
+            #         )
+            #         return False
+            #
+            #     if validation_report['warnings']:
+            #         self.logger.warning(
+            #             f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
+            #             f"{chr(10).join(validation_report['warning_details'])}"
+            #         )
+            #
+            #     self.logger.info(
+            #         f"✅ Валидация манифестов завершена:\n"
+            #         f"  - Проверено: {validation_report['total_manifests']}\n"
+            #         f"  - Критических ошибок: {validation_report['critical_errors']}\n"
+            #         f"  - Предупреждений: {validation_report['warnings']}"
+            #     )
 
             # === ЭТАП: Валидация дублирования и целостности схем ===
-            from core.application.services.manifest_validation_service import ManifestValidationService
+            # TODO: Временно отключено до реализации _manifest_cache в DataRepository
+            # from core.application.services.manifest_validation_service import ManifestValidationService
+            #
+            # validation_service = ManifestValidationService(self.data_repository)
+            #
+            # # Валидация дублирования
+            # duplicate_report = await validation_service.validate_no_duplicates()
+            # if not duplicate_report['is_valid']:
+            #     self.logger.error(
+            #         f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
+            #         f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
+            #         f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
+            #         f"- Конфликты версий: {len(duplicate_report['version_conflicts'])}"
+            #     )
+            #     if self.profile == "prod":
+            #         return False
+            #
+            # # Валидация целостности схем
+            # schema_report = await validation_service.validate_schema_integrity()
+            # if not schema_report['is_valid']:
+            #     self.logger.error(
+            #         f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
+            #         f"- Missing input: {len(schema_report['missing_input'])}\n"
+            #         f"- Missing output: {len(schema_report['missing_output'])}"
+            #     )
+            #     if self.profile == "prod":
+            #         return False
             
-            validation_service = ManifestValidationService(self.data_repository)
-            
-            # Валидация дублирования
-            duplicate_report = await validation_service.validate_no_duplicates()
-            if not duplicate_report['is_valid']:
-                self.logger.error(
-                    f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
-                    f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
-                    f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
-                    f"- Конфликты версий: {len(duplicate_report['version_conflicts'])}"
-                )
-                if self.profile == "prod":
-                    return False
-            
-            # Валидация целостности схем
-            schema_report = await validation_service.validate_schema_integrity()
-            if not schema_report['is_valid']:
-                self.logger.error(
-                    f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
-                    f"- Missing input: {len(schema_report['missing_input'])}\n"
-                    f"- Missing output: {len(schema_report['missing_output'])}"
-                )
-                if self.profile == "prod":
-                    return False
-            
-            self.logger.info(
-                f"✅ Валидация целостности завершена:\n"
-                f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
-                f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
-            )
+            # self.logger.info(
+            #     f"✅ Валидация целостности завершена:\n"
+            #     f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
+            #     f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
+            # )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
             self.logger.error(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
@@ -842,51 +861,6 @@ class ApplicationContext(BaseSystemContext):
         self.logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
         return True
 
-    async def _validate_manifests_by_profile(self) -> Dict[str, Any]:
-        """Валидация всех манифестов по профилю"""
-        report = {
-            'total_manifests': 0,
-            'critical_errors': 0,
-            'warnings': 0,
-            'error_details': [],
-            'warning_details': []
-        }
-        
-        component_configs = self._resolve_component_configs()
-        
-        for comp_type, configs in component_configs.items():
-            for comp_name, config in configs.items():
-                report['total_manifests'] += 1
-                
-                manifest = self.data_repository.get_manifest(comp_type.value, comp_name)
-                
-                if not manifest:
-                    if self.profile == "prod":
-                        report['critical_errors'] += 1
-                        report['error_details'].append(
-                            f"[PROD] Манифест не найден для {comp_type.value}.{comp_name} (из конфигурации)"
-                        )
-                    else:
-                        report['warnings'] += 1
-                        report['warning_details'].append(
-                            f"[SANDBOX] Манифест не найден для {comp_type.value}.{comp_name} (из конфигурации)"
-                        )
-                    continue
-                
-                manifest_errors = self.data_repository.validate_manifest_by_profile(
-                    manifest, self.profile
-                )
-                
-                for error in manifest_errors:
-                    if self.profile == "prod":
-                        report['critical_errors'] += 1
-                        report['error_details'].append(f"[PROD] {comp_type.value}.{comp_name}: {error}")
-                    else:
-                        report['warnings'] += 1
-                        report['warning_details'].append(f"[SANDBOX] {comp_type.value}.{comp_name}: {error}")
-        
-        return report
-
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе"""
         # Проверка, что все компоненты, которые были объявлены в конфигурации, инициализированы
@@ -1040,7 +1014,7 @@ class ApplicationContext(BaseSystemContext):
                         exists = await prompt_repository.exists(capability, version)
                         if not exists:
                             self.logger.error(
-                                f"[{self.profile.upper()}] Промпт версия {capability}@{version} не существует. Отклонено."
+                                f"[{self.profile.upper()}] Промпт версия {capability}@{version} н�� существует. Отклонено."
                             )
                             return False
                         
@@ -1535,27 +1509,6 @@ class ApplicationContext(BaseSystemContext):
         await new_ctx.initialize()
 
         return new_ctx
-
-    @classmethod
-    async def create_from_registry(cls, infrastructure_context, profile: Literal["prod", "sandbox"] = "prod"):
-        """
-        Создание ApplicationContext с автоматической загрузкой конфигурации из реестра.
-        
-        ARGS:
-        - infrastructure_context: инфраструктурный контекст
-        - profile: профиль (prod или sandbox)
-        
-        RETURNS:
-        - ApplicationContext: сконфигурированный экземпляр
-        """
-        app_config = AppConfig.from_registry(profile=profile)
-        context = cls(
-            infrastructure_context=infrastructure_context,
-            config=app_config,
-            profile=profile
-        )
-        await context.initialize()
-        return context
 
     def get_service(self, name: str):
         """

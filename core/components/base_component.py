@@ -176,47 +176,38 @@ class BaseComponent(ABC):
 
     async def _validate_manifest(self) -> bool:
         """
-        Валидация манифеста компонента при инициализации.
-        
+        Валидация конфигурации компонента вместо манифеста.
+
         Проверяет:
-        1. Наличие манифеста (если указан в config)
-        2. Статус манифеста (active для prod)
-        3. Owner указан
-        4. Зависимости доступны
+        1. Наличие component_config
+        2. Корректность версий контрактов в config
+        3. Доступность зависимостей из DEPENDENCIES
         """
-        if not self.component_config or not self.component_config.manifest_path:
-            # Манифест опционален для обратной совместимости
-            self.logger.debug(f"{self.name}: Манифест не указан, пропускаем валидацию")
-            return True
-        
-        # Получаем манифест из кэша ApplicationContext
-        manifest = self.application_context.data_repository.get_manifest(
-            self._get_component_type(),
-            self.name
-        )
-        
-        if not manifest:
-            self.logger.warning(f"{self.name}: Манифест не найден в кэше")
+        # Проверка ComponentConfig
+        if not self.component_config:
+            self.logger.debug(f"{self.name}: component_config отсутствует")
             return True  # Не блокируем, но логируем
-        
-        # Проверка статуса для prod
-        if self.application_context.profile == "prod":
-            if manifest.status.value != "active":
-                self.logger.error(
-                    f"{self.name}: Статус '{manifest.status.value}' не разрешён в prod"
+
+        # Проверка что версии контрактов указаны корректно
+        if hasattr(self.component_config, 'input_contract_versions'):
+            for cap, ver in self.component_config.input_contract_versions.items():
+                if not ver or not isinstance(ver, str):
+                    self.logger.error(f"{self.name}: Некорректная версия контракта {cap}@{ver}")
+                    return False
+
+        # Проверка зависимостей из DEPENDENCIES
+        if hasattr(self, 'DEPENDENCIES'):
+            for dep_name in self.DEPENDENCIES:
+                dep = (
+                    self.application_context.components.get(ComponentType.SERVICE, dep_name) or
+                    self.application_context.components.get(ComponentType.TOOL, dep_name) or
+                    self.application_context.components.get(ComponentType.SKILL, dep_name) or
+                    self.application_context.components.get(ComponentType.BEHAVIOR, dep_name)
                 )
-                return False
-        
-        # Проверка owner
-        if not manifest.owner:
-            self.logger.warning(f"{self.name}: Owner не указан в манифесте")
-        
-        # Проверка зависимостей
-        if manifest.dependencies:
-            deps_valid = await self._validate_dependencies(manifest.dependencies)
-            if not deps_valid:
-                return False
-        
+                if not dep:
+                    self.logger.error(f"{self.name}: Зависимость '{dep_name}' не найдена")
+                    return False
+
         return True
 
     async def _validate_dependencies(self, dependencies: Dict[str, list]) -> bool:

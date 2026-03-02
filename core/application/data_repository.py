@@ -6,7 +6,6 @@ from typing import Dict, Tuple, List, Optional, Type
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
 from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
-from core.models.data.manifest import Manifest, ComponentStatus
 from core.config.app_config import AppConfig
 from core.config.models import ComponentType
 from pydantic import BaseModel
@@ -28,7 +27,6 @@ class DataRepository:
         # ТИПИЗИРОВАННЫЕ индексы (объекты классов, не словари!)
         self._prompts_index: Dict[Tuple[str, str], Prompt] = {}
         self._contracts_index: Dict[Tuple[str, str, str], Contract] = {}
-        self._manifest_cache: Dict[str, Manifest] = {}  # Добавляем кэш для манифестов
 
         # Кэши для ленивой загрузки (уже объекты, но для контента/схем)
         self.prompt_cache: Dict[Tuple[str, str], str] = {}
@@ -68,46 +66,6 @@ class DataRepository:
         
         self._initialized = True
         return True
-
-    async def load_manifests(self) -> Dict[str, Manifest]:
-        """Загрузка всех манифестов в кэш репозитория"""
-        manifests = await asyncio.get_event_loop().run_in_executor(
-            None, self.data_source.list_manifests
-        )
-
-        for manifest in manifests:
-            key = f"{manifest.component_type.value}.{manifest.component_id}"
-            self._manifest_cache[key] = manifest
-
-        # Логирование через logger вместо print
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[DataRepository] Загружено {len(manifests)} манифестов: {list(self._manifest_cache.keys())}")
-        return self._manifest_cache
-
-    def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
-        """Получение манифеста из кэша"""
-        key = f"{component_type}.{component_id}"
-        return self._manifest_cache.get(key)
-
-    def validate_manifest_by_profile(self, manifest: Manifest, profile: str) -> List[str]:
-        """Валидация манифеста по профилю"""
-        errors = []
-        
-        # Проверка owner
-        if not manifest.owner:
-            errors.append(f"Owner не указан для {manifest.component_id}")
-        
-        # Проверка статуса для prod
-        if profile == "prod" and manifest.status != ComponentStatus.ACTIVE:
-            errors.append(f"Статус {manifest.status.value} не разрешён в prod для {manifest.component_id}")
-        
-        # Проверка метрик
-        if manifest.quality_metrics:
-            if manifest.quality_metrics.success_rate_target < 0.9:
-                errors.append(f"success_rate_target слишком низкий: {manifest.quality_metrics.success_rate_target}")
-        
-        return errors
 
     async def _validate_against_config(self, app_config: AppConfig):
         """Проверяем, что все версии из конфигурации существуют в ФС"""

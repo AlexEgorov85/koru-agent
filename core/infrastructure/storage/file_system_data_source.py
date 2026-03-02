@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Tuple
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
 from core.models.data.prompt import Prompt, PromptStatus, ComponentType as PromptComponentType
 from core.models.data.contract import Contract, ContractDirection
-from core.models.data.manifest import Manifest, ComponentType as ManifestComponentType, ComponentStatus
+from core.models.enums.common_enums import ComponentType as ManifestComponentType
 from core.config.models import ComponentType, RegistryConfig
 import yaml
 import re
@@ -471,76 +471,12 @@ class FileSystemDataSource(ResourceDataSource):
             else:
                 # Если ни один файл не существует, выбросить ошибку
                 raise FileNotFoundError(f"Файл контракта не найден: {file_path} или {yaml_file_path}")
-        
+
         # Удалить из кэша
         del self._loaded_contracts[name]
 
-    def load_manifest(self, component_type: str, component_name: str) -> Manifest:
-        """Загрузка конкретного манифеста"""
-        self._assert_initialized()
-        
-        key = f"{component_type}.{component_name}"
-        if key in self._loaded_manifests:
-            return self._loaded_manifests[key]
-        
-        # Если не в кэше — загружаем из ФС
-        try:
-            type_enum = ManifestComponentType(component_type)
-            type_dir = self.MANIFEST_TYPE_TO_DIR[type_enum]
-            manifest_path = self.manifests_dir / type_dir / component_name / "manifest.yaml"
-            
-            if not manifest_path.exists():
-                raise FileNotFoundError(f"Manifest not found: {manifest_path}")
-            
-            with open(manifest_path, 'r', encoding='utf-8') as f:
-                raw = yaml.safe_load(f)
-            
-            manifest = Manifest(**raw)
-            self._loaded_manifests[key] = manifest
-            return manifest
-        except KeyError:
-            raise FileNotFoundError(f"Manifest not found: {key}")
-
-    def list_manifests(self, component_type: Optional[str] = None) -> List[Manifest]:
-        """Список всех манифестов"""
-        self._assert_initialized()
-        
-        manifests = []
-        
-        types_to_scan = [component_type] if component_type else list(ManifestComponentType)
-        
-        for type_name in types_to_scan:
-            type_enum = ManifestComponentType(type_name)
-            type_dir = self.MANIFEST_TYPE_TO_DIR[type_enum]
-            type_path = self.manifests_dir / type_dir
-            
-            if not type_path.exists():
-                continue
-            
-            for component_dir in type_path.iterdir():
-                if component_dir.is_dir():
-                    manifest_file = component_dir / "manifest.yaml"
-                    if manifest_file.exists():
-                        try:
-                            with open(manifest_file, 'r', encoding='utf-8') as f:
-                                raw = yaml.safe_load(f)
-                            manifests.append(Manifest(**raw))
-                        except Exception:
-                            continue
-        
-        # Сортировка для детерминизма
-        manifests.sort(key=lambda m: (m.component_type.value, m.component_id))
-        return manifests
-
-    def manifest_exists(self, component_type: str, component_name: str, version: str) -> bool:
-        """Проверка существования манифеста"""
-        self._assert_initialized()
-        
-        try:
-            manifest = self.load_manifest(component_type, component_name)
-            return manifest.version == version and manifest.status != ComponentStatus.ARCHIVED
-        except (FileNotFoundError, ValueError):
-            return False
+    # === Методы для манифестов удалены ===
+    # Манифесты удалены из системы. Зависимости объявляются через DEPENDENCIES в коде компонентов.
 
 
 class ConfigurationError(Exception):
