@@ -2,12 +2,11 @@
 Менеджер жизненного цикла инфраструктурных ресурсов.
 """
 import logging
-from typing import List, Callable, Awaitable, Any, Optional, Union
+from typing import List, Callable, Awaitable, Any, Optional
 from contextlib import asynccontextmanager
 
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 
 class LifecycleManager:
@@ -16,7 +15,7 @@ class LifecycleManager:
     Управляет инициализацией и завершением работы ресурсов.
     """
 
-    def __init__(self, event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = None):
+    def __init__(self, event_bus: Optional[UnifiedEventBus] = None):
         self._initializers: List[Callable[[], Awaitable[Any]]] = []
         self._cleanup_funcs: List[Callable[[], Awaitable[Any]]] = []
         self._initialized = False

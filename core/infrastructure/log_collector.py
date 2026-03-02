@@ -12,9 +12,8 @@ FEATURES:
 """
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 from core.models.data.benchmark import LogEntry, LogType
 from core.models.data.execution import ExecutionContextSnapshot
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
@@ -43,7 +42,7 @@ class LogCollector(BaseEventCollector):
 
     def __init__(
         self,
-        event_bus: Union[UnifiedEventBus, EventBusConcurrent],
+        event_bus: UnifiedEventBus,
         storage: ILogStorage
     ):
         """

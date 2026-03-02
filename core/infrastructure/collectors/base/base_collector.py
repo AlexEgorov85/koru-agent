@@ -12,11 +12,11 @@ FEATURES:
 """
 import logging
 from abc import ABC
-from typing import List, Callable, Any, Union
+from typing import List, Callable, Any
 
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class BaseEventCollector(ABC):
                 pass
     """
 
-    def __init__(self, event_bus: EventBus, component_name: str = "BaseEventCollector"):
+    def __init__(self, event_bus: UnifiedEventBus, component_name: str = "BaseEventCollector"):
         """
         Инициализация сборщика событий.
 
