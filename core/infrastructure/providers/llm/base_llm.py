@@ -71,15 +71,15 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Параметры генерации (temperature, max_tokens)
         - Модель
         """
-        self.event_bus_logger.info(
+        await self.event_bus_logger.info(
             f"📝 LLM вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Max tokens: {request.max_tokens} | "
             f"Temperature: {request.temperature}"
         )
-        
+
         # DEBUG: полный промт (только в файл)
-        self.event_bus_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
+        await self.event_bus_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
 
     async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
         """
@@ -91,24 +91,24 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Статус (успех/ошибка)
         """
         if response.finish_reason == "error":
-            self.event_bus_logger.error(
+            await self.event_bus_logger.error(
                 f"❌ LLM ответ | Модель: {self.model_name} | "
                 f"Ошибка: {response.metadata.get('error', 'unknown') if response.metadata else 'unknown'} | "
                 f"Время: {elapsed_time:.2f}с"
             )
         else:
             content_length = len(response.content) if response.content else 0
-            self.event_bus_logger.info(
+            await self.event_bus_logger.info(
                 f"✅ LLM ответ | Модель: {self.model_name} | "
                 f"Ответ: {content_length} симв. | "
                 f"Токенов: {response.tokens_used} | "
                 f"Время: {elapsed_time:.2f}с | "
                 f"Причина: {response.finish_reason}"
             )
-            
+
             # DEBUG: полный ответ (только в файл)
             if response.content:
-                self.event_bus_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
+                await self.event_bus_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
 
     async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
         """

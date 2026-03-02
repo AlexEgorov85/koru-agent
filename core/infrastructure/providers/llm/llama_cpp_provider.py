@@ -388,19 +388,19 @@ class LlamaCppProvider(BaseLLMProvider):
                     return result
                 except Exception as e:
                     call_completed['error'] = str(e)
-                    self.event_bus_logger.error(f"Ошибка в _call_llm_sync: {e}")
+                    self.event_bus_logger.error_sync(f"Ошибка в _call_llm_sync: {e}")
                     raise  # Пробрасываем ошибку дальше
 
             try:
-                self.event_bus_logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
-                self.event_bus_logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
-                
+                await self.event_bus_logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
+                await self.event_bus_logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
+
                 response = await wait_for(
                     asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
                     timeout=self.timeout_seconds
                 )
-                
-                self.event_bus_logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
+
+                await self.event_bus_logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
 
                 elapsed_time = time.time() - start_time
 
