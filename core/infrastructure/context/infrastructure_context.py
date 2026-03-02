@@ -86,15 +86,11 @@ class InfrastructureContext:
                 await self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
             return True
 
-        # Инициализация менеджера жизненного цикла
-        self.lifecycle_manager = LifecycleManager(self.event_bus)
-
-        # Инициализация реестра ресурсов
-        self.resource_registry = ResourceRegistry()
-
-        # Инициализация шины событий
-        self.event_bus = EventBus()
+        # === ЭТАП 1: Базовая инициализация ===
         
+        # Инициализация шины событий (ПЕРВЫЙ компонент)
+        self.event_bus = EventBus()
+
         # Инициализация event_bus_logger после создания event_bus
         from core.infrastructure.event_bus.unified_logger import EventBusLogger
         self.event_bus_logger = EventBusLogger(
@@ -103,15 +99,23 @@ class InfrastructureContext:
             agent_id="infrastructure",
             component="InfrastructureContext"
         )
-        
-        # Теперь логируем после инициализации event_bus_logger
+
+        # Инициализация менеджера жизненного цикла (нужен event_bus)
+        self.lifecycle_manager = LifecycleManager(self.event_bus)
+
+        # Инициализация реестра ресурсов
+        self.resource_registry = ResourceRegistry()
+
         await self.event_bus_logger.info("Начало инициализации InfrastructureContext")
 
+        # === ЭТАП 2: Фабрики провайдеров ===
+        
         # Инициализация фабрик провайдеров
         self.llm_provider_factory = LLMProviderFactory()
         self.db_provider_factory = DBProviderFactory()
 
-        # Инициализация инфраструктурных хранилищ (только для загрузки, без кэширования)
+        # === ЭТАП 3: Инфраструктурные хранилища ===
+        
         from pathlib import Path
 
         # Используем директории из конфигурации
@@ -129,7 +133,6 @@ class InfrastructureContext:
         await self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
         # Инициализация хранилищ метрик и логов
-        from pathlib import Path
         metrics_dir = Path(self.config.data_dir) / "metrics"
         logs_dir = Path(self.config.data_dir) / "logs"
 
@@ -139,7 +142,8 @@ class InfrastructureContext:
         self.log_storage = FileSystemLogStorage(logs_dir)
         await self.event_bus_logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
 
-        # Инициализация сборщиков метрик и логов
+        # === ЭТАП 4: Сборщики метрик и логов ===
+        
         self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
         await self.metrics_collector.initialize()
         await self.event_bus_logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
@@ -148,10 +152,14 @@ class InfrastructureContext:
         await self.log_collector.initialize()
         await self.event_bus_logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
 
+        # === ЭТАП 5: Vector Search ===
+        
         # Инициализация Vector Search
         if self.config.vector_search and self.config.vector_search.enabled:
             await self._init_vector_search()
 
+        # === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
+        
         # Регистрация инициализаторов в менеджере жизненного цикла
         self.lifecycle_manager.register_initializer(self._register_providers_from_config)
         self.lifecycle_manager.register_cleanup(self._cleanup_providers)

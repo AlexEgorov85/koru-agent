@@ -616,6 +616,11 @@ class ReActPattern(BaseBehaviorPattern):
                     error_type="provider_unavailable"
                 )
 
+                # Определяем первую доступную capability
+                fallback_capability = "book_library.search_books"
+                if available_capabilities:
+                    fallback_capability = available_capabilities[0].name
+
                 return {
                     "analysis": {
                         "current_situation": "LLM провайдер недоступен",
@@ -626,13 +631,12 @@ class ReActPattern(BaseBehaviorPattern):
                         "execution_time": context_analysis.get("execution_time_seconds", 0),
                         "no_progress_steps": context_analysis.get("no_progress_steps", 0)
                     },
-                    "recommended_action": {
-                        "action_type": "execute_capability",
-                        "capability_name": "book_library.search_books",  # Используем доступную capability
-                        "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
-                        "reasoning": "LLM недоступен, используем fallback"
+                    "decision": {
+                        "next_action": fallback_capability,
+                        "reasoning": "LLM недоступен, используем fallback",
+                        "parameters": {"query": session_context.get_goal() or "Продолжить выполнение задачи"}
                     },
-                    "available_capabilities": available_capabilities,  # ← Добавляем доступные capability
+                    "available_capabilities": available_capabilities,
                     "needs_rollback": False
                 }
 
@@ -958,25 +962,126 @@ class ReActPattern(BaseBehaviorPattern):
             else:
                 raise
 
+    def _find_capability(
+        self, 
+        available_capabilities: List[Capability], 
+        capability_name: str
+    ) -> Optional[Capability]:
+        """Поиск capability по имени в списке доступных."""
+        
+        # 1. Прямое совпадение по имени
+        for cap in available_capabilities:
+            if cap.name == capability_name:
+                return cap
+        
+        # 2. Частичное совпадение (для совместимости)
+        for cap in available_capabilities:
+            if capability_name.lower() in cap.name.lower():
+                return cap
+        
+        # 3. Поиск по supported_strategies
+        for cap in available_capabilities:
+            if any(s.lower() == "react" for s in (cap.supported_strategies or [])):
+                if capability_name.lower() in cap.skill_name.lower():
+                    return cap
+        
+        return None
+
+    def _validate_parameters(
+        self,
+        capability: Capability,
+        parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Валидация параметров capability через SchemaValidator."""
+        
+        if not self.schema_validator:
+            return parameters
+        
+        try:
+            validated = self.schema_validator.validate_parameters(
+                capability=capability,
+                raw_params=parameters,
+                context=json.dumps({
+                    "goal": parameters.get("goal", ""),
+                    "progress": parameters.get("progress", "")
+                })
+            )
+            return validated if validated else parameters
+        except Exception as e:
+            # Fallback: возвращаем минимальные параметры
+            self.logger.warning(f"Валидация параметров не удалась: {e}")
+            return {"input": parameters.get("input", "Продолжить выполнение задачи")}
+
     async def _make_decision_from_reasoning(
         self,
         session_context,
-        reasoning_result: Dict[str, Any]
+        reasoning_result: Dict[str, Any],
+        available_capabilities: List[Capability]  # НОВЫЙ параметр
     ) -> BehaviorDecision:
         """Принимает решение о следующем действии на основе анализа контекста."""
+
         try:
-            # Проверка условия остановки (согласно контракту behavior.react.think)
+            # 1. Проверка условия остановки (согласно контракту behavior.react.think)
             if reasoning_result.get("stop_condition", False):
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
                     reason=reasoning_result.get("stop_reason", "goal_achieved")
                 )
 
-            # По умолчанию - выполнение capability из decision.next_action
-            return self._build_capability_decision(session_context, reasoning_result)
+            # 2. Извлечение capability_name из decision.next_action ИЛИ recommended_action.capability_name
+            decision = reasoning_result.get("decision", {})
+            capability_name = decision.get("next_action")
+            
+            # Fallback: проверяем recommended_action (для упрощённой логики без LLM)
+            if not capability_name:
+                recommended_action = reasoning_result.get("recommended_action", {})
+                capability_name = recommended_action.get("capability_name")
 
+            # КРИТИЧЕСКАЯ ПРОВЕРКА: capability_name должен быть указан
+            if not capability_name:
+                await self._log("error", "LLM не вернул next_action в decision",
+                               reasoning_result=reasoning_result)
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.RETRY,
+                    reason="LLM не вернул корректное действие"
+                )
+            
+            # 3. Поиск capability в available_capabilities
+            capability = self._find_capability(available_capabilities, capability_name)
+            
+            if not capability:
+                await self._log("warning", f"Capability '{capability_name}' не найдена, используем fallback",
+                               available_capabilities=[c.name for c in available_capabilities])
+                
+                # Fallback: используем первую доступную capability с поддержкой react
+                for cap in available_capabilities:
+                    if "react" in [s.lower() for s in (cap.supported_strategies or [])]:
+                        capability = cap
+                        capability_name = cap.name
+                        break
+                
+                if not capability:
+                    return BehaviorDecision(
+                        action=BehaviorDecisionType.STOP,
+                        reason="no_available_capabilities"
+                    )
+            
+            # 4. Валидация и корректировка параметров через SchemaValidator
+            parameters = decision.get("parameters", {})
+            validated_params = self._validate_parameters(capability, parameters)
+            
+            # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
+            return BehaviorDecision(
+                action=BehaviorDecisionType.ACT,
+                capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
+                parameters=validated_params,
+                reason=decision.get("reasoning", "capability_execution")
+            )
+            
         except Exception as e:
-            await self._log("error", f"Ошибка при построении решения из рассуждения: {str(e)}", exc_info=True)
+            await self._log("error", f"_make_decision_from_reasoning: ошибка",
+                           error=str(e),
+                           exc_info=True)
             raise
 
     def _build_rollback_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:

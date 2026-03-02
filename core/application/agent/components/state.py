@@ -2,7 +2,7 @@
 Состояние агента для новой архитектуры
 """
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Any
 
 
 @dataclass
@@ -33,3 +33,25 @@ class AgentState:
             self.no_progress_steps = 0
         else:
             self.no_progress_steps += 1
+
+    def snapshot(self) -> Dict[str, Any]:
+        """
+        Возвращает снимок состояния для сравнения.
+        
+        Используется для детекции зацикливания и отсутствия прогресса.
+        """
+        return {
+            'step': self.step,
+            'error_count': self.error_count,
+            'consecutive_errors': self.consecutive_errors,
+            'no_progress_steps': self.no_progress_steps,
+            'finished': self.finished,
+            'history_length': len(self.history),
+            'last_history_item': self.history[-1] if self.history else None
+        }
+
+    def __eq__(self, other):
+        """Сравнение состояний по snapshot."""
+        if not isinstance(other, AgentState):
+            return False
+        return self.snapshot() == other.snapshot()

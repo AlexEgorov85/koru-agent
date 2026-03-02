@@ -6,10 +6,13 @@
 - component_name используется вместо pattern_id
 - Версии управляются через registry.yaml → AppConfig → ComponentConfig
 """
+import asyncio
 from typing import Optional, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
+from core.models.errors import InvalidDecisionError
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
+from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 
 class BehaviorManager:
@@ -18,7 +21,7 @@ class BehaviorManager:
     def __init__(self, application_context: 'ApplicationContext', initial_component_name: str = None):
         """
         Инициализация менеджера поведения.
-        
+
         ПАРАМЕТРЫ:
         - application_context: Прикладной контекст
         - initial_component_name: Имя начального компонента (из AppConfig, например "react_pattern")
@@ -28,6 +31,21 @@ class BehaviorManager:
         self._current_pattern: Optional[BehaviorPatternInterface] = None
         self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        if hasattr(self, '_app_ctx') and self._app_ctx:
+            event_bus = getattr(self._app_ctx.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                session_id = getattr(self._app_ctx.session_context, 'session_id', 'unknown')
+                self.event_bus_logger = EventBusLogger(
+                    event_bus=event_bus,
+                    session_id=session_id,
+                    agent_id='behavior_manager',
+                    component=self.__class__.__name__
+                )
 
     async def initialize(self, component_name: str = None):
         """
@@ -73,6 +91,47 @@ class BehaviorManager:
             available_capabilities,
             context_analysis
         )
+
+        # КРИТИЧЕСКАЯ ПРОВЕРКА: decision должен иметь capability_name для ACT
+        if decision.action == BehaviorDecisionType.ACT:
+            if not decision.capability_name:
+                if self.event_bus_logger:
+                    asyncio.create_task(self.event_bus_logger.error(
+                        f"ACT decision без capability_name! "
+                        f"Decision: {decision.action.value}, reason: {decision.reason[:100] if decision.reason else 'N/A'}"
+                    ))
+                # Валидация не прошла — возвращаем SWITCH на fallback
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.SWITCH,
+                    next_pattern="fallback_pattern",
+                    reason="invalid_act_decision_no_capability"
+                )
+
+            # Проверка что capability существует в доступных
+            capability_exists = any(
+                cap.name == decision.capability_name
+                for cap in available_capabilities
+            )
+            if not capability_exists:
+                if self.event_bus_logger:
+                    asyncio.create_task(self.event_bus_logger.error(
+                        f"Capability '{decision.capability_name}' не найдена в доступных! "
+                        f"Available: {[c.name for c in available_capabilities]}"
+                    ))
+                # Валидация не прошла — возвращаем SWITCH на fallback
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.SWITCH,
+                    next_pattern="fallback_pattern",
+                    reason="capability_not_found"
+                )
+
+        # Логирование decision для аудита
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.info(
+                f"Decision: action={decision.action.value}, "
+                f"capability={decision.capability_name or 'N/A'}, "
+                f"reason={decision.reason[:100] if decision.reason else 'N/A'}"
+            ))
 
         # Автоматическое переключение паттернов
         if decision.action == BehaviorDecisionType.SWITCH and decision.next_pattern:

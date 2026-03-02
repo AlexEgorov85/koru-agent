@@ -3,6 +3,9 @@
 
 Используется для сигнализации о нарушении архитектурных принципов системы.
 """
+from core.models.errors import AgentError
+
+
 class ArchitectureViolationError(Exception):
     """
     Исключение, возникающее при нарушении архитектурных принципов.
@@ -33,3 +36,27 @@ class CircularDependencyError(ArchitectureViolationError):
 class DependencyResolutionError(ArchitectureViolationError):
     """Ошибка разрешения зависимостей."""
     pass
+
+
+class AgentStuckError(AgentError):
+    """
+    Агент зациклился — нет прогресса.
+    
+    Возникает когда:
+    - Decision повторяется более 2 раз без изменения state
+    - State не меняется после observe() в течение 2 consecutive steps
+    """
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, **kwargs)
+
+
+class InvalidDecisionError(AgentError):
+    """
+    Decision некорректен.
+    
+    Возникает когда:
+    - ACT decision без capability_name
+    - capability_name не найден в доступных capabilities
+    """
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, **kwargs)

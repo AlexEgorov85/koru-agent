@@ -60,14 +60,12 @@ class BaseEventCollector(ABC):
         ДОЛЖЕН БЫТЬ ПЕРЕОПРЕДЕЛЁН в наследниках для подписки на конкретные события.
         """
         if self._initialized:
-            await self.event_bus_logger.warning("%s уже инициализирован", self.__class__.__name__)
+            await self.event_bus_logger.warning(f"{self.__class__.__name__} уже инициализирован")
             return
 
         self._initialized = True
         await self.event_bus_logger.info(
-            "%s инициализирован: подписан на %d событий",
-            self.__class__.__name__,
-            len(self._subscriptions)
+            f"{self.__class__.__name__} инициализирован: подписан на {len(self._subscriptions)} событий"
         )
 
     def _subscribe(self, event_type: EventType, handler: Callable[[Event], Any]) -> None:

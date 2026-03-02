@@ -212,7 +212,9 @@ class VersionConflictError(VersionError):
 from .architecture_violation import (
     ArchitectureViolationError,
     CircularDependencyError as ArchitectureCircularDependencyError,
-    DependencyResolutionError as ArchitectureDependencyResolutionError
+    DependencyResolutionError as ArchitectureDependencyResolutionError,
+    AgentStuckError,
+    InvalidDecisionError
 )
 
 # ============================================================================
@@ -333,6 +335,8 @@ __all__ = [
     
     # Architecture
     "ArchitectureViolationError",
+    "AgentStuckError",
+    "InvalidDecisionError",
     
     # Service
     "ServiceNotReadyError",

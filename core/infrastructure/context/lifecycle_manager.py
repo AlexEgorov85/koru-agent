@@ -2,7 +2,7 @@
 Менеджер жизненного цикла инфраструктурных ресурсов.
 """
 import logging
-from typing import List, Callable, Awaitable, Any
+from typing import List, Callable, Awaitable, Any, Optional
 from contextlib import asynccontextmanager
 
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
@@ -15,12 +15,13 @@ class LifecycleManager:
     Управляет инициализацией и завершением работы ресурсов.
     """
 
-    def __init__(self, event_bus: EventBus = None):
+    def __init__(self, event_bus: Optional[EventBus] = None):
         self._initializers: List[Callable[[], Awaitable[Any]]] = []
         self._cleanup_funcs: List[Callable[[], Awaitable[Any]]] = []
         self._initialized = False
         self.logger = logging.getLogger(__name__)
-        self.event_bus_logger = None
+        self.event_bus: Optional[EventBus] = event_bus
+        self.event_bus_logger: Optional[EventBusLogger] = None
         if event_bus:
             self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="LifecycleManager")
 
@@ -38,6 +39,10 @@ class LifecycleManager:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("LifecycleManager уже инициализирован")
             return True
+
+        # Инициализируем event_bus_logger если ещё не создан
+        if self.event_bus_logger is None and self.event_bus:
+            self.event_bus_logger = EventBusLogger(self.event_bus, session_id="system", agent_id="system", component="LifecycleManager")
 
         if self.event_bus_logger:
             await self.event_bus_logger.info("Начало инициализации всех инфраструктурных ресурсов")
