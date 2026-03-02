@@ -225,21 +225,21 @@ class LlamaCppProvider(BaseLLMProvider):
         Корректное завершение работы провайдера.
         """
         try:
-            self.event_bus_logger.info("Завершение работы Llama.cpp провайдера...")
-            
+            await self.event_bus_logger.info("Завершение работы Llama.cpp провайдера...")
+
             # Остановка ThreadPoolExecutor
             if self._executor:
                 self._executor.shutdown(wait=False)
                 self._executor = None
-                self.event_bus_logger.debug("ThreadPoolExecutor остановлен")
-            
+                await self.event_bus_logger.debug("ThreadPoolExecutor остановлен")
+
             # В llama-cpp-python нет явного метода для освобождения ресурсов
             # Но можно обнулить ссылку на модель
             self.llm = None
             self.is_initialized = False
-            self.event_bus_logger.info("Llama.cpp провайдер успешно завершен")
+            await self.event_bus_logger.info("Llama.cpp провайдер успешно завершен")
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка при завершении работы Llama.cpp провайдера: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка при завершении работы Llama.cpp провайдера: {str(e)}")
 
     async def health_check(self) -> Dict[str, Any]:
         """

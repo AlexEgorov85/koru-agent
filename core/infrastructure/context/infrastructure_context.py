@@ -398,9 +398,9 @@ class InfrastructureContext:
             try:
                 if hasattr(provider, 'shutdown') and callable(provider.shutdown):
                     await provider.shutdown()
-                self.event_bus_logger.info(f"Провайдер '{provider_name}' завершен")
+                await self.event_bus_logger.info(f"Провайдер '{provider_name}' завершен")
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}")
+                await self.event_bus_logger.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}")
 
         # Завершение работы хранилищ
         if self.prompt_storage and hasattr(self.prompt_storage, 'shutdown'):

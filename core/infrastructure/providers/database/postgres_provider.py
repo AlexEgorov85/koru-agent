@@ -103,10 +103,10 @@ class PostgreSQLProvider(BaseDBProvider):
                     self.pool = None
 
                 self.is_initialized = False
-                self.event_bus_logger.info("PostgreSQL провайдер успешно завершил работу")
+                await self.event_bus_logger.info("PostgreSQL провайдер успешно завершил работу")
 
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}")
+                await self.event_bus_logger.error(f"Ошибка при завершении работы PostgreSQL провайдера: {str(e)}")
 
     async def health_check(self) -> Dict[str, Any]:
         """
