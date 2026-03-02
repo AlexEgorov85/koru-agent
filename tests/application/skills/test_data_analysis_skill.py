@@ -62,7 +62,14 @@ def mock_component_config():
 @pytest.fixture
 def mock_executor():
     """Фикстура мокированного ActionExecutor."""
-    return MagicMock()
+    executor = AsyncMock()
+    # execute_action должен быть async и возвращать ExecutionResult
+    executor.execute_action = AsyncMock(return_value=ExecutionResult(
+        status=ExecutionStatus.COMPLETED,
+        result={"parsed_content": {"answer": "test", "confidence": 0.8}},
+        metadata={"parsing_attempts": 1}
+    ))
+    return executor
 
 
 @pytest.fixture
