@@ -933,9 +933,15 @@ class UnifiedEventBus:
 
                 await worker.start()
 
-                self._internal_logger.info(
-                    f"Создана сессия {session_id} (agent={agent_id})"
-                )
+                # Логирование с указанием типа сессии
+                if agent_id:
+                    self._internal_logger.info(
+                        f"Создана сессия {session_id} (agent={agent_id})"
+                    )
+                else:
+                    self._internal_logger.info(
+                        f"Создана системная сессия {session_id}"
+                    )
 
                 await self._publish_internal(
                     EventType.SESSION_CREATED,
