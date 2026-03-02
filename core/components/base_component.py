@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
+from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
 
