@@ -21,7 +21,7 @@ async def test_component_isolation():
         print("[OK] Imports completed successfully")
         
         # Load configuration from registry
-        app_config = AppConfig.from_registry(profile="prod")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print("[OK] AppConfig successfully loaded from registry")
         
         # 1. Check that tool does NOT have skill prompts

@@ -34,7 +34,7 @@ async def test_resource_loading():
     # 2. Создаём контекст
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=AppConfig.from_registry(profile="prod"),
+        config=AppConfig.from_discovery(profile="prod", data_dir="data"),
         profile='prod'
     )
     await ctx1.initialize()
@@ -76,7 +76,7 @@ async def test_skill_capability_loading():
     # 2. Создаём контекст
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=AppConfig.from_registry(profile="prod"),
+        config=AppConfig.from_discovery(profile="prod", data_dir="data"),
         profile='prod'
     )
     await ctx1.initialize()
@@ -130,7 +130,7 @@ async def test_health_check():
     # 2. Создаём контекст
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=AppConfig.from_registry(profile="prod"),
+        config=AppConfig.from_discovery(profile="prod", data_dir="data"),
         profile='prod'
     )
     await ctx1.initialize()

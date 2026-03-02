@@ -17,7 +17,7 @@ async def test_config_loading():
     print("=== Тестирование загрузки конфигурации ===")
     
     # Создаем конфигурацию приложения из реестра
-    app_config = AppConfig.from_registry(profile="sandbox")
+    app_config = AppConfig.from_discovery(profile="sandbox", data_dir="data")
     
     print(f"Конфигурация приложения загружена:")
     print(f"  - Навыки: {list(app_config.skill_configs.keys())}")

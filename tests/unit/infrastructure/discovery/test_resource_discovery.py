@@ -20,8 +20,7 @@ from datetime import datetime
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
-from core.models.data.manifest import Manifest, ComponentStatus
-from core.models.enums.common_enums import ComponentType
+from core.models.enums.common_enums import ComponentType, ComponentStatus
 
 
 @pytest.fixture
@@ -332,44 +331,6 @@ class TestDiscoverContracts:
         assert 'query' in contract.schema_data.get('properties', {})
 
 
-class TestDiscoverManifests:
-    """Тесты обнаружения манифестов."""
-    
-    def test_discover_manifests(self, temp_data_dir):
-        """Обнаружение манифестов."""
-        discovery = ResourceDiscovery(base_dir=temp_data_dir, profile='prod')
-        
-        manifests = discovery.discover_manifests()
-        
-        assert len(manifests) == 1  # Только active
-        assert all(isinstance(m, Manifest) for m in manifests)
-        assert manifests[0].status == ComponentStatus.ACTIVE
-    
-    def test_discover_manifests_sandbox(self, temp_data_dir):
-        """Обнаружение манифестов в sandbox."""
-        discovery = ResourceDiscovery(base_dir=temp_data_dir, profile='sandbox')
-        
-        manifests = discovery.discover_manifests()
-        
-        assert len(manifests) == 2  # active + draft
-        statuses = {m.status for m in manifests}
-        assert ComponentStatus.ACTIVE in statuses
-        assert ComponentStatus.DRAFT in statuses
-    
-    def test_get_manifest_from_cache(self, temp_data_dir):
-        """Получение манифеста из кэша."""
-        discovery = ResourceDiscovery(base_dir=temp_data_dir, profile='prod')
-        discovery.discover_manifests()
-        
-        manifest = discovery.get_manifest('skill', 'test_skill')
-        
-        assert manifest is not None
-        assert manifest.component_id == 'test_skill'
-        assert manifest.owner == 'test-team'
-        assert manifest.quality_metrics is not None
-        assert manifest.quality_metrics.success_rate_target == 0.95
-
-
 class TestValidationReport:
     """Тесты отчёта валидации."""
     
@@ -378,25 +339,23 @@ class TestValidationReport:
         discovery = ResourceDiscovery(base_dir=temp_data_dir, profile='prod')
         discovery.discover_prompts()
         discovery.discover_contracts()
-        discovery.discover_manifests()
-        
+
         stats = discovery.get_stats()
-        
+
         assert 'prompts_scanned' in stats
         assert 'prompts_loaded' in stats
         assert 'prompts_skipped' in stats
         assert 'contracts_scanned' in stats
-        assert 'manifests_loaded' in stats
-    
+        assert 'contracts_loaded' in stats
+
     def test_validation_report(self, temp_data_dir):
         """Формирование отчёта валидации."""
         discovery = ResourceDiscovery(base_dir=temp_data_dir, profile='prod')
         discovery.discover_prompts()
         discovery.discover_contracts()
-        discovery.discover_manifests()
-        
+
         report = discovery.get_validation_report()
-        
+
         assert 'ОТЧЁТ RESOURCE DISCOVERY' in report
         assert 'Профиль: prod' in report
         assert 'Промпты:' in report

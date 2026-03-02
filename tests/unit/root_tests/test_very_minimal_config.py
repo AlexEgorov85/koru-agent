@@ -19,7 +19,7 @@ async def test_very_minimal_config():
         print("[OK] Импорты выполнены успешно")
         
         # Загружаем конфигурацию из очень минимального реестра
-        app_config = AppConfig.from_registry(profile="prod", registry_path="very_minimal_registry.yaml")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print("[OK] AppConfig успешно загружен из очень минимального реестра")
         
         # Создаем инфраструктурный контекст с минимальной конфигурацией

@@ -28,7 +28,7 @@ async def main():
     # 2. Создаём контекст
     ctx1 = ApplicationContext(
         infrastructure_context=infra,
-        config=AppConfig.from_registry(profile="prod"),
+        config=AppConfig.from_discovery(profile="prod", data_dir="data"),
         profile='prod'
     )
     await ctx1.initialize()

@@ -67,7 +67,7 @@ async def app_context_pair(infra):
 @pytest.mark.asyncio
 async def test_infrastructure_shared_between_agents(infra):
     """Инфраструктура должна быть ОБЩЕЙ между агентами."""
-    app_config = AppConfig.from_registry(profile='prod')
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     ctx1 = ApplicationContext(infra, app_config, profile='prod')
     ctx2 = ApplicationContext(infra, app_config, profile='prod')
 
@@ -84,7 +84,7 @@ async def test_infrastructure_shared_between_agents(infra):
 @pytest.mark.asyncio
 async def test_application_context_isolated(infra):
     """ApplicationContext должен быть ИЗОЛИРОВАННЫМ между агентами."""
-    app_config = AppConfig.from_registry(profile='prod')
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     ctx1 = ApplicationContext(infra, app_config, profile='prod')
     ctx2 = ApplicationContext(infra, app_config, profile='prod')
 

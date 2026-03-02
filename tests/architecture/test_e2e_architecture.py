@@ -21,7 +21,7 @@ async def test_full_architecture_cycle():
     assert await infra.initialize()
     
     # 2. Прикладной контекст
-    app_config = AppConfig.from_registry(profile='prod')
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     app_ctx = ApplicationContext(infra, app_config, profile='prod')
     success = await app_ctx.initialize()
     

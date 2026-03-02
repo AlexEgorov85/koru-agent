@@ -19,7 +19,7 @@ async def app_context():
     infra_context = InfrastructureContext(config=system_config)
     await infra_context.initialize()
 
-    app_config = AppConfig.from_registry(profile="sandbox")
+    app_config = AppConfig.from_discovery(profile="sandbox", data_dir="data")
 
     app_context = ApplicationContext(
         infrastructure_context=infra_context,

@@ -49,15 +49,19 @@ async def app_contexts():
     from core.config.models import SystemConfig
     from core.infrastructure.context.infrastructure_context import InfrastructureContext
     from core.application.context.application_context import ApplicationContext
-    
+    from core.config.app_config import AppConfig
+
     config = SystemConfig(data_dir='data')
     infra = InfrastructureContext(config)
     await infra.initialize()
-    
-    app_context = await ApplicationContext.create_from_registry(
+
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
+    app_context = ApplicationContext(
         infrastructure_context=infra,
+        config=app_config,
         profile="prod"
     )
+    await app_context.initialize()
     
     yield {
         "config": config,

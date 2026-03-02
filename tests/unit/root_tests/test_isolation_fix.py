@@ -21,7 +21,7 @@ async def test_component_isolation():
         print("✓ Импорты выполнены успешно")
         
         # Загружаем конфигурацию из реестра
-        app_config = AppConfig.from_registry(profile="prod")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print("✓ AppConfig успешно загружен из реестра")
         
         # 1. Проверяем, что у инструмента НЕТ промптов навыков

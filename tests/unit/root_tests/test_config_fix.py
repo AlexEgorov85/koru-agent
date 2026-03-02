@@ -19,7 +19,7 @@ def test_sql_tool_config_fix():
         print("+ Импорт модулей выполнен успешно")
         
         # Загружаем конфигурацию из реестра
-        app_config = AppConfig.from_registry(profile="prod")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print(f"+ AppConfig загружен из реестра, профиль: {app_config.profile}")
         print(f"  - prompt_versions (глобальные): {len(app_config.prompt_versions)} записей")
         print(f"  - tool_configs: {len(app_config.tool_configs)} инструментов")

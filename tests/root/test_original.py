@@ -28,7 +28,7 @@ async def test_original_code_initialization(infra_context):
     """Тест оригинального кода инициализации ApplicationContext."""
     ctx1 = ApplicationContext(
         infrastructure_context=infra_context,
-        config=AppConfig.from_registry(profile="prod"),
+        config=AppConfig.from_discovery(profile="prod", data_dir="data"),
         profile='prod'
     )
 

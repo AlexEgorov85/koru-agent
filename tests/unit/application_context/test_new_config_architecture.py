@@ -24,7 +24,7 @@ async def test_new_architecture():
     print("+ InfrastructureContext инициализирован")
 
     # Создаем прикладной контекст (новая архитектура)
-    app_config = AppConfig.from_registry(profile="prod")
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     print(f"+ AppConfig загружен из реестра, профиль: {app_config.profile}")
     print(f"  - Промпты: {len(app_config.prompt_versions)} версий")
     print(f"  - Входные контракты: {len(app_config.input_contract_versions)} версий")

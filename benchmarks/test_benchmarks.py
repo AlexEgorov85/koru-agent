@@ -44,7 +44,7 @@ async def infrastructure_context(system_config):
 @pytest.fixture
 async def application_context(infrastructure_context):
     """ApplicationContext для бенчмарков."""
-    app_config = AppConfig.from_registry(profile='prod')
+    app_config = AppConfig.from_discovery(profile='prod', data_dir='data')
     app_context = ApplicationContext(
         infrastructure_context=infrastructure_context,
         config=app_config,
@@ -86,19 +86,19 @@ class TestInitializationBenchmarks:
         assert result is not None
         # Цель: < 100 мс
 
-    def test_app_config_from_registry(self, benchmark):
-        """Бенчмарк: Загрузка AppConfig из реестра."""
+    def test_app_config_from_discovery(self, benchmark):
+        """Бенчмарк: Загрузка AppConfig через discovery."""
         def load_config():
-            return AppConfig.from_registry(profile='prod')
-        
+            return AppConfig.from_discovery(profile='prod', data_dir='data')
+
         result = benchmark(load_config)
         assert result is not None
-        # Цель: < 10 мс
+        # Цель: < 50 мс
 
     def test_application_context_init(self, benchmark, infrastructure_context):
         """Бенчмарк: Инициализация ApplicationContext."""
         async def init_app():
-            app_config = AppConfig.from_registry(profile='prod')
+            app_config = AppConfig.from_discovery(profile='prod', data_dir='data')
             app_context = ApplicationContext(
                 infrastructure_context=infrastructure_context,
                 config=app_config,
@@ -106,7 +106,7 @@ class TestInitializationBenchmarks:
             )
             await app_context.initialize()
             return app_context
-        
+
         result = benchmark(asyncio.run, init_app)
         assert result is not None
         # Цель: < 500 мс
@@ -222,20 +222,20 @@ class TestMemoryBenchmarks:
             config = SystemConfig(data_dir="./data")
             infra = InfrastructureContext(config)
             await infra.initialize()
-            
-            app_config = AppConfig.from_registry(profile='prod')
+
+            app_config = AppConfig.from_discovery(profile='prod', data_dir='data')
             app_context = ApplicationContext(
                 infrastructure_context=infra,
                 config=app_config,
                 profile='prod'
             )
             await app_context.initialize()
-            
+
             current, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
-            
+
             await infra.shutdown()
-            
+
             return peak
         
         peak_memory = benchmark(asyncio.run, measure_memory)
@@ -258,17 +258,17 @@ class TestParallelBenchmarks:
             for i in range(agent_count):
                 infra = InfrastructureContext(system_config)
                 await infra.initialize()
-                
-                app_config = AppConfig.from_registry(profile='prod')
+
+                app_config = AppConfig.from_discovery(profile='prod', data_dir='data')
                 app_context = ApplicationContext(
                     infrastructure_context=infra,
                     config=app_config,
                     profile='prod'
                 )
                 await app_context.initialize()
-                
+
                 contexts.append((infra, app_context))
-            
+
             # Cleanup
             for infra, _ in contexts:
                 await infra.shutdown()

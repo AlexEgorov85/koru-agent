@@ -31,7 +31,7 @@ async def infra():
 @pytest.fixture(scope="function")
 async def app_context(infra):
     """Create ApplicationContext with registry config."""
-    app_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     
     context = ApplicationContext(
         infrastructure_context=infra,

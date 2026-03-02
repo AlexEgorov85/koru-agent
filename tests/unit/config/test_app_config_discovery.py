@@ -15,7 +15,7 @@ from pathlib import Path
 
 from core.config.app_config import AppConfig
 from core.models.data.prompt import PromptStatus
-from core.models.data.manifest import ComponentStatus
+from core.models.enums.common_enums import ComponentStatus
 
 
 @pytest.fixture

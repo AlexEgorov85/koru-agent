@@ -17,7 +17,7 @@ async def test_tools_with_real_config(fake_infra_context):
     print("=== Тестирование загрузки инструментов с реальной конфигурацией ===")
 
     # Загружаем конфигурацию из реестра
-    app_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
 
     print(f"Конфигурация загружена: {app_config.config_id}")
     print(f"Количество инструментов в конфигурации: {len(app_config.tool_configs)}")

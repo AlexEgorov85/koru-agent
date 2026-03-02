@@ -46,7 +46,7 @@ async def test_sql_tool_initialization():
         print("+ Инфраструктурный контекст создан")
         
         # Загружаем конфигурацию из реестра
-        app_config = AppConfig.from_registry(profile="prod")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print(f"+ AppConfig загружен из реестра, профиль: {app_config.profile}")
         print(f"  - prompt_versions: {len(app_config.prompt_versions)} записей")
         print(f"  - input_contract_versions: {len(app_config.input_contract_versions)} записей")
@@ -66,10 +66,15 @@ async def test_sql_tool_initialization():
         # Инициализируем инфраструктурный контекст
         await infra_context.initialize()
         print("+ InfrastructureContext инициализирован")
-        
+
         # Создаем контекст приложения
-        app_context = await ApplicationContext.create_from_registry(infra_context, profile="prod")
-        print("+ ApplicationContext создан из реестра")
+        app_context = ApplicationContext(
+            infrastructure_context=infra_context,
+            config=app_config,
+            profile="prod"
+        )
+        await app_context.initialize()
+        print("+ ApplicationContext создан через discovery")
         
         # Получаем инструмент
         sql_tool = app_context.get_tool("sql_tool")

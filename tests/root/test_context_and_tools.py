@@ -62,7 +62,7 @@ def system_config():
 @pytest.fixture(scope="session")
 def app_config():
     """Загрузка конфигурации приложения из registry.yaml."""
-    return AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    return AppConfig.from_discovery(profile="prod", data_dir="data")
 
 
 @pytest.fixture
@@ -424,7 +424,7 @@ async def test_sandbox_mode(infrastructure_context, app_config):
     from core.application.tools.file_tool import FileToolInput
     
     # Создаем конфигурацию для sandbox режима
-    sandbox_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    sandbox_config = AppConfig.from_discovery(profile="prod", data_dir="data")
     sandbox_config.side_effects_enabled = False
     
     sandbox_context = ApplicationContext(
@@ -639,7 +639,7 @@ async def test_full_integration_cycle(system_config, app_config):
         logger.info(f"Этап 4: Выполнение инструментов - {'PASS' if test_results.get('file_tool_read', False) else 'PARTIAL'}")
         
         # Этап 5: Sandbox режим
-        sandbox_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+        sandbox_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         sandbox_config.side_effects_enabled = False
         sandbox_context = ApplicationContext(
             infrastructure_context=infra,

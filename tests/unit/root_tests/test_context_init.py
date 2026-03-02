@@ -19,7 +19,7 @@ async def test_context_initialization():
         print("[OK] Импорты выполнены успешно")
         
         # Загружаем конфигурацию из реестра
-        app_config = AppConfig.from_registry(profile="prod")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
         print("[OK] AppConfig успешно загружен из реестра")
         
         # Создаем инфраструктурный контекст с минимальной конфигурацией

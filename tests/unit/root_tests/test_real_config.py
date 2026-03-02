@@ -17,7 +17,7 @@ async def test_real_registry_config(fake_infra_context):
     print("=== Тестирование с реальной конфигурацией из реестра ===")
 
     # Загружаем конфигурацию из реестра
-    app_config = AppConfig.from_registry(profile="prod", registry_path="registry.yaml")
+    app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
 
     print(f"Конфигурация загружена: {app_config.config_id}")
     print(f"Количество версий промптов: {len(app_config.prompt_versions)}")

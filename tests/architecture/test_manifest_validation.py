@@ -55,7 +55,7 @@ async def test_prod_rejects_draft_manifests():
         infra = InfrastructureContext(config)
         await infra.initialize()
         
-        app_config = AppConfig.from_registry(profile="test")  # Используем "test" вместо "prod"
+        app_config = AppConfig.from_discovery(profile="sandbox", data_dir="data")  # Используем "test" вместо "prod"
         app_context = ApplicationContext(infra, app_config, profile="prod")
         
         success = await app_context.initialize()
@@ -107,7 +107,7 @@ async def test_sandbox_accepts_draft_manifests():
         infra = InfrastructureContext(config)
         await infra.initialize()
         
-        app_config = AppConfig.from_registry(profile="test")  # Используем "test" вместо "sandbox"
+        app_config = AppConfig.from_discovery(profile="sandbox", data_dir="data")  # Используем "test" вместо "sandbox"
         app_context = ApplicationContext(infra, app_config, profile="sandbox")
         
         success = await app_context.initialize()
@@ -158,7 +158,7 @@ async def test_manifest_owner_required():
         infra = InfrastructureContext(config)
         await infra.initialize()
         
-        app_config = AppConfig.from_registry(profile="test")  # Используем "test" вместо "prod"
+        app_config = AppConfig.from_discovery(profile="sandbox", data_dir="data")  # Используем "test" вместо "prod"
         try:
             app_context = ApplicationContext(infra, app_config, profile="prod")
             success = await app_context.initialize()
