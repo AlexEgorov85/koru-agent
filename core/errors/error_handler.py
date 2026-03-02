@@ -172,17 +172,17 @@ class ErrorHandler:
     ```
     """
     
-    def __init__(self, event_bus_manager: Optional[EventBusManager] = None):
+    def __init__(self, event_bus=None):
         """
         Инициализация обработчика ошибок.
-        
+
         ARGS:
-        - event_bus_manager: менеджер событий (опционально)
+        - event_bus: шина событий (опционально)
         """
         self._handlers: Dict[Type[Exception], Callable] = {}
         self._handler_severity: Dict[Type[Exception], ErrorSeverity] = {}
         self._handler_category: Dict[Type[Exception], ErrorCategory] = {}
-        self._event_bus = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         
         self._error_count = 0
         self._handled_count = 0

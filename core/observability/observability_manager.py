@@ -271,22 +271,22 @@ class ObservabilityManager:
     stats = obs_manager.get_stats()
     ```
     """
-    
+
     def __init__(
         self,
-        event_bus_manager: Optional[EventBusManager] = None,
+        event_bus=None,
         metrics_storage: Optional[IMetricsStorage] = None,
         log_storage: Optional[ILogStorage] = None,
     ):
         """
         Инициализация менеджера наблюдаемости.
-        
+
         ARGS:
-        - event_bus_manager: менеджер событий
+        - event_bus: шина событий
         - metrics_storage: хранилище метрик
         - log_storage: хранилище логов
         """
-        self._event_bus = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         self._metrics_storage = metrics_storage
         self._log_storage = log_storage
         
