@@ -12,8 +12,9 @@ FEATURES:
 """
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any
-from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from typing import Dict, List, Optional, Tuple, Any, Union
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
@@ -39,7 +40,7 @@ class MetricsCollector(BaseEventCollector):
 
     def __init__(
         self,
-        event_bus: EventBus,
+        event_bus: Union[UnifiedEventBus, EventBusConcurrent],
         storage: IMetricsStorage
     ):
         """
