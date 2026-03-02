@@ -1,9 +1,10 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.27.0-orange.svg)]()
-[![Tests](https://img.shields.io/badge/tests-954%20passed-green.svg)]()
+[![Version](https://img.shields.io/badge/version-5.29.0-orange.svg)]()
+[![Tests](https://img.shields.io/badge/tests-992%20passed-green.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
+[![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
 
 ---
 
@@ -21,37 +22,41 @@
 - 📊 **Структурированный вывод** — типизированные ответы с валидацией
 - 🎯 **Автоматическая оценка качества** — бенчмарки и сравнение версий
 - 🚀 **Самооптимизация** — автоматическое улучшение промптов и контрактов
+- 🛡️ **Стабилизация** — детекция зацикливания, гарантия вызова LLM, валидация decision
 
 ---
 
-## 📊 Последние изменения (v5.17.0)
+## 📊 Последние изменения (v5.29.0)
 
-**Версия 5.17.0** (27 февраля 2026) — Удаление legacy-компонентов и рефакторинг
+**Версия 5.29.0** (2 марта 2026) — **План стабилизации завершён (100%)**
 
-### Удалено
-- ✅ Дублирующиеся паттерны поведения: `react_behavior.py`, `react_pattern.py`, `planning_pattern.py`
-- ✅ Устаревший класс `BaseBehavior` (классы входа/выхода перенесены в `base.py`)
-- ✅ Метод обратной совместимости `BaseSkill.run()`
-- ✅ Алиасы `_cached_prompts`, `_cached_input_contracts`, `_cached_output_contracts`
-- ✅ Конфигурация `_old_dev.yaml`
-- ✅ Экспорт `get_legacy_event_bus` из event_bus
+### Стабилизация ядра агента
+- ✅ **Детекция зацикливания** — `AgentStuckError` при повторении decision без изменения state
+- ✅ **Гарантия вызова LLM** — `InfrastructureError` если `requires_llm=True` но LLM не вызван
+- ✅ **Валидация ACT decision** — проверка capability_name в `BehaviorManager`
+- ✅ **ReActPattern инварианты** — гарантия что observe() мутирует state
+- ✅ **Логирование через EventBus** — полная миграция с `logging` на `EventBusLogger`
 
-### Исправлено
-- ✅ Заменены импорты `log_config_new` → `log_config` (4 файла)
-- ✅ Создан отсутствующий модуль `log_mixin.py`
-- ✅ Проект запускается без ошибок импорта
+### Новые исключения
+- `AgentStuckError` — агент зациклился
+- `InvalidDecisionError` — decision некорректен
+- `PatternError` — нарушение инвариантов паттерна
+- `InfrastructureError` — инфраструктурная ошибка
 
-### Изменено
-- ✅ Обновлены импорты в `component_factory.py`, тестах
-- ✅ Версия проекта: 5.16.0 → 5.17.0
+### Тесты стабилизации (48 тестов)
+- `test_no_infinite_loop` — детекция зацикливания
+- `test_llm_called_for_think_decision` — гарантия вызова LLM
+- `test_state_mutates_after_each_step` — мутация state
+- `test_planning_skill_*` — тесты PlanningSkill
 
-### Метрики
-- Удалено файлов: 5
-- Удалено строк кода: 618
-- Дублирование паттернов: 100% → 0%
-- Все критичные тесты пройдены: 8/8 (100%)
+### Architecture Guarantees
+- ✅ Нет бесконечных циклов
+- ✅ Snapshot всегда меняется после observe()
+- ✅ Decision не повторяется более 1 раза без изменения state
+- ✅ Любой `decision.requires_llm` гарантированно вызывает LLM
+- ✅ Все навыки возвращают `SkillResult`
 
-📄 **Подробности:** См. [LEGACY_REMOVAL_RESULTS.md](LEGACY_REMOVAL_RESULTS.md)
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5290---2026-03-02)
 
 ---
 

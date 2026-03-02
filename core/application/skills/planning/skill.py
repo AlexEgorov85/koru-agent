@@ -23,6 +23,19 @@ class PlanningSkill(BaseComponent):
         self.event_bus_logger = None
         self._init_event_bus_logger()
 
+    async def execute(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: ExecutionContext
+    ) -> SkillResult:
+        """
+        Переопределение execute() для возврата SkillResult вместо ExecutionResult.
+        
+        Это обеспечивает совместимость с архитектурой навыков где используется SkillResult.
+        """
+        return await self._execute_impl(capability, parameters, execution_context)
+
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
         if hasattr(self, 'application_context') and self.application_context:

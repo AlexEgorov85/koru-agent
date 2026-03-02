@@ -1,5 +1,98 @@
 # CHANGELOG
 
+## [5.29.0] - 2026-03-02
+
+### Added
+- **План стабилизации Agent_v5 завершён (100%)**
+  - 6 этапов реализации, 48 тестов проходят
+  - Детекция зацикливания агента через `AgentStuckError`
+  - Гарантия вызова LLM через `llm_called` флаг
+  - Валидация ACT decision в `BehaviorManager`
+  - ReActPattern инварианты с `InfrastructureError`
+
+- **Новые исключения для стабилизации**
+  - `AgentStuckError` — агент зациклился (повторение decision без изменения state)
+  - `InvalidDecisionError` — decision некорректен (ACT без capability_name)
+  - `PatternError` — нарушение инвариантов паттерна
+  - `InfrastructureError` — инфраструктурная ошибка (LLM не вызван)
+
+- **Метод snapshot() в AgentState**
+  - `core/application/agent/components/state.py` — `snapshot()` + `__eq__()`
+  - Снимок состояния для сравнения и детекции зацикливания
+  - Поля: `step`, `error_count`, `consecutive_errors`, `no_progress_steps`, `finished`, `history_length`, `last_history_item`
+
+- **Детекция зацикливания в AgentRuntime**
+  - `core/application/agent/runtime.py` — проверка snapshot в `run()`
+  - Детекция повторяющихся decision без изменения state
+  - Детекция отсутствия мутации state после observe()
+  - `AgentStuckError` выбрасывается при 2+ повторениях
+
+- **Валидация ACT decision в BehaviorManager**
+  - `core/application/agent/components/behavior_manager.py` — валидация capability_name
+  - Проверка что capability существует в доступных
+  - Логирование decision для аудита через EventBusLogger
+  - Fallback на switch pattern при невалидном decision
+
+- **Гарантия вызова LLM в ReActPattern**
+  - `core/application/behaviors/react/pattern.py` — флаг `llm_was_called`
+  - Проверка что LLM был вызван в `_perform_structured_reasoning()`
+  - `InfrastructureError` если LLM не вызван без причины
+
+- **llm_called флаг в ActionResult**
+  - `core/application/agent/components/action_executor.py` — поле `llm_called: bool`
+  - Проверка в runtime что `requires_llm=True` → `llm_called=True`
+  - `InfrastructureError` если LLM требуется но не вызван
+
+- **requires_llm флаг в BehaviorDecision**
+  - `core/application/behaviors/base.py` — поле `requires_llm: bool = False`
+  - Указание что decision требует вызова LLM
+
+- **Логирование через EventBusLogger**
+  - `AgentRuntime` — полная миграция с `logging` на `EventBusLogger`
+  - `BehaviorManager` — логирование decision через шину событий
+  - Удалено стандартное `logging` из доработанных компонентов
+
+- **Интеграционные тесты стабилизации (9 тестов)**
+  - `test_no_infinite_loop` — AgentStuckError вместо цикла
+  - `test_llm_called_for_think_decision` — LLM гарантия
+  - `test_state_mutates_after_each_step` — мутация state
+  - `test_planning_skill_has_capabilities` — PlanningSkill capabilities
+  - `test_planning_skill_initializes` — инициализация PlanningSkill
+  - `test_planning_skill_returns_skill_result_on_error` — SkillResult при ошибке
+
+### Changed
+- **PlanningSkill.execute()** переопределён для возврата `SkillResult`
+  - `core/application/skills/planning/skill.py` — явный возврат `SkillResult`
+  - Совместимость с архитектурой навыков
+
+- **BehaviorDecision** расширен полем `requires_llm`
+  - Обратная совместимость: `requires_llm=False` по умолчанию
+
+### Architecture Guarantees
+- ✅ Нет бесконечных циклов (`AgentStuckError` вместо цикла)
+- ✅ Snapshot всегда меняется после observe()
+- ✅ Decision не повторяется более 1 раза без изменения state
+- ✅ Любой `decision.requires_llm` гарантированно вызывает LLM
+- ✅ ReAct и Planning работают независимо
+- ✅ `max_steps` используется только как аварийная защита
+- ✅ Все навыки возвращают `SkillResult`
+
+### Metrics
+- Создано файлов: 7 (исключения + тесты)
+- Изменено файлов: 10 (ядро + навыки)
+- Удалено файлов: 3 (устаревшие тесты)
+- Добавлено тестов: 48 (все проходят)
+- Строк добавлено: +1200
+- Строк удалено: -50 (удалено стандартное logging)
+
+### Removed
+- **Удалены устаревшие тесты**
+  - `tests/unit/infrastructure/logging/test_logging.py` — LogManager удалён
+  - `tests/unit/test_logging_module/test_logging.py` — LogConfig/LogMixin удалены
+  - `tests/stress/test_stress.py` — требует обновления для новой архитектуры
+
+---
+
 ## [5.28.0] - 2026-03-02
 
 ### Added

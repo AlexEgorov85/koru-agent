@@ -222,23 +222,22 @@ class TestActDecisionValidation:
 
     def test_non_act_decision_can_have_empty_capability_name(self):
         """Тест: не-ACT decision может не иметь capability_name"""
-        think_decision = BehaviorDecision(
-            action=BehaviorDecisionType.THINK,
+        switch_decision = BehaviorDecision(
+            action=BehaviorDecisionType.SWITCH,
             capability_name=None,
-            parameters={},
-            reason="thinking"
+            next_pattern="fallback_pattern",
+            reason="switching"
         )
-        
-        plan_decision = BehaviorDecision(
-            action=BehaviorDecisionType.PLAN,
+
+        retry_decision = BehaviorDecision(
+            action=BehaviorDecisionType.RETRY,
             capability_name=None,
-            parameters={},
-            reason="planning"
+            reason="retrying"
         )
-        
+
         # Не-ACT decision могут не иметь capability_name
-        assert think_decision.capability_name is None
-        assert plan_decision.capability_name is None
+        assert switch_decision.capability_name is None
+        assert retry_decision.capability_name is None
 
 
 # ============================================================================

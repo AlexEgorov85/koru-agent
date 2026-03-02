@@ -3,8 +3,9 @@
 """
 import logging
 import json
-from typing import Optional
-from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from typing import Optional, Union
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,8 @@ class LLMEventSubscriber:
 
         # Логируем через стандартный logger для вывода в консоль и файл
         prompt_length = data.get('prompt_length', len(data.get('user_prompt', '')))
-        logger.info(f"📝 LLM Prompt #{self._prompt_count} | {component}/{phase} | {prompt_length} симв.")
-        
+        logger.info(f"[LLM] Prompt #{self._prompt_count} | {component}/{phase} | {prompt_length} симв.")
+
         if self.log_full_content:
             logger.debug(f"System prompt: {data.get('system_prompt', '')[:500]}")
             logger.debug(f"User prompt: {data.get('user_prompt', '')[:500]}")
@@ -46,13 +47,13 @@ class LLMEventSubscriber:
             response_str = json.dumps(response, ensure_ascii=False)[:200]
         else:
             response_str = str(response)[:200]
-            
-        logger.info(f"✅ LLM Response #{self._response_count} | {component}/{phase}")
-        
+
+        logger.info(f"[LLM] Response #{self._response_count} | {component}/{phase}")
+
         if self.log_full_content:
             logger.debug(f"Response: {response_str}")
 
-    def subscribe(self, event_bus: EventBus):
+    def subscribe(self, event_bus: Union[UnifiedEventBus, EventBusConcurrent]):
         """Подписка на события LLM."""
         event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self.on_llm_prompt_generated)
         event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self.on_llm_response_received)
