@@ -108,12 +108,13 @@ class LlamaCppProvider(BaseLLMProvider):
 
         self.llm = None
         self._executor = None  # ThreadPoolExecutor для LLM вызовов
-        
+
         # Логгер для LLM вызовов
         self.logger = logging.getLogger(f"llm.{self.__class__.__name__}")
         self.logger.setLevel(logging.INFO)
-        
-        self.event_bus_logger.info(f"Инициализация Llama.cpp провайдера для модели: {model_name}")
+
+        # event_bus_logger будет инициализирован в initialize()
+        self.event_bus_logger = None
 
         # Контекст вызова для логирования
         self._event_bus = None
@@ -148,6 +149,21 @@ class LlamaCppProvider(BaseLLMProvider):
         Асинхронная инициализация LLM инстанса.
         """
         try:
+            # Инициализация event_bus_logger если ещё не создан
+            if self.event_bus_logger is None:
+                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+                from core.infrastructure.event_bus.unified_logger import EventBusLogger
+                try:
+                    event_bus = get_event_bus()
+                    self.event_bus_logger = EventBusLogger(event_bus, "system", "llm_provider", self.__class__.__name__)
+                except:
+                    self.event_bus_logger = type('obj', (object,), {
+                        'info': lambda *args, **kwargs: None,
+                        'debug': lambda *args, **kwargs: None,
+                        'warning': lambda *args, **kwargs: None,
+                        'error': lambda *args, **kwargs: None
+                    })()
+
             self.event_bus_logger.info(f"Загрузка модели из: {self.model_path}")
             start_time = time.time()
 

@@ -110,7 +110,8 @@ class BaseProvider(IProvider):
         self.avg_response_time = 0.0
         self.retry_policy: Optional[RetryPolicy] = None
 
-        self.event_bus_logger.info(f"Создан провайдер: {name}")
+        # event_bus_logger будет инициализирован в initialize()
+        self.event_bus_logger = None
 
     def _set_healthy_status(self) -> None:
         """Устанавливает статус здоровья как здоровый после успешной инициализации."""
@@ -134,6 +135,21 @@ class BaseProvider(IProvider):
         ВОЗВРАЩАЕТ:
         - bool: True если инициализация успешна
         """
+        # Инициализация event_bus_logger
+        if self.event_bus_logger is None:
+            try:
+                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+                from core.infrastructure.event_bus.unified_logger import EventBusLogger
+                event_bus = get_event_bus()
+                self.event_bus_logger = EventBusLogger(event_bus, "system", "provider", self.name)
+            except:
+                self.event_bus_logger = type('obj', (object,), {
+                    'info': lambda *args, **kwargs: None,
+                    'debug': lambda *args, **kwargs: None,
+                    'warning': lambda *args, **kwargs: None,
+                    'error': lambda *args, **kwargs: None
+                })()
+
         self.is_initialized = True
         self._set_healthy_status()
         return True
