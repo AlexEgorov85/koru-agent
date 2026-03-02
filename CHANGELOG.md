@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## [5.31.0] - 2026-03-02
+
+### Added
+- **Полное удаление манифестов и registry.yaml**
+  - Удалена модель Manifest
+  - Удалена директория data/manifests/ (16 файлов)
+  - registry.yaml переименован в registry.yaml.deprecated
+  - 7 коммитов, 50+ файлов изменено
+  - 29 тестов проходят (100%)
+
+### Changed
+- **Зависимости через DEPENDENCIES в коде**
+  - Все компоненты объявляют зависимости через class variable DEPENDENCIES
+  - 16 компонентов обновлено (сервисы, навыки, инструменты, patterns)
+  - Валидация зависимостей в BaseComponent._validate_manifest()
+
+- **AppConfig.from_discovery() — основной метод**
+  - AppConfig.from_registry() удалён
+  - Авто-обнаружение компонентов через промпты/контракты
+  - main.py использует from_discovery()
+
+### Removed
+- **Манифесты**
+  - core/models/data/manifest.py
+  - core/application/services/manifest_validation_service.py
+  - data/manifests/** (16 файлов)
+  - scripts/validation/validate_all_manifests.py
+
+- **Методы для манифестов**
+  - DataRepository: load_manifests(), get_manifest(), validate_manifest_by_profile()
+  - ApplicationContext: _validate_manifests_by_profile()
+  - FileSystemDataSource: load_manifest(), list_manifests(), manifest_exists()
+  - ResourceDiscovery: discover_manifests(), get_manifest(), _parse_manifest_file()
+
+- **registry.yaml**
+  - AppConfig.from_registry() удалён
+  - ApplicationContext.create_from_registry() удалён
+  - RegistryLoader удалён
+
+### Documentation
+- MIGRATION_TO_DISCOVERY_REPORT.md
+- FINAL_MIGRATION_REPORT.md
+- FINAL_MIGRATION_REPORT_V2.md
+
+---
+
 ## [5.30.0] - 2026-03-02
 
 ### Added
