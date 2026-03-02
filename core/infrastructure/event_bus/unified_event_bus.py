@@ -57,7 +57,6 @@ import asyncio
 import inspect
 import logging
 import time
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -73,6 +72,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUEUE_MAX_SIZE = 1000
 DEFAULT_WORKER_IDLE_TIMEOUT = 60.0
 DEFAULT_SUBSCRIBER_TIMEOUT = 30.0
+SYSTEM_SESSION_ID = "system"  # Единая системная сессия для всех событий без session_id
 
 
 # =============================================================================
@@ -838,8 +838,9 @@ class UnifiedEventBus:
 
         # Гарантируем наличие session_id
         if not event_obj.session_id:
-            event_obj.session_id = f"system_{uuid.uuid4().hex[:8]}"
-            self._internal_logger.debug(f"Сгенерирован session_id для события: {event_obj.session_id}")
+            # Используем единую системную сессию для всех событий без session_id
+            event_obj.session_id = SYSTEM_SESSION_ID
+            self._internal_logger.debug(f"Использована системная сессия для события: {event_obj.event_type}")
 
         # Получаем или создаём очередь для сессии
         queue = await self._get_or_create_queue(event_obj.session_id, event_obj.agent_id)
