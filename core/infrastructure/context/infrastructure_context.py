@@ -77,16 +77,14 @@ class InfrastructureContext:
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
 
-    async def _log_event_bus_migration_info(self, bus_type: str) -> None:
+    async def _log_event_bus_info(self, bus_type: str) -> None:
         """
         Логирование информации о выбранной шине событий.
 
         ПАРАМЕТРЫ:
-        - bus_type: тип выбранной шины (UnifiedEventBus или EventBusConcurrent)
+        - bus_type: тип выбранной шины
         """
-        migration_status = "[MIGRATION]" if self.config.use_unified_event_bus else "[LEGACY]"
-        self.logger.info("%s: Используется шина событий - %s", migration_status, bus_type)
-        self.logger.info("Для включения UnifiedEventBus установите use_unified_event_bus=True в конфигурации")
+        self.logger.info("Используется шина событий: %s", bus_type)
 
     async def initialize(self) -> bool:
         """
@@ -102,13 +100,9 @@ class InfrastructureContext:
         # === ЭТАП 1: Базовая инициализация ===
 
         # Инициализация шины событий (ПЕРВЫЙ компонент)
-        # Выбор шины на основе флага конфигурации
-        if self.config.use_unified_event_bus:
-            self.event_bus = UnifiedEventBus()
-            await self._log_event_bus_migration_info("UnifiedEventBus")
-        else:
-            self.event_bus = EventBusConcurrent()
-            await self._log_event_bus_migration_info("EventBusConcurrent (legacy)")
+        # Используем UnifiedEventBus — единую шину событий
+        self.event_bus = UnifiedEventBus()
+        await self._log_event_bus_info("UnifiedEventBus")
 
         # Инициализация event_bus_logger после создания event_bus
         from core.infrastructure.event_bus.unified_logger import EventBusLogger
