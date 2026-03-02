@@ -42,9 +42,9 @@ class SQLGenerationService(BaseService):
     - Интеграция с существующими сервисами (таблицы, промпты)
     - Полная изоляция от инъекций через валидацию
     """
-    
+
     # Явная декларация зависимостей
-    DEPENDENCIES = ["table_description_service"]
+    DEPENDENCIES = ["table_description_service", "prompt_service", "contract_service"]
 
     @property
     def description(self) -> str:

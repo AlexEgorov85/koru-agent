@@ -12,11 +12,14 @@ class FallbackPattern(BaseBehaviorPattern):
     """
     Паттерн интеллектуального восстановления.
     Используется при ошибках для диагностики и восстановления.
-    
+
     АРХИТЕКТУРА:
     - component_name используется для получения config из AppConfig
     - pattern_id генерируется из component_name для совместимости
     """
+
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["prompt_service"]
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.

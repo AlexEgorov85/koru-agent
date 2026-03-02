@@ -11,12 +11,15 @@ logger = logging.getLogger(__name__)
 
 class PlanningPattern(BaseBehaviorPattern):
     """Паттерн иерархического планирования: создание плана → выполнение шагов → коррекция
-    
+
     АРХИТЕКТУРА:
     - component_name используется для получения config из AppConfig
     - Промпты и контракты загружаются из component_config.resolved_prompts/contracts
     - pattern_id генерируется из component_name для совместимости
     """
+
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["prompt_service", "contract_service"]
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.

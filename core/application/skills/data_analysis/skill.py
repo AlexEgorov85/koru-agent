@@ -27,7 +27,10 @@ from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
 class DataAnalysisSkill(BaseSkill):
     """Навык для анализа сырых данных по шагу и ответа на вопросы."""
-    
+
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["file_tool", "sql_tool"]
+
     name: str = "data_analysis"
     
     def __init__(

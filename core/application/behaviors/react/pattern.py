@@ -45,6 +45,9 @@ class ReActPattern(BaseBehaviorPattern):
     """
     # pattern_id НЕ определяется — генерируется из component_name
 
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["prompt_service", "contract_service"]
+
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
 
@@ -516,18 +519,21 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа."""
-        
+        print(f"[DEBUG] generate_decision: START")
+
         # Логирование начала через EventBusLogger
         await self._log("info", "generate_decision: started",
                        step=session_context.current_step if hasattr(session_context, 'current_step') else 0)
-        
+
         try:
+            print(f"[DEBUG] generate_decision: вызываем _perform_structured_reasoning")
             # 1. Структурированное рассуждение через LLM
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities
             )
+            print(f"[DEBUG] generate_decision: _perform_structured_reasoning вернул результат")
             
             # Логирование результата рассуждения
             await self._log("debug", f"generate_decision: reasoning_result получен",
@@ -579,30 +585,22 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
-        # Загружаем промпт и контракт из кэша BaseComponent
-        self._load_reasoning_resources()
-
-        # Флаг для гарантии вызова LLM
-        llm_was_called = False
-
-        # Преобразование capability в нужный формат для промпта
-        formatted_capabilities = []
-        for cap in available_capabilities:
-            formatted_capabilities.append({
-                'name': cap.name,
-                'description': cap.description or 'Без описания',
-                'parameters_schema': getattr(cap, 'parameters_schema', {}) or {}
-            })
-
-        # Рендерим промпт из шаблона
-        reasoning_prompt = self._render_reasoning_prompt(
-            context_analysis=context_analysis,
-            available_capabilities=formatted_capabilities
-        )
-
-        start_time = time.time()
-
+        print(f"[DEBUG] _perform_structured_reasoning: START")
         try:
+            # Загружаем промпт и контракт из кэша BaseComponent
+            self._load_reasoning_resources()
+
+            # Флаг для гарантии вызова LLM
+            llm_was_called = False
+
+            # Рендерим промпт из шаблона (передаём оригинальные Capability объекты)
+            reasoning_prompt = self._render_reasoning_prompt(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities
+            )
+
+            start_time = time.time()
+
             # Генерация структурированного ответа через LLM
             llm_provider = None
             if self.application_context:
@@ -914,6 +912,29 @@ class ReActPattern(BaseBehaviorPattern):
                     result = response['raw_response']
                 elif hasattr(response, 'content'):
                     result = response.content
+                    # Если content это строка, пробуем распарсить как JSON
+                    if isinstance(result, str):
+                        try:
+                            result = json.loads(result)
+                        except (json.JSONDecodeError, ValueError):
+                            await self._log("warning", f"LLM вернул невалидный JSON: {result[:200]}...")
+                            # Возвращаем fallback результат
+                            return {
+                                "analysis": {
+                                    "current_situation": "Ошибка парсинга ответа LLM",
+                                    "progress_assessment": "Неизвестно",
+                                    "confidence": 0.3,
+                                    "errors_detected": True,
+                                    "consecutive_errors": self.error_count + 1,
+                                },
+                                "decision": {
+                                    "next_action": "book_library.search_books",
+                                    "reasoning": "fallback после ошибки парсинга JSON",
+                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
+                                },
+                                "available_capabilities": available_capabilities,
+                                "needs_rollback": False
+                            }
                 else:
                     result = response
 
@@ -1166,7 +1187,7 @@ class ReActPattern(BaseBehaviorPattern):
             logger.error(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
-        # Валидация и корректировка параметров
+        # Валидация и корректировка параметро��
         logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
         logger.info(f"capability: {capability.name}")
         logger.info(f"raw_params: {parameters}")

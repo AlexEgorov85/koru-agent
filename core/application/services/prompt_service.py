@@ -12,7 +12,10 @@ class PromptService(BaseService):
     Сервис промптов с ИЗОЛИРОВАННЫМ кэшем.
     Создаётся НОВЫЙ экземпляр для каждого ApplicationContext.
     """
-    
+
+    # Явная декларация зависимостей
+    DEPENDENCIES = []  # Нет зависимостей
+
     @property
     def description(self) -> str:
         return "Сервис промптов с изолированным кэшем"

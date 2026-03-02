@@ -29,17 +29,20 @@ logger = logging.getLogger(__name__)
 class FinalAnswerSkill(BaseSkill):
     """
     Навык для генерации финального ответа на основе всего контекста сессии.
-    
+
     ПОДДЕРЖИВАЕМЫЕ ФОРМАТЫ:
     - concise: краткий и точный ответ без излишних деталей
     - detailed: развёрнутый ответ с полным объяснением и контекстом
     - structured: ответ с чёткой структурой (резюме, выводы, доказательства)
-    
+
     АРХИТЕКТУРНЫЕ ГАРАНТИИ:
     - Все ресурсы (промты, контракты) предзагружены при initialize()
     - Валидация через кэшированные YAML-схемы
     - Взаимодействие через ActionExecutor
     """
+
+    # Явная декларация зависимостей
+    DEPENDENCIES = ["prompt_service", "contract_service"]
 
     name = "final_answer"
     supported_strategies = ["react", "planning", "evaluation", "plan_and_execute", "chain_of_thought"]
