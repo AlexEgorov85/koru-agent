@@ -21,23 +21,24 @@ class MyComponent:
 """
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from datetime import datetime
 
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus, EventType, shutdown_event_bus
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType, shutdown_event_bus
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 
 class EventBusLogger:
     """
     Универсальный логгер через EventBus.
-    
+
     Все сообщения публикуются как события LOG_INFO/DEBUG/WARNING/ERROR
     и обрабатываются подписчиками (DevConsole, UserConsole, Archive).
     """
 
     def __init__(
         self,
-        event_bus: EventBus,
+        event_bus: Union[UnifiedEventBus, EventBusConcurrent],
         session_id: str,
         agent_id: str,
         component: str = "unknown"
@@ -188,29 +189,39 @@ def create_logger(
 # BACKWARD COMPATIBILITY — ЗАМЕНА legacy logging
 # =============================================================================
 
-_global_event_bus: Optional[EventBus] = None
+_global_event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = None
 _default_session_id: str = "system"
 _default_agent_id: str = "system"
 _default_logger: Optional[EventBusLogger] = None
 
 
-async def init_logging_system(config: Optional[Dict] = None, **kwargs):
+async def init_logging_system(event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = None, config: Optional[Dict] = None, **kwargs):
     """
     ЗАМЕНА: core.infrastructure.logging.init_logging_system
-    
+
     Инициализация системы логирования через EventBus.
+
+    ПАРАМЕТРЫ:
+    - event_bus: Шина событий (UnifiedEventBus или EventBusConcurrent)
+                 Если None, используется get_event_bus()
+    - config: Конфигурация (опционально)
+    - kwargs: Дополнительные параметры (session_id, agent_id)
     """
     global _global_event_bus, _default_session_id, _default_agent_id, _default_logger
-    
-    # EventBus уже инициализирован в InfrastructureContext
-    # Эта функция теперь просто настраивает глобальный logger
-    from core.infrastructure.event_bus.event_bus_concurrent import get_event_bus
-    
-    _global_event_bus = get_event_bus()
+
+    # Если event_bus передан — используем его
+    if event_bus is not None:
+        _global_event_bus = event_bus
+    else:
+        # EventBus уже инициализирован в InfrastructureContext
+        # Эта функция теперь просто настраивает глобальный logger
+        from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+        _global_event_bus = get_event_bus()
+
     _default_session_id = kwargs.get('session_id', 'system')
     _default_agent_id = kwargs.get('agent_id', 'system')
     _default_logger = EventBusLogger(_global_event_bus, _default_session_id, _default_agent_id, 'legacy')
-    
+
     return _global_event_bus
 
 

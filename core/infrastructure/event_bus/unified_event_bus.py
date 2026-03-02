@@ -633,6 +633,10 @@ class UnifiedEventBus:
         # Блокировка для потокобезопасного создания workers
         self._lock = asyncio.Lock()
 
+        # === МИГРАЦИЯ: счётчик дублирования подписчиков ===
+        self._duplicate_subscription_count = 0
+        self._duplicate_event_warning_threshold = 10  # Предупреждение после N дубликатов
+
     # =========================================================================
     # ПОДПИСКА / ОТПИСКА
     # =========================================================================
@@ -683,6 +687,24 @@ class UnifiedEventBus:
             domain=domain,
             session_id=session_id
         )
+
+        # === МИГРАЦИЯ: детекция дублирования подписчиков ===
+        for existing_sub in self._subscribers[event_type_str]:
+            if existing_sub.handler == handler:
+                # Обнаружено дублирование подписки!
+                self._duplicate_subscription_count += 1
+                if self._duplicate_subscription_count <= self._duplicate_event_warning_threshold:
+                    self._internal_logger.warning(
+                        f"⚠️ MIGRATION: Обнаружено дублирование подписчика на {event_type_str}: "
+                        f"{handler.__name__} (domain={domain}, session_id={session_id}). "
+                        f"Всего дубликатов: {self._duplicate_subscription_count}"
+                    )
+                elif self._duplicate_subscription_count == self._duplicate_event_warning_threshold + 1:
+                    self._internal_logger.warning(
+                        f"⚠️ MIGRATION: Слишком много дубликатов подписчиков ({self._duplicate_subscription_count}). "
+                        f"Дальнейшие предупреждения отключены."
+                    )
+                return  # Не добавляем дубликат
 
         if sub_info not in self._subscribers[event_type_str]:
             self._subscribers[event_type_str].append(sub_info)
@@ -1075,6 +1097,8 @@ class UnifiedEventBus:
                 len(handlers) for handlers in self._subscribers.values()
             ),
             "all_subscribers_count": len(self._all_subscribers),
+            # === МИГРАЦИЯ: статистика дублирования ===
+            "duplicate_subscription_count": self._duplicate_subscription_count,
             "sessions": {
                 session_id: {
                     "agent_id": meta.agent_id,
@@ -1119,6 +1143,31 @@ class UnifiedEventBus:
             session_id for session_id, meta in self._active_sessions.items()
             if meta.agent_id == agent_id
         ]
+
+    # =========================================================================
+    # МИГРАЦИЯ: статистика дублирования
+    # =========================================================================
+
+    def get_migration_stats(self) -> Dict[str, Any]:
+        """
+        Получение статистики миграции.
+
+        ВОЗВРАЩАЕТ:
+        - duplicate_subscription_count: количество обнаруженных дубликатов подписчиков
+        - duplicate_warning_threshold: порог предупреждений
+        - migration_active: True если идёт миграция
+        """
+        return {
+            "duplicate_subscription_count": self._duplicate_subscription_count,
+            "duplicate_warning_threshold": self._duplicate_event_warning_threshold,
+            "migration_active": True,
+            "message": "Статистика миграции: отслеживание дублирования подписчиков"
+        }
+
+    def reset_migration_stats(self):
+        """Сброс статистики миграции."""
+        self._duplicate_subscription_count = 0
+        self._internal_logger.info("Статистика миграции сброшена")
 
 
 # =============================================================================
