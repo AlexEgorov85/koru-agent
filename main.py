@@ -75,8 +75,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await session_logger.info(f"Сессия начата: {session_id}")
 
         # Создание прикладного контекста
-        app_config = AppConfig.from_registry(profile="prod")
-        await session_logger.debug(f"app_config loaded")
+        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
+        await session_logger.debug(f"app_config loaded via discovery")
 
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
