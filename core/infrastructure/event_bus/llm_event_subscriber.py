@@ -3,9 +3,8 @@
 """
 import logging
 import json
-from typing import Optional, Union
+from typing import Optional
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class LLMEventSubscriber:
         if self.log_full_content:
             logger.debug(f"Response: {response_str}")
 
-    def subscribe(self, event_bus: Union[UnifiedEventBus, EventBusConcurrent]):
+    def subscribe(self, event_bus: UnifiedEventBus):
         """Подписка на события LLM."""
         event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self.on_llm_prompt_generated)
         event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self.on_llm_response_received)

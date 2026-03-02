@@ -21,11 +21,10 @@ class MyComponent:
 """
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType, shutdown_event_bus
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 
 class EventBusLogger:
@@ -38,7 +37,7 @@ class EventBusLogger:
 
     def __init__(
         self,
-        event_bus: Union[UnifiedEventBus, EventBusConcurrent],
+        event_bus: UnifiedEventBus,
         session_id: str,
         agent_id: str,
         component: str = "unknown"
@@ -189,20 +188,20 @@ def create_logger(
 # BACKWARD COMPATIBILITY — ЗАМЕНА legacy logging
 # =============================================================================
 
-_global_event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = None
+_global_event_bus: Optional[UnifiedEventBus] = None
 _default_session_id: str = "system"
 _default_agent_id: str = "system"
 _default_logger: Optional[EventBusLogger] = None
 
 
-async def init_logging_system(event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = None, config: Optional[Dict] = None, **kwargs):
+async def init_logging_system(event_bus: Optional[UnifiedEventBus] = None, config: Optional[Dict] = None, **kwargs):
     """
     ЗАМЕНА: core.infrastructure.logging.init_logging_system
 
     Инициализация системы логирования через EventBus.
 
     ПАРАМЕТРЫ:
-    - event_bus: Шина событий (UnifiedEventBus или EventBusConcurrent)
+    - event_bus: Шина событий (UnifiedEventBus)
                  Если None, используется get_event_bus()
     - config: Конфигурация (опционально)
     - kwargs: Дополнительные параметры (session_id, agent_id)
