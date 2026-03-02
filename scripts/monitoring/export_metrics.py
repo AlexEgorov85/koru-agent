@@ -42,12 +42,11 @@ class Metrics:
     # Промпты и контракты
     prompts_count: int = 0
     contracts_count: int = 0
-    manifests_count: int = 0
-    
+
     # Память (MB)
     memory_current_mb: float = 0.0
     memory_peak_mb: float = 0.0
-    
+
     # Timestamp
     timestamp: float = 0.0
 
@@ -102,8 +101,7 @@ class MetricsExporter:
         # Промпты и контракты
         self.metrics.prompts_count = len(app_context.data_repository._prompts_index)
         self.metrics.contracts_count = len(app_context.data_repository._contracts_index)
-        self.metrics.manifests_count = len(app_context.data_repository._manifest_cache)
-        
+
         # Память
         current, peak = tracemalloc.get_traced_memory()
         self.metrics.memory_current_mb = current / 1024 / 1024
@@ -169,8 +167,7 @@ async def main():
     print(f"\n  Ресурсы:")
     print(f"    - Prompts: {metrics.prompts_count}")
     print(f"    - Contracts: {metrics.contracts_count}")
-    print(f"    - Manifests: {metrics.manifests_count}")
-    
+
     print(f"\n  Память:")
     print(f"    - Текущая: {metrics.memory_current_mb:.2f} MB")
     print(f"    - Пиковая: {metrics.memory_peak_mb:.2f} MB")

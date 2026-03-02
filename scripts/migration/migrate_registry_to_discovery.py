@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 from core.models.data.prompt import PromptStatus
-from core.models.data.manifest import ComponentStatus
+from core.models.enums.common_enums import ComponentStatus
 
 
 def load_registry(registry_path: str) -> dict:
@@ -76,11 +76,10 @@ def migrate_registry(registry_path: str = 'registry.yaml', data_dir: str = 'data
     print("[3/6] Scanning resources...")
     prompts = discovery.discover_prompts()
     contracts = discovery.discover_contracts()
-    manifests = discovery.discover_manifests()
+    # Манифесты удалены из системы
     
     print(f"   Found prompts: {len(prompts)}")
     print(f"   Found contracts: {len(contracts)}")
-    print(f"   Found manifests: {len(manifests)}")
     print()
     
     # 4. Проверяем active_prompts из registry
@@ -126,38 +125,9 @@ def migrate_registry(registry_path: str = 'registry.yaml', data_dir: str = 'data
             else:
                 print(f"  [OK] {capability}@{versions}")
     
-    # 6. Проверяем манифесты
-    print("\n[6/6] Checking manifests...")
-    
-    # Services
-    services = registry.get('services', {})
-    for service_name, service_info in services.items():
-        if isinstance(service_info, dict) and service_info.get('enabled', False):
-            manifest = discovery.get_manifest('service', service_name)
-            if manifest:
-                print(f"  [OK] Service manifest: {service_name}")
-            else:
-                warnings.append(f"  [WARN] Service manifest {service_name} not found")
-    
-    # Skills
-    skills = registry.get('skills', {})
-    for skill_name, skill_info in skills.items():
-        if isinstance(skill_info, dict) and skill_info.get('enabled', False):
-            manifest = discovery.get_manifest('skill', skill_name)
-            if manifest:
-                print(f"  [OK] Skill manifest: {skill_name}")
-            else:
-                warnings.append(f"  [WARN] Skill manifest {skill_name} not found")
-    
-    # Tools
-    tools = registry.get('tools', {})
-    for tool_name, tool_info in tools.items():
-        if isinstance(tool_info, dict) and tool_info.get('enabled', False):
-            manifest = discovery.get_manifest('tool', tool_name)
-            if manifest:
-                print(f"  [OK] Tool manifest: {tool_name}")
-            else:
-                warnings.append(f"  [WARN] Tool manifest {tool_name} not found")
+    # 6. Проверка завершена - манифесты удалены из системы
+    print("\n[6/6] Manifests removed from system")
+    print("  Component dependencies are now declared via DEPENDENCIES in code")
     
     # 7. Вывод результатов
     print("\n" + "=" * 60)

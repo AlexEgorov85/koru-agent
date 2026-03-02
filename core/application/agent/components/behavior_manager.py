@@ -73,10 +73,12 @@ class BehaviorManager:
         session_context: 'SessionContext',
         available_capabilities: List[Capability]
     ) -> BehaviorDecision:
+        print(f"[DEBUG] generate_next_decision: _current_pattern={self._current_pattern is not None}")
         if not self._current_pattern:
             raise ValueError("BehaviorManager не инициализирован")
 
         # Единая точка анализа контекста
+        print(f"[DEBUG] generate_next_decision: вызываем analyze_context")
         context_analysis = await self._current_pattern.analyze_context(
             session_context,
             available_capabilities,
@@ -84,11 +86,13 @@ class BehaviorManager:
         )
 
         # Генерация решения
+        print(f"[DEBUG] generate_next_decision: вызываем generate_decision")
         decision = await self._current_pattern.generate_decision(
             session_context,
             available_capabilities,
             context_analysis
         )
+        print(f"[DEBUG] generate_next_decision: decision.action={decision.action}")
 
         # КРИТИЧЕСКАЯ ПРОВЕРКА: decision должен иметь capability_name для ACT
         if decision.action == BehaviorDecisionType.ACT:

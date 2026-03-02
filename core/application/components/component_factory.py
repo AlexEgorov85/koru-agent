@@ -141,7 +141,7 @@ class ComponentFactory:
             elif name == "table_description_service":
                 from core.application.services.table_description_service import TableDescriptionService
                 return TableDescriptionService
-            elif name == "sql_generation_service":
+            elif name == "sql_generation_service" or name == "sql_generation":
                 from core.application.services.sql_generation.service import SQLGenerationService
                 return SQLGenerationService
             elif name == "sql_query_service":
@@ -206,6 +206,10 @@ class ComponentFactory:
             elif name == "vector_books_tool":
                 from core.application.tools.vector_books_tool import VectorBooksTool
                 return VectorBooksTool
+            elif name == "book_library":
+                # book_library - это skill, но используется как tool в промптах
+                from core.application.skills.book_library.skill import BookLibrarySkill
+                return BookLibrarySkill
             else:
                 # Попробуем стандартный путь
                 module_name = f"core.application.tools.{name}_tool"
