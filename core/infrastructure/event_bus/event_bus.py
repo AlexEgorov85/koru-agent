@@ -164,7 +164,7 @@ class EventBus:
         - handler: функция-обработчик события
         """
         self._all_subscribers.append(handler)
-        self._internal_self.event_bus_logger.debug("Подписан обработчик на все события")
+        self._internal_logger.debug("Подписан обработчик на все события")
     
     def unsubscribe(self, event_type: Union[str, EventType], handler: Callable):
         """
@@ -179,7 +179,7 @@ class EventBus:
         if event_type_str in self._subscribers:
             if handler in self._subscribers[event_type_str]:
                 self._subscribers[event_type_str].remove(handler)
-                self._internal_self.event_bus_logger.debug(f"Отписан обработчик от события: {event_type_str}")
+                self._internal_logger.debug(f"Отписан обработчик от события: {event_type_str}")
     
     async def publish(self, event: Union[Event, str, EventType], data: Dict[str, Any] = None, source: str = "", correlation_id: str = ""):
         """
@@ -209,7 +209,7 @@ class EventBus:
 
         # Логирование публикации события (только для важных событий)
         if event_obj.event_type in ["error.occurred", "agent.started", "agent.completed"]:
-            self._internal_self.event_bus_logger.info(f"Публикация события: {event_obj.event_type} (источник: {event_obj.source})")
+            self._internal_logger.info(f"Публикация события: {event_obj.event_type} (источник: {event_obj.source})")
 
         # Получение списка подписчиков
         event_type_handlers = self._subscribers.get(event_obj.event_type, [])
@@ -234,7 +234,7 @@ class EventBus:
 
                 tasks.append(task)
             except Exception as e:
-                self._internal_self.event_bus_logger.error(f"Ошибка при создании задачи для обработчика: {e}")
+                self._internal_logger.error(f"Ошибка при создании задачи для обработчика: {e}")
 
         # Ожидание выполнения всех задач
         if tasks:
@@ -244,11 +244,11 @@ class EventBus:
                 for task in tasks:
                     # Добавляем обработчик ошибок для каждой задачи
                     task.add_done_callback(
-                        lambda t: self._internal_self.event_bus_logger.error(f"Ошибка в обработчике: {t.exception()}")
+                        lambda t: self._internal_logger.error(f"Ошибка в обработчике: {t.exception()}")
                         if t.exception() else None
                     )
             except Exception as e:
-                self._internal_self.event_bus_logger.error(f"Ошибка при запуске обработчиков события: {e}")
+                self._internal_logger.error(f"Ошибка при запуске обработчиков события: {e}")
     
     async def _wrap_sync_handler(self, handler: Callable, event: Event):
         """
@@ -261,7 +261,7 @@ class EventBus:
         try:
             handler(event)
         except Exception as e:
-            self._internal_self.event_bus_logger.error(f"Ошибка в синхронном обработчике события: {e}")
+            self._internal_logger.error(f"Ошибка в синхронном обработчике события: {e}")
     
     def get_subscribers_count(self, event_type: Union[str, EventType]) -> int:
         """

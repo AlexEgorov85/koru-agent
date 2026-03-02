@@ -148,7 +148,7 @@ class DomainEventBus:
     def subscribe(self, event_type: Union[str, EventType], handler: Callable):
         """Подписка на событие в рамках домена."""
         self._event_bus.subscribe(event_type, handler)
-        self._self.event_bus_logger.debug(f"Подписан обработчик на {event_type}")
+        self._logger.debug(f"Подписан обработчик на {event_type}")
     
     def subscribe_all(self, handler: Callable):
         """Подписка на все события домена."""
@@ -169,7 +169,7 @@ class DomainEventBus:
         - bool: True если событие опубликовано успешно
         """
         if not self._enabled:
-            self._self.event_bus_logger.debug(f"Домен {self.domain.value} отключен, событие не опубликовано")
+            self._logger.debug(f"Домен {self.domain.value} отключен, событие не опубликовано")
             return False
         
         try:
@@ -198,24 +198,24 @@ class DomainEventBus:
                         else:
                             handler(event)
                     except Exception as e:
-                        self._self.event_bus_logger.error(f"Ошибка в глобальном подписчике: {e}")
+                        self._logger.error(f"Ошибка в глобальном подписчике: {e}")
             
             return True
             
         except Exception as e:
             self._error_count += 1
-            self._self.event_bus_logger.error(f"Ошибка публикации события: {e}")
+            self._logger.error(f"Ошибка публикации события: {e}")
             return False
     
     def enable(self):
         """Включение домена."""
         self._enabled = True
-        self._self.event_bus_logger.info(f"Домен {self.domain.value} включен")
+        self._logger.info(f"Домен {self.domain.value} включен")
     
     def disable(self):
         """Выключение домена."""
         self._enabled = False
-        self._self.event_bus_logger.info(f"Домен {self.domain.value} выключен")
+        self._logger.info(f"Домен {self.domain.value} выключен")
     
     def get_stats(self) -> Dict[str, Any]:
         """Получение статистики по домену."""
@@ -280,9 +280,9 @@ class EventBusManager:
         # Инициализация шин для каждого домена
         for domain in self._domains:
             self._buses[domain] = DomainEventBus(domain, self)  # Передаем ссылку на менеджер
-            self._self.event_bus_logger.debug(f"Создана шина для домена {domain.value}")
+            self._logger.debug(f"Создана шина для домена {domain.value}")
         
-        self._self.event_bus_logger.info(f"EventBusManager инициализирован с {len(self._domains)} доменами")
+        self._logger.info(f"EventBusManager инициализирован с {len(self._domains)} доменами")
     
     def get_bus(self, domain: Union[EventDomain, str]) -> DomainEventBus:
         """
@@ -360,7 +360,7 @@ class EventBusManager:
                     else:
                         handler(domain_event)
                 except Exception as e:
-                    self._self.event_bus_logger.error(f"Ошибка в глобальном подписчике: {e}")
+                    self._logger.error(f"Ошибка в глобальном подписчике: {e}")
         
         return result
     
@@ -392,7 +392,7 @@ class EventBusManager:
             except Exception as e:
                 domain_name = domain.value if isinstance(domain, EventDomain) else domain
                 results[domain_name] = False
-                self._self.event_bus_logger.error(f"Ошибка публикации в домен {domain_name}: {e}")
+                self._logger.error(f"Ошибка публикации в домен {domain_name}: {e}")
         
         return results
     
@@ -404,7 +404,7 @@ class EventBusManager:
         - handler: обработчик событий
         """
         self._global_subscribers.append(handler)
-        self._self.event_bus_logger.debug("Зарегистрирован глобальный подписчик на все события")
+        self._logger.debug("Зарегистрирован глобальный подписчик на все события")
     
     def on_cross_domain_event(self, event_type: str, handler: Callable):
         """
@@ -441,10 +441,10 @@ class EventBusManager:
     
     async def shutdown(self):
         """Корректное завершение работы всех шин."""
-        self._self.event_bus_logger.info("Завершение работы EventBusManager")
+        self._logger.info("Завершение работы EventBusManager")
         for domain, bus in self._buses.items():
             bus.disable()
-            self._self.event_bus_logger.debug(f"Домен {domain.value} отключен")
+            self._logger.debug(f"Домен {domain.value} отключен")
 
 
 # Глобальный менеджер шин событий (singleton)
