@@ -30,7 +30,7 @@ from core.application.services.accuracy_evaluator import (
     EvaluationResult,
 )
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent, EventType
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class BenchmarkService:
         self,
         metrics_collector: MetricsCollector,
         accuracy_evaluator: AccuracyEvaluatorService,
-        event_bus: EventBus,
+        event_bus: UnifiedEventBus,
         config: Optional[BenchmarkConfig] = None
     ):
         """

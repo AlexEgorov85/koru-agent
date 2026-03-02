@@ -26,7 +26,7 @@ from core.models.data.benchmark import (
 from core.application.services.benchmark_service import BenchmarkService
 from core.application.services.prompt_contract_generator import PromptContractGenerator
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent, EventType
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class OptimizationService:
         benchmark_service: BenchmarkService,
         prompt_generator: PromptContractGenerator,
         metrics_collector: MetricsCollector,
-        event_bus: EventBus,
+        event_bus: UnifiedEventBus,
         config: Optional[OptimizationConfig] = None
     ):
         """
