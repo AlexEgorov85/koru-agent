@@ -1,5 +1,70 @@
 # CHANGELOG
 
+## [5.28.0] - 2026-03-02
+
+### Added
+- **SkillResult — унифицированный результат выполнения Skills**
+  - `core/models/data/execution.py` — новый класс `SkillResult`
+  - Поля: `technical_success`, `data`, `error`, `metadata`, `side_effect`
+  - Factory методы: `success()`, `failure()`
+  - Метод `to_dict()` для сериализации
+
+- **Новые действия контекста в ActionExecutor**
+  - `context.get_all_items` — получение всех элементов контекста
+  - `context.get_step_history` — получение истории шагов
+  - Используется FinalAnswerSkill для доступа к контексту без state
+
+- **Интеграционные тесты для Skills (39 тестов)**
+  - `test_skill_architecture.py` (17 тестов)
+    * Проверка что skills не имеют доступа к state
+    * Проверка что skills не вызывают LLM напрямую
+    * Проверка что skills не знают о Pattern
+    * Проверка что skills детерминированы
+    * Проверка что skills не имеют retry логики
+  - `test_skills_simple_integration.py` (15 тестов)
+    * Проверка что все skills возвращают SkillResult
+    * Проверка использования SkillResult.success/failure
+    * Проверка явного указания side_effect
+    * Проверка полей SkillResult
+  - `test_skills_integration.py` (7 тестов)
+    * Интеграционные тесты для каждого skill
+    * Сквозной тест planning → final_answer
+
+### Changed
+- **Миграция всех skills на SkillResult**
+  - `BookLibrarySkill`: search_books, execute_script, list_scripts
+  - `PlanningSkill`: create_plan, update_plan, get_next_step, update_step_status, decompose_task, mark_task_completed
+  - `FinalAnswerSkill`: generate
+  - `DataAnalysisSkill`: analyze_step_data
+
+- **Исправления в skills**
+  - `ExecutionResult.data` → `ExecutionResult.result`
+  - `ExecutionResult.success` → `ExecutionResult.status == ExecutionStatus.COMPLETED`
+  - Убран прямой доступ к `context.data_context` в FinalAnswerSkill
+  - Доступ к контексту через `executor.execute_action('context.get_all_items')`
+
+- **BaseComponent._publish_metrics**
+  - Исправлен вызов с 7 аргументами на именованные параметры
+  - `tokens_used=0`, `error=...`, `error_type=...` вместо позиционных аргументов
+
+### Architecture Guarantees
+- ✅ Skills не знают о Pattern
+- ✅ Skills не имеют доступа к state напрямую
+- ✅ Skills не вызывают LLM напрямую (только через executor)
+- ✅ Skills не имеют retry логики
+- ✅ Skills детерминированы (кроме метаданных времени)
+- ✅ 100% skills возвращают SkillResult
+- ✅ side-effect явно помечены
+
+### Metrics
+- Создано файлов: 4 (SkillResult + 3 тестовых файла)
+- Изменено файлов: 8 (5 skills + executor + base_component + test)
+- Добавлено тестов: 39
+- Строк добавлено: +1410
+- Строк удалено: -307
+
+---
+
 ## [5.27.0] - 2026-03-01
 
 ### Added
