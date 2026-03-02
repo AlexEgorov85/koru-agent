@@ -175,7 +175,7 @@ class EventBusLogger:
 # =============================================================================
 
 def create_logger(
-    event_bus: EventBus,
+    event_bus: UnifiedEventBus,
     session_id: str,
     agent_id: str,
     component: str = "unknown"
