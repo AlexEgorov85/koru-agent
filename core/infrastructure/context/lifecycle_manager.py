@@ -20,7 +20,7 @@ class LifecycleManager:
         self._cleanup_funcs: List[Callable[[], Awaitable[Any]]] = []
         self._initialized = False
         self.logger = logging.getLogger(__name__)
-        self.event_bus: Optional[Union[UnifiedEventBus, EventBusConcurrent]] = event_bus
+        self.event_bus: Optional[UnifiedEventBus] = event_bus
         self.event_bus_logger: Optional[EventBusLogger] = None
         if event_bus:
             self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="LifecycleManager")
