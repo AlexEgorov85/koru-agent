@@ -17,7 +17,8 @@ from core.infrastructure.providers.database.factory import DBProviderFactory
 from core.infrastructure.storage.prompt_storage import PromptStorage
 from core.infrastructure.storage.contract_storage import ContractStorage
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IContractStorage
-from core.infrastructure.event_bus.event_bus_concurrent import EventBus
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
 from core.models.data.resource import ResourceInfo
@@ -48,7 +49,8 @@ class InfrastructureContext:
 
         # Основные компоненты инфраструктуры
         self.lifecycle_manager: Optional[LifecycleManager] = None
-        self.event_bus: Optional[EventBus] = None
+        # Шина событий: UnifiedEventBus или EventBusConcurrent в зависимости от флага
+        self.event_bus: Optional[UnifiedEventBus | EventBusConcurrent] = None
         self.resource_registry: Optional[ResourceRegistry] = None
 
         # Фабрики провайдеров
@@ -75,6 +77,17 @@ class InfrastructureContext:
         # Настройка логирования
         self.logger = logging.getLogger(f"{__name__}.{self.id}")
 
+    async def _log_event_bus_migration_info(self, bus_type: str) -> None:
+        """
+        Логирование информации о выбранной шине событий.
+
+        ПАРАМЕТРЫ:
+        - bus_type: тип выбранной шины (UnifiedEventBus или EventBusConcurrent)
+        """
+        migration_status = "🔄 MIGRATION" if self.config.use_unified_event_bus else "⚠️ LEGACY"
+        print(f"[InfrastructureContext] {migration_status}: Используется шина событий — {bus_type}")
+        print(f"[InfrastructureContext] Для включения UnifiedEventBus установите use_unified_event_bus=True в конфигурации")
+
     async def initialize(self) -> bool:
         """
         Инициализация инфраструктурных ресурсов.
@@ -87,9 +100,15 @@ class InfrastructureContext:
             return True
 
         # === ЭТАП 1: Базовая инициализация ===
-        
+
         # Инициализация шины событий (ПЕРВЫЙ компонент)
-        self.event_bus = EventBus()
+        # Выбор шины на основе флага конфигурации
+        if self.config.use_unified_event_bus:
+            self.event_bus = UnifiedEventBus()
+            await self._log_event_bus_migration_info("UnifiedEventBus")
+        else:
+            self.event_bus = EventBusConcurrent()
+            await self._log_event_bus_migration_info("EventBusConcurrent (legacy)")
 
         # Инициализация event_bus_logger после создания event_bus
         from core.infrastructure.event_bus.unified_logger import EventBusLogger
