@@ -19,6 +19,7 @@ class BehaviorDecision:
     next_pattern: Optional[str] = None  # Для SWITCH
     reason: str = ""
     confidence: float = 1.0
+    requires_llm: bool = False  # Флаг что decision требует вызова LLM
 
 
 # ============================================================================

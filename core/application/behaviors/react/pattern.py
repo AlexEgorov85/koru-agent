@@ -22,6 +22,7 @@ from core.application.agent.strategies.react.validation import validate_reasonin
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+from core.models.errors import InfrastructureError
 
 logger = logging.getLogger(__name__)
 
@@ -581,6 +582,9 @@ class ReActPattern(BaseBehaviorPattern):
         # Загружаем промпт и контракт из кэша BaseComponent
         self._load_reasoning_resources()
 
+        # Флаг для гарантии вызова LLM
+        llm_was_called = False
+
         # Преобразование capability в нужный формат для промпта
         formatted_capabilities = []
         for cap in available_capabilities:
@@ -639,6 +643,9 @@ class ReActPattern(BaseBehaviorPattern):
                     "available_capabilities": available_capabilities,
                     "needs_rollback": False
                 }
+
+            # === LLM БУДЕТ ВЫЗВАН ===
+            llm_was_called = True
 
             # Создаем LLMRequest для структурированного вывода
             system_prompt = self.system_prompt_template or self._get_default_system_prompt()
@@ -924,6 +931,13 @@ class ReActPattern(BaseBehaviorPattern):
 
             self.last_reasoning_time = time.time() - start_time
             await self._log("debug", f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
+            
+            # ГАРАНТИЯ: LLM должен быть вызван
+            if not llm_was_called:
+                raise InfrastructureError(
+                    "LLM was not called in _perform_structured_reasoning - ReAct pattern violation"
+                )
+            
             return reasoning_result
         except Exception as e:
             error_msg = f"Ошибка в процессе рассуждения: {str(e)}"

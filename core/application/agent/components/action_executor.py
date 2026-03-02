@@ -17,14 +17,15 @@ if TYPE_CHECKING:
 
 class ActionResult:
     """Результат выполнения действия через ActionExecutor"""
-    def __init__(self, success: bool, data: Any = None, metadata: Dict[str, Any] = None, error: str = None):
+    def __init__(self, success: bool, data: Any = None, metadata: Dict[str, Any] = None, error: str = None, llm_called: bool = False):
         self.success = success
         self.data = data or {}
         self.metadata = metadata or {}
         self.error = error
+        self.llm_called = llm_called  # Флаг вызова LLM для гарантии что LLM был вызван
 
     def __repr__(self):
-        return f"ActionResult(success={self.success}, data={self.data}, error={self.error})"
+        return f"ActionResult(success={self.success}, data={self.data}, error={self.error}, llm_called={self.llm_called})"
 
 
 class ExecutionContext:

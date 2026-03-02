@@ -141,21 +141,12 @@ class BookLibrarySkill(BaseComponent):
         try:
             from .scripts_registry import get_all_scripts
             self._scripts_registry = get_all_scripts()
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
-            else:
-                self.logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
+            await self.event_bus_logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
-            else:
-                self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+            await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
             self._scripts_registry = {}
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-        else:
-            self.logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -195,10 +186,7 @@ class BookLibrarySkill(BaseComponent):
         - Требует валидации сгенерированного SQL
         """
         start_time = time.time()
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
-        else:
-            self.logger.info(f"Запуск динамического поиска книг: {params}")
+        await self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
 
         # 1. Валидация входных параметров через кэшированную схему из YAML контракта
         input_schema = self.get_cached_input_contract_safe("book_library.search_books")
@@ -207,20 +195,14 @@ class BookLibrarySkill(BaseComponent):
                 validated_params = input_schema.model_validate(params)
                 params = validated_params.model_dump()
             except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                else:
-                    self.logger.error(f"Ошибка валидации параметров: {e}")
+                await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
                 return SkillResult.failure(
                     error=f"Неверные параметры: {str(e)}",
                     metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
                 )
         else:
             # Критическая ошибка: контракт не загружен в кэш
-            if self.event_bus_logger:
-                await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
-            else:
-                self.logger.error("Контракт book_library.search_books.input не загружен в кэш")
+            await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
             return SkillResult.failure(
                 error="Внутренняя ошибка: контракт не загружен",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
@@ -255,30 +237,18 @@ class BookLibrarySkill(BaseComponent):
             from core.models.data.execution import ExecutionStatus
             if gen_result.status == ExecutionStatus.COMPLETED and gen_result.result:
                 sql_query = gen_result.result.get('sql_query', '')
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
-                else:
-                    self.logger.info(f"Сгенерированный SQL: {sql_query}")
+                await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
             else:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
-                else:
-                    self.logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
+                await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
-            else:
-                self.logger.error(f"Ошибка генерации SQL: {e}")
+            await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
 
         # Fallback: простой SQL запрос если генерация не удалась
         if not sql_query:
             query = params.get('query', '')
             sql_query = f"SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE '%{query}%' OR author ILIKE '%{query}%' LIMIT {params.get('max_results', 10)}"
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Использован fallback SQL: {sql_query}")
-            else:
-                self.logger.info(f"Использован fallback SQL: {sql_query}")
+            await self.event_bus_logger.info(f"Использован fallback SQL: {sql_query}")
 
         # 4. Выполнение SQL через sql_query_service
         rows = []
@@ -300,16 +270,10 @@ class BookLibrarySkill(BaseComponent):
             if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
                 rows = query_result.result.get('rows', [])
                 execution_time = query_result.result.get('execution_time', 0.0)
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"Найдено строк: {len(rows)}")
-                else:
-                    self.logger.info(f"Найдено строк: {len(rows)}")
+                await self.event_bus_logger.info(f"Найдено строк: {len(rows)}")
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
-            else:
-                self.logger.error(f"Ошибка выполнения SQL: {e}")
+            await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
 
         # Если результаты пустые, возвращаем демонстрационные данные
         if not rows:
@@ -319,10 +283,7 @@ class BookLibrarySkill(BaseComponent):
                 {"title": "Машинное обучение", "author": "Том Митчелл", "year": 1997}
             ]
             rows = fake_results
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("Возвращаем демонстрационные данные")
-            else:
-                self.logger.info("Возвращаем демонстрационные данные")
+            await self.event_bus_logger.info("Возвращаем демонстрационные данные")
 
         # Формируем результат
         total_time = time.time() - start_time
@@ -347,10 +308,7 @@ class BookLibrarySkill(BaseComponent):
                 script_name=None
             )
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
-            else:
-                self.logger.debug(f"Ошибка публикации метрик: {e}")
+            await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 6. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.search_books")
@@ -360,10 +318,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result)
                 result_data = validated_result.model_dump()
             except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-                else:
-                    self.logger.error(f"Ошибка валидации результата: {e}")
+                await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
 
         # Возвращаем SkillResult с side_effect=True (SQL query executed)
         return SkillResult.success(
@@ -390,10 +345,7 @@ class BookLibrarySkill(BaseComponent):
         - Ограничено заранее определёнными запросами
         """
         start_time = time.time()
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
-        else:
-            self.logger.info(f"Запуск статического скрипта: {params}")
+        await self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
 
         # 1. Валидация входных параметров
         script_name = params.get('script_name')
@@ -470,16 +422,10 @@ class BookLibrarySkill(BaseComponent):
             if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
                 rows = query_result.result.get('rows', [])
                 execution_time = query_result.result.get('execution_time', 0.0)
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
-                else:
-                    self.logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
+                await self.event_bus_logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
-            else:
-                self.logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
+            await self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
             return SkillResult.failure(
                 error=f"Ошибка выполнения скрипта: {str(e)}",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "static", "script_name": script_name}
@@ -508,10 +454,7 @@ class BookLibrarySkill(BaseComponent):
                 script_name=script_name
             )
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
-            else:
-                self.logger.debug(f"Ошибка публикации метрик: {e}")
+            await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 8. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
@@ -521,10 +464,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result)
                 result_data = validated_result.model_dump()
             except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-                else:
-                    self.logger.error(f"Ошибка валидации результата: {e}")
+                await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
 
         # Возвращаем SkillResult с side_effect=True (SQL query executed)
         return SkillResult.success(
@@ -550,10 +490,7 @@ class BookLibrarySkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Список скриптов с описаниями и примерами использования
         """
-        if self.event_bus_logger:
-            await self.event_bus_logger.info("Запрос списка доступных скриптов")
-        else:
-            self.logger.info("Запрос списка доступных скриптов")
+        await self.event_bus_logger.info("Запрос списка доступных скриптов")
 
         allowed_scripts = self._get_allowed_scripts()
         scripts_list = []
@@ -601,10 +538,7 @@ class BookLibrarySkill(BaseComponent):
             "total_count": len(scripts_list)
         }
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Возвращено {len(scripts_list)} скриптов")
-        else:
-            self.logger.info(f"Возвращено {len(scripts_list)} скриптов")
+        await self.event_bus_logger.info(f"Возвращено {len(scripts_list)} скриптов")
 
         # Валидация через схему из сервиса контрактов
         output_schema = self.get_cached_output_contract_safe("book_library.list_scripts")
@@ -614,10 +548,7 @@ class BookLibrarySkill(BaseComponent):
                 validated_result = output_schema.model_validate(result_data)
                 result_data = validated_result.model_dump()
             except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
-                else:
-                    self.logger.error(f"Ошибка валидации через контракт: {e}")
+                await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
                 # Возвращаем данные без валидации (fallback)
 
         # Возвращаем SkillResult (no side effect - только чтение)
@@ -803,10 +734,7 @@ class BookLibrarySkill(BaseComponent):
 
         except Exception as e:
             # Логгируем но не выбрасываем ошибку - метрики не должны ломать основную логику
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
-            else:
-                self.logger.debug(f"Ошибка публикации метрик: {e}")
+            await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
 
 # ============================================================================

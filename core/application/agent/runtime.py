@@ -27,7 +27,7 @@ from .components import (
     AgentState
 )
 from core.application.behaviors.base import BehaviorDecisionType
-from core.models.errors import AgentStuckError
+from core.models.errors import AgentStuckError, InfrastructureError
 
 # Определяем ProgressMetrics локально
 from dataclasses import dataclass, field
@@ -139,13 +139,10 @@ class AgentRuntime:
         if hasattr(self, 'application_context') and self.application_context:
             event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
             if event_bus:
-                session_id = getattr(self.application_context.session_context, 'session_id', 'unknown')
-                agent_id = self.correlation_id
                 self.event_bus_logger = EventBusLogger(
                     event_bus=event_bus,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    component=self.__class__.__name__
+                    source=self.__class__.__name__,
+                    correlation_id=self.correlation_id
                 )
 
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
@@ -371,45 +368,54 @@ class AgentRuntime:
                     return None
 
                 # Выполняем capability
-                asyncio.create_task(self.event_bus_logger.info(f"🚀 Запуск выполнения {decision.capability_name}..."))
-                execution_result = await self.executor.execute_capability(
-                    capability=capability,
-                    parameters=decision.parameters,
-                    session_context=self.application_context.session_context,
-                    user_context=self.user_context
-                )
-                asyncio.create_task(self.event_bus_logger.info(f"✅ {decision.capability_name} выполнен успешно"))
-                asyncio.create_task(self.event_bus_logger.info(f"📊 Результат: {execution_result}"))
+                try:
+                    asyncio.create_task(self.event_bus_logger.info(f"🚀 Запуск выполнения {decision.capability_name}..."))
+                    execution_result = await self.executor.execute_capability(
+                        capability=capability,
+                        parameters=decision.parameters,
+                        session_context=self.application_context.session_context,
+                        user_context=self.user_context
+                    )
+                    asyncio.create_task(self.event_bus_logger.info(f"✅ {decision.capability_name} выполнен успешно"))
+                    asyncio.create_task(self.event_bus_logger.info(f"📊 Результат: {execution_result}"))
 
-                # Обновление контекста выполнения
-                if (hasattr(self.application_context, 'session_context') and
-                    self.application_context.session_context):
-                    self.application_context.session_context.record_action({
-                        "step": self._current_step + 1,
-                        "action": decision.capability_name,
-                        "result": execution_result,
-                        "timestamp": datetime.now().isoformat()
-                    }, step_number=self._current_step + 1)
+                    # ПРОВЕРКА: Если decision требует LLM, проверяем что он был вызван
+                    if getattr(decision, 'requires_llm', False):
+                        # ExecutionResult может иметь llm_called флаг
+                        if hasattr(execution_result, 'llm_called') and not execution_result.llm_called:
+                            raise InfrastructureError(
+                                f"Decision requires LLM but LLM was not called for {decision.capability_name}"
+                            )
 
-                # Оценка прогресса и обновление состояния
-                progressed = self.progress.evaluate(self.application_context.session_context)
-                self.state.register_progress(progressed)
+                    # Обновление контекста выполнения
+                    if (hasattr(self.application_context, 'session_context') and
+                        self.application_context.session_context):
+                        self.application_context.session_context.record_action({
+                            "step": self._current_step + 1,
+                            "action": decision.capability_name,
+                            "result": execution_result,
+                            "timestamp": datetime.now().isoformat()
+                        }, step_number=self._current_step + 1)
 
-                return execution_result
+                    # Оценка прогресса и обновление состояния
+                    progressed = self.progress.evaluate(self.application_context.session_context)
+                    self.state.register_progress(progressed)
 
-            except Exception as e:
-                if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}"))
-                self.state.register_error()
+                    return execution_result
 
-                # Регистрация ошибки в контексте
-                self.application_context.session_context.record_error(
-                    error_data=str(e),
-                    error_type="execution_error",
-                    step_number=self._current_step + 1
-                )
+                except Exception as e:
+                    if self.event_bus_logger:
+                        asyncio.create_task(self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}"))
+                    self.state.register_error()
 
-                return None
+                    # Регистрация ошибки в контексте
+                    self.application_context.session_context.record_error(
+                        error_data=str(e),
+                        error_type="execution_error",
+                        step_number=self._current_step + 1
+                    )
+
+                    return None
 
         # В любом случае увеличиваем номер текущего шага для следующей итерации
         self.state.step += 1

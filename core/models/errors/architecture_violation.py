@@ -60,3 +60,27 @@ class InvalidDecisionError(AgentError):
     """
     def __init__(self, message: str, **kwargs):
         super().__init__(message, **kwargs)
+
+
+class PatternError(AgentError):
+    """
+    Нарушение инвариантов паттерна поведения.
+    
+    Возникает когда:
+    - observe() не мутировал state.history
+    - generate_decision() не выполнил требования паттерна
+    """
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, **kwargs)
+
+
+class InfrastructureError(AgentError):
+    """
+    Инфраструктурная ошибка.
+    
+    Возникает когда:
+    - LLM не был вызван когда требовался
+    - Инфраструктурный сервис недоступен
+    """
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, **kwargs)

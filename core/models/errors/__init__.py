@@ -214,7 +214,9 @@ from .architecture_violation import (
     CircularDependencyError as ArchitectureCircularDependencyError,
     DependencyResolutionError as ArchitectureDependencyResolutionError,
     AgentStuckError,
-    InvalidDecisionError
+    InvalidDecisionError,
+    PatternError,
+    InfrastructureError
 )
 
 # ============================================================================
@@ -337,6 +339,8 @@ __all__ = [
     "ArchitectureViolationError",
     "AgentStuckError",
     "InvalidDecisionError",
+    "PatternError",
+    "InfrastructureError",
     
     # Service
     "ServiceNotReadyError",

@@ -39,12 +39,10 @@ class BehaviorManager:
         if hasattr(self, '_app_ctx') and self._app_ctx:
             event_bus = getattr(self._app_ctx.infrastructure_context, 'event_bus', None)
             if event_bus:
-                session_id = getattr(self._app_ctx.session_context, 'session_id', 'unknown')
                 self.event_bus_logger = EventBusLogger(
                     event_bus=event_bus,
-                    session_id=session_id,
-                    agent_id='behavior_manager',
-                    component=self.__class__.__name__
+                    source=self.__class__.__name__,
+                    correlation_id='behavior_manager'
                 )
 
     async def initialize(self, component_name: str = None):
