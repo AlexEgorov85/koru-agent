@@ -30,10 +30,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from core.config.config_loader import ConfigLoader
 from core.config.models import SystemConfig
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 
 
@@ -245,19 +243,19 @@ class DynamicConfigManager:
         config_path: Path,
         profile: str = "prod",
         config_loader: ConfigLoader = None,
-        event_bus_manager: EventBusManager = None,
+        event_bus=None,  # UnifiedEventBus или EventBusConcurrent
         enable_hot_reload: bool = True,
         poll_interval: float = 1.0,
         max_backup_count: int = 5,
     ):
         """
         Инициализация менеджера конфигурации.
-        
+
         ARGS:
         - config_path: путь к основному файлу конфигурации
         - profile: профиль конфигурации
         - config_loader: загрузчик конфигурации (опционально)
-        - event_bus_manager: менеджер событий (опционально)
+        - event_bus: шина событий (опционально)
         - enable_hot_reload: включить hot-reload
         - poll_interval: интервал опроса файлов (сек)
         - max_backup_count: макс. количество бэкапов
@@ -265,7 +263,7 @@ class DynamicConfigManager:
         self._config_path = config_path
         self._profile = profile
         self._config_loader = config_loader or ConfigLoader(profile=profile)
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         self._enable_hot_reload = enable_hot_reload
         self._poll_interval = poll_interval
         self._max_backup_count = max_backup_count
@@ -296,35 +294,37 @@ class DynamicConfigManager:
             await self._start_watcher()
         
         self._initialized = True
-        
+
         # Событие инициализации
-        await self._event_bus_manager.publish(
-            EventType.SYSTEM_INITIALIZED,
-            data={
-                "component": "DynamicConfigManager",
-                "config_path": str(self._config_path),
-                "profile": self._profile,
-            },
-            domain=EventDomain.INFRASTRUCTURE,
-        )
-        
+        if self._event_bus:
+            await self._event_bus.publish(
+                EventType.SYSTEM_INITIALIZED,
+                data={
+                    "component": "DynamicConfigManager",
+                    "config_path": str(self._config_path),
+                    "profile": self._profile,
+                },
+                domain=EventDomain.INFRASTRUCTURE,
+            )
+
         self._logger.info("DynamicConfigManager инициализирован")
-    
+
     async def shutdown(self):
         """Завершение работы менеджера."""
         self._logger.info("Завершение работы DynamicConfigManager")
-        
+
         # Остановка watcher
         if self._watcher:
             await self._watcher.stop()
-        
+
         self._initialized = False
-        
+
         # Событие shutdown
-        await self._event_bus_manager.publish(
-            EventType.SYSTEM_SHUTDOWN,
-            data={"component": "DynamicConfigManager"},
-            domain=EventDomain.INFRASTRUCTURE,
+        if self._event_bus:
+            await self._event_bus.publish(
+                EventType.SYSTEM_SHUTDOWN,
+                data={"component": "DynamicConfigManager"},
+                domain=EventDomain.INFRASTRUCTURE,
         )
         
         self._logger.info("DynamicConfigManager завершен")
@@ -360,18 +360,19 @@ class DynamicConfigManager:
 
         except Exception as e:
             self._logger.error(f"Ошибка загрузки конфигурации: {e}", exc_info=True)
-            
+
             # Событие ошибки
-            await self._event_bus_manager.publish(
-                EventType.SYSTEM_ERROR,
-                data={
-                    "component": "DynamicConfigManager",
-                    "error": str(e),
-                    "stage": "load_config",
-                },
-                domain=EventDomain.INFRASTRUCTURE,
-            )
-            
+            if self._event_bus:
+                await self._event_bus.publish(
+                    EventType.SYSTEM_ERROR,
+                    data={
+                        "component": "DynamicConfigManager",
+                        "error": str(e),
+                        "stage": "load_config",
+                    },
+                    domain=EventDomain.INFRASTRUCTURE,
+                )
+
             return False
     
     async def _load_raw_config(self) -> Dict[str, Any]:
@@ -484,16 +485,17 @@ class DynamicConfigManager:
         )
         
         self._logger.info(f"Изменены ключи конфигурации: {changed_keys}")
-        
+
         # Уведомление callback-ов
         await self._notify_callbacks(change_event)
-        
+
         # Публикация события
-        await self._event_bus_manager.publish(
-            EventType.VERSION_CREATED,  # Используем как событие изменения конфига
-            data=change_event.to_dict(),
-            domain=EventDomain.INFRASTRUCTURE,
-        )
+        if self._event_bus:
+            await self._event_bus.publish(
+                EventType.VERSION_CREATED,  # Используем как событие изменения конфига
+                data=change_event.to_dict(),
+                domain=EventDomain.INFRASTRUCTURE,
+            )
     
     def _detect_changes(self, old_config: Dict, new_config: Dict) -> List[str]:
         """

@@ -29,10 +29,8 @@ from core.infrastructure.providers.base_provider import (
     ProviderHealthStatus,
 )
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 
 
@@ -129,24 +127,24 @@ class ProviderLifecycleManager:
     await lifecycle_manager.shutdown_all()
     ```
     """
-    
-    def __init__(self, event_bus_manager: Optional[EventBusManager] = None):
+
+    def __init__(self, event_bus=None):
         """
         Инициализация менеджера lifecycle.
-        
+
         ARGS:
-        - event_bus_manager: менеджер шин событий (опционально)
+        - event_bus: шина событий (опционально)
         """
         self._providers: Dict[str, ProviderInfo] = {}
         self._providers_by_type: Dict[ProviderType, List[str]] = {
             pt: [] for pt in ProviderType
         }
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         self._initialized = False
         self._shutdown_in_progress = False
-        
+
         self._logger = logging.getLogger(f"{__name__}.LifecycleManager")
-        self._self.event_bus_logger.info("ProviderLifecycleManager создан")
+        self._logger.info("ProviderLifecycleManager создан")
     
     async def register(
         self,
@@ -183,7 +181,7 @@ class ProviderLifecycleManager:
         self._self.event_bus_logger.info(f"Зарегистрирован провайдер '{name}' типа {provider_type.value}")
         
         # Событие регистрации
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.PROVIDER_REGISTERED,
             data={
                 "provider_name": name,
@@ -221,7 +219,7 @@ class ProviderLifecycleManager:
         self._self.event_bus_logger.info(f"Удален провайдер '{name}'")
         
         # Событие удаления
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.PROVIDER_UNREGISTERED,
             data={"provider_name": name},
             domain=EventDomain.INFRASTRUCTURE,
@@ -271,7 +269,7 @@ class ProviderLifecycleManager:
         self._self.event_bus_logger.info(f"Инициализация завершена: {sum(results.values())}/{len(results)} успешно")
         
         # Событие инициализации
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.SYSTEM_INITIALIZED,
             data={
                 "component": "ProviderLifecycleManager",
@@ -316,7 +314,7 @@ class ProviderLifecycleManager:
             self._self.event_bus_logger.error(f"Ошибка инициализации провайдера '{name}': {e}", exc_info=True)
             
             # Событие ошибки
-            await self._event_bus_manager.publish(
+            await self._event_bus.publish(
                 EventType.SYSTEM_ERROR,
                 data={
                     "component": "ProviderLifecycleManager",
@@ -373,7 +371,7 @@ class ProviderLifecycleManager:
         self._self.event_bus_logger.info(f"Завершение работы провайдеров: {sum(results.values())}/{len(results)} успешно")
         
         # Событие shutdown
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.SYSTEM_SHUTDOWN,
             data={
                 "component": "ProviderLifecycleManager",

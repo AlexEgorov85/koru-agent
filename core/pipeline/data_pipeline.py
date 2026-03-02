@@ -26,10 +26,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 from core.errors import ErrorHandler, ErrorContext, get_error_handler
 
@@ -314,7 +312,7 @@ class DataPipeline:
         - error_handler: обработчик ошибок
         """
         self.name = name
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus_manager or get_event_bus_manager()
         self._error_handler = error_handler or get_error_handler()
         
         self._stages: List[PipelineStage] = []
@@ -501,7 +499,7 @@ class DataPipeline:
     
     async def _publish_pipeline_event(self, event_type: EventType, data: Dict):
         """Публикация события конвейера."""
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             event_type,
             data=data,
             domain=EventDomain.COMMON,

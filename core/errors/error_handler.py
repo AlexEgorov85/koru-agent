@@ -26,10 +26,8 @@ from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 
 
@@ -184,7 +182,7 @@ class ErrorHandler:
         self._handlers: Dict[Type[Exception], Callable] = {}
         self._handler_severity: Dict[Type[Exception], ErrorSeverity] = {}
         self._handler_category: Dict[Type[Exception], ErrorCategory] = {}
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus_manager or get_event_bus_manager()
         
         self._error_count = 0
         self._handled_count = 0
@@ -400,7 +398,7 @@ class ErrorHandler:
         """Публикация события об ошибке в Event Bus."""
         event_data = error_info.to_dict()
         
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.ERROR_OCCURRED,
             data=event_data,
             domain=EventDomain.COMMON,

@@ -23,10 +23,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 from core.infrastructure.metrics_collector import MetricsCollector
 from core.infrastructure.log_collector import LogCollector
@@ -288,7 +286,7 @@ class ObservabilityManager:
         - metrics_storage: хранилище метрик
         - log_storage: хранилище логов
         """
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus_manager or get_event_bus_manager()
         self._metrics_storage = metrics_storage
         self._log_storage = log_storage
         
@@ -316,7 +314,7 @@ class ObservabilityManager:
         
         # Инициализация сборщиков если есть хранилища
         if self._metrics_storage:
-            event_bus = self._event_bus_manager.get_bus(EventDomain.INFRASTRUCTURE)._event_bus
+            event_bus = self._event_bus.get_bus(EventDomain.INFRASTRUCTURE)._event_bus
             self.metrics_collector = MetricsCollector(
                 event_bus=event_bus,
                 storage=self._metrics_storage,
@@ -325,7 +323,7 @@ class ObservabilityManager:
             self._logger.debug("MetricsCollector инициализирован")
         
         if self._log_storage:
-            event_bus = self._event_bus_manager.get_bus(EventDomain.INFRASTRUCTURE)._event_bus
+            event_bus = self._event_bus.get_bus(EventDomain.INFRASTRUCTURE)._event_bus
             self.log_collector = LogCollector(
                 event_bus=event_bus,
                 storage=self._log_storage,
@@ -384,7 +382,7 @@ class ObservabilityManager:
             self._recent_operations.pop(0)
         
         # Публикация события метрики
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.METRIC_COLLECTED,
             data=op_metrics.to_dict(),
             domain=EventDomain.COMMON,
@@ -392,7 +390,7 @@ class ObservabilityManager:
         
         # Логирование ошибки если не успешно
         if not success:
-            await self._event_bus_manager.publish(
+            await self._event_bus.publish(
                 EventType.ERROR_OCCURRED,
                 data={
                     "operation": operation,
@@ -419,7 +417,7 @@ class ObservabilityManager:
         - operation: операция которая выполнялась
         - metadata: дополнительные метаданные
         """
-        await self._event_bus_manager.publish(
+        await self._event_bus.publish(
             EventType.ERROR_OCCURRED,
             data={
                 "error_type": type(error).__name__,

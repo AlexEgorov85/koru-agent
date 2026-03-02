@@ -23,10 +23,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from pathlib import Path
 
 from core.infrastructure.event_bus import (
-    EventBusManager,
     EventDomain,
     EventType,
-    get_event_bus_manager,
 )
 from core.security.authorizer import RoleBasedAuthorizer, PermissionDeniedError
 from core.security.user_context import UserContext
@@ -327,10 +325,10 @@ class SecurityManager:
     )
     ```
     """
-    
+
     def __init__(
         self,
-        event_bus_manager: Optional[EventBusManager] = None,
+        event_bus=None,
         authorizer: Optional[RoleBasedAuthorizer] = None,
     ):
         """
@@ -340,7 +338,7 @@ class SecurityManager:
         - event_bus_manager: менеджер событий
         - authorizer: авторизатор (по умолчанию RoleBasedAuthorizer)
         """
-        self._event_bus_manager = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         self._authorizer = authorizer or RoleBasedAuthorizer()
         
         self._validators: Dict[SecurityResourceType, SecurityValidator] = {}
@@ -591,7 +589,7 @@ def get_security_manager() -> SecurityManager:
 
 
 def create_security_manager(
-    event_bus_manager: EventBusManager = None,
+    event_bus=None,
     **kwargs
 ) -> SecurityManager:
     """

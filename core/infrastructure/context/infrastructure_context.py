@@ -84,9 +84,9 @@ class InfrastructureContext:
         ПАРАМЕТРЫ:
         - bus_type: тип выбранной шины (UnifiedEventBus или EventBusConcurrent)
         """
-        migration_status = "🔄 MIGRATION" if self.config.use_unified_event_bus else "⚠️ LEGACY"
-        print(f"[InfrastructureContext] {migration_status}: Используется шина событий — {bus_type}")
-        print(f"[InfrastructureContext] Для включения UnifiedEventBus установите use_unified_event_bus=True в конфигурации")
+        migration_status = "[MIGRATION]" if self.config.use_unified_event_bus else "[LEGACY]"
+        self.logger.info("%s: Используется шина событий - %s", migration_status, bus_type)
+        self.logger.info("Для включения UnifiedEventBus установите use_unified_event_bus=True в конфигурации")
 
     async def initialize(self) -> bool:
         """
