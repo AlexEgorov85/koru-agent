@@ -229,6 +229,12 @@ class SystemConfig(BaseModelConfig):
 
     # Дополнительные настройки
     providers: Dict[str, Any] = Field(default_factory=dict, description="Дополнительные провайдеры")
+
+    # === МИГРАЦИЯ EVENT BUS ===
+    use_unified_event_bus: bool = Field(
+        default=False,
+        description="Использовать UnifiedEventBus вместо legacy шин (Этап 2 миграции)"
+    )
     
     @field_validator('vector_search', mode='before')
     @classmethod
