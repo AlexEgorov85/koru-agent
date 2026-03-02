@@ -190,6 +190,104 @@ class AppConfig(BaseModel):
         object.__setattr__(self, 'output_contract_versions', updated_versions)
 
     @classmethod
+    def from_discovery(cls, profile: str = "prod", data_dir: str = "data"):
+        """
+        Загрузка AppConfig через авто-обнаружение ресурсов (без registry.yaml).
+
+        ARGS:
+        - profile: профиль (prod или sandbox)
+        - data_dir: директория данных
+
+        RETURNS:
+        - AppConfig: сконфигурированный экземпляр AppConfig
+        """
+        from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+        from core.config.component_config import ComponentConfig
+        
+        # Инициализируем ResourceDiscovery
+        discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
+        
+        # Сканируем ресурсы
+        prompts = discovery.discover_prompts()
+        contracts = discovery.discover_contracts()
+        manifests = discovery.discover_manifests()
+        
+        # Собираем active версии промптов
+        active_prompts = {}
+        for prompt in prompts:
+            if prompt.status.value == 'active':
+                active_prompts[prompt.capability] = prompt.version
+        
+        # Собираем active версии контрактов
+        input_contract_versions = {}
+        output_contract_versions = {}
+        for contract in contracts:
+            if contract.status.value == 'active':
+                if contract.direction.value == 'input':
+                    input_contract_versions[contract.capability] = contract.version
+                else:
+                    output_contract_versions[contract.capability] = contract.version
+        
+        # Создаем конфигурации для компонентов из манифестов
+        service_configs = {}
+        skill_configs = {}
+        tool_configs = {}
+        behavior_configs = {}
+        
+        for manifest in manifests:
+            if manifest.status.value != 'active':
+                continue  # Пропускаем не-active манифесты в prod
+            
+            # Определяем тип компонента
+            comp_type = manifest.component_type.value
+            
+            # Создаем конфигурацию компонента
+            component_config = ComponentConfig(
+                variant_id=f"{manifest.component_id}_{profile}",
+                manifest_path=Path(data_dir) / 'manifests' / f"{manifest.component_type.value}s" / manifest.component_id / 'manifest.yaml',
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters=getattr(manifest, 'parameters', {}),
+                dependencies=manifest.dependencies.get('components', []) + \
+                           manifest.dependencies.get('tools', []) + \
+                           manifest.dependencies.get('services', [])
+            )
+            
+            # Распределяем по типам
+            if comp_type == 'service':
+                service_configs[manifest.component_id] = component_config
+            elif comp_type == 'skill':
+                skill_configs[manifest.component_id] = component_config
+            elif comp_type == 'tool':
+                tool_configs[manifest.component_id] = component_config
+            elif comp_type == 'behavior':
+                behavior_configs[manifest.component_id] = component_config
+        
+        # Загружаем параметры агента из manifests если есть
+        # Или используем значения по умолчанию
+        agent_config = {}
+        
+        return cls(
+            config_id=f"app_config_{profile}_discovery",
+            prompt_versions=active_prompts,
+            input_contract_versions=input_contract_versions,
+            output_contract_versions=output_contract_versions,
+            service_configs=service_configs,
+            skill_configs=skill_configs,
+            tool_configs=tool_configs,
+            behavior_configs=behavior_configs,
+            side_effects_enabled=agent_config.get('side_effects_enabled', profile == "prod"),
+            detailed_metrics=agent_config.get('detailed_metrics', False),
+            max_steps=agent_config.get('max_steps', 10),
+            max_retries=agent_config.get('max_retries', 3),
+            llm_timeout_seconds=agent_config.get('llm_timeout_seconds', 120.0),
+            temperature=agent_config.get('temperature', 0.7),
+            enable_self_reflection=agent_config.get('enable_self_reflection', True),
+            enable_context_window_management=agent_config.get('enable_context_window_management', True),
+            profile=profile,
+        )
+
+    @classmethod
     def from_registry(cls, profile: str = "prod", registry_path: str = "registry.yaml"):
         """
         Загрузка AppConfig из реестра версий.

@@ -164,7 +164,7 @@ class LlamaCppProvider(BaseLLMProvider):
                         'error': lambda *args, **kwargs: None
                     })()
 
-            self.event_bus_logger.info(f"Загрузка модели из: {self.model_path}")
+            await self.event_bus_logger.info(f"Загрузка модели из: {self.model_path}")
             start_time = time.time()
 
             # Инициализация Llama.cpp инстанса
@@ -191,18 +191,18 @@ class LlamaCppProvider(BaseLLMProvider):
                 self.last_health_check = time.time()
 
                 init_time = time.time() - start_time
-                self.event_bus_logger.info(f"Llama.cpp провайдер успешно инициализирован за {init_time:.2f} секунд")
-                self.event_bus_logger.info(f"Контекст: {self.n_ctx}, потоки: {self.n_threads}, executor workers: 2")
+                await self.event_bus_logger.info(f"Llama.cpp провайдер успешно инициализирован за {init_time:.2f} секунд")
+                await self.event_bus_logger.info(f"Контекст: {self.n_ctx}, потоки: {self.n_threads}, executor workers: 2")
 
                 return True
             else:
-                self.event_bus_logger.error("Не удалось инициализировать LLM инстанс")
+                await self.event_bus_logger.error("Не удалось инициализировать LLM инстанс")
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
-                
+
         except ImportError as e:
-            self.event_bus_logger.error(f"Ошибка импорта llama-cpp-python: {str(e)}")
-            self.event_bus_logger.error("Установите с помощью: pip install llama-cpp-python")
+            await self.event_bus_logger.error(f"Ошибка импорта llama-cpp-python: {str(e)}")
+            await self.event_bus_logger.error("Установите с помощью: pip install llama-cpp-python")
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
         except ValueError as e:

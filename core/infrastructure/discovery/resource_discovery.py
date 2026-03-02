@@ -1,0 +1,644 @@
+"""
+Авто-обнаружение ресурсов через файловую систему.
+
+Этот модуль предоставляет классы для сканирования файловой системы
+и загрузки ресурсов (промптов, контрактов, манифестов) с фильтрацией по статусам.
+
+Принципы:
+- prod → только status: active
+- sandbox → status: active + draft
+- dev → status: active + draft + inactive
+"""
+import logging
+from pathlib import Path
+from typing import List, Dict, Optional, Set, Tuple
+from datetime import datetime
+
+from core.models.data.prompt import Prompt, PromptStatus
+from core.models.data.contract import Contract, ContractDirection
+from core.models.data.manifest import Manifest, ComponentStatus
+from core.models.enums.common_enums import ComponentType
+
+
+logger = logging.getLogger(__name__)
+
+
+class ResourceDiscovery:
+    """
+    Авто-обнаружение ресурсов через файловую систему.
+    
+    Сканзирует директорию data/ и загружает ресурсы с разрешёнными статусами
+    в зависимости от профиля работы.
+    """
+    
+    # Маппинг профилей на разрешённые статусы
+    PROFILE_STATUS_MAP: Dict[str, List[PromptStatus]] = {
+        'prod': [PromptStatus.ACTIVE],
+        'sandbox': [PromptStatus.ACTIVE, PromptStatus.DRAFT],
+        'dev': [PromptStatus.ACTIVE, PromptStatus.DRAFT, PromptStatus.INACTIVE],
+    }
+    
+    # Маппинг статусов компонентов
+    COMPONENT_STATUS_MAP: Dict[str, List[ComponentStatus]] = {
+        'prod': [ComponentStatus.ACTIVE],
+        'sandbox': [ComponentStatus.ACTIVE, ComponentStatus.DRAFT],
+        'dev': [ComponentStatus.ACTIVE, ComponentStatus.DRAFT, ComponentStatus.INACTIVE],
+    }
+    
+    def __init__(self, base_dir: Path, profile: str = 'prod'):
+        """
+        Инициализация сканера ресурсов.
+        
+        ПАРАМЕТРЫ:
+        - base_dir: Базовая директория данных (обычно data/)
+        - profile: Профиль работы ('prod', 'sandbox', 'dev')
+        """
+        self.base_dir = Path(base_dir)
+        self.profile = profile
+        self.allowed_prompt_statuses = self.PROFILE_STATUS_MAP.get(
+            profile, self.PROFILE_STATUS_MAP['prod']
+        )
+        self.allowed_component_statuses = self.COMPONENT_STATUS_MAP.get(
+            profile, self.COMPONENT_STATUS_MAP['prod']
+        )
+        
+        # Кэши загруженных ресурсов
+        self._prompts_cache: Dict[Tuple[str, str], Prompt] = {}
+        self._contracts_cache: Dict[Tuple[str, str, str], Contract] = {}
+        self._manifests_cache: Dict[str, Manifest] = {}
+        
+        # Статистика
+        self._stats = {
+            'prompts_scanned': 0,
+            'prompts_loaded': 0,
+            'prompts_skipped': 0,
+            'contracts_scanned': 0,
+            'contracts_loaded': 0,
+            'contracts_skipped': 0,
+            'manifests_scanned': 0,
+            'manifests_loaded': 0,
+            'manifests_skipped': 0,
+        }
+        
+        logger.info(f"ResourceDiscovery инициализирован: base_dir={self.base_dir}, profile={self.profile}")
+        logger.info(f"Разрешённые статусы промптов: {[s.value for s in self.allowed_prompt_statuses]}")
+    
+    def _should_load_resource(self, status: str, resource_type: str = 'prompt') -> bool:
+        """
+        Проверка можно ли загружать ресурс с данным статусом.
+        
+        ПАРАМЕТРЫ:
+        - status: Статус ресурса
+        - resource_type: Тип ресурса ('prompt', 'contract', 'component')
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если ресурс можно загружать
+        """
+        try:
+            if resource_type in ('prompt', 'contract'):
+                prompt_status = PromptStatus(status)
+                return prompt_status in self.allowed_prompt_statuses
+            elif resource_type == 'component':
+                component_status = ComponentStatus(status)
+                return component_status in self.allowed_component_statuses
+            else:
+                logger.warning(f"Неизвестный тип ресурса: {resource_type}")
+                return False
+        except ValueError:
+            logger.warning(f"Неизвестный статус '{status}' для {resource_type}")
+            return False
+    
+    def _parse_prompt_file(self, file_path: Path) -> Optional[Prompt]:
+        """
+        Парсинг файла промпта.
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Prompt]: Объект промпта или None при ошибке
+        """
+        import yaml
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            if not isinstance(data, dict):
+                logger.warning(f"Файл промпта {file_path} не содержит словарь")
+                return None
+            
+            # Извлекаем обязательные поля
+            capability = data.get('capability')
+            version = data.get('version')
+            status = data.get('status', 'draft')
+            component_type = data.get('component_type')
+            content = data.get('content', '')
+            variables = data.get('variables', [])
+            metadata = data.get('metadata', {})
+            
+            # Валидация обязательных полей
+            if not capability or not version:
+                logger.warning(f"Файл {file_path} не содержит capability или version")
+                return None
+            
+            # Проверяем статус
+            if not self._should_load_resource(status, 'prompt'):
+                self._stats['prompts_skipped'] += 1
+                logger.debug(f"Пропущен промпт {capability}@{version} со статусом {status}")
+                return None
+            
+            # Парсинг переменных
+            parsed_variables = []
+            for var in variables:
+                if isinstance(var, dict):
+                    from core.models.data.prompt import PromptVariable
+                    try:
+                        parsed_variables.append(PromptVariable(**var))
+                    except Exception as e:
+                        logger.warning(f"Ошибка парсинга переменной в {file_path}: {e}")
+            
+            # Определяем тип компонента
+            if component_type:
+                try:
+                    comp_type = ComponentType(component_type)
+                except ValueError:
+                    logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
+                    comp_type = ComponentType.SKILL  # Default
+            else:
+                # Авто-определение по пути
+                comp_type = self._infer_component_type_from_path(file_path)
+            
+            # Создаём объект Prompt
+            prompt = Prompt(
+                capability=capability,
+                version=version,
+                status=PromptStatus(status),
+                component_type=comp_type,
+                content=content,
+                variables=parsed_variables,
+                metadata=metadata
+            )
+            
+            self._stats['prompts_loaded'] += 1
+            logger.debug(f"Загружен промпт: {capability}@{version} (status={status})")
+            return prompt
+            
+        except Exception as e:
+            logger.error(f"Ошибка парсинга промпта {file_path}: {e}", exc_info=True)
+            return None
+    
+    def _parse_contract_file(self, file_path: Path) -> Optional[Contract]:
+        """
+        Парсинг файла контракта.
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Contract]: Объект контракта или None при ошибке
+        """
+        import yaml
+        import re
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            if not isinstance(data, dict):
+                logger.warning(f"Файл контракта {file_path} не содержит словарь")
+                return None
+            
+            # Извлекаем поля
+            capability = data.get('capability')
+            version = data.get('version')
+            status = data.get('status', 'draft')
+            component_type = data.get('component_type')
+            direction = data.get('direction')
+            schema_data = data.get('schema', data.get('schema_data', {}))
+            description = data.get('description', '')
+            
+            # Если capability/version не указаны в файле, пытаемся извлечь из имени файла
+            if not capability or not version:
+                capability, version, direction = self._parse_contract_filename(file_path)
+            
+            if not capability or not version:
+                logger.warning(f"Не удалось определить capability/version для {file_path}")
+                return None
+            
+            # Проверяем статус
+            if not self._should_load_resource(status, 'contract'):
+                self._stats['contracts_skipped'] += 1
+                logger.debug(f"Пропущен контракт {capability}@{version} со статусом {status}")
+                return None
+            
+            # Определяем направление если не указано
+            if not direction:
+                direction = self._infer_direction_from_filename(file_path)
+            
+            if not direction:
+                logger.warning(f"Не удалось определить направление контракта для {file_path}")
+                return None
+            
+            # Определяем тип компонента
+            if component_type:
+                try:
+                    comp_type = ComponentType(component_type)
+                except ValueError:
+                    logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
+                    comp_type = ComponentType.SKILL
+            else:
+                comp_type = self._infer_component_type_from_path(file_path)
+            
+            # Создаём объект Contract
+            contract = Contract(
+                capability=capability,
+                version=version,
+                status=PromptStatus(status),
+                component_type=comp_type,
+                direction=ContractDirection(direction),
+                schema_data=schema_data if schema_data else {'type': 'object', 'properties': {}},
+                description=description
+            )
+            
+            self._stats['contracts_loaded'] += 1
+            logger.debug(f"Загружен контракт: {capability}@{version} ({direction}) (status={status})")
+            return contract
+            
+        except Exception as e:
+            logger.error(f"Ошибка парсинга контракта {file_path}: {e}", exc_info=True)
+            return None
+    
+    def _parse_manifest_file(self, file_path: Path) -> Optional[Manifest]:
+        """
+        Парсинг файла манифеста.
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу manifest.yaml
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Manifest]: Объект манифеста или None при ошибке
+        """
+        import yaml
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            if not isinstance(data, dict):
+                logger.warning(f"Файл манифеста {file_path} не содержит словарь")
+                return None
+            
+            # Извлекаем обязательные поля
+            component_id = data.get('component_id')
+            component_type = data.get('component_type')
+            version = data.get('version')
+            owner = data.get('owner')
+            status = data.get('status', 'draft')
+            
+            if not component_id or not component_type or not version:
+                logger.warning(f"Манифест {file_path} не содержит обязательные поля")
+                return None
+            
+            # Проверяем статус
+            if not self._should_load_resource(status, 'component'):
+                self._stats['manifests_skipped'] += 1
+                logger.debug(f"Пропущен манифест {component_id} со статусом {status}")
+                return None
+            
+            # Определяем тип компонента
+            try:
+                comp_type = ComponentType(component_type)
+            except ValueError:
+                logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
+                return None
+            
+            # Парсинг опциональных полей
+            contract_data = data.get('contract')
+            constraints = data.get('constraints')
+            
+            quality_metrics = None
+            if data.get('quality_metrics'):
+                from core.models.data.manifest import QualityMetrics
+                try:
+                    quality_metrics = QualityMetrics(**data['quality_metrics'])
+                except Exception as e:
+                    logger.warning(f"Ошибка парсинга quality_metrics в {file_path}: {e}")
+            
+            success_metrics = None
+            if data.get('success_metrics'):
+                from core.models.data.manifest import SuccessMetrics
+                try:
+                    success_metrics = SuccessMetrics(**data['success_metrics'])
+                except Exception as e:
+                    logger.warning(f"Ошибка парсинга success_metrics в {file_path}: {e}")
+            
+            dependencies = data.get('dependencies', {
+                'components': [],
+                'tools': [],
+                'services': []
+            })
+            
+            changelog = []
+            if data.get('changelog'):
+                from core.models.data.manifest import ChangelogEntry
+                for entry in data['changelog']:
+                    try:
+                        changelog.append(ChangelogEntry(**entry))
+                    except Exception as e:
+                        logger.warning(f"Ошибка парсинга changelog entry в {file_path}: {e}")
+            
+            # Создаём объект Manifest
+            manifest = Manifest(
+                component_id=component_id,
+                component_type=comp_type,
+                version=version,
+                owner=owner or 'unknown',
+                status=ComponentStatus(status),
+                contract=contract_data,
+                constraints=constraints,
+                quality_metrics=quality_metrics,
+                success_metrics=success_metrics,
+                dependencies=dependencies,
+                changelog=changelog
+            )
+            
+            self._stats['manifests_loaded'] += 1
+            logger.debug(f"Загружен манифест: {component_id}@{version} (status={status})")
+            return manifest
+            
+        except Exception as e:
+            logger.error(f"Ошибка парсинга манифеста {file_path}: {e}", exc_info=True)
+            return None
+    
+    def _infer_component_type_from_path(self, file_path: Path) -> ComponentType:
+        """
+        Авто-определение типа компонента по пути к файлу.
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу
+        
+        ВОЗВРАЩАЕТ:
+        - ComponentType: Тип компонента
+        """
+        path_str = str(file_path).lower()
+        
+        if '/skill/' in path_str or '\\skill\\' in path_str:
+            return ComponentType.SKILL
+        elif '/service/' in path_str or '\\service\\' in path_str:
+            return ComponentType.SERVICE
+        elif '/tool/' in path_str or '\\tool\\' in path_str:
+            return ComponentType.TOOL
+        elif '/behavior/' in path_str or '\\behavior\\' in path_str:
+            return ComponentType.BEHAVIOR
+        else:
+            return ComponentType.SKILL  # Default
+    
+    def _infer_direction_from_filename(self, file_path: Path) -> Optional[str]:
+        """
+        Определение направления контракта (input/output) из имени файла.
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[str]: Направление или None
+        """
+        filename = file_path.stem.lower()
+        
+        if '_input' in filename or filename.startswith('input_'):
+            return 'input'
+        elif '_output' in filename or filename.startswith('output_'):
+            return 'output'
+        
+        # Проверяем родительскую директорию
+        parent_name = file_path.parent.name.lower()
+        if 'input' in parent_name:
+            return 'input'
+        elif 'output' in parent_name:
+            return 'output'
+        
+        return None
+    
+    def _parse_contract_filename(self, file_path: Path) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Парсинг capability, version, direction из имени файла контракта.
+        
+        Форматы:
+        - {capability}_{direction}_{version}.yaml
+        - {direction}_{version}.yaml
+        - {version}_{direction}.yaml
+        
+        ПАРАМЕТРЫ:
+        - file_path: Путь к файлу
+        
+        ВОЗВРАЩАЕТ:
+        - Tuple[capability, version, direction]
+        """
+        filename = file_path.stem  # Без расширения
+        
+        # Паттерн для версии: v1.0.0, v1.2.3
+        import re
+        version_match = re.search(r'_v(\d+\.\d+\.\d+)$', filename)
+        
+        if version_match:
+            version = f"v{version_match.group(1)}"
+            base_name = filename[:version_match.start()]
+            
+            # Проверяем направление
+            direction = None
+            if base_name.endswith('_input'):
+                direction = 'input'
+                capability = base_name[:-6]  # Удаляем '_input'
+            elif base_name.endswith('_output'):
+                direction = 'output'
+                capability = base_name[:-7]  # Удаляем '_output'
+            elif base_name.startswith('input_'):
+                direction = 'input'
+                capability = base_name[6:]
+            elif base_name.startswith('output_'):
+                direction = 'output'
+                capability = base_name[7:]
+            else:
+                capability = base_name
+            
+            return capability, version, direction
+        
+        return None, None, None
+    
+    def discover_prompts(self) -> List[Prompt]:
+        """
+        Сканирование и загрузка всех промптов с разрешёнными статусами.
+        
+        ВОЗВРАЩАЕТ:
+        - List[Prompt]: Список загруженных промптов
+        """
+        prompts = []
+        prompts_dir = self.base_dir / 'prompts'
+        
+        if not prompts_dir.exists():
+            logger.warning(f"Директория промптов не найдена: {prompts_dir}")
+            return prompts
+        
+        # Рекурсивный поиск всех YAML файлов
+        yaml_files = list(prompts_dir.rglob('*.yaml')) + list(prompts_dir.rglob('*.yml'))
+        
+        self._stats['prompts_scanned'] = len(yaml_files)
+        logger.info(f"Найдено {len(yaml_files)} файлов промптов в {prompts_dir}")
+        
+        for file_path in yaml_files:
+            prompt = self._parse_prompt_file(file_path)
+            if prompt:
+                key = (prompt.capability, prompt.version)
+                self._prompts_cache[key] = prompt
+                prompts.append(prompt)
+        
+        logger.info(f"Загружено {len(prompts)} промптов (пропущено: {self._stats['prompts_skipped']})")
+        return prompts
+    
+    def discover_contracts(self) -> List[Contract]:
+        """
+        Сканирование и загрузка всех контрактов с разрешёнными статусами.
+        
+        ВОЗВРАЩАЕТ:
+        - List[Contract]: Список загруженных контрактов
+        """
+        contracts = []
+        contracts_dir = self.base_dir / 'contracts'
+        
+        if not contracts_dir.exists():
+            logger.warning(f"Директория контрактов не найдена: {contracts_dir}")
+            return contracts
+        
+        # Рекурсивный поиск всех YAML файлов
+        yaml_files = list(contracts_dir.rglob('*.yaml')) + list(contracts_dir.rglob('*.yml'))
+        
+        self._stats['contracts_scanned'] = len(yaml_files)
+        logger.info(f"Найдено {len(yaml_files)} файлов контрактов в {contracts_dir}")
+        
+        for file_path in yaml_files:
+            contract = self._parse_contract_file(file_path)
+            if contract:
+                key = (contract.capability, contract.version, contract.direction.value)
+                self._contracts_cache[key] = contract
+                contracts.append(contract)
+        
+        logger.info(f"Загружено {len(contracts)} контрактов (пропущено: {self._stats['contracts_skipped']})")
+        return contracts
+    
+    def discover_manifests(self) -> List[Manifest]:
+        """
+        Сканирование и загрузка всех манифестов с разрешёнными статусами.
+        
+        ВОЗВРАЩАЕТ:
+        - List[Manifest]: Список загруженных манифестов
+        """
+        manifests = []
+        manifests_dir = self.base_dir / 'manifests'
+        
+        if not manifests_dir.exists():
+            logger.warning(f"Директория манифестов не найдена: {manifests_dir}")
+            return manifests
+        
+        # Поиск всех manifest.yaml файлов
+        manifest_files = list(manifests_dir.rglob('manifest.yaml')) + \
+                        list(manifests_dir.rglob('manifest.yml'))
+        
+        self._stats['manifests_scanned'] = len(manifest_files)
+        logger.info(f"Найдено {len(manifest_files)} файлов манифестов в {manifests_dir}")
+        
+        for file_path in manifest_files:
+            manifest = self._parse_manifest_file(file_path)
+            if manifest:
+                key = f"{manifest.component_type.value}.{manifest.component_id}"
+                self._manifests_cache[key] = manifest
+                manifests.append(manifest)
+        
+        logger.info(f"Загружено {len(manifests)} манифестов (пропущено: {self._stats['manifests_skipped']})")
+        return manifests
+    
+    def get_prompt(self, capability: str, version: str) -> Optional[Prompt]:
+        """
+        Получение конкретного промпта из кэша.
+        
+        ПАРАМЕТРЫ:
+        - capability: Имя capability
+        - version: Версия
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Prompt]: Объект промпта или None
+        """
+        return self._prompts_cache.get((capability, version))
+    
+    def get_contract(
+        self,
+        capability: str,
+        version: str,
+        direction: str
+    ) -> Optional[Contract]:
+        """
+        Получение конкретного контракта из кэша.
+        
+        ПАРАМЕТРЫ:
+        - capability: Имя capability
+        - version: Версия
+        - direction: Направление (input/output)
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Contract]: Объект контракта или None
+        """
+        return self._contracts_cache.get((capability, version, direction))
+    
+    def get_manifest(self, component_type: str, component_id: str) -> Optional[Manifest]:
+        """
+        Получение конкретного манифеста из кэша.
+        
+        ПАРАМЕТРЫ:
+        - component_type: Тип компонента
+        - component_id: Имя компонента
+        
+        ВОЗВРАЩАЕТ:
+        - Optional[Manifest]: Объект манифеста или None
+        """
+        return self._manifests_cache.get(f"{component_type}.{component_id}")
+    
+    def get_stats(self) -> Dict[str, int]:
+        """
+        Получение статистики сканирования.
+        
+        ВОЗВРАЩАЕТ:
+        - Dict[str, int]: Статистика
+        """
+        return self._stats.copy()
+    
+    def get_validation_report(self) -> str:
+        """
+        Формирование отчёта о валидации.
+        
+        ВОЗВРАЩАЕТ:
+        - str: Текстовый отчёт
+        """
+        lines = [
+            "=" * 60,
+            "ОТЧЁТ RESOURCE DISCOVERY",
+            "=" * 60,
+            f"Профиль: {self.profile}",
+            f"Базовая директория: {self.base_dir}",
+            "",
+            "Промпты:",
+            f"  - Просканировано файлов: {self._stats['prompts_scanned']}",
+            f"  - Загружено: {self._stats['prompts_loaded']}",
+            f"  - Пропущено (статус): {self._stats['prompts_skipped']}",
+            "",
+            "Контракты:",
+            f"  - Просканировано файлов: {self._stats['contracts_scanned']}",
+            f"  - Загружено: {self._stats['contracts_loaded']}",
+            f"  - Пропущено (статус): {self._stats['contracts_skipped']}",
+            "",
+            "Манифесты:",
+            f"  - Просканировано файлов: {self._stats['manifests_scanned']}",
+            f"  - Загружено: {self._stats['manifests_loaded']}",
+            f"  - Пропущено (статус): {self._stats['manifests_skipped']}",
+            "=" * 60,
+        ]
+        return "\n".join(lines)

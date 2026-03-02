@@ -53,11 +53,23 @@ class EventBusLogger:
             message = message % args
         await self._publish(EventType.LOG_INFO, message, "INFO", **extra_data)
 
+    def info_sync(self, message: str, *args, **extra_data):
+        """INFO сообщение (синхронная версия)."""
+        if args:
+            message = message % args
+        asyncio.create_task(self._publish(EventType.LOG_INFO, message, "INFO", **extra_data))
+
     async def debug(self, message: str, *args, **extra_data):
         """DEBUG сообщение."""
         if args:
             message = message % args
         await self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
+
+    def debug_sync(self, message: str, *args, **extra_data):
+        """DEBUG сообщение (синхронная версия)."""
+        if args:
+            message = message % args
+        asyncio.create_task(self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data))
 
     async def warning(self, message: str, *args, **extra_data):
         """WARNING сообщение."""
@@ -65,11 +77,23 @@ class EventBusLogger:
             message = message % args
         await self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data)
 
+    def warning_sync(self, message: str, *args, **extra_data):
+        """WARNING сообщение (синхронная версия)."""
+        if args:
+            message = message % args
+        asyncio.create_task(self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data))
+
     async def error(self, message: str, *args, **extra_data):
         """ERROR сообщение."""
         if args:
             message = message % args
         await self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data)
+
+    def error_sync(self, message: str, *args, **extra_data):
+        """ERROR сообщение (синхронная версия)."""
+        if args:
+            message = message % args
+        asyncio.create_task(self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data))
 
     async def exception(self, message: str, exc: Exception, **extra_data):
         """ERROR сообщение с исключением."""

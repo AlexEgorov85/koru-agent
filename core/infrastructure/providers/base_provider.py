@@ -158,7 +158,7 @@ class BaseProvider(IProvider):
         """Корректное завершение работы провайдера."""
         self.is_initialized = False
         self.health_status = ProviderHealthStatus.UNKNOWN
-        self.event_bus_logger.info("Провайдер %s завершил работу", self.name)
+        await self.event_bus_logger.info("Провайдер %s завершил работу", self.name)
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -186,7 +186,7 @@ class BaseProvider(IProvider):
             await self.shutdown()
             return await self.initialize()
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
             return False
 
     def restart_with_module_reload(self):

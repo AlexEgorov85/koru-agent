@@ -38,7 +38,7 @@ class PostgreSQLProvider(BaseDBProvider):
             from core.infrastructure.event_bus.unified_logger import EventBusLogger
             event_bus = get_event_bus()
             self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", f"PostgreSQL:{self.config.database}")
-            self.event_bus_logger.info(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
+            self.event_bus_logger.info_sync(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
         except:
             self.event_bus_logger = type('obj', (object,), {
                 'info': lambda *args, **kwargs: None,
@@ -52,7 +52,7 @@ class PostgreSQLProvider(BaseDBProvider):
         Асинхронная инициализация пула соединений.
         """
         try:
-            self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
+            await self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
             start_time = time.time()
 
             # Создаем пул соединений
@@ -75,14 +75,14 @@ class PostgreSQLProvider(BaseDBProvider):
             # Проверяем подключение
             async with self.pool.acquire() as conn:
                 version = await conn.fetchval("SELECT version()")
-                self.event_bus_logger.info(f"Подключено к PostgreSQL: {version}")
+                await self.event_bus_logger.info(f"Подключено к PostgreSQL: {version}")
 
             self.is_initialized = True
             self.health_status = DBHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
             init_time = time.time() - start_time
-            self.event_bus_logger.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд")
+            await self.event_bus_logger.info(f"PostgreSQL провайдер успешно инициализирован за {init_time:.2f} секунд")
 
             return True
 
@@ -98,7 +98,7 @@ class PostgreSQLProvider(BaseDBProvider):
         async with self._lock:
             try:
                 if self.pool:
-                    self.event_bus_logger.info("Завершение работы пула соединений PostgreSQL...")
+                    await self.event_bus_logger.info("Завершение работы пула соединений PostgreSQL...")
                     await self.pool.close()
                     self.pool = None
 
