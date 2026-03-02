@@ -70,7 +70,7 @@ class FileSystemDataSource(ResourceDataSource):
         4. Публикация события о загрузке ресурсов (не print/log!)
         5. Установка _initialized = True
         """
-        from core.infrastructure.event_bus.event_bus import get_event_bus, EventType
+        from core.infrastructure.event_bus.unified_event_bus import get_event_bus, EventType
         import asyncio
 
         # Проверить существование базовой директории

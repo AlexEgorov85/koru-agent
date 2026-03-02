@@ -14,7 +14,7 @@ from datetime import datetime
 from core.application.context.application_context import ApplicationContext
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
-from core.infrastructure.event_bus.event_bus import EventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 
 
 class ExecutionGateway:
@@ -113,7 +113,7 @@ class ExecutionGateway:
             
             # Публикация события об ошибке
             if event_bus:
-                from core.infrastructure.event_bus.event_bus import EventType as ErrorEventType
+                from core.infrastructure.event_bus.unified_event_bus import EventType as ErrorEventType
                 await event_bus.publish(
                     ErrorEventType.ERROR_OCCURRED,
                     data={

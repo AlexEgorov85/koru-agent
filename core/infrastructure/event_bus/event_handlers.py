@@ -8,7 +8,7 @@ import json
 import os
 from datetime import datetime
 from typing import Dict, Any
-from core.infrastructure.event_bus.event_bus import Event, EventType
+from core.infrastructure.event_bus.unified_event_bus import Event, EventType
 
 
 # Определяем события, требующие аудита

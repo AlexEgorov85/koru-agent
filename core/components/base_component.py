@@ -915,7 +915,7 @@ class BaseComponent(ABC):
         """
         import time
         from core.models.data.execution import ExecutionResult, ExecutionStatus
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
 
         start_time = time.time()
 
@@ -1021,7 +1021,7 @@ class BaseComponent(ABC):
 
         Переопределяется в наследниках для возврата правильного типа события.
         """
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED  # По умолчанию
 
     async def _execute_impl(

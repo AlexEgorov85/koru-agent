@@ -12,10 +12,11 @@ FEATURES:
 """
 import logging
 from abc import ABC
-from typing import List, Callable, Any
+from typing import List, Callable, Any, Union
 
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
-from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
 
 logger = logging.getLogger(__name__)
 

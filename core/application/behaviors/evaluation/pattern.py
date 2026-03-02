@@ -43,7 +43,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             self.logger.debug("EventBus недоступен, пропускаем публикацию llm.response.received")
             return
 
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
 
         # Получаем agent_id из session_context или application_context
         agent_id = getattr(session_context, 'agent_id', 'unknown')

@@ -26,7 +26,7 @@ from core.models.data.benchmark import (
 from core.application.services.benchmark_service import BenchmarkService
 from core.application.services.prompt_contract_generator import PromptContractGenerator
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.event_bus.event_bus import EventBus, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent, EventType
 
 
 logger = logging.getLogger(__name__)

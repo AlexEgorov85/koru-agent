@@ -45,7 +45,7 @@ class PlanningSkill(BaseComponent):
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка планирования."""
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
     def get_capabilities(self) -> List[Capability]:

@@ -316,7 +316,7 @@ class BaseService(BaseComponent):
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения сервиса."""
         # Для сервисов нет специального события, используем общее
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
     async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):

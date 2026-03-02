@@ -30,7 +30,7 @@ from core.application.services.accuracy_evaluator import (
     EvaluationResult,
 )
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.event_bus.event_bus import EventBus, EventType
+from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent, EventType
 
 
 logger = logging.getLogger(__name__)

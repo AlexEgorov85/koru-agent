@@ -284,7 +284,7 @@ class LlamaCppProvider(BaseLLMProvider):
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: НАЧАЛО LLM ВЫЗОВА ===
             # Публикуем событие с полной информацией для логирования в сессию
             if hasattr(self, '_event_bus') and self._event_bus:
-                from core.infrastructure.event_bus.event_bus import EventType
+                from core.infrastructure.event_bus.unified_event_bus import EventType
                 await self._event_bus.publish(
                     event=EventType.LLM_CALL_STARTED,
                     data={
@@ -320,7 +320,7 @@ class LlamaCppProvider(BaseLLMProvider):
             if not self.llm:
                 # Публикуем событие о проблеме инициализации
                 if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.event_bus import EventType
+                    from core.infrastructure.event_bus.unified_event_bus import EventType
                     await self._event_bus.publish(
                         event=EventType.ERROR_OCCURRED,
                         data={
@@ -390,7 +390,7 @@ class LlamaCppProvider(BaseLLMProvider):
 
                 # === ПУБЛИКАЦИЯ СОБЫТИЯ: LLM ВЫЗОВ ЗАВЕРШЁН ===
                 if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.event_bus import EventType
+                    from core.infrastructure.event_bus.unified_event_bus import EventType
                     await self._event_bus.publish(
                         event=EventType.LLM_CALL_COMPLETED,
                         data={
@@ -421,7 +421,7 @@ class LlamaCppProvider(BaseLLMProvider):
                 
                 # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
                 if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.event_bus import EventType
+                    from core.infrastructure.event_bus.unified_event_bus import EventType
                     await self._event_bus.publish(
                         event=EventType.LLM_CALL_FAILED,
                         data={
@@ -485,7 +485,7 @@ class LlamaCppProvider(BaseLLMProvider):
             
             # Публикуем событие об ошибке
             if hasattr(self, '_event_bus') and self._event_bus:
-                from core.infrastructure.event_bus.event_bus import EventType
+                from core.infrastructure.event_bus.unified_event_bus import EventType
                 await self._event_bus.publish(
                     event=EventType.ERROR_OCCURRED,
                     data={

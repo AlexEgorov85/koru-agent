@@ -1,7 +1,7 @@
 ﻿from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 
-from core.infrastructure.event_bus.event_bus import EventType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ class BaseTool(BaseComponent):
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения инструмента."""
         # Для инструментов нет специального события, используем общее
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.ACTION_PERFORMED
 
     async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ToolInput = None):

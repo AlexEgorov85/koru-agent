@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from dataclasses import dataclass
 
-from core.infrastructure.event_bus.event_bus import Event, EventType
+from core.infrastructure.event_bus.unified_event_bus import Event, EventType
 
 # Константа для фильтрации системных логгеров
 LOGGING_SYSTEM_LOGGERS = {
@@ -410,7 +410,7 @@ class EventBusLogHandler:
     @property
     def event_bus(self):
         """Получить шину событий."""
-        from core.infrastructure.event_bus.event_bus import get_event_bus
+        from core.infrastructure.event_bus.unified_event_bus import get_event_bus
         return get_event_bus()
 
 

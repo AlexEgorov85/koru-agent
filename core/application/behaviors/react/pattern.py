@@ -459,7 +459,7 @@ class ReActPattern(BaseBehaviorPattern):
             await self._log("debug", "EventBus недоступен, пропускаем публикацию llm.response.received")
             return
 
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
 
         # Получаем agent_id из session_context или application_context
         agent_id = getattr(session_context, 'agent_id', 'unknown')
@@ -665,7 +665,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.event_bus.event_bus import Event, EventType
+                from core.infrastructure.event_bus.unified_event_bus import Event, EventType
 
                 agent_id = getattr(session_context, 'agent_id', 'unknown')
                 if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
@@ -876,7 +876,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.event_bus.event_bus import Event, EventType
+                from core.infrastructure.event_bus.unified_event_bus import Event, EventType
 
                 # Получаем agent_id из session_context или application_context
                 agent_id = getattr(session_context, 'agent_id', 'unknown')

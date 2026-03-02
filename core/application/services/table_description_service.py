@@ -84,7 +84,7 @@ class TableDescriptionService(BaseService):
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения сервиса описания таблиц."""
-        from core.infrastructure.event_bus.event_bus import EventType
+        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
     async def _execute_impl(
