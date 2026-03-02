@@ -276,6 +276,40 @@ class AppConfig(BaseModel):
 
                         component_prefixes[comp_type][component_name] = component_config
 
+        # Добавляем обязательные сервисы и инструменты, которые могут отсутствовать в промптах
+        if 'prompt_service' not in service_configs:
+            service_configs['prompt_service'] = ComponentConfig(
+                variant_id=f"prompt_service_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'contract_service' not in service_configs:
+            service_configs['contract_service'] = ComponentConfig(
+                variant_id=f"contract_service_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'file_tool' not in tool_configs:
+            tool_configs['file_tool'] = ComponentConfig(
+                variant_id=f"file_tool_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'sql_tool' not in tool_configs:
+            tool_configs['sql_tool'] = ComponentConfig(
+                variant_id=f"sql_tool_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+
         # Загружаем параметры агента из manifests если есть
         # Или используем значения по умолчанию
         agent_config = {}
