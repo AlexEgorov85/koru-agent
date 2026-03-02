@@ -277,6 +277,24 @@ tools:
     parameters:
       max_rows: 1000
 
+# LLM провайдеры
+llm_providers:
+  default_llm:
+    provider_type: llama_cpp
+    model_name: qwen-4b
+    enabled: true
+    fallback_providers: []
+    timeout_seconds: 1200.0
+    parameters:
+      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
+      n_ctx: 20048
+      n_gpu_layers: 0
+      n_batch: 512
+      temperature: 0.2
+      max_tokens: 512
+      verbose: false
+      stop: ["\"", "</s>"]
+
 # Параметры агента
 agent:
   max_steps: 10

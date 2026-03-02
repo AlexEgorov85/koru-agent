@@ -1,69 +1,30 @@
-# 📡 Event Bus — Разделение на доменные шины
+# 📡 Unified Event Bus
 
 ## 📋 Обзор
 
-Модуль `domain_event_bus.py` реализует **менеджер доменных шин событий** для изоляции компонентов системы.
+Модуль `unified_event_bus.py` реализует **единую шину событий** с поддержкой:
+- Session isolation (изоляция по сессиям)
+- Domain routing (маршрутизация по доменам)
+- FIFO порядок внутри сессии
+- Backpressure (ограничение размера очереди)
 
-## 🎯 Проблемы, которые решает
-
-### До рефакторинга:
-```python
-# Одна глобальная шина для всего
-_global_event_bus = EventBus()
-
-# Все события смешиваются:
-await event_bus.publish(EventType.AGENT_CREATED, {...})      # Агент
-await event_bus.publish(EventType.BENCHMARK_STARTED, {...})  # Бенчмарк
-await event_bus.publish(EventType.LLM_CALL_FAILED, {...})    # Инфраструктура
-
-# Проблемы:
-# ❌ Сильное耦合 между компонентами
-# ❌ Сложно отладить поток событий
-# ❌ Невозможно изолировать домены
-```
-
-### После рефакторинга:
-```python
-# Раздельные шины по доменам
-event_bus_manager = EventBusManager()
-
-agent_bus = event_bus_manager.get_bus(EventDomain.AGENT)
-benchmark_bus = event_bus_manager.get_bus(EventDomain.BENCHMARK)
-infra_bus = event_bus_manager.get_bus(EventDomain.INFRASTRUCTURE)
-
-# Изолированная публикация
-await agent_bus.publish(EventType.AGENT_CREATED, {...})
-await benchmark_bus.publish(EventType.BENCHMARK_STARTED, {...})
-await infra_bus.publish(EventType.LLM_CALL_FAILED, {...})
-
-# Преимущества:
-# ✅ Изоляция доменов
-# ✅ Легче отладка
-# ✅ Можно отключать домены независимо
-```
-
-## 🏗️ Архитектура
+## 🎯 Архитектура
 
 ```
-EventBusManager
-├── DomainEventBus[AGENT]
-│   ├── AGENT_CREATED
-│   ├── AGENT_STARTED
-│   └── ...
-├── DomainEventBus[BENCHMARK]
-│   ├── BENCHMARK_STARTED
-│   ├── BENCHMARK_COMPLETED
-│   └── ...
-├── DomainEventBus[INFRASTRUCTURE]
-│   ├── LLM_CALL_STARTED
-│   ├── PROVIDER_REGISTERED
-│   └── ...
-├── DomainEventBus[OPTIMIZATION]
-│   ├── VERSION_CREATED
-│   └── ...
-└── DomainEventBus[SECURITY]
-    ├── SECURITY_AUDIT
-    └── ...
+┌─────────────────────────────────────────────────────────────┐
+│                    UnifiedEventBus                          │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Session Workers (изолированные очереди)              │   │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐    │   │
+│  │  │Session A│ │Session B│ │Session C│ │  ...    │    │   │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘    │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  Domain Routing (внутри одной шины)                         │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  event.domain → фильтр подписчиков                   │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 📖 Использование
@@ -72,222 +33,168 @@ EventBusManager
 
 ```python
 from core.infrastructure.event_bus import (
-    EventBusManager,
-    EventDomain,
+    get_event_bus,
     EventType,
-    get_event_bus_manager
+    EventDomain
 )
 
-# Получение менеджера (singleton)
-event_bus_manager = get_event_bus_manager()
-
-# Получение шины конкретного домена
-agent_bus = event_bus_manager.get_bus(EventDomain.AGENT)
+# Получение шины (singleton)
+event_bus = get_event_bus()
 
 # Подписка на событие
-async def on_agent_created(event):
-    print(f"Агент создан: {event.data}")
+async def on_agent_started(event):
+    print(f"Агент запущен: {event.data}")
 
-agent_bus.subscribe(EventType.AGENT_CREATED, on_agent_created)
+event_bus.subscribe(EventType.AGENT_STARTED, on_agent_started)
 
 # Публикация события
-await agent_bus.publish(
-    EventType.AGENT_CREATED,
+await event_bus.publish(
+    EventType.AGENT_STARTED,
     data={"agent_id": "123", "goal": "Поиск книг"},
-    source="agent_factory"
+    session_id="session_123",
+    domain=EventDomain.AGENT
 )
 ```
 
-### 2. Кросс-доменные события
+### 2. Подписка с фильтрами
 
 ```python
-# Публикация в несколько доменов одновременно
-result = await event_bus_manager.publish_cross_domain(
-    EventType.SYSTEM_INITIALIZED,
-    domains=[EventDomain.INFRASTRUCTURE, EventDomain.AGENT],
-    data={"version": "1.0.0"},
-    source="main"
+# Подписка с фильтром по домену
+event_bus.subscribe(
+    EventType.AGENT_STARTED,
+    handler,
+    domain=EventDomain.AGENT
 )
 
-# Результат:
-# {"infrastructure": True, "agent": True}
+# Подписка с фильтром по сессии
+event_bus.subscribe(
+    EventType.AGENT_STARTED,
+    handler,
+    session_id="session_123"
+)
+
+# Глобальная подписка с фильтром по доменам
+event_bus.subscribe_all(
+    handler,
+    domains=[EventDomain.AGENT, EventDomain.INFRASTRUCTURE]
+)
 ```
 
-### 3. Глобальная подписка на все события
+### 3. Логирование через EventBusLogger
 
 ```python
-async def global_event_handler(event: DomainEvent):
-    print(f"Событие: {event.event_type}, Домен: {event.domain.value}")
+from core.infrastructure.event_bus.unified_logger import EventBusLogger
 
-event_bus_manager.subscribe_all(global_event_handler)
+logger = EventBusLogger(
+    event_bus=event_bus,
+    session_id="session_123",
+    agent_id="agent_001",
+    component="MyComponent"
+)
+
+# Логирование
+await logger.info("Компонент инициализирован")
+await logger.debug("Детали: %s", details)
+await logger.warning("Предупреждение")
+await logger.error("Ошибка: %s", error)
 ```
 
-### 4. Включение/выключение доменов
+## 🏷️ Домены событий
+
+| Домен | Описание | Примеры событий |
+|-------|----------|-----------------|
+| `AGENT` | События агента | AGENT_CREATED, AGENT_STARTED |
+| `BENCHMARK` | События бенчмарков | BENCHMARK_STARTED, BENCHMARK_COMPLETED |
+| `INFRASTRUCTURE` | Инфраструктурные события | LLM_CALL_STARTED, PROVIDER_REGISTERED |
+| `OPTIMIZATION` | События оптимизации | VERSION_CREATED, VERSION_PROMOTED |
+| `SECURITY` | События безопасности | SECURITY_AUDIT |
+| `COMMON` | Общие события | ERROR_OCCURRED, METRIC_COLLECTED |
+
+## 📊 Статистика
 
 ```python
-# Отключение домена бенчмарков (например, для prod)
-event_bus_manager.disable_domain(EventDomain.BENCHMARK)
-
-# Включение домена
-event_bus_manager.enable_domain(EventDomain.BENCHMARK)
-
-# Проверка статуса
-stats = event_bus_manager.get_all_stats()
-print(stats["domains"]["benchmark"]["enabled"])  # True/False
-```
-
-### 5. Статистика по доменам
-
-```python
-stats = event_bus_manager.get_all_stats()
-
-# Пример вывода:
+# Получить статистику шины
+stats = event_bus.get_stats()
+print(stats)
 # {
-#     "domains": {
-#         "agent": {
-#             "domain": "agent",
-#             "enabled": True,
-#             "event_count": 150,
-#             "error_count": 2,
-#             "subscribers_count": 5
-#         },
-#         "benchmark": {...},
-#         "infrastructure": {...}
-#     },
-#     "global_subscribers_count": 1,
-#     "cross_domain_listeners_count": 0
+#     "running": True,
+#     "active_sessions": 5,
+#     "active_workers": 5,
+#     "subscribers_count": 10,
+#     "sessions": {...}
+# }
+
+# Получить статистику миграции
+migration_stats = event_bus.get_migration_stats()
+print(migration_stats)
+# {
+#     "duplicate_subscription_count": 0,
+#     "duplicate_warning_threshold": 10,
+#     "migration_active": True
 # }
 ```
 
-## 🔧 Интеграция с существующим кодом
-
-### Обновление main.py
+## 🔧 Конфигурация
 
 ```python
-# Было:
-from core.infrastructure.event_bus import get_event_bus
+from core.infrastructure.event_bus import create_event_bus
+
+# Создание новой шины с настройками
+event_bus = create_event_bus(
+    queue_max_size=1000,        # Максимум событий в очереди
+    worker_idle_timeout=60.0,   # Таймаут простоя worker'а
+    subscriber_timeout=30.0     # Таймаут выполнения подписчика
+)
+```
+
+## 🚀 Миграция со старого API
+
+### Было (EventBusManager):
+```python
+from core.infrastructure.event_bus.domain_event_bus import get_event_bus_manager
+
+manager = get_event_bus_manager()
+agent_bus = manager.get_bus(EventDomain.AGENT)
+agent_bus.subscribe(EventType.AGENT_STARTED, handler)
+await agent_bus.publish(EventType.AGENT_STARTED, {"agent_id": "123"})
+```
+
+### Стало (UnifiedEventBus):
+```python
+from core.infrastructure.event_bus import get_event_bus, EventDomain
+
 event_bus = get_event_bus()
-
-# Стало (рекомендуется):
-from core.infrastructure.event_bus import get_event_bus_manager, EventDomain
-event_bus_manager = get_event_bus_manager()
-
-# Для агента используем домен AGENT
-agent_bus = event_bus_manager.get_bus(EventDomain.AGENT)
-
-# Для инфраструктурных событий
-infra_bus = event_bus_manager.get_bus(EventDomain.INFRASTRUCTURE)
+event_bus.subscribe(
+    EventType.AGENT_STARTED,
+    handler,
+    domain=EventDomain.AGENT
+)
+await event_bus.publish(
+    EventType.AGENT_STARTED,
+    data={"agent_id": "123"},
+    session_id="session_123",
+    domain=EventDomain.AGENT
+)
 ```
 
-### Обновление подписчиков
+## 📝 Примечания
 
-```python
-# Было:
-from core.infrastructure.event_bus import get_event_bus
-
-event_bus = get_event_bus()
-event_bus.subscribe(EventType.AGENT_CREATED, handler)
-
-# Стало:
-from core.infrastructure.event_bus import get_event_bus_manager, EventDomain
-
-event_bus_manager = get_event_bus_manager()
-agent_bus = event_bus_manager.get_bus(EventDomain.AGENT)
-agent_bus.subscribe(EventType.AGENT_CREATED, handler)
-```
-
-### Обратная совместимость
-
-```python
-# Старый код продолжает работать:
-from core.infrastructure.event_bus import get_event_bus
-
-event_bus = get_event_bus()  # Возвращает шину домена COMMON
-event_bus.subscribe(EventType.ERROR_OCCURRED, handler)
-```
-
-## 📊 Маппинг событий на домены
-
-| Домен | События |
-|-------|---------|
-| **AGENT** | AGENT_CREATED, AGENT_STARTED, AGENT_COMPLETED, AGENT_FAILED, CAPABILITY_SELECTED, SKILL_EXECUTED, ACTION_PERFORMED, STEP_REGISTERED, CONTEXT_ITEM_ADDED, PLAN_CREATED, PLAN_UPDATED |
-| **BENCHMARK** | BENCHMARK_STARTED, BENCHMARK_COMPLETED, BENCHMARK_FAILED |
-| **INFRASTRUCTURE** | SYSTEM_INITIALIZED, SYSTEM_SHUTDOWN, SYSTEM_ERROR, PROVIDER_REGISTERED, PROVIDER_UNREGISTERED, LLM_CALL_*, SERVICE_*, COMPONENT_* |
-| **OPTIMIZATION** | OPTIMIZATION_CYCLE_*, VERSION_* |
-| **SECURITY** | SECURITY_AUDIT (новое) |
-| **COMMON** | ERROR_OCCURRED, RETRY_ATTEMPT, METRIC_COLLECTED, EXECUTION_* |
+1. **Session ID обязателен** для публикации событий (для маршрутизации)
+2. **Domain определяется автоматически** по типу события, но можно указать явно
+3. **FIFO порядок** гарантируется только внутри одной сессии
+4. **Backpressure** — при переполнении очереди публикация блокируется
 
 ## 🧪 Тестирование
 
-```python
-import pytest
-from core.infrastructure.event_bus import (
-    EventBusManager,
-    EventDomain,
-    EventType,
-    reset_event_bus_manager
-)
+```bash
+# Запуск тестов
+pytest tests/unit/infrastructure/test_unified_event_bus.py -v
 
-@pytest.fixture
-def event_bus_manager():
-    """Фикстура для тестов"""
-    reset_event_bus_manager()  # Сброс singleton
-    manager = EventBusManager()
-    yield manager
-    reset_event_bus_manager()  # Очистка после теста
-
-async def test_domain_isolation(event_bus_manager):
-    """Тест изоляции доменов"""
-    agent_events = []
-    benchmark_events = []
-    
-    agent_bus = event_bus_manager.get_bus(EventDomain.AGENT)
-    benchmark_bus = event_bus_manager.get_bus(EventDomain.BENCHMARK)
-    
-    agent_bus.subscribe(EventType.AGENT_CREATED, lambda e: agent_events.append(e))
-    benchmark_bus.subscribe(EventType.BENCHMARK_STARTED, lambda e: benchmark_events.append(e))
-    
-    # Публикация в разные домены
-    await agent_bus.publish(EventType.AGENT_CREATED, {})
-    await benchmark_bus.publish(EventType.BENCHMARK_STARTED, {})
-    
-    # Проверка изоляции
-    assert len(agent_events) == 1
-    assert len(benchmark_events) == 1
-    assert agent_events[0].event_type == EventType.AGENT_CREATED.value
-    assert benchmark_events[0].event_type == EventType.BENCHMARK_STARTED.value
+# Нагрузочный тест
+python scripts/performance/event_bus_benchmark.py
 ```
 
-## ⚠️ Миграция
+## 📚 Ссылки
 
-### Этапы миграции:
-
-1. **Этап 1 (неделя 1)**: Параллельная работа
-   - Новый код использует `EventBusManager`
-   - Старый код продолжает использовать `get_event_bus()`
-   - Тестирование изоляции доменов
-
-2. **Этап 2 (неделя 2)**: Постепенная миграция
-   - Обновление `main.py` для использования менеджера
-   - Обновление подписчиков LLM
-   - Обновление обработчиков метрик
-
-3. **Этап 3 (неделя 3)**: Завершение
-   - Удаление устаревших вызовов
-   - Включение всех доменов в prod
-   - Мониторинг производительности
-
-## 📈 Метрики для мониторинга
-
-После внедрения отслеживайте:
-
-1. **event_count** по доменам — равномерность распределения
-2. **error_count** — ошибки в обработчиках
-3. **subscribers_count** — количество подписчиков
-4. **Время обработки** событий — не должно увеличиться
-
-## 🔗 Связанные документы
-
-- `core/infrastructure/event_bus/event_bus.py` — базовый класс
-- `core/infrastructure/event_bus/event_handlers.py` — обработчики
-- `tests/unit/event_bus/test_domain_event_bus.py` — тесты
+- [План миграции](../../../../docs/EVENT_BUS_MIGRATION.md)
+- [Migration Report](../../../../MIGRATION_REPORT.md)

@@ -69,6 +69,9 @@ class AppConfig(BaseModel):
     tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов: {tool_name: ComponentConfig}")
     behavior_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации паттернов поведения: {behavior_name: ComponentConfig}")
 
+    # LLM провайдеры (для InfrastructureContext)
+    llm_providers: Dict[str, Any] = Field(default_factory=dict, description="LLM провайдеры: {provider_name: config}")
+
     # Используем ConfigDict вместо класса Config для Pydantic v2+
     model_config = ConfigDict(
         # Разрешаем произвольные атрибуты для обратной совместимости
@@ -309,6 +312,9 @@ class AppConfig(BaseModel):
         # Загружаем параметры агента из реестра
         agent_config = registry_data.get('agent', {})
 
+        # Загружаем LLM провайдеры из реестра
+        llm_providers = registry_data.get('llm_providers', {})
+
         return cls(
             config_id=f"app_config_{profile}",
             prompt_versions=active_prompts,
@@ -326,5 +332,6 @@ class AppConfig(BaseModel):
             temperature=agent_config.get('temperature', 0.7),
             enable_self_reflection=agent_config.get('enable_self_reflection', True),
             enable_context_window_management=agent_config.get('enable_context_window_management', True),
-            profile=profile  # Добавляем поле профиля
+            profile=profile,  # Добавляем поле профиля
+            llm_providers=llm_providers  # Добавляем LLM провайдеры
         )

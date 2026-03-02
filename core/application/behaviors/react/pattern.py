@@ -249,8 +249,8 @@ class ReActPattern(BaseBehaviorPattern):
         """
         lines = []
         for cap in available_capabilities:
-            name = cap.get('name', 'unknown')
-            description = cap.get('description', 'Нет описания')
+            name = cap.name
+            description = cap.description
 
             # Получаем схему параметров из schema_validator
             params_schema = None
