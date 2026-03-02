@@ -122,10 +122,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await session_logger.info(f"✅ Агент завершил работу")
 
         # Проверка на ошибку
-        if hasattr(result, 'metadata') and result.metadata and 'error' in result.metadata:
-            error_msg = result.metadata['error']
-            await session_logger.error(f"AgentError: {error_msg}")
-            raise RuntimeError(f"Ошибка агента: {error_msg}")
+        if hasattr(result, 'metadata') and result.metadata:
+            if isinstance(result.metadata, dict) and 'error' in result.metadata:
+                error_msg = result.metadata['error']
+                await session_logger.error(f"AgentError: {error_msg}")
+                raise RuntimeError(f"Ошибка агента: {error_msg}")
 
         # Завершение сессии успешно
         await session_logger.end_session(success=True, result=str(result)[:500])
