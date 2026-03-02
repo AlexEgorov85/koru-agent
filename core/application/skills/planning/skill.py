@@ -8,6 +8,7 @@ from core.components.base_component import BaseComponent
 from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext, ActionResult
 from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.models.data.execution import SkillResult
 
 
 class PlanningSkill(BaseComponent):
@@ -79,7 +80,7 @@ class PlanningSkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> SkillResult:
         """
         Реализация бизнес-логики навыка планирования.
 
@@ -101,9 +102,17 @@ class PlanningSkill(BaseComponent):
             result = await self._mark_task_completed(parameters, execution_context)
         else:
             raise ValueError(f"Неизвестная capability: {capability.name}")
-        
-        # Возвращаем данные из ActionResult
-        return result.data if hasattr(result, 'data') else result
+
+        # Конвертируем ActionResult в SkillResult
+        if isinstance(result, ActionResult):
+            return SkillResult(
+                technical_success=result.success,
+                data=result.data,
+                error=result.error,
+                metadata=result.metadata if hasattr(result, 'metadata') else {},
+                side_effect=True  # Planning skill всегда меняет контекст
+            )
+        return result
     
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""
@@ -175,7 +184,7 @@ class PlanningSkill(BaseComponent):
                 )
 
             # 5. Получаем структурированные данные (Pydantic model_dump())
-            plan_data = llm_result.data.get("parsed_content", {})
+            plan_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -315,7 +324,7 @@ class PlanningSkill(BaseComponent):
                 )
 
             # 6. Получаем структурированные данные (Pydantic model_dump())
-            updated_plan = llm_result.data.get("parsed_content", {})
+            updated_plan = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -662,7 +671,7 @@ class PlanningSkill(BaseComponent):
                 )
 
             # Получаем структурированные данные (Pydantic model_dump())
-            corrected_plan = llm_result.data.get("parsed_content", {})
+            corrected_plan = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -692,7 +701,7 @@ class PlanningSkill(BaseComponent):
 
             return ActionResult(
                 success=True,
-                data=llm_result.data,
+                data=llm_result.result,
                 metadata={"correction_applied": True}
             )
         except Exception as e:
@@ -749,7 +758,7 @@ class PlanningSkill(BaseComponent):
                 )
 
             # Получаем структурированные данные (Pydantic model_dump())
-            decompose_data = llm_result.data.get("parsed_content", {})
+            decompose_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -793,11 +802,11 @@ class PlanningSkill(BaseComponent):
 
             # Сохранение иерархии в контекст
             hierarchy_data = {
-                "parent_task_id": llm_result.data.get("parent_task_id"),
-                "original_task": llm_result.data.get("original_task"),
+                "parent_task_id": llm_result.result.get("parent_task_id") if llm_result.result else None,
+                "original_task": llm_result.result.get("original_task") if llm_result.result else None,
                 "sub_plans": sub_plans,
-                "decomposition_strategy": llm_result.data.get("decomposition_strategy"),
-                "metadata": llm_result.data.get("metadata")
+                "decomposition_strategy": llm_result.result.get("decomposition_strategy") if llm_result.result else None,
+                "metadata": llm_result.result.get("metadata") if llm_result.result else None
             }
 
             hierarchy_result = await self.executor.execute_action(

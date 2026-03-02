@@ -35,7 +35,7 @@ from core.components.base_component import BaseComponent
 from core.config.component_config import ComponentConfig
 from core.application.context.application_context import ApplicationContext
 from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
-from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
 
 
 # ============================================================================
@@ -132,25 +132,10 @@ class BookLibrarySkill(BaseComponent):
 
     async def initialize(self) -> bool:
         """Инициализация навыка с предзагрузкой необходимых ресурсов"""
+        # Вызываем родительский initialize() для загрузки промптов и контрактов из component_config
         success = await super().initialize()
         if not success:
             return False
-
-        # Проверяем, что все необходимые промпты и контракты загружены
-        required_capabilities = ["book_library.search_books", "book_library.execute_script"]
-
-        for capability in required_capabilities:
-            # Проверяем наличие промпта
-            if capability not in self.prompts:
-                self.logger.warning(f"Промпт для {capability} не загружен")
-
-            # Проверяем наличие входной схемы
-            if capability not in self.input_contracts:
-                self.logger.warning(f"Входная схема для {capability} не загружена")
-
-            # Проверяем наличие выходной схемы
-            if capability not in self.output_contracts:
-                self.logger.warning(f"Выходная схема для {capability} не загружена")
 
         # Загружаем реестр скриптов
         try:
@@ -174,7 +159,7 @@ class BookLibrarySkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> Dict[str, Any]:
+    ) -> SkillResult:
         """
         Реализация бизнес-логики навыка библиотеки.
 
@@ -188,7 +173,7 @@ class BookLibrarySkill(BaseComponent):
         result = await self.supported_capabilities[capability.name](parameters)
         return result
 
-    async def _search_books_dynamic(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _search_books_dynamic(self, params: Dict[str, Any]) -> SkillResult:
         """
         Динамическая генерация SQL через LLM.
 
@@ -211,31 +196,25 @@ class BookLibrarySkill(BaseComponent):
                 params = validated_params.model_dump()
             except Exception as e:
                 self.logger.error(f"Ошибка валидации параметров: {e}")
-                return {
-                    "error": f"Неверные параметры: {str(e)}",
-                    "rows": [],
-                    "rowcount": 0,
-                    "execution_type": "dynamic"
-                }
+                return SkillResult.failure(
+                    error=f"Неверные параметры: {str(e)}",
+                    metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
+                )
         else:
             # Критическая ошибка: контракт не загружен в кэш
             self.logger.error("Контракт book_library.search_books.input не загружен в кэш")
-            return {
-                "error": "Внутренняя ошибка: контракт не загружен",
-                "rows": [],
-                "rowcount": 0,
-                "execution_type": "dynamic"
-            }
+            return SkillResult.failure(
+                error="Внутренняя ошибка: контракт не загружен",
+                metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
+            )
 
         # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
         prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
         if not prompt_with_contract:
-            return {
-                "error": "Промпт для поиска книг не найден",
-                "rows": [],
-                "rowcount": 0,
-                "execution_type": "dynamic"
-            }
+            return SkillResult.failure(
+                error="Промпт для поиска книг не найден",
+                metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
+            )
 
         # 3. Генерация SQL через sql_generation_service
         sql_query = ""
@@ -255,8 +234,9 @@ class BookLibrarySkill(BaseComponent):
                 context=exec_context
             )
 
-            if gen_result.success and gen_result.data:
-                sql_query = gen_result.data.get('sql_query', '')
+            from core.models.data.execution import ExecutionStatus
+            if gen_result.status == ExecutionStatus.COMPLETED and gen_result.result:
+                sql_query = gen_result.result.get('sql_query', '')
                 self.logger.info(f"Сгенерированный SQL: {sql_query}")
             else:
                 self.logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
@@ -286,9 +266,10 @@ class BookLibrarySkill(BaseComponent):
                 context=exec_context
             )
 
-            if query_result.success and query_result.data:
-                rows = query_result.data.get('rows', [])
-                execution_time = query_result.data.get('execution_time', 0.0)
+            from core.models.data.execution import ExecutionStatus
+            if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
+                rows = query_result.result.get('rows', [])
+                execution_time = query_result.result.get('execution_time', 0.0)
                 self.logger.info(f"Найдено строк: {len(rows)}")
 
         except Exception as e:
@@ -331,17 +312,27 @@ class BookLibrarySkill(BaseComponent):
 
         # 6. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.search_books")
+        result_data = result.copy()
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
-                return validated_result.model_dump()
+                result_data = validated_result.model_dump()
             except Exception as e:
                 self.logger.error(f"Ошибка валидации результата: {e}")
-                return result
-        else:
-            return result
 
-    async def _execute_script_static(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        # Возвращаем SkillResult с side_effect=True (SQL query executed)
+        return SkillResult.success(
+            data=result_data,
+            metadata={
+                "execution_time_ms": total_time * 1000,
+                "rows_returned": len(rows),
+                "sql_query": sql_query,
+                "execution_type": "dynamic"
+            },
+            side_effect=True  # SQL query был выполнен
+        )
+
+    async def _execute_script_static(self, params: Dict[str, Any]) -> SkillResult:
         """
         Выполнение заготовленного SQL-скрипта по имени.
 
@@ -359,23 +350,19 @@ class BookLibrarySkill(BaseComponent):
         # 1. Валидация входных параметров
         script_name = params.get('script_name')
         if not script_name:
-            return {
-                "error": "Требуется параметр 'script_name'",
-                "rows": [],
-                "rowcount": 0,
-                "execution_type": "static"
-            }
+            return SkillResult.failure(
+                error="Требуется параметр 'script_name'",
+                metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
+            )
 
         # 2. Проверка, что скрипт существует в реестре
         allowed_scripts = self._get_allowed_scripts()
         if script_name not in allowed_scripts:
             available_scripts = list(allowed_scripts.keys())
-            return {
-                "error": f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}",
-                "rows": [],
-                "rowcount": 0,
-                "execution_type": "static"
-            }
+            return SkillResult.failure(
+                error=f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}",
+                metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
+            )
 
         # 3. Получение SQL-скрипта из реестра
         script_config = allowed_scripts[script_name]
@@ -387,12 +374,10 @@ class BookLibrarySkill(BaseComponent):
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())
             if missing_params:
-                return {
-                    "error": f"Отсутствуют обязательные параметры: {missing_params}",
-                    "rows": [],
-                    "rowcount": 0,
-                    "execution_type": "static"
-                }
+                return SkillResult.failure(
+                    error=f"Отсутствуют обязательные параметры: {missing_params}",
+                    metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
+                )
 
         # 5. Подготовка параметров для SQL-запроса
         # Преобразуем именованные параметры в позиционные для PostgreSQL
@@ -433,20 +418,18 @@ class BookLibrarySkill(BaseComponent):
                 context=exec_context
             )
 
-            if query_result.success and query_result.data:
-                rows = query_result.data.get('rows', [])
-                execution_time = query_result.data.get('execution_time', 0.0)
+            from core.models.data.execution import ExecutionStatus
+            if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
+                rows = query_result.result.get('rows', [])
+                execution_time = query_result.result.get('execution_time', 0.0)
                 self.logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
 
         except Exception as e:
             self.logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
-            return {
-                "error": f"Ошибка выполнения скрипта: {str(e)}",
-                "rows": [],
-                "rowcount": 0,
-                "execution_type": "static",
-                "script_name": script_name
-            }
+            return SkillResult.failure(
+                error=f"Ошибка выполнения скрипта: {str(e)}",
+                metadata={"rows": [], "rowcount": 0, "execution_type": "static", "script_name": script_name}
+            )
 
         # Формируем результат
         total_time = time.time() - start_time
@@ -475,17 +458,27 @@ class BookLibrarySkill(BaseComponent):
 
         # 8. Валидация результатов через выходную схему
         output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
+        result_data = result.copy()
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
-                return validated_result.model_dump()
+                result_data = validated_result.model_dump()
             except Exception as e:
                 self.logger.error(f"Ошибка валидации результата: {e}")
-                return result
-        else:
-            return result
 
-    async def _list_scripts(self, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        # Возвращаем SkillResult с side_effect=True (SQL query executed)
+        return SkillResult.success(
+            data=result_data,
+            metadata={
+                "execution_time_ms": total_time * 1000,
+                "rows_returned": len(rows),
+                "script_name": script_name,
+                "execution_type": "static"
+            },
+            side_effect=True  # SQL query был выполнен
+        )
+
+    async def _list_scripts(self, params: Dict[str, Any] = None) -> SkillResult:
         """
         Получение списка доступных заготовленных скриптов.
 
@@ -553,13 +546,17 @@ class BookLibrarySkill(BaseComponent):
             try:
                 # Создаём валидированную модель через схему контракта
                 validated_result = output_schema.model_validate(result_data)
-                return validated_result.model_dump()
+                result_data = validated_result.model_dump()
             except Exception as e:
                 self.logger.error(f"Ошибка валидации через контракт: {e}")
                 # Возвращаем данные без валидации (fallback)
-        
-        # Если схема не загружена - возвращаем данные напрямую
-        return result_data
+
+        # Возвращаем SkillResult (no side effect - только чтение)
+        return SkillResult.success(
+            data=result_data,
+            metadata={"scripts_count": len(scripts_list)},
+            side_effect=False
+        )
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """

@@ -19,7 +19,7 @@ from core.session_context.base_session_context import BaseSessionContext
 from core.application.skills.base_skill import BaseSkill
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
 from core.models.data.prompt import Prompt
 from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
 
@@ -156,7 +156,7 @@ class FinalAnswerSkill(BaseSkill):
         capability: str,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> Dict[str, Any]:
+    ) -> SkillResult:
         """
         Реализация бизнес-логики навыка финального ответа.
 
@@ -170,54 +170,98 @@ class FinalAnswerSkill(BaseSkill):
         session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
 
         # Генерация финального ответа
-        result = await self._generate_final_answer(session_context, parameters)
-        return result
+        result = await self._generate_final_answer(session_context, parameters, execution_context)
+        
+        # result уже SkillResult из _generate_final_answer
+        return result if isinstance(result, SkillResult) else SkillResult.success(data=result)
 
     async def _generate_final_answer(
         self,
         context: BaseSessionContext,
-        parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        parameters: Dict[str, Any],
+        execution_context: Any
+    ) -> SkillResult:
         """
         Генерация финального ответа на основе контекста сессии.
-        
+
         ПАРАМЕТРЫ:
-        - context: контекст сессии
+        - context: контекст сессии (только для get_goal())
         - parameters: параметры генерации
-        
+        - execution_context: контекст выполнения для доступа к данным
+
         ВОЗВРАЩАЕТ:
         - Dict[str, Any]: результат генерации
         """
         # Извлечение цели
         goal = context.get_goal() or "Не указана цель"
 
-        # Сбор всей информации из контекста
-        all_items = context.data_context.items if hasattr(context, 'data_context') and hasattr(context.data_context, 'items') else {}
+        # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR (не напрямую!)
         observations = []
         thoughts = []
         actions = []
 
-        # Классификация элементов контекста
-        for item_id, item in all_items.items():
-            item_type = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
-            if item_type == "OBSERVATION":
-                observations.append(item.content)
-            elif item_type in ["THOUGHT", "DECISION"]:
-                thoughts.append(item.content)
-            elif item_type == "ACTION":
-                actions.append({
-                    "action": item.content.get("capability", "неизвестно"),
-                    "result": str(item.content.get("result", ""))[:200] if item.content.get("result") else ""
-                })
+        # Получаем все items из контекста через executor
+        try:
+            from core.models.data.execution import ExecutionStatus
+            all_items_result = await self.executor.execute_action(
+                action_name="context.get_all_items",
+                parameters={},
+                context=execution_context
+            )
 
-        # Подготовка шагов выполнения
+            if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
+                all_items = all_items_result.result.get("items", {})
+
+                # Классификация элементов контекста
+                for item_id, item in all_items.items():
+                    # item может быть dict или объектом
+                    if isinstance(item, dict):
+                        item_type = item.get("item_type", "")
+                        item_content = item.get("content", {})
+                    else:
+                        item_type = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
+                        item_content = item.content
+
+                    if item_type == "OBSERVATION":
+                        observations.append(item_content if isinstance(item_content, str) else str(item_content))
+                    elif item_type in ["THOUGHT", "DECISION"]:
+                        thoughts.append(item_content if isinstance(item_content, str) else str(item_content))
+                    elif item_type == "ACTION":
+                        if isinstance(item_content, dict):
+                            actions.append({
+                                "action": item_content.get("capability", "неизвестно"),
+                                "result": str(item_content.get("result", ""))[:200] if item_content.get("result") else ""
+                            })
+        except Exception as e:
+            self.logger.warning(f"Не удалось получить items из контекста: {e}")
+            # Продолжаем с пустыми списками
+
+        # Получаем шаги выполнения через executor
         steps_taken = []
-        if hasattr(context, 'step_context') and hasattr(context.step_context, 'steps'):
-            for step in context.step_context.steps:
-                steps_taken.append({
-                    "action": getattr(step, 'action', 'неизвестно'),
-                    "result": getattr(step, 'result', '')[:200] if getattr(step, 'result') else ''
-                })
+        try:
+            from core.models.data.execution import ExecutionStatus
+            steps_result = await self.executor.execute_action(
+                action_name="context.get_step_history",
+                parameters={},
+                context=execution_context
+            )
+
+            if steps_result.status == ExecutionStatus.COMPLETED and steps_result.result:
+                steps_list = steps_result.result.get("steps", [])
+                for step in steps_list[-10:]:  # Последние 10 шагов
+                    if isinstance(step, dict):
+                        steps_taken.append({
+                            "action": step.get("action", "неизвестно"),
+                            "result": str(step.get("result", ""))[:200] if step.get("result") else ""
+                        })
+                    else:
+                        steps_taken.append({
+                            "action": getattr(step, 'action', 'неизвестно'),
+                            "result": getattr(step, 'result', '')[:200] if getattr(step, 'result') else ''
+                        })
+        except Exception as e:
+            self.logger.warning(f"Не удалось получить step history: {e}")
+            # Продолжаем с пустыми шагами
 
         # Параметры форматирования
         include_steps = parameters.get("include_steps", True)
@@ -268,14 +312,52 @@ class FinalAnswerSkill(BaseSkill):
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
         try:
-            llm_response = await self._call_llm(rendered_prompt, execution_context)
+            # Получаем схему выхода для structured output
+            output_schema = self.get_output_contract("final_answer.generate")
 
-            # Получаем структурированные данные (уже parsed_content из structured output)
-            # _parse_llm_response больше не нужен, так как LLM вернул валидную структуру
-            parsed_response = llm_response if isinstance(llm_response, dict) else self._parse_llm_response(str(llm_response), format_type)
+            # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": rendered_prompt,
+                    "structured_output": {
+                        "output_model": "final_answer.generate.output",
+                        "schema_def": output_schema if output_schema else {},
+                        "max_retries": 3,
+                        "strict_mode": True
+                    },
+                    "temperature": 0.3,
+                    "max_tokens": 1500
+                },
+                context=execution_context
+            )
+
+            # Проверка на ошибку
+            from core.models.data.execution import ExecutionStatus
+            if llm_result.status != ExecutionStatus.COMPLETED:
+                error_msg = llm_result.error
+                error_type = llm_result.metadata.get("error_type", "unknown")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
+                else:
+                    self.logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
+                raise RuntimeError(f"Ошибка LLM: {error_msg}")
+
+            # Получаем структурированные данные (Pydantic model_dump())
+            parsed_response = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+
+            # Логирование успешного structured output
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
+            else:
+                self.logger.info(
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                )
 
             # Формирование финального результата
-            result = {
+            result_data = {
                 "final_answer": parsed_response.get("answer", ""),
                 "sources": observations[-max_sources:] if include_evidence else [],
                 "confidence_score": parsed_response.get("confidence", 0.8),
@@ -284,20 +366,33 @@ class FinalAnswerSkill(BaseSkill):
                 "metadata": {
                     "total_observations": len(observations),
                     "total_steps": len(steps_taken),
-                    "generation_time_ms": 0,  # Будет установлено в execute()
+                    "generation_time_ms": 0,
                     "format_type": format_type,
                     "structured_output": True
                 }
             }
 
-            return result
+            return SkillResult.success(
+                data=result_data,
+                metadata={
+                    "observations_count": len(observations),
+                    "steps_count": len(steps_taken),
+                    "format_type": format_type,
+                    "structured_output": True
+                },
+                side_effect=False
+            )
 
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
             else:
                 self.logger.error(f"Ошибка вызова LLM: {str(e)}")
-            return self._build_fallback_response(goal, observations, steps_taken, format_type)
+            fallback_result = self._build_fallback_response(goal, observations, steps_taken, format_type)
+            return SkillResult.failure(
+                error=str(e),
+                metadata=fallback_result
+            )
 
     def _render_prompt_fallback(
         self,
@@ -340,108 +435,6 @@ class FinalAnswerSkill(BaseSkill):
         ])
         
         return "\n".join(prompt_parts)
-
-    async def _call_llm(self, prompt: str, execution_context=None) -> Dict[str, Any]:
-        """
-        Вызов LLM для генерации ответа С STRUCTURED OUTPUT.
-
-        ПАРАМЕТРЫ:
-        - prompt: отрендеренный промпт
-        - execution_context: контекст выполнения (опционально)
-
-        ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: структурированный ответ от LLM (parsed_content)
-        """
-        try:
-            from core.models.types.llm_types import StructuredOutputConfig
-
-            # Получаем схему выхода для structured output
-            output_schema = self.get_output_contract("final_answer.generate")
-
-            # Вызов LLM С STRUCTURED OUTPUT через executor
-            llm_result = await self.executor.execute_action(
-                action_name="llm.generate_structured",
-                parameters={
-                    "prompt": prompt,
-                    "structured_output": {
-                        "output_model": "final_answer.generate.output",
-                        "schema_def": output_schema if output_schema else {},
-                        "max_retries": 3,
-                        "strict_mode": True
-                    },
-                    "temperature": 0.3,
-                    "max_tokens": 1500
-                },
-                context=execution_context if execution_context else ExecutionContext()
-            )
-
-            # Проверка на ошибку
-            if not llm_result.success:
-                error_msg = llm_result.error
-                error_type = llm_result.metadata.get("error_type", "unknown")
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
-                else:
-                    self.logger.error(f"LLM structured output ошибка при формировании ответа: {error_msg} (тип: {error_type})")
-                raise RuntimeError(f"Ошибка LLM: {error_msg}")
-
-            # Логирование успешного structured output
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-                )
-            else:
-                self.logger.info(
-                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
-                )
-
-            # Возвращаем структурированные данные (Pydantic model_dump())
-            return llm_result.data.get("parsed_content", {})
-
-        except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
-            else:
-                self.logger.error(f"Ошибка вызова LLM: {str(e)}")
-            raise
-
-    def _parse_llm_response(self, llm_response: str, format_type: str) -> Dict[str, Any]:
-        """
-        Парсинг ответа LLM в структурированный формат.
-        
-        ПАРАМЕТРЫ:
-        - llm_response: сырой ответ от LLM
-        - format_type: тип формата
-        
-        ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: структурированный ответ
-        """
-        # Простой парсинг — в продакшене можно использовать более сложную логику
-        confidence = 0.8  # Значение по умолчанию
-        
-        # Попытка извлечь уровень уверенности из ответа
-        import re
-        confidence_match = re.search(r'[Уу]веренность[:\s]*([0-9.]+)', llm_response)
-        if confidence_match:
-            try:
-                confidence = float(confidence_match.group(1))
-            except ValueError:
-                pass
-        
-        # Извлечение нерешённых вопросов
-        remaining_questions = []
-        questions_section = llm_response.split("Нерешённые вопросы")[-1] if "Нерешённые вопросы" in llm_response else ""
-        if questions_section:
-            for line in questions_section.split("\n"):
-                line = line.strip()
-                if line.startswith("-") and len(line) > 2:
-                    remaining_questions.append(line[1:].strip())
-        
-        return {
-            "answer": llm_response,
-            "confidence": confidence,
-            "remaining_questions": remaining_questions[:5]  # Максимум 5 вопросов
-        }
 
     def _build_steps_summary(self, steps_taken: List[Dict]) -> str:
         """

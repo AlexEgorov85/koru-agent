@@ -17,7 +17,7 @@ from pathlib import Path
 
 from core.application.skills.base_skill import BaseSkill
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult, ExecutionStatus
+from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
 from core.models.enums.common_enums import ErrorCategory
 from core.models.types.llm_types import LLMRequest
 from core.application.tools.file_tool import FileToolInput
@@ -113,7 +113,7 @@ class DataAnalysisSkill(BaseSkill):
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> Dict[str, Any]:
+    ) -> SkillResult:
         """
         Реализация бизнес-логики анализа данных.
 
@@ -179,29 +179,27 @@ class DataAnalysisSkill(BaseSkill):
         )
 
         # === ПРОВЕРКА НА ОШИБКУ ===
-        if not llm_result.success:
+        from core.models.data.execution import ExecutionStatus
+        if llm_result.status != ExecutionStatus.COMPLETED:
             error_msg = llm_result.error
             error_type = llm_result.metadata.get("error_type", "unknown")
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             else:
                 self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
-            return {
-                "error": f"Ошибка LLM: {error_msg}",
-                "answer": "",
-                "confidence": 0.0,
-                "evidence": [],
-                "metadata": {
+            return SkillResult.failure(
+                error=f"Ошибка LLM: {error_msg}",
+                metadata={
                     "chunks_processed": len(chunks) if chunks else 1,
                     "total_tokens": 0,
                     "data_size_mb": data_metadata.get("size_mb", 0),
                     "error_type": error_type,
                     "attempts": llm_result.metadata.get("attempts", 0)
                 }
-            }
+            )
 
         # 7. Получаем структурированные данные (Pydantic model_dump())
-        answer_data = llm_result.data.get("parsed_content", {})
+        answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
         # Логирование успешного structured output
         if self.event_bus_logger:
@@ -226,9 +224,18 @@ class DataAnalysisSkill(BaseSkill):
         # 8. Валидация выхода (уже валидно через structured output, но проверяем для безопасности)
         validated_answer = self._validate_output(answer_data, capability.name)
 
-        return validated_answer
+        # Возвращаем SkillResult с side_effect=True (file/DB access possible)
+        return SkillResult.success(
+            data=validated_answer,
+            metadata={
+                "chunks_processed": len(chunks) if chunks else 1,
+                "data_size_mb": data_metadata.get("size_mb", 0),
+                "structured_output": True
+            },
+            side_effect=True  # Data analysis может читать файлы/БД
+        )
 
-    async def _analyze_step_data(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_step_data(self, params: Dict[str, Any]) -> SkillResult:
         """
         Основная логика анализа данных шага.
 
@@ -251,12 +258,10 @@ class DataAnalysisSkill(BaseSkill):
                     await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
                 else:
                     self.logger.error(f"Ошибка валидации параметров: {e}")
-                return {
-                    "error": f"Неверные параметры: {str(e)}",
-                    "answer": "",
-                    "confidence": 0.0,
-                    "evidence": []
-                }
+                return SkillResult.failure(
+                    error=f"Неверные параметры: {str(e)}",
+                    metadata={"answer": "", "confidence": 0.0, "evidence": []}
+                )
 
         step_id = params.get("step_id")
         question = params.get("question")
@@ -274,12 +279,10 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
             else:
                 self.logger.error(f"Ошибка загрузки данных: {e}")
-            return {
-                "error": f"Ошибка загрузки данных: {str(e)}",
-                "answer": "",
-                "confidence": 0.0,
-                "evidence": []
-            }
+            return SkillResult.failure(
+                error=f"Ошибка загрузки данных: {str(e)}",
+                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            )
 
         # 3. Чанкинг при необходимости
         chunks = await self._chunk_data_if_needed(
@@ -304,12 +307,10 @@ class DataAnalysisSkill(BaseSkill):
         # 5. Получение промпта С КОНТРАКТАМИ
         prompt_with_contract = self.get_prompt_with_contract("data_analysis.analyze_step_data")
         if not prompt_with_contract:
-            return {
-                "error": "Промпт не найден",
-                "answer": "",
-                "confidence": 0.0,
-                "evidence": []
-            }
+            return SkillResult.failure(
+                error="Промпт не найден",
+                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            )
 
         rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
 
@@ -335,20 +336,21 @@ class DataAnalysisSkill(BaseSkill):
             )
 
             # Проверка на ошибку
-            if not llm_result.success:
-                return {
-                    "error": f"Ошибка LLM: {llm_result.error}",
-                    "answer": "",
-                    "confidence": 0.0,
-                    "evidence": [],
-                    "metadata": {
+            from core.models.data.execution import ExecutionStatus
+            if llm_result.status != ExecutionStatus.COMPLETED:
+                return SkillResult.failure(
+                    error=f"Ошибка LLM: {llm_result.error}",
+                    metadata={
                         "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0)
+                        "attempts": llm_result.metadata.get("attempts", 0),
+                        "answer": "",
+                        "confidence": 0.0,
+                        "evidence": []
                     }
-                }
+                )
 
             # 8. Получаем структурированные данные (Pydantic model_dump())
-            answer_data = llm_result.data.get("parsed_content", {})
+            answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -373,26 +375,34 @@ class DataAnalysisSkill(BaseSkill):
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(answer_data)
-                    return validated_result.model_dump()
+                    answer_data = validated_result.model_dump()
                 except Exception as e:
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
                     else:
                         self.logger.error(f"Ошибка валидации результата: {e}")
 
-            return answer_data
+            # Возвращаем SkillResult с side_effect=True
+            return SkillResult.success(
+                data=answer_data,
+                metadata={
+                    "chunks_processed": len(chunks) if chunks else 1,
+                    "processing_time_ms": (time.time() - start_time) * 1000,
+                    "data_size_mb": data_metadata.get("size_mb", 0),
+                    "structured_output": True
+                },
+                side_effect=True
+            )
 
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
-            return {
-                "error": f"Ошибка анализа: {str(e)}",
-                "answer": "",
-                "confidence": 0.0,
-                "evidence": []
-            }
+            return SkillResult.failure(
+                error=f"Ошибка анализа: {str(e)}",
+                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            )
 
     # ─────────────────────────────────────────────────────────────────
     # Методы загрузки данных
