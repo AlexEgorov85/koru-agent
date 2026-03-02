@@ -129,16 +129,18 @@ class ActionExecutor:
     ) -> ActionResult:
         """
         Выполнение действий контекста (context.*).
-        
+
         Поддерживаемые действия:
         - context.record_plan: сохранение плана в контекст
         - context.get_current_plan: получение текущего плана
         - context.get_context_item: получение элемента контекста по ID
+        - context.get_all_items: получение всех элементов контекста
+        - context.get_step_history: получение истории шагов
         - context.record_action: запись действия в контекст
         - context.record_observation: запись наблюдения в контекст
         """
         session_context = context.session_context
-        
+
         if not session_context:
             return ActionResult(
                 success=False,
@@ -152,6 +154,10 @@ class ActionExecutor:
                 return self._context_get_current_plan(parameters, session_context)
             elif action_name == "context.get_context_item":
                 return self._context_get_context_item(parameters, session_context)
+            elif action_name == "context.get_all_items":
+                return self._context_get_all_items(parameters, session_context)
+            elif action_name == "context.get_step_history":
+                return self._context_get_step_history(parameters, session_context)
             elif action_name == "context.record_action":
                 return self._context_record_action(parameters, session_context)
             elif action_name == "context.record_observation":
@@ -255,6 +261,76 @@ class ActionExecutor:
             },
             metadata={"item_id": item_id}
         )
+
+    def _context_get_all_items(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ActionResult:
+        """Получение всех элементов контекста"""
+        try:
+            # Получаем все items из data_context
+            if hasattr(session_context, 'data_context') and hasattr(session_context.data_context, 'get_all_items'):
+                all_items = session_context.data_context.get_all_items()
+                # Конвертируем в dict по item_id
+                items_dict = {}
+                for item in all_items:
+                    item_id = item.item_id if hasattr(item, 'item_id') else str(item)
+                    items_dict[item_id] = item
+                return ActionResult(
+                    success=True,
+                    data={"items": items_dict},
+                    metadata={"count": len(items_dict)}
+                )
+            else:
+                return ActionResult(
+                    success=True,
+                    data={"items": {}},
+                    metadata={"count": 0, "message": "data_context не доступен"}
+                )
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                error=f"Ошибка получения всех items: {str(e)}"
+            )
+
+    def _context_get_step_history(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ActionResult:
+        """Получение истории шагов выполнения"""
+        try:
+            # Получаем step_history из session_context
+            if hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'steps'):
+                steps = session_context.step_context.steps
+                # Конвертируем шаги в dict формат
+                steps_data = []
+                for step in steps:
+                    if hasattr(step, '__dict__'):
+                        steps_data.append({
+                            "action": getattr(step, 'action', 'unknown'),
+                            "result": getattr(step, 'result', ''),
+                            "step_number": getattr(step, 'step_number', 0)
+                        })
+                    else:
+                        steps_data.append(step)
+                return ActionResult(
+                    success=True,
+                    data={"steps": steps_data},
+                    metadata={"count": len(steps_data)}
+                )
+            else:
+                return ActionResult(
+                    success=True,
+                    data={"steps": []},
+                    metadata={"count": 0, "message": "step_context не доступен"}
+                )
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                error=f"Ошибка получения step history: {str(e)}"
+            )
 
     def _context_record_action(
         self,

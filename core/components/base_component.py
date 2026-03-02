@@ -248,6 +248,14 @@ class BaseComponent(ABC):
     async def _preload_resources(self, current_time: float) -> bool:
         """Предзагрузка ресурсов компонента."""
         try:
+            # Отладочный вывод
+            self.logger.info(
+                f"_preload_resources: {self.name} - "
+                f"prompt_versions={list(self.component_config.prompt_versions.keys())}, "
+                f"input_contract_versions={list(self.component_config.input_contract_versions.keys())}, "
+                f"output_contract_versions={list(self.component_config.output_contract_versions.keys())}"
+            )
+            
             # Загрузка промптов как объектов
             for cap_name, version in self.component_config.prompt_versions.items():
                 try:
@@ -624,6 +632,30 @@ class BaseComponent(ABC):
             self.logger.error(f"Валидация входных данных для {capability_name} провалена: {e}")
             return False
 
+    def validate_output(self, capability_name: str, data: Any) -> bool:
+        """
+        Валидация выходных данных через скомпилированную схему.
+        
+        ПАРАМЕТРЫ:
+        - capability_name: имя capability
+        - data: данные для валидации
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если валидация пройдена
+        """
+        if capability_name not in self.output_contracts:
+            self.logger.warning(f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
+            return True
+
+        schema_cls = self.output_contracts[capability_name]
+        try:
+            # Pydantic автоматически валидирует и конвертирует типы
+            validated = schema_cls.model_validate(data)
+            return True
+        except Exception as e:
+            self.logger.error(f"Валидация выходных данных для {capability_name} провалена: {e}")
+            return False
+
     def render_prompt(self, capability_name: str, **kwargs) -> str:
         """
         Безопасный рендеринг шаблона с валидацией переменных.
@@ -888,10 +920,11 @@ class BaseComponent(ABC):
         start_time = time.time()
 
         # Логирование начала выполнения
-        self.log_start("execute", {
-            'capability': capability.name,
-            'parameters_count': len(parameters)
-        })
+        # TODO: Добавить LogComponentMixin или реализовать логирование
+        # self.log_start("execute", {
+        #     'capability': capability.name,
+        #     'parameters_count': len(parameters)
+        # })
         
         try:
             # === ЭТАП 1: Валидация входных данных ===
@@ -939,15 +972,9 @@ class BaseComponent(ABC):
             # === ЭТАП 4: Публикация метрик успеха ===
             execution_time_ms = (time.time() - start_time) * 1000
 
-            # Логирование успешного завершения
-            self.log_success("execute", {
-                'status': 'completed',
-                'execution_time_ms': execution_time_ms
-            }, execution_time_ms)
-
             # Определяем тип события в зависимости от типа компонента
             event_type = self._get_event_type_for_success()
-            
+
             await self._publish_metrics(
                 event_type,
                 capability_name=capability.name,
@@ -968,15 +995,13 @@ class BaseComponent(ABC):
         except Exception as e:
             execution_time_ms = (time.time() - start_time) * 1000
 
-            # Логирование ошибки
-            self.log_error("execute", e, execution_time_ms)
-
             # Публикация метрик ошибки
             await self._publish_metrics(
                 EventType.ERROR_OCCURRED,
-                capability_name=capability.name,
-                success=False,
-                execution_time_ms=execution_time_ms,
+                capability.name,
+                False,
+                execution_time_ms,
+                tokens_used=0,
                 error=str(e),
                 error_type=type(e).__name__
             )
