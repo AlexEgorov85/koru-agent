@@ -1,5 +1,5 @@
 """
-Тесты для UnifiedEventBus и миграции.
+Тесты для UnifiedEventBus.
 
 TESTS:
 - test_session_isolation: Изоляция событий между сессиями
@@ -7,7 +7,6 @@ TESTS:
 - test_no_event_duplication: События не дублируются
 - test_session_filters: Фильтры по session_id
 - test_domain_filters: Фильтры по domain
-- test_backward_compatibility: Обратная совместимость через адаптер
 - test_unified_bus_singleton: Singleton для UnifiedEventBus
 - test_unified_bus_stats: Статистика UnifiedEventBus
 """
@@ -25,11 +24,6 @@ from core.infrastructure.event_bus.unified_event_bus import (
     shutdown_event_bus,
     get_event_domain,
 )
-from core.infrastructure.event_bus.event_bus_adapter import (
-    EventBusAdapter,
-    get_event_bus_adapter,
-    reset_event_bus_adapter,
-)
 
 
 @pytest.fixture
@@ -39,17 +33,6 @@ async def unified_bus():
     yield bus
     # Очистка после теста
     await bus.shutdown(timeout=5.0)
-
-
-@pytest.fixture
-async def adapter():
-    """Фикстура: адаптер для обратной совместимости."""
-    reset_event_bus_adapter()
-    bus = create_event_bus()
-    adapter = EventBusAdapter(bus)
-    yield adapter
-    await bus.shutdown(timeout=5.0)
-    reset_event_bus_adapter()
 
 
 class TestSessionIsolation:
@@ -365,86 +348,6 @@ class TestDomainFilters:
         assert get_event_domain(EventType.SYSTEM_INITIALIZED) == EventDomain.INFRASTRUCTURE
         assert get_event_domain(EventType.ERROR_OCCURRED) == EventDomain.COMMON
         assert get_event_domain("unknown.event") == EventDomain.COMMON
-
-
-class TestBackwardCompatibility:
-    """Тесты обратной совместимости через адаптер."""
-
-    @pytest.mark.asyncio
-    async def test_adapter_get_bus(self, adapter):
-        """Адаптер эмулирует get_bus(domain)."""
-        agent_bus = adapter.get_bus(EventDomain.AGENT)
-        benchmark_bus = adapter.get_bus(EventDomain.BENCHMARK)
-
-        assert agent_bus is not None
-        assert benchmark_bus is not None
-        assert agent_bus.domain == EventDomain.AGENT
-        assert benchmark_bus.domain == EventDomain.BENCHMARK
-
-    @pytest.mark.asyncio
-    async def test_adapter_publish(self, adapter):
-        """Адаптер publish работает через UnifiedEventBus."""
-        agent_bus = adapter.get_bus(EventDomain.AGENT)
-        events = []
-
-        # Подписываемся через adapter
-        agent_bus.subscribe(EventType.AGENT_STARTED, lambda e: events.append(e))
-
-        await agent_bus.publish(
-            EventType.AGENT_STARTED,
-            data={"agent_id": "1"}
-        )
-
-        await asyncio.sleep(0.05)
-
-        assert len(events) == 1
-        assert events[0].domain == EventDomain.AGENT
-
-    @pytest.mark.asyncio
-    async def test_adapter_publish_cross_domain(self, adapter):
-        """Адаптер publish_cross_domain работает."""
-        agent_events = []
-        infra_events = []
-
-        agent_bus = adapter.get_bus(EventDomain.AGENT)
-        infra_bus = adapter.get_bus(EventDomain.INFRASTRUCTURE)
-
-        agent_bus.subscribe(EventType.SYSTEM_INITIALIZED, lambda e: agent_events.append(e))
-        infra_bus.subscribe(EventType.SYSTEM_INITIALIZED, lambda e: infra_events.append(e))
-
-        results = await adapter.publish_cross_domain(
-            EventType.SYSTEM_INITIALIZED,
-            domains=[EventDomain.AGENT, EventDomain.INFRASTRUCTURE],
-            data={"version": "1.0"},
-        )
-
-        await asyncio.sleep(0.05)
-
-        assert results["agent"] is True
-        assert results["infrastructure"] is True
-        assert len(agent_events) == 1
-        assert len(infra_events) == 1
-
-    @pytest.mark.asyncio
-    async def test_adapter_enable_disable(self, adapter):
-        """Адаптер enable/disable domain работает."""
-        events = []
-
-        # Получаем шину и подписываемся
-        agent_bus = adapter.get_bus(EventDomain.AGENT)
-        agent_bus.subscribe(EventType.AGENT_STARTED, lambda e: events.append(e))
-
-        agent_bus.disable()
-        result = await agent_bus.publish(EventType.AGENT_STARTED, data={})
-        assert result is False
-        await asyncio.sleep(0.05)
-        assert len(events) == 0
-
-        agent_bus.enable()
-        result = await agent_bus.publish(EventType.AGENT_STARTED, data={})
-        assert result is True
-        await asyncio.sleep(0.05)
-        assert len(events) == 1
 
 
 class TestUnifiedBusSingleton:
