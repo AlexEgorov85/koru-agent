@@ -296,23 +296,23 @@ class DataPipeline:
     stats = pipeline.get_stats()
     ```
     """
-    
+
     def __init__(
         self,
         name: str,
-        event_bus_manager: Optional[EventBusManager] = None,
+        event_bus=None,
         error_handler: Optional[ErrorHandler] = None,
     ):
         """
         Инициализация конвейера.
-        
+
         ARGS:
         - name: имя конвейера
-        - event_bus_manager: менеджер событий
+        - event_bus: шина событий (UnifiedEventBus)
         - error_handler: обработчик ошибок
         """
         self.name = name
-        self._event_bus = event_bus_manager or get_event_bus_manager()
+        self._event_bus = event_bus
         self._error_handler = error_handler or get_error_handler()
         
         self._stages: List[PipelineStage] = []
