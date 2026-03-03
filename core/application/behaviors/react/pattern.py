@@ -208,13 +208,13 @@ class ReActPattern(BaseBehaviorPattern):
             logger.warning("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
             return self._build_minimal_fallback_prompt(prompt_context)
 
-    def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
+    def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
         """
         Формирует {input} секцию для промпта.
 
         ПАРАМЕТРЫ:
         - context_analysis: анализ контекста
-        - available_capabilities: доступные capability
+        - available_capabilities: доступные capability (объекты Capability)
 
         ВОЗВРАЩАЕТ:
         - str: контекст для {input}
@@ -236,24 +236,28 @@ class ReActPattern(BaseBehaviorPattern):
 
         parts.append("\nДОСТУПНЫЕ ИНСТРУМЕНТЫ:")
         for cap in available_capabilities:
-            parts.append(f"  - {cap['name']}: {cap['description']}")
+            # Поддержка как объектов Capability, так и словарей
+            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
+            desc = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
+            parts.append(f"  - {name}: {desc}")
 
         return "\n".join(parts)
 
-    def _format_available_tools(self, available_capabilities: List[Dict[str, Any]]) -> str:
+    def _format_available_tools(self, available_capabilities: List[Capability]) -> str:
         """
         Форматирует список доступных инструментов с параметрами.
 
         ПАРАМЕТРЫ:
-        - available_capabilities: список capability
+        - available_capabilities: список capability (объекты Capability)
 
         ВОЗВРАЩАЕТ:
         - str: отформатированный список инструментов с параметрами
         """
         lines = []
         for cap in available_capabilities:
-            name = cap.name
-            description = cap.description
+            # Поддержка как объектов Capability, так и словарей
+            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
+            description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
 
             # Получаем схему параметров из schema_validator
             params_schema = None
@@ -354,9 +358,9 @@ class ReActPattern(BaseBehaviorPattern):
         analysis = analyze_context(session_context)
 
         # Добавляем информацию о доступных capability
+        # Фильтрация только по supported_strategies (без хардкода навыков)
         analysis["available_capabilities"] = self._filter_capabilities(
-            available_capabilities,
-            required_skills=["book_library", "sql_query", "generic"]
+            available_capabilities
         )
 
         await self._log("info", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
@@ -587,17 +591,56 @@ class ReActPattern(BaseBehaviorPattern):
         """Выполняет структурированное рассуждение через LLM."""
         print(f"[DEBUG] _perform_structured_reasoning: START")
         try:
+            print(f"[DEBUG] _perform_structured_reasoning: context_analysis={context_analysis.keys() if context_analysis else 'None'}")
+            print(f"[DEBUG] _perform_structured_reasoning: available_capabilities count={len(available_capabilities) if available_capabilities else 0}")
+            
             # Загружаем промпт и контракт из кэша BaseComponent
-            self._load_reasoning_resources()
+            print(f"[DEBUG] _perform_structured_reasoning: calling _load_reasoning_resources()")
+            load_result = self._load_reasoning_resources()
+            print(f"[DEBUG] _perform_structured_reasoning: _load_reasoning_resources() returned {load_result}")
+            print(f"[DEBUG] _perform_structured_reasoning: reasoning_prompt_template={self.reasoning_prompt_template is not None}, reasoning_schema={self.reasoning_schema is not None}")
+            
+            if not load_result or not self.reasoning_prompt_template:
+                print(f"[DEBUG] _perform_structured_reasoning: Fallback из-за отсутствия промпта")
+                # Fallback: создаем упрощенную версию рассуждения
+                await self._log("warning", "Промпт не загружен, используем упрощенную логику рассуждения")
+                
+                # Определяем первую доступную capability
+                fallback_capability = "final_answer.generate"
+                if available_capabilities:
+                    fallback_capability = available_capabilities[0].name if hasattr(available_capabilities[0], 'name') else list(available_capabilities[0].values())[0] if isinstance(available_capabilities[0], dict) else "final_answer.generate"
+
+                return {
+                    "analysis": {
+                        "current_situation": "Промпт не загружен",
+                        "progress_assessment": "Неизвестно",
+                        "confidence": 0.5,
+                        "errors_detected": False,
+                        "consecutive_errors": self.error_count if hasattr(self, 'error_count') else 0,
+                        "execution_time": context_analysis.get("execution_time_seconds", 0),
+                        "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                    },
+                    "decision": {
+                        "next_action": fallback_capability,
+                        "reasoning": "Промпт недоступен, используем fallback",
+                        "parameters": {"query": session_context.get_goal() if session_context else "Продолжить выполнение задачи"}
+                    },
+                    "available_capabilities": available_capabilities,
+                    "needs_rollback": False
+                }
+            
+            print(f"[DEBUG] _perform_structured_reasoning: _load_reasoning_resources() completed successfully")
 
             # Флаг для гарантии вызова LLM
             llm_was_called = False
 
             # Рендерим промпт из шаблона (передаём оригинальные Capability объекты)
+            print(f"[DEBUG] _perform_structured_reasoning: calling _render_reasoning_prompt()")
             reasoning_prompt = self._render_reasoning_prompt(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities
             )
+            print(f"[DEBUG] _perform_structured_reasoning: _render_reasoning_prompt() completed, prompt length={len(reasoning_prompt)}")
 
             start_time = time.time()
 
@@ -605,6 +648,9 @@ class ReActPattern(BaseBehaviorPattern):
             llm_provider = None
             if self.application_context:
                 llm_provider = self.application_context.get_provider("default_llm")
+            
+            print(f"[DEBUG] _perform_structured_reasoning: llm_provider={llm_provider}, type={type(llm_provider)}")
+            print(f"[DEBUG] _perform_structured_reasoning: application_context={self.application_context}")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
@@ -801,7 +847,10 @@ class ReActPattern(BaseBehaviorPattern):
                 if getattr(llm_response, 'finish_reason', None) == 'error':
                     error_msg = "Неизвестная ошибка LLM"
                     if hasattr(llm_response, 'metadata') and llm_response.metadata:
-                        error_msg = llm_response.metadata.get('error', error_msg)
+                        if isinstance(llm_response.metadata, dict):
+                            error_msg = llm_response.metadata.get('error', error_msg)
+                        elif isinstance(llm_response.metadata, str):
+                            error_msg = llm_response.metadata
 
                     await self._log("error", f"LLM вернул ошибку: {error_msg}")
 
@@ -1156,7 +1205,7 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
     def _build_capability_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
-        """Создает решение для выполнения capability."""
+        """Создает ре��ение для выполнения capability."""
         # Согласно контракту: decision.next_action = capability_name
         decision = reasoning_result.get("decision", {})
         capability_name = decision.get("next_action") or "generic.execute"

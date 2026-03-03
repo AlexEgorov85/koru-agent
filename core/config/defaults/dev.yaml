@@ -15,7 +15,7 @@ llm_providers:
     model_name: qwen-4b
     enabled: true
     fallback_providers: []
-    timeout_seconds: 1200.0
+    timeout_seconds: 300.0  # 5 минут для LLM вызовов
     parameters:
       model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
       n_ctx: 20048

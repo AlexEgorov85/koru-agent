@@ -229,7 +229,11 @@ class InfrastructureContext:
                         from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
                         sys.stdout.write(f'[DEBUG] Создание MockLlamaCppConfig...\n')
                         sys.stdout.flush()
-                        config_obj = MockLlamaCppConfig(**provider_config.parameters)
+                        # Добавляем timeout_seconds из конфига в параметры
+                        params = dict(provider_config.parameters)
+                        if hasattr(provider_config, 'timeout_seconds'):
+                            params['timeout_seconds'] = provider_config.timeout_seconds
+                        config_obj = MockLlamaCppConfig(**params)
                         sys.stdout.write(f'[DEBUG] MockLlamaCppConfig создан\n')
                         sys.stdout.flush()
                     else:

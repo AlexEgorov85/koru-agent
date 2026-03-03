@@ -240,16 +240,18 @@ class AppConfig(BaseModel):
             'behavior': behavior_configs,
         }
 
-        # Собираем уникальные префиксы из промптов
-        seen_components = set()
+        # Собираем уникальные префиксы из промптов и контрактов
+        # Для каждого компонента собираем его промпты и контракты
+        component_resources: Dict[str, Dict[str, Dict[str, str]]] = {}  # {component_name: {type: {capability: version}}}
+
         for prompt in prompts:
             if prompt.status.value != 'active':
                 continue
 
             # Определяем тип компонента из префикса capability
             parts = prompt.capability.split('.')
-            if len(parts) >= 2:
-                prefix = parts[0]  # например, 'book_library', 'planning'
+            if len(parts) >= 1:
+                prefix = parts[0]  # например, 'book_library', 'planning', 'behavior'
 
                 # Определяем тип по директории промпта
                 comp_type = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
@@ -261,20 +263,83 @@ class AppConfig(BaseModel):
                     else:
                         component_name = prefix
 
-                    # Проверяем, что компонент ещё не был добавлен
-                    if component_name not in seen_components:
-                        seen_components.add(component_name)
+                    # Инициализируем структуру для компонента
+                    if component_name not in component_resources:
+                        component_resources[component_name] = {
+                            'type': comp_type,
+                            'prompts': {},
+                            'input_contracts': {},
+                            'output_contracts': {}
+                        }
 
-                        # Создаем минимальную конфигурацию компонента
-                        component_config = ComponentConfig(
-                            variant_id=f"{component_name}_{profile}",
-                            side_effects_enabled=(profile == "prod"),
-                            detailed_metrics=False,
-                            parameters={},
-                            dependencies=[]  # Зависимости определяются из DEPENDENCIES в коде компонента
-                        )
+                    # Добавляем промпт
+                    component_resources[component_name]['prompts'][prompt.capability] = prompt.version
 
-                        component_prefixes[comp_type][component_name] = component_config
+        # Собираем контракты для компонентов
+        for contract in contracts:
+            if contract.status.value != 'active':
+                continue
+
+            # Пропускаем общие контракты behavior без уточнения (behavior.react.*, behavior.planning.*)
+            if contract.capability == 'behavior':
+                continue
+
+            parts = contract.capability.split('.')
+            if len(parts) >= 1:
+                prefix = parts[0]
+
+                # Определяем тип компонента из component_type контракта (приоритет) или из префикса
+                # Используем contract.component_type.value для точного определения
+                if hasattr(contract, 'component_type') and contract.component_type:
+                    comp_type = contract.component_type.value
+                else:
+                    # Fallback: определяем из префикса
+                    comp_type = 'skill'  # По умолчанию
+                    if prefix == 'behavior':
+                        comp_type = 'behavior'
+                    elif prefix == 'service':
+                        comp_type = 'service'
+                    elif prefix == 'tool':
+                        comp_type = 'tool'
+
+                # Для behavior используем parts[1] + '_pattern'
+                if comp_type == 'behavior':
+                    component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
+                else:
+                    component_name = prefix
+
+                if comp_type in component_prefixes:
+                    if component_name not in component_resources:
+                        component_resources[component_name] = {
+                            'type': comp_type,
+                            'prompts': {},
+                            'input_contracts': {},
+                            'output_contracts': {}
+                        }
+
+                    # Добавляем контракт в соответствующий словарь
+                    if contract.direction.value == 'input':
+                        component_resources[component_name]['input_contracts'][contract.capability] = contract.version
+                    else:
+                        component_resources[component_name]['output_contracts'][contract.capability] = contract.version
+
+        # Создаем ComponentConfig для каждого компонента с заполненными версиями
+        for component_name, resources in component_resources.items():
+            comp_type = resources['type']
+
+            # Создаем конфигурацию компонента с заполненными версиями
+            component_config = ComponentConfig(
+                variant_id=f"{component_name}_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[],  # Зависимости определяются из DEPENDENCIES в коде компонента
+                prompt_versions=resources['prompts'],
+                input_contract_versions=resources['input_contracts'],
+                output_contract_versions=resources['output_contracts']
+            )
+
+            component_prefixes[comp_type][component_name] = component_config
 
         # Добавляем обязательные сервисы и инструменты, которые могут отсутствовать в промптах
         if 'prompt_service' not in service_configs:
@@ -304,6 +369,38 @@ class AppConfig(BaseModel):
         if 'sql_tool' not in tool_configs:
             tool_configs['sql_tool'] = ComponentConfig(
                 variant_id=f"sql_tool_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'sql_generation_service' not in service_configs:
+            service_configs['sql_generation_service'] = ComponentConfig(
+                variant_id=f"sql_generation_service_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'table_description_service' not in service_configs:
+            service_configs['table_description_service'] = ComponentConfig(
+                variant_id=f"table_description_service_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'sql_query_service' not in service_configs:
+            service_configs['sql_query_service'] = ComponentConfig(
+                variant_id=f"sql_query_service_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[]
+            )
+        if 'sql_validator_service' not in service_configs:
+            service_configs['sql_validator_service'] = ComponentConfig(
+                variant_id=f"sql_validator_service_{profile}",
                 side_effects_enabled=(profile == "prod"),
                 detailed_metrics=False,
                 parameters={},

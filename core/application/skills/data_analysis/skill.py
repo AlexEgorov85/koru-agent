@@ -185,7 +185,7 @@ class DataAnalysisSkill(BaseSkill):
         from core.models.data.execution import ExecutionStatus
         if llm_result.status != ExecutionStatus.COMPLETED:
             error_msg = llm_result.error
-            error_type = llm_result.metadata.get("error_type", "unknown")
+            error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             else:
@@ -197,7 +197,7 @@ class DataAnalysisSkill(BaseSkill):
                     "total_tokens": 0,
                     "data_size_mb": data_metadata.get("size_mb", 0),
                     "error_type": error_type,
-                    "attempts": llm_result.metadata.get("attempts", 0)
+                    "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                 }
             )
 
@@ -207,11 +207,11 @@ class DataAnalysisSkill(BaseSkill):
         # Логирование успешного structured output
         if self.event_bus_logger:
             await self.event_bus_logger.info(
-                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
             )
         else:
             self.logger.info(
-                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
             )
 
         # Добавляем метаданные в ответ
@@ -219,9 +219,9 @@ class DataAnalysisSkill(BaseSkill):
             answer_data["metadata"] = {}
 
         answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-        answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0)
+        answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0
         answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
-        answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1)
+        answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
         answer_data["metadata"]["structured_output"] = True
 
         # 8. Валидация выхода (уже валидно через structured output, но проверяем для безопасности)
@@ -344,8 +344,8 @@ class DataAnalysisSkill(BaseSkill):
                 return SkillResult.failure(
                     error=f"Ошибка LLM: {llm_result.error}",
                     metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0),
+                        "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
+                        "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0,
                         "answer": "",
                         "confidence": 0.0,
                         "evidence": []
@@ -358,20 +358,20 @@ class DataAnalysisSkill(BaseSkill):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
-                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Анализ шага выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
             # 9. Добавление метаданных
             answer_data["metadata"] = answer_data.get("metadata", {})
             answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-            answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0)
+            answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0
             answer_data["metadata"]["processing_time_ms"] = (time.time() - start_time) * 1000
             answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
-            answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1)
+            answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
             answer_data["metadata"]["structured_output"] = True
 
             # 10. Валидация выхода (уже валидно через structured output)

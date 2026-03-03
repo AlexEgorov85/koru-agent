@@ -186,7 +186,10 @@ class EvaluationPattern(BaseBehaviorPattern):
             if getattr(llm_response, 'finish_reason', None) == 'error':
                 error_msg = "Неизвестная ошибка LLM"
                 if hasattr(llm_response, 'metadata') and llm_response.metadata:
-                    error_msg = llm_response.metadata.get('error', error_msg)
+                    if isinstance(llm_response.metadata, dict):
+                        error_msg = llm_response.metadata.get('error', error_msg)
+                    elif isinstance(llm_response.metadata, str):
+                        error_msg = llm_response.metadata
                 self.logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
                 
                 # Публикуем событие об ошибке

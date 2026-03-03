@@ -41,17 +41,15 @@ class PlanningPattern(BaseBehaviorPattern):
         """Анализ контекста без принятия решений"""
         # Проверяем наличие активного плана
         current_plan = session_context.get_current_plan()
-        
-        # Фильтруем capability для планирования
+
+        # Фильтруем capability для планирования (только по supported_strategies)
         planning_tools = self._filter_capabilities(
-            available_capabilities,
-            required_skills=["planning"]
+            available_capabilities
         )
-        
-        # Фильтруем capability для выполнения шагов
+
+        # Фильтруем capability для выполнения шагов (только по supported_strategies)
         execution_tools = self._filter_capabilities(
-            available_capabilities,
-            required_skills=["book_library", "sql_query", "generic"]
+            available_capabilities
         )
         
         return {

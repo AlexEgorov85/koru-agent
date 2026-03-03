@@ -207,8 +207,8 @@ class LlamaCppProvider(BaseLLMProvider):
             return False
         except ValueError as e:
             if "not enough values to unpack" in str(e):
-                self.event_bus_logger.error(f"Проблема с установкой llama-cpp-python: {str(e)}")
-                self.event_bus_logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python")
+                await self.event_bus_logger.error(f"Проблема с установкой llama-cpp-python: {str(e)}")
+                await self.event_bus_logger.error("Возможно, требуется переустановка: pip uninstall llama-cpp-python && pip install llama-cpp-python")
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
             else:
@@ -549,22 +549,22 @@ class LlamaCppProvider(BaseLLMProvider):
         """
         if not request.structured_output:
             raise ValueError("structured_output не указан в запросе")
-        
+
         config: StructuredOutputConfig = request.structured_output
         schema_def = config.schema_def
-        
+
         # Логирование начала структурированной генерации
-        self.event_bus_logger.info(
+        await self.event_bus_logger.info(
             f"Запуск structured output для {config.output_model} "
             f"(max_retries={config.max_retries}, strict_mode={config.strict_mode})"
         )
-        
+
         # 1. Добавляем схему в промпт
         enhanced_prompt = self._add_schema_to_prompt(
             request.prompt,
             schema_def
         )
-        
+
         # Создаем новый запрос с улучшенным промптом
         structured_request = LLMRequest(
             prompt=enhanced_prompt,
@@ -579,52 +579,52 @@ class LlamaCppProvider(BaseLLMProvider):
             correlation_id=request.correlation_id,
             capability_name=request.capability_name
         )
-        
+
         validation_errors = []
         last_raw_response = None
         last_json_content = None
-        
+
         # 2. Retry цикл
         for attempt in range(1, config.max_retries + 1):
             try:
-                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
+                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
 
                 # 3. Генерация
                 raw_response = await self._generate_impl(structured_request)
                 last_raw_response = raw_response
 
-                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
-                
+                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
+
                 # 4. Извлечение JSON из ответа
                 json_content = self._extract_json_from_response(raw_response.content)
                 last_json_content = json_content
-                
-                self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: JSON извлечён ({len(json_content)} ключей)")
-                
+
+                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: JSON извлечён ({len(json_content)} ключей)")
+
                 # 5. Валидация против схемы
                 temp_model = self._create_pydantic_from_schema(
                     config.output_model,
                     schema_def
                 )
-                
+
                 # Валидируем
                 parsed_content = temp_model.model_validate(json_content)
-                
+
                 # 6. Успех!
-                self.event_bus_logger.info(
+                await self.event_bus_logger.info(
                     f"Structured output успешен с попытки {attempt}/{config.max_retries} "
                     f"для {config.output_model}"
                 )
 
                 # Логирование ответа LLM для отладки
-                self.event_bus_logger.info(f"=== ОТВЕТ LLM ===")
+                await self.event_bus_logger.info(f"=== ОТВЕТ LLM ===")
                 # Логируем только decision, так как это основная информация
                 decision = parsed_content.get('decision', {}) if hasattr(parsed_content, 'get') else getattr(parsed_content, 'decision', 'N/A')
                 next_action = decision.get('next_action', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'next_action', 'N/A')
                 reasoning = decision.get('reasoning', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'reasoning', 'N/A')
-                self.event_bus_logger.info(f"📋 next_action: {next_action}")
-                self.event_bus_logger.info(f"💡 reasoning: {reasoning}")
-                self.event_bus_logger.info(f"=================")
+                await self.event_bus_logger.info(f"📋 next_action: {next_action}")
+                await self.event_bus_logger.info(f"💡 reasoning: {reasoning}")
+                await self.event_bus_logger.info(f"=================")
 
                 return StructuredLLMResponse(
                     parsed_content=parsed_content,

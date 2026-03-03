@@ -190,12 +190,14 @@ class PlanningSkill(BaseComponent):
             )
 
             if not llm_result.success:
+                error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
+                attempts = llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                 return ActionResult(
                     success=False,
                     error=f"Ошибка генерации плана: {llm_result.error}",
                     metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0)
+                        "error_type": error_type,
+                        "attempts": attempts
                     }
                 )
 
@@ -203,13 +205,14 @@ class PlanningSkill(BaseComponent):
             plan_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
+            parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Plan создан с structured output (попыток: {parsing_attempts})"
                 )
             else:
                 self.logger.info(
-                    f"Plan создан с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Plan создан с structured output (попыток: {parsing_attempts})"
                 )
 
             # 6. Сохранение плана в контекст
@@ -239,13 +242,14 @@ class PlanningSkill(BaseComponent):
                 execution_context=execution_context
             )
 
+            parsing_attempts = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
             return ActionResult(
                 success=True,
                 data=plan_data,
                 metadata={
                     "steps_count": len(plan_data.get("plan", [])),
                     "plan_id": plan_data.get("plan_id", ""),
-                    "parsing_attempts": llm_result.metadata.get("parsing_attempts", 1),
+                    "parsing_attempts": parsing_attempts,
                     "structured_output": True
                 }
             )
@@ -330,12 +334,14 @@ class PlanningSkill(BaseComponent):
             )
 
             if not llm_result.success:
+                error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
+                attempts = llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                 return ActionResult(
                     success=False,
                     error=f"Ошибка обновления плана: {llm_result.error}",
                     metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0)
+                        "error_type": error_type,
+                        "attempts": attempts
                     }
                 )
 
@@ -343,13 +349,14 @@ class PlanningSkill(BaseComponent):
             updated_plan = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
 
             # Логирование успешного structured output
+            parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Plan обновлён с structured output (попыток: {parsing_attempts})"
                 )
             else:
                 self.logger.info(
-                    f"Plan обновлён с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Plan обновлён с structured output (попыток: {parsing_attempts})"
                 )
 
             # 5. Сохранение обновленного плана
@@ -422,7 +429,8 @@ class PlanningSkill(BaseComponent):
                 )
 
             # Проверяем, существует ли план
-            if not plan_result.data or not plan_result.metadata.get("exists", False):
+            exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
+            if not plan_result.data or not exists:
                 return ActionResult(
                     success=True,
                     data={"step": None},
@@ -544,7 +552,8 @@ class PlanningSkill(BaseComponent):
                 )
 
             # Проверяем, существует ли план
-            if not plan_result.data or not plan_result.metadata.get("exists", False):
+            exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
+            if not plan_result.data or not exists:
                 return ActionResult(
                     success=False,
                     error="Текущий план не найден в контексте"
@@ -681,8 +690,8 @@ class PlanningSkill(BaseComponent):
                     success=False,
                     error=f"Ошибка коррекции плана: {llm_result.error}",
                     metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0)
+                        "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
+                        "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                     }
                 )
 
@@ -692,11 +701,11 @@ class PlanningSkill(BaseComponent):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
-                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
             # Сохраняем исправленный план
@@ -768,8 +777,8 @@ class PlanningSkill(BaseComponent):
                     success=False,
                     error=f"Ошибка декомпозиции задачи: {llm_result.error}",
                     metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown"),
-                        "attempts": llm_result.metadata.get("attempts", 0)
+                        "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
+                        "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                     }
                 )
 
@@ -779,11 +788,11 @@ class PlanningSkill(BaseComponent):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
-                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
             # Создание вложенных планов для подзадач
@@ -893,9 +902,10 @@ class PlanningSkill(BaseComponent):
                         success=False,
                         error=f"Нет текущего плана для отметки задачи: {plan_result.error}"
                     )
-                
+
                 # Проверяем, существует ли план
-                if not plan_result.data or not plan_result.metadata.get("exists", False):
+                exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
+                if not plan_result.data or not exists:
                     return ActionResult(
                         success=False,
                         error="Текущий план не найден в контексте"

@@ -339,7 +339,7 @@ class FinalAnswerSkill(BaseSkill):
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
-                error_type = llm_result.metadata.get("error_type", "unknown")
+                error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
                 else:
@@ -352,11 +352,11 @@ class FinalAnswerSkill(BaseSkill):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
-                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
-                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1)})"
+                    f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
             # Формирование финального результата

@@ -19,7 +19,7 @@ from core.config.agent_config import AgentConfig
 from core.config.app_config import AppConfig
 
 # === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
-GOAL = "Какие книги написал Александр Пушкин?"
+GOAL = "Сколько будет 2 + 2?"
 MAX_STEPS = 10
 TEMPERATURE = 0.7
 
@@ -118,15 +118,31 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await session_logger.info(f"✅ Агент создан: {type(agent).__name__}")
 
         await session_logger.info("🚀 Запуск агента...")
-        result = await agent.run(goal)
+        try:
+            result = await agent.run(goal)
+        except Exception as e:
+            await session_logger.error(f"Ошибка при выполнении agent.run: {e}", exc_info=True)
+            raise
         await session_logger.info(f"✅ Агент завершил работу")
 
-        # Проверка на ошибку
+        # Проверка на ошибку в result.error (для ExecutionResult)
+        if hasattr(result, 'error') and result.error:
+            await session_logger.error(f"AgentError: {result.error}")
+            raise RuntimeError(f"Ошибка агента: {result.error}")
+
+        # Проверка на ошибку в metadata
         if hasattr(result, 'metadata') and result.metadata:
-            if isinstance(result.metadata, dict) and 'error' in result.metadata:
-                error_msg = result.metadata['error']
-                await session_logger.error(f"AgentError: {error_msg}")
-                raise RuntimeError(f"Ошибка агента: {error_msg}")
+            metadata = result.metadata
+            logger.debug(f"DEBUG: metadata type={type(metadata)}, value={metadata}")
+            if isinstance(metadata, dict):
+                error_msg = metadata.get('error')
+                if error_msg:
+                    await session_logger.error(f"AgentError: {error_msg}")
+                    raise RuntimeError(f"Ошибка агента: {error_msg}")
+            elif isinstance(metadata, str):
+                # Если metadata - строка, это уже сообщение об ошибке
+                await session_logger.error(f"AgentError: {metadata}")
+                raise RuntimeError(f"Ошибка агента: {metadata}")
 
         # Завершение сессии успешно
         await session_logger.end_session(success=True, result=str(result)[:500])
@@ -141,8 +157,10 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         raise
 
     finally:
-        await shutdown_logging_system()
+        # Сначала останавливаем инфраструктуру (чтобы не было попыток публикации после остановки EventBus)
         await infrastructure_context.shutdown()
+        # Затем завершаем систему логирования
+        await shutdown_logging_system()
         logger.debug("Ресурсы освобождены")
 
 

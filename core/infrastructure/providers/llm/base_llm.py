@@ -91,9 +91,15 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Статус (успех/ошибка)
         """
         if response.finish_reason == "error":
+            error_msg = 'unknown'
+            if response.metadata:
+                if isinstance(response.metadata, dict):
+                    error_msg = response.metadata.get('error', 'unknown')
+                elif isinstance(response.metadata, str):
+                    error_msg = response.metadata
             await self.event_bus_logger.error(
                 f"❌ LLM ответ | Модель: {self.model_name} | "
-                f"Ошибка: {response.metadata.get('error', 'unknown') if response.metadata else 'unknown'} | "
+                f"Ошибка: {error_msg} | "
                 f"Время: {elapsed_time:.2f}с"
             )
         else:
@@ -118,7 +124,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Тип ошибки
         - Время до ошибки
         """
-        self.event_bus_logger.error(
+        await self.event_bus_logger.error(
             f"❌ LLM ошибка | Модель: {self.model_name} | "
             f"{type(error).__name__}: {str(error)[:200]} | "
             f"Время: {elapsed_time:.2f}с"
@@ -240,33 +246,33 @@ class BaseLLMProvider(BaseProvider, ABC):
         - ValueError: Если request.structured_output не указан
         """
         start_time = time.time()
-        
+
         # Логирование начала вызова
-        self.event_bus_logger.info(
+        await self.event_bus_logger.info(
             f"📝 LLM структурированный вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Schema: {request.structured_output.output_model if request.structured_output else 'unknown'} | "
             f"Max retries: {request.structured_output.max_retries if request.structured_output else 3}"
         )
-        
+
         try:
             # Вызов реализации
             response = await self._generate_structured_impl(request)
-            
+
             # Логирование завершения
             elapsed = time.time() - start_time
-            self.event_bus_logger.info(
+            await self.event_bus_logger.info(
                 f"✅ LLM структурированный ответ | Модель: {self.model_name} | "
                 f"Время: {elapsed:.2f}с | "
                 f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1}"
             )
-            
+
             return response
-            
+
         except Exception as e:
             # Логирование ошибки
             elapsed = time.time() - start_time
-            self.event_bus_logger.error(
+            await self.event_bus_logger.error(
                 f"❌ LLM структурированная ошибка | Модель: {self.model_name} | "
                 f"{type(e).__name__}: {str(e)[:200]} | "
                 f"Время: {elapsed:.2f}с"
