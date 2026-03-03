@@ -1,7 +1,6 @@
 ﻿"""
 Базовый класс для инфраструктурных сервисов.
 """
-import logging
 import inspect
 import asyncio
 from abc import ABC, abstractmethod

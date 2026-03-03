@@ -9,7 +9,7 @@ from core.models.data.contract import Contract, ContractDirection
 from core.config.app_config import AppConfig
 from core.config.models import ComponentType
 from pydantic import BaseModel
-import logging
+from core.infrastructure.logging import EventBusLogger
 
 
 class DataRepository:
@@ -18,11 +18,19 @@ class DataRepository:
     Все ресурсы хранятся как полноценные объекты классов (не словари!).
     """
 
-    def __init__(self, data_source: ResourceDataSource, profile: str = "prod"):
+    def __init__(self, data_source: ResourceDataSource, profile: str = "prod", event_bus=None):
         self.data_source = data_source
         self.profile = profile
         self._initialized = False
-        self.logger = logging.getLogger(__name__)
+        
+        # Инициализация логгера
+        if event_bus is not None:
+            self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="DataRepository")
+            self._use_event_logging = True
+        else:
+            import logging
+            self.logger = logging.getLogger(__name__)
+            self._use_event_logging = False
 
         # ТИПИЗИРОВАННЫЕ индексы (объекты классов, не словари!)
         self._prompts_index: Dict[Tuple[str, str], Prompt] = {}
@@ -34,6 +42,27 @@ class DataRepository:
 
         self._validation_errors: List[str] = []
         self._validation_warnings: List[str] = []
+
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self._use_event_logging:
+            self.logger.info(message, *args, **kwargs)
+        else:
+            self.logger.info(message, *args, **kwargs)
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self._use_event_logging:
+            self.logger.warning(message, *args, **kwargs)
+        else:
+            self.logger.warning(message, *args, **kwargs)
+
+    def _log_error(self, message: str, *args, **kwargs):
+        """Ошибка."""
+        if self._use_event_logging:
+            self.logger.error(message, *args, **kwargs)
+        else:
+            self.logger.error(message, *args, **kwargs)
 
     async def initialize(self, app_config: AppConfig) -> bool:
         """
@@ -315,7 +344,7 @@ class DataRepository:
         """
         key = (capability, version)
         if key not in self._prompts_index:
-            self.logger.warning(f"Промпт {capability}@{version} не найден")
+            self._log_warning(f"Промпт {capability}@{version} не найден")
             return False
 
         prompt = self._prompts_index[key]
@@ -325,10 +354,10 @@ class DataRepository:
         try:
             new_prompt = prompt.model_copy(update={'status': new_status})
             self._prompts_index[key] = new_prompt
-            self.logger.info(f"Статус промпта {capability}@{version} изменён: {old_status.value} → {new_status.value}")
+            self._log_info(f"Статус промпта {capability}@{version} изменён: {old_status.value} → {new_status.value}")
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка обновления статуса промпта {capability}@{version}: {e}")
+            self._log_error(f"Ошибка обновления статуса промпта {capability}@{version}: {e}")
             return False
 
     def update_contract_status(
@@ -352,7 +381,7 @@ class DataRepository:
         """
         key = (capability, version, direction)
         if key not in self._contracts_index:
-            self.logger.warning(f"Контракт {capability}@{version} ({direction}) не найден")
+            self._log_warning(f"Контракт {capability}@{version} ({direction}) не найден")
             return False
 
         contract = self._contracts_index[key]
@@ -362,10 +391,10 @@ class DataRepository:
         try:
             new_contract = contract.model_copy(update={'status': new_status})
             self._contracts_index[key] = new_contract
-            self.logger.info(f"Статус контракта {capability}@{version} ({direction}) изменён: {old_status.value} → {new_status.value}")
+            self._log_info(f"Статус контракта {capability}@{version} ({direction}) изменён: {old_status.value} → {new_status.value}")
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка обновления статуса контракта {capability}@{version} ({direction}): {e}")
+            self._log_error(f"Ошибка обновления статуса контракта {capability}@{version} ({direction}): {e}")
             return False
 
     def add_prompt(self, prompt: Prompt) -> bool:
@@ -380,11 +409,11 @@ class DataRepository:
         """
         key = (prompt.capability, prompt.version)
         if key in self._prompts_index:
-            self.logger.warning(f"Промпт {prompt.capability}@{prompt.version} уже существует")
+            self._log_warning(f"Промпт {prompt.capability}@{prompt.version} уже существует")
             return False
 
         self._prompts_index[key] = prompt
-        self.logger.info(f"Добавлен промпт {prompt.capability}@{prompt.version}")
+        self._log_info(f"Добавлен промпт {prompt.capability}@{prompt.version}")
         return True
 
     def add_contract(self, contract: Contract) -> bool:
@@ -399,9 +428,9 @@ class DataRepository:
         """
         key = (contract.capability, contract.version, contract.direction.value)
         if key in self._contracts_index:
-            self.logger.warning(f"Контракт {contract.capability}@{contract.version} ({contract.direction.value}) уже существует")
+            self._log_warning(f"Контракт {contract.capability}@{contract.version} ({contract.direction.value}) уже существует")
             return False
 
         self._contracts_index[key] = contract
-        self.logger.info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
+        self._log_info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
         return True

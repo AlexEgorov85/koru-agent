@@ -17,7 +17,6 @@
 """
 import asyncio
 import inspect
-import logging
 import os
 import shutil
 import time
@@ -33,9 +32,7 @@ from core.infrastructure.event_bus import (
     EventDomain,
     EventType,
 )
-
-
-logger = logging.getLogger(__name__)
+from core.infrastructure.logging import EventBusLogger
 
 
 @dataclass
@@ -127,23 +124,66 @@ class FileSystemWatcher:
         self._pending_changes: Set[Path] = set()
         self._running = False
         self._task: Optional[asyncio.Task] = None
-        
-        self._logger = logging.getLogger(f"{__name__}.FileSystemWatcher")
-        
+
+        # Логгер будет инициализирован позже через event_bus
+        self._logger = None
+
         # Инициализация временных меток
         for path in file_paths:
             if path.exists():
                 self._last_modified[path] = path.stat().st_mtime
-    
+
+    def _init_logger(self, event_bus=None):
+        """Инициализация логгера."""
+        if event_bus is not None:
+            self._logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="FileSystemWatcher")
+            self._use_event_logging = True
+        else:
+            import logging
+            self._logger = logging.getLogger(f"{__name__}.FileSystemWatcher")
+            self._use_event_logging = False
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self._logger:
+            if self._use_event_logging:
+                self._logger.warning(message, *args, **kwargs)
+            else:
+                self._logger.warning(message, *args, **kwargs)
+
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self._logger:
+            if self._use_event_logging:
+                self._logger.info(message, *args, **kwargs)
+            else:
+                self._logger.info(message, *args, **kwargs)
+
+    def _log_debug(self, message: str, *args, **kwargs):
+        """Отладочное сообщение."""
+        if self._logger:
+            if self._use_event_logging:
+                self._logger.debug(message, *args, **kwargs)
+            else:
+                self._logger.debug(message, *args, **kwargs)
+
+    def _log_error(self, message: str, *args, **kwargs):
+        """Ошибка."""
+        if self._logger:
+            if self._use_event_logging:
+                self._logger.error(message, *args, **kwargs)
+            else:
+                self._logger.error(message, *args, **kwargs)
+
     async def start(self):
         """Запуск наблюдателя."""
         if self._running:
-            self._logger.warning("Наблюдатель уже запущен")
+            self._log_warning("Наблюдатель уже запущен")
             return
         
         self._running = True
         self._task = asyncio.create_task(self._watch_loop())
-        self._logger.info(f"Наблюдатель запущен для {len(self._file_paths)} файлов")
+        self._log_info(f"Наблюдатель запущен для {len(self._file_paths)} файлов")
     
     async def stop(self):
         """Остановка наблюдателя."""
@@ -154,7 +194,7 @@ class FileSystemWatcher:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        self._logger.info("Наблюдатель остановлен")
+        self._log_info("Наблюдатель остановлен")
     
     async def _watch_loop(self):
         """Цикл наблюдения за файлами."""
@@ -165,7 +205,7 @@ class FileSystemWatcher:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self._logger.error(f"Ошибка в цикле наблюдения: {e}", exc_info=True)
+                self._log_error(f"Ошибка в цикле наблюдения: {e}", exc_info=True)
     
     async def _check_files(self):
         """Проверка файлов на изменения."""
@@ -187,7 +227,7 @@ class FileSystemWatcher:
                     
                     if path in self._pending_changes:
                         self._pending_changes.remove(path)
-                        self._logger.debug(f"Файл изменен: {path}")
+                        self._log_debug(f"Файл изменен: {path}")
                         
                         if inspect.iscoroutinefunction(self._on_change):
                             await self._on_change(path)
@@ -195,7 +235,7 @@ class FileSystemWatcher:
                             self._on_change(path)
                             
             except Exception as e:
-                self._logger.error(f"Ошибка проверки файла {path}: {e}")
+                self._log_error(f"Ошибка проверки файла {path}: {e}")
 
 
 class DynamicConfigManager:
@@ -274,17 +314,25 @@ class DynamicConfigManager:
         self._snapshots: List[ConfigSnapshot] = []
         self._watcher: Optional[FileSystemWatcher] = None
         self._initialized = False
+
+        # Инициализация логгера
+        if event_bus is not None:
+            self._logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="DynamicConfigManager")
+            self._use_event_logging = True
+        else:
+            import logging
+            self._logger = logging.getLogger(f"{__name__}.DynamicConfigManager")
+            self._use_event_logging = False
         
-        self._logger = logging.getLogger(f"{__name__}.DynamicConfigManager")
-        self._logger.info(f"Создан DynamicConfigManager для {config_path}")
-    
+        self._log_info(f"Создан DynamicConfigManager для {config_path}")
+
     async def initialize(self):
         """
         Инициализация менеджера.
-        
+
         Загружает конфигурацию и запускает watcher если включен hot-reload.
         """
-        self._logger.info("Инициализация DynamicConfigManager")
+        self._log_info("Инициализация DynamicConfigManager")
         
         # Загрузка конфигурации
         await self._load_config()
@@ -307,11 +355,11 @@ class DynamicConfigManager:
                 domain=EventDomain.INFRASTRUCTURE,
             )
 
-        self._logger.info("DynamicConfigManager инициализирован")
+        self._log_info("DynamicConfigManager инициализирован")
 
     async def shutdown(self):
         """Завершение работы менеджера."""
-        self._logger.info("Завершение работы DynamicConfigManager")
+        self._log_info("Завершение работы DynamicConfigManager")
 
         # Остановка watcher
         if self._watcher:
@@ -327,7 +375,7 @@ class DynamicConfigManager:
                 domain=EventDomain.INFRASTRUCTURE,
         )
         
-        self._logger.info("DynamicConfigManager завершен")
+        self._log_info("DynamicConfigManager завершен")
     
     async def _load_config(self) -> bool:
         """
@@ -337,7 +385,7 @@ class DynamicConfigManager:
         - bool: True если загрузка успешна
         """
         try:
-            self._logger.debug(f"Загрузка конфигурации из {self._config_path}")
+            self._log_debug(f"Загрузка конфигурации из {self._config_path}")
 
             # Сохранение текущего снимка для отката (если есть предыдущая конфигурация)
             if self._config:
@@ -355,11 +403,11 @@ class DynamicConfigManager:
             
             self._config = new_config
 
-            self._logger.info(f"Конфигурация загружена: profile={self._profile}")
+            self._log_info(f"Конфигурация загружена: profile={self._profile}")
             return True
 
         except Exception as e:
-            self._logger.error(f"Ошибка загрузки конфигурации: {e}", exc_info=True)
+            self._log_error(f"Ошибка загрузки конфигурации: {e}", exc_info=True)
 
             # Событие ошибки
             if self._event_bus:
@@ -392,7 +440,7 @@ class DynamicConfigManager:
         if len(self._snapshots) > self._max_backup_count:
             self._snapshots.pop(0)
         
-        self._logger.debug(f"Сохранен снимок конфигурации (всего: {len(self._snapshots)})")
+        self._log_debug(f"Сохранен снимок конфигурации (всего: {len(self._snapshots)})")
     
     def _create_backup(self) -> Optional[Path]:
         """
@@ -409,7 +457,7 @@ class DynamicConfigManager:
         
         try:
             shutil.copy2(self._config_path, backup_path)
-            self._logger.debug(f"Создан бэкап: {backup_path}")
+            self._log_debug(f"Создан бэкап: {backup_path}")
             
             # Удаление старых бэкапов
             self._cleanup_old_backups()
@@ -417,7 +465,7 @@ class DynamicConfigManager:
             return backup_path
             
         except Exception as e:
-            self._logger.error(f"Ошибка создания бэкапа: {e}")
+            self._log_error(f"Ошибка создания бэкапа: {e}")
             return None
     
     def _cleanup_old_backups(self):
@@ -435,14 +483,14 @@ class DynamicConfigManager:
             old_backup = backups.pop(0)
             try:
                 old_backup.unlink()
-                self._logger.debug(f"Удален старый бэкап: {old_backup}")
+                self._log_debug(f"Удален старый бэкап: {old_backup}")
             except Exception as e:
-                self._logger.error(f"Ошибка удаления бэкапа {old_backup}: {e}")
+                self._log_error(f"Ошибка удаления бэкапа {old_backup}: {e}")
     
     async def _start_watcher(self):
         """Запуск наблюдателя за файлами."""
         if not self._config_path.exists():
-            self._logger.warning(f"Файл конфигурации не найден: {self._config_path}")
+            self._log_warning(f"Файл конфигурации не найден: {self._config_path}")
             return
         
         self._watcher = FileSystemWatcher(
@@ -452,7 +500,7 @@ class DynamicConfigManager:
         )
         
         await self._watcher.start()
-        self._logger.info(f"Watcher запущен для {self._config_path}")
+        self._log_info(f"Watcher запущен для {self._config_path}")
     
     async def _on_config_changed(self, path: Path):
         """
@@ -461,7 +509,7 @@ class DynamicConfigManager:
         ARGS:
         - path: путь к измененному файлу
         """
-        self._logger.info(f"Обнаружено изменение конфигурации: {path}")
+        self._log_info(f"Обнаружено изменение конфигурации: {path}")
         
         # Создание бэкапа перед применением изменений
         backup_path = self._create_backup()
@@ -470,7 +518,7 @@ class DynamicConfigManager:
         old_config = self._config.copy() if self._config else {}
         
         if not await self._load_config():
-            self._logger.error("Не удалось загрузить новую конфигурацию, откат...")
+            self._log_error("Не удалось загрузить новую конфигурацию, откат...")
             # Откат не требуется т.к. _config не изменился при ошибке
             return
         
@@ -484,7 +532,7 @@ class DynamicConfigManager:
             changed_keys=changed_keys,
         )
         
-        self._logger.info(f"Изменены ключи конфигурации: {changed_keys}")
+        self._log_info(f"Изменены ключи конфигурации: {changed_keys}")
 
         # Уведомление callback-ов
         await self._notify_callbacks(change_event)
@@ -535,7 +583,7 @@ class DynamicConfigManager:
                 else:
                     callback(event)
             except Exception as e:
-                self._logger.error(f"Ошибка в callback конфигурации: {e}", exc_info=True)
+                self._log_error(f"Ошибка в callback конфигурации: {e}", exc_info=True)
     
     def on_config_change(self, callback: Callable):
         """
@@ -545,7 +593,7 @@ class DynamicConfigManager:
         - callback: функция для вызова при изменениях
         """
         self._callbacks.append(callback)
-        self._logger.debug(f"Зарегистрирован callback конфигурации (всего: {len(self._callbacks)})")
+        self._log_debug(f"Зарегистрирован callback конфигурации (всего: {len(self._callbacks)})")
     
     def get_config(self) -> Optional[Dict[str, Any]]:
         """
@@ -602,7 +650,7 @@ class DynamicConfigManager:
         RETURNS:
         - bool: True если перезагрузка успешна
         """
-        self._logger.info("Принудительная перезагрузка конфигурации")
+        self._log_info("Принудительная перезагрузка конфигурации")
         
         # Создание бэкапа перед перезагрузкой
         self._create_backup()
@@ -636,10 +684,10 @@ class DynamicConfigManager:
         """
         snapshot = self.get_snapshot(index)
         if not snapshot:
-            self._logger.error("Снимок конфигурации не найден")
+            self._log_error("Снимок конфигурации не найден")
             return False
         
-        self._logger.info(f"Откат к снимку конфигурации от {snapshot.timestamp}")
+        self._log_info(f"Откат к снимку конфигурации от {snapshot.timestamp}")
         
         old_config = self._config.copy() if self._config else {}
         self._config = snapshot.config.copy()

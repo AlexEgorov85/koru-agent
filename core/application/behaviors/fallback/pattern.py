@@ -4,7 +4,6 @@ from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
-import logging
 from typing import List, Dict, Any
 
 

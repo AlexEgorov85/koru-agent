@@ -3,7 +3,6 @@
 Реализует стандартный интерфейс для работы с различными СУБД.
 """
 
-import logging
 import time
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -14,7 +13,6 @@ from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 from core.infrastructure.providers.base_provider import BaseProvider
 
-logger = logging.getLogger(__name__)
 
 class BaseDBProvider(BaseProvider, ABC):
     """

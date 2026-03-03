@@ -1,7 +1,6 @@
 ﻿"""
 Менеджер жизненного цикла инфраструктурных ресурсов.
 """
-import logging
 from typing import List, Callable, Awaitable, Any, Optional
 from contextlib import asynccontextmanager
 
@@ -19,7 +18,6 @@ class LifecycleManager:
         self._initializers: List[Callable[[], Awaitable[Any]]] = []
         self._cleanup_funcs: List[Callable[[], Awaitable[Any]]] = []
         self._initialized = False
-        self.logger = logging.getLogger(__name__)
         self.event_bus: Optional[UnifiedEventBus] = event_bus
         self.event_bus_logger: Optional[EventBusLogger] = None
         if event_bus:

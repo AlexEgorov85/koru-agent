@@ -5,34 +5,46 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
-import logging
 from core.infrastructure.logging import EventBusLogger
 
 
 class CapabilityRegistry:
     """Реестр возможностей (capabilities) - хранит метаданные о возможностях системы."""
 
-    def __init__(self):
+    def __init__(self, event_bus=None):
         """Инициализация реестра возможностей."""
         self.capabilities_dir = Path("contracts")
         self._capabilities: Dict[str, Dict[str, Any]] = {}
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+        
+        # Инициализация логгера
+        if event_bus is not None:
+            self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="CapabilityRegistry")
+            self._use_event_logging = True
+        else:
+            import logging
+            self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+            self._use_event_logging = False
+        
+        self._log_info("CapabilityRegistry создан")
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # CapabilityRegistry не имеет application_context, поэтому event_bus_logger не инициализируется
-        pass
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self._use_event_logging:
+            self.logger.info(message, *args, **kwargs)
+        else:
+            self.logger.info(message, *args, **kwargs)
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self._use_event_logging:
+            self.logger.warning(message, *args, **kwargs)
+        else:
+            self.logger.warning(message, *args, **kwargs)
 
     async def initialize(self):
         """Инициализация реестра возможностей."""
         if not self.capabilities_dir.exists():
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Директория контрактов не существует: {self.capabilities_dir}")
-            else:
-                self.logger.warning(f"Директория контрактов не существует: {self.capabilities_dir}")
+            self._log_warning(f"Директория контрактов не существует: {self.capabilities_dir}")
             return
 
         # Загрузка метаданных возможностей из файлов контрактов
@@ -67,10 +79,7 @@ class CapabilityRegistry:
                             else:
                                 capability_meta["versions"][version]["input"] = True
                     except Exception as e:
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
-                        else:
-                            self.logger.warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
+                        self._log_warning(f"Ошибка чтения входного контракта для {capability_name}: {str(e)}")
 
                 if output_contract_path.exists():
                     capability_meta["has_output_contract"] = True
@@ -85,10 +94,7 @@ class CapabilityRegistry:
                             else:
                                 capability_meta["versions"][version]["output"] = True
                     except Exception as e:
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
-                        else:
-                            self.logger.warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
+                        self._log_warning(f"Ошибка чтения выходного контракта для {capability_name}: {str(e)}")
 
                 # Также проверим поддиректории с версиями
                 for version_dir in capability_dir.iterdir():
@@ -113,10 +119,7 @@ class CapabilityRegistry:
                                     else:
                                         capability_meta["versions"][version_from_file]["input"] = True
                             except Exception as e:
-                                if self.event_bus_logger:
-                                    await self.event_bus_logger.warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
-                                else:
-                                    self.logger.warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
+                                self._log_warning(f"Ошибка чтения входного контракта версии {version} для {capability_name}: {str(e)}")
 
                         if version_output_contract.exists():
                             capability_meta["versions"][version]["output"] = True
@@ -130,10 +133,7 @@ class CapabilityRegistry:
                                     else:
                                         capability_meta["versions"][version_from_file]["output"] = True
                             except Exception as e:
-                                if self.event_bus_logger:
-                                    await self.event_bus_logger.warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
-                                else:
-                                    self.logger.warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
+                                self._log_warning(f"Ошибка чтения выходного контракта версии {version} для {capability_name}: {str(e)}")
 
                 self._capabilities[capability_name] = capability_meta
 
@@ -166,7 +166,4 @@ class CapabilityRegistry:
 
     async def shutdown(self):
         """Завершение работы реестра."""
-        if self.event_bus_logger:
-            await self.event_bus_logger.info("Реестр возможностей завершает работу")
-        else:
-            self.logger.info("Реестр возможностей завершает работу")
+        self._log_info("Реестр возможностей завершает работу")

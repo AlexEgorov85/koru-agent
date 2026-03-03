@@ -12,7 +12,6 @@ FEATURES:
 - Блокировка для предотвращения параллельных циклов
 """
 import asyncio
-import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
@@ -27,6 +26,7 @@ from core.application.services.benchmark_service import BenchmarkService
 from core.application.services.prompt_contract_generator import PromptContractGenerator
 from core.infrastructure.metrics_collector import MetricsCollector
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+from core.infrastructure.logging import EventBusLogger
 
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,7 @@ class OptimizationService:
         self.metrics_collector = metrics_collector
         self.event_bus = event_bus
         self.config = config or OptimizationConfig()
+        self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="OptimizationService")
 
         # Активные блокировки
         self._locks: Dict[str, OptimizationLock] = {}
@@ -114,21 +115,21 @@ class OptimizationService:
         RETURNS:
         - OptimizationResult: результат оптимизации или None если не удалось начать
         """
-        logger.info(f"Запуск оптимизации для {capability} (режим: {mode.value})")
+        await self.event_bus_logger.info(f"Запуск оптимизации для {capability} (режим: {mode.value})")
 
         # Проверка возможности оптимизации
         if not await self._is_capability_optimizable(capability):
-            logger.warning(f"Capability {capability} не может быть оптимизирован")
+            await self.event_bus_logger.warning(f"Capability {capability} не может быть оптимизирован")
             return None
 
         # Проверка необходимости оптимизации
         if not await self._needs_optimization(capability, mode):
-            logger.info(f"Оптимизация не требуется для {capability}")
+            await self.event_bus_logger.info(f"Оптимизация не требуется для {capability}")
             return None
 
         # Попытка acquire lock
         if not await self._acquire_lock(capability):
-            logger.warning(f"Оптимизация уже выполняется для {capability}")
+            await self.event_bus_logger.warning(f"Оптимизация уже выполняется для {capability}")
             return None
 
         try:
@@ -163,7 +164,7 @@ class OptimizationService:
                 )
 
                 if not new_prompt:
-                    logger.error("Не удалось сгенерировать новую версию")
+                    await self.event_bus_logger.error("Не удалось сгенерировать новую версию")
                     break
 
                 new_version = new_prompt.version
@@ -192,7 +193,7 @@ class OptimizationService:
 
                         break
                 else:
-                    logger.info(f"Версия {new_version} не показала улучшения")
+                    await self.event_bus_logger.info(f"Версия {new_version} не показала улучшения")
                     # Отклонение версии
                     await self.benchmark_service.reject_version(
                         capability,
@@ -206,12 +207,12 @@ class OptimizationService:
             # Публикация события завершения
             await self._publish_optimization_complete(result)
 
-            logger.info(f"Оптимизация завершена: {result.from_version} → {result.to_version}")
+            await self.event_bus_logger.info(f"Оптимизация завершена: {result.from_version} → {result.to_version}")
 
             return result
 
         except Exception as e:
-            logger.error(f"Ошибка оптимизации: {e}")
+            await self.event_bus_logger.error(f"Ошибка оптимизации: {e}")
             return None
 
         finally:
@@ -229,7 +230,7 @@ class OptimizationService:
         RETURNS:
         - FailureAnalysis: анализ неудач
         """
-        logger.info(f"Анализ неудач для {capability}@{version}")
+        await self.event_bus_logger.info(f"Анализ неудач для {capability}@{version}")
 
         # Получение логов ошибок
         error_logs = await self.metrics_collector.log_collector.get_error_logs(
@@ -531,6 +532,6 @@ class OptimizationService:
         async with self._lock:
             if capability in self._locks:
                 del self._locks[capability]
-                logger.info(f"Оптимизация отменена для {capability}")
+                await self.event_bus_logger.info(f"Оптимизация отменена для {capability}")
                 return True
             return False

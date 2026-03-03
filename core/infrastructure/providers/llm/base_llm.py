@@ -3,7 +3,6 @@
 Реализует стандартный интерфейс для работы с различными LLM бэкендами.
 """
 
-import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
@@ -12,7 +11,6 @@ from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
 from core.infrastructure.providers.base_provider import BaseProvider, ProviderHealthStatus
 
-logger = logging.getLogger(__name__)
 
 class BaseLLMProvider(BaseProvider, ABC):
     """
@@ -44,23 +42,8 @@ class BaseLLMProvider(BaseProvider, ABC):
         self.health_status = LLMHealthStatus.UNKNOWN
         self.last_health_check = None
 
-        # Логгер для LLM вызовов (отдельный от общего логгера класса)
-        self._llm_logger = logging.getLogger(f"llm.{self.__class__.__name__}")
-
-        # Принудительно устанавливаем уровень INFO чтобы логи писались в файл
-        self._llm_logger.setLevel(logging.INFO)
-
-        # Добавляем handler для записи в agent.log если ещё не добавлен
-        if not self._llm_logger.handlers:
-            # Получаем root logger handlers (файловый handler)
-            root_logger = logging.getLogger()
-            for handler in root_logger.handlers:
-                if isinstance(handler, logging.FileHandler):
-                    self._llm_logger.addHandler(handler)
-                    break
-
-        # event_bus_logger будет инициализирован в initialize()
-        self.event_bus_logger = None
+        # Логгер для LLM вызовов больше не используется — всё логирование через event_bus_logger
+        self._llm_logger = None
 
     async def _log_llm_call_start(self, request: LLMRequest) -> None:
         """

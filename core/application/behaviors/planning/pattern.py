@@ -5,9 +5,7 @@ from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
-import logging
 
-logger = logging.getLogger(__name__)
 
 class PlanningPattern(BaseBehaviorPattern):
     """Паттерн иерархического планирования: создание плана → выполнение шагов → коррекция

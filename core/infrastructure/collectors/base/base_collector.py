@@ -10,15 +10,11 @@ FEATURES:
 - Логирование подписок
 - Хранение списка подписок
 """
-import logging
 from abc import ABC
 from typing import List, Callable, Any
 
 from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-
-
-logger = logging.getLogger(__name__)
 
 
 class BaseEventCollector(ABC):

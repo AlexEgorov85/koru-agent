@@ -9,7 +9,6 @@
 - sandbox → status: active + draft
 - dev → status: active + draft + inactive
 """
-import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple
 from datetime import datetime
@@ -17,40 +16,39 @@ from datetime import datetime
 from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
 from core.models.enums.common_enums import ComponentType, ComponentStatus
-
-
-logger = logging.getLogger(__name__)
+from core.infrastructure.logging import EventBusLogger
 
 
 class ResourceDiscovery:
     """
     Авто-обнаружение ресурсов через файловую систему.
-    
+
     Сканзирует директорию data/ и загружает ресурсы с разрешёнными статусами
     в зависимости от профиля работы.
     """
-    
+
     # Маппинг профилей на разрешённые статусы
     PROFILE_STATUS_MAP: Dict[str, List[PromptStatus]] = {
         'prod': [PromptStatus.ACTIVE],
         'sandbox': [PromptStatus.ACTIVE, PromptStatus.DRAFT],
         'dev': [PromptStatus.ACTIVE, PromptStatus.DRAFT, PromptStatus.INACTIVE],
     }
-    
+
     # Маппинг статусов компонентов
     COMPONENT_STATUS_MAP: Dict[str, List[ComponentStatus]] = {
         'prod': [ComponentStatus.ACTIVE],
         'sandbox': [ComponentStatus.ACTIVE, ComponentStatus.DRAFT],
         'dev': [ComponentStatus.ACTIVE, ComponentStatus.DRAFT, ComponentStatus.INACTIVE],
     }
-    
-    def __init__(self, base_dir: Path, profile: str = 'prod'):
+
+    def __init__(self, base_dir: Path, profile: str = 'prod', event_bus=None):
         """
         Инициализация сканера ресурсов.
-        
+
         ПАРАМЕТРЫ:
         - base_dir: Базовая директория данных (обычно data/)
         - profile: Профиль работы ('prod', 'sandbox', 'dev')
+        - event_bus: Шина событий для логирования (опционально)
         """
         self.base_dir = Path(base_dir)
         self.profile = profile
@@ -60,7 +58,7 @@ class ResourceDiscovery:
         self.allowed_component_statuses = self.COMPONENT_STATUS_MAP.get(
             profile, self.COMPONENT_STATUS_MAP['prod']
         )
-        
+
         # Кэши загруженных ресурсов
         self._prompts_cache: Dict[Tuple[str, str], Prompt] = {}
         self._contracts_cache: Dict[Tuple[str, str, str], Contract] = {}
@@ -75,17 +73,54 @@ class ResourceDiscovery:
             'contracts_skipped': 0,
         }
 
-        logger.info(f"ResourceDiscovery инициализирован: base_dir={self.base_dir}, profile={self.profile}")
-        logger.info(f"Разрешённые статусы промптов: {[s.value for s in self.allowed_prompt_statuses]}")
+        # Инициализация логгера
+        if event_bus is not None:
+            self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="ResourceDiscovery")
+            self._use_event_logging = True
+        else:
+            import logging
+            self.logger = logging.getLogger(__name__)
+            self._use_event_logging = False
+
+        self._log_info(f"ResourceDiscovery инициализирован: base_dir={self.base_dir}, profile={self.profile}")
+        self._log_info(f"Разрешённые статусы промптов: {[s.value for s in self.allowed_prompt_statuses]}")
+
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self._use_event_logging:
+            self.logger.info_sync(message, *args, **kwargs)
+        else:
+            self.logger.info(message, *args, **kwargs)
+
+    def _log_debug(self, message: str, *args, **kwargs):
+        """Отладочное сообщение."""
+        if self._use_event_logging:
+            self.logger.debug_sync(message, *args, **kwargs)
+        else:
+            self.logger.debug(message, *args, **kwargs)
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self._use_event_logging:
+            self.logger.warning_sync(message, *args, **kwargs)
+        else:
+            self.logger.warning(message, *args, **kwargs)
+
+    def _log_error(self, message: str, *args, **kwargs):
+        """Ошибка."""
+        if self._use_event_logging:
+            self.logger.error_sync(message, *args, **kwargs)
+        else:
+            self.logger.error(message, *args, **kwargs)
     
     def _should_load_resource(self, status: str, resource_type: str = 'prompt') -> bool:
         """
         Проверка можно ли загружать ресурс с данным статусом.
-        
+
         ПАРАМЕТРЫ:
         - status: Статус ресурса
         - resource_type: Тип ресурса ('prompt', 'contract', 'component')
-        
+
         ВОЗВРАЩАЕТ:
         - bool: True если ресурс можно загружать
         """
@@ -97,32 +132,32 @@ class ResourceDiscovery:
                 component_status = ComponentStatus(status)
                 return component_status in self.allowed_component_statuses
             else:
-                logger.warning(f"Неизвестный тип ресурса: {resource_type}")
+                self._log_warning(f"Неизвестный тип ресурса: {resource_type}")
                 return False
         except ValueError:
-            logger.warning(f"Неизвестный статус '{status}' для {resource_type}")
+            self._log_warning(f"Неизвестный статус '{status}' для {resource_type}")
             return False
     
     def _parse_prompt_file(self, file_path: Path) -> Optional[Prompt]:
         """
         Парсинг файла промпта.
-        
+
         ПАРАМЕТРЫ:
         - file_path: Путь к файлу
-        
+
         ВОЗВРАЩАЕТ:
         - Optional[Prompt]: Объект промпта или None при ошибке
         """
         import yaml
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
+
             if not isinstance(data, dict):
-                logger.warning(f"Файл промпта {file_path} не содержит словарь")
+                self._log_warning(f"Файл промпта {file_path} не содержит словарь")
                 return None
-            
+
             # Извлекаем обязательные поля
             capability = data.get('capability')
             version = data.get('version')
@@ -131,18 +166,18 @@ class ResourceDiscovery:
             content = data.get('content', '')
             variables = data.get('variables', [])
             metadata = data.get('metadata', {})
-            
+
             # Валидация обязательных полей
             if not capability or not version:
-                logger.warning(f"Файл {file_path} не содержит capability или version")
+                self._log_warning(f"Файл {file_path} не содержит capability или version")
                 return None
-            
+
             # Проверяем статус
             if not self._should_load_resource(status, 'prompt'):
                 self._stats['prompts_skipped'] += 1
-                logger.debug(f"Пропущен промпт {capability}@{version} со статусом {status}")
+                self._log_debug(f"Пропущен промпт {capability}@{version} со статусом {status}")
                 return None
-            
+
             # Парсинг переменных
             parsed_variables = []
             for var in variables:
@@ -151,19 +186,19 @@ class ResourceDiscovery:
                     try:
                         parsed_variables.append(PromptVariable(**var))
                     except Exception as e:
-                        logger.warning(f"Ошибка парсинга переменной в {file_path}: {e}")
-            
+                        self._log_warning(f"Ошибка парсинга переменной в {file_path}: {e}")
+
             # Определяем тип компонента
             if component_type:
                 try:
                     comp_type = ComponentType(component_type)
                 except ValueError:
-                    logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
+                    self._log_warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
                     comp_type = ComponentType.SKILL  # Default
             else:
                 # Авто-определение по пути
                 comp_type = self._infer_component_type_from_path(file_path)
-            
+
             # Создаём объект Prompt
             prompt = Prompt(
                 capability=capability,
@@ -176,34 +211,34 @@ class ResourceDiscovery:
             )
             
             self._stats['prompts_loaded'] += 1
-            logger.debug(f"Загружен промпт: {capability}@{version} (status={status})")
+            self._log_debug(f"Загружен промпт: {capability}@{version} (status={status})")
             return prompt
-            
+
         except Exception as e:
-            logger.error(f"Ошибка парсинга промпта {file_path}: {e}", exc_info=True)
+            self._log_error(f"Ошибка парсинга промпта {file_path}: {e}", exc_info=True)
             return None
-    
+
     def _parse_contract_file(self, file_path: Path) -> Optional[Contract]:
         """
         Парсинг файла контракта.
-        
+
         ПАРАМЕТРЫ:
         - file_path: Путь к файлу
-        
+
         ВОЗВРАЩАЕТ:
         - Optional[Contract]: Объект контракта или None при ошибке
         """
         import yaml
         import re
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
+
             if not isinstance(data, dict):
-                logger.warning(f"Файл контракта {file_path} не содержит словарь")
+                self._log_warning(f"Файл контракта {file_path} не содержит словарь")
                 return None
-            
+
             # Извлекаем поля
             capability = data.get('capability')
             version = data.get('version')
@@ -212,39 +247,39 @@ class ResourceDiscovery:
             direction = data.get('direction')
             schema_data = data.get('schema', data.get('schema_data', {}))
             description = data.get('description', '')
-            
+
             # Если capability/version не указаны в файле, пытаемся извлечь из имени файла
             if not capability or not version:
                 capability, version, direction = self._parse_contract_filename(file_path)
-            
+
             if not capability or not version:
-                logger.warning(f"Не удалось определить capability/version для {file_path}")
+                self._log_warning(f"Не удалось определить capability/version для {file_path}")
                 return None
-            
+
             # Проверяем статус
             if not self._should_load_resource(status, 'contract'):
                 self._stats['contracts_skipped'] += 1
-                logger.debug(f"Пропущен контракт {capability}@{version} со статусом {status}")
+                self._log_debug(f"Пропущен контракт {capability}@{version} со статусом {status}")
                 return None
-            
+
             # Определяем направление если не указано
             if not direction:
                 direction = self._infer_direction_from_filename(file_path)
-            
+
             if not direction:
-                logger.warning(f"Не удалось определить направление контракта для {file_path}")
+                self._log_warning(f"Не удалось определить направление контракта для {file_path}")
                 return None
-            
+
             # Определяем тип компонента
             if component_type:
                 try:
                     comp_type = ComponentType(component_type)
                 except ValueError:
-                    logger.warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
+                    self._log_warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
                     comp_type = ComponentType.SKILL
             else:
                 comp_type = self._infer_component_type_from_path(file_path)
-            
+
             # Создаём объект Contract
             contract = Contract(
                 capability=capability,
@@ -255,13 +290,13 @@ class ResourceDiscovery:
                 schema_data=schema_data if schema_data else {'type': 'object', 'properties': {}},
                 description=description
             )
-            
+
             self._stats['contracts_loaded'] += 1
-            logger.debug(f"Загружен контракт: {capability}@{version} ({direction}) (status={status})")
+            self._log_debug(f"Загружен контракт: {capability}@{version} ({direction}) (status={status})")
             return contract
 
         except Exception as e:
-            logger.error(f"Ошибка парсинга контракта {file_path}: {e}", exc_info=True)
+            self._log_error(f"Ошибка парсинга контракта {file_path}: {e}", exc_info=True)
             return None
 
     # === Метод _parse_manifest_file() удалён ===
@@ -365,61 +400,61 @@ class ResourceDiscovery:
     def discover_prompts(self) -> List[Prompt]:
         """
         Сканирование и загрузка всех промптов с разрешёнными статусами.
-        
+
         ВОЗВРАЩАЕТ:
         - List[Prompt]: Список загруженных промптов
         """
         prompts = []
         prompts_dir = self.base_dir / 'prompts'
-        
+
         if not prompts_dir.exists():
-            logger.warning(f"Директория промптов не найдена: {prompts_dir}")
+            self._log_warning(f"Директория промптов не найдена: {prompts_dir}")
             return prompts
-        
+
         # Рекурсивный поиск всех YAML файлов
         yaml_files = list(prompts_dir.rglob('*.yaml')) + list(prompts_dir.rglob('*.yml'))
-        
+
         self._stats['prompts_scanned'] = len(yaml_files)
-        logger.info(f"Найдено {len(yaml_files)} файлов промптов в {prompts_dir}")
-        
+        self._log_info(f"Найдено {len(yaml_files)} файлов промптов в {prompts_dir}")
+
         for file_path in yaml_files:
             prompt = self._parse_prompt_file(file_path)
             if prompt:
                 key = (prompt.capability, prompt.version)
                 self._prompts_cache[key] = prompt
                 prompts.append(prompt)
-        
-        logger.info(f"Загружено {len(prompts)} промптов (пропущено: {self._stats['prompts_skipped']})")
+
+        self._log_info(f"Загружено {len(prompts)} промптов (пропущено: {self._stats['prompts_skipped']})")
         return prompts
-    
+
     def discover_contracts(self) -> List[Contract]:
         """
         Сканирование и загрузка всех контрактов с разрешёнными статусами.
-        
+
         ВОЗВРАЩАЕТ:
         - List[Contract]: Список загруженных контрактов
         """
         contracts = []
         contracts_dir = self.base_dir / 'contracts'
-        
+
         if not contracts_dir.exists():
-            logger.warning(f"Директория контрактов не найдена: {contracts_dir}")
+            self._log_warning(f"Директория контрактов не найдена: {contracts_dir}")
             return contracts
-        
+
         # Рекурсивный поиск всех YAML файлов
         yaml_files = list(contracts_dir.rglob('*.yaml')) + list(contracts_dir.rglob('*.yml'))
-        
+
         self._stats['contracts_scanned'] = len(yaml_files)
-        logger.info(f"Найдено {len(yaml_files)} файлов контрактов в {contracts_dir}")
-        
+        self._log_info(f"Найдено {len(yaml_files)} файлов контрактов в {contracts_dir}")
+
         for file_path in yaml_files:
             contract = self._parse_contract_file(file_path)
             if contract:
                 key = (contract.capability, contract.version, contract.direction.value)
                 self._contracts_cache[key] = contract
                 contracts.append(contract)
-        
-        logger.info(f"Загружено {len(contracts)} контрактов (пропущено: {self._stats['contracts_skipped']})")
+
+        self._log_info(f"Загружено {len(contracts)} контрактов (пропущено: {self._stats['contracts_skipped']})")
         return contracts
 
     # === Метод discover_manifests() удалён ===

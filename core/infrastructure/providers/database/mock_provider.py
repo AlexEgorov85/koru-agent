@@ -1,15 +1,11 @@
 ﻿"""
 Mock DB Provider для тестирования без реального подключения к БД.
 """
-import logging
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
-
-
-logger = logging.getLogger(__name__)
 
 
 class MockDBProvider(BaseDBProvider):
@@ -20,7 +16,7 @@ class MockDBProvider(BaseDBProvider):
     def __init__(self, config: DBConnectionConfig):
         super().__init__(config)
         self.is_initialized = False
-        self.event_bus_logger.info(f"Создан MockDBProvider для базы: {self.config.database}")
+        # event_bus_logger инициализируется в BaseProvider.initialize()
 
     async def initialize(self) -> bool:
         """Инициализация провайдера."""

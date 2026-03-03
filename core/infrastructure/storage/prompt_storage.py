@@ -7,13 +7,11 @@ from pathlib import Path
 from typing import Optional
 import json
 import yaml
-import logging
 from core.models.data.prompt import Prompt
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
 from core.models.enums.common_enums import ComponentType
-from core.infrastructure.logging import EventBusLogger
 
 
 class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
@@ -25,17 +23,11 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
     INHERITS: VersionedStorage[Prompt]
     """
 
-    def __init__(self, prompts_dir: Path):
-        super().__init__(prompts_dir)
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+    def __init__(self, prompts_dir: Path, event_bus=None):
+        super().__init__(prompts_dir, event_bus)
+        # EventBusLogger для асинхронного логирования (для обратной совместимости)
+        self.event_bus_logger = self.logger if hasattr(self, '_use_event_logging') and self._use_event_logging else None
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # PromptStorage не имеет application_context, поэтому event_bus_logger не инициализируется
-        pass
-    
     @property
     def prompts_dir(self) -> Path:
         """Свойство для обратной совместимости."""
@@ -173,7 +165,4 @@ class PromptStorage(VersionedStorage[Prompt], IPromptStorage):
         with open(prompt_file, 'w', encoding='utf-8') as f:
             yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, indent=2)
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
-        else:
-            self.logger.info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")
+        await self._log_info(f"Промпт сохранен: {capability_name}@{version} ({component_type}) -> {prompt_file}")

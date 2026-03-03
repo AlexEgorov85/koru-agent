@@ -7,7 +7,6 @@ Mock LLM Provider для тестирования без реального LLM.
 - Детерминированные ответы
 - Переключение между mock и real LLM
 """
-import logging
 import time
 import re
 from datetime import datetime
@@ -23,9 +22,6 @@ from core.models.types.llm_types import (
 )
 from pydantic import BaseModel, ValidationError, create_model, Field
 from core.models.enums.common_enums import ExecutionStatus
-
-
-logger = logging.getLogger(__name__)
 
 
 class MockLLMConfig(BaseModel):
@@ -51,16 +47,13 @@ class MockLLMProvider(BaseLLMProvider):
         super().__init__(model_name=model_name, config=config.model_dump())
         self.config = config
         self.initialized = False
-        
-        # Инициализация логгера
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Маппинг паттернов → ответы
         self._prompt_responses: Dict[Union[str, Pattern], str] = {}
         self._default_response = config.default_response
         self._call_history: List[Dict[str, Any]] = []
 
-        self.event_bus_logger.info(f"Создан MockLLMProvider для модели: {model_name}")
+        # event_bus_logger инициализируется в BaseProvider.initialize()
     
     def register_response(self, prompt_pattern: str, response: str):
         """

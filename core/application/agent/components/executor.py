@@ -7,9 +7,6 @@ from core.models.data.capability import Capability
 from core.session_context.base_session_context import BaseSessionContext
 from core.models.data.execution import ExecutionResult
 from core.security.user_context import UserContext
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class ActionExecutor:
@@ -78,7 +75,11 @@ class ActionExecutor:
                 )
             else:
                 # Если ничего не работает, возвращаем ошибку
-                logger.error(f"Capability {capability.name} не имеет метода execute и execution_gateway недоступен")
+                # Логирование через EventBusLogger если доступен system_context
+                if hasattr(self.system, 'infrastructure_context') and hasattr(self.system.infrastructure_context, 'event_bus_logger'):
+                    await self.system.infrastructure_context.event_bus_logger.error(
+                        f"Capability {capability.name} не имеет метода execute и execution_gateway недоступен"
+                    )
                 return ExecutionResult(
                     status='failed',
                     result={'error': f'Cannot execute capability {capability.name}'},

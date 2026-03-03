@@ -2,7 +2,7 @@
 Провайдер для Llama.cpp.
 Использует llama-cpp-python для запуска LLM моделей локально.
 """
-import logging
+import asyncio
 import time
 import json
 import re
@@ -19,9 +19,6 @@ from core.models.types.llm_types import (
     RawLLMResponse
 )
 from pydantic import BaseModel, Field, ValidationError, create_model
-
-
-logger = logging.getLogger(__name__)
 
 
 class StructuredOutputError(Exception):
@@ -108,10 +105,6 @@ class LlamaCppProvider(BaseLLMProvider):
 
         self.llm = None
         self._executor = None  # ThreadPoolExecutor для LLM вызовов
-
-        # Логгер для LLM вызовов
-        self.logger = logging.getLogger(f"llm.{self.__class__.__name__}")
-        self.logger.setLevel(logging.INFO)
 
         # event_bus_logger будет инициализирован в initialize()
         self.event_bus_logger = None
@@ -212,11 +205,11 @@ class LlamaCppProvider(BaseLLMProvider):
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
             else:
-                logger.exception(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
+                await self.event_bus_logger.error(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
                 self.health_status = LLMHealthStatus.UNHEALTHY
                 return False
         except Exception as e:
-            logger.exception(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка инициализации Llama.cpp провайдера: {str(e)}")
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
 
@@ -276,7 +269,7 @@ class LlamaCppProvider(BaseLLMProvider):
             }
 
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка health check для Llama.cpp: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка health check для Llama.cpp: {str(e)}")
             return {
                 "status": LLMHealthStatus.UNHEALTHY.value,
                 "error": str(e),
@@ -287,11 +280,11 @@ class LlamaCppProvider(BaseLLMProvider):
     async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
         """
         Реализация генерации текста для Llama.cpp.
-        
+
         Логирование выполняется в базовом классе BaseLLMProvider.
         """
         if not self.is_initialized or not self.llm:
-            self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
+            await self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
             await self.initialize()
 
         start_time = time.time()
@@ -363,7 +356,7 @@ class LlamaCppProvider(BaseLLMProvider):
                     max_workers=2,
                     thread_name_prefix='llm_worker'
                 )
-                self.event_bus_logger.warning("ThreadPoolExecutor не был создан при инициализации, создан сейчас")
+                await self.event_bus_logger.warning("ThreadPoolExecutor не был создан при инициализации, создан сейчас")
 
             # Флаг для отслеживания завершения вызова
             call_completed = {'done': False, 'error': None}
@@ -427,13 +420,13 @@ class LlamaCppProvider(BaseLLMProvider):
 
             except TimeoutError as e:
                 elapsed = time.time() - start_time
-                self.event_bus_logger.error(f"⏰ LLM TIMEOUT после {elapsed:.2f}с (timeout={self.timeout_seconds}с)")
-                self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
-                self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
-                self.event_bus_logger.error(f"  - executor: {self._executor}")
-                self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
-                self.event_bus_logger.error(f"  - call_completed: {call_completed}")
-                self.event_bus_logger.error(f"  - active_threads: {threading.active_count()}")
+                await self.event_bus_logger.error(f"⏰ LLM TIMEOUT после {elapsed:.2f}с (timeout={self.timeout_seconds}с)")
+                await self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
+                await self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
+                await self.event_bus_logger.error(f"  - executor: {self._executor}")
+                await self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
+                await self.event_bus_logger.error(f"  - call_completed: {call_completed}")
+                await self.event_bus_logger.error(f"  - active_threads: {threading.active_count()}")
                 
                 # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
                 if hasattr(self, '_event_bus') and self._event_bus:
@@ -493,11 +486,11 @@ class LlamaCppProvider(BaseLLMProvider):
         
         except Exception as e:
             elapsed = time.time() - start_time
-            self.event_bus_logger.error(f"❌ LLM вызов failed после {elapsed:.2f}с: {type(e).__name__}: {str(e)}")
-            self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
-            self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
-            self.event_bus_logger.error(f"  - executor: {self._executor}")
-            self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
+            await self.event_bus_logger.error(f"❌ LLM вызов failed после {elapsed:.2f}с: {type(e).__name__}: {str(e)}")
+            await self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
+            await self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
+            await self.event_bus_logger.error(f"  - executor: {self._executor}")
+            await self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
             
             # Публикуем событие об ошибке
             if hasattr(self, '_event_bus') and self._event_bus:
@@ -649,8 +642,8 @@ class LlamaCppProvider(BaseLLMProvider):
                     "response_snippet": raw_response.content[:200] if raw_response else "N/A"
                 }
                 validation_errors.append(error_info)
-                
-                self.event_bus_logger.warning(
+
+                await self.event_bus_logger.warning(
                     f"Попытка {attempt}/{config.max_retries} не удалась (JSON): {e}"
                 )
                 
@@ -671,8 +664,8 @@ class LlamaCppProvider(BaseLLMProvider):
                     "response_snippet": raw_response.content[:200] if raw_response else "N/A"
                 }
                 validation_errors.append(error_info)
-                
-                self.event_bus_logger.warning(
+
+                await self.event_bus_logger.warning(
                     f"Попытка {attempt}/{config.max_retries} не удалась (валидация): {e}"
                 )
                 
@@ -684,9 +677,9 @@ class LlamaCppProvider(BaseLLMProvider):
                         str(e)
                     )
                     continue
-        
+
         # 7. Все попытки исчерпаны
-        self.event_bus_logger.error(
+        await self.event_bus_logger.error(
             f"Все {config.max_retries} попыток структурированного вывода не удались "
             f"для {config.output_model}. Ошибок валидации: {len(validation_errors)}"
         )
@@ -904,5 +897,5 @@ class LlamaCppProvider(BaseLLMProvider):
         try:
             yield self
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
             raise

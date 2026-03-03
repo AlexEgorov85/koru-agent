@@ -6,7 +6,6 @@
 - Использует методы BaseComponent.get_prompt/get_input_contract/get_output_contract
 - Все паттерны (ReAct, Planning, Evaluation, Fallback) наследуются от этого класса
 """
-import logging
 import typing
 from typing import Dict, Any, Optional
 

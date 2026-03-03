@@ -9,7 +9,6 @@
 - Ссылку на InfrastructureContext (только для чтения)
 """
 import uuid
-import logging
 import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Literal, Type
@@ -98,9 +97,6 @@ class ApplicationContext(BaseSystemContext):
         self.side_effects_enabled = getattr(self.config, 'side_effects_enabled', True)
         self.detailed_metrics = getattr(self.config, 'detailed_metrics', False)
 
-        # Настройка логирования
-        self.logger = logging.getLogger(f"{__name__}.{self.id}")
-        
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None  # Инициализируется позже через _init_event_bus_logger()
         self._init_event_bus_logger()
@@ -113,7 +109,7 @@ class ApplicationContext(BaseSystemContext):
 
             # Используем ResourceDiscovery для загрузки конфигурации
             from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
-            discovery = ResourceDiscovery(Path(data_dir), profile=profile)
+            discovery = ResourceDiscovery(Path(data_dir), profile=profile, event_bus=infrastructure_context.event_bus)
             
             # Создаём источник данных поверх ФС
             from core.infrastructure.storage.resource_data_source import ResourceDataSource
@@ -143,7 +139,7 @@ class ApplicationContext(BaseSystemContext):
             fs_data_source.initialize()
 
             # Создаём репозиторий
-            self.data_repository = DataRepository(fs_data_source, profile=profile)
+            self.data_repository = DataRepository(fs_data_source, profile=profile, event_bus=infrastructure_context.event_bus)
         else:
             self.data_repository = None  # ← Старый путь (для отката)
 
@@ -158,6 +154,52 @@ class ApplicationContext(BaseSystemContext):
                     agent_id="system",
                     component=self.__class__.__name__
                 )
+                # Обертка для совместимости с синхронными вызовами
+                class SyncLoggerWrapper:
+                    def __init__(wrapper_self, event_bus_logger):
+                        wrapper_self._logger = event_bus_logger
+                    
+                    def info(wrapper_self, msg, *a, **k):
+                        wrapper_self._logger.info_sync(str(msg), *a, **k)
+                    
+                    def debug(wrapper_self, msg, *a, **k):
+                        wrapper_self._logger.debug_sync(str(msg), *a, **k)
+                    
+                    def warning(wrapper_self, msg, *a, **k):
+                        wrapper_self._logger.warning_sync(str(msg), *a, **k)
+                    
+                    def error(wrapper_self, msg, *a, **k):
+                        wrapper_self._logger.error_sync(str(msg), *a, **k)
+                    
+                    def critical(wrapper_self, msg, *a, **k):
+                        wrapper_self._logger.error_sync(str(msg), *a, **k)
+                
+                self.logger = SyncLoggerWrapper(self.event_bus_logger)
+
+    def _log_debug(self, message: str, *args, **kwargs):
+        """Отладочное сообщение."""
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.debug(message, *args, **kwargs))
+
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.info(message, *args, **kwargs))
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.warning(message, *args, **kwargs))
+
+    def _log_error(self, message: str, *args, **kwargs):
+        """Ошибка."""
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.error(message, *args, **kwargs))
+
+    def _log_critical(self, message: str, *args, **kwargs):
+        """Критическая ошибка."""
+        if self.event_bus_logger:
+            asyncio.create_task(self.event_bus_logger.error(message, *args, **kwargs))
 
     def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
         """
@@ -171,10 +213,7 @@ class ApplicationContext(BaseSystemContext):
         behavior_configs = getattr(self.config, 'behavior_configs', {})
 
         msg = f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}"
-        if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.debug(msg))
-        else:
-            self.logger.debug(msg)
+        self._log_debug(msg)
 
         return {
             ComponentType.SERVICE: service_configs,
@@ -195,10 +234,7 @@ class ApplicationContext(BaseSystemContext):
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Начало создания компонента {component_type.value}.{name}")
-        else:
-            self.logger.info(f"Начало создания компонента {component_type.value}.{name}")
+        self._log_info(f"Начало создания компонента {component_type.value}.{name}")
 
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
@@ -224,10 +260,7 @@ class ApplicationContext(BaseSystemContext):
             )
 
         msg = f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}"
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(msg)
-        else:
-            self.logger.info(msg)
+        self._log_info(msg)
 
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
@@ -238,10 +271,7 @@ class ApplicationContext(BaseSystemContext):
             executor=executor  # Передаем ActionExecutor
         )
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
-        else:
-            self.logger.info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
+        self._log_info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
 
         return component
 
@@ -1051,7 +1081,7 @@ class ApplicationContext(BaseSystemContext):
                                 )
                     except Exception as e:
                         self.logger.error(
-                            f"��е удалось загрузить или получить статус для промпта {capability}@{version}: {e}. "
+                            f"��е у��алось загрузить или получить статус для промпта {capability}@{version}: {e}. "
                             f"Отклонено для профиля {self.profile}."
                         )
                         # Если не удалось прочитать стату��, в песочнице разрешаем, в проде - нет

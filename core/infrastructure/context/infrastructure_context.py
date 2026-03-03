@@ -7,7 +7,6 @@
 - Шина событий - глобальная для всех агентов
 """
 import uuid
-import logging
 from typing import Dict, Optional, Any
 from datetime import datetime
 
@@ -73,9 +72,6 @@ class InfrastructureContext:
         self._embedding_provider: Optional[Any] = None
         self._chunking_strategy: Optional[Any] = None
 
-        # Настройка логирования
-        self.logger = logging.getLogger(f"{__name__}.{self.id}")
-
     async def _log_event_bus_info(self, bus_type: str) -> None:
         """
         Логирование информации о выбранной шине событий.
@@ -83,7 +79,8 @@ class InfrastructureContext:
         ПАРАМЕТРЫ:
         - bus_type: тип выбранной шины
         """
-        self.logger.info("Используется шина событий: %s", bus_type)
+        if self.event_bus_logger:
+            await self.event_bus_logger.info("Используется шина событий: %s", bus_type)
 
     async def initialize(self) -> bool:
         """
@@ -142,19 +139,18 @@ class InfrastructureContext:
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
 
-        self.logger.info("Начало инициализации InfrastructureContext (через logging)")
         await self.event_bus_logger.info("Начало инициализации InfrastructureContext")
 
         # === ЭТАП 2: Фабрики провайдеров ===
-        self.logger.info("ЭТАП 2: Инициализация фабрик провайдеров")
+        await self.event_bus_logger.info("ЭТАП 2: Инициализация фабрик провайдеров")
 
         # Инициализация фабрик провайдеров
         self.llm_provider_factory = LLMProviderFactory()
         self.db_provider_factory = DBProviderFactory()
-        self.logger.info(f"Фабрики созданы. llm_providers в конфиге: {len(self.config.llm_providers) if hasattr(self.config, 'llm_providers') else 'N/A'}")
+        await self.event_bus_logger.info(f"Фабрики созданы. llm_providers в конфиге: {len(self.config.llm_providers) if hasattr(self.config, 'llm_providers') else 'N/A'}")
 
         # === ЭТАП 3: Инфраструктурные хранилища ===
-        self.logger.info("ЭТАП 3: Инициализация хранилищ")
+        await self.event_bus_logger.info("ЭТАП 3: Инициализация хранилищ")
 
         from pathlib import Path
 
@@ -162,14 +158,14 @@ class InfrastructureContext:
         prompts_dir = Path(self.config.data_dir) / "prompts"
         await self.event_bus_logger.info(f"Используем путь для промтов: {prompts_dir}")
 
-        self.prompt_storage = PromptStorage(prompts_dir)
+        self.prompt_storage = PromptStorage(prompts_dir, self.event_bus)
         await self.event_bus_logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
 
         # Для ContractStorage используем директорию из конфигурации
         contracts_dir = Path(self.config.data_dir) / "contracts"
         await self.event_bus_logger.info(f"Используем путь для контрактов: {contracts_dir}")
 
-        self.contract_storage = ContractStorage(contracts_dir)
+        self.contract_storage = ContractStorage(contracts_dir, self.event_bus)
         await self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
         # Инициализация хранилищ метрик и логов

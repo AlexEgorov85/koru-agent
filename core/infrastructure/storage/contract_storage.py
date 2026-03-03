@@ -7,12 +7,10 @@ from pathlib import Path
 from typing import Optional
 import json
 import yaml
-import logging
 from core.models.data.contract import Contract
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IContractStorage, ComponentType
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
-from core.infrastructure.logging import EventBusLogger
 
 
 class ContractStorage(VersionedStorage[Contract], IContractStorage):
@@ -24,17 +22,11 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
     INHERITS: VersionedStorage[Contract]
     """
 
-    def __init__(self, contracts_dir: Path):
-        super().__init__(contracts_dir)
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+    def __init__(self, contracts_dir: Path, event_bus=None):
+        super().__init__(contracts_dir, event_bus)
+        # EventBusLogger для асинхронного логирования (для обратной совместимости)
+        self.event_bus_logger = self.logger if hasattr(self, '_use_event_logging') and self._use_event_logging else None
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # ContractStorage не имеет application_context, поэтому event_bus_logger не инициализируется
-        pass
-    
     @property
     def contracts_dir(self) -> Path:
         """Свойство для обратной совместимости."""
@@ -217,7 +209,4 @@ class ContractStorage(VersionedStorage[Contract], IContractStorage):
         contract_dict = contract.model_dump()
         self._save_file(contract_file, contract_dict, 'yaml')
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
-        else:
-            self.logger.info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")
+        await self._log_info(f"Контракт сохранен: {capability_name}@{version} ({direction}) ({component_type}) -> {contract_file}")

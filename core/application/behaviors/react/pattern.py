@@ -128,13 +128,11 @@ class ReActPattern(BaseBehaviorPattern):
                     prompt_obj = self.prompts["behavior.react.think"]
                     if hasattr(prompt_obj, 'content') and prompt_obj.content:
                         self.reasoning_prompt_template = prompt_obj.content
-                        logger.info("[ReAct] Загружен промпт behavior.react.think из self.prompts")
                 else:
                     # Fallback: берём первый доступный промпт
                     for cap_name, prompt_obj in self.prompts.items():
                         if hasattr(prompt_obj, 'content') and prompt_obj.content:
                             self.reasoning_prompt_template = prompt_obj.content
-                            logger.info(f"[ReAct] Загружен промпт из self.prompts[{cap_name}] (fallback)")
                             break
 
             # Контракты уже загружены в self.output_contracts
@@ -147,7 +145,6 @@ class ReActPattern(BaseBehaviorPattern):
                             self.reasoning_schema = schema_cls.model_json_schema()
                         else:
                             self.reasoning_schema = schema_cls
-                        logger.info("[ReAct] Загружен контракт behavior.react.think из self.output_contracts")
                 else:
                     # Fallback: берём первую доступную схему
                     for cap_name, schema_cls in self.output_contracts.items():
@@ -156,17 +153,14 @@ class ReActPattern(BaseBehaviorPattern):
                                 self.reasoning_schema = schema_cls.model_json_schema()
                             else:
                                 self.reasoning_schema = schema_cls
-                            logger.info(f"[ReAct] Загружен контракт из self.output_contracts[{cap_name}] (fallback)")
                             break
 
             # Fallback на модель если контракт не найден
             if not self.reasoning_schema:
-                logger.warning("[ReAct] Контракт не загружен, используем ReasoningResult.model_json_schema()")
                 self.reasoning_schema = ReasoningResult.model_json_schema()
 
             return True
         except Exception as e:
-            logger.error(f"[ReAct] Ошибка загрузки промпта/контракта: {e}", exc_info=True)
             return False
 
     def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:

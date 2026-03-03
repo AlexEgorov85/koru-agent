@@ -11,14 +11,11 @@ FEATURES:
 - Базовые метрики производительности
 - Поддержка политики повторных попыток
 """
-import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
-
-logger = logging.getLogger(__name__)
 
 
 class ProviderHealthStatus:

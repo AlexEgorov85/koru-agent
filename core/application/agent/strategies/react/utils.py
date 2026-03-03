@@ -1,7 +1,6 @@
 ﻿"""
 Утилиты для ReAct стратегии в новой архитектуре
 """
-import logging
 from typing import Any, Dict, List
 from core.models.data.capability import Capability
 

@@ -12,9 +12,6 @@
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -31,22 +28,18 @@ def load_real_schema_from_cache() -> Optional[Dict[str, Any]]:
     cache_file = Path("data/cache/book_library_schema.yaml")
     
     if not cache_file.exists():
-        logger.warning(f"Кэш схемы не найден: {cache_file}")
         return None
-    
+
     try:
         import yaml
         with open(cache_file, 'r', encoding='utf-8') as f:
             schema = yaml.safe_load(f)
-        
+
         if schema and schema.get('real_schema', False):
-            logger.info(f"Загружена реальная схема из БД: {len(schema.get('tables', {}))} таблиц")
             return schema
         else:
-            logger.warning("Кэш схемы найден, но не содержит реальной схемы из БД")
             return None
-    except Exception as e:
-        logger.error(f"Ошибка загрузки кэша схемы: {e}")
+    except Exception:
         return None
 
 

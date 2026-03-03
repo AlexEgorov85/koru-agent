@@ -5,13 +5,13 @@
 - Валидацию согласованности версий до создания агента
 - Использование существующего ApplicationContext
 """
-import logging
 from typing import Optional, List
 from enum import Enum
 
 from core.application.context.application_context import ApplicationContext
 from core.application.agent.runtime import AgentRuntime
 from core.application.context.agent_config import AgentConfig
+from core.infrastructure.logging import EventBusLogger
 
 
 class ProfileType(Enum):
@@ -36,7 +36,15 @@ class AgentFactory:
         - application_context: Прикладной контекст для использования
         """
         self.application_context = application_context
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.event_bus_logger = None
+        self._init_event_bus_logger()
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger."""
+        if hasattr(self.application_context, 'infrastructure_context'):
+            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
+            if event_bus:
+                self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="AgentFactory")
 
     async def create_agent(
         self,
@@ -73,10 +81,11 @@ class AgentFactory:
             correlation_id=correlation_id
         )
 
-        self.logger.info(
-            f"Создан агент с ID {app_context.id}. "
-            f"Версии: из конфигурации"
-        )
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(
+                f"Создан агент с ID {app_context.id}. "
+                f"Версии: из конфигурации"
+            )
 
         return agent
 

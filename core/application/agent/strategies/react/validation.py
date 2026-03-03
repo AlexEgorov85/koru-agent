@@ -1,7 +1,6 @@
 ﻿"""
 Валидация результатов рассуждения для ReAct стратегии в новой архитектуре
 """
-import logging
 from typing import Any, Dict
 
 

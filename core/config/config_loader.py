@@ -2,13 +2,10 @@
 import os
 import json
 import yaml
-import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from core.config.models import SystemConfig
-
-logger = logging.getLogger(__name__)
 
 
 class ConfigLoader:
@@ -161,8 +158,8 @@ class ConfigLoader:
                     if isinstance(provider_config, dict):
                         if "type_provider" in provider_config and "provider_type" not in provider_config:
                             provider_config["provider_type"] = provider_config.pop("type_provider")
-                            logger.warning(
-                                f"Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
+                            print(
+                                f"WARNING: Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
                                 f"Обновите конфигурацию."
                             )
 
@@ -172,8 +169,8 @@ class ConfigLoader:
                     if isinstance(provider_config, dict):
                         if "type_provider" in provider_config and "provider_type" not in provider_config:
                             provider_config["provider_type"] = provider_config.pop("type_provider")
-                            logger.warning(
-                                f"Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
+                            print(
+                                f"WARNING: Устаревшее поле 'type_provider' заменено на 'provider_type' для провайдера {provider_name}. "
                                 f"Обновите конфигурацию."
                             )
         

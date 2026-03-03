@@ -14,7 +14,6 @@ FEATURES:
 - Санитизация путей
 """
 import json
-import logging
 import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -42,7 +41,7 @@ class VersionedStorage(ABC, Generic[T]):
     class MyStorage(VersionedStorage[MyModel]):
         async def load(self, capability_name: str, version: str, ...) -> MyModel:
             files_to_check = self._build_file_search_paths(
-                capability_name, version, 
+                capability_name, version,
                 extensions=['.json', '.yaml', '.yml']
             )
             file_path, file_format = self._find_existing_file(files_to_check)
@@ -53,17 +52,49 @@ class VersionedStorage(ABC, Generic[T]):
     # Стандартные подкаталоги для поиска
     STANDARD_SUBDIRS = ['skills', 'services', 'contracts', 'behaviors', 'sql_generation']
 
-    def __init__(self, storage_dir: Path):
+    def __init__(self, storage_dir: Path, event_bus=None):
         """
         Инициализация хранилища.
 
         ARGS:
         - storage_dir: директория для хранения
+        - event_bus: шина событий для логирования (опционально)
         """
         self.storage_dir = storage_dir.resolve()
         self._validate_directory()
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.logger.info(f"{self.__class__.__name__} инициализировано: {self.storage_dir}")
+        
+        # Инициализация логгера
+        if event_bus is not None:
+            from core.infrastructure.logging import EventBusLogger
+            self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component=self.__class__.__name__)
+            self._use_event_logging = True
+        else:
+            import logging
+            self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+            self._use_event_logging = False
+        
+        self._log_info(f"{self.__class__.__name__} инициализировано: {self.storage_dir}")
+
+    def _log_info(self, message: str, *args, **kwargs):
+        """Информационное сообщение."""
+        if self._use_event_logging:
+            self.logger.info_sync(message, *args, **kwargs)
+        else:
+            self.logger.info(message, *args, **kwargs)
+
+    def _log_warning(self, message: str, *args, **kwargs):
+        """Предупреждение."""
+        if self._use_event_logging:
+            self.logger.warning_sync(message, *args, **kwargs)
+        else:
+            self.logger.warning(message, *args, **kwargs)
+
+    def _log_error(self, message: str, *args, **kwargs):
+        """Ошибка."""
+        if self._use_event_logging:
+            self.logger.error_sync(message, *args, **kwargs)
+        else:
+            self.logger.error(message, *args, **kwargs)
 
     def _validate_directory(self) -> None:
         """Валидация директории хранилища."""

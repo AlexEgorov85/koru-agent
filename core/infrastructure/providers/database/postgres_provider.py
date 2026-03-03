@@ -3,7 +3,6 @@
 Использует asyncpg для асинхронной работы с PostgreSQL.
 """
 import asyncio
-import logging
 import time
 from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
@@ -12,9 +11,6 @@ import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
-
-
-logger = logging.getLogger(__name__)
 
 
 class PostgreSQLProvider(BaseDBProvider):
@@ -31,27 +27,28 @@ class PostgreSQLProvider(BaseDBProvider):
         super().__init__(config)
         self.pool = None
         self._lock = asyncio.Lock()
-
-        # Инициализация event_bus_logger
-        try:
-            from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-            from core.infrastructure.logging import EventBusLogger
-            event_bus = get_event_bus()
-            self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", f"PostgreSQL:{self.config.database}")
-            self.event_bus_logger.info_sync(f"Инициализация PostgreSQL провайдера для базы: {self.config.database}")
-        except:
-            self.event_bus_logger = type('obj', (object,), {
-                'info': lambda *args, **kwargs: None,
-                'debug': lambda *args, **kwargs: None,
-                'warning': lambda *args, **kwargs: None,
-                'error': lambda *args, **kwargs: None
-            })()
+        # event_bus_logger инициализируется в BaseProvider.initialize()
 
     async def initialize(self) -> bool:
         """
         Асинхронная инициализация пула соединений.
         """
         try:
+            # Инициализация event_bus_logger если ещё не создан
+            if self.event_bus_logger is None:
+                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+                from core.infrastructure.logging import EventBusLogger
+                try:
+                    event_bus = get_event_bus()
+                    self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", self.name)
+                except:
+                    self.event_bus_logger = type('obj', (object,), {
+                        'info': lambda *args, **kwargs: None,
+                        'debug': lambda *args, **kwargs: None,
+                        'warning': lambda *args, **kwargs: None,
+                        'error': lambda *args, **kwargs: None
+                    })()
+            
             await self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
             start_time = time.time()
 
@@ -87,7 +84,7 @@ class PostgreSQLProvider(BaseDBProvider):
             return True
 
         except Exception as e:
-            logger.exception(f"Ошибка инициализации PostgreSQL провайдера: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка инициализации PostgreSQL провайдера: {str(e)}")
             self.health_status = DBHealthStatus.UNHEALTHY
             return False
 
@@ -164,10 +161,9 @@ class PostgreSQLProvider(BaseDBProvider):
         try:
             async with self.pool.acquire() as conn:
                 # Логируем запрос при необходимости
-                if logger.isEnabledFor(logging.DEBUG):
-                    self.event_bus_logger.debug(f"Executing query: {query}")
-                    if params:
-                        self.event_bus_logger.debug(f"Query params: {params}")
+                await self.event_bus_logger.debug(f"Executing query: {query}")
+                if params:
+                    await self.event_bus_logger.debug(f"Query params: {params}")
 
                 # Выполняем запрос
                 if params:
@@ -207,10 +203,9 @@ class PostgreSQLProvider(BaseDBProvider):
         try:
             async with self.pool.acquire() as conn:
                 # Логируем запрос при необходимости
-                if logger.isEnabledFor(logging.DEBUG):
-                    self.event_bus_logger.debug(f"Executing query: {query}")
-                    if params:
-                        self.event_bus_logger.debug(f"Query params: {params}")
+                await self.event_bus_logger.debug(f"Executing query: {query}")
+                if params:
+                    await self.event_bus_logger.debug(f"Query params: {params}")
 
                 # Выполняем запрос
                 if params:
