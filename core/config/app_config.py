@@ -363,14 +363,6 @@ class AppConfig(BaseModel):
                 parameters={},
                 dependencies=[]
             )
-        if 'contract_service' not in service_configs:
-            service_configs['contract_service'] = ComponentConfig(
-                variant_id=f"contract_service_{profile}",
-                side_effects_enabled=(profile == "prod"),
-                detailed_metrics=False,
-                parameters={},
-                dependencies=[]
-            )
         if 'file_tool' not in tool_configs:
             tool_configs['file_tool'] = ComponentConfig(
                 variant_id=f"file_tool_{profile}",
