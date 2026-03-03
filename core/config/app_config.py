@@ -243,6 +243,17 @@ class AppConfig(BaseModel):
         # Собираем уникальные префиксы из промптов и контрактов
         # Для каждого компонента собираем его промпты и контракты
         component_resources: Dict[str, Dict[str, Dict[str, str]]] = {}  # {component_name: {type: {capability: version}}}
+        
+        # Маппинг префиксов capability на правильные имена сервисов
+        # Нужно потому что некоторые сервисы имеют суффикс _service, а capability нет
+        service_name_map = {
+            'sql_generation': 'sql_generation_service',
+            'sql_query': 'sql_query_service',
+            'sql_validator': 'sql_validator_service',
+            'table_description': 'table_description_service',
+            'contract': 'contract_service',
+            'prompt': 'prompt_service',
+        }
 
         for prompt in prompts:
             if prompt.status.value != 'active':
@@ -260,6 +271,9 @@ class AppConfig(BaseModel):
                     # Для behavior используем имя из parts[1] + '_pattern' (например, 'react' -> 'react_pattern')
                     if comp_type == 'behavior':
                         component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
+                    elif comp_type == 'service':
+                        # Используем маппинг для сервисов
+                        component_name = service_name_map.get(prefix, prefix)
                     else:
                         component_name = prefix
 
