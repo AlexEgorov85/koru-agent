@@ -356,11 +356,14 @@ class FileLogHandler:
         self.config = config or get_logging_config().file
         self.formatter = FileLogFormatter(self.config)
         self._enabled = True
-        
+
         # Хранилище ротационных обработчиков
         self._handlers: Dict[str, RotatingFileHandler] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
         
+        # Хранилище времени старта сессии для формирования имени папки
+        self._session_start_times: Dict[str, datetime] = {}
+
         # Создание директорий
         self._ensure_dirs()
     
@@ -375,19 +378,30 @@ class FileLogHandler:
     def _get_handler(self, session_id: str = "common") -> RotatingFileHandler:
         """Получение или создание ротационного обработчика."""
         if session_id not in self._handlers:
+            # Сохраняем время старта сессии (первый лог)
+            if session_id not in self._session_start_times:
+                self._session_start_times[session_id] = datetime.now()
+            
+            start_time = self._session_start_times[session_id]
+            
             # Определение пути к файлу
             if self.config.organize_by_session and session_id != "common":
-                log_dir = self.config.base_dir / "sessions" / session_id
+                # Новый формат: logs/sessions/{date}_{time}_{session_id}/session.log
+                date_str = start_time.strftime("%Y-%m-%d")
+                time_str = start_time.strftime("%H-%M-%S")
+                dir_name = f"{date_str}_{time_str}_{session_id}"
+                log_dir = self.config.base_dir / "sessions" / dir_name
+                file_name = self.config.session_log_name  # session.log
             else:
                 log_dir = self.config.base_dir / "common"
             
             log_dir.mkdir(parents=True, exist_ok=True)
             
             if self.config.organize_by_date:
-                date_str = datetime.now().strftime("%Y-%m-%d")
-                file_name = f"{date_str}_{self.config.session_log_name if session_id != 'common' else self.config.common_log_name}"
+                date_str = start_time.strftime("%Y-%m-%d")
+                file_name = f"{date_str}_{self.config.common_log_name}"
             else:
-                file_name = self.config.session_log_name if session_id != "common" else self.config.common_log_name
+                file_name = self.config.common_log_name
             
             file_path = log_dir / file_name
             
