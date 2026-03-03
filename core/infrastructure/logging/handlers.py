@@ -60,45 +60,65 @@ class LogColors:
 class TerminalLogFormatter:
     """
     Форматировщик сообщений для терминала.
-    
+
     Поддерживает несколько форматов:
     - SIMPLE: [INFO] message
     - DETAILED: [2024-01-01 12:00:00] [INFO] [component] message
     - COLORED: с цветами и иконками
     """
-    
+
     # Иконки для типов событий
     TYPE_ICONS = {
         "log.info": "ℹ️",
-        "log.debug": "🔍",
+        "log.debug": "🔹",
         "log.warning": "⚠️",
         "log.error": "❌",
         "llm.call.start": "🔄",
+        "llm.call.progress": "⏳",
         "llm.call.success": "✅",
+        "llm.call.retry": "🔁",
+        "llm.call.timeout": "⏱️",
         "llm.call.error": "❌",
         "reasoning.start": "🧠",
         "reasoning.complete": "💡",
+        "reasoning.error": "🔥",
+        "context.analysis": "📊",
+        "capability.register": "🔧",
         "decision.made": "🎯",
+        "decision.validation": "✔️",
         "agent.start": "🤖",
         "agent.complete": "🏁",
         "agent.error": "💥",
+        "session.start": "🚀",
+        "session.complete": "✅",
+        "session.failed": "❌",
     }
-    
+
     TYPE_COLORS = {
         "llm.call.start": LogColors.LLM,
+        "llm.call.progress": LogColors.LLM,
         "llm.call.success": LogColors.SUCCESS,
+        "llm.call.retry": LogColors.WARNING,
+        "llm.call.timeout": LogColors.ERROR,
         "llm.call.error": LogColors.ERROR,
         "reasoning.start": LogColors.REASONING,
         "reasoning.complete": LogColors.SUCCESS,
+        "reasoning.error": LogColors.ERROR,
         "decision.made": LogColors.DECISION,
+        "decision.validation": LogColors.DECISION,
+        "capability.register": LogColors.CAPABILITY,
         "agent.start": LogColors.AGENT,
         "agent.complete": LogColors.SUCCESS,
         "agent.error": LogColors.ERROR,
+        "session.start": LogColors.INFO,
+        "session.complete": LogColors.SUCCESS,
+        "session.failed": LogColors.ERROR,
     }
     
     def __init__(self, config: TerminalOutputConfig):
         self.config = config
         self._use_colors = config.format == LogFormat.COLORED
+        self._message_count = 0
     
     def format(self, event: Event) -> Optional[str]:
         """
@@ -177,42 +197,63 @@ class TerminalLogFormatter:
         return " ".join(parts)
     
     def _format_colored(self, event: Event, data: Dict, message_type: str, level: str) -> str:
-        """Цветной формат с иконками."""
+        """Цветной формат с иконками и структурой."""
         c = LogColors
-        
+
         # Иконка и цвет
         icon = self.TYPE_ICONS.get(message_type, "•")
         color = self.TYPE_COLORS.get(message_type, self._get_level_color(level))
-        
+
         message = data.get("message", str(event.data)) if event.data else str(event)
         component = data.get("component", "") if event.data else ""
         session_id = data.get("session_id", "") if event.data else ""
         agent_id = data.get("agent_id", "") if event.data else ""
-        
+
         lines = []
-        
+
+        # Разделитель между сообщениями (не перед первым)
+        if hasattr(self, '_message_count') and self._message_count > 0:
+            lines.append(f"{c.DIM}{'─' * 70}{c.RESET}")
+        else:
+            self._message_count = 0
+
         # Заголовок с типом сообщения
         if self._use_colors:
             header = f"{color}{c.BOLD}[{icon} {message_type}]{c.RESET}"
         else:
             header = f"[{icon} {message_type}]"
-        
+
         lines.append(header)
-        lines.append(f"  {c.DIM}└─{c.RESET} {message}")
         
-        # Контекст
+        # Основное сообщение с отступом
+        lines.append(f"  {c.DIM}└─{c.RESET} {message}")
+
+        # Контекст (session, agent, component)
         context_parts = []
         if self.config.show_session_info:
             if session_id and session_id != "system":
-                context_parts.append(f"session={session_id}")
+                context_parts.append(f"session={session_id[:8]}...")
             if agent_id and agent_id != "system":
                 context_parts.append(f"agent={agent_id}")
         if self.config.show_source and component:
             context_parts.append(f"component={component}")
-        
+
         if context_parts:
             lines.append(f"  {c.DIM}└─{c.RESET} {c.DIM}{' | '.join(context_parts)}{c.RESET}")
+
+        # Дополнительные данные (ограничиваем количество)
+        extra_data = {k: v for k, v in (data.items() if data else []) 
+                     if k not in ["message", "level", "session_id", "agent_id", "component", "type"]}
         
+        if extra_data and self.config.show_debug:
+            for i, (key, value) in enumerate(extra_data.items()):
+                str_value = str(value)
+                if len(str_value) > 80:
+                    str_value = str_value[:77] + "..."
+                prefix = "   " if i == 0 else "  "
+                lines.append(f"{prefix}{c.DIM}└─{c.RESET} {c.DIM}{key}:{c.RESET} {str_value}")
+
+        self._message_count += 1
         return "\n".join(lines)
     
     def _get_level_color(self, level: str) -> str:

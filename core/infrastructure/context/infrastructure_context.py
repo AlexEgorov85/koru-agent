@@ -113,7 +113,7 @@ class InfrastructureContext:
                 format=LogFormat.COLORED,
                 show_debug=False,
                 show_source=True,
-                show_session_info=False,
+                show_session_info=True,  # Показывать session_id и agent_id
             ),
             file=FileOutputConfig(
                 enabled=True,
