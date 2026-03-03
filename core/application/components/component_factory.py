@@ -141,7 +141,7 @@ class ComponentFactory:
             elif name == "table_description_service":
                 from core.application.services.table_description_service import TableDescriptionService
                 return TableDescriptionService
-            elif name == "sql_generation_service" or name == "sql_generation":
+            elif name == "sql_generation_service":
                 from core.application.services.sql_generation.service import SQLGenerationService
                 return SQLGenerationService
             elif name == "sql_query_service":
@@ -150,9 +150,6 @@ class ComponentFactory:
             elif name == "sql_validator_service":
                 from core.application.services.sql_validator.service import SQLValidatorService
                 return SQLValidatorService
-            elif name == "sql_query_service":
-                from core.application.services.sql_query.service import SQLQueryService
-                return SQLQueryService
             else:
                 # Попробуем динамический импорт
                 module_name = f"core.application.services.{name.replace('_', '')}_service"
