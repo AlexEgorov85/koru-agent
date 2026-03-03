@@ -41,8 +41,9 @@ class BehaviorManager:
             if event_bus:
                 self.event_bus_logger = EventBusLogger(
                     event_bus=event_bus,
-                    source=self.__class__.__name__,
-                    correlation_id='behavior_manager'
+                    session_id="system",
+                    agent_id="system",
+                    component=self.__class__.__name__
                 )
 
     async def initialize(self, component_name: str = None):
