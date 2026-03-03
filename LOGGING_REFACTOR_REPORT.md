@@ -260,3 +260,43 @@ python -c "from core.infrastructure.logging.event_bus_log_handler import EventBu
 - ✅ **Предсказуемая** - четкое разделение ответственности
 - ✅ **Гибкая** - настройки терминала и файлов
 - ✅ **Чистая** - удалено 34KB дублирующегося кода
+- ✅ **Рабочая** - обработчики активны и записывают логи
+
+## Как включить новую систему
+
+Новая система **автоматически активируется** при инициализации `InfrastructureContext`:
+
+```python
+# В core/infrastructure/context/infrastructure_context.py
+async def initialize(self) -> bool:
+    # 1. Создание EventBus
+    self.event_bus = UnifiedEventBus()
+    
+    # 2. Настройка обработчиков (терминал + файлы)
+    log_config = LoggingConfig(
+        terminal=TerminalOutputConfig(
+            level=LogLevel.INFO,      # INFO и выше в терминал
+            format=LogFormat.COLORED, # С цветами и иконками
+            show_debug=False,         # DEBUG скрыт
+        ),
+        file=FileOutputConfig(
+            level=LogLevel.DEBUG,     # Всё в файлы
+            format=LogFormat.JSONL,   # JSON Lines
+        )
+    )
+    self.terminal_handler, self.file_handler = setup_logging(self.event_bus, log_config)
+    
+    # 3. Создание EventBusLogger (ПОСЛЕ обработчиков!)
+    self.event_bus_logger = EventBusLogger(...)
+```
+
+### Проверка работы
+
+```bash
+# Запустить тест
+python test_new_logging.py
+
+# Проверить файлы
+dir logs_test\sessions\test_session_001
+type logs_test\sessions\test_session_001\*.log
+```
