@@ -50,12 +50,12 @@ class SQLGenerationService(BaseService):
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
 
-    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation_service", component_config=None, executor=None):
+    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
             component_config = ComponentConfig(
-                variant_id="sql_generation_service_default",
+                variant_id="sql_generation_default",
                 prompt_versions={},
                 input_contract_versions={},
                 output_contract_versions={}

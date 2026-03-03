@@ -247,7 +247,6 @@ class AppConfig(BaseModel):
         # Маппинг префиксов capability на правильные имена сервисов
         # Нужно потому что некоторые сервисы имеют суффикс _service, а capability нет
         service_name_map = {
-            'sql_generation': 'sql_generation_service',
             'sql_query': 'sql_query_service',
             'sql_validator': 'sql_validator_service',
             'table_description': 'table_description_service',
@@ -388,9 +387,9 @@ class AppConfig(BaseModel):
                 parameters={},
                 dependencies=[]
             )
-        if 'sql_generation_service' not in service_configs:
-            service_configs['sql_generation_service'] = ComponentConfig(
-                variant_id=f"sql_generation_service_{profile}",
+        if 'sql_generation' not in service_configs:
+            service_configs['sql_generation'] = ComponentConfig(
+                variant_id=f"sql_generation_{profile}",
                 side_effects_enabled=(profile == "prod"),
                 detailed_metrics=False,
                 parameters={},

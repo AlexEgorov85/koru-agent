@@ -36,7 +36,7 @@ class SQLQueryService(BaseService):
     """
     
     # Зависимости в правильном порядке
-    DEPENDENCIES = ["sql_validator_service", "sql_generation_service"]  # Зависит от валидатора и генератора
+    DEPENDENCIES = ["sql_validator_service", "sql_generation"]  # Зависит от валидатора и генератора
 
     @property
     def description(self) -> str:
@@ -65,7 +65,7 @@ class SQLQueryService(BaseService):
         """Инициализация зависимостей"""
         try:
             # Зависимости уже загружены родительским методом
-            # Доступны через: self.sql_validator_service_instance, self.sql_generation_service_instance
+            # Доступны через: self.sql_validator_service_instance, self.sql_generation_instance
 
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(self.application_context)
@@ -76,7 +76,7 @@ class SQLQueryService(BaseService):
             # Дополнительная валидация - проверяем зависимости
             # Они должны быть установлены методом _resolve_dependencies родительского класса
             validator_service = getattr(self, 'sql_validator_service_instance', None)
-            generation_service = getattr(self, 'sql_generation_service_instance', None)
+            generation_service = getattr(self, 'sql_generation_instance', None)
 
             if not validator_service:
                 self.logger.warning("sql_validator_service не загружен, пытаемся получить напрямую")
@@ -90,15 +90,15 @@ class SQLQueryService(BaseService):
                     self._dependencies['sql_validator_service'] = validator_service
 
             if not generation_service:
-                self.logger.warning("sql_generation_service не загружен, пытаемся получить напрямую")
+                self.logger.warning("sql_generation не загружен, пытаемся получить напрямую")
                 # Попробуем получить зависимость напрямую из контекста
-                generation_service = self.application_context.get_service('sql_generation_service')
+                generation_service = self.application_context.get_service('sql_generation')
                 if generation_service:
-                    self.logger.info("sql_generation_service получен из контекста, устанавливаем вручную")
-                    setattr(self, 'sql_generation_service_instance', generation_service)
+                    self.logger.info("sql_generation получен из контекста, устанавливаем вручную")
+                    setattr(self, 'sql_generation_instance', generation_service)
                     if not hasattr(self, '_dependencies'):
                         self._dependencies = {}
-                    self._dependencies['sql_generation_service'] = generation_service
+                    self._dependencies['sql_generation'] = generation_service
 
             self.logger.info("SQLQueryService успешно инициализирован")
             return True
@@ -271,7 +271,7 @@ class SQLQueryService(BaseService):
         """
         try:
             # Получаем SQLGenerationService для генерации безопасного запроса
-            sql_gen_service = self.application_context.get_service("sql_generation_service")
+            sql_gen_service = self.application_context.get_service("sql_generation")
 
             if not sql_gen_service:
                 return DBQueryResult(

@@ -141,7 +141,7 @@ class ComponentFactory:
             elif name == "table_description_service":
                 from core.application.services.table_description_service import TableDescriptionService
                 return TableDescriptionService
-            elif name == "sql_generation_service":
+            elif name == "sql_generation":
                 from core.application.services.sql_generation.service import SQLGenerationService
                 return SQLGenerationService
             elif name == "sql_query_service":

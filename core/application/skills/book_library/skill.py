@@ -58,7 +58,7 @@ class BookLibrarySkill(BaseComponent):
     """
 
     # Явная декларация зависимостей
-    DEPENDENCIES = ["sql_tool", "sql_generation_service", "sql_query_service", "table_description_service"]
+    DEPENDENCIES = ["sql_tool", "sql_generation", "sql_query_service", "table_description_service"]
 
     def __init__(
         self,
@@ -219,7 +219,7 @@ class BookLibrarySkill(BaseComponent):
                 metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
             )
 
-        # 3. Генерация SQL через sql_generation_service
+        # 3. Генерация SQL через sql_generation
         sql_query = ""
         try:
             exec_context = ExecutionResult  # type: ignore
