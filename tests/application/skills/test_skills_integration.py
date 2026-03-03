@@ -13,7 +13,7 @@ from core.models.data.capability import Capability
 from core.session_context.session_context import SessionContext
 from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.event_bus.event_bus import EventBus
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 # ============================================================================

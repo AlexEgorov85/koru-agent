@@ -23,7 +23,8 @@ from core.infrastructure.log_storage import FileSystemLogStorage
 def temp_storage():
     """Фикстура для временного хранилища"""
     temp_dir = tempfile.mkdtemp()
-    storage = FileSystemLogStorage(base_dir=Path(temp_dir))
+    # Отключаем буферизацию для тестов, чтобы запись была синхронной
+    storage = FileSystemLogStorage(base_dir=Path(temp_dir), use_buffering=False)
     yield storage
     shutil.rmtree(temp_dir, ignore_errors=True)
 
