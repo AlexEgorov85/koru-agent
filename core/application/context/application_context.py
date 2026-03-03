@@ -152,7 +152,12 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self, 'infrastructure_context') and self.infrastructure_context:
             event_bus = getattr(self.infrastructure_context, 'event_bus', None)
             if event_bus:
-                self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+                self.event_bus_logger = EventBusLogger(
+                    event_bus,
+                    session_id=str(self.infrastructure_context.id),
+                    agent_id="system",
+                    component=self.__class__.__name__
+                )
 
     def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
         """
