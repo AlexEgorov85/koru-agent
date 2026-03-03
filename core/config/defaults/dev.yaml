@@ -17,7 +17,7 @@ llm_providers:
     fallback_providers: []
     timeout_seconds: 300.0  # 5 минут для LLM вызовов
     parameters:
-      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
+      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3.5-4B-Q4_K_M.gguf"
       n_ctx: 20048
       n_gpu_layers: 0
       n_batch: 512

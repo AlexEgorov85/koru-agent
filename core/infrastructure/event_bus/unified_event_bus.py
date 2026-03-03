@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE_MAX_SIZE = 1000
 DEFAULT_WORKER_IDLE_TIMEOUT = 60.0
-DEFAULT_SUBSCRIBER_TIMEOUT = 30.0  # Таймаут подписчиков (LLM timeout настраивается отдельно)
+DEFAULT_SUBSCRIBER_TIMEOUT = 60.0  # Таймаут подписчиков (LLM timeout настраивается отдельно)
 SYSTEM_SESSION_ID = "system"  # Единая системная сессия для всех событий без session_id
 
 

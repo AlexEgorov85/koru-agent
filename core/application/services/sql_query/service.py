@@ -73,33 +73,6 @@ class SQLQueryService(BaseService):
                 self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
-            # Дополнительная валидация - проверяем зависимости
-            # Они должны быть установлены методом _resolve_dependencies родительского класса
-            validator_service = getattr(self, 'sql_validator_service_instance', None)
-            generation_service = getattr(self, 'sql_generation_instance', None)
-
-            if not validator_service:
-                self.logger.warning("sql_validator_service не загружен, пытаемся получить напрямую")
-                # Попробуем получить зависимость напрямую из контекста
-                validator_service = self.application_context.get_service('sql_validator_service')
-                if validator_service:
-                    self.logger.info("sql_validator_service получен из контекста, устанавливаем вручную")
-                    setattr(self, 'sql_validator_service_instance', validator_service)
-                    if not hasattr(self, '_dependencies'):
-                        self._dependencies = {}
-                    self._dependencies['sql_validator_service'] = validator_service
-
-            if not generation_service:
-                self.logger.warning("sql_generation не загружен, пытаемся получить напрямую")
-                # Попробуем получить зависимость напрямую из контекста
-                generation_service = self.application_context.get_service('sql_generation')
-                if generation_service:
-                    self.logger.info("sql_generation получен из контекста, устанавливаем вручную")
-                    setattr(self, 'sql_generation_instance', generation_service)
-                    if not hasattr(self, '_dependencies'):
-                        self._dependencies = {}
-                    self._dependencies['sql_generation'] = generation_service
-
             self.logger.info("SQLQueryService успешно инициализирован")
             return True
         except Exception as e:
