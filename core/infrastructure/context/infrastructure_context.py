@@ -104,6 +104,7 @@ class InfrastructureContext:
         await self._log_event_bus_info("UnifiedEventBus")
 
         # Инициализация обработчиков логирования (терминал + файлы)
+        # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
         from core.infrastructure.logging import setup_logging, LoggingConfig, TerminalOutputConfig, FileOutputConfig, LogLevel, LogFormat
         log_config = LoggingConfig(
             terminal=TerminalOutputConfig(
@@ -123,9 +124,8 @@ class InfrastructureContext:
             )
         )
         self.terminal_handler, self.file_handler = setup_logging(self.event_bus, log_config)
-        await self.event_bus_logger.info("Обработчики логирования инициализированы")
 
-        # Инициализация event_bus_logger после создания event_bus
+        # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
         self.event_bus_logger = EventBusLogger(
             self.event_bus,
@@ -133,6 +133,8 @@ class InfrastructureContext:
             agent_id="infrastructure",
             component="InfrastructureContext"
         )
+        
+        await self.event_bus_logger.info("Обработчики логирования инициализированы")
 
         # Инициализация менеджера жизненного цикла (нужен event_bus)
         self.lifecycle_manager = LifecycleManager(self.event_bus)

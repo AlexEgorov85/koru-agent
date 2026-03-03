@@ -28,6 +28,7 @@ from core.infrastructure.logging.config import (
     LogLevel,
     LogFormat,
     get_logging_config,
+    configure_logging,
 )
 
 
@@ -125,31 +126,36 @@ class TerminalLogFormatter:
     def _should_log(self, event: Event, message_type: str, level: str) -> bool:
         """Проверка фильтров конфигурации."""
         # Проверка уровня логирования
-        level_priority = {
-            "DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4
+        level_map = {
+            "DEBUG": 10,
+            "INFO": 20,
+            "WARNING": 30,
+            "ERROR": 40,
+            "CRITICAL": 50,
         }
-        min_level = self.config.level.value
-        msg_level = level_priority.get(level.upper(), 1)
+        msg_level = level_map.get(level.upper(), 20)  # По умолчанию INFO
+        min_level = self.config.level.value  # LogLevel enum value (10, 20, 30, etc.)
+        
         if msg_level < min_level:
             return False
-        
+
         # Проверка show_debug
         if not self.config.show_debug and message_type == "log.debug":
             return False
-        
+
         # Проверка фильтров компонентов
         component = event.data.get("component", "") if event.data else ""
         if self.config.include_components and component not in self.config.include_components:
             return False
         if self.config.exclude_components and component in self.config.exclude_components:
             return False
-        
+
         # Проверка фильтров типов событий
         if self.config.include_event_types and message_type not in self.config.include_event_types:
             return False
         if self.config.exclude_event_types and message_type in self.config.exclude_event_types:
             return False
-        
+
         return True
     
     def _format_simple(self, event: Event, data: Dict, level: str) -> str:
@@ -385,13 +391,13 @@ class FileLogHandler:
             
             file_path = log_dir / file_name
             
-            # Создание ротационного обработчика
+            # Создание ротационного обработчика (без delay=True чтобы сразу открыть файл)
             handler = RotatingFileHandler(
                 file_path,
                 maxBytes=self.config.max_file_size_mb * 1024 * 1024,
                 backupCount=self.config.backup_count,
                 encoding='utf-8',
-                delay=True
+                delay=False  # Открываем файл сразу
             )
             handler.setLevel(self.config.level.value)
             
@@ -404,34 +410,43 @@ class FileLogHandler:
         """Обработчик событий логирования для записи в файл."""
         if not self._enabled:
             return
-        
+
         # Проверка уровня логирования
         data = event.data or {}
         level = data.get("level", "INFO")
-        level_priority = {
-            "DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4
+        
+        # Преобразование уровня логирования в число для сравнения
+        level_map = {
+            "DEBUG": 10,
+            "INFO": 20,
+            "WARNING": 30,
+            "ERROR": 40,
+            "CRITICAL": 50,
         }
-        min_level = self.config.level.value
-        msg_level = level_priority.get(level.upper(), 1)
+        msg_level = level_map.get(level.upper(), 20)  # По умолчанию INFO
+        min_level = self.config.level.value  # LogLevel enum value (10, 20, 30, etc.)
+        
         if msg_level < min_level:
             return
-        
+
         # Получение session_id
         session_id = data.get("session_id", "common") or "common"
-        
+
         # Получение обработчика
         handler = self._get_handler(session_id)
         lock = self._locks.get(session_id)
+
+        # Форматирование сообщения
+        formatted = self.formatter.format(event)
         
+        # Запись в файл (используем stream вместо write)
         if lock:
             async with lock:
-                formatted = self.formatter.format(event)
-                handler.write(formatted + "\n")
-                handler.flush()
+                handler.stream.write(formatted + "\n")
+                handler.stream.flush()
         else:
-            formatted = self.formatter.format(event)
-            handler.write(formatted + "\n")
-            handler.flush()
+            handler.stream.write(formatted + "\n")
+            handler.stream.flush()
     
     def subscribe(self) -> None:
         """Подписаться на события логирования."""
