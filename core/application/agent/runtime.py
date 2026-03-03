@@ -141,8 +141,9 @@ class AgentRuntime:
             if event_bus:
                 self.event_bus_logger = EventBusLogger(
                     event_bus=event_bus,
-                    source=self.__class__.__name__,
-                    correlation_id=self.correlation_id
+                    session_id="system",
+                    agent_id="system",
+                    component=self.__class__.__name__
                 )
 
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
