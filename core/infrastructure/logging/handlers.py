@@ -36,6 +36,59 @@ from core.infrastructure.logging.config import (
 # TERMINAL HANDLER
 # =============================================================================
 
+class LoggingToEventBusHandler(logging.Handler):
+    """
+    Перехватывает стандартные logging записи и публикует их в EventBus.
+    
+    Это позволяет использовать новую систему логирования для ВСЕХ логов,
+    включая те, что идут через logging.getLogger().info() и т.д.
+    """
+    
+    def __init__(self, event_bus):
+        super().__init__()
+        self.event_bus = event_bus
+        self.setFormatter(logging.Formatter('%(message)s'))
+    
+    def emit(self, record: logging.LogRecord):
+        """Публикация записи логирования в EventBus."""
+        try:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            
+            # Маппинг уровней logging на уровни EventBus
+            level_map = {
+                logging.DEBUG: "log.debug",
+                logging.INFO: "log.info",
+                logging.WARNING: "log.warning",
+                logging.ERROR: "log.error",
+                logging.CRITICAL: "log.error",
+            }
+            
+            event_type_str = level_map.get(record.levelno, "log.info")
+            event_type = {
+                "log.debug": EventType.LOG_DEBUG,
+                "log.info": EventType.LOG_INFO,
+                "log.warning": EventType.LOG_WARNING,
+                "log.error": EventType.LOG_ERROR,
+            }.get(event_type_str, EventType.LOG_INFO)
+            
+            # Формируем данные события
+            data = {
+                "message": self.format(record),
+                "level": record.levelname,
+                "component": record.name,
+                "logger_name": record.name,
+            }
+            
+            # Публикуем событие (без await, через create_task)
+            import asyncio
+            asyncio.create_task(
+                self.event_bus.publish(event_type, data=data, source=record.name)
+            )
+            
+        except Exception:
+            self.handleError(record)
+
+
 class LogColors:
     """ANSI цвета для форматирования вывода в терминал."""
     RESET = "\033[0m"
@@ -533,30 +586,39 @@ class FileLogHandler:
 def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = None) -> tuple:
     """
     Настройка системы логирования.
-    
+
     USAGE:
         config = LoggingConfig(
             terminal=TerminalOutputConfig(level=LogLevel.INFO, format=LogFormat.COLORED),
             file=FileOutputConfig(level=LogLevel.DEBUG, format=LogFormat.JSONL)
         )
         terminal_handler, file_handler = setup_logging(event_bus, config)
-    
+
     ARGS:
         event_bus: Шина событий
         config: Конфигурация (опционально)
-    
+
     RETURNS:
         (TerminalLogHandler, FileLogHandler) для управления
     """
     if config:
         configure_logging(config)
-    
+
     terminal_handler = TerminalLogHandler(event_bus)
     file_handler = FileLogHandler(event_bus)
-    
+
     terminal_handler.subscribe()
     file_handler.subscribe()
     
+    # Перехват стандартного logging и направление в EventBus
+    event_bus_logging_handler = LoggingToEventBusHandler(event_bus)
+    event_bus_logging_handler.setLevel(logging.DEBUG)
+    
+    # Устанавливаем обработчик на корневой логгер
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(event_bus_logging_handler)
+
     return terminal_handler, file_handler
 
 
