@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class CapabilityRegistry:

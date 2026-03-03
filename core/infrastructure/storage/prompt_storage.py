@@ -13,7 +13,7 @@ from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
 from core.models.enums.common_enums import ComponentType
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class PromptStorage(VersionedStorage[Prompt], IPromptStorage):

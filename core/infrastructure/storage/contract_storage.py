@@ -12,7 +12,7 @@ from core.models.data.contract import Contract
 from core.models.errors.version_not_found import VersionNotFoundError
 from core.infrastructure.interfaces.storage_interfaces import IContractStorage, ComponentType
 from core.infrastructure.storage.base.versioned_storage import VersionedStorage
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class ContractStorage(VersionedStorage[Contract], IContractStorage):

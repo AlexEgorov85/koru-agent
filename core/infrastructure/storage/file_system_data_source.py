@@ -12,7 +12,7 @@ from core.config.models import ComponentType, RegistryConfig
 import yaml
 import re
 import json
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class FileSystemDataSource(ResourceDataSource):

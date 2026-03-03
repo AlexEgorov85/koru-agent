@@ -5,7 +5,7 @@ import logging
 from typing import List, Callable, Awaitable, Any, Optional
 from contextlib import asynccontextmanager
 
-from core.infrastructure.event_bus.unified_logger import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 
 

@@ -103,8 +103,30 @@ class InfrastructureContext:
         self.event_bus = UnifiedEventBus()
         await self._log_event_bus_info("UnifiedEventBus")
 
+        # Инициализация обработчиков логирования (терминал + файлы)
+        from core.infrastructure.logging import setup_logging, LoggingConfig, TerminalOutputConfig, FileOutputConfig, LogLevel, LogFormat
+        log_config = LoggingConfig(
+            terminal=TerminalOutputConfig(
+                enabled=True,
+                level=LogLevel.INFO,
+                format=LogFormat.COLORED,
+                show_debug=False,
+                show_source=True,
+                show_session_info=False,
+            ),
+            file=FileOutputConfig(
+                enabled=True,
+                level=LogLevel.DEBUG,
+                format=LogFormat.JSONL,
+                max_file_size_mb=100,
+                backup_count=10,
+            )
+        )
+        self.terminal_handler, self.file_handler = setup_logging(self.event_bus, log_config)
+        await self.event_bus_logger.info("Обработчики логирования инициализированы")
+
         # Инициализация event_bus_logger после создания event_bus
-        from core.infrastructure.event_bus.unified_logger import EventBusLogger
+        from core.infrastructure.logging import EventBusLogger
         self.event_bus_logger = EventBusLogger(
             self.event_bus,
             session_id=self.id,
@@ -641,5 +663,11 @@ class InfrastructureContext:
         if self.lifecycle_manager:
             await self.lifecycle_manager.cleanup_all()
 
+        # Закрытие обработчиков логирования
+        if hasattr(self, 'file_handler') and self.file_handler:
+            from core.infrastructure.logging import shutdown_logging
+            shutdown_logging(self.file_handler)
+            await self.event_bus_logger.info("Обработчики логирования закрыты")
+
         self._initialized = False
-        await self.event_bus_logger.info("InfrastructureContext завершил работу")
+        await self.event_bus_logger.info("InfrastructureContext завершен")

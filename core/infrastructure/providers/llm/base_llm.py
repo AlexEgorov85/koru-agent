@@ -78,8 +78,8 @@ class BaseLLMProvider(BaseProvider, ABC):
             f"Temperature: {request.temperature}"
         )
 
-        # DEBUG: полный промт (только в файл)
-        await self.event_bus_logger.debug(f"Промт LLM: {request.prompt[:500]}..." if len(request.prompt) > 500 else f"Промт LLM: {request.prompt}")
+        # Логирует полный промт
+        await self.event_bus_logger.info(f"Промт LLM ({len(request.prompt)} симв.): {request.prompt}")
 
     async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
         """
@@ -89,6 +89,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Длину ответа
         - Время генерации
         - Статус (успех/ошибка)
+        - Полный ответ
         """
         if response.finish_reason == "error":
             error_msg = 'unknown'
@@ -112,9 +113,9 @@ class BaseLLMProvider(BaseProvider, ABC):
                 f"Причина: {response.finish_reason}"
             )
 
-            # DEBUG: полный ответ (только в файл)
+            # Логирует полный ответ
             if response.content:
-                await self.event_bus_logger.debug(f"Ответ LLM: {response.content[:500]}..." if len(response.content) > 500 else f"Ответ LLM: {response.content}")
+                await self.event_bus_logger.info(f"Ответ LLM: {response.content}")
 
     async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
         """

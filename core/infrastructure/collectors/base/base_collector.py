@@ -14,7 +14,7 @@ import logging
 from abc import ABC
 from typing import List, Callable, Any
 
-from core.infrastructure.event_bus.unified_logger import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
 
 

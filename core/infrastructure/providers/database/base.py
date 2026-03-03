@@ -74,7 +74,7 @@ class BaseDBProvider(ABC):
         if self.event_bus_logger is None:
             try:
                 from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-                from core.infrastructure.event_bus.unified_logger import EventBusLogger
+                from core.infrastructure.logging import EventBusLogger
                 event_bus = get_event_bus()
                 self.event_bus_logger = EventBusLogger(event_bus, "system", "db_provider", "DB")
             except:
