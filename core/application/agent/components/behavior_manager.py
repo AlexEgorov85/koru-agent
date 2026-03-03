@@ -12,7 +12,7 @@ from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDe
 from core.models.data.capability import Capability
 from core.models.errors import InvalidDecisionError
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class BehaviorManager:

@@ -22,7 +22,7 @@ from core.models.enums.common_enums import ErrorCategory
 from core.models.types.llm_types import LLMRequest
 from core.application.tools.file_tool import FileToolInput
 from core.application.tools.sql_tool import SQLToolInput
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 class DataAnalysisSkill(BaseSkill):

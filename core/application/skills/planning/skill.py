@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from core.components.base_component import BaseComponent
 from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext, ActionResult
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 from core.models.data.execution import SkillResult
 
 

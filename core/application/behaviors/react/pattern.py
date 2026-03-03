@@ -78,10 +78,12 @@ class ReActPattern(BaseBehaviorPattern):
     def _init_event_bus_logger(self):
         """Инициализирует EventBusLogger когда становится доступен event_bus."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+            from core.infrastructure.logging import EventBusLogger
             self.event_bus_logger = EventBusLogger(
                 event_bus=self.application_context.infrastructure_context.event_bus,
-                source="react_pattern.think"
+                session_id="system",
+                agent_id="system",
+                component="react_pattern.think"
             )
 
     async def _log(self, level: str, message: str, **extra_data):

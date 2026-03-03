@@ -10,7 +10,7 @@ from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
-from core.infrastructure.event_bus.unified_logger import EventBusLogger, create_logger
+from core.infrastructure.logging import EventBusLogger, create_logger
 
 
 class ServiceInput(ABC):

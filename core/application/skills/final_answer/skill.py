@@ -21,7 +21,7 @@ from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
 from core.models.data.prompt import Prompt
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 logger = logging.getLogger(__name__)
 

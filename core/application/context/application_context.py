@@ -27,7 +27,7 @@ from core.application.services.contract_service import ContractService
 from core.application.context.base_system_context import BaseSystemContext
 from core.application.data_repository import DataRepository
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 from core.models.enums.common_enums import ComponentType
@@ -1046,7 +1046,7 @@ class ApplicationContext(BaseSystemContext):
                                 return False
                         
                         elif self.profile == "sandbox":
-                            # В песочнице разрешены draft + active (но не archived)
+                            # В песочнице р��зрешены draft + active (но не archived)
                             if status == "archived":
                                 self.logger.warning(
                                     f"[SANDBOX] Промпт версия {capability}@{version} архивирована"

@@ -16,7 +16,7 @@ from core.application.context.application_context import ApplicationContext
 from core.execution.gateway import ExecutionGateway
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 # Импорт компонентов из новой архитектуры
 from .components import (

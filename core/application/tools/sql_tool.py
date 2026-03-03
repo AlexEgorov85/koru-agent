@@ -15,7 +15,7 @@ from typing import Dict, Optional, Any
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 @dataclass
