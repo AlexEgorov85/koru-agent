@@ -41,7 +41,7 @@ class LogColors:
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
-    
+
     # Цвета по уровням
     INFO = "\033[36m"       # Cyan
     DEBUG = "\033[37m"      # White
@@ -49,12 +49,13 @@ class LogColors:
     ERROR = "\033[31m"      # Red
     CRITICAL = "\033[35m"   # Magenta
     SUCCESS = "\033[32m"    # Green
-    
+
     # Цвета для компонентов
     LLM = "\033[34m"        # Blue
     REASONING = "\033[38;5;39m"   # Light blue
     DECISION = "\033[38;5;208m"   # Orange
     AGENT = "\033[38;5;27m"       # Dark blue
+    CAPABILITY = "\033[38;5;148m" # Light green
 
 
 class TerminalLogFormatter:
