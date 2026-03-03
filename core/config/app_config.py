@@ -247,10 +247,10 @@ class AppConfig(BaseModel):
         # Маппинг префиксов capability на правильные имена сервисов
         # Нужно потому что некоторые сервисы имеют суффикс _service, а capability нет
         service_name_map = {
+            'contract': 'contract_service',
             'sql_query': 'sql_query_service',
             'sql_validator': 'sql_validator_service',
             'table_description': 'table_description_service',
-            'contract': 'contract_service',
             'prompt': 'prompt_service',
         }
 
