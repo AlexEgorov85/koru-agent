@@ -1,29 +1,104 @@
 """
-Unified Logging System через EventBus.
+Unified Logging System.
 
-ЭКСПОРТИРУЕТ:
+АРХИТЕКТУРА:
+┌─────────────────────────────────────────────────────────────────┐
+│                     Компоненты приложения                       │
+│  (используют EventBusLogger для публикации логов)               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │  EventBusLogger │  ← logger.py (ЕДИНЫЙ API)
+                    │  (публикация)   │
+                    └─────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │    EventBus     │
+                    └─────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+    ┌─────────────────┐ ┌───────────┐ ┌──────────────┐
+    │ TerminalHandler │ │FileHandler│ │LogCollector  │
+    │ (форматирование)│ │(ротация)  │ │(для обучения)│
+    └─────────────────┘ └───────────┘ └──────────────┘
+
+ЭКСПОРТ:
 - EventBusLogger: универсальный логгер
-- init_logging_system: инициализация
-- shutdown_logging_system: завершение
-- get_session_logger: получение логгера сессии
 - create_logger: фабрика логгеров
+- TerminalLogHandler, FileLogHandler: обработчики
+- LoggingConfig, TerminalOutputConfig, FileOutputConfig: конфигурация
+- setup_logging, shutdown_logging: управление
 """
-from core.infrastructure.event_bus.unified_logger import (
+from core.infrastructure.logging.logger import (
     EventBusLogger,
+    create_logger,
     init_logging_system,
     shutdown_logging_system,
     get_session_logger,
-    create_logger,
+    get_global_logger,
+)
+
+from core.infrastructure.logging.handlers import (
+    TerminalLogHandler,
+    FileLogHandler,
+    TerminalLogFormatter,
+    FileLogFormatter,
+    setup_logging,
+    shutdown_logging,
+)
+
+from core.infrastructure.logging.config import (
+    LoggingConfig,
+    TerminalOutputConfig,
+    FileOutputConfig,
+    LogLevel,
+    LogFormat,
+    get_logging_config,
+    configure_logging,
+    set_terminal_level,
+    set_file_level,
+    enable_debug_mode,
 )
 
 # Для обратной совместимости
+LogConfig = LoggingConfig
+get_log_config = get_logging_config
 get_log_manager = lambda: None
 
 __all__ = [
+    # Logger
     'EventBusLogger',
+    'create_logger',
     'init_logging_system',
     'shutdown_logging_system',
     'get_session_logger',
-    'create_logger',
+    'get_global_logger',
+    
+    # Handlers
+    'TerminalLogHandler',
+    'FileLogHandler',
+    'TerminalLogFormatter',
+    'FileLogFormatter',
+    'setup_logging',
+    'shutdown_logging',
+    
+    # Config
+    'LoggingConfig',
+    'TerminalOutputConfig',
+    'FileOutputConfig',
+    'LogLevel',
+    'LogFormat',
+    'get_logging_config',
+    'configure_logging',
+    'set_terminal_level',
+    'set_file_level',
+    'enable_debug_mode',
+    
+    # Backward compatibility
+    'LogConfig',
+    'get_log_config',
     'get_log_manager',
 ]
