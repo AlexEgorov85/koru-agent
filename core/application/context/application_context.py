@@ -447,13 +447,6 @@ class ApplicationContext(BaseSystemContext):
             if not await self._verify_readiness():
                 return False
 
-        # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
-        # Инициализируем компоненты в правильном порядке
-        success = await self._initialize_components_with_dependencies()
-        if not success:
-            self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
-            return False
-
         # === ЭТАП 5: Валидация готовности системы ===
         if not await self._verify_readiness():
             return False

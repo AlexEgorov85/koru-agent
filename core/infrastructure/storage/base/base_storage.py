@@ -153,14 +153,17 @@ class FileSystemStorage(Generic[T]):
         - item: элемент для добавления
         - max_items: максимальное количество элементов (None = без ограничений)
         """
-        async with self._lock:
-            existing = self._load_json_file(file_path)
-            existing.append(self._item_to_dict(item))
+        loop = asyncio.get_event_loop()
+        
+        # Чтение в executor (не блокирует event loop)
+        existing = await loop.run_in_executor(None, self._load_json_file, file_path)
+        existing.append(self._item_to_dict(item))
 
-            if max_items:
-                existing = existing[-max_items:]
+        if max_items:
+            existing = existing[-max_items:]
 
-            self._save_json_file(file_path, existing)
+        # Запись в executor (не блокирует event loop)
+        await loop.run_in_executor(None, self._save_json_file, file_path, existing)
 
     async def _load_items(self, file_path: Path) -> List[T]:
         """
