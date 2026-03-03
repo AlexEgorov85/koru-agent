@@ -24,29 +24,9 @@ MAX_STEPS = 10
 TEMPERATURE = 0.7
 
 
-def setup_logging_from_config():
-    """Настройка базового логирования для консоли."""
-    import os
-    
-    os.makedirs("logs", exist_ok=True)
-    
-    # Базовая настройка logging для консоли
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler("logs/agent.log", encoding="utf-8")
-        ]
-    )
-    
-    # Уменьшаем шум от asyncio
-    logging.getLogger("asyncio").setLevel(logging.WARNING)
-
-
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
     """Запуск агента с заданной целью."""
-    from core.infrastructure.event_bus.unified_logger import (
+    from core.infrastructure.logging import (
         init_logging_system,
         shutdown_logging_system,
         get_session_logger,
@@ -166,7 +146,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
 def main() -> int:
     """Точка входа."""
-    setup_logging_from_config()
+    # Логирование настраивается автоматически в InfrastructureContext
 
     logger = logging.getLogger("main")
 

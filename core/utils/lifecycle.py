@@ -5,7 +5,7 @@ import logging
 import asyncio
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 from abc import ABC, abstractmethod
-from core.infrastructure.logging.event_bus_log_handler import EventBusLogger
+from core.infrastructure.logging import EventBusLogger
 
 
 T = TypeVar('T')
@@ -30,7 +30,7 @@ class LifecycleManager:
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
         if event_bus:
-            self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+            self.event_bus_logger = EventBusLogger(event_bus, "system", "system", component=self.__class__.__name__)
 
     async def initialize(self, custom_init_func=None) -> bool:
         """
@@ -123,7 +123,7 @@ class DependencyResolver:
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
         if event_bus:
-            self.event_bus_logger = EventBusLogger(event_bus, source=self.__class__.__name__)
+            self.event_bus_logger = EventBusLogger(event_bus, "system", "system", component=self.__class__.__name__)
 
     async def resolve(self, dependency_names: List[str], required: bool = False) -> bool:
         """
