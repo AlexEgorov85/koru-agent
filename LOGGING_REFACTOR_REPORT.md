@@ -261,6 +261,40 @@ python -c "from core.infrastructure.logging.event_bus_log_handler import EventBu
 - ✅ **Гибкая** - настройки терминала и файлов
 - ✅ **Чистая** - удалено 34KB дублирующегося кода
 - ✅ **Рабочая** - обработчики активны и записывают логи
+- ✅ **Исправлена** - устранено дублирование сервисов
+
+## Найденные и исправленные проблемы
+
+### 1. Дублирование сервисов (архитектурная ошибка)
+
+**Проблема:**
+```python
+# component_factory.py
+elif name == "sql_generation_service" or name == "sql_generation":
+    return SQLGenerationService
+```
+
+Один сервис мог быть создан с **двумя разными именами**:
+- `sql_generation_service` (правильно, из registry.yaml)
+- `sql_generation` (capability name, неправильно)
+
+**Симптом:**
+```
+[⚠️ log.warning]
+  └─ Сервис 'sql_generation_service' уже инициализирован
+```
+
+**Решение:** Удалено `or name == "sql_generation"`
+
+### 2. Повторная инициализация
+
+**Причина:** При создании `AgentRuntime` вызывается `_init_event_bus_logger()`,
+который мог триггерить создание сервисов.
+
+**Решение:** Исправлен порядок инициализации в `InfrastructureContext`:
+1. Создание EventBus
+2. Подписка обработчиков логирования
+3. Создание EventBusLogger
 
 ## Как включить новую систему
 
