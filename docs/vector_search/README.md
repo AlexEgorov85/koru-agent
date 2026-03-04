@@ -17,7 +17,6 @@
 
 1. **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** — API документация
 2. **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** — руководство
-3. **[../../examples/vector_search_examples.py](../../examples/vector_search_examples.py)** — примеры
 
 ---
 
@@ -98,7 +97,6 @@ VectorBooksTool      ✅ 100%
 |----------|----------|
 | **[../../docs/api/vector_search_api.md](../../docs/api/vector_search_api.md)** | API документация |
 | **[../../docs/guides/vector_search.md](../../docs/guides/vector_search.md)** | Руководство пользователя |
-| **[../../examples/vector_search_examples.py](../../examples/vector_search_examples.py)** | Примеры кода |
 | **[../../CHANGELOG.md](../../CHANGELOG.md)** | История изменений |
 
 ---

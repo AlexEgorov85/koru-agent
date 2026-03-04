@@ -66,11 +66,13 @@ class SessionLogHandler:
         self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_log_event)
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log_event)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_log_event)
-        
-        # LLM события
+
+        # LLM события (оба типа!)
         self.event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self._on_llm_prompt)
         self.event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response)
-        
+        self.event_bus.subscribe(EventType.LLM_CALL_STARTED, self._on_llm_call)
+        self.event_bus.subscribe(EventType.LLM_CALL_COMPLETED, self._on_llm_call)
+
         # Метрики
         self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_metric)
 
@@ -84,6 +86,10 @@ class SessionLogHandler:
 
     async def _on_llm_response(self, event: Event):
         """Обработка LLM ответов."""
+        await self._write_to_file(self.llm_log_path, event)
+
+    async def _on_llm_call(self, event: Event):
+        """Обработка LLM вызовов (STARTED/COMPLETED)."""
         await self._write_to_file(self.llm_log_path, event)
 
     async def _on_metric(self, event: Event):

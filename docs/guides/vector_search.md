@@ -341,7 +341,6 @@ cache.storage_path.mkdir(parents=True, exist_ok=True)
 
 - [API Documentation](../api/vector_search_api.md)
 - [Architecture Decisions](../vector_search/ARCHITECTURE_DECISIONS.md)
-- [Examples](../../examples/vector_search_examples.py)
 
 ---
 
