@@ -1,0 +1,58 @@
+[
+  {
+    "agent_id": "a0812acd-8f30-4d17-b795-4b8e72fa09fd",
+    "capability": "data_analysis",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-04T09:52:26.536772",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "a0812acd-8f30-4d17-b795-4b8e72fa09fd",
+    "capability": "data_analysis",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-04T09:52:26.536772",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "e0e899cc-b88b-48ee-bc97-23d101d0d07a",
+    "capability": "data_analysis",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-04T09:56:29.404388",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "e0e899cc-b88b-48ee-bc97-23d101d0d07a",
+    "capability": "data_analysis",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-04T09:56:29.404388",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  }
+]
