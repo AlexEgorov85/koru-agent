@@ -100,8 +100,13 @@ class InfrastructureContext:
         self.event_bus = UnifiedEventBus()
         await self._log_event_bus_info("UnifiedEventBus")
 
-        # Инициализация обработчиков логирования (терминал + файлы)
+        # Инициализация обработчиков логирования
         # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
+        # 
+        # TerminalLogHandler: вывод в терминал (онлайн для разработчика)
+        # FileLogHandler: ОТКЛЮЧЁН - дублирует SessionLogHandler
+        # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
+        #
         from core.infrastructure.logging import setup_logging, LoggingConfig, TerminalOutputConfig, FileOutputConfig, LogLevel, LogFormat
         log_config = LoggingConfig(
             terminal=TerminalOutputConfig(
@@ -113,7 +118,7 @@ class InfrastructureContext:
                 show_session_info=True,  # Показывать session_id и agent_id
             ),
             file=FileOutputConfig(
-                enabled=True,
+                enabled=False,  # ОТКЛЮЧЁН - используется SessionLogHandler
                 level=LogLevel.DEBUG,
                 format=LogFormat.JSONL,
                 max_file_size_mb=100,

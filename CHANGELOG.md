@@ -40,9 +40,7 @@
   - RegistryLoader удалён
 
 ### Documentation
-- MIGRATION_TO_DISCOVERY_REPORT.md
-- FINAL_MIGRATION_REPORT.md
-- FINAL_MIGRATION_REPORT_V2.md
+- Отчёты перемещены в `docs/reports/`
 
 ---
 

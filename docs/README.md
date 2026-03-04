@@ -20,7 +20,7 @@
 | [🚀 Руководство по развёртыванию](./DEPLOYMENT_GUIDE.md) | Установка и развёртывание |
 | [🐛 Устранение неполадок](./TROUBLESHOOTING.md) | Диагностика и решение проблем |
 | [📖 CHANGELOG](../CHANGELOG.md) | История изменений |
-| [📊 Отчёт о стабилизации](../STABILIZATION_REPORT.md) | Детали плана стабилизации | |
+| [📊 Отчёты](./reports/README.md) | Отчёты о разработке |
 
 ---
 
@@ -63,7 +63,7 @@ docs/
 │   └── BOOKS_INTEGRATION.md           # Интеграция с книгами
 │
 ├── plans/                             # Планы разработки
-│   └── BENCHMARK_LEARNING_PLAN.md     # Benchmark + Learning
+│   └── STRUCTURED_OUTPUT_ROADMAP.md   # Roadmap структурированного вывода
 │
 └── adr/                               # Архитектурные решения
     ├── 0001-modular-architecture.md   # Модульная архитектура
@@ -110,7 +110,6 @@ python -m pytest tests/ -v
 ### Разработчики
 
 - [Руководство по компонентам](./COMPONENTS_GUIDE.md) — создание новых компонентов
-- [Руководство по разработке](./guides/development.md) — лучшие практики
 - [API Reference](./API_REFERENCE.md) — справочник API
 
 ### DevOps инженеры
@@ -122,8 +121,8 @@ python -m pytest tests/ -v
 ### Архитекторы
 
 - [Обзор архитектуры](./ARCHITECTURE_OVERVIEW.md) — общее описание
-- [Слои системы](./architecture/layers.md) — детальная архитектура
-- [Модель безопасности](./architecture/security-model.md) — безопасность
+- [Идеальная архитектура](./architecture/ideal.md) — целевая архитектура
+- [Чек-лист архитектуры](./architecture/checklist.md) — проверка зрелости
 
 ---
 
@@ -132,13 +131,11 @@ python -m pytest tests/ -v
 ### Код
 
 - [Исходный код](https://github.com/your-org/koru-agent)
-- [Примеры](../examples/)
 - [Тесты](../tests/)
 
 ### Отчёты
 
-- [Архитектурный отчёт](../ARCHITECTURE_COMPLIANCE_REPORT_*.md)
-- [План документации](./AGENT_DOCS_PLAN.md)
+- [Отчёты о разработке](./reports/README.md)
 
 ### Внешние ссылки
 

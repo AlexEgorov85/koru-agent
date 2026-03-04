@@ -197,4 +197,4 @@ python scripts/performance/event_bus_benchmark.py
 ## 📚 Ссылки
 
 - [План миграции](../../../../docs/EVENT_BUS_MIGRATION.md)
-- [Migration Report](../../../../MIGRATION_REPORT.md)
+- [Migration Report](../../../../docs/reports/MIGRATION_REPORT.md)

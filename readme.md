@@ -131,8 +131,6 @@ TEST_LLM_TYPE=real python -m pytest tests/integration/ -v
 - ✅ Надёжность: 100% детерминированные результаты
 - 📊 Полная история вызовов для отладки
 
-См. [MOCK_LLM_TESTING_STRATEGY.md](tests/MOCK_LLM_TESTING_STRATEGY.md) для подробной документации.
-
 ---
 
 ## 🏗️ Архитектура
@@ -195,7 +193,7 @@ koru-agent/
 
 ## 🎯 Система Benchmark + Learning
 
-> **Детальная документация:** [docs/BENCHMARK_LEARNING_PLAN.md](docs/BENCHMARK_LEARNING_PLAN.md)
+> ⚠️ **Примечание:** Система находится в разработке. Документация будет обновлена.
 
 ### Обзор
 
@@ -395,16 +393,15 @@ black core/ --check
 
 ### Основная документация
 
-- **[BENCHMARK_LEARNING_PLAN.md](docs/plans/BENCHMARK_LEARNING_PLAN.md)** — План внедрения Benchmark + Learning
 - **[CHANGELOG.md](CHANGELOG.md)** — История изменений
 - **[docs/README.md](docs/README.md)** — Полная документация проекта
+- **[docs/reports/README.md](docs/reports/README.md)** — Отчёты о разработке
 
 ### Vector Search
 
 - **[docs/vector_search/README.md](docs/vector_search/README.md)** — навигация
 - **[docs/api/vector_search_api.md](docs/api/vector_search_api.md)** — API документация
 - **[docs/guides/vector_search.md](docs/guides/vector_search.md)** — руководство
-- **[examples/vector_search_examples.py](examples/vector_search_examples.py)** — примеры
 
 #### Документация
 

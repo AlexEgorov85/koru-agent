@@ -383,7 +383,7 @@ await event_bus.publish(
 - `scripts/migration/update_imports.py` — для массовой замены импортов
 
 **Итоговый отчёт:**
-- `MIGRATION_REPORT.md` — полный отчёт о миграции
+- [MIGRATION_REPORT.md](./reports/MIGRATION_REPORT.md) — полный отчёт о миграции
 
 ---
 

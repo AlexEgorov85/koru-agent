@@ -22,7 +22,7 @@
 | **LlamaCppProvider** | ✅ 100% | `core/infrastructure/providers/llm/llama_cpp_provider.py` | `generate_structured()` с retry логикой |
 | **Контракты в промптах** | ✅ 100% | `core/components/base_component.py` | `_render_prompt_with_contract()`, `get_prompt_with_contract()` |
 | **Навыки → Pydantic** | ✅ 100% | `core/application/skills/**/*.py` | Все навыки возвращают Pydantic модели |
-| **Стабилизация** | ✅ 100% | См. [STABILIZATION_REPORT.md](../STABILIZATION_REPORT.md) | Детекция зацикливания, гарантия LLM |
+| **Стабилизация** | ✅ 100% | См. [STABILIZATION_REPORT.md](../reports/STABILIZATION_REPORT.md) | Детекция зацикливания, гарантия LLM |
 
 ---
 
@@ -87,8 +87,8 @@
 
 ### Этап 4: Стабилизация ядра агента ✅
 
-**Статус:** 100% завершён  
-**Файлы:** См. [STABILIZATION_REPORT.md](../STABILIZATION_REPORT.md)
+**Статус:** 100% завершён
+**Файлы:** См. [STABILIZATION_REPORT.md](../reports/STABILIZATION_REPORT.md)
 
 **Реализовано:**
 - Детекция зацикливания через `AgentStuckError`
@@ -115,10 +115,10 @@
 
 ## 📚 Документация
 
-- [CHANGELOG.md](../CHANGELOG.md#5290---2026-03-02) — история изменений
-- [STABILIZATION_REPORT.md](../STABILIZATION_REPORT.md) — отчёт о стабилизации
-- [readme.md](../readme.md) — обзор проекта
-- [docs/README.md](docs/README.md) — документация
+- [CHANGELOG.md](../../CHANGELOG.md#5290---2026-03-02) — история изменений
+- [STABILIZATION_REPORT.md](../reports/STABILIZATION_REPORT.md) — отчёт о стабилизации
+- [readme.md](../../readme.md) — обзор проекта
+- [docs/README.md](../README.md) — документация
 
 ---
 
