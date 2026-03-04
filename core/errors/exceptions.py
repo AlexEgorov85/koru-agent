@@ -21,6 +21,7 @@ except AgentError as e:
     logger.error(f"Agent error: {e}")
 ```
 """
+import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
 

@@ -35,6 +35,30 @@ class BaseTool(BaseComponent):
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
 
+    def _log_sync(self, level: str, message: str):
+        """
+        Синхронная обёртка для логирования через EventBusLogger.
+        Используется в синхронных методах.
+
+        ПАРАМЕТРЫ:
+        - level: уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: сообщение
+        """
+        # Инициализируем event_bus_logger если ещё не инициализирован
+        if not hasattr(self, 'event_bus_logger') or self.event_bus_logger is None:
+            return
+
+        if self.event_bus_logger:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                log_method = getattr(self.event_bus_logger, level, None)
+                if log_method:
+                    asyncio.create_task(log_method(message))
+            except RuntimeError:
+                # Нет запущенного event loop - пропускаем логирование
+                pass
+
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения инструмента."""
         # Для инструментов нет специального события, используем общее

@@ -9,6 +9,7 @@
 - app_config: конфигурация приложения
 - models: модели данных конфигурации
 """
+import logging
 import os
 from typing import Optional
 

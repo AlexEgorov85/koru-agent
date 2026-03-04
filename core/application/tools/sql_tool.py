@@ -60,6 +60,24 @@ class SQLTool(BaseTool):
                     component=self.__class__.__name__
                 )
 
+    def _log_sync(self, level: str, message: str):
+        """
+        Синхронная обёртка для логирования через EventBusLogger.
+        Используется в синхронных методах.
+        """
+        if not hasattr(self, 'event_bus_logger') or self.event_bus_logger is None:
+            return
+
+        if self.event_bus_logger:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                log_method = getattr(self.event_bus_logger, level, None)
+                if log_method:
+                    asyncio.create_task(log_method(message))
+            except RuntimeError:
+                pass
+
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
         # Вызываем родительскую инициализацию для правильной установки флага _initialized

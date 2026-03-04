@@ -14,6 +14,7 @@
 - Или используйте декоратор @log_execution для автоматического логирования
 """
 import asyncio
+import logging
 from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig

@@ -1,6 +1,7 @@
 ﻿"""
 Загрузчик конфигурации реестра с поддержкой миграции и валидации.
 """
+import logging
 import yaml
 from pathlib import Path
 from typing import Dict, Any
