@@ -535,22 +535,17 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа."""
-        print(f"[DEBUG] generate_decision: START")
-
         # Логирование начала через EventBusLogger
         await self._log("info", "generate_decision: started",
                        step=session_context.current_step if hasattr(session_context, 'current_step') else 0)
 
         try:
-            print(f"[DEBUG] generate_decision: вызываем _perform_structured_reasoning")
             # 1. Структурированное рассуждение через LLM
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities
             )
-            print(f"[DEBUG] generate_decision: _perform_structured_reasoning вернул результат")
-            
             # Логирование результата рассуждения
             await self._log("debug", f"generate_decision: reasoning_result получен",
                            decision=reasoning_result.get('decision', {}))
@@ -601,19 +596,11 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
         """Выполняет структурированное рассуждение через LLM."""
-        print(f"[DEBUG] _perform_structured_reasoning: START")
         try:
-            print(f"[DEBUG] _perform_structured_reasoning: context_analysis={context_analysis.keys() if context_analysis else 'None'}")
-            print(f"[DEBUG] _perform_structured_reasoning: available_capabilities count={len(available_capabilities) if available_capabilities else 0}")
-            
             # Загружаем промпт и контракт из кэша BaseComponent
-            print(f"[DEBUG] _perform_structured_reasoning: calling _load_reasoning_resources()")
             load_result = self._load_reasoning_resources()
-            print(f"[DEBUG] _perform_structured_reasoning: _load_reasoning_resources() returned {load_result}")
-            print(f"[DEBUG] _perform_structured_reasoning: reasoning_prompt_template={self.reasoning_prompt_template is not None}, reasoning_schema={self.reasoning_schema is not None}")
-            
+
             if not load_result or not self.reasoning_prompt_template:
-                print(f"[DEBUG] _perform_structured_reasoning: Fallback из-за отсутствия промпта")
                 # Fallback: создаем упрощенную версию рассуждения
                 await self._log("warning", "Промпт не загружен, используем упрощенную логику рассуждения")
                 
@@ -640,19 +627,15 @@ class ReActPattern(BaseBehaviorPattern):
                     "available_capabilities": available_capabilities,
                     "needs_rollback": False
                 }
-            
-            print(f"[DEBUG] _perform_structured_reasoning: _load_reasoning_resources() completed successfully")
 
             # Флаг для гарантии вызова LLM
             llm_was_called = False
 
             # Рендерим промпт из шаблона (передаём оригинальные Capability объекты)
-            print(f"[DEBUG] _perform_structured_reasoning: calling _render_reasoning_prompt()")
             reasoning_prompt = self._render_reasoning_prompt(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities
             )
-            print(f"[DEBUG] _perform_structured_reasoning: _render_reasoning_prompt() completed, prompt length={len(reasoning_prompt)}")
 
             start_time = time.time()
 
@@ -660,9 +643,6 @@ class ReActPattern(BaseBehaviorPattern):
             llm_provider = None
             if self.application_context:
                 llm_provider = self.application_context.get_provider("default_llm")
-            
-            print(f"[DEBUG] _perform_structured_reasoning: llm_provider={llm_provider}, type={type(llm_provider)}")
-            print(f"[DEBUG] _perform_structured_reasoning: application_context={self.application_context}")
 
             if llm_provider is None:
                 # Fallback: создаем упрощенную версию рассуждения
@@ -1139,7 +1119,7 @@ class ReActPattern(BaseBehaviorPattern):
                                reasoning_result=reasoning_result)
                 return BehaviorDecision(
                     action=BehaviorDecisionType.RETRY,
-                    reason="LLM не вернул корре��тное действие"
+                    reason="LLM не вернул корре��т��ое действие"
                 )
             
             # 3. Поиск capability в available_capabilities

@@ -222,11 +222,8 @@ class InfrastructureContext:
 
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
-        import sys
-        sys.stdout.write(f'[DEBUG] Начало регистрации провайдеров. llm_providers count={len(self.config.llm_providers)}\n')
-        sys.stdout.flush()
         await self.event_bus_logger.info(f"Начало регистрации провайдеров. llm_providers count={len(self.config.llm_providers)}")
-        
+
         # Регистрация LLM провайдеров
         first_llm_registered = False
         for provider_name, provider_config in self.config.llm_providers.items():
@@ -236,52 +233,32 @@ class InfrastructureContext:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
                     await self.event_bus_logger.info(f"Создание провайдера типа '{provider_type}' для '{provider_name}'")
-                    sys.stdout.write(f'[DEBUG] provider_type={provider_type}\n')
-                    sys.stdout.flush()
                     if provider_type == "mock":
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
-                        sys.stdout.write(f'[DEBUG] Создание MockLLMConfig...\n')
-                        sys.stdout.flush()
                         config_obj = MockLLMConfig(**provider_config.parameters)
-                        sys.stdout.write(f'[DEBUG] MockLLMConfig создан\n')
-                        sys.stdout.flush()
                     elif provider_type == "llama_cpp":
                         from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
-                        sys.stdout.write(f'[DEBUG] Создание MockLlamaCppConfig...\n')
-                        sys.stdout.flush()
                         # Добавляем timeout_seconds из конфига в параметры
                         params = dict(provider_config.parameters)
                         if hasattr(provider_config, 'timeout_seconds'):
                             params['timeout_seconds'] = provider_config.timeout_seconds
                         config_obj = MockLlamaCppConfig(**params)
-                        sys.stdout.write(f'[DEBUG] MockLlamaCppConfig создан\n')
-                        sys.stdout.flush()
                     else:
                         # For other providers, try to create a generic config
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
                         config_obj = MockLLMConfig(**provider_config.parameters)
 
-                    sys.stdout.write(f'[DEBUG] Вызов create_provider...\n')
-                    sys.stdout.flush()
                     provider = self.llm_provider_factory.create_provider(
                         provider_type=provider_type,
                         config=config_obj
                     )
-                    sys.stdout.write(f'[DEBUG] Провайдер создан: {provider is not None}, type={type(provider).__name__ if provider else None}\n')
-                    sys.stdout.flush()
                     await self.event_bus_logger.info(f"Провайдер создан: {provider is not None}")
 
                     # Инициализация провайдера
                     if hasattr(provider, 'initialize') and callable(provider.initialize):
-                        sys.stdout.write(f'[DEBUG] Вызов provider.initialize()...\n')
-                        sys.stdout.flush()
                         try:
                             await provider.initialize()
-                            sys.stdout.write(f'[DEBUG] provider.initialize() завершён успешно\n')
-                            sys.stdout.flush()
                         except Exception as init_error:
-                            sys.stdout.write(f'[DEBUG] Ошибка в provider.initialize(): {init_error}\n')
-                            sys.stdout.flush()
                             raise
                         await self.event_bus_logger.info(f"Провайдер инициализирован")
 
@@ -298,25 +275,15 @@ class InfrastructureContext:
                             first_llm_registered = True
                         self.resource_registry.register_resource(info_llm)
                         await self.event_bus_logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
-                        sys.stdout.write(f'[DEBUG] LLM провайдер {provider_name} зарегистрирован\n')
-                        sys.stdout.flush()
                 except Exception as e:
                     await self.event_bus_logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
-                    sys.stdout.write(f'[DEBUG] Ошибка LLM {provider_name}: {e}\n')
-                    sys.stdout.flush()
 
         # Регистрация DB провайдеров
-        sys.stdout.write(f'[DEBUG] Регистрация DB провайдеров. db_providers count={len(self.config.db_providers)}\n')
-        sys.stdout.flush()
         for provider_name, provider_config in self.config.db_providers.items():
-            sys.stdout.write(f'[DEBUG] Обработка DB провайдера {provider_name}: enabled={getattr(provider_config, "enabled", False)}\n')
-            sys.stdout.flush()
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    sys.stdout.write(f'[DEBUG] Создание DB провайдера типа {provider_type}\n')
-                    sys.stdout.flush()
                     from core.models.types.db_types import DBConnectionConfig
                     config_obj = DBConnectionConfig(**provider_config.parameters)
 
@@ -324,20 +291,12 @@ class InfrastructureContext:
                         provider_type=provider_type,
                         config=config_obj
                     )
-                    sys.stdout.write(f'[DEBUG] DB провайдер создан: {provider is not None}\n')
-                    sys.stdout.flush()
 
                     # Инициализация провайдера
                     if hasattr(provider, 'initialize') and callable(provider.initialize):
-                        sys.stdout.write(f'[DEBUG] Вызов DB provider.initialize()...\n')
-                        sys.stdout.flush()
                         try:
                             await provider.initialize()
-                            sys.stdout.write(f'[DEBUG] DB provider.initialize() завершён\n')
-                            sys.stdout.flush()
                         except Exception as init_err:
-                            sys.stdout.write(f'[DEBUG] Ошибка в DB initialize(): {init_err}\n')
-                            sys.stdout.flush()
                             raise
 
                     if provider:
@@ -349,12 +308,8 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
-                        sys.stdout.write(f'[DEBUG] DB провайдер {provider_name} зарегистрирован\n')
-                        sys.stdout.flush()
                         await self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    sys.stdout.write(f'[DEBUG] Ошибка DB {provider_name}: {e}\n')
-                    sys.stdout.flush()
                     await self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _init_vector_search(self):

@@ -186,8 +186,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 def main() -> int:
     """Точка входа."""
     try:
-        print(f"🤖 Анализирую вопрос: {GOAL}")
-        print(f"⚙️ Параметры: max_steps={MAX_STEPS}, temperature={TEMPERATURE}")
+        print(f"Анализирую вопрос: {GOAL}")
+        print(f"Параметры: max_steps={MAX_STEPS}, temperature={TEMPERATURE}")
         print("=" * 60)
 
         result = asyncio.run(run_agent(
@@ -197,14 +197,14 @@ def main() -> int:
         ))
 
         print("=" * 60)
-        print("✅ ОТВЕТ АГЕНТА:")
+        print("ОТВЕТ АГЕНТА:")
         print("=" * 60)
         print(result)
 
         return 0
 
     except KeyboardInterrupt:
-        print("\n⏸️ Прервано пользователем")
+        print("\nПрервано пользователем")
         return 0
     except Exception as e:
         # Обработка ошибки через ErrorHandler
@@ -220,7 +220,7 @@ def main() -> int:
             severity=ErrorSeverity.CRITICAL
         ))
         
-        print(f"\n❌ Произошла ошибка: {str(e)[:200]}")
+        print(f"\nПроизошла ошибка: {str(e)[:200]}")
         return 1
 
 

@@ -97,15 +97,27 @@ class BaseService(BaseComponent):
 
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
-        # Логгер уже инициализирован в базовом классе
         # Инициализация EventBusLogger
         self.event_bus_logger = None
         self._init_event_bus_logger()
 
+        self._log_sync("info", f"Инициализирован сервис: {self.name}")
+
+    def _log_sync(self, level: str, message: str):
+        """
+        Синхронная обёртка для логирования через EventBusLogger.
+        """
+        if not hasattr(self, 'event_bus_logger') or self.event_bus_logger is None:
+            return
+
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.info(f"Инициализирован сервис: {self.name}"))
-        else:
-            self.logger.info(f"Инициализирован сервис: {self.name}")
+            try:
+                loop = asyncio.get_running_loop()
+                log_method = getattr(self.event_bus_logger, level, None)
+                if log_method:
+                    asyncio.create_task(log_method(message))
+            except RuntimeError:
+                pass
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
@@ -203,7 +215,7 @@ class BaseService(BaseComponent):
                 if self.event_bus_logger:
                     await self.event_bus_logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
                 else:
-                    self.logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+                    self._log_sync("info", f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
@@ -211,12 +223,12 @@ class BaseService(BaseComponent):
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(msg)
                 else:
-                    self.logger.warning(msg)
+                    self._log_sync("warning", msg)
             else:
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
                 else:
-                    self.logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                    self._log_sync("debug", f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
@@ -226,7 +238,7 @@ class BaseService(BaseComponent):
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             else:
-                self.logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+                self._log_sync("error", f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
 
         # Log warning if some dependencies are missing
@@ -234,12 +246,12 @@ class BaseService(BaseComponent):
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
             else:
-                self.logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+                self._log_sync("info", f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
         else:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
             else:
-                self.logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+                self._log_sync("info", f"Все зависимости для сервиса '{self.name}' успешно разрешены")
 
         return True
 
@@ -265,11 +277,11 @@ class BaseService(BaseComponent):
         Безопасное получение зависимости по имени.
         Сначала ищем в локальном кэше, затем в прикладном контексте.
         """
-        self.logger.debug(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
+        self._log_sync("debug", f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
         
         # Сначала ищем в локальном кэше
         if name in self._dependencies:
-            self.logger.debug(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
+            self._log_sync("debug", f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
             return self._dependencies[name]
 
         # Затем ищем в прикладном контексте
@@ -277,33 +289,33 @@ class BaseService(BaseComponent):
             # Пытаемся получить сервис из прикладного контекста
             service = self.application_context.get_service(name)
             if service:
-                self.logger.debug(f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return service
             else:
-                self.logger.debug(f"get_dependency: сервис '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: сервис '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
                 # Дополнительная диагностика - проверим, что есть в компонентах
                 all_services = list(self.application_context.components.all_of_type(ComponentType.SERVICE))
-                self.logger.debug(f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
+                self._log_sync("debug", f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
 
             # Если не сервис, пробуем другие типы компонентов
             skill = self.application_context.get_skill(name)
             if skill:
-                self.logger.debug(f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return skill
             else:
-                self.logger.debug(f"get_dependency: навык '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: навык '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
 
             tool = self.application_context.get_tool(name)
             if tool:
-                self.logger.debug(f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
                 return tool
             else:
-                self.logger.debug(f"get_dependency: инструмент '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
+                self._log_sync("debug", f"get_dependency: инструмент '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
 
         else:
-            self.logger.error(f"get_dependency: application_context отсутствует для компонента '{self.name}'")
+            self._log_sync("error", f"get_dependency: application_context отсутствует для компонента '{self.name}'")
 
-        self.logger.debug(f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
+        self._log_sync("debug", f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
         return None
 
     def _convert_params_to_input(self, parameters: Dict[str, Any]) -> ServiceInput:
@@ -400,7 +412,7 @@ class BaseService(BaseComponent):
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
             else:
-                self.logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+                self._log_sync("error", f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
             return False
 
     async def restart_with_module_reload(self):
@@ -415,7 +427,7 @@ class BaseService(BaseComponent):
         if self.event_bus_logger:
             await self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         else:
-            self.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+            self._log_sync("warning", f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         return safe_reload_component_with_module_reload(self)
 
     def _validate_input(self, data: Dict[str, Any], required_fields: list) -> bool:
@@ -431,7 +443,7 @@ class BaseService(BaseComponent):
         """
         for field in required_fields:
             if field not in data or data[field] is None:
-                self.logger.error(f"Отсутствует обязательное поле: {field}")
+                self._log_sync("error", f"Отсутствует обязательное поле: {field}")
                 return False
         return True
 
@@ -449,7 +461,7 @@ class BaseService(BaseComponent):
         # В реальном приложении может потребоваться более сложная логика
         sanitized = data.replace(';', '').replace('--', '').replace('/*', '').replace('*/', '')
         if sanitized != data:
-            self.logger.warning("Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
+            self._log_sync("warning", "Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
         return sanitized
 
     def _get_component_type(self) -> str:
@@ -472,14 +484,14 @@ class BaseService(BaseComponent):
                     if self.event_bus_logger:
                         await self.event_bus_logger.warning(msg)
                     else:
-                        self.logger.warning(msg)
+                        self._log_sync("warning", msg)
 
                 if cap_name not in self.output_contracts:
                     msg = f"{self.name}: Метод '{method_name}' не имеет output контракта"
                     if self.event_bus_logger:
                         await self.event_bus_logger.warning(msg)
                     else:
-                        self.logger.warning(msg)
+                        self._log_sync("warning", msg)
 
         return True
     

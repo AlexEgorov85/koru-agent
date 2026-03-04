@@ -396,8 +396,13 @@ class ErrorHandler:
     
     async def _publish_error_event(self, error_info: ErrorInfo):
         """Публикация события об ошибке в Event Bus."""
+        if not self._event_bus:
+            # Event bus не инициализирован - пропускаем публикацию
+            self._logger.debug("Event bus не доступен, пропускаем публикацию события об ошибке")
+            return
+            
         event_data = error_info.to_dict()
-        
+
         await self._event_bus.publish(
             EventType.ERROR_OCCURRED,
             data=event_data,

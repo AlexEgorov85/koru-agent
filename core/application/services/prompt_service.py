@@ -57,15 +57,15 @@ class PromptService(BaseService):
                         self.prompts[capability] = {}
                     self.prompts[capability][version] = prompt_obj
                 else:
-                    self.logger.warning(f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
+                    self._log_sync("warning", f"Промпт {capability}@{version} не найден в предзагруженных ресурсах")
 
             self._initialized = True
-            self.logger.info(
+            self._log_sync("info",
                 f"PromptService инициализирован: загружено {len(self.prompts)} промптов"
             )
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации PromptService: {e}")
+            self._log_sync("error", f"Ошибка инициализации PromptService: {e}")
             return False
 
     def get_prompt(self, capability_name: str, version: Optional[str] = None) -> str:
@@ -122,7 +122,7 @@ class PromptService(BaseService):
         Совместимость с BaseComponent.
         """
         if not hasattr(component_config, 'prompt_versions'):
-            self.logger.info("Нет конфигурации промптов для предзагрузки")
+            self._log_sync("info", "Нет конфигурации промптов для предзагрузки")
             return True
 
         success = True
@@ -138,10 +138,10 @@ class PromptService(BaseService):
 
                 self.prompts[capability_name][version] = prompt_obj
 
-                self.logger.debug(f"Предзагружен промпт {capability_name} версии {version}")
+                self._log_sync("debug", f"Предзагружен промпт {capability_name} версии {version}")
 
             except Exception as e:
-                self.logger.error(f"Ошибка предзагрузки промпта {capability_name} версии {version}: {e}")
+                self._log_sync("error", f"Ошибка предзагрузки промпта {capability_name} версии {version}: {e}")
                 success = False
 
         return success
