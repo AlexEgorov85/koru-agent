@@ -1,12 +1,15 @@
 """
 Точка входа для запуска агента.
 
-Использует новую систему логирования через EventBus.
+Использует архитектуру проекта:
+- InfrastructureContext для управления ресурсами
+- ApplicationContext для прикладной логики
+- ErrorHandler для обработки ошибок
+- EventBus для логирования
 """
 import asyncio
 import sys
 import warnings
-import logging
 
 # Подавляем предупреждения Pydantic
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.json_schema")
@@ -17,6 +20,14 @@ from core.application.context.application_context import ApplicationContext
 from core.application.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
 from core.config.app_config import AppConfig
+from core.errors import get_error_handler, ErrorContext, ErrorSeverity
+from core.infrastructure.logging import (
+    init_logging_system,
+    shutdown_logging_system,
+    get_session_logger,
+)
+from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
+
 
 # === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
 GOAL = "Сколько будет 2 + 2?"
@@ -25,18 +36,17 @@ TEMPERATURE = 0.7
 
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
-    """Запуск агента с заданной целью."""
-    from core.infrastructure.logging import (
-        init_logging_system,
-        shutdown_logging_system,
-        get_session_logger,
-    )
-
+    """
+    Запуск агента с заданной целью.
+    
+    ИСПОЛЬЗУЕТ:
+    - InfrastructureContext для инфраструктуры
+    - ApplicationContext для прикладного контекста
+    - ErrorHandler для обработки ошибок
+    """
     # Инициализация системы логирования через EventBus
     await init_logging_system()
-    logger = logging.getLogger("main")
-    logger.debug("Система логирования инициализирована")
-
+    
     # Загрузка конфигурации приложения
     config = get_config(profile='dev')
 
@@ -48,6 +58,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
 
+    # Получаем глобальный обработчик ошибок и привязываем к нему event_bus
+    error_handler = get_error_handler()
+    
     try:
         # Начало сессии
         await session_logger.start_session(goal=goal)
@@ -71,10 +84,12 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
         await session_logger.info(f"✅ Загружено навыков: {skill_count}")
 
-        # Подписка на события LLM
-        from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
-        llm_subscriber = LLMEventSubscriber(log_full_content=True)
-        llm_subscriber.subscribe(application_context.infrastructure_context.event_bus)
+        # Подписка на события LLM через LLMEventSubscriber
+        llm_subscriber = LLMEventSubscriber(
+            event_bus=infrastructure_context.event_bus,
+            log_full_content=True
+        )
+        llm_subscriber.subscribe(infrastructure_context.event_bus)
         await session_logger.info("✅ LLMEventSubscriber активирован")
 
         # Создание фабрики агентов
@@ -97,58 +112,78 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await session_logger.info(f"✅ Агент создан: {type(agent).__name__}")
 
         await session_logger.info("🚀 Запуск агента...")
-        try:
-            result = await agent.run(goal)
-        except Exception as e:
-            await session_logger.error(f"Ошибка при выполнении agent.run: {e}", exc_info=True)
-            raise
+        result = await agent.run(goal)
         await session_logger.info(f"✅ Агент завершил работу")
 
         # Проверка на ошибку в result.error (для ExecutionResult)
         if hasattr(result, 'error') and result.error:
-            await session_logger.error(f"AgentError: {result.error}")
+            error_context = ErrorContext(
+                component="AgentRuntime",
+                operation="run",
+                session_id=session_id,
+                metadata={"goal": goal}
+            )
+            await error_handler.handle(
+                RuntimeError(result.error),
+                context=error_context,
+                severity=ErrorSeverity.HIGH
+            )
             raise RuntimeError(f"Ошибка агента: {result.error}")
 
         # Проверка на ошибку в metadata
         if hasattr(result, 'metadata') and result.metadata:
             metadata = result.metadata
-            logger.debug(f"DEBUG: metadata type={type(metadata)}, value={metadata}")
             if isinstance(metadata, dict):
                 error_msg = metadata.get('error')
                 if error_msg:
-                    await session_logger.error(f"AgentError: {error_msg}")
+                    error_context = ErrorContext(
+                        component="AgentRuntime",
+                        operation="run",
+                        session_id=session_id,
+                        metadata={"goal": goal}
+                    )
+                    await error_handler.handle(
+                        RuntimeError(error_msg),
+                        context=error_context,
+                        severity=ErrorSeverity.HIGH
+                    )
                     raise RuntimeError(f"Ошибка агента: {error_msg}")
-            elif isinstance(metadata, str):
-                # Если metadata - строка, это уже сообщение об ошибке
-                await session_logger.error(f"AgentError: {metadata}")
-                raise RuntimeError(f"Ошибка агента: {metadata}")
 
         # Завершение сессии успешно
         await session_logger.end_session(success=True, result=str(result)[:500])
-        logger.info(f"Сессия завершена успешно: {session_id}")
+        await session_logger.info(f"Сессия завершена успешно: {session_id}")
 
         return result
 
     except Exception as e:
+        # Обработка ошибки через ErrorHandler
+        error_context = ErrorContext(
+            component="main.run_agent",
+            operation="run_agent",
+            session_id=session_id,
+            metadata={"goal": goal}
+        )
+        await error_handler.handle(
+            e,
+            context=error_context,
+            severity=ErrorSeverity.CRITICAL
+        )
+        
         if session_logger:
             await session_logger.exception(f"Ошибка сессии: {e}", e)
             await session_logger.end_session(success=False, result=str(e))
-        else:
-            logger.error(f"Ошибка в run_agent: {e}", exc_info=True)
         raise
 
     finally:
-        # Сначала останавливаем инфраструктуру (чтобы не было попыток публикации после остановки EventBus)
+        # Остановка инфраструктуры
         await infrastructure_context.shutdown()
-        # Затем завершаем систему логирования
+        # Завершение системы логирования
         await shutdown_logging_system()
-        logger.debug("Ресурсы освобождены")
 
 
 def main() -> int:
     """Точка входа."""
     try:
-        # Логирование настраивается автоматически в run_agent через init_logging_system()
         print(f"Анализирую вопрос: {GOAL}")
 
         result = asyncio.run(run_agent(
@@ -157,6 +192,7 @@ def main() -> int:
             temperature=TEMPERATURE
         ))
 
+        # Логирование результата
         logger = logging.getLogger("main")
         logger.info("\n" + "="*60)
         logger.info("✅ ОТВЕТ:")
@@ -172,10 +208,24 @@ def main() -> int:
         print("\n⏸️ Прервано пользователем")
         return 0
     except Exception as e:
+        # Обработка ошибки через ErrorHandler
+        error_handler = get_error_handler()
+        error_context = ErrorContext(
+            component="main",
+            operation="main",
+            metadata={"goal": GOAL}
+        )
+        asyncio.run(error_handler.handle(
+            e,
+            context=error_context,
+            severity=ErrorSeverity.CRITICAL
+        ))
+        
         logger = logging.getLogger("main")
         logger.error(f"❌ Произошла ошибка: {str(e)[:200]}", exc_info=True)
         return 1
 
 
 if __name__ == "__main__":
+    import logging
     sys.exit(main())

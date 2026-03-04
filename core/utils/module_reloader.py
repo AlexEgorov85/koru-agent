@@ -3,11 +3,8 @@
 ВНИМАНИЕ: Использовать с осторожностью, так как перезагрузка модулей может привести к непредсказуемому поведению.
 """
 import importlib
-import logging
 import sys
 from typing import Type, Any
-
-logger = logging.getLogger(__name__)
 
 
 class ModuleReloader:
@@ -40,9 +37,9 @@ class ModuleReloader:
             
             # Получаем имя модуля
             module_name = component_class.__module__
-            
-            logger.warning(f"Попытка перезагрузки модуля {module_name} для компонента {component_class.__name__}")
-            
+
+            print(f"[WARNING] Попытка перезагрузки модуля {module_name} для компонента {component_class.__name__}")
+
             # Получаем модуль
             module = sys.modules.get(module_name)
             if not module:
@@ -64,13 +61,13 @@ class ModuleReloader:
             constructor_args = ModuleReloader._get_constructor_args(component_instance)
             
             new_instance = reloaded_class(**constructor_args)
-            
-            logger.info(f"Модуль {module_name} успешно перезагружен, создан новый экземпляр {reloaded_class.__name__}")
-            
+
+            print(f"[INFO] Модуль {module_name} успешно перезагружен, создан новый экземпляр {reloaded_class.__name__}")
+
             return new_instance
-            
+
         except Exception as e:
-            logger.error(f"Ошибка перезагрузки модуля для компонента {component_instance.__class__.__name__}: {str(e)}")
+            print(f"[ERROR] Ошибка перезагрузки модуля для компонента {component_instance.__class__.__name__}: {str(e)}")
             raise
     
     @staticmethod
@@ -101,5 +98,5 @@ def safe_reload_component_with_module_reload(component_instance: Any) -> Any:
     try:
         return ModuleReloader.reload_module_for_component(component_instance)
     except Exception as e:
-        logger.error(f"Безопасная перезагрузка модуля не удалась, возвращаем оригинальный экземпляр: {str(e)}")
+        print(f"[ERROR] Безопасная перезагрузка модуля не удалась, возвращаем оригинальный экземпляр: {str(e)}")
         return component_instance

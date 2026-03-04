@@ -1,7 +1,6 @@
 ﻿"""
 Загрузчик конфигурации реестра с поддержкой миграции и валидации.
 """
-import logging
 import yaml
 from pathlib import Path
 from typing import Dict, Any
@@ -93,11 +92,9 @@ class RegistryLoader:
                     matched = True
                     break
             if not matched:
-                # Не удалось определить — помечаем как 'skill' по умолчанию + предупреждение
+                # Не удалось определить — помечаем как 'skill' по умолчанию
                 capability_types[cap] = ComponentType.SKILL
-                # Логирование через logger вместо print
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"[WARN] Предположен тип 'skill' для capability '{cap}'. Проверьте и исправьте вручную!")
+                # Предупреждение выводится через print (конфигурация загружается до EventBus)
+                print(f"[WARN] Предположен тип 'skill' для capability '{cap}'. Проверьте и исправьте вручную!")
 
         return capability_types

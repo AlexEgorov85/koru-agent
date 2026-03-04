@@ -9,7 +9,6 @@
 - app_config: конфигурация приложения
 - models: модели данных конфигурации
 """
-import logging
 import os
 from typing import Optional
 
@@ -41,12 +40,7 @@ def get_config(profile: Optional[str] = None, config_dir: Optional[str] = None) 
         )
         return loader.load()
     except Exception as e:
-        # Логирование ошибки загрузки конфигурации
-        import logging
-        logger = logging.getLogger("config")
-        logger.error(f"Ошибка загрузки конфигурации: {str(e)}")
-
-        # Создание минимальной конфигурации для работы
+        # Создание минимальной конфигурации для работы при ошибке загрузки
         default_config = {
             "profile": profile or "dev",
             "debug": True,

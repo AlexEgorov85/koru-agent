@@ -18,10 +18,9 @@ raise ValidationError("Invalid input", field="goal")
 try:
     # ... код ...
 except AgentError as e:
-    logger.error(f"Agent error: {e}")
+    # Обработка ошибки
 ```
 """
-import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
 
