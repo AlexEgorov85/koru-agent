@@ -605,10 +605,14 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
         configure_logging(config)
 
     terminal_handler = TerminalLogHandler(event_bus)
-    file_handler = FileLogHandler(event_bus)
+    file_handler = None
+    
+    # FileLogHandler создаётся только если включён
+    if config and config.file and config.file.enabled:
+        file_handler = FileLogHandler(event_bus)
+        file_handler.subscribe()
 
     terminal_handler.subscribe()
-    file_handler.subscribe()
     
     # Перехват стандартного logging и направление в EventBus
     event_bus_logging_handler = LoggingToEventBusHandler(event_bus)
