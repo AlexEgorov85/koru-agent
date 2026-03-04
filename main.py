@@ -25,6 +25,7 @@ from core.infrastructure.logging import (
     init_logging_system,
     shutdown_logging_system,
     get_session_logger,
+    create_session_log_handler,
 )
 from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
 
@@ -54,6 +55,18 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     # Получаем session_id и создаём логгер сессии
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
+
+    # Создаём новый обработчик логов сессии (с датой/временем в имени папки)
+    session_log_handler = create_session_log_handler(
+        event_bus=infrastructure_context.event_bus,
+        session_id=session_id,
+        agent_id="agent_001"
+    )
+    session_info = session_log_handler.get_session_info()
+    await session_logger.info(f"📁 Логи сессии: {session_info['session_folder']}")
+    await session_logger.info(f"   common.log: {session_info['common_log']}")
+    await session_logger.info(f"   llm.jsonl: {session_info['llm_log']}")
+    await session_logger.info(f"   metrics.jsonl: {session_info['metrics_log']}")
 
     # Получаем глобальный обработчик ошибок
     error_handler = get_error_handler()
@@ -177,8 +190,13 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         raise
 
     finally:
+        # Завершение обработчика логов сессии
+        if session_log_handler:
+            await session_log_handler.shutdown()
+        
         # Остановка инфраструктуры
         await infrastructure_context.shutdown()
+        
         # Завершение системы логирования
         await shutdown_logging_system()
 

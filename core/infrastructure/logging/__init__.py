@@ -63,6 +63,11 @@ from core.infrastructure.logging.config import (
     enable_debug_mode,
 )
 
+from core.infrastructure.logging.session_log_handler import (
+    SessionLogHandler,
+    create_session_log_handler,
+)
+
 # Для обратной совместимости
 LogConfig = LoggingConfig
 get_log_config = get_logging_config
@@ -101,4 +106,8 @@ __all__ = [
     'LogConfig',
     'get_log_config',
     'get_log_manager',
+
+    # Session logging
+    'SessionLogHandler',
+    'create_session_log_handler',
 ]
