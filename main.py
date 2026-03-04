@@ -22,7 +22,6 @@ from core.config.agent_config import AgentConfig
 from core.config.app_config import AppConfig
 from core.errors import get_error_handler, ErrorContext, ErrorSeverity
 from core.infrastructure.logging import (
-    init_logging_system,
     shutdown_logging_system,
     get_session_logger,
     create_session_log_handler,
@@ -39,16 +38,15 @@ TEMPERATURE = 0.7
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
     """
     Запуск агента с заданной целью.
-    
-    ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
-    """
-    # Инициализация системы логирования через EventBus
-    await init_logging_system()
 
+    ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
+    Логирование инициализируется внутри InfrastructureContext.initialize().
+    """
     # Загрузка конфигурации приложения
     config = get_config(profile='dev')
 
     # Создание и инициализация инфраструктурного контекста
+    # (логирование инициализируется внутри)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
 

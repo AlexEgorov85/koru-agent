@@ -136,15 +136,19 @@ class AgentRuntime:
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
-        if hasattr(self, 'application_context') and self.application_context:
-            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus=event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # Отладка: проверяем что доступно
+        has_app_ctx = hasattr(self, 'application_context') and self.application_context
+        has_infra = has_app_ctx and hasattr(self.application_context, 'infrastructure_context')
+        has_event_bus = has_infra and getattr(self.application_context.infrastructure_context, 'event_bus', None)
+        
+        if has_app_ctx and has_infra and has_event_bus:
+            self.event_bus_logger = EventBusLogger(
+                event_bus=self.application_context.infrastructure_context.event_bus,
+                session_id="system",
+                agent_id="system",
+                component=self.__class__.__name__
+            )
+        # else: event_bus_logger останется None
 
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
         """
@@ -162,6 +166,14 @@ class AgentRuntime:
         # Обновляем goal если передан
         if goal:
             self.goal = goal
+
+        # Отладка: логируем состояние event_bus_logger
+        print(f"[DEBUG] AgentRuntime.run(): event_bus_logger = {self.event_bus_logger is not None}")
+        print(f"[DEBUG] AgentRuntime.run(): application_context = {self.application_context is not None}")
+        if self.application_context:
+            print(f"[DEBUG] AgentRuntime.run(): infrastructure_context = {hasattr(self.application_context, 'infrastructure_context')}")
+            if hasattr(self.application_context, 'infrastructure_context'):
+                print(f"[DEBUG] AgentRuntime.run(): event_bus = {getattr(self.application_context.infrastructure_context, 'event_bus', None) is not None}")
 
         self._running = True
         self._current_step = 0
