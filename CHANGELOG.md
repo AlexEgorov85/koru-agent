@@ -99,9 +99,9 @@
 
 ### Documentation
 - **Документы миграции**
-  - `MIGRATION_REPORT.md` — полный отчёт
-  - `docs/EVENT_BUS_MIGRATION.md` — руководство
-  - `ETAP1_REPORT.md` — отчёт Этапа 1
+  - [docs/reports/MIGRATION_REPORT.md](docs/reports/MIGRATION_REPORT.md) — полный отчёт
+  - [docs/EVENT_BUS_MIGRATION.md](docs/EVENT_BUS_MIGRATION.md) — руководство
+  - [docs/reports/ETAP1_REPORT.md](docs/reports/ETAP1_REPORT.md) — отчёт Этапа 1
   - `scripts/migration/update_imports.py` — скрипт обновления
 
 ---
@@ -757,7 +757,7 @@ ThreadPoolExecutor создавался внутри метода `execute()` с
 - `migrate_old_logs.py`: миграция старых логов в новую структуру
 
 ### Added
-- **Удаление legacy-компонентов** (согласно LEGACY_REMOVAL_REPORT.md)
+- **Удаление legacy-компонентов** (согласно [docs/reports/LEGACY_REMOVAL_REPORT.md](docs/reports/LEGACY_REMOVAL_REPORT.md))
 
 #### Удалённые файлы
 - `core/application/behaviors/react_behavior.py` — дублирующий ReAct паттерн
@@ -792,7 +792,7 @@ ThreadPoolExecutor создавался внутри метода `execute()` с
 - Дублирование паттернов: 100% → 0%
 - Базовых классов поведений: 3 → 2 (-33%)
 
-📄 **Подробности:** См. [LEGACY_REMOVAL_RESULTS.md](LEGACY_REMOVAL_RESULTS.md)
+📄 **Подробности:** См. [docs/reports/LEGACY_REMOVAL_RESULTS.md](docs/reports/LEGACY_REMOVAL_RESULTS.md)
 
 #### Документация (docs/logging/)
 - `README.md`: обзор системы, быстрый старт
