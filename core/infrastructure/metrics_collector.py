@@ -10,16 +10,12 @@ FEATURES:
 - Агрегация метрик для бенчмарков
 - Централизованный сбор со всех агентов
 """
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
-
-
-logger = logging.getLogger(__name__)
 
 
 class MetricsCollector(BaseEventCollector):

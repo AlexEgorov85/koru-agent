@@ -3,7 +3,6 @@ from core.application.services.base_service import BaseService, ServiceInput, Se
 from core.application.context.application_context import ApplicationContext
 import re
 import sqlparse
-import logging
 
 
 class SQLValidatorServiceInput(ServiceInput):
@@ -83,12 +82,14 @@ class SQLValidatorService(BaseService):
             # Зависимости уже загружены родительским методом
             # Доступны через: self.table_description_service_instance
 
-            self.logger.info(
-                f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
-            )
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
+                )
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -283,9 +284,11 @@ class SQLValidatorService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        self.logger.info("Завершение работы SQLValidatorService")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info("Завершение работы SQLValidatorService")

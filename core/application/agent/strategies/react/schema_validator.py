@@ -1,6 +1,7 @@
 ﻿"""
 Валидатор схемы для ReAct стратегии в новой архитектуре
 """
+import logging
 from typing import Dict, Any, Optional
 from core.models.data.capability import Capability
 

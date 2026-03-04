@@ -102,14 +102,11 @@ class BehaviorPatternInterface(ABC):
     ) -> List['Capability']:
         """
         Фильтрация capability по supported_strategies.
-        
+
         Разрешает capability, если:
         1. Pattern (react/planning/etc) указан в supported_strategies capability
         2. ИЛИ это инструмент (tool)
         """
-        import logging
-        logger = logging.getLogger(__name__)
-
         # pattern_id может быть "react_pattern" или "react.v1.0.0"
         # Нам нужно извлечь "react" для сравнения со supported_strategies
         pattern_prefix = self.pattern_id.split('.')[0]  # "react_pattern" или "react"
@@ -124,9 +121,5 @@ class BehaviorPatternInterface(ABC):
                 pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
             )
         ]
-
-        logger.info(f"_filter_capabilities: pattern_id={self.pattern_id}, pattern_prefix={pattern_prefix}")
-        logger.info(f"_filter_capabilities: входные capability={[c.name for c in capabilities]}")
-        logger.info(f"_filter_capabilities: отфильтрованные capability={[c.name for c in filtered]}")
 
         return filtered

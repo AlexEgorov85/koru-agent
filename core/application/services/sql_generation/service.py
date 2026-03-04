@@ -17,9 +17,7 @@ from core.models.schemas.sql_generation_schemas import (
 from core.application.context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-import logging
 
-logger = logging.getLogger(__name__)
 
 @dataclass
 class SQLGenerationResult:
@@ -82,7 +80,8 @@ class SQLGenerationService(BaseService):
             # В новой архитектуре SQLErrorAnalyzer может использовать application_context
             self.error_analyzer = SQLErrorAnalyzer(self.application_context)
             if not await self.error_analyzer.initialize():
-                self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
             # Инициализация движка коррекции
@@ -90,12 +89,14 @@ class SQLGenerationService(BaseService):
 
             # Проверка критических зависимостей
             if not self.table_description_service_instance:
-                self.logger.error("table_description_service не загружен (архитектурная ошибка)")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error("table_description_service не загружен (архитектурная ошибка)")
                 return False
 
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
             return False
 
     async def _load_service_prompts(self):
@@ -144,7 +145,8 @@ class SQLGenerationService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:

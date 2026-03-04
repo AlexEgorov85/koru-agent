@@ -32,10 +32,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         get_session_logger,
     )
 
-    logger = logging.getLogger("main")
-
     # Инициализация системы логирования через EventBus
     await init_logging_system()
+    logger = logging.getLogger("main")
     logger.debug("Система логирования инициализирована")
 
     # Загрузка конфигурации приложения
@@ -131,9 +130,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         return result
 
     except Exception as e:
-        logger.error(f"Ошибка в run_agent: {e}", exc_info=True)
-        await session_logger.exception(f"Ошибка сессии: {e}", e)
-        await session_logger.end_session(success=False, result=str(e))
+        if session_logger:
+            await session_logger.exception(f"Ошибка сессии: {e}", e)
+            await session_logger.end_session(success=False, result=str(e))
+        else:
+            logger.error(f"Ошибка в run_agent: {e}", exc_info=True)
         raise
 
     finally:
@@ -146,12 +147,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
 def main() -> int:
     """Точка входа."""
-    # Логирование настраивается автоматически в InfrastructureContext
-
-    logger = logging.getLogger("main")
-
     try:
-        logger.info(f"Анализирую вопрос: {GOAL}")
+        # Логирование настраивается автоматически в run_agent через init_logging_system()
+        print(f"Анализирую вопрос: {GOAL}")
 
         result = asyncio.run(run_agent(
             goal=GOAL,
@@ -159,6 +157,7 @@ def main() -> int:
             temperature=TEMPERATURE
         ))
 
+        logger = logging.getLogger("main")
         logger.info("\n" + "="*60)
         logger.info("✅ ОТВЕТ:")
         logger.info("="*60)
@@ -170,9 +169,10 @@ def main() -> int:
         return 0
 
     except KeyboardInterrupt:
-        logger.info("\n⏸️ Прервано пользователем")
+        print("\n⏸️ Прервано пользователем")
         return 0
     except Exception as e:
+        logger = logging.getLogger("main")
         logger.error(f"❌ Произошла ошибка: {str(e)[:200]}", exc_info=True)
         return 1
 

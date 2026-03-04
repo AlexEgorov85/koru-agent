@@ -7,7 +7,6 @@
 - Поддержка sandbox режима для безопасного выполнения запросов
 """
 import asyncio
-from asyncio.log import logger
 import time
 from dataclasses import dataclass
 from typing import Dict, Optional, Any
@@ -69,7 +68,7 @@ class SQLTool(BaseTool):
 
     async def shutdown(self) -> None:
         """Корректное завершение работы (базовая реализация)."""
-        logger.debug(f"Базовое завершение работы для инструмента {self.name}")
+        self._log_sync("debug", f"Базовое завершение работы для инструмента {self.name}")
 
     def _is_write_query(self, sql: str) -> bool:
         """Проверяет, является ли SQL-запрос write-операцией."""

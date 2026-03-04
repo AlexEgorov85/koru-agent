@@ -165,14 +165,12 @@ class BaseTool(BaseComponent):
         - Каждая операция становится отдельным capability
         """
         from core.models.data.capability import Capability
-        import logging
-        logger = logging.getLogger(__name__)
 
         capabilities = []
 
         # Получаем список операций из конфигурации
         allowed_operations = self.get_allowed_operations()
-        logger.debug(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
+        self._log_sync("debug", f"Инструмент {self.name}: allowed_operations={allowed_operations}")
 
         if not allowed_operations and self.component_config:
             # Если operations не указаны явно, извлекаем из input_contract_versions
@@ -184,7 +182,7 @@ class BaseTool(BaseComponent):
                     # Для file_tool: file_tool.read_write
                     if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
                         allowed_operations.append(cap_name)
-                logger.debug(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
+                self._log_sync("debug", f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
 
         # Создаём capability для каждой операции
         for op_name in allowed_operations:
@@ -204,7 +202,7 @@ class BaseTool(BaseComponent):
                 }
             ))
 
-        logger.info(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        self._log_sync("info", f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
         return capabilities
 
     @abstractmethod

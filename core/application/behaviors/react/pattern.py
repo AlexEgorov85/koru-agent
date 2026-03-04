@@ -10,7 +10,6 @@
 """
 import json
 import time
-import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
@@ -23,8 +22,6 @@ from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 from core.models.errors import InfrastructureError
-
-logger = logging.getLogger(__name__)
 
 
 class ReActPattern(BaseBehaviorPattern):
@@ -88,7 +85,7 @@ class ReActPattern(BaseBehaviorPattern):
 
     async def _log(self, level: str, message: str, **extra_data):
         """
-        Универсальный метод логирования через EventBusLogger с fallback на обычный logger.
+        Универсальный метод логирования через EventBusLogger.
 
         ПАРАМЕТРЫ:
         - level: уровень логирования ('info', 'debug', 'warning', 'error')
@@ -103,11 +100,30 @@ class ReActPattern(BaseBehaviorPattern):
             log_method = getattr(self.event_bus_logger, level, None)
             if log_method:
                 await log_method(message, **extra_data)
-                return
 
-        # Fallback на обычный logger если EventBusLogger не доступен
-        log_method = getattr(logger, level, logger.info)
-        log_method(message)
+    def _log_sync(self, level: str, message: str):
+        """
+        Синхронная обёртка для логирования через EventBusLogger.
+        Используется в синхронных методах.
+
+        ПАРАМЕТРЫ:
+        - level: уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: сообщение
+        """
+        # Инициализируем event_bus_logger если ещё не инициализирован
+        if self.event_bus_logger is None:
+            self._init_event_bus_logger()
+
+        if self.event_bus_logger:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                log_method = getattr(self.event_bus_logger, level, None)
+                if log_method:
+                    asyncio.create_task(log_method(message))
+            except RuntimeError:
+                # Нет запущенного event loop - пропускаем логирование
+                pass
 
     def _load_reasoning_resources(self) -> bool:
         """
@@ -201,7 +217,7 @@ class ReActPattern(BaseBehaviorPattern):
             return rendered
         else:
             # Fallback: минимальный шаблон (только если промпт не загружен из registry)
-            logger.warning("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
+            self._log_sync("warning", "[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
             return self._build_minimal_fallback_prompt(prompt_context)
 
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
@@ -378,11 +394,11 @@ class ReActPattern(BaseBehaviorPattern):
         - available_capabilities: список capability для регистрации
         """
         if not self.application_context:
-            logger.warning("[ReAct] _register_capability_schemas: application_context не доступен")
+            self._log_sync("warning", "[ReAct] _register_capability_schemas: application_context не доступен")
             return
 
-        logger.info(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
-        logger.info(f"[ReAct] Всего capability: {len(available_capabilities)}")
+        self._log_sync("info", f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
+        self._log_sync("info", f"[ReAct] Всего capability: {len(available_capabilities)}")
 
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
@@ -393,21 +409,21 @@ class ReActPattern(BaseBehaviorPattern):
             # Проверяем, есть ли схема в кэше input_contracts
             if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
                 schema = self.input_contracts[cap.name]
-                logger.info(f"Найдена схема в input_contracts для {cap.name}")
+                self._log_sync("info", f"Найдена схема в input_contracts для {cap.name}")
             elif self.application_context.use_data_repository and self.application_context.data_repository:
                 # Пытаемся получить схему из DataRepository
                 try:
                     # Получаем версию контракта из meta capability
                     contract_version = cap.meta.get('contract_version', 'v1.0.0')
-                    logger.debug(f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
+                    self._log_sync("debug", f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
                     schema = self.application_context.data_repository.get_contract_schema(
                         cap.name,
                         contract_version,
                         "input"
                     )
-                    logger.info(f"Загружена схема из DataRepository для {cap.name}")
+                    self._log_sync("info", f"Загружена схема из DataRepository для {cap.name}")
                 except Exception as e:
-                    logger.debug(f"Не удалось получить схему для {cap.name}: {e}")
+                    self._log_sync("debug", f"Не удалось получить схему для {cap.name}: {e}")
 
             # Если схема найдена, регистрируем её в SchemaValidator
             if schema:
@@ -436,11 +452,11 @@ class ReActPattern(BaseBehaviorPattern):
 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    logger.info(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
+                    self._log_sync("info", f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
                 else:
-                    logger.debug(f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
+                    self._log_sync("debug", f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
             else:
-                logger.debug(f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
+                self._log_sync("debug", f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
 
     async def _publish_llm_response_received(
         self,
@@ -1089,7 +1105,7 @@ class ReActPattern(BaseBehaviorPattern):
             return validated if validated else parameters
         except Exception as e:
             # Fallback: возвращаем минимальные параметры
-            self.logger.warning(f"Валидация параметров не удалась: {e}")
+            self._log_sync("warning", f"Валидация параметров не удалась: {e}")
             return {"input": parameters.get("input", "Продолжить выполнение задачи")}
 
     async def _make_decision_from_reasoning(
@@ -1123,7 +1139,7 @@ class ReActPattern(BaseBehaviorPattern):
                                reasoning_result=reasoning_result)
                 return BehaviorDecision(
                     action=BehaviorDecisionType.RETRY,
-                    reason="LLM не вернул корректное действие"
+                    reason="LLM не вернул корре��тное действие"
                 )
             
             # 3. Поиск capability в available_capabilities
@@ -1146,7 +1162,7 @@ class ReActPattern(BaseBehaviorPattern):
                         reason="no_available_capabilities"
                     )
             
-            # 4. Валидация и корректировка параметров через SchemaValidator
+            # 4. Вали��ация и корректировка параметров через SchemaValidator
             parameters = decision.get("parameters", {})
             validated_params = self._validate_parameters(capability, parameters)
             
@@ -1211,7 +1227,7 @@ class ReActPattern(BaseBehaviorPattern):
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
 
-        logger.info(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
+        self._log_sync("info", f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
 
         capability = None
         for cap in available_caps:
@@ -1225,17 +1241,17 @@ class ReActPattern(BaseBehaviorPattern):
                 if any(s.lower() == "react" for s in cap.supported_strategies or []):
                     capability = cap
                     capability_name = cap.name
-                    logger.warning(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
+                    self._log_sync("warning", f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
                     break
 
         if not capability:
-            logger.error(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
+            self._log_sync("error", f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
         # Валидация и корректировка параметро��
-        logger.info(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
-        logger.info(f"capability: {capability.name}")
-        logger.info(f"raw_params: {parameters}")
+        self._log_sync("info", f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
+        self._log_sync("info", f"capability: {capability.name}")
+        self._log_sync("info", f"raw_params: {parameters}")
 
         validated_params = self.schema_validator.validate_parameters(
             capability=capability,
@@ -1247,20 +1263,20 @@ class ReActPattern(BaseBehaviorPattern):
             # system_context больше не передается, так как мы изолированы
         )
 
-        logger.info(f"validated_params: {validated_params}")
+        self._log_sync("info", f"validated_params: {validated_params}")
 
         if not validated_params:
             # Попытка создать минимально необходимые параметры
             validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
-            logger.warning(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
+            self._log_sync("warning", f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
         else:
-            logger.info(f"✅ Параметры успешно валидированы")
+            self._log_sync("info", f"✅ Параметры успешно валидированы")
 
-        logger.info(f"=== РЕШЕНИЕ ===")
-        logger.info(f"action: {BehaviorDecisionType.ACT}")
-        logger.info(f"capability_name: {capability_name}")
-        logger.info(f"parameters: {validated_params}")
-        logger.info(f"reason: {reasoning}")
+        self._log_sync("info", f"=== РЕШЕНИЕ ===")
+        self._log_sync("info", f"action: {BehaviorDecisionType.ACT}")
+        self._log_sync("info", f"capability_name: {capability_name}")
+        self._log_sync("info", f"parameters: {validated_params}")
+        self._log_sync("info", f"reason: {reasoning}")
 
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,

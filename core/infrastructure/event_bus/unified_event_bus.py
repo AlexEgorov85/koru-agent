@@ -55,14 +55,11 @@ await event_bus.publish(
 """
 import asyncio
 import inspect
-import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
-
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================

@@ -5,7 +5,6 @@ from core.application.services.sql_generation.error_analyzer import SQLErrorAnal
 from core.application.context.base_system_context import BaseSystemContext
 from core.models.schemas.sql_query_schemas import SQLQueryInput, SQLQueryOutput
 from core.application.context.application_context import ApplicationContext
-import logging
 
 
 class SQLQueryServiceInput(ServiceInput):
@@ -70,13 +69,16 @@ class SQLQueryService(BaseService):
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(self.application_context)
             if not await self.error_analyzer.initialize():
-                self.logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
-            self.logger.info("SQLQueryService успешно инициализирован")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("SQLQueryService успешно инициализирован")
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -135,7 +137,8 @@ class SQLQueryService(BaseService):
                         "max_rows": max_rows
                     })
                 except Exception as e:
-                    self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
                     return DBQueryResult(
                         success=False,
                         rows=[],
@@ -194,7 +197,8 @@ class SQLQueryService(BaseService):
                         "execution_time": tool_result.data.get('execution_time', 0)
                     })
                 except Exception as e:
-                    self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
 
             # Преобразуем результат в DBQueryResult
             if tool_result.success and tool_result.data:
@@ -215,7 +219,8 @@ class SQLQueryService(BaseService):
                 )
 
         except Exception as e:
-            self.logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
             return DBQueryResult(
                 success=False,
                 rows=[],
@@ -273,7 +278,8 @@ class SQLQueryService(BaseService):
             return result
 
         except Exception as e:
-            self.logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
             return DBQueryResult(
                 success=False,
                 rows=[],
@@ -315,11 +321,13 @@ class SQLQueryService(BaseService):
             # Затем инициализируем заново
             return await self.initialize()
         except Exception as e:
-            self.logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        self.logger.info("Завершение работы SQLQueryService")
+        if self.event_bus_logger:
+            await self.event_bus_logger.info("Завершение работы SQLQueryService")
         # Закрытие ресурсов при необходимости
         await self.error_analyzer.shutdown()

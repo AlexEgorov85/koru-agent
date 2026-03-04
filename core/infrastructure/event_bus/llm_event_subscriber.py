@@ -1,19 +1,19 @@
 ﻿"""
 Подписчик на события LLM для логирования и аудита.
 """
-import logging
 import json
 from typing import Optional
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-
-logger = logging.getLogger(__name__)
+from core.infrastructure.logging import EventBusLogger
 
 
 class LLMEventSubscriber:
     """Подписчик на события LLM для подробного логирования."""
 
-    def __init__(self, log_full_content: bool = False):
+    def __init__(self, event_bus: UnifiedEventBus, log_full_content: bool = False):
+        self.event_bus = event_bus
         self.log_full_content = log_full_content
+        self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="LLMEventSubscriber")
         self._prompt_count = 0
         self._response_count = 0
 
@@ -25,13 +25,13 @@ class LLMEventSubscriber:
         component = data.get('component', 'unknown')
         phase = data.get('phase', 'unknown')
 
-        # Логируем через стандартный logger для вывода в консоль и файл
+        # Логируем через EventBusLogger
         prompt_length = data.get('prompt_length', len(data.get('user_prompt', '')))
-        logger.info(f"[LLM] Prompt #{self._prompt_count} | {component}/{phase} | {prompt_length} симв.")
+        await self.event_bus_logger.info(f"[LLM] Prompt #{self._prompt_count} | {component}/{phase} | {prompt_length} симв.")
 
         if self.log_full_content:
-            logger.debug(f"System prompt: {data.get('system_prompt', '')[:500]}")
-            logger.debug(f"User prompt: {data.get('user_prompt', '')[:500]}")
+            await self.event_bus_logger.debug(f"System prompt: {data.get('system_prompt', '')[:500]}")
+            await self.event_bus_logger.debug(f"User prompt: {data.get('user_prompt', '')[:500]}")
 
     async def on_llm_response_received(self, event: Event):
         """Обработчик события LLM_RESPONSE_RECEIVED."""
@@ -47,16 +47,16 @@ class LLMEventSubscriber:
         else:
             response_str = str(response)[:200]
 
-        logger.info(f"[LLM] Response #{self._response_count} | {component}/{phase}")
+        await self.event_bus_logger.info(f"[LLM] Response #{self._response_count} | {component}/{phase}")
 
         if self.log_full_content:
-            logger.debug(f"Response: {response_str}")
+            await self.event_bus_logger.debug(f"Response: {response_str}")
 
     def subscribe(self, event_bus: UnifiedEventBus):
         """Подписка на события LLM."""
         event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self.on_llm_prompt_generated)
         event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self.on_llm_response_received)
-        logger.info(f"LLMEventSubscriber подписан (log_full={self.log_full_content})")
+        # Логирование при подписке не требуется — это внутренний метод
 
     def get_stats(self) -> dict:
         return {

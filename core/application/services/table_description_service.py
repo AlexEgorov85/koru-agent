@@ -1,7 +1,6 @@
 ﻿"""
 Инфраструктурный сервис для получения описания таблицы.
 """
-import logging
 from typing import Dict, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.application.context.application_context import ApplicationContext
@@ -67,19 +66,23 @@ class TableDescriptionService(BaseService):
         Специфичная инициализация для TableDescriptionService.
         """
         try:
-            self.logger.info("Инициализация сервиса описания таблицы")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("Инициализация сервиса описания таблицы")
             # Проверка доступности прикладного контекста и необходимых компонентов
             if self.application_context is None:
-                self.logger.error("Отсутствует прикладной контекст")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error("Отсутствует прикладной контекст")
                 return False
 
             # Инициализация кэша таблиц
             self._table_cache = {}
 
-            self.logger.info("Сервис описания таблицы успешно инициализирован")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("Сервис описания таблицы успешно инициализирован")
             return True
         except Exception as e:
-            self.logger.error(f"Ошибка инициализации сервиса описания таблицы: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка инициализации сервиса описания таблицы: {str(e)}")
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -113,11 +116,14 @@ class TableDescriptionService(BaseService):
         Завершение работы сервиса описания таблицы.
         """
         try:
-            self.logger.info("Завершение работы сервиса описания таблицы")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("Завершение работы сервиса описания таблицы")
             # Любые необходимые действия при завершении работы
-            self.logger.info("Сервис описания таблицы успешно завершил работу")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("Сервис описания таблицы успешно завершил работу")
         except Exception as e:
-            self.logger.error(f"Ошибка при завершении работы сервиса описания таблицы: {str(e)}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка при завершении работы сервиса описания таблицы: {str(e)}")
             raise
 
     async def get_table_metadata(
@@ -177,20 +183,22 @@ class TableDescriptionService(BaseService):
             """
 
             # 3. Выполнение запросов с параметрами для безопасности
-            self.logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
-            
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
+
             # Получаем DB провайдер из инфраструктурного контекста через прикладной контекст
             db_provider = self.application_context.infrastructure_context.get_provider("default_db")
             if not db_provider:
                 raise RuntimeError("DB провайдер не найден в инфраструктурном контексте")
-            
+
             # Выполняем SQL-запросы через DB провайдер
             columns_result = await db_provider.execute(sql, {"p1": schema_name, "p2": table_name})
             table_desc_result = await db_provider.execute(table_desc_sql, {"p1": table_name, "p2": schema_name})
 
             # 4. Проверка результатов
             if not columns_result or not hasattr(columns_result, 'rows') or not columns_result.rows:
-                self.logger.warning(f"Таблица {schema_name}.{table_name} не найдена или не имеет столбцов")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(f"Таблица {schema_name}.{table_name} не найдена или не имеет столбцов")
                 return {
                     "schema_name": schema_name,
                     "table_name": table_name,
@@ -212,9 +220,11 @@ class TableDescriptionService(BaseService):
 
                 if table_comment and isinstance(table_comment, str) and table_comment.strip():
                     table_description = table_comment.strip()
-                    self.logger.debug(f"Получено описание таблицы: {table_description}")
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.debug(f"Получено описание таблицы: {table_description}")
                 else:
-                    self.logger.debug("Описание таблицы отсутствует или пустое")
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.debug("Описание таблицы отсутствует или пустое")
 
             # 6. Преобразование результата в структурированный формат
             columns = []
@@ -305,12 +315,14 @@ class TableDescriptionService(BaseService):
             # 9. Логирование успешного получения метаданных
             column_count = len(columns)
             constraint_count = len(constraints)
-            self.logger.info(f"Получены метаданные для таблицы {schema_name}.{table_name}: колонок={column_count}, ограничений={constraint_count}")
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"Получены метаданные для таблицы {schema_name}.{table_name}: колонок={column_count}, ограничений={constraint_count}")
 
             return metadata
 
         except Exception as e:
-            self.logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}", exc_info=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}", exc_info=True)
             # Возвращаем базовую структуру даже при ошибке
             return {
                 "schema_name": schema_name,
@@ -348,7 +360,8 @@ class TableDescriptionService(BaseService):
                 )
                 result[f"{schema_name}.{table_name}"] = table_metadata
             except Exception as e:
-                self.logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}")
                 # Добавляем базовую информацию даже при ошибке
                 result[f"{schema_name}.{table_name}"] = {
                     "schema_name": schema_name,
