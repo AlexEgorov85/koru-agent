@@ -94,6 +94,10 @@ class SessionLogHandler:
         """Асинхронная запись события в файл."""
         async with self._lock:
             try:
+                # Создаём файл если не существует
+                if not file_path.exists():
+                    file_path.touch()
+                
                 event_data = {
                     "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, 'isoformat') else str(event.timestamp),
                     "event_type": event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type),
