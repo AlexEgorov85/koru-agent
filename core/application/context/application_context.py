@@ -376,12 +376,12 @@ class ApplicationContext(BaseSystemContext):
             # )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
-            self.logger.error(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
+            self.logger.debug(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
             if self.use_data_repository and self.data_repository:
-                self.logger.error("Вызов _preload_resources_via_repository...")
+                self.logger.debug("Вызов _preload_resources_via_repository...")
                 await self._preload_resources_via_repository()
             else:
-                self.logger.error("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
+                self.logger.debug("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
 
             # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
             # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
@@ -389,9 +389,9 @@ class ApplicationContext(BaseSystemContext):
             executor = ActionExecutor(self)
 
             # Сначала создаем и регистрируем все компоненты
-            self.logger.error("Начало создания компонентов...")
+            self.logger.info("Начало создания компонентов...")
             component_configs = self._resolve_component_configs()
-            self.logger.error(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
+            self.logger.debug(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
                     self.logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")

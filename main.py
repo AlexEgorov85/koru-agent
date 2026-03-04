@@ -2,10 +2,10 @@
 Точка входа для запуска агента.
 
 Использует архитектуру проекта:
-- InfrastructureContext для управления ресурсами
+- InfrastructureContext для инфраструктуры
 - ApplicationContext для прикладной логики
 - ErrorHandler для обработки ошибок
-- EventBus для логирования
+- EventBusLogger для логирования через шину событий
 """
 import asyncio
 import sys
@@ -29,8 +29,8 @@ from core.infrastructure.logging import (
 from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
 
 
-# === ВОПРОСЫ ДЛЯ ТЕСТИРОВАНИЯ ===
-GOAL = "Сколько будет 2 + 2?"
+# === ВОПРОС ДЛЯ ТЕСТИРОВАНИЯ ===
+GOAL = "Какие книги написал Пушкин?"
 MAX_STEPS = 10
 TEMPERATURE = 0.7
 
@@ -39,14 +39,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     """
     Запуск агента с заданной целью.
     
-    ИСПОЛЬЗУЕТ:
-    - InfrastructureContext для инфраструктуры
-    - ApplicationContext для прикладного контекста
-    - ErrorHandler для обработки ошибок
+    ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
     """
     # Инициализация системы логирования через EventBus
     await init_logging_system()
-    
+
     # Загрузка конфигурации приложения
     config = get_config(profile='dev')
 
@@ -58,17 +55,18 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
 
-    # Получаем глобальный обработчик ошибок и привязываем к нему event_bus
+    # Получаем глобальный обработчик ошибок
     error_handler = get_error_handler()
     
     try:
         # Начало сессии
         await session_logger.start_session(goal=goal)
-        await session_logger.info(f"Сессия начата: {session_id}")
+        await session_logger.info(f"🚀 Сессия начата: {session_id}")
+        await session_logger.info(f"📝 Цель: {goal}")
 
         # Создание прикладного контекста
         app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
-        await session_logger.debug(f"app_config loaded via discovery")
+        await session_logger.debug(f"📦 app_config загружен через discovery")
 
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
@@ -79,10 +77,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await application_context.initialize()
         await session_logger.info("✅ ApplicationContext инициализирован")
 
-        # DEBUG: Проверка что компоненты загрузились
+        # Проверка что компоненты загрузились
         from core.models.enums.common_enums import ComponentType
         skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
-        await session_logger.info(f"✅ Загружено навыков: {skill_count}")
+        tool_count = len(application_context.components._components.get(ComponentType.TOOL, {}))
+        await session_logger.info(f"✅ Загружено компонентов: навыков={skill_count}, инструментов={tool_count}")
 
         # Подписка на события LLM через LLMEventSubscriber
         llm_subscriber = LLMEventSubscriber(
@@ -104,14 +103,14 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             agent_config_kwargs['temperature'] = temperature
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
-        await session_logger.info("✅ AgentConfig создан")
+        await session_logger.info(f"⚙️ AgentConfig: max_steps={max_steps}, temperature={temperature}")
 
         # Создание и запуск агента
         await session_logger.info("🔄 Создание агента...")
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
         await session_logger.info(f"✅ Агент создан: {type(agent).__name__}")
 
-        await session_logger.info("🚀 Запуск агента...")
+        await session_logger.info("🚀 Запуск выполнения агента...")
         result = await agent.run(goal)
         await session_logger.info(f"✅ Агент завершил работу")
 
@@ -128,6 +127,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                 context=error_context,
                 severity=ErrorSeverity.HIGH
             )
+            await session_logger.error(f"❌ Ошибка агента: {result.error}")
             raise RuntimeError(f"Ошибка агента: {result.error}")
 
         # Проверка на ошибку в metadata
@@ -147,11 +147,14 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                         context=error_context,
                         severity=ErrorSeverity.HIGH
                     )
+                    await session_logger.error(f"❌ Ошибка в metadata: {error_msg}")
                     raise RuntimeError(f"Ошибка агента: {error_msg}")
 
         # Завершение сессии успешно
-        await session_logger.end_session(success=True, result=str(result)[:500])
-        await session_logger.info(f"Сессия завершена успешно: {session_id}")
+        result_preview = str(result)[:500] if len(str(result)) > 500 else str(result)
+        await session_logger.end_session(success=True, result=result_preview)
+        await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
+        await session_logger.info(f"📊 Результат: {result_preview}")
 
         return result
 
@@ -169,9 +172,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             severity=ErrorSeverity.CRITICAL
         )
         
-        if session_logger:
-            await session_logger.exception(f"Ошибка сессии: {e}", e)
-            await session_logger.end_session(success=False, result=str(e))
+        await session_logger.exception(f"❌ Ошибка сессии: {e}", e)
+        await session_logger.end_session(success=False, result=str(e))
         raise
 
     finally:
@@ -184,7 +186,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 def main() -> int:
     """Точка входа."""
     try:
-        print(f"Анализирую вопрос: {GOAL}")
+        print(f"🤖 Анализирую вопрос: {GOAL}")
+        print(f"⚙️ Параметры: max_steps={MAX_STEPS}, temperature={TEMPERATURE}")
+        print("=" * 60)
 
         result = asyncio.run(run_agent(
             goal=GOAL,
@@ -192,15 +196,10 @@ def main() -> int:
             temperature=TEMPERATURE
         ))
 
-        # Логирование результата
-        logger = logging.getLogger("main")
-        logger.info("\n" + "="*60)
-        logger.info("✅ ОТВЕТ:")
-        logger.info("="*60)
-
-        result_text = str(result)[:500] if len(str(result)) > 500 else str(result)
-        logger.info(f"✅ Результат: {result_text}")
-        logger.debug(f"Полный результат: {result}")
+        print("=" * 60)
+        print("✅ ОТВЕТ АГЕНТА:")
+        print("=" * 60)
+        print(result)
 
         return 0
 
@@ -221,11 +220,9 @@ def main() -> int:
             severity=ErrorSeverity.CRITICAL
         ))
         
-        logger = logging.getLogger("main")
-        logger.error(f"❌ Произошла ошибка: {str(e)[:200]}", exc_info=True)
+        print(f"\n❌ Произошла ошибка: {str(e)[:200]}")
         return 1
 
 
 if __name__ == "__main__":
-    import logging
     sys.exit(main())
