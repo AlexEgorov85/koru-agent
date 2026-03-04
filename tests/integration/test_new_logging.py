@@ -44,7 +44,7 @@ async def test_logging():
             enabled=True,
             level=LogLevel.DEBUG,
             format=LogFormat.JSONL,
-            base_dir=Path("logs_test"),
+            base_dir=Path("logs/test_sessions"),
             organize_by_session=True,
             organize_by_date=True,
             max_file_size_mb=100,
@@ -109,10 +109,10 @@ async def test_logging():
     print("\n[OK] Обработчики закрыты")
     
     # Проверка файлов
-    test_logs_dir = Path("logs_test")
+    test_logs_dir = Path("logs/test_sessions")
     if test_logs_dir.exists():
         print(f"\n[OK] Директория логов создана: {test_logs_dir}")
-        
+
         # Список файлов
         files = list(test_logs_dir.rglob("*.log"))
         if files:
