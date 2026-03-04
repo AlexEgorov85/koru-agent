@@ -14,7 +14,6 @@
 - Или используйте декоратор @log_execution для автоматического логирования
 """
 import asyncio
-import logging
 from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 from core.config.component_config import ComponentConfig
@@ -84,11 +83,6 @@ class BaseComponent(ABC):
         # Инициализация флага инициализации
         self._initialized = False
 
-        # Инициализация логгера
-        import logging
-        self._logger = logging.getLogger(f"{self.__class__.__module__}.{self.name}")
-        self.logger = self._logger
-        
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
         self._init_event_bus_logger()
