@@ -292,6 +292,10 @@ class LlamaCppProvider(BaseLLMProvider):
         try:
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: НАЧАЛО LLM ВЫЗОВА ===
             # Публикуем событие с полной информацией для логирования в сессию
+            # Отладка: проверяем _event_bus
+            print(f"[DEBUG] LlamaCppProvider._generate_impl(): _event_bus = {getattr(self, '_event_bus', 'NOT_SET')}")
+            print(f"[DEBUG] LlamaCppProvider._generate_impl(): has _event_bus attr = {hasattr(self, '_event_bus')}")
+            
             if hasattr(self, '_event_bus') and self._event_bus:
                 from core.infrastructure.event_bus.unified_event_bus import EventType
                 await self._event_bus.publish(
