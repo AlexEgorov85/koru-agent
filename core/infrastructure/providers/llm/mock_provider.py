@@ -182,6 +182,27 @@ class MockLLMProvider(BaseLLMProvider):
         # Логирование вызова
         self.event_bus_logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
 
+        # Публикация события LLM_CALL_STARTED
+        if hasattr(self, '_event_bus') and self._event_bus:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            await self._event_bus.publish(
+                event=EventType.LLM_CALL_STARTED,
+                data={
+                    "agent_id": getattr(self, '_agent_id', 'mock'),
+                    "session_id": getattr(self, '_session_id', 'mock'),
+                    "component": getattr(self, '_component', 'mock_llm'),
+                    "phase": getattr(self, '_phase', 'mock'),
+                    "goal": getattr(self, '_goal', 'mock'),
+                    "provider": "MockLLMProvider",
+                    "model": self.model_name,
+                    "prompt_length": len(request.prompt),
+                    "max_tokens": request.max_tokens,
+                    "temperature": request.temperature,
+                    "is_mock": True
+                },
+                source="mock_llm_provider"
+            )
+
         # Поиск подходящего ответа
         response = self._default_response
         matched_pattern = None
@@ -213,7 +234,27 @@ class MockLLMProvider(BaseLLMProvider):
         })
         
         generation_time = time.time() - start_time
-        
+
+        # Публикация события LLM_CALL_COMPLETED
+        if hasattr(self, '_event_bus') and self._event_bus:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            await self._event_bus.publish(
+                event=EventType.LLM_CALL_COMPLETED,
+                data={
+                    "agent_id": getattr(self, '_agent_id', 'mock'),
+                    "session_id": getattr(self, '_session_id', 'mock'),
+                    "component": getattr(self, '_component', 'mock_llm'),
+                    "phase": getattr(self, '_phase', 'mock'),
+                    "provider": "MockLLMProvider",
+                    "model": self.model_name,
+                    "response_length": len(response),
+                    "tokens_used": len(response.split()),
+                    "generation_time": generation_time,
+                    "is_mock": True
+                },
+                source="mock_llm_provider"
+            )
+
         return LLMResponse(
             content=response,
             model=self.model_name,
