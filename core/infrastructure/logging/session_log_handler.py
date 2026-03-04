@@ -61,13 +61,15 @@ class SessionLogHandler:
 
     def _subscribe_to_events(self):
         """Подписка на события для логирования."""
+        # Подписка на события БЕЗ фильтрации по session_id (получать из ВСЕХ сессий)
+        
         # Общие логи
         self.event_bus.subscribe(EventType.LOG_INFO, self._on_log_event)
         self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_log_event)
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log_event)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_log_event)
 
-        # LLM события (оба типа!)
+        # LLM события (все типы!)
         self.event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self._on_llm_prompt)
         self.event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response)
         self.event_bus.subscribe(EventType.LLM_CALL_STARTED, self._on_llm_call)
@@ -75,6 +77,9 @@ class SessionLogHandler:
 
         # Метрики
         self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_metric)
+        
+        # Отладка: проверяем подписку
+        print(f"[DEBUG] SessionLogHandler: подписка на события выполнена")
 
     async def _on_log_event(self, event: Event):
         """Обработка логов (INFO, DEBUG, WARNING, ERROR)."""

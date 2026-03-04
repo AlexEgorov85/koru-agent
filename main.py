@@ -55,9 +55,10 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
 
     # Создаём новый обработчик логов сессии (с датой/временем в имени папки)
+    # session_id=None чтобы получать события из ВСЕХ сессий (включая "system")
     session_log_handler = create_session_log_handler(
         event_bus=infrastructure_context.event_bus,
-        session_id=session_id,
+        session_id=None,  # Получать события из всех сессий
         agent_id="agent_001"
     )
     session_info = session_log_handler.get_session_info()
