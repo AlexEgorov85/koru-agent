@@ -298,6 +298,7 @@ class LlamaCppProvider(BaseLLMProvider):
             
             if hasattr(self, '_event_bus') and self._event_bus:
                 from core.infrastructure.event_bus.unified_event_bus import EventType
+                print(f"[DEBUG] LlamaCppProvider: ПЕРЕД publish() LLM_CALL_STARTED")
                 await self._event_bus.publish(
                     event=EventType.LLM_CALL_STARTED,
                     data={
@@ -322,6 +323,7 @@ class LlamaCppProvider(BaseLLMProvider):
                     source="llama_cpp_provider.execute",
                     correlation_id=getattr(self, '_session_id', '')
                 )
+                print(f"[DEBUG] LlamaCppProvider: ПОСЛЕ publish() LLM_CALL_STARTED")
 
             # Подготовим параметры для вызова модели
             max_tokens = request.max_tokens

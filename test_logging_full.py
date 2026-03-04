@@ -56,8 +56,19 @@ async def test_full_logging():
     )
     print("    [OK] Логгер создан")
     
-    # 4. Тестирование common.log (логи)
-    print("\n[4] Тестирование common.log (INFO/WARNING/ERROR)...")
+    # 4. Создание SessionLogHandler (ДО публикации событий!)
+    print("\n[4] Создание SessionLogHandler (ДО публикации событий)...")
+    session_log_handler = create_session_log_handler(
+        event_bus=infra.event_bus,
+        session_id=infra.id,
+        agent_id="test_agent"
+    )
+    session_info = session_log_handler.get_session_info()
+    print("    [OK] SessionLogHandler активирован")
+    print(f"    Папка сессии: {session_info['session_folder']}")
+    
+    # 5. Тестирование common.log (логи)
+    print("\n[5] Тестирование common.log (INFO/WARNING/ERROR)...")
     await logger.info("Тестовое INFO сообщение")
     await logger.warning("Тестовое WARNING сообщение")
     await logger.error("Тестовое ERROR сообщение")

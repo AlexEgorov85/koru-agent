@@ -90,7 +90,10 @@ class SessionLogHandler:
 
     async def _on_llm_call(self, event: Event):
         """Обработка LLM вызовов (STARTED/COMPLETED)."""
+        print(f"[DEBUG] SessionLogHandler._on_llm_call(): ПОЛУЧЕНО СОБЫТИЕ {event.event_type}")
+        print(f"[DEBUG] SessionLogHandler._on_llm_call(): llm_log_path = {self.llm_log_path}")
         await self._write_to_file(self.llm_log_path, event)
+        print(f"[DEBUG] SessionLogHandler._on_llm_call(): ЗАПИСАНО В ФАЙЛ")
 
     async def _on_metric(self, event: Event):
         """Обработка метрик."""
