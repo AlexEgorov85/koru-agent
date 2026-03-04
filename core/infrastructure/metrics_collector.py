@@ -112,6 +112,21 @@ class MetricsCollector(BaseEventCollector):
             )
             await self.storage.record(success_metric)
 
+            # Публикуем событие для SessionLogHandler
+            await self.event_bus.publish(
+                event=EventType.METRIC_COLLECTED,
+                data={
+                    "agent_id": agent_id,
+                    "session_id": session_id,
+                    "capability": capability,
+                    "metric_type": "gauge",
+                    "name": "success",
+                    "value": success_value,
+                    "version": version
+                },
+                source="MetricsCollector"
+            )
+
             # Метрика времени выполнения
             execution_time = data.get('execution_time_ms')
             if execution_time is not None:
@@ -128,6 +143,21 @@ class MetricsCollector(BaseEventCollector):
                 )
                 await self.storage.record(time_metric)
 
+                # Публикуем событие для SessionLogHandler
+                await self.event_bus.publish(
+                    event=EventType.METRIC_COLLECTED,
+                    data={
+                        "agent_id": agent_id,
+                        "session_id": session_id,
+                        "capability": capability,
+                        "metric_type": "histogram",
+                        "name": "execution_time_ms",
+                        "value": float(execution_time),
+                        "version": version
+                    },
+                    source="MetricsCollector"
+                )
+
             # Метрика токенов
             tokens_used = data.get('tokens_used')
             if tokens_used is not None:
@@ -143,6 +173,21 @@ class MetricsCollector(BaseEventCollector):
                     version=version
                 )
                 await self.storage.record(tokens_metric)
+
+                # Публикуем событие для SessionLogHandler
+                await self.event_bus.publish(
+                    event=EventType.METRIC_COLLECTED,
+                    data={
+                        "agent_id": agent_id,
+                        "session_id": session_id,
+                        "capability": capability,
+                        "metric_type": "counter",
+                        "name": "tokens_used",
+                        "value": float(tokens_used),
+                        "version": version
+                    },
+                    source="MetricsCollector"
+                )
 
         except Exception as e:
             self.event_bus_logger.error("Ошибка обработки SKILL_EXECUTED: %s", e)
