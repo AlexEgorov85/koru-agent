@@ -279,18 +279,39 @@ class VectorBooksTool(BaseTool):
                     strict_mode=False
                 )
             )
+
+            # Вызов через executor (который использует orchestrator)
+            result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                llm_provider=self._llm_provider,
+                parameters={
+                    'prompt': llm_prompt,
+                    'structured_output': StructuredOutputConfig(
+                        output_model="VectorBooksAnalysis",
+                        schema_def=output_schema,
+                        max_retries=3,
+                        strict_mode=False
+                    )
+                }
+            )
             
-            llm_response = await self._llm_provider.generate_structured(llm_request)
-            # Извлекаем результат из структурированного ответа
-            if isinstance(llm_response, dict) and 'raw_response' in llm_response:
-                import json
-                result_data = json.loads(llm_response['raw_response'])
+            # Извлекаем результат
+            if result.get('success'):
+                result_data = result['data']['parsed_content']
             else:
-                result_data = llm_response
+                raise ValueError(f"LLM error: {result.get('error')}")
         else:
-            # Fallback: простой JSON вывод
-            llm_response = await self._llm_provider.generate_json(llm_prompt)
-            result_data = llm_response
+            # Fallback: простой JSON вывод через executor (единообразно)
+            fallback_result = await self.executor.execute_action(
+                action_name="llm.generate",
+                llm_provider=self._llm_provider,
+                parameters={
+                    'prompt': llm_prompt,
+                    'temperature': 0.1,
+                    'max_tokens': 500
+                }
+            )
+            result_data = fallback_result['data']['content']
 
         # 4. Формируем результат
         analysis = AnalysisResult(

@@ -344,19 +344,21 @@ class BaseLLMProvider(BaseProvider, ABC):
     async def _generate_structured_impl(
         self,
         request: LLMRequest
-    ) -> StructuredLLMResponse:
+    ) -> LLMResponse:
         """
         Реализация генерации структурированных данных в подклассе.
-        
+
+        АРХИТЕКТУРА:
+        - Провайдер ТОЛЬКО выполняет синхронный вызов модели
+        - Возвращает сырой текст (LLMResponse)
+        - Без retry, без парсинга JSON, без валидации
+        - Вся логика структурированного вывода в LLMOrchestrator
+
         ПАРАМЕТРЫ:
         - request (LLMRequest): Запрос с configuration структурированного вывода
-        
+
         ВОЗВРАЩАЕТ:
-        - StructuredLLMResponse: Типизированный ответ с валидной моделью
-        
-        RAISES:
-        - StructuredOutputError: Если не удалось получить валидный ответ
-        - ValueError: Если request.structured_output не указан
+        - LLMResponse: Сырой ответ от модели
         """
         pass
 
@@ -367,11 +369,13 @@ class BaseLLMProvider(BaseProvider, ABC):
         """
         Генерация структурированных данных по JSON Schema.
 
-        ЛОГИРОВАНИЕ:
-        - correlation_id генерируется ЗДЕСЬ (в базовом классе)
-        - Публикуется LLM_PROMPT_GENERATED перед вызовом LLM
-        - Публикуется LLM_RESPONSE_RECEIVED после получения ответа
-        - Один correlation_id для пары промпт-ответ (трассировка)
+        ВАЖНО: Этот метод для обратной совместимости.
+        Для нового кода используйте LLMOrchestrator.execute_structured().
+
+        АРХИТЕКТУРА:
+        1. Вызывает _generate_structured_impl() для получения сырого ответа
+        2. Парсит JSON и валидирует по схеме
+        3. Возвращает StructuredLLMResponse
 
         ПАРАМЕТРЫ:
         - request (LLMRequest): Запрос с configuration структурированного вывода
@@ -394,7 +398,7 @@ class BaseLLMProvider(BaseProvider, ABC):
         """
         # ✅ ГЕНЕРАЦИЯ correlation_id на уровне провайдера
         correlation_id = str(uuid.uuid4())
-        
+
         start_time = time.time()
 
         # Публикация события LLM_PROMPT_GENERATED
@@ -405,27 +409,34 @@ class BaseLLMProvider(BaseProvider, ABC):
             f"📝 LLM структурированный вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Schema: {request.structured_output.output_model if request.structured_output else 'unknown'} | "
-            f"Max retries: {request.structured_output.max_retries if request.structured_output else 3} | "
             f"correlation_id: {correlation_id}"
         )
 
         try:
-            # Вызов реализации в подклассе
-            response = await self._generate_structured_impl(request)
+            # Вызов реализации в подклассе (возвращает сырой LLMResponse)
+            raw_response = await self._generate_structured_impl(request)
+
+            # Парсинг и валидация (для обратной совместимости)
+            # В новом коде это делает LLMOrchestrator
+            structured_response = await self._parse_and_validate_structured_response(
+                raw_response=raw_response,
+                schema=request.structured_output.schema_def if request.structured_output else None,
+                output_model=request.structured_output.output_model if request.structured_output else "Unknown"
+            )
 
             # Логирование завершения
             elapsed = time.time() - start_time
             await self.event_bus_logger.info(
                 f"✅ LLM структурированный ответ | Модель: {self.model_name} | "
                 f"Время: {elapsed:.2f}с | "
-                f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1} | "
+                f"Попыток: {structured_response.parsing_attempts} | "
                 f"correlation_id: {correlation_id}"
             )
 
             # Публикация события LLM_RESPONSE_RECEIVED
-            await self._publish_response_event(response, correlation_id, elapsed)
+            await self._publish_response_event(structured_response, correlation_id, elapsed)
 
-            return response
+            return structured_response
 
         except Exception as e:
             # Логирование ошибки
@@ -440,6 +451,78 @@ class BaseLLMProvider(BaseProvider, ABC):
             # Публикация события об ошибке
             await self._publish_error_event(e, correlation_id, elapsed)
             raise
+
+    async def _parse_and_validate_structured_response(
+        self,
+        raw_response: LLMResponse,
+        schema: Optional[Dict[str, Any]],
+        output_model: str
+    ) -> StructuredLLMResponse:
+        """
+        Парсинг и валидация структурированного ответа.
+
+        ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ - используется в generate_structured().
+        В новом коде LLMOrchestrator выполняет эту логику.
+
+        ПАРАМЕТРЫ:
+        - raw_response: Сырой ответ от LLM
+        - schema: JSON Schema для валидации
+        - output_model: Имя модели для создания Pydantic класса
+
+        ВОЗВРАЩАЕТ:
+        - StructuredLLMResponse: Результат с валидной моделью
+        """
+        import json
+        from pydantic import ValidationError, create_model
+
+        # Извлечение JSON из ответа
+        json_content = self._extract_json_from_response(raw_response.content)
+
+        try:
+            # Парсинг JSON
+            parsed_json = json.loads(json_content)
+
+            # Создание динамической Pydantic модели
+            temp_model = self._create_pydantic_from_schema(output_model, schema)
+
+            # Валидация
+            parsed_content = temp_model.model_validate(parsed_json)
+
+            # Успех
+            return StructuredLLMResponse(
+                parsed_content=parsed_content,
+                raw_response=RawLLMResponse(
+                    content=raw_response.content,
+                    model=raw_response.model,
+                    tokens_used=raw_response.tokens_used,
+                    generation_time=raw_response.generation_time,
+                    finish_reason=raw_response.finish_reason,
+                    metadata=raw_response.metadata
+                ),
+                parsing_attempts=1,
+                validation_errors=[],
+                provider_native_validation=False
+            )
+
+        except (json.JSONDecodeError, ValidationError) as e:
+            # Ошибка парсинга/валидации
+            return StructuredLLMResponse(
+                parsed_content=None,  # type: ignore
+                raw_response=RawLLMResponse(
+                    content=raw_response.content,
+                    model=raw_response.model,
+                    tokens_used=raw_response.tokens_used,
+                    generation_time=raw_response.generation_time,
+                    finish_reason="error",
+                    metadata={"error": str(e)}
+                ),
+                parsing_attempts=1,
+                validation_errors=[{
+                    "error_type": type(e).__name__,
+                    "message": str(e)
+                }],
+                provider_native_validation=False
+            )
 
     async def generate_for_capability(self, system_prompt: str, user_input: str, capabilities) -> tuple:
         """

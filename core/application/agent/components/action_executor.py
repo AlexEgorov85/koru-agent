@@ -472,18 +472,23 @@ class ActionExecutor:
         try:
             # Получаем LLM провайдер
             llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-            
+
             if not llm_provider:
                 return ActionResult(
                     success=False,
                     error="LLM провайдер 'default_llm' не найден"
                 )
 
+            # Получаем LLMOrchestrator (если доступен)
+            orchestrator = None
+            if hasattr(self.application_context, 'llm_orchestrator'):
+                orchestrator = self.application_context.llm_orchestrator
+
             # Определяем тип действия
             if action_name == "llm.generate":
-                return await self._llm_generate(llm_provider, parameters)
+                return await self._llm_generate(llm_provider, parameters, orchestrator, context)
             elif action_name == "llm.generate_structured":
-                return await self._llm_generate_structured(llm_provider, parameters)
+                return await self._llm_generate_structured(llm_provider, parameters, orchestrator, context)
             else:
                 return ActionResult(
                     success=False,
@@ -501,7 +506,9 @@ class ActionExecutor:
     async def _llm_generate(
         self,
         llm_provider,
-        parameters: Dict[str, Any]
+        parameters: Dict[str, Any],
+        orchestrator: Any = None,
+        context: ExecutionContext = None
     ) -> ActionResult:
         """
         Обычная генерация текста через LLM.
@@ -513,11 +520,11 @@ class ActionExecutor:
         - max_tokens: максимум токенов (опционально)
         """
         from core.models.types.llm_types import LLMRequest
-        
+
         prompt = parameters.get("prompt", "")
         if not prompt:
             return ActionResult(success=False, error="Параметр 'prompt' обязателен")
-        
+
         request = LLMRequest(
             prompt=prompt,
             system_prompt=parameters.get("system_prompt"),
@@ -528,9 +535,21 @@ class ActionExecutor:
             presence_penalty=parameters.get("presence_penalty", 0.0),
             stop_sequences=parameters.get("stop_sequences")
         )
-        
-        response = await llm_provider.generate(request)
-        
+
+        # Вызов через оркестратор если доступен
+        if orchestrator:
+            response = await orchestrator.execute(
+                request=request,
+                provider=llm_provider,
+                session_id=getattr(context, 'session_id', None) if context else None,
+                agent_id=getattr(context, 'agent_id', None) if context else None,
+                step_number=getattr(context, 'step_number', None) if context else None,
+                phase=parameters.get('phase', 'unknown')
+            )
+        else:
+            # Fallback: прямой вызов
+            response = await llm_provider.generate(request)
+
         return ActionResult(
             success=True,
             data={"content": response.content},
@@ -545,7 +564,9 @@ class ActionExecutor:
     async def _llm_generate_structured(
         self,
         llm_provider,
-        parameters: Dict[str, Any]
+        parameters: Dict[str, Any],
+        orchestrator: Any = None,
+        context: ExecutionContext = None
     ) -> ActionResult:
         """
         Структурированная генерация через LLM с JSON Schema.
@@ -556,23 +577,23 @@ class ActionExecutor:
         - model: имя модели (опционально)
         - temperature: температура (опционально, по умолчанию 0.1 для точности)
         - max_tokens: максимум токенов (опционально)
+        - max_retries: количество попыток (по умолчанию 3)
         """
         from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-        from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
-        
+
         prompt = parameters.get("prompt", "")
         if not prompt:
             return ActionResult(success=False, error="Параметр 'prompt' обязателен")
-        
+
         # Получаем конфигурацию структурированного вывода
         structured_output = parameters.get("structured_output")
         if not structured_output:
             return ActionResult(success=False, error="Параметр 'structured_output' обязателен")
-        
+
         # Если передан dict, создаём StructuredOutputConfig
         if isinstance(structured_output, dict):
             structured_output = StructuredOutputConfig(**structured_output)
-        
+
         request = LLMRequest(
             prompt=prompt,
             system_prompt=parameters.get("system_prompt"),
@@ -580,38 +601,83 @@ class ActionExecutor:
             max_tokens=parameters.get("max_tokens", 1000),
             structured_output=structured_output
         )
-        
-        try:
-            response = await llm_provider.generate_structured(request)
-            
-            return ActionResult(
-                success=True,
-                data={
-                    "parsed_content": response.parsed_content.model_dump(),
-                    "raw_content": response.raw_response.content
-                },
-                metadata={
-                    "model": response.raw_response.model,
-                    "tokens_used": response.raw_response.tokens_used,
-                    "generation_time": response.raw_response.generation_time,
-                    "parsing_attempts": response.parsing_attempts,
-                    "success": response.success
-                }
+
+        # Вызов через оркестратор если доступен
+        if orchestrator:
+            response = await orchestrator.execute_structured(
+                request=request,
+                provider=llm_provider,
+                max_retries=parameters.get("max_retries", 3),
+                attempt_timeout=parameters.get("attempt_timeout"),
+                total_timeout=parameters.get("total_timeout"),
+                session_id=parameters.get('session_id'),
+                agent_id=parameters.get('agent_id'),
+                step_number=parameters.get('step_number'),
+                phase=parameters.get('phase', 'unknown')
             )
-            
-        except StructuredOutputError as e:
-            return ActionResult(
-                success=False,
-                error=f"Structured output error: {e.message}",
-                metadata={
-                    "attempts": e.attempts,
-                    "validation_errors": e.validation_errors,
-                    "error_type": "StructuredOutputError"
-                }
-            )
-        except ValueError as e:
-            return ActionResult(
-                success=False,
-                error=f"Invalid request: {str(e)}",
-                metadata={"error_type": "ValueError"}
-            )
+
+            # Проверка успеха
+            if response.success:
+                return ActionResult(
+                    success=True,
+                    data={
+                        "parsed_content": response.parsed_content.model_dump() if hasattr(response.parsed_content, 'model_dump') else response.parsed_content,
+                        "raw_content": response.raw_response.content
+                    },
+                    metadata={
+                        "model": response.raw_response.model,
+                        "tokens_used": response.raw_response.tokens_used,
+                        "generation_time": response.raw_response.generation_time,
+                        "parsing_attempts": response.parsing_attempts,
+                        "success": response.success
+                    }
+                )
+            else:
+                # Ошибка валидации
+                return ActionResult(
+                    success=False,
+                    error=f"Structured output failed after {response.parsing_attempts} attempts",
+                    metadata={
+                        "validation_errors": response.validation_errors,
+                        "parsing_attempts": response.parsing_attempts,
+                        "error_type": "StructuredOutputError"
+                    }
+                )
+        else:
+            # Fallback: прямой вызов через провайдер
+            from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
+
+            try:
+                response = await llm_provider.generate_structured(request)
+
+                return ActionResult(
+                    success=True,
+                    data={
+                        "parsed_content": response.parsed_content.model_dump(),
+                        "raw_content": response.raw_response.content
+                    },
+                    metadata={
+                        "model": response.raw_response.model,
+                        "tokens_used": response.raw_response.tokens_used,
+                        "generation_time": response.raw_response.generation_time,
+                        "parsing_attempts": response.parsing_attempts,
+                        "success": response.success
+                    }
+                )
+
+            except StructuredOutputError as e:
+                return ActionResult(
+                    success=False,
+                    error=f"Structured output error: {e.message}",
+                    metadata={
+                        "attempts": e.attempts,
+                        "validation_errors": e.validation_errors,
+                        "error_type": "StructuredOutputError"
+                    }
+                )
+            except ValueError as e:
+                return ActionResult(
+                    success=False,
+                    error=f"Invalid request: {str(e)}",
+                    metadata={"error_type": "ValueError"}
+                )

@@ -420,12 +420,25 @@ class AgentRuntime:
                     # Обновление контекста выполнения
                     if (hasattr(self.application_context, 'session_context') and
                         self.application_context.session_context):
-                        self.application_context.session_context.record_action({
+                        action_id = self.application_context.session_context.record_action({
                             "step": self._current_step + 1,
                             "action": decision.capability_name,
                             "result": execution_result,
                             "timestamp": datetime.now().isoformat()
                         }, step_number=self._current_step + 1)
+                        
+                        # КРИТИЧНО: Записываем STEP чтобы update_summary() обновился!
+                        # Без этого get_summary() возвращает одинаковые last_steps
+                        # и ProgressScorer.evaluate() возвращает False
+                        self.application_context.session_context.record_step(
+                            step_number=self._current_step + 1,
+                            capability_name=decision.capability_name,
+                            skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
+                            action_item_id=action_id,
+                            observation_item_ids=[],
+                            summary=f"Выполнено: {decision.capability_name}",
+                            status="completed"
+                        )
 
                     # Оценка прогресса и обновление состояния
                     progressed = self.progress.evaluate(self.application_context.session_context)

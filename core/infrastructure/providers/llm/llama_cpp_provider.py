@@ -507,42 +507,40 @@ class LlamaCppProvider(BaseLLMProvider):
     async def _generate_structured_impl(
         self,
         request: LLMRequest
-    ) -> StructuredLLMResponse:
+    ) -> LLMResponse:
         """
-        Генерация с гарантированным структурным выводом.
-        
-        Логирование выполняется в базовом классе BaseLLMProvider.
+        Упрощённая генерация для структурированного вывода.
 
-        АЛГОРИТМ:
-        1. Проверяем наличие structured_output в запросе
-        2. Добавляем схему в промпт
-        3. Генерируем с retry (до max_retries)
-        4. Парсим JSON и валидируем против схемы
-        5. Возвращаем StructuredLLMResponse с валидной моделью
-        
-        RAISES:
-        - StructuredOutputError: если все попытки исчерпаны
-        - ValueError: если structured_output не указан
+        АРХИТЕКТУРА:
+        - Провайдер ТОЛЬКО выполняет синхронный вызов модели
+        - Возвращает сырой текст (LLMResponse)
+        - Без retry, без парсинга JSON, без валидации
+        - Вся логика структурированного вывода в LLMOrchestrator
+
+        ПАРАМЕТРЫ:
+        - request: Запрос к LLM (с structured_output)
+
+        ВОЗВРАЩАЕТ:
+        - LLMResponse: Сырой ответ от модели
+
+        ПРИМЕЧАНИЕ:
+        - LLMOrchestrator вызывает этот метод и выполняет:
+          1. Парсинг JSON
+          2. Валидацию схемы
+          3. Retry при ошибках
+          4. Формирование corrective prompt
         """
         if not request.structured_output:
-            raise ValueError("structured_output не указан в запросе")
+            # Если structured_output не указан, просто вызываем обычную генерацию
+            return await self._generate_impl(request)
 
-        config: StructuredOutputConfig = request.structured_output
-        schema_def = config.schema_def
-
-        # Логирование начала структурированной генерации
-        await self.event_bus_logger.info(
-            f"Запуск structured output для {config.output_model} "
-            f"(max_retries={config.max_retries}, strict_mode={config.strict_mode})"
-        )
-
-        # 1. Добавляем схему в промпт
+        # Добавляем схему в промпт для лучшей генерации
         enhanced_prompt = self._add_schema_to_prompt(
             request.prompt,
-            schema_def
+            request.structured_output.schema_def
         )
 
-        # Создаем новый запрос с улучшенным промптом
+        # Создаем запрос с улучшенным промптом
         structured_request = LLMRequest(
             prompt=enhanced_prompt,
             system_prompt=request.system_prompt,
@@ -557,124 +555,16 @@ class LlamaCppProvider(BaseLLMProvider):
             capability_name=request.capability_name
         )
 
-        validation_errors = []
-        last_raw_response = None
-        last_json_content = None
+        # Вызываем обычную генерацию и возвращаем сырой ответ
+        # LLMOrchestrator распарсит и валидирует результат
+        raw_response = await self._generate_impl(structured_request)
 
-        # 2. Retry цикл
-        for attempt in range(1, config.max_retries + 1):
-            try:
-                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: генерация...")
-
-                # 3. Генерация
-                raw_response = await self._generate_impl(structured_request)
-                last_raw_response = raw_response
-
-                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: ответ получен ({len(raw_response.content)} символов)")
-
-                # 4. Извлечение JSON из ответа
-                json_content = self._extract_json_from_response(raw_response.content)
-                last_json_content = json_content
-
-                await self.event_bus_logger.debug(f"Попытка {attempt}/{config.max_retries}: JSON извлечён ({len(json_content)} ключей)")
-
-                # 5. Валидация против схемы
-                temp_model = self._create_pydantic_from_schema(
-                    config.output_model,
-                    schema_def
-                )
-
-                # Валидируем
-                parsed_content = temp_model.model_validate(json_content)
-
-                # 6. Успех!
-                await self.event_bus_logger.info(
-                    f"Structured output успешен с попытки {attempt}/{config.max_retries} "
-                    f"для {config.output_model}"
-                )
-
-                # Логирование ответа LLM для отладки
-                await self.event_bus_logger.info(f"=== ОТВЕТ LLM ===")
-                # Логируем только decision, так как это основная информация
-                decision = parsed_content.get('decision', {}) if hasattr(parsed_content, 'get') else getattr(parsed_content, 'decision', 'N/A')
-                next_action = decision.get('next_action', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'next_action', 'N/A')
-                reasoning = decision.get('reasoning', 'N/A') if hasattr(decision, 'get') else getattr(decision, 'reasoning', 'N/A')
-                await self.event_bus_logger.info(f"📋 next_action: {next_action}")
-                await self.event_bus_logger.info(f"💡 reasoning: {reasoning}")
-                await self.event_bus_logger.info(f"=================")
-
-                return StructuredLLMResponse(
-                    parsed_content=parsed_content,
-                    raw_response=RawLLMResponse(
-                        content=raw_response.content,
-                        model=raw_response.model,
-                        tokens_used=raw_response.tokens_used,
-                        generation_time=raw_response.generation_time,
-                        finish_reason=raw_response.finish_reason,
-                        metadata=raw_response.metadata
-                    ),
-                    parsing_attempts=attempt,
-                    validation_errors=[],
-                    provider_native_validation=False
-                )
-                
-            except json.JSONDecodeError as e:
-                error_info = {
-                    "attempt": attempt,
-                    "error_type": "JSONDecodeError",
-                    "error_message": f"Не удалось распарсить JSON: {str(e)}",
-                    "response_snippet": raw_response.content[:200] if raw_response else "N/A"
-                }
-                validation_errors.append(error_info)
-
-                await self.event_bus_logger.warning(
-                    f"Попытка {attempt}/{config.max_retries} не удалась (JSON): {e}"
-                )
-                
-                if attempt < config.max_retries:
-                    # Добавляем ошибку в промпт для следующей попытки
-                    structured_request = self._add_error_to_prompt(
-                        structured_request,
-                        last_json_content if last_json_content else raw_response.content,
-                        str(e)
-                    )
-                    continue
-                    
-            except ValidationError as e:
-                error_info = {
-                    "attempt": attempt,
-                    "error_type": "ValidationError",
-                    "error_message": f"Валидация схемы не пройдена: {str(e)}",
-                    "response_snippet": raw_response.content[:200] if raw_response else "N/A"
-                }
-                validation_errors.append(error_info)
-
-                await self.event_bus_logger.warning(
-                    f"Попытка {attempt}/{config.max_retries} не удалась (валидация): {e}"
-                )
-                
-                if attempt < config.max_retries:
-                    # Добавляем ошибку в промпт для следующей попытки
-                    structured_request = self._add_error_to_prompt(
-                        structured_request,
-                        last_json_content if last_json_content else raw_response.content,
-                        str(e)
-                    )
-                    continue
-
-        # 7. Все попытки исчерпаны
-        await self.event_bus_logger.error(
-            f"Все {config.max_retries} попыток структурированного вывода не удались "
-            f"для {config.output_model}. Ошибок валидации: {len(validation_errors)}"
+        await self.event_bus_logger.debug(
+            f"Structured raw response: {len(raw_response.content)} символов, "
+            f"model={raw_response.model}"
         )
 
-        # correlation_id больше не передаётся — он генерируется в базовом классе
-        raise StructuredOutputError(
-            message="Не удалось получить валидный структурированный ответ",
-            model_name=self.model_name,
-            attempts=config.max_retries,
-            validation_errors=validation_errors
-        )
+        return raw_response
     
     def _add_schema_to_prompt(
         self, 

@@ -145,15 +145,8 @@ class ReActPattern(BaseBehaviorPattern):
                 
                 # Логируем ошибку
                 await self._log("error", f"LLM вызов через оркестратор вернул ошибку: {error_msg}")
-                
-                # Публикуем событие об ошибке
-                await self._publish_llm_response_received(
-                    session_context=session_context,
-                    response=None,
-                    error_message=error_msg,
-                    error_type="orchestrator_error"
-                )
-                
+
+                # Оркестратор уже опубликовал событие об ошибке
                 return False, None, error_msg
             
             # Успешный ответ
@@ -173,14 +166,8 @@ class ReActPattern(BaseBehaviorPattern):
             # Исключение из оркестратора (должно быть редко)
             error_msg = f"Исключение из LLMOrchestrator: {type(e).__name__}: {str(e)}"
             await self._log("error", error_msg)
-            
-            await self._publish_llm_response_received(
-                session_context=session_context,
-                response=None,
-                error_message=error_msg,
-                error_type="orchestrator_exception"
-            )
-            
+
+            # Оркестратор уже опубликовал событие об ошибке
             return False, None, error_msg
 
     async def _log(self, level: str, message: str, **extra_data):
@@ -653,76 +640,6 @@ class ReActPattern(BaseBehaviorPattern):
             else:
                 self.event_bus_logger.debug_sync(f"Схема не найдена для {cap.name}")
 
-    async def _publish_llm_response_received(
-        self,
-        session_context,
-        response: Any,
-        error_message: str = None,
-        error_type: str = None
-    ) -> None:
-        """
-        Публикует событие llm.response.received независимо от результата.
-
-        ПАРАМЕТРЫ:
-        - session_context: Контекст сессии
-        - response: Ответ от LLM (может быть None при ошибке)
-        - error_message: Сообщение об ошибке (если была)
-        - error_type: Тип ошибки (timeout, llm_error, provider_unavailable, etc.)
-        """
-        if not (self.application_context and hasattr(self.application_context, 'infrastructure_context')):
-            await self._log("debug", "EventBus недоступен, пропускаем публикацию llm.response.received")
-            return
-
-        from core.infrastructure.event_bus.unified_event_bus import EventType
-
-        # Получаем agent_id из session_context или application_context
-        agent_id = getattr(session_context, 'agent_id', 'unknown')
-        if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
-            agent_id = self.application_context.id
-
-        # Обработка ответа для логирования
-        if response is not None:
-            if isinstance(response, dict) and 'raw_response' in response:
-                result = response['raw_response']
-                response_format = "dict.raw_response"
-            elif hasattr(response, 'content'):
-                result = response.content
-                response_format = "object.content"
-            else:
-                result = response
-                response_format = type(response).__name__
-        else:
-            result = None
-            response_format = "none"
-
-        # Формируем данные события
-        event_data = {
-            "agent_id": agent_id,
-            "component": "react_pattern",
-            "phase": "think",
-            "response_format": response_format,
-            "response": result,
-            "session_id": getattr(session_context, 'session_id', 'unknown'),
-            "goal": session_context.get_goal() if session_context else 'unknown'
-        }
-
-        # Добавляем информацию об ошибке если есть
-        if error_message:
-            event_data["error"] = error_message
-        if error_type:
-            event_data["error_type"] = error_type
-
-        try:
-            result = await self.application_context.infrastructure_context.event_bus.publish(
-                event=EventType.LLM_RESPONSE_RECEIVED,
-                data=event_data,
-                source="react_pattern.think",
-                correlation_id=getattr(session_context, 'session_id', '')
-            )
-            await self._log("debug", "Событие LLM_RESPONSE_RECEIVED опубликовано")
-        except Exception as e:
-            await self._log("error", f"Ошибка публикации LLM_RESPONSE_RECEIVED: {e}")
-
     async def generate_decision(
         self,
         session_context: 'SessionContext',
@@ -843,14 +760,7 @@ class ReActPattern(BaseBehaviorPattern):
                 # Fallback: создаем упрощенную версию рассуждения
                 await self._log("warning", "LLM провайдер недоступен, используем упрощенную логику рассуждения")
 
-                # Публикуем событие об ошибке
-                await self._publish_llm_response_received(
-                    session_context=session_context,
-                    response=None,
-                    error_message="LLM провайдер недоступен",
-                    error_type="provider_unavailable"
-                )
-
+                # Оркестратор опубликует событие при следующем вызове
                 # Определяем первую доступную capability
                 fallback_capability = "book_library.search_books"
                 if available_capabilities:
@@ -959,14 +869,8 @@ class ReActPattern(BaseBehaviorPattern):
                             # === ТАЙМАУТ ПОСЛЕ ВСЕХ ПОПЫТОК ===
                             error_msg = f"LLM вызов не удался после {max_retries} попыток через оркестратор"
                             await self._log("error", error_msg)
-                            
-                            await self._publish_llm_response_received(
-                                session_context=session_context,
-                                response=None,
-                                error_message=error_msg,
-                                error_type="orchestrator_timeout"
-                            )
-                            
+
+                            # Оркестратор уже опубликовал событие о таймауте
                             # Возвращаем fallback вместо исключения
                             return {
                                 "analysis": {
@@ -999,12 +903,8 @@ class ReActPattern(BaseBehaviorPattern):
                             timeout=llm_timeout
                         )
                         await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] LLM ответ ПОЛУЧЕН!")
-                        
-                        # Публикуем событие об успешном ответе LLM
-                        await self._publish_llm_response_received(
-                            session_context=session_context,
-                            response=response
-                        )
+
+                        # Оркестратор уже опубликовал событие об успешном ответе
                         break  # Успех, выходим из цикла retry
                     
                     except (AsyncTimeoutError, TimeoutError) as e:
@@ -1020,14 +920,8 @@ class ReActPattern(BaseBehaviorPattern):
                             # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
                             error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
                             await self._log("error", error_msg)
-                            
-                            await self._publish_llm_response_received(
-                                session_context=session_context,
-                                response=None,
-                                error_message=error_msg,
-                                error_type="timeout"
-                            )
-                            
+
+                            # Оркестратор уже опубликовал событие о таймауте
                             # Возвращаем fallback вместо исключения
                             return {
                                 "analysis": {
@@ -1051,14 +945,9 @@ class ReActPattern(BaseBehaviorPattern):
                     except Exception as e:
                         error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
                         await self._log("error", error_msg)
-                        
-                        await self._publish_llm_response_received(
-                            session_context=session_context,
-                            response=None,
-                            error_message=error_msg,
-                            error_type="llm_call_error"
-                        )
-                        
+
+                        # Оркестратор уже опубликовал событие об ошибке
+
                         # Пробрасываем только если это последняя попытка
                         if retry_count >= max_retries - 1:
                             raise
@@ -1092,14 +981,7 @@ class ReActPattern(BaseBehaviorPattern):
 
                     await self._log("error", f"LLM вернул ошибку: {error_msg}")
 
-                    # Публикуем событие об ошибке LLM
-                    await self._publish_llm_response_received(
-                        session_context=session_context,
-                        response=response,
-                        error_message=error_msg,
-                        error_type="finish_reason_error"
-                    )
-
+                    # Оркестратор уже опубликовал событие об ошибке
                     # Возвращаем fallback решение
                     return {
                         "analysis": {
@@ -1126,14 +1008,7 @@ class ReActPattern(BaseBehaviorPattern):
                     error_msg = llm_response.metadata['error']
                     await self._log("error", f"LLM вернул ошибку в metadata: {error_msg}")
 
-                    # Публикуем событие об ошибке LLM
-                    await self._publish_llm_response_received(
-                        session_context=session_context,
-                        response=response,
-                        error_message=error_msg,
-                        error_type="metadata_error"
-                    )
-
+                    # Оркестратор уже опубликовал событие об ошибке
                     return {
                         "analysis": {
                             "current_situation": f"Ошибка LLM: {error_msg}",
@@ -1222,21 +1097,14 @@ class ReActPattern(BaseBehaviorPattern):
             error_msg = f"Ошибка в процессе рассуждения: {str(e)}"
             await self._log("error", error_msg, exc_info=True)
 
-            # Публикуем событие об ошибке
-            await self._publish_llm_response_received(
-                session_context=session_context,
-                response=None,
-                error_message=error_msg,
-                error_type="reasoning_error"
-            )
-
-            # Попытка fallback рассуждения с упрощенной схемой
+            # Оркестратор опубликует событие при следующем вызове
+            # Попытка fallback рассуждения с упрощенной схемо��
             if self.error_count < self.max_consecutive_errors:
                 await self._log("info", "Попытка упрощенного рассуждения после ошибки")
                 return {
                     "analysis": {
                         "current_situation": "Ошибка в основном процессе рассуждения",
-                        "progress_assessment": "Неизвестно",
+                        "progress_assessment": "��еизвестно",
                         "confidence": 0.3,
                         "errors_detected": True,
                         "consecutive_errors": self.error_count + 1,
@@ -1246,10 +1114,10 @@ class ReActPattern(BaseBehaviorPattern):
                     "recommended_action": {
                         "action_type": "execute_capability",
                         "capability_name": "book_library.search_books",  # Используем доступную capability
-                        "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
+                        "parameters": {"input": session_context.get_goal() or "Пр��должить выполнение задачи"},
                         "reasoning": f"fallback после ошибки: {str(e)}"
                     },
-                    "available_capabilities": available_capabilities,  # ← Передаем доступные capability
+                    "available_capabilities": available_capabilities,  # ← Передаем д��ступные capability
                     "needs_rollback": False
                 }
             else:

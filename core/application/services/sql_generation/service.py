@@ -211,14 +211,32 @@ class SQLGenerationService(BaseService):
             
             # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
             # Типизация на уровне компиляции: ответ будет StructuredLLMResponse[SQLGenerationOutput]
-            # В новой архитектуре нужно использовать LLM через application_context
-            # или напрямую через провайдер
+            # ИСПОЛЬЗУЕМ LLMOrchestrator через application_context для retry и валидации
             llm_provider = self.application_context.get_provider("default_llm")
             if not llm_provider:
                 raise RuntimeError("LLM провайдер не доступен")
 
-            # Вызов LLM через провайдер
-            response = await llm_provider.generate(request)
+            # Получаем orchestrator если доступен
+            orchestrator = getattr(self.application_context, 'llm_orchestrator', None)
+            
+            if orchestrator:
+                # Вызов через orchestrator с retry и валидацией
+                response = await orchestrator.execute_structured(
+                    request=request,
+                    provider=llm_provider,
+                    max_retries=3,
+                    attempt_timeout=60.0,
+                    total_timeout=300.0,
+                    phase="sql_generation"
+                )
+                
+                # Проверка успеха
+                if not response.success:
+                    errors = '; '.join([e.get('message', 'unknown') for e in response.validation_errors])
+                    raise ValueError(f"SQL generation failed after {response.parsing_attempts} attempts: {errors}")
+            else:
+                # Fallback: прямой вызов если orchestrator недоступен
+                response = await llm_provider.generate(request)
 
             # 5. Валидация сгенерированного SQL-запроса через централизованный SQLValidatorService
             # Типизация гарантирует, что parsed_content — валидный экземпляр SQLGenerationOutput

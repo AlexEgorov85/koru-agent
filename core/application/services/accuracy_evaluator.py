@@ -347,8 +347,25 @@ class SemanticEvaluator:
         prompt = self._build_evaluation_prompt(expected, actual)
 
         try:
-            # Вызов LLM
-            response = await self.llm_provider.generate(prompt)
+            # Вызов LLM через executor (единообразно с другими компонентами)
+            # Получаем executor из parent context если доступен
+            executor = getattr(self, 'executor', None)
+            
+            if executor:
+                result = await executor.execute_action(
+                    action_name="llm.generate",
+                    llm_provider=self.llm_provider,
+                    parameters={
+                        'prompt': prompt,
+                        'temperature': 0.1,
+                        'max_tokens': 500
+                    }
+                )
+                response = result['data']['content']
+            else:
+                # Fallback: прямой вызов если executor недоступен
+                response = await self.llm_provider.generate(prompt)
+            
             score, details = self._parse_llm_response(response)
             return (score, details)
         except Exception as e:
