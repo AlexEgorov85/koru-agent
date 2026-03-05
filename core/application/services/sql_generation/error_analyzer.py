@@ -70,7 +70,7 @@ class SQLErrorAnalyzer(BaseService):
     
     async def initialize(self) -> bool:
         """Инициализация анализатора ошибок"""
-        self._log_sync("info", "SQLErrorAnalyzer успешно инициализирован")
+        self.event_bus_logger.info_sync("SQLErrorAnalyzer успешно инициализирован")
         return True
     
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:
@@ -80,7 +80,7 @@ class SQLErrorAnalyzer(BaseService):
     
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""
-        self._log_sync("info", "Завершение работы SQLErrorAnalyzer")
+        self.event_bus_logger.info_sync("Завершение работы SQLErrorAnalyzer")
     
     async def analyze(self, error: ExecutionError) -> Dict[str, Any]:
         """

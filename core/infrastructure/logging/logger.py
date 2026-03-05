@@ -55,7 +55,7 @@ class EventBusLogger:
         """INFO сообщение (синхронная версия)."""
         if args:
             message = message % args
-        asyncio.create_task(self._publish(EventType.LOG_INFO, message, "INFO", **extra_data))
+        self._publish_sync(EventType.LOG_INFO, message, "INFO", **extra_data)
 
     async def debug(self, message: str, *args, **extra_data):
         """DEBUG сообщение."""
@@ -67,7 +67,7 @@ class EventBusLogger:
         """DEBUG сообщение (синхронная версия)."""
         if args:
             message = message % args
-        asyncio.create_task(self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data))
+        self._publish_sync(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
 
     async def warning(self, message: str, *args, **extra_data):
         """WARNING сообщение."""
@@ -79,7 +79,7 @@ class EventBusLogger:
         """WARNING сообщение (синхронная версия)."""
         if args:
             message = message % args
-        asyncio.create_task(self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data))
+        self._publish_sync(EventType.LOG_WARNING, message, "WARNING", **extra_data)
 
     async def error(self, message: str, *args, **extra_data):
         """ERROR сообщение."""
@@ -91,7 +91,7 @@ class EventBusLogger:
         """ERROR сообщение (синхронная версия)."""
         if args:
             message = message % args
-        asyncio.create_task(self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data))
+        self._publish_sync(EventType.LOG_ERROR, message, "ERROR", **extra_data)
 
     async def exception(self, message: str, exc: Exception, **extra_data):
         """ERROR сообщение с исключением."""
@@ -186,6 +186,32 @@ class EventBusLogger:
         }
 
         await self.event_bus.publish(
+            event_type=event_type,
+            data=data,
+            source=self.component,
+            session_id=self.session_id,
+            agent_id=self.agent_id
+        )
+
+    def _publish_sync(
+        self,
+        event_type: EventType,
+        message: str,
+        level: str,
+        **extra_data
+    ):
+        """Синхронная публикация события в EventBus."""
+        data = {
+            "message": message,
+            "level": level,
+            "session_id": self.session_id,
+            "agent_id": self.agent_id,
+            "component": self.component,
+            "timestamp": datetime.now().isoformat() + 'Z',
+            **extra_data
+        }
+
+        self.event_bus.publish_sync(
             event_type=event_type,
             data=data,
             source=self.component,

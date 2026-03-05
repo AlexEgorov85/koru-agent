@@ -35,30 +35,6 @@ class BaseTool(BaseComponent):
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
 
-    def _log_sync(self, level: str, message: str):
-        """
-        Синхронная обёртка для логирования через EventBusLogger.
-        Используется в синхронных методах.
-
-        ПАРАМЕТРЫ:
-        - level: уровень логирования ('info', 'debug', 'warning', 'error')
-        - message: сообщение
-        """
-        # Инициализируем event_bus_logger если ещё не инициализирован
-        if not hasattr(self, 'event_bus_logger') or self.event_bus_logger is None:
-            return
-
-        if self.event_bus_logger:
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                log_method = getattr(self.event_bus_logger, level, None)
-                if log_method:
-                    asyncio.create_task(log_method(message))
-            except RuntimeError:
-                # Нет запущенного event loop - пропускаем логирование
-                pass
-
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения инструмента."""
         # Для инструментов нет специального события, используем общее
@@ -194,7 +170,8 @@ class BaseTool(BaseComponent):
 
         # Получаем список операций из конфигурации
         allowed_operations = self.get_allowed_operations()
-        self._log_sync("debug", f"Инструмент {self.name}: allowed_operations={allowed_operations}")
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"Инструмент {self.name}: allowed_operations={allowed_operations}")
 
         if not allowed_operations and self.component_config:
             # Если operations не указаны явно, извлекаем из input_contract_versions
@@ -206,7 +183,8 @@ class BaseTool(BaseComponent):
                     # Для file_tool: file_tool.read_write
                     if cap_name.startswith(f"{self.name}.") or cap_name.startswith(self.name.replace("_tool", ".")):
                         allowed_operations.append(cap_name)
-                self._log_sync("debug", f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
+                if self.event_bus_logger:
+                    self.event_bus_logger.debug_sync(f"Инструмент {self.name}: извлечено operations из input_contract_versions: {allowed_operations}")
 
         # Создаём capability для каждой операции
         for op_name in allowed_operations:
@@ -226,7 +204,8 @@ class BaseTool(BaseComponent):
                 }
             ))
 
-        self._log_sync("debug", f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
         return capabilities
 
     @abstractmethod

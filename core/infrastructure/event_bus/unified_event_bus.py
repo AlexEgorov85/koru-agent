@@ -857,6 +857,88 @@ class UnifiedEventBus:
         await queue.put(event_obj)
         return True
 
+    def publish_sync(
+        self,
+        event_type: Union[Event, str, EventType] = None,
+        data: Optional[Dict[str, Any]] = None,
+        source: str = "",
+        session_id: str = "",
+        agent_id: str = "",
+        correlation_id: str = "",
+        domain: Optional[EventDomain] = None,
+        # Для обратной совместимости
+        event: Union[Event, str, EventType, None] = None
+    ) -> bool:
+        """
+        Синхронная публикация события (без await).
+
+        ВАЖНО:
+        - Должна вызываться только из того же потока, где работает asyncio цикл
+        - Если worker для сессии ещё не создан, используется fallback (internal logger)
+        - События помещаются в очередь через put_nowait (FIFO порядок сохраняется)
+
+        ARGS:
+        - event_type: тип события или Event объект
+        - data: данные события
+        - source: источник
+        - session_id: ID сессии (обязательно для маршрутизации)
+        - agent_id: ID агента
+        - correlation_id: идентификатор корреляции
+        - domain: домен события (опционально, определяется автоматически)
+        - event: альтернативный параметр для обратной совместимости
+
+        RETURNS:
+        - bool: True если событие опубликовано успешно, False если отклонено
+        """
+        # Обратная совместимость: если передан event= вместо event_type=
+        if event_type is None and event is not None:
+            event_type = event
+
+        if event_type is None:
+            self._internal_logger.warning("publish_sync() вызван без event_type")
+            return False
+
+        if not self._running:
+            self._internal_logger.warning("EventBus остановлен, событие отклонено")
+            return False
+
+        # Создаём Event объект
+        event_obj = self._create_event(
+            event_type, data, source, session_id, agent_id, correlation_id, domain
+        )
+
+        # Гарантируем наличие session_id
+        if not event_obj.session_id:
+            event_obj.session_id = SYSTEM_SESSION_ID
+
+        # Проверяем наличие очереди (синхронно, без await)
+        queue = self._session_queues.get(event_obj.session_id)
+
+        # Если очереди нет — worker ещё не создан, используем fallback
+        if queue is None:
+            self._internal_logger.warning(
+                f"Синхронная публикация до создания worker для сессии {event_obj.session_id}, "
+                f"событие отклонено (используйте стандартный логгер в конструкторах)"
+            )
+            return False
+
+        # BackPressure — проверка размера очереди
+        if queue.qsize() >= self._queue_max_size:
+            self._internal_logger.warning(
+                f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size} (событие отклонено)"
+            )
+            return False
+
+        # Помещаем событие в очередь синхронно
+        try:
+            queue.put_nowait(event_obj)
+            return True
+        except asyncio.QueueFull:
+            self._internal_logger.warning(
+                f"Queue full для сессии {event_obj.session_id}, событие отклонено"
+            )
+            return False
+
     def _create_event(
         self,
         event_type: Union[Event, str, EventType],

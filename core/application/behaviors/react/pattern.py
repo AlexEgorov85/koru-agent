@@ -101,30 +101,6 @@ class ReActPattern(BaseBehaviorPattern):
             if log_method:
                 await log_method(message, **extra_data)
 
-    def _log_sync(self, level: str, message: str):
-        """
-        Синхронная обёртка для логирования через EventBusLogger.
-        Используется в синхронных методах.
-
-        ПАРАМЕТРЫ:
-        - level: уровень логирования ('info', 'debug', 'warning', 'error')
-        - message: сообщение
-        """
-        # Инициализируем event_bus_logger если ещё не инициализирован
-        if self.event_bus_logger is None:
-            self._init_event_bus_logger()
-
-        if self.event_bus_logger:
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                log_method = getattr(self.event_bus_logger, level, None)
-                if log_method:
-                    asyncio.create_task(log_method(message))
-            except RuntimeError:
-                # Нет запущенного event loop - пропускаем логирование
-                pass
-
     def _log_llm_trace(self, prompt: str, response: Any, context: Optional['SessionContext'] = None):
         """
         ЛОГИРОВАНИЕ ВЫЗОВА LLM ДЛЯ ОТЛАДКИ.
@@ -346,7 +322,7 @@ class ReActPattern(BaseBehaviorPattern):
             return rendered
         else:
             # Fallback: минимальный шаблон (только если промпт не загружен из registry)
-            self._log_sync("warning", "[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
+            self.event_bus_logger.warning_sync("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
             return self._build_minimal_fallback_prompt(prompt_context)
 
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
@@ -481,7 +457,7 @@ class ReActPattern(BaseBehaviorPattern):
         # Если available_capabilities пустой, получаем их из ApplicationContext
         if not available_capabilities and self.application_context:
             await self._log("debug", "[ReAct] analyze_context: available_capabilities пуст, получаем из ApplicationContext")
-            available_capabilities = self.application_context.get_all_capabilities()
+            available_capabilities = await self.application_context.get_all_capabilities()
             await self._log("debug", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability")
 
         # Регистрируем схемы для всех capability в SchemaValidator
@@ -515,11 +491,11 @@ class ReActPattern(BaseBehaviorPattern):
         - available_capabilities: список capability для регистрации
         """
         if not self.application_context:
-            self._log_sync("warning", "[ReAct] _register_capability_schemas: application_context не доступен")
+            self.event_bus_logger.warning_sync("[ReAct] _register_capability_schemas: application_context не доступен")
             return
 
-        self._log_sync("info", f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
-        self._log_sync("info", f"[ReAct] Всего capability: {len(available_capabilities)}")
+        self.event_bus_logger.info_sync(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
+        self.event_bus_logger.info_sync(f"[ReAct] Всего capability: {len(available_capabilities)}")
 
         # Получаем все input схемы из контекста
         for cap in available_capabilities:
@@ -530,7 +506,7 @@ class ReActPattern(BaseBehaviorPattern):
             # Проверяем, есть ли схема в кэше input_contracts
             if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
                 schema = self.input_contracts[cap.name]
-                self._log_sync("info", f"Найдена схема в input_contracts для {cap.name}")
+                self.event_bus_logger.info_sync(f"Найдена схема в input_contracts для {cap.name}")
             elif self.application_context.use_data_repository and self.application_context.data_repository:
                 # Пытаемся получить схему из DataRepository
                 try:
@@ -542,7 +518,7 @@ class ReActPattern(BaseBehaviorPattern):
                         "input"
                     )
                 except Exception as e:
-                    self._log_sync("debug", f"Не удалось получить схему для {cap.name}: {e}")
+                    self.event_bus_logger.debug_sync(f"Не удалось получить схему для {cap.name}: {e}")
 
             # Если схема найдена, регистрируем её в SchemaValidator
             if schema:
@@ -571,11 +547,11 @@ class ReActPattern(BaseBehaviorPattern):
 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    self._log_sync("debug", f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
+                    self.event_bus_logger.debug_sync(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
                 else:
-                    self._log_sync("debug", f"ℹ️ Схема для {cap.name} не имеет параметров")
+                    self.event_bus_logger.debug_sync(f"ℹ️ Схема для {cap.name} не имеет параметров")
             else:
-                self._log_sync("debug", f"Схема не найдена для {cap.name}")
+                self.event_bus_logger.debug_sync(f"Схема не найдена для {cap.name}")
 
     async def _publish_llm_response_received(
         self,
@@ -1159,7 +1135,7 @@ class ReActPattern(BaseBehaviorPattern):
             return validated if validated else parameters
         except Exception as e:
             # Fallback: возвращаем минимальные параметры
-            self._log_sync("warning", f"Валидация параметров не удалась: {e}")
+            self.event_bus_logger.warning_sync(f"Валидация параметров не удалась: {e}")
             return {"input": parameters.get("input", "Продолжить выполнение задачи")}
 
     async def _make_decision_from_reasoning(
@@ -1189,7 +1165,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             # КРИТИЧЕСКАЯ ПРОВЕРКА: capability_name должен быть указан
             if not capability_name:
-                await self._log("error", "LLM не вернул next_action в decision",
+                await self._log("error", "LLM не ��ернул next_action в decision",
                                reasoning_result=reasoning_result)
                 return BehaviorDecision(
                     action=BehaviorDecisionType.RETRY,
@@ -1281,7 +1257,7 @@ class ReActPattern(BaseBehaviorPattern):
         # Вместо прямого доступа к runtime.system, используем переданные capability
         available_caps = reasoning_result.get("available_capabilities", [])
 
-        self._log_sync("info", f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
+        self.event_bus_logger.info_sync(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
 
         capability = None
         for cap in available_caps:
@@ -1295,17 +1271,17 @@ class ReActPattern(BaseBehaviorPattern):
                 if any(s.lower() == "react" for s in cap.supported_strategies or []):
                     capability = cap
                     capability_name = cap.name
-                    self._log_sync("warning", f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
+                    self.event_bus_logger.warning_sync(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
                     break
 
         if not capability:
-            self._log_sync("error", f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
+            self.event_bus_logger.error_sync(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
             raise ValueError(f"Нет доступных capability для выполнения действия")
 
         # Валидация и корректировка параметро��
-        self._log_sync("info", f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
-        self._log_sync("info", f"capability: {capability.name}")
-        self._log_sync("info", f"raw_params: {parameters}")
+        self.event_bus_logger.info_sync(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
+        self.event_bus_logger.info_sync(f"capability: {capability.name}")
+        self.event_bus_logger.info_sync(f"raw_params: {parameters}")
 
         validated_params = self.schema_validator.validate_parameters(
             capability=capability,
@@ -1317,20 +1293,20 @@ class ReActPattern(BaseBehaviorPattern):
             # system_context больше не передается, так как мы изолированы
         )
 
-        self._log_sync("info", f"validated_params: {validated_params}")
+        self.event_bus_logger.info_sync(f"validated_params: {validated_params}")
 
         if not validated_params:
             # Попытка создать минимально необходимые параметры
             validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
-            self._log_sync("warning", f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
+            self.event_bus_logger.warning_sync(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
         else:
-            self._log_sync("info", f"✅ Параметры успешно валидированы")
+            self.event_bus_logger.info_sync(f"✅ Параметры успешно валидированы")
 
-        self._log_sync("info", f"=== РЕШЕНИЕ ===")
-        self._log_sync("info", f"action: {BehaviorDecisionType.ACT}")
-        self._log_sync("info", f"capability_name: {capability_name}")
-        self._log_sync("info", f"parameters: {validated_params}")
-        self._log_sync("info", f"reason: {reasoning}")
+        self.event_bus_logger.info_sync(f"=== РЕШЕНИЕ ===")
+        self.event_bus_logger.info_sync(f"action: {BehaviorDecisionType.ACT}")
+        self.event_bus_logger.info_sync(f"capability_name: {capability_name}")
+        self.event_bus_logger.info_sync(f"parameters: {validated_params}")
+        self.event_bus_logger.info_sync(f"reason: {reasoning}")
 
         return BehaviorDecision(
             action=BehaviorDecisionType.ACT,

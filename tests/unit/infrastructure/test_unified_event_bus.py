@@ -563,3 +563,120 @@ class TestErrorHandler:
 
         # Оба события должны быть обработаны
         assert event_count == 2
+
+
+class TestPublishSync:
+    """Тесты синхронной публикации событий."""
+
+    @pytest.mark.asyncio
+    async def test_publish_sync_basic(self, unified_bus):
+        """Базовый тест publish_sync."""
+        events = []
+
+        def handler(e):
+            events.append(e)
+
+        unified_bus.subscribe(EventType.AGENT_STARTED, handler)
+
+        # Сначала создадим worker через async publish
+        await unified_bus.publish(
+            EventType.SYSTEM_INITIALIZED,
+            data={},
+            session_id="session_1"
+        )
+        await asyncio.sleep(0.01)
+
+        # Теперь синхронная публикация должна работать
+        result = unified_bus.publish_sync(
+            EventType.AGENT_STARTED,
+            data={"test": "sync"},
+            session_id="session_1"
+        )
+
+        assert result is True
+        await asyncio.sleep(0.05)
+        assert len(events) == 1
+        assert events[0].data.get("test") == "sync"
+
+    @pytest.mark.asyncio
+    async def test_publish_sync_without_worker(self, unified_bus):
+        """publish_sync до создания worker возвращает False."""
+        events = []
+
+        def handler(e):
+            events.append(e)
+
+        unified_bus.subscribe(EventType.AGENT_STARTED, handler)
+
+        # Синхронная публикация до создания worker
+        result = unified_bus.publish_sync(
+            EventType.AGENT_STARTED,
+            data={"test": "sync"},
+            session_id="new_session"
+        )
+
+        # Должно вернуть False (worker не создан)
+        assert result is False
+        await asyncio.sleep(0.05)
+        # Событие не должно быть обработано
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_publish_sync_fifo_order(self, unified_bus):
+        """publish_sync сохраняет FIFO порядок."""
+        events = []
+
+        def handler(e):
+            events.append(e.data.get("seq"))
+
+        unified_bus.subscribe(EventType.AGENT_STARTED, handler)
+
+        # Создадим worker
+        await unified_bus.publish(
+            EventType.SYSTEM_INITIALIZED,
+            data={},
+            session_id="session_fifo"
+        )
+        await asyncio.sleep(0.01)
+
+        # Серия синхронных публикаций
+        for i in range(5):
+            unified_bus.publish_sync(
+                EventType.AGENT_STARTED,
+                data={"seq": i},
+                session_id="session_fifo"
+            )
+
+        await asyncio.sleep(0.1)
+
+        # События должны прийти в порядке FIFO
+        assert events == [0, 1, 2, 3, 4]
+
+    @pytest.mark.asyncio
+    async def test_publish_sync_system_session(self, unified_bus):
+        """publish_sync использует системную сессию по умолчанию."""
+        events = []
+
+        def handler(e):
+            events.append(e)
+
+        unified_bus.subscribe(EventType.AGENT_STARTED, handler)
+
+        # Создадим worker для системной сессии
+        await unified_bus.publish(
+            EventType.SYSTEM_INITIALIZED,
+            data={},
+            session_id="system"
+        )
+        await asyncio.sleep(0.01)
+
+        # Публикация без session_id
+        result = unified_bus.publish_sync(
+            EventType.AGENT_STARTED,
+            data={"test": "system_session"}
+        )
+
+        assert result is True
+        await asyncio.sleep(0.05)
+        assert len(events) == 1
+        assert events[0].session_id == "system"

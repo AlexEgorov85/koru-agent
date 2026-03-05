@@ -226,7 +226,7 @@ class FileSystemDataSource(ResourceDataSource):
                         event_bus = get_event_bus()
                         if event_bus:
                             tmp_logger = EventBusLogger(event_bus, "system", "system", "FileSystemDataSource")
-                            asyncio.create_task(tmp_logger.error(f"Ошибка при загрузке промпта из {file_path}: {e}"))
+                            tmp_logger.error_sync(f"Ошибка при загрузке промпта из {file_path}: {e}")
                         raise ValueError(f"Ошибка при загрузке промпта из {file_path}: {e}")
 
     def _preload_contracts(self):
@@ -277,7 +277,7 @@ class FileSystemDataSource(ResourceDataSource):
                         event_bus = get_event_bus()
                         if event_bus:
                             tmp_logger = EventBusLogger(event_bus, "system", "system", "FileSystemDataSource")
-                            asyncio.create_task(tmp_logger.error(f"Ошибка при загрузке контракта из {file_path}: {e}"))
+                            tmp_logger.error_sync(f"Ошибка при загрузке контракта из {file_path}: {e}")
                         raise ValueError(f"Ошибка при загрузке контракта из {file_path}: {e}")
 
     def load_all_prompts(self) -> List[Prompt]:

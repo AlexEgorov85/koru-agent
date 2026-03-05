@@ -95,10 +95,10 @@ class BehaviorManager:
         if decision.action == BehaviorDecisionType.ACT:
             if not decision.capability_name:
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_logger.error(
+                    await self.event_bus_logger.error(
                         f"ACT decision без capability_name! "
                         f"Decision: {decision.action.value}, reason: {decision.reason[:100] if decision.reason else 'N/A'}"
-                    ))
+                    )
                 # Валидация не прошла — возвращаем SWITCH на fallback
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
@@ -113,10 +113,10 @@ class BehaviorManager:
             )
             if not capability_exists:
                 if self.event_bus_logger:
-                    asyncio.create_task(self.event_bus_logger.error(
+                    await self.event_bus_logger.error(
                         f"Capability '{decision.capability_name}' не найдена в доступных! "
                         f"Available: {[c.name for c in available_capabilities]}"
-                    ))
+                    )
                 # Валидация не прошла — возвращаем SWITCH на fallback
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
@@ -126,11 +126,11 @@ class BehaviorManager:
 
         # Логирование decision для аудита
         if self.event_bus_logger:
-            asyncio.create_task(self.event_bus_logger.info(
+            await self.event_bus_logger.info(
                 f"Decision: action={decision.action.value}, "
                 f"capability={decision.capability_name or 'N/A'}, "
                 f"reason={decision.reason[:100] if decision.reason else 'N/A'}"
-            ))
+            )
 
         # Автоматическое переключение паттернов
         if decision.action == BehaviorDecisionType.SWITCH and decision.next_pattern:
