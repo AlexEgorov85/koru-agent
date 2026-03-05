@@ -1,4 +1,4 @@
-capability: behavior.evaluation.assess.user
+capability: behavior.evaluation.user
 component_type: behavior
 version: v1.0.0
 status: active

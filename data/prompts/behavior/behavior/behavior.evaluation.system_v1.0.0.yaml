@@ -1,10 +1,10 @@
-capability: behavior.evaluation.assess.system
+capability: behavior.evaluation.system
 component_type: behavior
 version: v1.0.0
 status: active
-description: Системный промпт для Sql_Generation
+description: Системный промпт для Evaluation
 content: |
-  Ты — поведенческий паттерн. Выполни действие.
+  Ты — поведенческий паттерн оценки. Оцени достижение цели.
   Верни результат в формате JSON согласно выходному контракту.
 
   === ПРАВИЛА ===
@@ -14,4 +14,4 @@ variables: []
 metadata:
   author: system
   created: '2026-02-19'
-  description: Системный промпт для behavior.evaluation.assess
+  description: Системный промпт для behavior.evaluation

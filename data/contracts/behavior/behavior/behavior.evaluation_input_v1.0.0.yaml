@@ -1,0 +1,26 @@
+capability: behavior.evaluation
+component_type: behavior
+direction: input
+version: v1.0.0
+status: active
+description: Input контракт для EvaluationPattern
+schema:
+  type: object
+  properties:
+    goal:
+      type: string
+      description: Цель для оценки достижения
+    context_summary:
+      type: string
+      description: Краткое резюме контекста выполнения
+    step_history:
+      type: array
+      items:
+        type: object
+      description: История выполненных шагов
+  required:
+    - goal
+metadata:
+  author: system
+  created: '2026-03-05'
+  description: Input контракт для behavior.evaluation

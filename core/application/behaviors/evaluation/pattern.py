@@ -35,19 +35,19 @@ class EvaluationPattern(BaseBehaviorPattern):
         """Загружает system prompt для оценки из автоматически разделённых промптов."""
         try:
             # ← НОВОЕ: Используем автоматически разделённые промпты
-            if 'behavior.evaluation.assess' in self.system_prompts:
-                system_prompt_obj = self.system_prompts['behavior.evaluation.assess']
+            if 'behavior.evaluation' in self.system_prompts:
+                system_prompt_obj = self.system_prompts['behavior.evaluation']
                 if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
                     self.system_prompt_template = system_prompt_obj.content
                     return True
-            
+
             # Fallback: ищем в prompts (для обратной совместимости)
-            if self.prompts and "behavior.evaluation.assess.system" in self.prompts:
-                system_prompt_obj = self.prompts["behavior.evaluation.assess.system"]
+            if self.prompts and "behavior.evaluation.system" in self.prompts:
+                system_prompt_obj = self.prompts["behavior.evaluation.system"]
                 if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
                     self.system_prompt_template = system_prompt_obj.content
                     return True
-            
+
             return False
         except Exception as e:
             self.logger.error(f"Ошибка загрузки system prompt: {e}")
@@ -153,7 +153,7 @@ class EvaluationPattern(BaseBehaviorPattern):
         context_summary = context_analysis["context_summary"]
 
         # Получение промпта из кэша BaseComponent
-        assessment_prompt = self.get_prompt("behavior.evaluation.assess")
+        assessment_prompt = self.get_prompt("behavior.evaluation")
 
         if not assessment_prompt:
             self.logger.warning("Промпт для оценки не загружен, используем fallback")
@@ -170,7 +170,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
 
             # Получаем output контракт из кэша BaseComponent (ПРАВИЛЬНО)
-            output_schema = self.get_output_contract("behavior.evaluation.assess")
+            output_schema = self.get_output_contract("behavior.evaluation")
 
             if not output_schema:
                 self.logger.warning("Output контракт не загружен, используем fallback схему")

@@ -26,7 +26,7 @@ Unified Logging System.
 │ (терминал)      │  │  (ОТКЛЮЧЁН!)    │  │ (сессия)        │
 │                 │  │                 │  │                 │
 │ - онлайн вывод  │  │ - дублировал    │  │ - common.log    │
-│ - с цветами     │  │   SessionHandler│  │ - llm.jsonl     │
+│ - с иконками    │  │   SessionHandler│  │ - llm.jsonl     │
 │ - для разраба   │  │                 │  │ - metrics.jsonl │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 
@@ -39,7 +39,7 @@ Unified Logging System.
 - EventBusLogger: универсальный логгер
 - create_logger: фабрика логгеров
 - TerminalLogHandler, FileLogHandler: обработчики
-- LoggingConfig, TerminalOutputConfig, FileOutputConfig: конфигурация
+- LoggingConfig, FileOutputConfig: конфигурация
 - setup_logging, shutdown_logging: управление
 """
 from core.infrastructure.logging.logger import (
@@ -62,15 +62,12 @@ from core.infrastructure.logging.handlers import (
 
 from core.infrastructure.logging.config import (
     LoggingConfig,
-    TerminalOutputConfig,
     FileOutputConfig,
     LogLevel,
     LogFormat,
     get_logging_config,
     configure_logging,
-    set_terminal_level,
     set_file_level,
-    enable_debug_mode,
 )
 
 from core.infrastructure.logging.session_log_handler import (
@@ -91,7 +88,7 @@ __all__ = [
     'shutdown_logging_system',
     'get_session_logger',
     'get_global_logger',
-    
+
     # Handlers
     'TerminalLogHandler',
     'FileLogHandler',
@@ -99,19 +96,16 @@ __all__ = [
     'FileLogFormatter',
     'setup_logging',
     'shutdown_logging',
-    
+
     # Config
     'LoggingConfig',
-    'TerminalOutputConfig',
     'FileOutputConfig',
     'LogLevel',
     'LogFormat',
     'get_logging_config',
     'configure_logging',
-    'set_terminal_level',
     'set_file_level',
-    'enable_debug_mode',
-    
+
     # Backward compatibility
     'LogConfig',
     'get_log_config',

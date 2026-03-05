@@ -1,0 +1,36 @@
+capability: behavior.evaluation
+component_type: behavior
+direction: output
+version: v1.0.0
+status: active
+description: Output контракт для EvaluationPattern
+schema:
+  type: object
+  properties:
+    achieved:
+      type: boolean
+      description: Достигнута ли цель
+    partial_progress:
+      type: boolean
+      description: Есть ли частичный прогресс
+    confidence:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: Уверенность в оценке
+    summary:
+      type: string
+      description: Краткое резюме оценки
+    reasoning:
+      type: string
+      description: Обоснование оценки
+  required:
+    - achieved
+    - partial_progress
+    - confidence
+    - summary
+    - reasoning
+metadata:
+  author: system
+  created: '2026-03-05'
+  description: Output контракт для behavior.evaluation

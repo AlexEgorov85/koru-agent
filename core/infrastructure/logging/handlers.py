@@ -2,40 +2,232 @@
 Обработчики событий логирования.
 
 КОМПОНЕНТЫ:
-- TerminalLogHandler: вывод в терминал с форматированием
+- TerminalLogHandler: вывод в терминал с чистым форматированием
 - FileLogHandler: запись в файлы с ротацией
 
 АРХИТЕКТУРА:
 - Подписываются на события LOG_* из EventBus
-- Фильтруют сообщения согласно конфигурации
-- Форматируют и выводят в целевое устройство
+- TerminalLogHandler фильтрует шум и показывает только meaningful execution trace
 """
 import asyncio
 import json
 import logging
 import os
 import sys
+import threading
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass
 
 from core.infrastructure.event_bus.unified_event_bus import Event, EventType, UnifiedEventBus
 from core.infrastructure.logging.config import (
     LoggingConfig,
-    TerminalOutputConfig,
     FileOutputConfig,
-    LogLevel,
-    LogFormat,
     get_logging_config,
     configure_logging,
 )
 
 
-# =============================================================================
-# TERMINAL HANDLER
-# =============================================================================
+class TerminalLogFormatter:
+    """
+    Smart formatter for terminal logs.
+
+    Converts noisy infrastructure logs into clean agent execution trace.
+    """
+
+    STAGE_KEYWORDS = (
+        "planning",
+        "step",
+        "phase",
+        "stage",
+        "decision",
+        "thinking",
+    )
+
+    TOOL_KEYWORDS = (
+        "tool",
+        "capability",
+        "executing capability",
+        "executing tool",
+    )
+
+    RESULT_KEYWORDS = (
+        "result",
+        "response",
+        "output",
+        "completed",
+        "finished",
+        "returned",
+    )
+
+    LLM_KEYWORDS = (
+        "llm",
+        "completion",
+        "prompt",
+        "generation",
+        "gpt",
+    )
+
+    ERROR_KEYWORDS = (
+        "error",
+        "failed",
+        "exception",
+    )
+
+    ICONS = {
+        "stage": "🧠",
+        "tool": "🔧",
+        "result": "📊",
+        "llm": "🤖",
+        "error": "❌",
+        "info": "•",
+    }
+
+    def __init__(self):
+        self._last_message = None
+
+    def format(self, event, data, level="INFO"):
+        """
+        Format event for terminal output.
+        """
+        message = data.get("message") if data else None
+        if not message:
+            return None
+
+        # suppress duplicates
+        if message == self._last_message:
+            return None
+
+        self._last_message = message
+
+        msg_type = self._classify(message, level)
+        icon = self.ICONS.get(msg_type, "•")
+
+        if msg_type == "stage":
+            return f"\n{icon} {message}"
+
+        if msg_type == "tool":
+            return f"{icon} TOOL → {message}"
+
+        if msg_type == "result":
+            return f"{icon} RESULT → {message}"
+
+        if msg_type == "llm":
+            return f"{icon} LLM → {message}"
+
+        if msg_type == "error":
+            return f"\n{icon} ERROR → {message}"
+
+        return f"{icon} {message}"
+
+    def _classify(self, message, level):
+        msg = message.lower()
+
+        if level in ("ERROR", "CRITICAL"):
+            return "error"
+
+        if any(k in msg for k in self.ERROR_KEYWORDS):
+            return "error"
+
+        if any(k in msg for k in self.STAGE_KEYWORDS):
+            return "stage"
+
+        if any(k in msg for k in self.TOOL_KEYWORDS):
+            return "tool"
+
+        if any(k in msg for k in self.RESULT_KEYWORDS):
+            return "result"
+
+        if any(k in msg for k in self.LLM_KEYWORDS):
+            return "llm"
+
+        return "info"
+
+
+class TerminalLogHandler:
+    """
+    Clean terminal log handler.
+
+    Displays only meaningful execution trace instead of raw infrastructure logs.
+    """
+
+    def __init__(self, event_bus=None, config=None, level="INFO"):
+        self.event_bus = event_bus
+        self.level = level
+        self._formatter = TerminalLogFormatter()
+        self._lock = threading.Lock()
+        self._enabled = True
+
+        self._level_order = {
+            "DEBUG": 10,
+            "INFO": 20,
+            "WARNING": 30,
+            "ERROR": 40,
+            "CRITICAL": 50,
+        }
+
+    def enable(self) -> None:
+        """Включить вывод логов."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Выключить вывод логов."""
+        self._enabled = False
+
+    def handle(self, event, data=None, level="INFO"):
+        """
+        Process log event and output to terminal.
+        """
+        if not self._enabled:
+            return
+
+        if not self._should_log(level):
+            return
+
+        formatted = self._formatter.format(event, data or {}, level)
+
+        if not formatted:
+            return
+
+        with self._lock:
+            stream = sys.stderr if level in ("ERROR", "CRITICAL") else sys.stdout
+            print(formatted, file=stream, flush=True)
+
+    def _should_log(self, level):
+        return (
+            self._level_order.get(level, 0)
+            >= self._level_order.get(self.level, 0)
+        )
+
+    async def handle_log_event(self, event):
+        """Обработчик событий логирования (для совместимости с EventBus)."""
+        if not self._enabled:
+            return
+
+        data = event.data or {}
+        level = data.get("level", "INFO")
+
+        self.handle(event, data, level)
+
+    def subscribe(self) -> None:
+        """Подписаться на события логирования."""
+        if self.event_bus:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            self.event_bus.subscribe(EventType.LOG_INFO, self.handle_log_event)
+            self.event_bus.subscribe(EventType.LOG_DEBUG, self.handle_log_event)
+            self.event_bus.subscribe(EventType.LOG_WARNING, self.handle_log_event)
+            self.event_bus.subscribe(EventType.LOG_ERROR, self.handle_log_event)
+
+    def unsubscribe(self) -> None:
+        """Отписаться от событий логирования."""
+        if self.event_bus:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            self.event_bus.unsubscribe(EventType.LOG_INFO, self.handle_log_event)
+            self.event_bus.unsubscribe(EventType.LOG_DEBUG, self.handle_log_event)
+            self.event_bus.unsubscribe(EventType.LOG_WARNING, self.handle_log_event)
+            self.event_bus.unsubscribe(EventType.LOG_ERROR, self.handle_log_event)
+
 
 class LoggingToEventBusHandler(logging.Handler):
     """
@@ -116,196 +308,6 @@ class LoggingToEventBusHandler(logging.Handler):
         except Exception:
             # Игнорируем ошибки при закрытии (когда loop уже остановлен)
             pass
-
-
-class TerminalLogFormatter:
-    """
-    Форматировщик сообщений для терминала.
-
-    Поддерживает несколько форматов:
-    - SIMPLE: [INFO] message
-    - DETAILED: [2024-01-01 12:00:00] [INFO] [component] message
-    """
-
-    def __init__(self, config: TerminalOutputConfig):
-        self.config = config
-        self._message_count = 0
-
-    def format(self, event: Event) -> Optional[str]:
-        """
-        Форматирование события для вывода в терминал.
-
-        RETURNS:
-            Отформатированная строка или None если сообщение не должно выводиться
-        """
-        data = event.data or {}
-        # Преобразуем event_type в строку если это Enum
-        event_type_str = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
-        message_type = data.get("type", event_type_str)
-        level = data.get("level", "INFO")
-
-        # Проверка фильтров
-        if not self._should_log(event, message_type, level):
-            return None
-
-        # Форматирование в зависимости от типа
-        if self.config.format == LogFormat.SIMPLE:
-            return self._format_simple(event, data, level)
-        else:  # DETAILED
-            return self._format_detailed(event, data, level)
-    
-    def _should_log(self, event: Event, message_type: str, level: str) -> bool:
-        """Проверка фильтров конфигурации."""
-        # Проверка уровня логирования
-        level_map = {
-            "DEBUG": 10,
-            "INFO": 20,
-            "WARNING": 30,
-            "ERROR": 40,
-            "CRITICAL": 50,
-        }
-        msg_level = level_map.get(level.upper(), 20)  # По умолчанию INFO
-        min_level = self.config.level.value  # LogLevel enum value (10, 20, 30, etc.)
-
-        if msg_level < min_level:
-            return False
-
-        # Проверка show_debug
-        if not self.config.show_debug and message_type == "log.debug":
-            return False
-
-        # Проверка фильтров компонентов
-        component = event.data.get("component", "") if event.data else ""
-        if self.config.include_components and component not in self.config.include_components:
-            return False
-        if self.config.exclude_components and component in self.config.exclude_components:
-            return False
-
-        # Проверка фильтров типов событий
-        if self.config.include_event_types and message_type not in self.config.include_event_types:
-            return False
-        if self.config.exclude_event_types and message_type in self.config.exclude_event_types:
-            return False
-
-        return True
-    
-    def _format_simple(self, event: Event, data: Dict, level: str) -> str:
-        """Простой формат: [INFO] message"""
-        message = data.get("message", str(event.data)) if event.data else str(event)
-        return f"[{level}] {message}"
-    
-    def _format_detailed(self, event: Event, data: Dict, level: str) -> str:
-        """Детальный формат: [timestamp] [level] [component] message"""
-        timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        message = data.get("message", str(event.data)) if event.data else str(event)
-        component = data.get("component", event.source) if event.data else event.source
-        
-        parts = [f"[{timestamp}]", f"[{level}]"]
-        if self.config.show_source and component:
-            parts.append(f"[{component}]")
-        parts.append(message)
-        
-        return " ".join(parts)
-
-
-class TerminalLogHandler:
-    """
-    Обработчик вывода логов в терминал.
-
-    ПОДПИСЫВАЕТСЯ НА:
-    - LOG_INFO, LOG_DEBUG, LOG_WARNING, LOG_ERROR
-
-    FEATURES:
-    - Простой текстовый вывод
-    - Гибкие фильтры по компонентам и типам событий
-    - Несколько форматов вывода
-    """
-
-    # Логгеры системы логирования (игнорируем чтобы избежать цикла и дублирования)
-    LOGGING_SYSTEM_LOGGERS = {
-        "EventBusLog",
-        "EventBus",
-        "SessionWorker",
-        "ResourceDiscovery",
-        "DataRepository",
-        "ApplicationContext",
-        "LifecycleManager",
-        "MetricsCollector",
-        "LogCollector",
-        "PromptStorage",
-        "ContractStorage",
-        "core.infrastructure.discovery.resource_discovery",
-    }
-    
-    # Типы событий которые не нужно выводить в терминал (чтобы избежать цикла и дублирования)
-    SKIP_EVENT_TYPES = {
-        "metric.collected",
-    }
-    
-    def __init__(self, event_bus: UnifiedEventBus, config: Optional[TerminalOutputConfig] = None):
-        self.event_bus = event_bus
-        self.config = config or get_logging_config().terminal
-        self.formatter = TerminalLogFormatter(self.config)
-        self.logger = logging.getLogger("EventBusLog")
-        self.logger.propagate = False
-        self._enabled = True
-    
-    def enable(self) -> None:
-        """Включить вывод логов."""
-        self._enabled = True
-    
-    def disable(self) -> None:
-        """Выключить вывод логов."""
-        self._enabled = False
-    
-    async def handle_log_event(self, event: Event) -> None:
-        """Обработчик событий логирования."""
-        if not self._enabled:
-            return
-
-        # Преобразуем event_type в строку для сравнения
-        event_type_str = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
-
-        # Игнорируем события от логгеров системы логирования
-        logger_name = (event.data or {}).get('logger_name', '')
-        if logger_name in self.LOGGING_SYSTEM_LOGGERS or logger_name.startswith("koru.") or logger_name.startswith("core.infrastructure.discovery"):
-            return
-
-        # Игнорируем метрики события (они логируются отдельно в SessionLogHandler)
-        if event_type_str in self.SKIP_EVENT_TYPES:
-            return
-
-        # Форматируем сообщение
-        formatted = self.formatter.format(event)
-        if not formatted:
-            return
-
-        # Определяем уровень логирования для вывода
-        message = f"\n{formatted}"
-
-        if event_type_str == "log.error":
-            self.logger.error(message)
-        elif event_type_str == "log.warning":
-            self.logger.warning(message)
-        elif event_type_str == "log.debug":
-            self.logger.debug(message)
-        else:
-            self.logger.info(message)
-
-    def subscribe(self) -> None:
-        """Подписаться на события логирования."""
-        self.event_bus.subscribe(EventType.LOG_INFO, self.handle_log_event)
-        self.event_bus.subscribe(EventType.LOG_DEBUG, self.handle_log_event)
-        self.event_bus.subscribe(EventType.LOG_WARNING, self.handle_log_event)
-        self.event_bus.subscribe(EventType.LOG_ERROR, self.handle_log_event)
-        # LLM события обрабатываются через SessionLogHandler
-
-    def unsubscribe(self) -> None:
-        """Отписаться от событий логирования."""
-        self.event_bus.unsubscribe(EventType.LOG_INFO, self.handle_log_event)
-        self.event_bus.unsubscribe(EventType.LOG_DEBUG, self.handle_log_event)
-        self.event_bus.unsubscribe(EventType.LOG_WARNING, self.handle_log_event)
-        self.event_bus.unsubscribe(EventType.LOG_ERROR, self.handle_log_event)
 
 
 # =============================================================================
@@ -500,10 +502,6 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
     Настройка системы логирования.
 
     USAGE:
-        config = LoggingConfig(
-            terminal=TerminalOutputConfig(level=LogLevel.INFO, format=LogFormat.COLORED),
-            file=FileOutputConfig(level=LogLevel.DEBUG, format=LogFormat.JSONL)
-        )
         terminal_handler, file_handler = setup_logging(event_bus, config)
 
     ARGS:
@@ -518,7 +516,7 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
 
     terminal_handler = TerminalLogHandler(event_bus)
     file_handler = None
-    
+
     # FileLogHandler создаётся только если включён
     if config and config.file and config.file.enabled:
         file_handler = FileLogHandler(event_bus)
@@ -534,13 +532,6 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(event_bus_logging_handler)
-    
-    # Добавляем консольный обработчик для EventBusLog (чтобы вывод в терминал работал)
-    event_bus_logger = logging.getLogger("EventBusLog")
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(logging.Formatter('%(message)s'))
-    event_bus_logger.addHandler(console_handler)
 
     return terminal_handler, file_handler
 

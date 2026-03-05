@@ -109,16 +109,8 @@ class InfrastructureContext:
         # FileLogHandler: ОТКЛЮЧЁН - дублирует SessionLogHandler
         # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
         #
-        from core.infrastructure.logging import setup_logging, LoggingConfig, TerminalOutputConfig, FileOutputConfig, LogLevel, LogFormat
+        from core.infrastructure.logging import setup_logging, LoggingConfig, FileOutputConfig, LogLevel, LogFormat
         log_config = LoggingConfig(
-            terminal=TerminalOutputConfig(
-                enabled=True,
-                level=LogLevel.INFO,
-                format=LogFormat.COLORED,
-                show_debug=False,
-                show_source=True,
-                show_session_info=True,  # Показывать session_id и agent_id
-            ),
             file=FileOutputConfig(
                 enabled=False,  # ОТКЛЮЧЁН - используется SessionLogHandler
                 level=LogLevel.DEBUG,

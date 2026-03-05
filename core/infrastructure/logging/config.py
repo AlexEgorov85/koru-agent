@@ -2,14 +2,14 @@
 Конфигурация системы логирования.
 
 FEATURES:
-- Гибкие настройки вывода в терминал и файлы
-- Уровни логирования для разных компонентов
+- Настройки вывода в файлы
+- Уровни логирования
 - Форматы сообщений
 - Политики ротации файлов
 """
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Set
+from typing import Optional, Dict
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -25,30 +25,8 @@ class LogLevel(int, Enum):
 
 class LogFormat(str, Enum):
     """Форматы вывода логов."""
-    SIMPLE = "simple"       # [INFO] message
-    DETAILED = "detailed"   # [2024-01-01 12:00:00] [INFO] [component] message
-    COLORED = "colored"     # С цветами и иконками (для терминала)
     JSON = "json"           # JSON формат (для файлов)
     JSONL = "jsonl"         # JSON Lines (для файлов)
-
-
-@dataclass
-class TerminalOutputConfig:
-    """Настройки вывода в терминал."""
-    enabled: bool = True
-    level: LogLevel = LogLevel.INFO
-    format: LogFormat = LogFormat.COLORED  # Простой формат без цветов
-    show_debug: bool = False
-    show_source: bool = False
-    show_timestamp: bool = False
-    show_session_info: bool = False
-    show_icons_only: bool = False  # Отключено
-    # Фильтры по компонентам
-    include_components: Set[str] = field(default_factory=set)  # Если пусто - все
-    exclude_components: Set[str] = field(default_factory=set)
-    # Фильтры по уровням событий
-    include_event_types: Set[str] = field(default_factory=set)
-    exclude_event_types: Set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -75,14 +53,12 @@ class LoggingConfig:
     Общая конфигурация системы логирования.
 
     ATTRIBUTES:
-    - terminal: Настройки вывода в терминал
     - file: Настройки вывода в файлы
     - default_session_id: ID сессии по умолчанию
     - default_agent_id: ID агента по умолчанию
     """
-    terminal: TerminalOutputConfig = field(default_factory=TerminalOutputConfig)
     file: FileOutputConfig = field(default_factory=FileOutputConfig)
-    
+
     default_session_id: str = "system"
     default_agent_id: str = "system"
     
@@ -125,24 +101,10 @@ def configure_logging(config: LoggingConfig) -> None:
     _global_config = config
 
 
-def set_terminal_level(level: LogLevel) -> None:
-    """Установка уровня логирования для терминала."""
-    config = get_logging_config()
-    config.terminal.level = level
-
-
 def set_file_level(level: LogLevel) -> None:
     """Установка уровня логирования для файлов."""
     config = get_logging_config()
     config.file.level = level
-
-
-def enable_debug_mode() -> None:
-    """Включение режима отладки (DEBUG в терминал + файлы)."""
-    config = get_logging_config()
-    config.terminal.level = LogLevel.DEBUG
-    config.terminal.show_debug = True
-    config.file.level = LogLevel.DEBUG
 
 
 # Alias для обратной совместимости
