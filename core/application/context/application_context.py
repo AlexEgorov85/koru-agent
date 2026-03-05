@@ -112,6 +112,9 @@ class ApplicationContext(BaseSystemContext):
         else:
             self._data_dir = None
             self.data_repository = None  # ← Старый путь (для отката)
+        
+        # LLMOrchestrator для централизованного управления LLM вызовами
+        self.llm_orchestrator = None  # Будет создан в initialize()
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
@@ -376,6 +379,22 @@ class ApplicationContext(BaseSystemContext):
             # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
             from core.application.agent.components.action_executor import ActionExecutor
             executor = ActionExecutor(self)
+
+            # === ИНИЦИАЛИЗАЦИЯ LLM ORCHESTRATOR ===
+            # Централизованное управление LLM вызовами с таймаутами и метриками
+            try:
+                from core.infrastructure.providers.llm.llm_orchestrator import LLMOrchestrator
+                self.llm_orchestrator = LLMOrchestrator(
+                    event_bus=self.infrastructure_context.event_bus,
+                    max_workers=4,
+                    cleanup_interval=60.0,
+                    max_pending_calls=100
+                )
+                await self.llm_orchestrator.initialize()
+                self.logger.info("✅ LLMOrchestrator инициализирован")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Не удалось инициализировать LLMOrchestrator: {e}. Будет использоваться прямой вызов LLM.")
+                self.llm_orchestrator = None
 
             # Сначала создаем и регистрируем все компоненты
             self.logger.info("Начало создания компонентов...")
@@ -1510,3 +1529,29 @@ class ApplicationContext(BaseSystemContext):
         Проверка, полностью ли инициализирована система.
         """
         return self._initialized
+
+    async def shutdown(self):
+        """
+        Корректное завершение работы ApplicationContext.
+        """
+        self.logger.info("Завершение работы ApplicationContext...")
+        
+        # Завершение LLMOrchestrator
+        if self.llm_orchestrator:
+            try:
+                await self.llm_orchestrator.shutdown()
+                self.logger.info("LLMOrchestrator завершён")
+            except Exception as e:
+                self.logger.error(f"Ошибка при завершении LLMOrchestrator: {e}")
+            self.llm_orchestrator = None
+        
+        # Завершение DataRepository
+        if self.data_repository:
+            try:
+                await self.data_repository.shutdown()
+                self.logger.info("DataRepository завершён")
+            except Exception as e:
+                self.logger.error(f"Ошибка при завершении DataRepository: {e}")
+        
+        self._initialized = False
+        self.logger.info("ApplicationContext завершён")

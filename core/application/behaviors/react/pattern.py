@@ -20,7 +20,7 @@ from core.models.schemas.react_models import ReasoningResult
 from core.application.agent.strategies.react.validation import validate_reasoning_result
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.data.capability import Capability
-from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+from core.models.types.llm_types import LLMRequest, StructuredOutputConfig, LLMResponse
 from core.models.errors import InfrastructureError
 
 
@@ -72,6 +72,17 @@ class ReActPattern(BaseBehaviorPattern):
         # Примечание: Промпты и контракты загружаются через BaseComponent.initialize()
         # и доступны в self.prompts / self.output_contracts
 
+    @property
+    def llm_orchestrator(self):
+        """
+        Получение LLMOrchestrator из application_context.
+        
+        Возвращает orchestrator если доступен, иначе None.
+        """
+        if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
+            return self.application_context.llm_orchestrator
+        return None
+
     def _init_event_bus_logger(self):
         """Инициализирует EventBusLogger когда становится доступен event_bus."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
@@ -82,6 +93,95 @@ class ReActPattern(BaseBehaviorPattern):
                 agent_id="system",
                 component="react_pattern.think"
             )
+
+    async def _execute_llm_with_orchestrator(
+        self,
+        llm_request: LLMRequest,
+        llm_provider: Any,
+        timeout: float,
+        session_context: 'SessionContext'
+    ) -> tuple[bool, Any, str]:
+        """
+        Выполнение LLM вызова через LLMOrchestrator.
+        
+        АРХИТЕКТУРНОЕ ПРЕИМУЩЕСТВО:
+        - При таймауте не бросает исключение, а возвращает LLMResponse с error
+        - Фоновый поток завершается корректно, результат не теряется
+        - Метрики и мониторинг "брошенных" вызовов
+        
+        ПАРАМЕТРЫ:
+        - llm_request: Запрос к LLM
+        - llm_provider: LLM провайдер
+        - timeout: Таймаут ожидания
+        - session_context: Контекст сессии
+        
+        ВОЗВРАЩАЕТ:
+        - tuple[bool, Any, str]: (успех, ответ, ошибка)
+        """
+        orchestrator = self.llm_orchestrator
+        
+        if not orchestrator:
+            # Fallback: прямой вызов без оркестратора (для обратной совместимости)
+            await self._log("debug", "LLMOrchestrator недоступен, используем прямой вызов")
+            return False, None, "orchestrator_not_available"
+        
+        try:
+            # Выполнение через оркестратор
+            response = await orchestrator.execute(
+                request=llm_request,
+                timeout=timeout,
+                provider=llm_provider,
+                capability_name="react_pattern.think"
+            )
+            
+            # Проверка на ошибку в ответе
+            if response.finish_reason == "error":
+                error_msg = "Неизвестная ошибка LLM"
+                if response.metadata:
+                    if isinstance(response.metadata, dict):
+                        error_msg = response.metadata.get('error', error_msg)
+                    elif isinstance(response.metadata, str):
+                        error_msg = response.metadata
+                
+                # Логируем ошибку
+                await self._log("error", f"LLM вызов через оркестратор вернул ошибку: {error_msg}")
+                
+                # Публикуем событие об ошибке
+                await self._publish_llm_response_received(
+                    session_context=session_context,
+                    response=None,
+                    error_message=error_msg,
+                    error_type="orchestrator_error"
+                )
+                
+                return False, None, error_msg
+            
+            # Успешный ответ
+            await self._log("info", f"LLM вызов через оркестратор завершён успешно")
+            
+            # Оборачиваем в формат ожидаемый _perform_structured_reasoning
+            # Orchestrator возвращает LLMResponse, а нам нужно dict с raw_response
+            structured_response = {
+                'raw_response': response,
+                'content': response.content,
+                'metadata': response.metadata
+            }
+            
+            return True, structured_response, ""
+            
+        except Exception as e:
+            # Исключение из оркестратора (должно быть редко)
+            error_msg = f"Исключение из LLMOrchestrator: {type(e).__name__}: {str(e)}"
+            await self._log("error", error_msg)
+            
+            await self._publish_llm_response_received(
+                session_context=session_context,
+                response=None,
+                error_message=error_msg,
+                error_type="orchestrator_exception"
+            )
+            
+            return False, None, error_msg
 
     async def _log(self, level: str, message: str, **extra_data):
         """
@@ -811,93 +911,160 @@ class ReActPattern(BaseBehaviorPattern):
             await self._log("info", f"🧠 Запуск рассуждения ReAct | Цель: {session_context.get_goal() if session_context else 'unknown'}")
             await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
-            # === ОБРАБОТКА ТАЙМАУТА LLM С RETRY ===
+            # === ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR (ПРЕДОЧТИТЕЛЬНО) ===
+            # LLMOrchestrator обеспечивает:
+            # 1. Управление таймаутами без потерь результатов
+            # 2. Реестр активных вызовов с метриками
+            # 3. Корректное завершение фоновых потоков
+            # 4. Мониторинг "брошенных" вызовов
+            
             import asyncio
             from asyncio import TimeoutError as AsyncTimeoutError
-
+            
+            llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
             max_retries = 3
             retry_delay = 5.0
             retry_count = 0
-
+            response = None
+            
             while retry_count < max_retries:
-                try:
-                    llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] Вызов LLM с таймаутом {llm_timeout}с...")
-                    await self._log("info", f"[Попытка {retry_count + 1}] Ожидание ответа от LLM...")
-                    await self._log("debug", f"[Попытка {retry_count + 1}] llm_provider={llm_provider}")
-                    await self._log("debug", f"[Попытка {retry_count + 1}] llm_request.prompt[:100]={llm_request.prompt[:100]}...")
-
-                    # Используем asyncio.wait_for для гарантии таймаута
-                    await self._log("info", f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
-                    response = await asyncio.wait_for(
-                        llm_provider.generate_structured(llm_request),
-                        timeout=llm_timeout
-                    )
-                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] LLM ответ ПОЛУЧЕН!")
-                    await self._log("debug", f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
+                # Попытка вызова через LLMOrchestrator
+                orchestrator = self.llm_orchestrator
+                
+                if orchestrator:
+                    # === ВЫЗОВ ЧЕРЕЗ ORCHESTRATOR ===
+                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] Вызов через LLMOrchestrator с таймаутом {llm_timeout}с...")
                     
-                    # Публикуем событие об успешном ответе LLM
-                    await self._publish_llm_response_received(
-                        session_context=session_context,
-                        response=response
+                    success, resp, error = await self._execute_llm_with_orchestrator(
+                        llm_request=llm_request,
+                        llm_provider=llm_provider,
+                        timeout=llm_timeout,
+                        session_context=session_context
                     )
                     
-                    break  # Успех, выходим из цикла retry
-
-                except (AsyncTimeoutError, TimeoutError) as e:
-                    retry_count += 1
-                    error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
-                    await self._log("warning", error_msg)
-
-                    if retry_count < max_retries:
-                        # Ждём перед следующей попыткой
-                        await self._log("info", f"Повторная попытка через {retry_delay}с...")
-                        await asyncio.sleep(retry_delay)
-                        # Увеличиваем задержку для следующей попытки (exponential backoff)
-                        retry_delay *= 1.5
+                    if success:
+                        response = resp
+                        await self._log("info", f"[Попытка {retry_count + 1}] LLM ответ получен через оркестратор")
+                        break
                     else:
-                        # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
-                        error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
+                        # Ошибка от оркестратора
+                        retry_count += 1
+                        await self._log("warning", f"[Попытка {retry_count}] Ошибка оркестратора: {error}")
+                        
+                        if retry_count < max_retries:
+                            await self._log("info", f"Повторная попытка через {retry_delay}с...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 1.5
+                        else:
+                            # === ТАЙМАУТ ПОСЛЕ ВСЕХ ПОПЫТОК ===
+                            error_msg = f"LLM вызов не удался после {max_retries} попыток через оркестратор"
+                            await self._log("error", error_msg)
+                            
+                            await self._publish_llm_response_received(
+                                session_context=session_context,
+                                response=None,
+                                error_message=error_msg,
+                                error_type="orchestrator_timeout"
+                            )
+                            
+                            # Возвращаем fallback вместо исключения
+                            return {
+                                "analysis": {
+                                    "current_situation": f"LLM таймаут после {max_retries} попыток",
+                                    "progress_assessment": "Неизвестно",
+                                    "confidence": 0.3,
+                                    "errors_detected": True,
+                                    "consecutive_errors": self.error_count + 1,
+                                    "execution_time": context_analysis.get("execution_time_seconds", 0),
+                                    "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                                },
+                                "decision": {
+                                    "next_action": "book_library.search_books",
+                                    "reasoning": f"fallback после LLM таймаута",
+                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
+                                },
+                                "available_capabilities": available_capabilities,
+                                "needs_rollback": False
+                            }
+                
+                else:
+                    # === FALLBACK: ПРЯМОЙ ВЫЗОВ БЕЗ ORCHESTRATOR ===
+                    # Для обратной совместимости если оркестратор не доступен
+                    await self._log("debug", f"[Попытка {retry_count + 1}] LLMOrchestrator недоступен, прямой вызов...")
+                    
+                    try:
+                        await self._log("info", f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
+                        response = await asyncio.wait_for(
+                            llm_provider.generate_structured(llm_request),
+                            timeout=llm_timeout
+                        )
+                        await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] LLM ответ ПОЛУЧЕН!")
+                        
+                        # Публикуем событие об успешном ответе LLM
+                        await self._publish_llm_response_received(
+                            session_context=session_context,
+                            response=response
+                        )
+                        break  # Успех, выходим из цикла retry
+                    
+                    except (AsyncTimeoutError, TimeoutError) as e:
+                        retry_count += 1
+                        error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
+                        await self._log("warning", error_msg)
+                        
+                        if retry_count < max_retries:
+                            await self._log("info", f"Повторная попытка через {retry_delay}с...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 1.5
+                        else:
+                            # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
+                            error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
+                            await self._log("error", error_msg)
+                            
+                            await self._publish_llm_response_received(
+                                session_context=session_context,
+                                response=None,
+                                error_message=error_msg,
+                                error_type="timeout"
+                            )
+                            
+                            # Возвращаем fallback вместо исключения
+                            return {
+                                "analysis": {
+                                    "current_situation": f"LLM таймаут после {max_retries} попыток",
+                                    "progress_assessment": "Неизвестно",
+                                    "confidence": 0.3,
+                                    "errors_detected": True,
+                                    "consecutive_errors": self.error_count + 1,
+                                    "execution_time": context_analysis.get("execution_time_seconds", 0),
+                                    "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                                },
+                                "decision": {
+                                    "next_action": "book_library.search_books",
+                                    "reasoning": f"fallback после LLM таймаута",
+                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
+                                },
+                                "available_capabilities": available_capabilities,
+                                "needs_rollback": False
+                            }
+                    
+                    except Exception as e:
+                        error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
                         await self._log("error", error_msg)
-
-                        # Логируем детали для диагностики
-                        await self._log("error", f"Цель: {session_context.get_goal() if session_context else 'unknown'}")
-                        await self._log("error", f"Компонент: react_pattern (phase: think)")
-                        await self._log("error", f"Таймаут: {llm_timeout} секунд")
-                        await self._log("error", f"Попыток: {retry_count}")
-                        await self._log("error", "Возможные причины:")
-                        await self._log("error", "  1. LLM модель слишком медленная для текущего запроса")
-                        await self._log("error", "  2. LLM модель зависла или недоступна")
-                        await self._log("error", "  3. Недостаточно ресурсов (память/CPU) для инференса")
-                        await self._log("error", "Рекомендации:")
-                        await self._log("error", "  1. Увеличьте таймаут в конфигурации (timeout_seconds)")
-                        await self._log("error", "  2. Проверьте доступность LLM модели")
-                        await self._log("error", "  3. Уменьшите max_tokens или упростите запрос")
-
-                        # Публикуем событие о таймауте
+                        
                         await self._publish_llm_response_received(
                             session_context=session_context,
                             response=None,
                             error_message=error_msg,
-                            error_type="timeout"
+                            error_type="llm_call_error"
                         )
-
-                        # Прерываем работу агента с ошибкой
-                        raise TimeoutError(error_msg) from e
-
-                except Exception as e:
-                    error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
-                    await self._log("error", error_msg)
-
-                    # Публикуем событие об ошибке перед выбрасыванием исключения
-                    await self._publish_llm_response_received(
-                        session_context=session_context,
-                        response=None,
-                        error_message=error_msg,
-                        error_type="llm_call_error"
-                    )
-
-                    raise  # Пробрасываем другие ошибки дальше
+                        
+                        # Пробрасываем только если это последняя попытка
+                        if retry_count >= max_retries - 1:
+                            raise
+                        retry_count += 1
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 1.5
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
             # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)

@@ -209,10 +209,14 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         # Завершение обработчика логов сессии
         if session_log_handler:
             await session_log_handler.shutdown()
-        
+
+        # Завершение прикладного контекста (включая LLMOrchestrator)
+        if 'application_context' in locals():
+            await application_context.shutdown()
+
         # Остановка инфраструктуры
         await infrastructure_context.shutdown()
-        
+
         # Завершение системы логирования
         await shutdown_logging_system()
 
