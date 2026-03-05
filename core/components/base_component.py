@@ -116,6 +116,20 @@ class BaseComponent(ABC):
                     component=self.__class__.__name__
                 )
 
+    def _safe_log_sync(self, level: str, message: str, **kwargs):
+        """
+        Безопасный синхронный логгер — проверяет event_bus_logger на None.
+        
+        ПАРАМЕТРЫ:
+        - level: уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: сообщение
+        - **kwargs: дополнительные аргументы для логгера
+        """
+        if hasattr(self, 'event_bus_logger') and self.event_bus_logger is not None:
+            log_method = getattr(self.event_bus_logger, f'{level}_sync', None)
+            if log_method:
+                log_method(message, **kwargs)
+
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,
@@ -136,41 +150,27 @@ class BaseComponent(ABC):
         try:
             # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
             if not await self._validate_manifest():
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"{self.name}: Валидация манифеста не пройдена")
-                else:
-                    self.event_bus_logger.error_sync(f"{self.name}: Валидация манифеста не пройдена")
+                self._safe_log_sync("error", f"{self.name}: Валидация манифеста не пройдена")
                 return False
 
             # === ЭТАП 2: Предзагрузка ресурсов ===
             if not await self._preload_resources(current_time):
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"{self.name}: Предзагрузка ресурсов не удалась")
-                else:
-                    self.event_bus_logger.error_sync(f"{self.name}: Предзагрузка ресурсов не удалась")
+                self._safe_log_sync("error", f"{self.name}: Предзагрузка ресурсов не удалась")
                 return False
 
             # === ЭТАП 3: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"{self.name}: Валидация загруженных ресурсов не пройдена")
-                else:
-                    self.event_bus_logger.error_sync(f"{self.name}: Валидация загруженных ресурсов не пройдена")
+                self._safe_log_sync("error", f"{self.name}: Валидация загруженных ресурсов не пройдена")
                 return False
 
             msg = f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}"
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(msg)
-            else:
-                logger.info(msg)
+            self._safe_log_sync("info", msg)
             self._initialized = True
             return True
 
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка инициализации компонента '{self.name}': {e}")
-            else:
-                logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
+            self._safe_log_sync("error", f"Ошибка инициализации компонента '{self.name}': {e}")
+            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
             self._initialized = False
             return False
 
@@ -185,14 +185,14 @@ class BaseComponent(ABC):
         """
         # Проверка ComponentConfig
         if not self.component_config:
-            self.event_bus_logger.debug_sync(f"{self.name}: component_config отсутствует")
+            self._safe_log_sync("debug", f"{self.name}: component_config отсутствует")
             return True  # Не блокируем, но логируем
 
         # Проверка что версии контрактов указаны корректно
         if hasattr(self.component_config, 'input_contract_versions'):
             for cap, ver in self.component_config.input_contract_versions.items():
                 if not ver or not isinstance(ver, str):
-                    self.event_bus_logger.error_sync(f"{self.name}: Некорректная версия контракта {cap}@{ver}")
+                    self._safe_log_sync("error", f"{self.name}: Некорректная версия контракта {cap}@{ver}")
                     return False
 
         # Проверка зависимостей из DEPENDENCIES
@@ -205,7 +205,7 @@ class BaseComponent(ABC):
                     self.application_context.components.get(ComponentType.BEHAVIOR, dep_name)
                 )
                 if not dep:
-                    self.event_bus_logger.error_sync(f"{self.name}: Зависимость '{dep_name}' не найдена")
+                    self._safe_log_sync("error", f"{self.name}: Зависимость '{dep_name}' не найдена")
                     return False
 
         return True
@@ -231,7 +231,7 @@ class BaseComponent(ABC):
 
         if errors:
             for error in errors:
-                self.event_bus_logger.error_sync(f"{self.name}: {error}")
+                self._safe_log_sync("error", f"{self.name}: {error}")
             return False
 
         return True
@@ -240,13 +240,14 @@ class BaseComponent(ABC):
         """Предзагрузка ресурсов компонента."""
         try:
             # Отладочный вывод
-            self.event_bus_logger.info_sync(
+            self._safe_log_sync(
+                "info",
                 f"_preload_resources: {self.name} - "
                 f"prompt_versions={list(self.component_config.prompt_versions.keys())}, "
                 f"input_contract_versions={list(self.component_config.input_contract_versions.keys())}, "
                 f"output_contract_versions={list(self.component_config.output_contract_versions.keys())}"
             )
-            
+
             # Загрузка промптов как объектов
             for cap_name, version in self.component_config.prompt_versions.items():
                 try:
@@ -255,7 +256,8 @@ class BaseComponent(ABC):
                         prompt_obj: Prompt = self.application_context.data_repository.get_prompt(cap_name, version)
                         self.prompts[cap_name] = prompt_obj
 
-                        self.event_bus_logger.debug_sync(
+                        self._safe_log_sync(
+                            "debug",
                             f"Загружен промпт '{cap_name}' v{version} "
                             f"(тип: {prompt_obj.component_type.value}, статус: {prompt_obj.status.value})"
                         )
@@ -274,13 +276,13 @@ class BaseComponent(ABC):
                             metadata={}
                         )
                         self.prompts[cap_name] = prompt_obj
-                        self.event_bus_logger.warning_sync(f"Используется совместимый режим для промпта {cap_name}")
+                        self._safe_log_sync("warning", f"Используется совместимый режим для промпта {cap_name}")
 
                 except Exception as e:
-                    self.event_bus_logger.error_sync(f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
+                    self._safe_log_sync("error", f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
                     # Используем безопасный способ проверки критических ресурсов
                     if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('prompts', False):
-                        self.event_bus_logger.error_sync(f"Критический промпт {cap_name} не загружен")
+                        self._safe_log_sync("error", f"Критический промпт {cap_name} не загружен")
                         return False
 
             # Загрузка схем контрактов
@@ -296,10 +298,10 @@ class BaseComponent(ABC):
                         # Старый путь: получаем из контекста
                         schema_cls = self.application_context.get_input_contract_schema(cap_name, version)
                         self.input_contracts[cap_name] = schema_cls
-                        self.event_bus_logger.warning_sync(f"Используется совместимый режим для входной схемы {cap_name}")
+                        self._safe_log_sync("warning", f"Используется совместимый режим для входной схемы {cap_name}")
 
                 except Exception as e:
-                    self.event_bus_logger.error_sync(f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
+                    self._safe_log_sync("error", f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
                     # Используем безопасный способ проверки критических ресурсов
                     if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('input_contracts', False):
                         return False
@@ -316,10 +318,10 @@ class BaseComponent(ABC):
                     else:
                         # Старый путь: используем базовый класс
                         self.output_contracts[cap_name] = BaseModel
-                        self.event_bus_logger.warning_sync(f"Используется совместимый режим для выходной схемы {cap_name}")
+                        self._safe_log_sync("warning", f"Используется совместимый режим для выходной схемы {cap_name}")
 
                 except Exception as e:
-                    self.event_bus_logger.error_sync(f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
+                    self._safe_log_sync("error", f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
                     # Используем безопасный способ проверки критических ресурсов
                     if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
                         return False
@@ -331,14 +333,14 @@ class BaseComponent(ABC):
                 self.input_contract_timestamps[schema_key] = current_time
             for schema_key in self.output_contracts:
                 self.output_contract_timestamps[schema_key] = current_time
-            
+
             # ← НОВОЕ: Автоматическое разделение system/user промптов
             self._separate_system_user_prompts()
 
             return True
 
         except Exception as e:
-            self.event_bus_logger.error_sync(f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
+            self._safe_log_sync("error", f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
             return False
 
     def _separate_system_user_prompts(self):
@@ -357,11 +359,11 @@ class BaseComponent(ABC):
             if '.system' in cap_name:
                 base_name = cap_name.replace('.system', '')
                 self.system_prompts[base_name] = prompt
-                self.event_bus_logger.debug_sync(f"Загружен system промпт: {base_name}")
+                self._safe_log_sync("debug", f"Загружен system промпт: {base_name}")
             elif '.user' in cap_name:
                 base_name = cap_name.replace('.user', '')
                 self.user_prompts[base_name] = prompt
-                self.event_bus_logger.debug_sync(f"Загружен user промпт: {base_name}")
+                self._safe_log_sync("debug", f"Загружен user промпт: {base_name}")
 
     async def _validate_loaded_resources(self) -> bool:
         """
@@ -414,10 +416,10 @@ class BaseComponent(ABC):
 
         if errors:
             for error in errors:
-                self.event_bus_logger.error_sync(f"{self.name}: {error}")
+                self._safe_log_sync("error", f"{self.name}: {error}")
             return False
 
-        self.event_bus_logger.debug_sync(f"{self.name}: Все ресурсы валидированы успешно")
+        self._safe_log_sync("debug", f"{self.name}: Все ресурсы валидированы успешно")
         return True
 
     def _get_component_type(self) -> str:
@@ -588,7 +590,8 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
         if capability_name not in self.prompts:
-            self.event_bus_logger.warning_sync(
+            self._safe_log_sync(
+                "warning",
                 f"Промпт для capability '{capability_name}' не загружен в компонент '{self.name}'. "
                 f"Доступные: {list(self.prompts.keys())}. Возвращаем пустую строку."
             )
@@ -604,7 +607,8 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
         if capability_name not in self.input_contracts:
-            self.event_bus_logger.warning_sync(
+            self._safe_log_sync(
+                "warning",
                 f"Входная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
                 f"Доступные: {list(self.input_contracts.keys())}. Возвращаем пустой словарь."
             )
@@ -621,7 +625,8 @@ class BaseComponent(ABC):
         """
         self._ensure_initialized()
         if capability_name not in self.output_contracts:
-            self.event_bus_logger.warning_sync(
+            self._safe_log_sync(
+                "warning",
                 f"Выходная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
                 f"Доступные: {list(self.output_contracts.keys())}. Возвращаем пустой словарь."
             )
@@ -636,7 +641,7 @@ class BaseComponent(ABC):
         Типобезопасная валидация через скомпилированную схему.
         """
         if capability_name not in self.input_contracts:
-            self.event_bus_logger.warning_sync(f"Схема для {capability_name} не загружена, пропускаем валидацию")
+            self._safe_log_sync("warning", f"Схема для {capability_name} не загружена, пропускаем валидацию")
             return True
 
         schema_cls = self.input_contracts[capability_name]
@@ -645,7 +650,7 @@ class BaseComponent(ABC):
             validated = schema_cls.model_validate(data)
             return True
         except Exception as e:
-            self.event_bus_logger.error_sync(f"Валидация входных данных для {capability_name} провалена: {e}")
+            self._safe_log_sync("error", f"Валидация входных данных для {capability_name} провалена: {e}")
             return False
 
     def validate_output(self, capability_name: str, data: Any) -> bool:
@@ -660,7 +665,7 @@ class BaseComponent(ABC):
         - bool: True если валидация пройдена
         """
         if capability_name not in self.output_contracts:
-            self.event_bus_logger.warning_sync(f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
+            self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
             return True
 
         schema_cls = self.output_contracts[capability_name]
@@ -669,7 +674,7 @@ class BaseComponent(ABC):
             validated = schema_cls.model_validate(data)
             return True
         except Exception as e:
-            self.event_bus_logger.error_sync(f"Валидация выходных данных для {capability_name} провалена: {e}")
+            self._safe_log_sync("error", f"Валидация выходных данных для {capability_name} провалена: {e}")
             return False
 
     def render_prompt(self, capability_name: str, **kwargs) -> str:
@@ -685,7 +690,7 @@ class BaseComponent(ABC):
         try:
             return prompt_obj.render(**kwargs)
         except ValueError as e:
-            self.event_bus_logger.error_sync(f"Ошибка рендеринга промпта {capability_name}: {e}")
+            self._safe_log_sync("error", f"Ошибка рендеринга промпта {capability_name}: {e}")
             raise
 
     def _format_contract_section(
@@ -773,7 +778,7 @@ class BaseComponent(ABC):
             else:  # end
                 parts.append(contract_section)
         elif include_input_contract and capability_name not in self.input_contracts:
-            self.event_bus_logger.debug_sync(f"Входной контракт для {capability_name} не найден, пропускаем")
+            self._safe_log_sync("debug", f"Входной контракт для {capability_name} не найден, пропускаем")
 
         # Добавляем выходной контракт
         if include_output_contract and capability_name in self.output_contracts:
@@ -788,7 +793,7 @@ class BaseComponent(ABC):
             # Критически важное указание для LLM
             parts.append("\n\n⚠️ **ОТВЕТЬ ТОЛЬКО В ФОРМАТЕ JSON СОГЛАСНО ВЫХОДНОМУ КОНТРАКТУ ВЫШЕ!**")
         elif include_output_contract and capability_name not in self.output_contracts:
-            self.event_bus_logger.debug_sync(f"Выходной контракт для {capability_name} не найден, пропускаем")
+            self._safe_log_sync("debug", f"Выходной контракт для {capability_name} не найден, пропускаем")
 
         return "\n".join(parts)
 
@@ -837,7 +842,7 @@ class BaseComponent(ABC):
         - Провайдер или None если не найден
         """
         if not hasattr(self.application_context, 'infrastructure_context'):
-            self.event_bus_logger.warning_sync(f"infrastructure_context не доступен для получения провайдера '{name}'")
+            self._safe_log_sync("warning", f"infrastructure_context не доступен для получения провайдера '{name}'")
             return None
         return self.application_context.infrastructure_context.get_provider(name)
 
@@ -888,7 +893,7 @@ class BaseComponent(ABC):
         - **extra_data: дополнительные данные для события
         """
         if not hasattr(self.application_context, 'infrastructure_context'):
-            self.event_bus_logger.debug_sync(f"infrastructure_context не доступен для публикации метрик")
+            self._safe_log_sync("debug", f"infrastructure_context не доступен для публикации метрик")
             return
 
         event_bus = self.application_context.infrastructure_context.event_bus
