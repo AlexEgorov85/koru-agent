@@ -340,7 +340,7 @@ class LlamaCppProvider(BaseLLMProvider):
                 try:
                     if not self.llm:
                         raise RuntimeError("LLM модель не загружена")
-                    
+
                     result = self.llm(
                         request.prompt,
                         max_tokens=max_tokens,
@@ -352,6 +352,15 @@ class LlamaCppProvider(BaseLLMProvider):
                         stop=request.stop_sequences or None
                     )
 
+                    # === ЛОГИРОВАНИЕ ОТВЕТА LLM ===
+                    # Логируем СРАЗУ чтобы не потерять при завершении процесса
+                    content = result.get('choices', [{}])[0].get('text', '') if result.get('choices') else ''
+                    content_preview = content[:500] if len(content) > 500 else content
+                    self.event_bus_logger.info_sync(
+                        f"✅ LLM ответ получен: {len(content)} символов, "
+                        f"preview: {content_preview[:100]}..."
+                    )
+                    
                     call_completed['done'] = True
                     return result
                 except Exception as e:
