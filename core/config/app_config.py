@@ -189,13 +189,14 @@ class AppConfig(BaseModel):
         object.__setattr__(self, 'output_contract_versions', updated_versions)
 
     @classmethod
-    def from_discovery(cls, profile: str = "prod", data_dir: str = "data"):
+    def from_discovery(cls, profile: str = "prod", data_dir: str = "data", discovery=None):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов (без registry.yaml и манифестов).
 
         ARGS:
         - profile: профиль (prod или sandbox)
         - data_dir: директория данных
+        - discovery: опционально, существующий ResourceDiscovery для использования (избегает дублирования)
 
         RETURNS:
         - AppConfig: сконфигурированный экземпляр AppConfig
@@ -203,10 +204,11 @@ class AppConfig(BaseModel):
         from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
         from core.config.component_config import ComponentConfig
 
-        # Инициализируем ResourceDiscovery
-        discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
+        # ✅ ИСПОЛЬЗУЕМ переданный ResourceDiscovery или создаём новый
+        if discovery is None:
+            discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
 
-        # Сканируем ресурсы
+        # Сканируем ресурсы (кэширование предотвращает повторную загрузку)
         prompts = discovery.discover_prompts()
         contracts = discovery.discover_contracts()
 
@@ -285,8 +287,9 @@ class AppConfig(BaseModel):
                             'output_contracts': {}
                         }
 
-                    # Добавляем промпт
-                    component_resources[component_name]['prompts'][prompt.capability] = prompt.version
+                    # Добавляем промпт (исключаем .system промпты — они используются отдельно)
+                    if not prompt.capability.endswith('.system'):
+                        component_resources[component_name]['prompts'][prompt.capability] = prompt.version
 
         # Собираем контракты для компонентов
         for contract in contracts:

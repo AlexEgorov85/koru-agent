@@ -91,6 +91,10 @@ class BaseComponent(ABC):
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
         self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
         self.output_contracts: Dict[str, Type[BaseModel]] = {}
+        
+        # ← НОВОЕ: Автоматическое разделение system/user промптов
+        self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
+        self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
 
         # Временные метки для TTL
         self.prompt_timestamps: Dict[str, float] = {}
@@ -347,12 +351,37 @@ class BaseComponent(ABC):
                 self.input_contract_timestamps[schema_key] = current_time
             for schema_key in self.output_contracts:
                 self.output_contract_timestamps[schema_key] = current_time
+            
+            # ← НОВОЕ: Автоматическое разделение system/user промптов
+            self._separate_system_user_prompts()
 
             return True
 
         except Exception as e:
             self._log_sync("error", f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
             return False
+
+    def _separate_system_user_prompts(self):
+        """
+        Автоматически разделяет промпты на system/user по соглашению об именовании.
+        
+        Соглашение:
+        - capability.system → system_prompts[base_capability]
+        - capability.user → user_prompts[base_capability]
+        
+        Пример:
+        - behavior.react.think.system → system_prompts['behavior.react.think']
+        - behavior.react.think.user → user_prompts['behavior.react.think']
+        """
+        for cap_name, prompt in self.prompts.items():
+            if '.system' in cap_name:
+                base_name = cap_name.replace('.system', '')
+                self.system_prompts[base_name] = prompt
+                self._log_sync("debug", f"Загружен system промпт: {base_name}")
+            elif '.user' in cap_name:
+                base_name = cap_name.replace('.user', '')
+                self.user_prompts[base_name] = prompt
+                self._log_sync("debug", f"Загружен user промпт: {base_name}")
 
     async def _validate_loaded_resources(self) -> bool:
         """
@@ -408,7 +437,7 @@ class BaseComponent(ABC):
                 self._log_sync("error", f"{self.name}: {error}")
             return False
 
-        self._log_sync("info", f"{self.name}: Все ресурсы валидированы успешно")
+        self._log_sync("debug", f"{self.name}: Все ресурсы валидированы успешно")
         return True
 
     def _get_component_type(self) -> str:
@@ -722,6 +751,10 @@ class BaseComponent(ABC):
         """
         Рендерит промпт с добавлением схем контрактов.
 
+        АРХИТЕКТУРА:
+        - Если есть system prompt → используем его + user prompt
+        - Если нет system prompt → используем только user prompt (старый режим)
+
         ARGS:
         - capability_name: имя capability для получения контрактов
         - include_input_contract: добавить ли входную схему
@@ -735,9 +768,17 @@ class BaseComponent(ABC):
         - Если контракты не найдены, они пропускаются с предупреждением в лог
         - Выходной контракт всегда добавляется в конце с инструкцией для LLM
         """
-        # Получаем базовый промпт
-        prompt_template = self.get_prompt(capability_name)
-        parts = [prompt_template]
+        parts = []
+        
+        # ← НОВОЕ: Добавляем system prompt если есть
+        if capability_name in self.system_prompts:
+            system_prompt = self.system_prompts[capability_name].content
+            parts.append(system_prompt)
+            parts.append("\n\n---\n\n")
+        
+        # Получаем базовый user промпт
+        user_prompt = self.get_prompt(capability_name)
+        parts.append(user_prompt)
 
         # Добавляем входной контракт
         if include_input_contract and capability_name in self.input_contracts:
@@ -751,7 +792,7 @@ class BaseComponent(ABC):
             if position == "start":
                 parts.insert(0, contract_section)
             elif position == "after_variables":
-                parts.insert(1, contract_section)
+                parts.insert(1 if capability_name in self.system_prompts else 0, contract_section)
             else:  # end
                 parts.append(contract_section)
         elif include_input_contract and capability_name not in self.input_contracts:

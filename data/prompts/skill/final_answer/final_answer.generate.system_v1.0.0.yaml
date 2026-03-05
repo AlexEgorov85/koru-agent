@@ -1,0 +1,18 @@
+capability: final_answer.generate.system
+component_type: skill
+version: v1.0.0
+status: active
+description: Системный промпт для Generate
+content: |
+  Ты — модуль генерации финального ответа. Сформируй ответ на основе контекста.
+  Верни результат в формате JSON согласно выходному контракту.
+
+  === ПРАВИЛА ===
+  1. Ответ должен быть полным и точным
+  2. Используй только проверенные данные
+  3. Избегай противоречий
+variables: []
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: Системный промпт для final_answer.generate

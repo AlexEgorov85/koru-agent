@@ -21,6 +21,7 @@ from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
+from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 
 # Импорты для сборщиков метрик и логов
 from core.infrastructure.metrics_storage import FileSystemMetricsStorage
@@ -58,6 +59,7 @@ class InfrastructureContext:
         # Инфраструктурные хранилища (только загрузка, без кэширования)
         self.prompt_storage: Optional[IPromptStorage] = None
         self.contract_storage: Optional[IContractStorage] = None
+        self.resource_discovery: Optional[ResourceDiscovery] = None  # ЕДИНЫЙ экземпляр на всё приложение
 
         # Хранилища метрик и логов
         self.metrics_storage: Optional[IMetricsStorage] = None
@@ -102,7 +104,7 @@ class InfrastructureContext:
 
         # Инициализация обработчиков логирования
         # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
-        # 
+        #
         # TerminalLogHandler: вывод в терминал (онлайн для разработчика)
         # FileLogHandler: ОТКЛЮЧЁН - дублирует SessionLogHandler
         # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
@@ -135,8 +137,8 @@ class InfrastructureContext:
             agent_id="infrastructure",
             component="InfrastructureContext"
         )
-        
-        await self.event_bus_logger.info("Обработчики логирования инициализированы")
+
+        await self.event_bus_logger.info("✅ Обработчики логирования инициализированы")
 
         # Инициализация менеджера жизненного цикла (нужен event_bus)
         self.lifecycle_manager = LifecycleManager(self.event_bus)
@@ -144,100 +146,77 @@ class InfrastructureContext:
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
 
-        await self.event_bus_logger.info("Начало инициализации InfrastructureContext")
-
         # === ЭТАП 2: Фабрики провайдеров ===
-        await self.event_bus_logger.info("ЭТАП 2: Инициализация фабрик провайдеров")
-
-        # Инициализация фабрик провайдеров
         self.llm_provider_factory = LLMProviderFactory()
         self.db_provider_factory = DBProviderFactory()
-        await self.event_bus_logger.info(f"Фабрики созданы. llm_providers в конфиге: {len(self.config.llm_providers) if hasattr(self.config, 'llm_providers') else 'N/A'}")
 
         # === ЭТАП 3: Инфраструктурные хранилища ===
-        await self.event_bus_logger.info("ЭТАП 3: Инициализация хранилищ")
-
         from pathlib import Path
 
         # Используем директории из конфигурации
         prompts_dir = Path(self.config.data_dir) / "prompts"
-        await self.event_bus_logger.info(f"Используем путь для промтов: {prompts_dir}")
-
         self.prompt_storage = PromptStorage(prompts_dir, self.event_bus)
-        await self.event_bus_logger.info(f"PromptStorage инициализирован с директорией: {self.prompt_storage.storage_dir}")
 
         # Для ContractStorage используем директорию из конфигурации
         contracts_dir = Path(self.config.data_dir) / "contracts"
-        await self.event_bus_logger.info(f"Используем путь для контрактов: {contracts_dir}")
-
         self.contract_storage = ContractStorage(contracts_dir, self.event_bus)
-        await self.event_bus_logger.info(f"ContractStorage инициализирован с директорией: {self.contract_storage.storage_dir}")
 
-        # Инициализация хранилищ метрик и логов
+        # === ЭТАП 3.5: ResourceDiscovery (ЕДИНЫЙ экземпляр) ===
+        data_dir = Path(self.config.data_dir)
+        self.resource_discovery = ResourceDiscovery(
+            base_dir=data_dir,
+            profile='prod',
+            event_bus=self.event_bus
+        )
+        # Предзагрузка ресурсов в кэш
+        self.resource_discovery.discover_prompts()
+        self.resource_discovery.discover_contracts()
+
+        # Хранилища метрик и логов
         metrics_dir = Path(self.config.data_dir) / "metrics"
         logs_dir = Path(self.config.data_dir) / "logs"
 
         self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
-        await self.event_bus_logger.info(f"MetricsStorage инициализирован с директорией: {self.metrics_storage.base_dir}")
-
         self.log_storage = FileSystemLogStorage(logs_dir)
-        await self.event_bus_logger.info(f"LogStorage инициализирован с директорией: {self.log_storage.base_dir}")
 
         # === ЭТАП 4: Сборщики метрик и логов ===
-        
         self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
         await self.metrics_collector.initialize()
-        await self.event_bus_logger.info(f"MetricsCollector инициализирован ({self.metrics_collector.subscriptions_count} подписок)")
 
         self.log_collector = LogCollector(self.event_bus, self.log_storage)
         await self.log_collector.initialize()
-        await self.event_bus_logger.info(f"LogCollector инициализирован ({self.log_collector.subscriptions_count} подписок)")
 
         # === ЭТАП 5: Vector Search ===
-        await self.event_bus_logger.info("ЭТАП 5: Инициализация Vector Search")
         # Инициализация Vector Search
         if self.config.vector_search and self.config.vector_search.enabled:
-            await self.event_bus_logger.info("Vector Search включен, начинаем инициализацию...")
             await self._init_vector_search()
-        else:
-            await self.event_bus_logger.info("Vector Search отключен или не настроен, пропускаем")
 
         # === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
-        await self.event_bus_logger.info("ЭТАП 6: Регистрация провайдеров через LifecycleManager")
-
         # Регистрация инициализаторов в менеджере жизненного цикла
         try:
             self.lifecycle_manager.register_initializer(self._register_providers_from_config)
-            await self.event_bus_logger.info(f"Зарегистрирован инициализатор _register_providers_from_config. Всего инициализаторов: {len(self.lifecycle_manager._initializers)}")
             self.lifecycle_manager.register_cleanup(self._cleanup_providers)
 
             # Инициализация всех ресурсов через менеджер жизненного цикла
-            await self.event_bus_logger.info("Вызов lifecycle_manager.initialize_all()...")
             success = await self.lifecycle_manager.initialize_all()
-            await self.event_bus_logger.info(f"lifecycle_manager.initialize_all() завершен с успехом={success}")
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка на ЭТАПЕ 6: {str(e)}", exc_info=True)
+            await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}")
             success = False
-            
+
         if success:
             self._initialized = True
-            await self.event_bus_logger.info("InfrastructureContext успешно инициализирован")
 
         return success
 
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
-        await self.event_bus_logger.info(f"Начало регистрации провайдеров. llm_providers count={len(self.config.llm_providers)}")
-
         # Регистрация LLM провайдеров
         first_llm_registered = False
         for provider_name, provider_config in self.config.llm_providers.items():
-            await self.event_bus_logger.info(f"Обработка LLM провайдера '{provider_name}': enabled={getattr(provider_config, 'enabled', False)}")
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    await self.event_bus_logger.info(f"Создание провайдера типа '{provider_type}' для '{provider_name}'")
                     if provider_type == "mock":
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
                         config_obj = MockLLMConfig(**provider_config.parameters)
@@ -257,7 +236,6 @@ class InfrastructureContext:
                         provider_type=provider_type,
                         config=config_obj
                     )
-                    await self.event_bus_logger.info(f"Провайдер создан: {provider is not None}")
 
                     # Инициализация провайдера
                     if hasattr(provider, 'initialize') and callable(provider.initialize):
@@ -265,7 +243,6 @@ class InfrastructureContext:
                             await provider.initialize()
                         except Exception as init_error:
                             raise
-                        await self.event_bus_logger.info(f"Провайдер инициализирован")
 
                     if provider:
                         # Регистрация LLM провайдера в системе
@@ -279,9 +256,8 @@ class InfrastructureContext:
                         if not first_llm_registered:
                             first_llm_registered = True
                         self.resource_registry.register_resource(info_llm)
-                        await self.event_bus_logger.info(f"LLM провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    await self.event_bus_logger.error(f"Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
+                    await self.event_bus_logger.error(f"❌ Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
@@ -313,9 +289,8 @@ class InfrastructureContext:
                         )
                         info_db.is_default = True
                         self.resource_registry.register_resource(info_db)
-                        await self.event_bus_logger.info(f"DB провайдер '{provider_name}' успешно зарегистрирован")
                 except Exception as e:
-                    await self.event_bus_logger.error(f"Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
+                    await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска."""
@@ -431,6 +406,12 @@ class InfrastructureContext:
         if not hasattr(self, 'contract_storage'):
             raise RuntimeError("ContractStorage не инициализирован")
         return self.contract_storage
+
+    def get_resource_discovery(self) -> ResourceDiscovery:
+        """Получение единого экземпляра ResourceDiscovery."""
+        if not hasattr(self, 'resource_discovery') or self.resource_discovery is None:
+            raise RuntimeError("ResourceDiscovery не инициализирован")
+        return self.resource_discovery
 
     def get_metrics_storage(self) -> IMetricsStorage:
         if not hasattr(self, 'metrics_storage'):

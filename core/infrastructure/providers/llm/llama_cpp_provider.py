@@ -109,33 +109,8 @@ class LlamaCppProvider(BaseLLMProvider):
         # event_bus_logger будет инициализирован в initialize()
         self.event_bus_logger = None
 
-        # Контекст вызова для логирования
-        self._event_bus = None
-        self._session_id = None
-        self._agent_id = None
-        self._component = None
-        self._phase = None
-        self._goal = None
-
-    def set_call_context(self, event_bus, session_id: str, agent_id: str = None, 
-                         component: str = None, phase: str = None, goal: str = None):
-        """
-        Установка контекста вызова для логирования событий.
-        
-        ПАРАМЕТРЫ:
-        - event_bus: EventBus для публикации событий
-        - session_id: ID сессии
-        - agent_id: ID агента
-        - component: компонент вызывающий LLM
-        - phase: фаза выполнения (think/act)
-        - goal: цель выполнения
-        """
-        self._event_bus = event_bus
-        self._session_id = session_id
-        self._agent_id = agent_id
-        self._component = component
-        self._phase = phase
-        self._goal = goal
+        # Контекст вызова теперь управляется в BaseLLMProvider
+        # set_call_context() наследуется из базового класса
 
     async def initialize(self) -> bool:
         """
@@ -292,13 +267,8 @@ class LlamaCppProvider(BaseLLMProvider):
         try:
             # === ПУБЛИКАЦИЯ СОБЫТИЯ: НАЧАЛО LLM ВЫЗОВА ===
             # Публикуем событие с полной информацией для логирования в сессию
-            # Отладка: проверяем _event_bus
-            print(f"[DEBUG] LlamaCppProvider._generate_impl(): _event_bus = {getattr(self, '_event_bus', 'NOT_SET')}")
-            print(f"[DEBUG] LlamaCppProvider._generate_impl(): has _event_bus attr = {hasattr(self, '_event_bus')}")
-            
             if hasattr(self, '_event_bus') and self._event_bus:
                 from core.infrastructure.event_bus.unified_event_bus import EventType
-                print(f"[DEBUG] LlamaCppProvider: ПЕРЕД publish() LLM_CALL_STARTED")
                 await self._event_bus.publish(
                     event=EventType.LLM_CALL_STARTED,
                     data={
@@ -323,7 +293,6 @@ class LlamaCppProvider(BaseLLMProvider):
                     source="llama_cpp_provider.execute",
                     correlation_id=getattr(self, '_session_id', '')
                 )
-                print(f"[DEBUG] LlamaCppProvider: ПОСЛЕ publish() LLM_CALL_STARTED")
 
             # Подготовим параметры для вызова модели
             max_tokens = request.max_tokens
@@ -689,12 +658,12 @@ class LlamaCppProvider(BaseLLMProvider):
             f"Все {config.max_retries} попыток структурированного вывода не удались "
             f"для {config.output_model}. Ошибок валидации: {len(validation_errors)}"
         )
-        
+
+        # correlation_id больше не передаётся — он генерируется в базовом классе
         raise StructuredOutputError(
             message="Не удалось получить валидный структурированный ответ",
             model_name=self.model_name,
             attempts=config.max_retries,
-            correlation_id=request.correlation_id,
             validation_errors=validation_errors
         )
     

@@ -167,14 +167,6 @@ class AgentRuntime:
         if goal:
             self.goal = goal
 
-        # Отладка: логируем состояние event_bus_logger
-        print(f"[DEBUG] AgentRuntime.run(): event_bus_logger = {self.event_bus_logger is not None}")
-        print(f"[DEBUG] AgentRuntime.run(): application_context = {self.application_context is not None}")
-        if self.application_context:
-            print(f"[DEBUG] AgentRuntime.run(): infrastructure_context = {hasattr(self.application_context, 'infrastructure_context')}")
-            if hasattr(self.application_context, 'infrastructure_context'):
-                print(f"[DEBUG] AgentRuntime.run(): event_bus = {getattr(self.application_context.infrastructure_context, 'event_bus', None) is not None}")
-
         self._running = True
         self._current_step = 0
         self._max_steps = max_steps or self._max_steps

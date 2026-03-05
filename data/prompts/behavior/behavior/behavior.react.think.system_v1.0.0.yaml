@@ -1,4 +1,4 @@
-capability: behavior.react.system
+capability: behavior.react.think.system
 component_type: behavior
 version: v1.0.0
 status: active
@@ -14,4 +14,4 @@ variables: []
 metadata:
   author: system
   created: '2026-02-19'
-  description: Системный промпт для behavior.react
+  description: Системный промпт для behavior.react.think

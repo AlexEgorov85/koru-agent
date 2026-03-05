@@ -102,45 +102,15 @@ class ApplicationContext(BaseSystemContext):
         self._init_event_bus_logger()
 
         # Создаём репозиторий с явным источником данных
+        # ВАЖНО: ResourceDiscovery создаётся в initialize() для предотвращения дублирования логов
         if use_data_repository:
             # Получаем data_dir из infrastructure_context.config (SystemConfig)
             # Используем getattr для безопасности с fallback на "data"
             data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
-
-            # Используем ResourceDiscovery для загрузки конфигурации
-            from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
-            discovery = ResourceDiscovery(Path(data_dir), profile=profile, event_bus=infrastructure_context.event_bus)
-            
-            # Создаём источник данных поверх ФС
-            from core.infrastructure.storage.resource_data_source import ResourceDataSource
-            from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
-            
-            # Создаём минимальный registry_config из discovery
-            registry_config = {
-                'capability_types': {},
-                'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
-                'active_contracts': {}
-            }
-            
-            # Собираем контракты
-            for contract in discovery.discover_contracts():
-                cap = contract.capability
-                if cap not in registry_config['active_contracts']:
-                    registry_config['active_contracts'][cap] = {}
-                registry_config['active_contracts'][cap][contract.direction.value] = contract.version
-
-            # Создаём источник данных поверх ФС
-            fs_data_source = FileSystemDataSource(
-                Path(data_dir),
-                registry_config
-            )
-
-            # Инициализируем источник данных
-            fs_data_source.initialize()
-
-            # Создаём репозиторий
-            self.data_repository = DataRepository(fs_data_source, profile=profile, event_bus=infrastructure_context.event_bus)
+            self._data_dir = Path(data_dir)
+            self.data_repository = None  # Будет создан в initialize()
         else:
+            self._data_dir = None
             self.data_repository = None  # ← Старый путь (для отката)
 
     def _init_event_bus_logger(self):
@@ -212,9 +182,6 @@ class ApplicationContext(BaseSystemContext):
         tool_configs = getattr(self.config, 'tool_configs', {})
         behavior_configs = getattr(self.config, 'behavior_configs', {})
 
-        msg = f"_resolve_component_configs: Загружено конфигураций: services={len(service_configs)} names={list(service_configs.keys())}, skills={len(skill_configs)} names={list(skill_configs.keys())}, tools={len(tool_configs)} names={list(tool_configs.keys())}, behaviors={len(behavior_configs)} names={list(behavior_configs.keys())}"
-        self._log_debug(msg)
-
         return {
             ComponentType.SERVICE: service_configs,
             ComponentType.SKILL: skill_configs,
@@ -234,8 +201,6 @@ class ApplicationContext(BaseSystemContext):
         ЕДИНЫЙ фабричный метод для создания ЛЮБОГО компонента.
         Устраняет дублирование логики между _create_services/_create_skills/_create_tools
         """
-        self._log_info(f"Начало создания компонента {component_type.value}.{name}")
-
         # Используем новую фабрику компонентов для создания и инициализации
         from core.application.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
@@ -259,9 +224,6 @@ class ApplicationContext(BaseSystemContext):
                 dependencies=getattr(config, 'dependencies', [])
             )
 
-        msg = f"Создание компонента {name} типа {component_type_str} с конфигурацией: prompt_versions={list(getattr(config, 'prompt_versions', {}).keys())}, input_contracts={list(getattr(config, 'input_contract_versions', {}).keys())}, output_contracts={list(getattr(config, 'output_contract_versions', {}).keys())}"
-        self._log_info(msg)
-
         # Создание и инициализация компонента через фабрику
         component = await factory.create_by_name(
             component_type=component_type_str,
@@ -270,8 +232,6 @@ class ApplicationContext(BaseSystemContext):
             component_config=config,
             executor=executor  # Передаем ActionExecutor
         )
-
-        self._log_info(f"Компонент {component_type.value}.{name} успешно создан фабрикой")
 
         return component
 
@@ -297,8 +257,41 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
 
-        # === НОВЫЙ ПУТЬ: Инициализация репозитория с валидацией ===
-        if self.use_data_repository and self.data_repository:
+        # === НОВЫЙ ПУТЬ: Создание и инициализация репозитория с валидацией ===
+        if self.use_data_repository:
+            # Создаём DataRepository только при инициализации (не в __init__)
+            if not self.data_repository:
+                from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+
+                # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из InfrastructureContext
+                discovery = self.infrastructure_context.get_resource_discovery()
+
+                # Собираем registry_config из discovery
+                registry_config = {
+                    'capability_types': {},
+                    'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
+                    'active_contracts': {}
+                }
+
+                # Собираем контракты
+                for contract in discovery.discover_contracts():
+                    cap = contract.capability
+                    if cap not in registry_config['active_contracts']:
+                        registry_config['active_contracts'][cap] = {}
+                    registry_config['active_contracts'][cap][contract.direction.value] = contract.version
+
+                # Создаём источник данных
+                fs_data_source = FileSystemDataSource(self._data_dir, registry_config)
+                fs_data_source.initialize()
+
+                # Создаём репозиторий
+                self.data_repository = DataRepository(
+                    fs_data_source,
+                    profile=self.profile,
+                    event_bus=self.infrastructure_context.event_bus
+                )
+
+            # Инициализация репозитория с валидацией
             if not await self.data_repository.initialize(self.config):
                 self.logger.critical(
                     f"❌ КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ:\n"
@@ -376,12 +369,8 @@ class ApplicationContext(BaseSystemContext):
             # )
 
             # Предзагрузка ресурсов в кэши компонентов через репозиторий
-            self.logger.debug(f"initialize: use_data_repository={self.use_data_repository}, data_repository={self.data_repository}")
             if self.use_data_repository and self.data_repository:
-                self.logger.debug("Вызов _preload_resources_via_repository...")
                 await self._preload_resources_via_repository()
-            else:
-                self.logger.debug("Пропускаем _preload_resources_via_repository (use_data_repository=False или data_repository=None)")
 
             # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
             # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
@@ -391,25 +380,22 @@ class ApplicationContext(BaseSystemContext):
             # Сначала создаем и регистрируем все компоненты
             self.logger.info("Начало создания компонентов...")
             component_configs = self._resolve_component_configs()
-            self.logger.debug(f"component_configs: {[(k, list(v.keys())) for k, v in component_configs.items()]}")
+            components_created = 0
             for comp_type, configs in component_configs.items():
                 for name, enriched_config in configs.items():
-                    self.logger.info(f"Создание компонента {comp_type.value}.{name} (новый путь)")
                     try:
                         # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                         component = await self._create_component(comp_type, name, enriched_config, executor)
 
                         # Регистрация компонента ДО инициализации
                         self.components.register(comp_type, name, component)
-
-                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован (новый путь)")
+                        components_created += 1
 
                     except Exception as e:
-                        self.logger.error(f"Ошибка создания {comp_type.value}.{name} (новый путь): {e}", exc_info=True)
+                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
                         return False
 
-            # Логируем все зарегистрированные компоненты
-            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
+            self.logger.info(f"✅ Создано {components_created} компонентов")
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
             # Инициализируем компоненты в правильном порядке
@@ -491,14 +477,15 @@ class ApplicationContext(BaseSystemContext):
         Предзагрузка ресурсов через новый репозиторий.
         Компоненты будут получать готовые объекты при инициализации.
         """
-        self.logger.info("=== НАЧАЛО _preload_resources_via_repository ===")
         # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
         self.prompt_cache = {}  # Dict[(capability, version), Prompt]
+        prompts_loaded = 0
 
         for cap, ver in self.config.prompt_versions.items():
             try:
                 prompt_obj = self.data_repository.get_prompt(cap, ver)
                 self.prompt_cache[(cap, ver)] = prompt_obj
+                prompts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
 
@@ -513,19 +500,22 @@ class ApplicationContext(BaseSystemContext):
                                 try:
                                     prompt_obj = self.data_repository.get_prompt(cap, ver)
                                     self.prompt_cache[(cap, ver)] = prompt_obj
+                                    prompts_loaded += 1
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
 
         # Контракты — загружаем схемы для валидации
         self.input_contract_cache = {}  # Dict[(capability, version), Type[BaseModel]]
         self.output_contract_cache = {}
+        input_contracts_loaded = 0
+        output_contracts_loaded = 0
 
         # Глобальные контракты из AppConfig
-        # Ключи имеют вид "final_answer.generate", используем их напрямую
         for cap, ver in self.config.input_contract_versions.items():
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                 self.input_contract_cache[(cap, ver)] = schema_cls
+                input_contracts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
 
@@ -533,56 +523,48 @@ class ApplicationContext(BaseSystemContext):
             try:
                 schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                 self.output_contract_cache[(cap, ver)] = schema_cls
+                output_contracts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
-        # Загружаем контракты из компонентных конфигураций и заполняем resolved_*
-        self.logger.info(f"_preload_resources_via_repository: Начало загрузки контрактов из компонентных конфигураций")
+        # Загружаем контракты из компонентных конфигураций
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
-            self.logger.info(f"_preload_resources_via_repository: Обработка {comp_type_attr}")
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
-                self.logger.info(f"_preload_resources_via_repository: {comp_type_attr} содержит {len(comp_configs)} компонентов: {list(comp_configs.keys())}")
                 for comp_name, comp_config in comp_configs.items():
-                    self.logger.info(f"_preload_resources_via_repository: Обработка {comp_name}, input_contract_versions={getattr(comp_config, 'input_contract_versions', {})}")
                     if hasattr(comp_config, 'input_contract_versions'):
                         for cap, ver in comp_config.input_contract_versions.items():
-                            # Ключи имеют вид "final_answer.generate", используем их напрямую
-
-                            # Загружаем схему в кэш
                             if (cap, ver) not in self.input_contract_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "input")
                                     self.input_contract_cache[(cap, ver)] = schema_cls
+                                    input_contracts_loaded += 1
                                 except Exception as e:
-                                    self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                                    self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver}: {e}")
 
-                            # Заполняем resolved_input_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "input")
                                 comp_config.resolved_input_contracts[cap] = contract.schema_data
-                                self.logger.info(f"Загружен входной контракт {cap}@{ver} для {comp_name}")
                             except Exception as e:
-                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input) для {comp_name}: {e}")
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input): {e}")
 
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap, ver in comp_config.output_contract_versions.items():
-                            # Ключи имеют вид "final_answer.generate", используем их напрямую
-
-                            # Загружаем схему в кэш
                             if (cap, ver) not in self.output_contract_cache:
                                 try:
                                     schema_cls = self.data_repository.get_contract_schema(cap, ver, "output")
                                     self.output_contract_cache[(cap, ver)] = schema_cls
+                                    output_contracts_loaded += 1
                                 except Exception as e:
-                                    self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver} из компонента {comp_name}: {e}")
+                                    self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver}: {e}")
 
-                            # Заполняем resolved_output_contracts
                             try:
                                 contract = self.data_repository.get_contract(cap, ver, "output")
                                 comp_config.resolved_output_contracts[cap] = contract.schema_data
                             except Exception as e:
-                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output) для {comp_name}: {e}")
+                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output): {e}")
+
+        self.logger.info(f"✅ Ресурсы загружены: промптов={prompts_loaded}, входных контрактов={input_contracts_loaded}, выходных контрактов={output_contracts_loaded}")
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
@@ -855,76 +837,55 @@ class ApplicationContext(BaseSystemContext):
         # Инициализируем компоненты в порядке топологической сортировки
         initialized_components = set()
 
-        self.logger.info(f"Инициализация компонентов в порядке зависимостей: {initialization_order}")
-        
         for component_name in initialization_order:
             if component_name not in component_map:
-                self.logger.warning(f"Компонент {component_name} не найден в карте компонентов")
                 continue
-                
+
             component = component_map[component_name]
-            
+
             try:
                 if hasattr(component, 'initialize') and callable(component.initialize):
                     if await component.initialize():
                         initialized_components.add(component.name)
-                        self.logger.debug(f"Компонент {component.name} инициализирован")
                     else:
-                        self.logger.error(f"Компонент {component.name} не смог инициализироваться")
+                        self.logger.error(f"❌ Компонент {component.name} не смог инициализироваться")
                         return False
                 else:
                     initialized_components.add(component.name)
-                    self.logger.debug(f"Компонент {component.name} не требует инициализации")
             except Exception as e:
-                self.logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
+                self.logger.error(f"❌ Ошибка при инициализации компонента {component.name}: {e}")
                 return False
 
         # Проверяем, все ли компоненты были инициализированы
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
-            self.logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
+            self.logger.error(f"❌ Не все компоненты были инициализированы: {uninitialized}")
             return False
 
-        self.logger.info(f"Все компоненты успешно инициализированы: {len(all_components)}")
         return True
 
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе"""
-        # Проверка, что все компоненты, которые были объявлены в конфигурации, инициализированы
-
         # Получаем все компоненты, которые должны быть загружены
         declared_components = self._resolve_component_configs()
 
-        self.logger.info(f"Проверка готовности компонентов: {[(k.value, list(v.keys())) for k, v in declared_components.items()]}")
-
         for comp_type, names in declared_components.items():
             for name in names:
-                self.logger.debug(f"Проверка компонента: {comp_type.value}.{name}")
                 component = self.components.get(comp_type, name)
                 if component is None:
-                    self.logger.error(f"Компонент {comp_type.value}.{name} был объявлен в конфигурации, но не загружен")
-                    # Дополнительная диагностика
-                    all_registered_components = {}
-                    for ct in self.components._components:
-                        all_registered_components[ct.value] = list(self.components._components[ct].keys())
-                    self.logger.error(f"Все зарегистрированные компоненты: {all_registered_components}")
+                    self.logger.error(f"❌ Компонент {comp_type.value}.{name} не найден")
                     return False
                 # Проверяем, что компонент инициализирован
                 if hasattr(component, '_initialized'):
                     if not component._initialized:
-                        self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
+                        self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
                         return False
-                    else:
-                        self.logger.debug(f"Компонент {comp_type.value}.{name} инициализирован успешно")
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
-                        self.logger.error(f"Компонент {component.name} не готов к работе")
+                        self.logger.error(f"❌ Компонент {component.name} не готов к работе")
                         return False
-                else:
-                    self.logger.warning(f"Компонент {component.name} не имеет атрибута _initialized или метода is_ready")
 
-        self.logger.info("Все компоненты успешно проверены")
         return True
 
     async def health_check(self) -> Dict[str, Any]:
@@ -1115,7 +1076,7 @@ class ApplicationContext(BaseSystemContext):
                     except Exception as e:
                         self.logger.error(
                             f"Н�� удалось загрузить входной контрак�� {capability}@{version}: {e}. "
-                            f"Отклонено для профиля {self.profile}."
+                            f"Откло��ено для профиля {self.profile}."
                         )
                         # Если не удалось ��агрузить контракт, в проде - не разрешаем
                         if self.profile == "prod":

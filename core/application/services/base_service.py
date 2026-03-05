@@ -101,7 +101,7 @@ class BaseService(BaseComponent):
         self.event_bus_logger = None
         self._init_event_bus_logger()
 
-        self._log_sync("info", f"Инициализирован сервис: {self.name}")
+        self._log_sync("debug", f"Инициализирован сервис: {self.name}")
 
     def _log_sync(self, level: str, message: str):
         """

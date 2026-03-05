@@ -37,11 +37,12 @@ class TerminalOutputConfig:
     """Настройки вывода в терминал."""
     enabled: bool = True
     level: LogLevel = LogLevel.INFO
-    format: LogFormat = LogFormat.COLORED
+    format: LogFormat = LogFormat.COLORED  # Простой формат без цветов
     show_debug: bool = False
-    show_source: bool = True
+    show_source: bool = False
     show_timestamp: bool = False
     show_session_info: bool = False
+    show_icons_only: bool = False  # Отключено
     # Фильтры по компонентам
     include_components: Set[str] = field(default_factory=set)  # Если пусто - все
     exclude_components: Set[str] = field(default_factory=set)

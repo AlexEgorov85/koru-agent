@@ -1,0 +1,18 @@
+capability: sql_generation.generate_query.system
+component_type: service
+version: v1.0.0
+status: active
+description: Системный промпт для Generate_Query
+content: |
+  Ты — сервис генерации SQL. Создай SQL запрос.
+  Верни результат в формате JSON согласно выходному контракту.
+
+  === ПРАВИЛА ===
+  1. SQL должен быть безопасным (SELECT only)
+  2. Используй параметризованные запросы
+  3. Оптимизируй запросы
+variables: []
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: Системный промпт для sql_generation.generate_query

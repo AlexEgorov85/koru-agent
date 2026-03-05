@@ -4,7 +4,7 @@
 СТРУКТУРА:
 logs/sessions/
 └── YYYY-MM-DD_HH-MM-SS/     ← Дата и время старта агента
-    ├── common.log           ← Все общие логи (JSONL)
+    ├── session.log          ← Все общие логи сессии (JSONL)
     ├── llm.jsonl            ← LLM промпты/ответы
     └── metrics.jsonl        ← Метрики
 """
@@ -23,7 +23,7 @@ class SessionLogHandler:
 
     FEATURES:
     - Папка с датой/временем вместо session_id
-    - Разделение на common.log, llm.jsonl, metrics.jsonl
+    - Разделение на session.log, llm.jsonl, metrics.jsonl
     - Автоматическое создание структуры
     - Асинхронная запись
     """
@@ -43,12 +43,12 @@ class SessionLogHandler:
         # Создаём имя папки на основе текущего времени
         self.session_folder = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.session_path = self.base_log_dir / self.session_folder
-        
+
         # Пути к файлам
-        self.common_log_path = self.session_path / "common.log"
+        self.session_log_path = self.session_path / "session.log"
         self.llm_log_path = self.session_path / "llm.jsonl"
         self.metrics_log_path = self.session_path / "metrics.jsonl"
-        
+
         # Создаём директорию
         self.session_path.mkdir(parents=True, exist_ok=True)
         
@@ -77,13 +77,10 @@ class SessionLogHandler:
 
         # Метрики
         self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_metric)
-        
-        # Отладка: проверяем подписку
-        print(f"[DEBUG] SessionLogHandler: подписка на события выполнена")
 
     async def _on_log_event(self, event: Event):
         """Обработка логов (INFO, DEBUG, WARNING, ERROR)."""
-        await self._write_to_file(self.common_log_path, event)
+        await self._write_to_file(self.session_log_path, event)
 
     async def _on_llm_prompt(self, event: Event):
         """Обработка LLM промптов."""
@@ -95,10 +92,7 @@ class SessionLogHandler:
 
     async def _on_llm_call(self, event: Event):
         """Обработка LLM вызовов (STARTED/COMPLETED)."""
-        print(f"[DEBUG] SessionLogHandler._on_llm_call(): ПОЛУЧЕНО СОБЫТИЕ {event.event_type}")
-        print(f"[DEBUG] SessionLogHandler._on_llm_call(): llm_log_path = {self.llm_log_path}")
         await self._write_to_file(self.llm_log_path, event)
-        print(f"[DEBUG] SessionLogHandler._on_llm_call(): ЗАПИСАНО В ФАЙЛ")
 
     async def _on_metric(self, event: Event):
         """Обработка метрик."""
@@ -143,7 +137,7 @@ class SessionLogHandler:
             "session_id": self.session_id,
             "agent_id": self.agent_id,
             "created_at": self.session_folder,
-            "common_log": str(self.common_log_path),
+            "session_log": str(self.session_log_path),
             "llm_log": str(self.llm_log_path),
             "metrics_log": str(self.metrics_log_path),
         }

@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 class EvaluationPattern(BaseBehaviorPattern):
     """
     Паттерн оценки достижения цели.
-    
+
     АРХИТЕКТУРА:
     - component_name используется для получения config из AppConfig
     - Промпты и контракты загружаются через BaseBehaviorPattern
@@ -19,7 +19,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
-        
+
         ПАРАМЕТРЫ:
         - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "evaluation_pattern")
         - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
@@ -27,6 +27,31 @@ class EvaluationPattern(BaseBehaviorPattern):
         - executor: ActionExecutor для взаимодействия
         """
         super().__init__(component_name, component_config, application_context, executor)
+        
+        # System prompt для оценки (загружается из реестра)
+        self.system_prompt_template: Optional[str] = None
+
+    async def _load_evaluation_resources(self) -> bool:
+        """Загружает system prompt для оценки из автоматически разделённых промптов."""
+        try:
+            # ← НОВОЕ: Используем автоматически разделённые промпты
+            if 'behavior.evaluation.assess' in self.system_prompts:
+                system_prompt_obj = self.system_prompts['behavior.evaluation.assess']
+                if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
+                    self.system_prompt_template = system_prompt_obj.content
+                    return True
+            
+            # Fallback: ищем в prompts (для обратной совместимости)
+            if self.prompts and "behavior.evaluation.assess.system" in self.prompts:
+                system_prompt_obj = self.prompts["behavior.evaluation.assess.system"]
+                if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
+                    self.system_prompt_template = system_prompt_obj.content
+                    return True
+            
+            return False
+        except Exception as e:
+            self.logger.error(f"Ошибка загрузки system prompt: {e}")
+            return False
 
     async def _publish_llm_response_received(
         self,
@@ -119,6 +144,10 @@ class EvaluationPattern(BaseBehaviorPattern):
         - Использует output контракт из self.output_contracts
         - LLM через infrastructure_context (не session_context!)
         """
+        # ← НОВОЕ: Загружаем system prompt если ещё не загружен
+        if not self.system_prompt_template:
+            await self._load_evaluation_resources()
+        
         # Подготовка контекста для оценки
         goal = context_analysis["goal"]
         context_summary = context_analysis["context_summary"]
@@ -158,9 +187,13 @@ class EvaluationPattern(BaseBehaviorPattern):
                 output_schema = EvaluationResult.model_json_schema()
 
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-            
+
+            # System prompt из реестра или fallback
+            system_prompt = self.system_prompt_template or """Ты — модуль оценки. Верни JSON: {"achieved": true/false, "partial_progress": true/false, "confidence": 0.0-1.0, "summary": "...", "reasoning": "..."}"""
+
             llm_request = LLMRequest(
                 prompt=evaluation_prompt,
+                system_prompt=system_prompt,
                 structured_output=StructuredOutputConfig(
                     output_model="EvaluationResult",
                     schema_def=output_schema

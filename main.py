@@ -10,9 +10,40 @@
 import asyncio
 import sys
 import warnings
+import os
+import io
+
+# Устанавливаем UTF-8 кодировку для консоли Windows
+if sys.platform == 'win32':
+    os.system('chcp 65001 >nul')  # Устанавливаем UTF-8 кодировку
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # Подавляем предупреждения Pydantic
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.json_schema")
+
+# Подавляем вывод llama.cpp (сообщения о контексте) через перенаправление stderr
+class StderrFilter:
+    """Фильтр stderr для подавления технических сообщений."""
+    def __init__(self, original_stderr):
+        self.original_stderr = original_stderr
+        self.buffer = io.StringIO()
+    
+    def write(self, text):
+        # Пропускаем сообщения llama.cpp о контексте
+        if "llama_context:" in text and "n_ctx_per_seq" in text:
+            return
+        self.original_stderr.write(text)
+        self.original_stderr.flush()
+    
+    def flush(self):
+        self.original_stderr.flush()
+    
+    def isatty(self):
+        return self.original_stderr.isatty()
+
+# Устанавливаем фильтр stderr
+sys.stderr = StderrFilter(sys.stderr)
 
 from core.config import get_config
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
@@ -62,14 +93,10 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         agent_id="agent_001"
     )
     session_info = session_log_handler.get_session_info()
-    await session_logger.info(f"📁 Логи сессии: {session_info['session_folder']}")
-    await session_logger.info(f"   common.log: {session_info['common_log']}")
-    await session_logger.info(f"   llm.jsonl: {session_info['llm_log']}")
-    await session_logger.info(f"   metrics.jsonl: {session_info['metrics_log']}")
 
     # Получаем глобальный обработчик ошибок
     error_handler = get_error_handler()
-    
+
     try:
         # Начало сессии
         await session_logger.start_session(goal=goal)
@@ -77,9 +104,12 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await session_logger.info(f"📝 Цель: {goal}")
 
         # Создание прикладного контекста
-        app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
-        await session_logger.debug(f"📦 app_config загружен через discovery")
-
+        # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из infrastructure_context
+        app_config = AppConfig.from_discovery(
+            profile="prod",
+            data_dir=str(getattr(infrastructure_context.config, 'data_dir', 'data')),
+            discovery=infrastructure_context.get_resource_discovery()  # ← Передаём общий экземпляр
+        )
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
             config=app_config,
@@ -87,13 +117,6 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         )
 
         await application_context.initialize()
-        await session_logger.info("✅ ApplicationContext инициализирован")
-
-        # Проверка что компоненты загрузились
-        from core.models.enums.common_enums import ComponentType
-        skill_count = len(application_context.components._components.get(ComponentType.SKILL, {}))
-        tool_count = len(application_context.components._components.get(ComponentType.TOOL, {}))
-        await session_logger.info(f"✅ Загружено компонентов: навыков={skill_count}, инструментов={tool_count}")
 
         # Подписка на события LLM через LLMEventSubscriber
         llm_subscriber = LLMEventSubscriber(
@@ -101,11 +124,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             log_full_content=True
         )
         llm_subscriber.subscribe(infrastructure_context.event_bus)
-        await session_logger.info("✅ LLMEventSubscriber активирован")
 
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
-        await session_logger.info("✅ AgentFactory создан")
 
         # Подготовка конфигурации агента
         agent_config_kwargs = {}
@@ -115,16 +136,12 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             agent_config_kwargs['temperature'] = temperature
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
-        await session_logger.info(f"⚙️ AgentConfig: max_steps={max_steps}, temperature={temperature}")
 
         # Создание и запуск агента
-        await session_logger.info("🔄 Создание агента...")
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
-        await session_logger.info(f"✅ Агент создан: {type(agent).__name__}")
 
         await session_logger.info("🚀 Запуск выполнения агента...")
         result = await agent.run(goal)
-        await session_logger.info(f"✅ Агент завершил работу")
 
         # Проверка на ошибку в result.error (для ExecutionResult)
         if hasattr(result, 'error') and result.error:
@@ -203,25 +220,23 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 def main() -> int:
     """Точка входа."""
     try:
-        print(f"Анализирую вопрос: {GOAL}")
-        print(f"Параметры: max_steps={MAX_STEPS}, temperature={TEMPERATURE}")
-        print("=" * 60)
-
         result = asyncio.run(run_agent(
             goal=GOAL,
             max_steps=MAX_STEPS,
             temperature=TEMPERATURE
         ))
 
-        print("=" * 60)
-        print("ОТВЕТ АГЕНТА:")
+        # Вывод результата
+        print("\n" + "=" * 60)
+        print("📋 ОТВЕТ АГЕНТА:")
         print("=" * 60)
         print(result)
+        print("=" * 60)
 
         return 0
 
     except KeyboardInterrupt:
-        print("\nПрервано пользователем")
+        print("\n⚠️ Прервано пользователем")
         return 0
     except Exception as e:
         # Обработка ошибки через ErrorHandler
@@ -236,8 +251,8 @@ def main() -> int:
             context=error_context,
             severity=ErrorSeverity.CRITICAL
         ))
-        
-        print(f"\nПроизошла ошибка: {str(e)[:200]}")
+
+        print(f"\n❌ Произошла ошибка: {str(e)[:200]}")
         return 1
 
 

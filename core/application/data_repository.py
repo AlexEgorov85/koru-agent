@@ -98,8 +98,10 @@ class DataRepository:
 
     async def _validate_against_config(self, app_config: AppConfig):
         """Проверяем, что все версии из конфигурации существуют в ФС"""
-        # Промпты
+        # Промпты (исключаем .system промпты — они используются отдельно)
         for cap, ver in app_config.prompt_versions.items():
+            if cap.endswith('.system'):
+                continue  # Пропускаем system промпты
             key = (cap, ver)
             if key not in self._prompts_index:
                 self._validation_errors.append(
@@ -108,7 +110,7 @@ class DataRepository:
             else:
                 prompt = self._prompts_index[key]
                 # Проверяем соответствие типа компонента в конфиге и файле
-                # Так как все данные уже предзагружены и валидированы, 
+                # Так как все данные уже предзагружены и валидированы,
                 # мы предполагаем, что типы компонентов уже соответствуют конфигурации
                 # В новой архитектуре это соответствие проверяется при загрузке
         
@@ -136,6 +138,9 @@ class DataRepository:
                 for comp_name, comp_config in comp_configs.items():
                     if hasattr(comp_config, 'prompt_versions'):
                         for cap, ver in comp_config.prompt_versions.items():
+                            # Исключаем .system промпты — они используются отдельно
+                            if cap.endswith('.system'):
+                                continue
                             key = (cap, ver)
                             if key not in self._prompts_index:
                                 # Не добавляем как ошибку, а как предупреждение, т.к. это может быть нормально

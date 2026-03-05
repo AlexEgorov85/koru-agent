@@ -7,6 +7,92 @@
 - **Быстрый поиск** сессий через LogIndexer (< 100мс)
 - **Автоматическую ротацию** и очистку старых логов
 - **Структурированный формат** JSONL для машинного чтения
+- **Трассировку LLM вызовов** через correlation_id
+
+---
+
+## 🔗 Correlation ID для трассировки LLM вызовов
+
+### Архитектура
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Компоненты (Patterns/Skills)              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ ReActPattern │  │PlanningSkill │  │FinalAnswer   │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+│         └─────────────────┴─────────────────┘              │
+│                           │                                │
+│                           ▼                                │
+│                  ┌─────────────────┐                       │
+│                  │  LLMRequest     │                       │
+│                  │  (без correlation_id) │                 │
+│                  └────────┬────────┘                       │
+└───────────────────────────┼─────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Infrastructure Layer (Providers)                │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              BaseLLMProvider                          │  │
+│  │  ┌────────────────────────────────────────────────┐  │  │
+│  │  │  generate_structured(request):                 │  │  │
+│  │  │    1. correlation_id = uuid.uuid4() ✅         │  │  │
+│  │  │    2. Publish LLM_PROMPT_GENERATED             │  │  │
+│  │  │    3. Вызов LLM (_generate_structured_impl)    │  │  │
+│  │  │    4. Publish LLM_RESPONSE_RECEIVED            │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Принцип работы
+
+1. **Генерация**: `correlation_id` генерируется в `BaseLLMProvider.generate_structured()` автоматически
+2. **Публикация**: Один ID используется для обоих событий:
+   - `LLM_PROMPT_GENERATED` — перед вызовом LLM
+   - `LLM_RESPONSE_RECEIVED` — после получения ответа
+3. **Трассировка**: Позволяет связать промпт и ответ в единый запрос
+
+### Преимущества
+
+| Аспект | Значение |
+|--------|----------|
+| **Инкапсуляция** | Паттерны не знают о correlation_id |
+| **Консистентность** | Единая логика для всех провайдеров |
+| **Отсутствие дублирования** | Генерация только в базовом классе |
+| **Автоматическое наследование** | Все провайдеры получают бесплатно |
+
+### Пример использования
+
+```python
+# Компонент вызывает LLM — correlation_id генерируется автоматически
+llm_provider.set_call_context(
+    event_bus=event_bus,
+    session_id="session_123",
+    agent_id="agent_456",
+    component="react_pattern",
+    phase="think"
+)
+
+# correlation_id будет сгенерирован внутри generate_structured()
+response = await llm_provider.generate_structured(request)
+
+# События опубликованы с одинаковым correlation_id:
+# - LLM_PROMPT_GENERATED(correlation_id="uuid-123")
+# - LLM_RESPONSE_RECEIVED(correlation_id="uuid-123")
+```
+
+### Поиск по correlation_id
+
+```bash
+# Найти все события с correlation_id
+python scripts/logs/find_by_correlation.py --correlation-id uuid-123
+
+# Найти пару промпт-ответ
+python scripts/logs/find_llm_pair.py --session-id abc123 --phase think
+```
 
 ---
 

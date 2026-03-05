@@ -1,0 +1,31 @@
+capability: behavior.evaluation.assess.user
+component_type: behavior
+version: v1.0.0
+status: active
+description: User prompt для оценки достижения цели
+content: |
+  === ЦЕЛЬ ===
+  {goal}
+
+  === КОНТЕКСТ ВЫПОЛНЕНИЯ ===
+  {context_summary}
+
+  === ИСТОРИЯ ШАГОВ ===
+  {step_history}
+
+  Оцени достижение цели и верни JSON согласно формату из системного промпта:
+variables:
+  - name: goal
+    description: Исходная цель задачи
+    required: true
+  - name: context_summary
+    description: Краткое резюме контекста
+    required: true
+  - name: step_history
+    description: История выполненных шагов
+    required: false
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: User prompt для behavior.evaluation.assess (~300 симв)
+  version_notes: 'Контекст и данные для оценки'

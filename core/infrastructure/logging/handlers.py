@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -39,21 +40,44 @@ from core.infrastructure.logging.config import (
 class LoggingToEventBusHandler(logging.Handler):
     """
     Перехватывает стандартные logging записи и публикует их в EventBus.
-    
+
     Это позволяет использовать новую систему логирования для ВСЕХ логов,
     включая те, что идут через logging.getLogger().info() и т.д.
-    """
     
+    ИГНОРИРУЕТ:
+    - Сообщения от EventBus internal logger (чтобы избежать цикла)
+    - Сообщения от SessionWorker (чтобы избежать цикла)
+    """
+
+    # Логгеры которые игнорируются (чтобы избежать бесконечного цикла)
+    IGNORED_LOGGERS = {
+        "core.infrastructure.event_bus.unified_event_bus.UnifiedEventBus",
+        "core.infrastructure.event_bus.unified_event_bus.SessionWorker",
+        "EventBusLog",
+    }
+
     def __init__(self, event_bus):
         super().__init__()
         self.event_bus = event_bus
         self.setFormatter(logging.Formatter('%(message)s'))
-    
+        self._loop = None
+
+    def _get_loop(self):
+        """Получение текущего event loop."""
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+
     def emit(self, record: logging.LogRecord):
         """Публикация записи логирования в EventBus."""
         try:
-            from core.infrastructure.event_bus.unified_event_bus import EventType
+            # Игнорируем сообщения от EventBus (чтобы избежать цикла)
+            if record.name in self.IGNORED_LOGGERS or record.name.startswith("core.infrastructure.event_bus"):
+                return
             
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+
             # Маппинг уровней logging на уровни EventBus
             level_map = {
                 logging.DEBUG: "log.debug",
@@ -62,7 +86,7 @@ class LoggingToEventBusHandler(logging.Handler):
                 logging.ERROR: "log.error",
                 logging.CRITICAL: "log.error",
             }
-            
+
             event_type_str = level_map.get(record.levelno, "log.info")
             event_type = {
                 "log.debug": EventType.LOG_DEBUG,
@@ -70,7 +94,7 @@ class LoggingToEventBusHandler(logging.Handler):
                 "log.warning": EventType.LOG_WARNING,
                 "log.error": EventType.LOG_ERROR,
             }.get(event_type_str, EventType.LOG_INFO)
-            
+
             # Формируем данные события
             data = {
                 "message": self.format(record),
@@ -78,37 +102,20 @@ class LoggingToEventBusHandler(logging.Handler):
                 "component": record.name,
                 "logger_name": record.name,
             }
-            
-            # Публикуем событие (без await, через create_task)
-            import asyncio
-            asyncio.create_task(
-                self.event_bus.publish(event_type, data=data, source=record.name)
-            )
-            
+
+            # Публикуем событие только если есть running loop
+            loop = self._get_loop()
+            if loop and loop.is_running():
+                # Публикация через call_soon_threadsafe для безопасности
+                loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(
+                        self.event_bus.publish(event_type, data=data, source=record.name)
+                    )
+                )
+
         except Exception:
-            self.handleError(record)
-
-
-class LogColors:
-    """ANSI цвета для форматирования вывода в терминал."""
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-
-    # Цвета по уровням
-    INFO = "\033[36m"       # Cyan
-    DEBUG = "\033[37m"      # White
-    WARNING = "\033[33m"    # Yellow
-    ERROR = "\033[31m"      # Red
-    CRITICAL = "\033[35m"   # Magenta
-    SUCCESS = "\033[32m"    # Green
-
-    # Цвета для компонентов
-    LLM = "\033[34m"        # Blue
-    REASONING = "\033[38;5;39m"   # Light blue
-    DECISION = "\033[38;5;208m"   # Orange
-    AGENT = "\033[38;5;27m"       # Dark blue
-    CAPABILITY = "\033[38;5;148m" # Light green
+            # Игнорируем ошибки при закрытии (когда loop уже остановлен)
+            pass
 
 
 class TerminalLogFormatter:
@@ -118,84 +125,34 @@ class TerminalLogFormatter:
     Поддерживает несколько форматов:
     - SIMPLE: [INFO] message
     - DETAILED: [2024-01-01 12:00:00] [INFO] [component] message
-    - COLORED: с цветами и иконками
     """
 
-    # Иконки для типов событий
-    TYPE_ICONS = {
-        "log.info": "ℹ️",
-        "log.debug": "🔹",
-        "log.warning": "⚠️",
-        "log.error": "❌",
-        "llm.call.start": "🔄",
-        "llm.call.progress": "⏳",
-        "llm.call.success": "✅",
-        "llm.call.retry": "🔁",
-        "llm.call.timeout": "⏱️",
-        "llm.call.error": "❌",
-        "reasoning.start": "🧠",
-        "reasoning.complete": "💡",
-        "reasoning.error": "🔥",
-        "context.analysis": "📊",
-        "capability.register": "🔧",
-        "decision.made": "🎯",
-        "decision.validation": "✔️",
-        "agent.start": "🤖",
-        "agent.complete": "🏁",
-        "agent.error": "💥",
-        "session.start": "🚀",
-        "session.complete": "✅",
-        "session.failed": "❌",
-    }
-
-    TYPE_COLORS = {
-        "llm.call.start": LogColors.LLM,
-        "llm.call.progress": LogColors.LLM,
-        "llm.call.success": LogColors.SUCCESS,
-        "llm.call.retry": LogColors.WARNING,
-        "llm.call.timeout": LogColors.ERROR,
-        "llm.call.error": LogColors.ERROR,
-        "reasoning.start": LogColors.REASONING,
-        "reasoning.complete": LogColors.SUCCESS,
-        "reasoning.error": LogColors.ERROR,
-        "decision.made": LogColors.DECISION,
-        "decision.validation": LogColors.DECISION,
-        "capability.register": LogColors.CAPABILITY,
-        "agent.start": LogColors.AGENT,
-        "agent.complete": LogColors.SUCCESS,
-        "agent.error": LogColors.ERROR,
-        "session.start": LogColors.INFO,
-        "session.complete": LogColors.SUCCESS,
-        "session.failed": LogColors.ERROR,
-    }
-    
     def __init__(self, config: TerminalOutputConfig):
         self.config = config
-        self._use_colors = config.format == LogFormat.COLORED
         self._message_count = 0
-    
+
     def format(self, event: Event) -> Optional[str]:
         """
         Форматирование события для вывода в терминал.
-        
+
         RETURNS:
             Отформатированная строка или None если сообщение не должно выводиться
         """
         data = event.data or {}
-        message_type = data.get("type", event.event_type)
+        # Преобразуем event_type в строку если это Enum
+        event_type_str = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
+        message_type = data.get("type", event_type_str)
         level = data.get("level", "INFO")
-        
+
         # Проверка фильтров
         if not self._should_log(event, message_type, level):
             return None
-        
+
         # Форматирование в зависимости от типа
         if self.config.format == LogFormat.SIMPLE:
             return self._format_simple(event, data, level)
-        elif self.config.format == LogFormat.DETAILED:
+        else:  # DETAILED
             return self._format_detailed(event, data, level)
-        else:  # COLORED
-            return self._format_colored(event, data, message_type, level)
     
     def _should_log(self, event: Event, message_type: str, level: str) -> bool:
         """Проверка фильтров конфигурации."""
@@ -209,7 +166,7 @@ class TerminalLogFormatter:
         }
         msg_level = level_map.get(level.upper(), 20)  # По умолчанию INFO
         min_level = self.config.level.value  # LogLevel enum value (10, 20, 30, etc.)
-        
+
         if msg_level < min_level:
             return False
 
@@ -249,94 +206,41 @@ class TerminalLogFormatter:
         parts.append(message)
         
         return " ".join(parts)
-    
-    def _format_colored(self, event: Event, data: Dict, message_type: str, level: str) -> str:
-        """Цветной формат с иконками и структурой."""
-        c = LogColors
-
-        # Иконка и цвет
-        icon = self.TYPE_ICONS.get(message_type, "•")
-        color = self.TYPE_COLORS.get(message_type, self._get_level_color(level))
-
-        message = data.get("message", str(event.data)) if event.data else str(event)
-        component = data.get("component", "") if event.data else ""
-        session_id = data.get("session_id", "") if event.data else ""
-        agent_id = data.get("agent_id", "") if event.data else ""
-
-        lines = []
-
-        # Разделитель между сообщениями (не перед первым)
-        if hasattr(self, '_message_count') and self._message_count > 0:
-            lines.append(f"{c.DIM}{'─' * 70}{c.RESET}")
-        else:
-            self._message_count = 0
-
-        # Заголовок с типом сообщения
-        if self._use_colors:
-            header = f"{color}{c.BOLD}[{icon} {message_type}]{c.RESET}"
-        else:
-            header = f"[{icon} {message_type}]"
-
-        lines.append(header)
-        
-        # Основное сообщение с отступом
-        lines.append(f"  {c.DIM}└─{c.RESET} {message}")
-
-        # Контекст (session, agent, component)
-        context_parts = []
-        if self.config.show_session_info:
-            if session_id and session_id != "system":
-                context_parts.append(f"session={session_id[:8]}...")
-            if agent_id and agent_id != "system":
-                context_parts.append(f"agent={agent_id}")
-        if self.config.show_source and component:
-            context_parts.append(f"component={component}")
-
-        if context_parts:
-            lines.append(f"  {c.DIM}└─{c.RESET} {c.DIM}{' | '.join(context_parts)}{c.RESET}")
-
-        # Дополнительные данные (ограничиваем количество)
-        extra_data = {k: v for k, v in (data.items() if data else []) 
-                     if k not in ["message", "level", "session_id", "agent_id", "component", "type"]}
-        
-        if extra_data and self.config.show_debug:
-            for i, (key, value) in enumerate(extra_data.items()):
-                str_value = str(value)
-                if len(str_value) > 80:
-                    str_value = str_value[:77] + "..."
-                prefix = "   " if i == 0 else "  "
-                lines.append(f"{prefix}{c.DIM}└─{c.RESET} {c.DIM}{key}:{c.RESET} {str_value}")
-
-        self._message_count += 1
-        return "\n".join(lines)
-    
-    def _get_level_color(self, level: str) -> str:
-        """Получение цвета для уровня логирования."""
-        level_colors = {
-            "INFO": LogColors.INFO,
-            "DEBUG": LogColors.DEBUG,
-            "WARNING": LogColors.WARNING,
-            "ERROR": LogColors.ERROR,
-            "CRITICAL": LogColors.CRITICAL,
-        }
-        return level_colors.get(level.upper(), LogColors.RESET)
 
 
 class TerminalLogHandler:
     """
     Обработчик вывода логов в терминал.
-    
+
     ПОДПИСЫВАЕТСЯ НА:
     - LOG_INFO, LOG_DEBUG, LOG_WARNING, LOG_ERROR
-    
+
     FEATURES:
-    - Цветной вывод с иконками
+    - Простой текстовый вывод
     - Гибкие фильтры по компонентам и типам событий
     - Несколько форматов вывода
     """
+
+    # Логгеры системы логирования (игнорируем чтобы избежать цикла и дублирования)
+    LOGGING_SYSTEM_LOGGERS = {
+        "EventBusLog",
+        "EventBus",
+        "SessionWorker",
+        "ResourceDiscovery",
+        "DataRepository",
+        "ApplicationContext",
+        "LifecycleManager",
+        "MetricsCollector",
+        "LogCollector",
+        "PromptStorage",
+        "ContractStorage",
+        "core.infrastructure.discovery.resource_discovery",
+    }
     
-    # Логгеры системы логирования (игнорируем чтобы избежать цикла)
-    LOGGING_SYSTEM_LOGGERS = {"EventBusLog", "EventBus", "SessionWorker"}
+    # Типы событий которые не нужно выводить в терминал (чтобы избежать цикла и дублирования)
+    SKIP_EVENT_TYPES = {
+        "metric.collected",
+    }
     
     def __init__(self, event_bus: UnifiedEventBus, config: Optional[TerminalOutputConfig] = None):
         self.event_bus = event_bus
@@ -358,37 +262,44 @@ class TerminalLogHandler:
         """Обработчик событий логирования."""
         if not self._enabled:
             return
-        
+
+        # Преобразуем event_type в строку для сравнения
+        event_type_str = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
+
         # Игнорируем события от логгеров системы логирования
         logger_name = (event.data or {}).get('logger_name', '')
-        if logger_name in self.LOGGING_SYSTEM_LOGGERS or logger_name.startswith("koru."):
+        if logger_name in self.LOGGING_SYSTEM_LOGGERS or logger_name.startswith("koru.") or logger_name.startswith("core.infrastructure.discovery"):
             return
-        
+
+        # Игнорируем метрики события (они логируются отдельно в SessionLogHandler)
+        if event_type_str in self.SKIP_EVENT_TYPES:
+            return
+
         # Форматируем сообщение
         formatted = self.formatter.format(event)
         if not formatted:
             return
-        
+
         # Определяем уровень логирования для вывода
-        event_type = event.event_type
         message = f"\n{formatted}"
-        
-        if event_type == "log.error":
+
+        if event_type_str == "log.error":
             self.logger.error(message)
-        elif event_type == "log.warning":
+        elif event_type_str == "log.warning":
             self.logger.warning(message)
-        elif event_type == "log.debug":
+        elif event_type_str == "log.debug":
             self.logger.debug(message)
         else:
             self.logger.info(message)
-    
+
     def subscribe(self) -> None:
         """Подписаться на события логирования."""
         self.event_bus.subscribe(EventType.LOG_INFO, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_DEBUG, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_WARNING, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_ERROR, self.handle_log_event)
-    
+        # LLM события обрабатываются через SessionLogHandler
+
     def unsubscribe(self) -> None:
         """Отписаться от событий логирования."""
         self.event_bus.unsubscribe(EventType.LOG_INFO, self.handle_log_event)
@@ -556,14 +467,15 @@ class FileLogHandler:
         else:
             handler.stream.write(formatted + "\n")
             handler.stream.flush()
-    
+
     def subscribe(self) -> None:
         """Подписаться на события логирования."""
         self.event_bus.subscribe(EventType.LOG_INFO, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_DEBUG, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_WARNING, self.handle_log_event)
         self.event_bus.subscribe(EventType.LOG_ERROR, self.handle_log_event)
-    
+        # LLM события игнорируются (логируются только в SessionLogHandler)
+
     def unsubscribe(self) -> None:
         """Отписаться от событий логирования."""
         self.event_bus.unsubscribe(EventType.LOG_INFO, self.handle_log_event)
@@ -613,15 +525,22 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
         file_handler.subscribe()
 
     terminal_handler.subscribe()
-    
+
     # Перехват стандартного logging и направление в EventBus
     event_bus_logging_handler = LoggingToEventBusHandler(event_bus)
     event_bus_logging_handler.setLevel(logging.DEBUG)
-    
+
     # Устанавливаем обработчик на корневой логгер
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(event_bus_logging_handler)
+    
+    # Добавляем консольный обработчик для EventBusLog (чтобы вывод в терминал работал)
+    event_bus_logger = logging.getLogger("EventBusLog")
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    event_bus_logger.addHandler(console_handler)
 
     return terminal_handler, file_handler
 

@@ -83,7 +83,6 @@ class ResourceDiscovery:
             self._use_event_logging = False
 
         self._log_info(f"ResourceDiscovery инициализирован: base_dir={self.base_dir}, profile={self.profile}")
-        self._log_info(f"Разрешённые статусы промптов: {[s.value for s in self.allowed_prompt_statuses]}")
 
     def _log_info(self, message: str, *args, **kwargs):
         """Информационное сообщение."""
@@ -175,7 +174,6 @@ class ResourceDiscovery:
             # Проверяем статус
             if not self._should_load_resource(status, 'prompt'):
                 self._stats['prompts_skipped'] += 1
-                self._log_debug(f"Пропущен промпт {capability}@{version} со статусом {status}")
                 return None
 
             # Парсинг переменных
@@ -211,7 +209,6 @@ class ResourceDiscovery:
             )
             
             self._stats['prompts_loaded'] += 1
-            self._log_debug(f"Загружен промпт: {capability}@{version} (status={status})")
             return prompt
 
         except Exception as e:
@@ -259,7 +256,6 @@ class ResourceDiscovery:
             # Проверяем статус
             if not self._should_load_resource(status, 'contract'):
                 self._stats['contracts_skipped'] += 1
-                self._log_debug(f"Пропущен контракт {capability}@{version} со статусом {status}")
                 return None
 
             # Определяем направление если не указано
@@ -292,7 +288,6 @@ class ResourceDiscovery:
             )
 
             self._stats['contracts_loaded'] += 1
-            self._log_debug(f"Загружен контракт: {capability}@{version} ({direction}) (status={status})")
             return contract
 
         except Exception as e:
@@ -404,6 +399,11 @@ class ResourceDiscovery:
         ВОЗВРАЩАЕТ:
         - List[Prompt]: Список загруженных промптов
         """
+        # ✅ Возвращаем из кэша если уже загружено (блокировка повторной загрузки)
+        if self._prompts_cache:
+            self._log_debug(f"discover_prompts: возвращаем из кэша {len(self._prompts_cache)} промптов")
+            return list(self._prompts_cache.values())
+
         prompts = []
         prompts_dir = self.base_dir / 'prompts'
 
@@ -415,7 +415,6 @@ class ResourceDiscovery:
         yaml_files = list(prompts_dir.rglob('*.yaml')) + list(prompts_dir.rglob('*.yml'))
 
         self._stats['prompts_scanned'] = len(yaml_files)
-        self._log_info(f"Найдено {len(yaml_files)} файлов промптов в {prompts_dir}")
 
         for file_path in yaml_files:
             prompt = self._parse_prompt_file(file_path)
@@ -424,7 +423,7 @@ class ResourceDiscovery:
                 self._prompts_cache[key] = prompt
                 prompts.append(prompt)
 
-        self._log_info(f"Загружено {len(prompts)} промптов (пропущено: {self._stats['prompts_skipped']})")
+        self._log_info(f"✅ Загружено {len(prompts)} промптов (просканировано: {self._stats['prompts_scanned']}, пропущено: {self._stats['prompts_skipped']})")
         return prompts
 
     def discover_contracts(self) -> List[Contract]:
@@ -434,6 +433,11 @@ class ResourceDiscovery:
         ВОЗВРАЩАЕТ:
         - List[Contract]: Список загруженных контрактов
         """
+        # ✅ Возвращаем из кэша если уже загружено (блокировка повторной загрузки)
+        if self._contracts_cache:
+            self._log_debug(f"discover_contracts: возвращаем из кэша {len(self._contracts_cache)} контрактов")
+            return list(self._contracts_cache.values())
+
         contracts = []
         contracts_dir = self.base_dir / 'contracts'
 
@@ -445,7 +449,6 @@ class ResourceDiscovery:
         yaml_files = list(contracts_dir.rglob('*.yaml')) + list(contracts_dir.rglob('*.yml'))
 
         self._stats['contracts_scanned'] = len(yaml_files)
-        self._log_info(f"Найдено {len(yaml_files)} файлов контрактов в {contracts_dir}")
 
         for file_path in yaml_files:
             contract = self._parse_contract_file(file_path)
@@ -454,7 +457,7 @@ class ResourceDiscovery:
                 self._contracts_cache[key] = contract
                 contracts.append(contract)
 
-        self._log_info(f"Загружено {len(contracts)} контрактов (пропущено: {self._stats['contracts_skipped']})")
+        self._log_info(f"✅ Загружено {len(contracts)} контрактов (просканировано: {self._stats['contracts_scanned']}, пропущено: {self._stats['contracts_skipped']})")
         return contracts
 
     # === Метод discover_manifests() удалён ===

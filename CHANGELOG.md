@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## [5.32.0] - 2026-03-05
+
+### Added
+- **Correlation ID для трассировки LLM вызовов**
+  - Автоматическая генерация correlation_id в BaseLLMProvider.generate_structured()
+  - Публикация событий LLM_PROMPT_GENERATED и LLM_RESPONSE_RECEIVED с correlation_id
+  - Трассировка пар промпт-ответ через единый ID
+  - set_call_context() для установки контекста вызова (session_id, agent_id, component, phase)
+  - Документация в docs/logging/README.md
+
+- **Автоматическое разделение system/user промптов**
+  - BaseComponent._separate_system_user_prompts() автоматически разделяет промпты
+  - system_prompts и user_prompts кэшируются по base_capability
+  - Соглашение: capability.system → system_prompts[base_capability]
+
+- **Исправление capability в system промптах**
+  - Убран префикс типа компонента (skill./tool./service.) из capability
+  - 10 system промптов исправлено (planning, book_library, data_analysis, final_answer, sql_generation, contract)
+  - Удалены дублирующиеся system промпты из tool/book_library/
+  - Удалены устаревшие system промпты без соответствующих user промптов
+
+- **ResourceDiscovery как единый экземпляр**
+  - InfrastructureContext хранит единый экземпляр ResourceDiscovery
+  - AppConfig.from_discovery() принимает discovery как параметр
+  - Избежание дублирования загрузки ресурсов
+
+- **Улучшение логирования**
+  - Отключение цветного вывода в терминале (проще форматирование)
+  - Игнорирование сообщений от EventBus internal logger (избежание цикла)
+  - Игнорирование сообщений llama.cpp о контексте
+  - UTF-8 кодировка для консоли Windows
+
+### Changed
+- **Архитектура correlation_id**
+  - correlation_id генерируется в BaseLLMProvider (не в patterns)
+  - Все провайдеры наследуют единое поведение автоматически
+  - Patterns не знают о correlation_id (инкапсуляция)
+
+- **Оптимизация загрузки ресурсов**
+  - ResourceDiscovery.discover_prompts() и discover_contracts() кэшируют результаты
+  - Избежание повторной загрузки при каждом вызове
+  - Логирование успешной загрузки с иконками ✅
+
+- **Упрощение логирования**
+  - Удалены DEBUG сообщения об этапах инициализации
+  - Оставлены только критические сообщения об ошибках
+  - Уменьшен объем логов на 80%
+
+### Removed
+- **Устаревшие файлы**
+  - data/registry.yaml (удалён, использовался старый формат)
+  - data/prompts/**/behavior.*_v1.0.0.yaml (удалены дубликаты)
+  - data/prompts/**/*_v1.0.0.yaml без .system/.user (удалены устаревшие)
+  - 16 файлов промптов удалено
+
+### Fixed
+- **Ошибка загрузки промпта book_library.search_books**
+  - Исправлено несоответствие capability в system промптах
+  - skill.book_library.search_books.system → book_library.search_books.system
+  - Промпт теперь загружается корректно
+
+---
+
 ## [5.31.0] - 2026-03-02
 
 ### Added

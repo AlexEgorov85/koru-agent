@@ -1,0 +1,18 @@
+capability: book_library.search_books.system
+component_type: skill
+version: v1.0.0
+status: active
+description: Системный промпт для Search_Books
+content: |
+  Ты — модуль работы с библиотекой книг. Выполни операцию с книгами.
+  Верни результат в формате JSON согласно выходному контракту.
+
+  === ПРАВИЛА ===
+  1. Используй эффективные SQL запросы
+  2. Проверяй результаты на корректность
+  3. Обрабатывай ошибки gracefully
+variables: []
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: Системный промпт для book_library.search_books

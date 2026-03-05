@@ -838,25 +838,21 @@ class UnifiedEventBus:
         if not event_obj.session_id:
             # Используем единую системную сессию для всех событий без session_id
             event_obj.session_id = SYSTEM_SESSION_ID
-            self._internal_logger.debug(f"Использована системная сессия для события: {event_obj.event_type}")
+            # Убрал логирование чтобы избежать цикла с LoggingToEventBusHandler
+            # self._internal_logger.debug(f"Использована системная сессия для события: {event_obj.event_type}")
 
         # Получаем или создаём очередь для сессии
         queue = await self._get_or_create_queue(event_obj.session_id, event_obj.agent_id)
 
         # BackPressure — проверка размера очереди
         if queue.qsize() >= self._queue_max_size:
+            # Убрал публикацию события QUEUE_OVERFLOW чтобы избежать цикла
+            # Просто предупреждение в internal logger
             self._internal_logger.warning(
-                f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size}"
+                f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size} (событие не публикуется)"
             )
-            await self._publish_internal(
-                EventType.QUEUE_OVERFLOW,
-                {
-                    "session_id": event_obj.session_id,
-                    "queue_size": queue.qsize(),
-                    "max_size": self._queue_max_size,
-                    "event_type": event_obj.event_type
-                }
-            )
+            # Пропускаем событие чтобы не перегружать очередь
+            return False
 
         await queue.put(event_obj)
         return True

@@ -1,15 +1,23 @@
 ﻿"""
 Базовый класс для всех LLM провайдеров.
 Реализует стандартный интерфейс для работы с различными LLM бэкендами.
+
+АРХИТЕКТУРА CORRELATION ID:
+- correlation_id генерируется ЗДЕСЬ, в базовом классе
+- Один ID для пары prompt/response (трассировка запроса)
+- Инкапсулировано в провайдере (паттерны не знают о correlation_id)
+- Все провайдеры наследуют единое поведение автоматически
 """
 
 import time
+import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
 from core.infrastructure.providers.base_provider import BaseProvider, ProviderHealthStatus
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 
 
 class BaseLLMProvider(BaseProvider, ABC):
@@ -27,6 +35,11 @@ class BaseLLMProvider(BaseProvider, ABC):
     - Промты и ответы логируются на уровне INFO в файл agent.log
     - Включает: длину промта, длину ответа, время генерации, модель
     - Реализовано в базовом классе для всех провайдеров автоматически
+
+    CORRELATION ID:
+    - Генерируется в generate_structured() для каждого вызова
+    - Публикуется в событиях LLM_PROMPT_GENERATED и LLM_RESPONSE_RECEIVED
+    - Одинаковый для пары промпт-ответ (трассировка запроса)
     """
 
     def __init__(self, model_name: str, config: Optional[Dict[str, Any]] = None):
@@ -44,6 +57,155 @@ class BaseLLMProvider(BaseProvider, ABC):
 
         # Логгер для LLM вызовов больше не используется — всё логирование через event_bus_logger
         self._llm_logger = None
+
+        # Контекст вызова для логирования (устанавливается через set_call_context)
+        self._event_bus: Optional[UnifiedEventBus] = None
+        self._session_id: str = "system"
+        self._agent_id: str = "system"
+        self._component: str = "unknown"
+        self._phase: str = "unknown"
+        self._goal: str = "unknown"
+
+    def set_call_context(
+        self,
+        event_bus: UnifiedEventBus,
+        session_id: str,
+        agent_id: str = None,
+        component: str = None,
+        phase: str = None,
+        goal: str = None
+    ):
+        """
+        Установка контекста вызова для логирования событий.
+
+        ВАЖНО: correlation_id НЕ передаётся здесь — он генерируется
+        автоматически в generate_structured() для каждого вызова.
+
+        ПАРАМЕТРЫ:
+        - event_bus: EventBus для публикации событий
+        - session_id: ID сессии
+        - agent_id: ID агента
+        - component: компонент вызывающий LLM
+        - phase: фаза выполнения (think/act)
+        - goal: цель выполнения
+        """
+        self._event_bus = event_bus
+        self._session_id = session_id
+        self._agent_id = agent_id or "system"
+        self._component = component or "unknown"
+        self._phase = phase or "unknown"
+        self._goal = goal or "unknown"
+
+    async def _publish_prompt_event(
+        self,
+        request: LLMRequest,
+        correlation_id: str
+    ):
+        """
+        Публикация события о генерации промпта.
+
+        ПАРАМЕТРЫ:
+        - request: LLM запрос
+        - correlation_id: ID для трассировки (генерируется в generate_structured)
+        """
+        if not self._event_bus:
+            return
+
+        await self._event_bus.publish(
+            event_type=EventType.LLM_PROMPT_GENERATED,
+            data={
+                "component": self._component,
+                "phase": self._phase,
+                "system_prompt": request.system_prompt or "",
+                "user_prompt": request.prompt,
+                "prompt_length": len(request.prompt),
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "session_id": self._session_id,
+                "agent_id": self._agent_id,
+                "goal": self._goal,
+            },
+            source=f"{self._component}.llm_provider",
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            correlation_id=correlation_id,
+        )
+
+    async def _publish_response_event(
+        self,
+        response: StructuredLLMResponse,
+        correlation_id: str,
+        elapsed_time: float
+    ):
+        """
+        Публикация события о получении ответа.
+
+        ПАРАМЕТРЫ:
+        - response: Ответ от LLM
+        - correlation_id: ID для трассировки (тот же что и у промпта)
+        - elapsed_time: Время выполнения
+        """
+        if not self._event_bus:
+            return
+
+        # Извлекаем контент для логирования
+        response_content = ""
+        if hasattr(response, 'parsed_content'):
+            response_content = str(response.parsed_content)[:500]
+        elif hasattr(response, 'content'):
+            response_content = str(response.content)[:500]
+
+        await self._event_bus.publish(
+            event_type=EventType.LLM_RESPONSE_RECEIVED,
+            data={
+                "component": self._component,
+                "phase": self._phase,
+                "response": response_content,
+                "elapsed_ms": elapsed_time * 1000,
+                "session_id": self._session_id,
+                "agent_id": self._agent_id,
+                "goal": self._goal,
+            },
+            source=f"{self._component}.llm_provider",
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            correlation_id=correlation_id,
+        )
+
+    async def _publish_error_event(
+        self,
+        error: Exception,
+        correlation_id: str,
+        elapsed_time: float
+    ):
+        """
+        Публикация события об ошибке LLM вызова.
+
+        ПАРАМЕТРЫ:
+        - error: Исключение
+        - correlation_id: ID для трассировки
+        - elapsed_time: Время до ошибки
+        """
+        if not self._event_bus:
+            return
+
+        await self._event_bus.publish(
+            event_type=EventType.LLM_RESPONSE_RECEIVED,
+            data={
+                "component": self._component,
+                "phase": self._phase,
+                "error_type": type(error).__name__,
+                "error_message": str(error)[:500],
+                "elapsed_ms": elapsed_time * 1000,
+                "session_id": self._session_id,
+                "agent_id": self._agent_id,
+                "goal": self._goal,
+            },
+            source=f"{self._component}.llm_provider",
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            correlation_id=correlation_id,
+        )
 
     async def _log_llm_call_start(self, request: LLMRequest) -> None:
         """
@@ -203,12 +365,13 @@ class BaseLLMProvider(BaseProvider, ABC):
         request: LLMRequest
     ) -> StructuredLLMResponse:
         """
-        Генерация структурированных данных по JSON Schema с логированием.
+        Генерация структурированных данных по JSON Schema.
 
         ЛОГИРОВАНИЕ:
-        - Начало вызова: промт, параметры, схема
-        - Завершение: ответ, время генерации, количество попыток
-        - Ошибки: тип и сообщение
+        - correlation_id генерируется ЗДЕСЬ (в базовом классе)
+        - Публикуется LLM_PROMPT_GENERATED перед вызовом LLM
+        - Публикуется LLM_RESPONSE_RECEIVED после получения ответа
+        - Один correlation_id для пары промпт-ответ (трассировка)
 
         ПАРАМЕТРЫ:
         - request (LLMRequest): Запрос с configuration структурированного вывода
@@ -229,18 +392,25 @@ class BaseLLMProvider(BaseProvider, ABC):
         - StructuredOutputError: Если не удалось получить валидный ответ после всех попыток
         - ValueError: Если request.structured_output не указан
         """
+        # ✅ ГЕНЕРАЦИЯ correlation_id на уровне провайдера
+        correlation_id = str(uuid.uuid4())
+        
         start_time = time.time()
+
+        # Публикация события LLM_PROMPT_GENERATED
+        await self._publish_prompt_event(request, correlation_id)
 
         # Логирование начала вызова
         await self.event_bus_logger.info(
             f"📝 LLM структурированный вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Schema: {request.structured_output.output_model if request.structured_output else 'unknown'} | "
-            f"Max retries: {request.structured_output.max_retries if request.structured_output else 3}"
+            f"Max retries: {request.structured_output.max_retries if request.structured_output else 3} | "
+            f"correlation_id: {correlation_id}"
         )
 
         try:
-            # Вызов реализации
+            # Вызов реализации в подклассе
             response = await self._generate_structured_impl(request)
 
             # Логирование завершения
@@ -248,8 +418,12 @@ class BaseLLMProvider(BaseProvider, ABC):
             await self.event_bus_logger.info(
                 f"✅ LLM структурированный ответ | Модель: {self.model_name} | "
                 f"Время: {elapsed:.2f}с | "
-                f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1}"
+                f"Попыток: {response.parsing_attempts if hasattr(response, 'parsing_attempts') else 1} | "
+                f"correlation_id: {correlation_id}"
             )
+
+            # Публикация события LLM_RESPONSE_RECEIVED
+            await self._publish_response_event(response, correlation_id, elapsed)
 
             return response
 
@@ -259,8 +433,12 @@ class BaseLLMProvider(BaseProvider, ABC):
             await self.event_bus_logger.error(
                 f"❌ LLM структурированная ошибка | Модель: {self.model_name} | "
                 f"{type(e).__name__}: {str(e)[:200]} | "
-                f"Время: {elapsed:.2f}с"
+                f"Время: {elapsed:.2f}с | "
+                f"correlation_id: {correlation_id}"
             )
+
+            # Публикация события об ошибке
+            await self._publish_error_event(e, correlation_id, elapsed)
             raise
 
     async def generate_for_capability(self, system_prompt: str, user_input: str, capabilities) -> tuple:

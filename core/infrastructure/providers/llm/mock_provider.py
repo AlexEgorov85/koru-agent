@@ -323,8 +323,8 @@ class MockLLMProvider(BaseLLMProvider):
         # Retry цикл
         for attempt in range(1, config.max_retries + 1):
             try:
-                # Получаем ответ через execute
-                raw_response = await self.execute(enhanced_request)
+                # Получаем ответ через generate (наследуется из BaseLLMProvider)
+                raw_response = await self.generate(enhanced_request)
                 
                 # Пытаемся распарсить JSON ответ
                 parsed_data = json.loads(raw_response.content)
@@ -368,11 +368,11 @@ class MockLLMProvider(BaseLLMProvider):
                 )
         
         # Все попытки исчерпаны
+        # correlation_id больше не передаётся — он генерируется в базовом классе
         raise StructuredOutputError(
             message="Mock: Не удалось получить валидный структурированный ответ",
             model_name=self.model_name,
             attempts=config.max_retries,
-            correlation_id=request.correlation_id,
             validation_errors=validation_errors
         )
     

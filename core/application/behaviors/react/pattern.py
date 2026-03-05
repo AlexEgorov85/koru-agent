@@ -127,29 +127,41 @@ class ReActPattern(BaseBehaviorPattern):
 
     def _load_reasoning_resources(self) -> bool:
         """
-        Загружает промпт и схему для рассуждения из кэша BaseComponent.
+        Загружает system prompt для рассуждения из автоматически разделённых промптов.
 
         ВОЗВРАЩАЕТ:
         - bool: True если успешно загружено
         """
         # Если уже загружено, ничего не делаем
-        if self.reasoning_prompt_template and self.reasoning_schema:
+        if self.reasoning_prompt_template and self.reasoning_schema and self.system_prompt_template:
             return True
 
         try:
-            # Загружаем из self.prompts / self.output_contracts (уже загружены BaseComponent.initialize())
-            if self.prompts:
-                # Ищем промпт behavior.react.think (приоритет) или первый доступный
+            # ← НОВОЕ: Используем автоматически разделённые промпты
+            # system_prompts содержит {base_capability: Prompt}
+            if 'behavior.react.think' in self.system_prompts:
+                system_prompt_obj = self.system_prompts['behavior.react.think']
+                if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
+                    self.system_prompt_template = system_prompt_obj.content
+
+            # user_prompts содержит {base_capability: Prompt}
+            if 'behavior.react.think' in self.user_prompts:
+                user_prompt_obj = self.user_prompts['behavior.react.think']
+                if hasattr(user_prompt_obj, 'content') and user_prompt_obj.content:
+                    self.reasoning_prompt_template = user_prompt_obj.content
+
+            # Fallback: ищем в prompts (для обратной совместимости)
+            if not self.system_prompt_template and self.prompts:
+                if "behavior.react.think.system" in self.prompts:
+                    system_prompt_obj = self.prompts["behavior.react.think.system"]
+                    if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
+                        self.system_prompt_template = system_prompt_obj.content
+
+            if not self.reasoning_prompt_template and self.prompts:
                 if "behavior.react.think" in self.prompts:
                     prompt_obj = self.prompts["behavior.react.think"]
                     if hasattr(prompt_obj, 'content') and prompt_obj.content:
                         self.reasoning_prompt_template = prompt_obj.content
-                else:
-                    # Fallback: берём первый доступный промпт
-                    for cap_name, prompt_obj in self.prompts.items():
-                        if hasattr(prompt_obj, 'content') and prompt_obj.content:
-                            self.reasoning_prompt_template = prompt_obj.content
-                            break
 
             # Контракты уже загружены в self.output_contracts
             if self.output_contracts:
@@ -333,20 +345,12 @@ class ReActPattern(BaseBehaviorPattern):
     def _get_default_system_prompt(self) -> str:
         """
         Возвращает системный промпт по умолчанию (fallback).
+        Используется ТОЛЬКО если system_prompt_template не загружен из реестра.
 
         ВОЗВРАЩАЕТ:
         - str: системный промпт
         """
-        return """Ты — модуль рассуждения (THINK) в архитектуре ReAct (Reasoning and Acting).
-Твоя задача — анализировать текущую ситуацию и принимать решения о следующих действиях.
-
-Ты должен:
-1. Оценить текущую ситуацию и прогресс к цели
-2. Выбрать следующее действие из доступных инструментов
-3. Обосновать свой выбор
-4. Проверить безопасность и корректность действий
-
-Отвечай ТОЛЬКО в формате JSON согласно схеме."""
+        return """Ты — модуль рассуждения ReAct. Верни JSON: {"thought": "...", "decision": {"next_action": "...", "parameters": {}}, "stop_condition": false}"""
 
     async def analyze_context(
         self,
@@ -355,13 +359,13 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Анализ контекста без принятия решений"""
-        await self._log("info", f"[ReAct] analyze_context: received available_capabilities count={len(available_capabilities)}, names={[c.name for c in available_capabilities]}")
+        await self._log("debug", f"[ReAct] analyze_context: received available_capabilities count={len(available_capabilities)}")
 
         # Если available_capabilities пустой, получаем их из ApplicationContext
         if not available_capabilities and self.application_context:
-            await self._log("info", "[ReAct] analyze_context: available_capabilities пуст, получаем из ApplicationContext")
+            await self._log("debug", "[ReAct] analyze_context: available_capabilities пуст, получаем из ApplicationContext")
             available_capabilities = self.application_context.get_all_capabilities()
-            await self._log("info", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability из ApplicationContext")
+            await self._log("debug", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability")
 
         # Регистрируем схемы для всех capability в SchemaValidator
         self._register_capability_schemas(available_capabilities)
@@ -375,7 +379,7 @@ class ReActPattern(BaseBehaviorPattern):
             available_capabilities
         )
 
-        await self._log("info", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}, names={[c.name for c in analysis['available_capabilities']]}")
+        await self._log("debug", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}")
 
         # Добавляем информацию о прогрессе
         # В новой архитектуре используем атрибуты или возвращаем 0, если метод не существует
@@ -415,13 +419,11 @@ class ReActPattern(BaseBehaviorPattern):
                 try:
                     # Получаем версию контракта из meta capability
                     contract_version = cap.meta.get('contract_version', 'v1.0.0')
-                    self._log_sync("debug", f"Загрузка схемы для {cap.name} (версия: {contract_version})...")
                     schema = self.application_context.data_repository.get_contract_schema(
                         cap.name,
                         contract_version,
                         "input"
                     )
-                    self._log_sync("info", f"Загружена схема из DataRepository для {cap.name}")
                 except Exception as e:
                     self._log_sync("debug", f"Не удалось получить схему для {cap.name}: {e}")
 
@@ -452,11 +454,11 @@ class ReActPattern(BaseBehaviorPattern):
 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    self._log_sync("info", f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
+                    self._log_sync("debug", f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
                 else:
-                    self._log_sync("debug", f"ℹ️ Схема для {cap.name} не имеет параметров (нормально для capability без входных данных)")
+                    self._log_sync("debug", f"ℹ️ Схема для {cap.name} не имеет параметров")
             else:
-                self._log_sync("debug", f"Схема не найдена для {cap.name}, будет использоваться дефолтная")
+                self._log_sync("debug", f"Схема не найдена для {cap.name}")
 
     async def _publish_llm_response_received(
         self,
@@ -518,7 +520,7 @@ class ReActPattern(BaseBehaviorPattern):
             event_data["error_type"] = error_type
 
         try:
-            await self.application_context.infrastructure_context.event_bus.publish(
+            result = await self.application_context.infrastructure_context.event_bus.publish(
                 event=EventType.LLM_RESPONSE_RECEIVED,
                 data=event_data,
                 source="react_pattern.think",
@@ -699,38 +701,15 @@ class ReActPattern(BaseBehaviorPattern):
                 )
             )
 
-            # === ПУБЛИКАЦИЯ СОБЫТИЯ: СГЕНЕРИРОВАН ПРОМПТ ===
-            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.event_bus.unified_event_bus import Event, EventType
-
-                agent_id = getattr(session_context, 'agent_id', 'unknown')
-                if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
-                    agent_id = self.application_context.id
-
-                await self.application_context.infrastructure_context.event_bus.publish(
-                    event=EventType.LLM_PROMPT_GENERATED,
-                    data={
-                        "agent_id": agent_id,
-                        "component": "react_pattern",
-                        "phase": "think",
-                        "system_prompt": llm_request.system_prompt,
-                        "user_prompt": reasoning_prompt,
-                        "prompt_length": len(reasoning_prompt),
-                        "temperature": llm_request.temperature,
-                        "max_tokens": llm_request.max_tokens,
-                        "session_id": getattr(session_context, 'session_id', 'unknown'),
-                        "goal": session_context.get_goal() if session_context else 'unknown'
-                    },
-                    source="react_pattern.think",
-                    correlation_id=getattr(session_context, 'session_id', '')
-                )
-
             # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
+            # correlation_id будет сгенерирован автоматически в BaseLLMProvider
             if hasattr(llm_provider, 'set_call_context'):
+                # Получаем agent_id из session_context или используем значение по умолчанию
+                current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
                 llm_provider.set_call_context(
                     event_bus=self.application_context.infrastructure_context.event_bus,
                     session_id=getattr(session_context, 'session_id', 'unknown'),
-                    agent_id=agent_id,
+                    agent_id=current_agent_id,
                     component="react_pattern",
                     phase="think",
                     goal=session_context.get_goal() if session_context else 'unknown'
@@ -761,8 +740,15 @@ class ReActPattern(BaseBehaviorPattern):
                         llm_provider.generate_structured(llm_request),
                         timeout=llm_timeout
                     )
-                    await self._log("info", f"[Попытка {retry_count + 1}] LLM ответ ПОЛУЧЕН!")
+                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] LLM ответ ПОЛУЧЕН!")
                     await self._log("debug", f"[Попытка {retry_count + 1}] LLM ответ получен (длина={len(response.get('raw_response', '') if isinstance(response, dict) else str(response))})")
+                    
+                    # Публикуем событие об успешном ответе LLM
+                    await self._publish_llm_response_received(
+                        session_context=session_context,
+                        response=response
+                    )
+                    
                     break  # Успех, выходим из цикла retry
 
                 except (AsyncTimeoutError, TimeoutError) as e:
@@ -913,71 +899,39 @@ class ReActPattern(BaseBehaviorPattern):
                 if not content or (isinstance(content, str) and len(content.strip()) == 0):
                     await self._log("warning", "LLM вернул пустой ответ!")
 
-            # === ПУБЛИКАЦИЯ СОБЫТИЯ: ПОЛУЧЕН ОТВЕТ ===
-            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                from core.infrastructure.event_bus.unified_event_bus import Event, EventType
+            # correlation_id больше не публикуется здесь — это делает BaseLLMProvider
+            # Ответ уже опубликован в событии LLM_RESPONSE_RECEIVED с правильным correlation_id
 
-                # Получаем agent_id из session_context или application_context
-                agent_id = getattr(session_context, 'agent_id', 'unknown')
-                if agent_id == 'unknown' and hasattr(self.application_context, 'id'):
-                    agent_id = self.application_context.id
-
-                # Обработка ответа
-                if isinstance(response, dict) and 'raw_response' in response:
-                    result = response['raw_response']
-                    response_format = "dict.raw_response"
-                elif hasattr(response, 'content'):
-                    result = response.content
-                    response_format = "object.content"
-                else:
-                    result = response
-                    response_format = type(response).__name__
-
-                await self.application_context.infrastructure_context.event_bus.publish(
-                    event=EventType.LLM_RESPONSE_RECEIVED,
-                    data={
-                        "agent_id": agent_id,
-                        "component": "react_pattern",
-                        "phase": "think",
-                        "response_format": response_format,
-                        "response": result,
-                        "session_id": getattr(session_context, 'session_id', 'unknown'),
-                        "goal": session_context.get_goal() if session_context else 'unknown'
-                    },
-                    source="react_pattern.think",
-                    correlation_id=getattr(session_context, 'session_id', '')
-                )
+            # Обработка ответа для валидации
+            if isinstance(response, dict) and 'raw_response' in response:
+                result = response['raw_response']
+            elif hasattr(response, 'content'):
+                result = response.content
+                # Если content это строка, пробуем распарсить как JSON
+                if isinstance(result, str):
+                    try:
+                        result = json.loads(result)
+                    except (json.JSONDecodeError, ValueError):
+                        await self._log("warning", f"LLM вернул невалидный JSON: {result[:200]}...")
+                        # Возвращаем fallback результат
+                        return {
+                            "analysis": {
+                                "current_situation": "Ошибка парсинга ответа LLM",
+                                "progress_assessment": "Неизвестно",
+                                "confidence": 0.3,
+                                "errors_detected": True,
+                                "consecutive_errors": self.error_count + 1,
+                            },
+                            "decision": {
+                                "next_action": "book_library.search_books",
+                                "reasoning": "fallback после ошибки парсинга JSON",
+                                "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
+                            },
+                            "available_capabilities": available_capabilities,
+                            "needs_rollback": False
+                        }
             else:
-                # Fallback для обработки ответа если EventBus недоступен
-                if isinstance(response, dict) and 'raw_response' in response:
-                    result = response['raw_response']
-                elif hasattr(response, 'content'):
-                    result = response.content
-                    # Если content это строка, пробуем распарсить как JSON
-                    if isinstance(result, str):
-                        try:
-                            result = json.loads(result)
-                        except (json.JSONDecodeError, ValueError):
-                            await self._log("warning", f"LLM вернул невалидный JSON: {result[:200]}...")
-                            # Возвращаем fallback результат
-                            return {
-                                "analysis": {
-                                    "current_situation": "Ошибка парсинга ответа LLM",
-                                    "progress_assessment": "Неизвестно",
-                                    "confidence": 0.3,
-                                    "errors_detected": True,
-                                    "consecutive_errors": self.error_count + 1,
-                                },
-                                "decision": {
-                                    "next_action": "book_library.search_books",
-                                    "reasoning": "fallback после ошибки парсинга JSON",
-                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
-                                },
-                                "available_capabilities": available_capabilities,
-                                "needs_rollback": False
-                            }
-                else:
-                    result = response
+                result = response
 
             reasoning_result = validate_reasoning_result(result)
 

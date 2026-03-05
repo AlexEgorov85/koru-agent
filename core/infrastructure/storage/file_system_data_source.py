@@ -221,7 +221,12 @@ class FileSystemDataSource(ResourceDataSource):
                     except Exception as e:
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
-                        self.logger.error(f"Ошибка при загрузке промпта из {file_path}: {e}")
+                        from core.infrastructure.logging import EventBusLogger
+                        from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+                        event_bus = get_event_bus()
+                        if event_bus:
+                            tmp_logger = EventBusLogger(event_bus, "system", "system", "FileSystemDataSource")
+                            asyncio.create_task(tmp_logger.error(f"Ошибка при загрузке промпта из {file_path}: {e}"))
                         raise ValueError(f"Ошибка при загрузке промпта из {file_path}: {e}")
 
     def _preload_contracts(self):
@@ -267,7 +272,12 @@ class FileSystemDataSource(ResourceDataSource):
                     except Exception as e:
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
-                        self.logger.error(f"Ошибка при загрузке контракта из {file_path}: {e}")
+                        from core.infrastructure.logging import EventBusLogger
+                        from core.infrastructure.event_bus.unified_event_bus import get_event_bus
+                        event_bus = get_event_bus()
+                        if event_bus:
+                            tmp_logger = EventBusLogger(event_bus, "system", "system", "FileSystemDataSource")
+                            asyncio.create_task(tmp_logger.error(f"Ошибка при загрузке контракта из {file_path}: {e}"))
                         raise ValueError(f"Ошибка при загрузке контракта из {file_path}: {e}")
 
     def load_all_prompts(self) -> List[Prompt]:

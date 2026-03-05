@@ -1,0 +1,40 @@
+capability: behavior.react.think.user
+component_type: behavior
+version: v1.0.0
+status: active
+description: User prompt для рассуждения в цикле ReAct
+content: |
+  === КОНТЕКСТ ===
+  {input}
+  Цель: {goal}
+  История: {step_history}
+  Наблюдение: {observation}
+
+  === ИНСТРУМЕНТЫ ===
+  {available_tools}
+
+  === ПРИМЕР ===
+  Цель: "Найти книги Пушкина" → Decision: {"next_action": "book_library.execute_script", "parameters": {"script_name": "get_books_by_author", "parameters": {"author": "Александр Пушкин"}}}
+
+  Верни JSON согласно формату из системного промпта:
+variables:
+  - name: input
+    description: Текущий контекст задачи и состояние
+    required: true
+  - name: goal
+    description: Исходная цель задачи
+    required: true
+  - name: step_history
+    description: История выполненных шагов с результатами
+    required: false
+  - name: observation
+    description: Результат последнего наблюдения
+    required: false
+  - name: available_tools
+    description: Список доступных инструментов с описаниями
+    required: false
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: User prompt для behavior.react.think (~800 симв)
+  version_notes: 'Только контекст и данные. Формат и правила в system_prompt'

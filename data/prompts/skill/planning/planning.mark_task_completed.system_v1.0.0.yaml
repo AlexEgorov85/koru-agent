@@ -1,0 +1,18 @@
+capability: planning.mark_task_completed.system
+component_type: skill
+version: v1.0.0
+status: active
+description: Системный промпт для Mark_Task_Completed
+content: |
+  Ты — модуль планирования. Создай план действий для достижения цели.
+  Верни результат в формате JSON согласно выходному контракту.
+
+  === ПРАВИЛА ===
+  1. План должен быть реалистичным и выполнимым
+  2. Каждый шаг должен иметь понятную цель
+  3. Используй доступные инструменты эффективно
+variables: []
+metadata:
+  author: system
+  created: '2026-02-19'
+  description: Системный промпт для planning.mark_task_completed

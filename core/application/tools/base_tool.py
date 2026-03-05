@@ -226,7 +226,7 @@ class BaseTool(BaseComponent):
                 }
             ))
 
-        self._log_sync("info", f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
+        self._log_sync("debug", f"Инструмент {self.name} вернул {len(capabilities)} capability: {[c.name for c in capabilities]}")
         return capabilities
 
     @abstractmethod
