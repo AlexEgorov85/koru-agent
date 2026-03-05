@@ -728,137 +728,19 @@ class LLMOrchestrator:
     ) -> Dict[str, Any]:
         """
         Валидация структурированного ответа.
-
+        
+        ДЕЛЕГИРОВАНИЕ: Вызывает функции из json_parser.py
+        
         ПРОВЕРКИ:
         1. JSON парсинг
         2. Соответствие схеме через Pydantic (если указана)
         3. Полнота ответа (не обрезан ли)
 
         ВОЗВРАЩАЕТ:
-        - Dict с полями: success, error_type, error_message
+        - Dict с полями: success, error_type, error_message, parsed
         """
-        # Проверка 1: JSON парсинг
-        try:
-            parsed = json.loads(raw_content)
-        except JSONDecodeError as e:
-            return {
-                "success": False,
-                "error_type": "json_error",
-                "error_message": f"JSON парсинг не удался: {str(e)}"
-            }
-
-        # Проверка 2: Соответствие схеме через Pydantic
-        if schema:
-            try:
-                # Создаём динамическую Pydantic модель из схемы
-                from pydantic import ValidationError, create_model
-                from typing import Any, List, Optional, Union, Dict
-                
-                def schema_field_to_type(field_schema: Dict[str, Any], field_name: str = "field"):
-                    """Преобразует JSON Schema поле в Python тип."""
-                    field_type = field_schema.get('type')
-                    
-                    if field_type == 'string':
-                        return str
-                    elif field_type == 'integer':
-                        return int
-                    elif field_type == 'number':
-                        return float
-                    elif field_type == 'boolean':
-                        return bool
-                    elif field_type == 'array':
-                        items = field_schema.get('items', {})
-                        item_type = schema_field_to_type(items, f"{field_name}_item")
-                        return List[item_type]
-                    elif field_type == 'object':
-                        # Рекурсивное создание вложенной модели
-                        nested_model = schema_to_pydantic_model(field_schema, f"{field_name.title()}Object")
-                        return nested_model
-                    else:
-                        return Any
-                
-                def schema_to_pydantic_model(schema: Dict[str, Any], model_name: str = "DynamicModel"):
-                    """Создаёт Pydantic модель из JSON Schema."""
-                    properties = schema.get('properties', {})
-                    required = set(schema.get('required', []))
-                    
-                    fields = {}
-                    for field_name, field_schema in properties.items():
-                        field_type = schema_field_to_type(field_schema, field_name)
-                        is_required = field_name in required
-                        
-                        if is_required:
-                            fields[field_name] = (field_type, ...)
-                        else:
-                            # Опциональное поле с default=None
-                            from typing import Optional
-                            fields[field_name] = (Optional[field_type], None)
-                    
-                    return create_model(model_name, **fields)
-                
-                # Создаём модель из схемы
-                DynamicModel = schema_to_pydantic_model(schema, "StructuredOutput")
-                
-                # Валидируем через Pydantic
-                parsed_content = DynamicModel.model_validate(parsed)
-                
-                # Успех - валидация пройдена
-                return {
-                    "success": True,
-                    "error_type": None,
-                    "error_message": None,
-                    "parsed": parsed_content  # Возвращаем валидированную модель
-                }
-                
-            except ValidationError as e:
-                # Детальное сообщение об ошибке валидации
-                error_details = []
-                for error in e.errors():
-                    field = ".".join(str(x) for x in error.get('loc', []))
-                    msg = error.get('msg', 'validation error')
-                    error_details.append(f"{field}: {msg}")
-                
-                return {
-                    "success": False,
-                    "error_type": "validation_error",
-                    "error_message": f"Валидация схемы не пройдена: {'; '.join(error_details)}"
-                }
-                
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error_type": "validation_error",
-                    "error_message": f"Ошибка валидации схемы: {type(e).__name__}: {str(e)}"
-                }
-        else:
-            # Схема не указана - логируем предупреждение
-            if hasattr(self, '_logger') and self._logger:
-                if hasattr(self._logger, 'warning_sync'):
-                    self._logger.warning_sync("Schema not provided for structured output validation - only JSON parsing performed")
-            
-            # Всё равно пытаемся распарсить JSON
-            return {
-                "success": True,
-                "error_type": None,
-                "error_message": None,
-                "parsed": parsed
-            }
-
-        # Проверка 3: Полнота ответа (эвристика)
-        if raw_content and not raw_content.strip().endswith('}'):
-            # Возможно ответ обрезан
-            if len(raw_content) > 100:  # Не срабатывает на коротких ответах
-                return {
-                    "success": False,
-                    "error_type": "incomplete",
-                    "error_message": "Ответ может быть обрезан (не закрывающая скобка)"
-                }
-
-        return {
-            "success": True,
-            "error_type": None,
-            "error_message": None
-        }
+        # Делегируем логику в json_parser
+        return validate_structured_response(raw_content, schema)
 
     def _build_corrective_prompt(
         self,
