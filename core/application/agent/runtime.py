@@ -26,7 +26,7 @@ from .components import (
     ProgressScorer,
     AgentState
 )
-from core.application.behaviors.base import BehaviorDecisionType
+from core.application.behaviors.base import BehaviorDecisionType, BehaviorDecision
 from core.models.errors import AgentStuckError, InfrastructureError
 
 # Определяем ProgressMetrics локально
@@ -314,6 +314,31 @@ class AgentRuntime:
             self.application_context.session_context.record_decision(
                 decision.action.value,
                 reasoning=decision.reason
+            )
+
+        # === SAFEGUARD: ЗАПРЕТ STOP НА ПЕРВОМ ШАГЕ ===
+        # Предотвращает преждевременную остановку агента
+        if (
+            self._current_step == 0
+            and decision.action == BehaviorDecisionType.STOP
+        ):
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(
+                    "⚠️ Agent attempted to stop on first step - это обычно ошибка LLM или пустой список capabilities"
+                )
+            print("\n⚠️ SAFEGUARD TRIGGERED: Agent attempted to stop on step 0")
+            print(f"   Goal: {self.goal[:100]}...")
+            print(f"   Available capabilities: {len(available_caps)}")
+            print("   Possible causes:")
+            print("   1. LLM incorrectly parsed the goal as already achieved")
+            print("   2. No capabilities were available to the LLM")
+            print("   3. Prompt template needs adjustment\n")
+            
+            # Возвращаем ошибку чтобы behavior manager мог переключиться на fallback
+            return BehaviorDecision(
+                action=BehaviorDecisionType.SWITCH,
+                next_pattern="fallback_pattern",
+                reason="stop_on_first_step"
             )
 
         if decision.action == BehaviorDecisionType.STOP:

@@ -13,7 +13,6 @@ from core.infrastructure.logging import (
     setup_logging,
     shutdown_logging,
     LoggingConfig,
-    TerminalOutputConfig,
     FileOutputConfig,
     LogLevel,
     LogFormat,
@@ -25,21 +24,13 @@ async def test_logging():
     print("=" * 60)
     print("ТЕСТ НОВОЙ СИСТЕМЫ ЛОГИРОВАНИЯ")
     print("=" * 60)
-    
+
     # Создание EventBus
     event_bus = UnifiedEventBus()
     print("[OK] EventBus создан")
-    
+
     # Настройка конфигурации
     log_config = LoggingConfig(
-        terminal=TerminalOutputConfig(
-            enabled=True,
-            level=LogLevel.DEBUG,  # Включаем DEBUG для теста
-            format=LogFormat.COLORED,
-            show_debug=True,
-            show_source=True,
-            show_session_info=True,
-        ),
         file=FileOutputConfig(
             enabled=True,
             level=LogLevel.DEBUG,
@@ -51,7 +42,7 @@ async def test_logging():
             backup_count=10,
         )
     )
-    
+
     # Настройка обработчиков
     terminal_handler, file_handler = setup_logging(event_bus, log_config)
     print("[OK] Обработчики настроены (терминал + файлы)")

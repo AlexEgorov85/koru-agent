@@ -4,7 +4,7 @@ direction: output
 version: v1.0.0
 status: active
 description: Output контракт для EvaluationPattern
-schema:
+schema_data:
   type: object
   properties:
     achieved:

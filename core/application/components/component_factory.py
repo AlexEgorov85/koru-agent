@@ -260,6 +260,9 @@ class ComponentFactory:
             elif name == "fallback_pattern":
                 from core.application.behaviors.fallback.pattern import FallbackPattern
                 return FallbackPattern
+            elif name == "evaluation_pattern":
+                from core.application.behaviors.evaluation.pattern import EvaluationPattern
+                return EvaluationPattern
             else:
                 # Попробуем стандартный путь для паттернов поведения
                 module_name = f"core.application.behaviors.{name}_pattern"

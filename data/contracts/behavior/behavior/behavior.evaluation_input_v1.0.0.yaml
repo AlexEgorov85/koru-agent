@@ -4,7 +4,7 @@ direction: input
 version: v1.0.0
 status: active
 description: Input контракт для EvaluationPattern
-schema:
+schema_data:
   type: object
   properties:
     goal:

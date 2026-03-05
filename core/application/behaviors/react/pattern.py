@@ -125,6 +125,123 @@ class ReActPattern(BaseBehaviorPattern):
                 # Нет запущенного event loop - пропускаем логирование
                 pass
 
+    def _log_llm_trace(self, prompt: str, response: Any, context: Optional['SessionContext'] = None):
+        """
+        ЛОГИРОВАНИЕ ВЫЗОВА LLM ДЛЯ ОТЛАДКИ.
+        
+        ВЫВОДИТ:
+        - PROMPT: полный текст промпта
+        - RESPONSE: сырой ответ от LLM
+        - PARSED DECISION: распарсенное решение
+        
+        ИСПОЛЬЗУЕТСЯ: только в development/debug режиме
+        """
+        print("\n" + "=" * 80)
+        print("━━━━━━━━ LLM CALL ━━━━━━━━")
+        print("=" * 80)
+        
+        # PROMPT
+        print(f"\n📝 PROMPT ({len(prompt)} символов)\n")
+        print("-" * 60)
+        # Показываем первые 2000 символов промпта чтобы не засорять консоль
+        prompt_preview = prompt[:2000] if len(prompt) > 2000 else prompt
+        print(prompt_preview)
+        if len(prompt) > 2000:
+            print(f"\n... (ещё {len(prompt) - 2000} символов)")
+        
+        # RESPONSE
+        print("\n" + "-" * 60)
+        print("💬 RESPONSE\n")
+        print("-" * 60)
+        
+        # Извлекаем сырой ответ
+        if isinstance(response, dict):
+            if 'raw_response' in response:
+                raw = response['raw_response']
+                if hasattr(raw, 'content'):
+                    response_text = raw.content
+                elif isinstance(raw, dict):
+                    response_text = str(raw)
+                else:
+                    response_text = str(raw) if raw else '<пустой ответ>'
+            elif 'content' in response:
+                response_text = response['content']
+            else:
+                response_text = str(response)
+        elif hasattr(response, 'content'):
+            response_text = response.content
+        elif hasattr(response, 'raw_response'):
+            response_text = response.raw_response
+        else:
+            response_text = str(response) if response else '<пустой ответ>'
+        
+        # Показываем первые 1500 символов ответа
+        response_preview = response_text[:1500] if len(response_text) > 1500 else response_text
+        print(response_preview)
+        if len(response_text) > 1500:
+            print(f"\n... (ещё {len(response_text) - 1500} символов)")
+        
+        # Пытаемся распарсить решение для отображения
+        print("\n" + "-" * 60)
+        print("🎯 PARSED DECISION\n")
+        print("-" * 60)
+        
+        try:
+            # Пытаемся извлечь решение из response
+            decision_data = None
+            
+            if isinstance(response, dict):
+                if 'raw_response' in response and hasattr(response['raw_response'], 'model_dump'):
+                    # Pydantic модель
+                    decision_data = response['raw_response'].model_dump()
+                elif 'parsed_content' in response:
+                    decision_data = response['parsed_content']
+                elif 'content' in response and isinstance(response['content'], dict):
+                    decision_data = response['content']
+            elif hasattr(response, 'parsed_content'):
+                decision_data = response.parsed_content
+            elif hasattr(response, 'model_dump'):
+                decision_data = response.model_dump()
+            
+            if decision_data:
+                # Извлекаем ключевые поля
+                decision = decision_data.get('decision', {})
+                action_type = decision.get('next_action', 'N/A')
+                reasoning = decision.get('reasoning', 'N/A')[:200] if decision.get('reasoning') else 'N/A'
+                
+                print(f"action_type: {action_type}")
+                print(f"reasoning: {reasoning}")
+                
+                # Показываем доступные capability
+                if 'available_capabilities' in decision_data:
+                    caps = decision_data['available_capabilities']
+                    if isinstance(caps, list) and len(caps) > 0:
+                        print(f"\n📦 Доступно capabilities: {len(caps)}")
+                        for cap in caps[:5]:  # Показываем первые 5
+                            cap_name = cap.name if hasattr(cap, 'name') else str(cap)
+                            print(f"  - {cap_name}")
+                        if len(caps) > 5:
+                            print(f"  ... и ещё {len(caps) - 5}")
+            else:
+                print("Не удалось распарсить решение")
+                print(f"Raw response type: {type(response)}")
+                
+        except Exception as e:
+            print(f"⚠️ Ошибка парсинга решения: {e}")
+        
+        # Контекст
+        if context:
+            print("\n" + "-" * 60)
+            print("📌 CONTEXT\n")
+            print("-" * 60)
+            print(f"goal: {context.get_goal() if hasattr(context, 'get_goal') else 'N/A'}")
+            if hasattr(context, 'current_step'):
+                print(f"step: {context.current_step}")
+        
+        print("\n" + "=" * 80)
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("=" * 80 + "\n")
+
     def _load_reasoning_resources(self) -> bool:
         """
         Загружает system prompt для рассуждения из автоматически разделённых промптов.
@@ -901,6 +1018,9 @@ class ReActPattern(BaseBehaviorPattern):
 
             # correlation_id больше не публикуется здесь — это делает BaseLLMProvider
             # Ответ уже опубликован в событии LLM_RESPONSE_RECEIVED с правильным correlation_id
+
+            # === LLM TRACE: ЛОГИРОВАНИЕ ВЫЗОВА LLM ===
+            self._log_llm_trace(prompt=reasoning_prompt, response=response, context=session_context)
 
             # Обработка ответа для валидации
             if isinstance(response, dict) and 'raw_response' in response:
