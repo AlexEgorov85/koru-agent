@@ -70,9 +70,12 @@ class TerminalLogFormatter:
     )
 
     ERROR_KEYWORDS = (
-        "error",
-        "failed",
-        "exception",
+        "ошибка",
+        "error:",
+        "failed to",
+        "exception:",
+        "произошла ошибка",
+        "не удалось",
     )
 
     ICONS = {
