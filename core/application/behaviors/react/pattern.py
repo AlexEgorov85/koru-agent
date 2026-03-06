@@ -1002,9 +1002,32 @@ class ReActPattern(BaseBehaviorPattern):
             self._log_llm_trace(prompt=reasoning_prompt, response=response, context=session_context)
 
             # Обработка ответа для валидации
-            if isinstance(response, dict) and 'raw_response' in response:
-                result = response['raw_response']
+            # Поддержка разных форматов ответа:
+            # 1. StructuredLLMResponse (от LLMOrchestrator.execute_structured)
+            # 2. Dict с raw_response (старый формат)
+            # 3. LLMResponse с content
+            # 4. Прямой dict
+            
+            result = None
+            
+            # Проверяем на StructuredLLMResponse
+            if hasattr(response, 'parsed_content') and response.parsed_content:
+                # StructuredLLMResponse — используем распарсенный контент
+                if hasattr(response.parsed_content, 'model_dump'):
+                    result = response.parsed_content.model_dump()
+                else:
+                    result = response.parsed_content
+            elif isinstance(response, dict) and 'raw_response' in response:
+                # Старый формат с raw_response
+                raw = response['raw_response']
+                if hasattr(raw, 'model_dump'):
+                    result = raw.model_dump()
+                elif hasattr(raw, 'content'):
+                    result = raw.content
+                else:
+                    result = raw
             elif hasattr(response, 'content'):
+                # LLMResponse с content
                 result = response.content
                 # Если content это строка, пробуем распарсить как JSON
                 if isinstance(result, str):
@@ -1030,8 +1053,10 @@ class ReActPattern(BaseBehaviorPattern):
                             "needs_rollback": False
                         }
             else:
+                # Прямой dict
                 result = response
 
+            # Валидация результата
             reasoning_result = validate_reasoning_result(result)
 
             # Добавляем available_capabilities в результат для последующего использования
