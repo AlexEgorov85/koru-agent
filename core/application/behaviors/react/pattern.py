@@ -376,13 +376,7 @@ class ReActPattern(BaseBehaviorPattern):
             for i, step in enumerate(last_steps[-3:], 1):
                 parts.append(f"  {i}. {step}")
 
-        parts.append("\nДОСТУПНЫЕ ИНСТРУМЕНТЫ:")
-        for cap in available_capabilities:
-            # Поддержка как объектов Capability, так и словарей
-            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
-            desc = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
-            parts.append(f"  - {name}: {desc}")
-
+        # Примечание: Список инструментов добавляется отдельно через {available_tools}
         return "\n".join(parts)
 
     def _format_available_tools(self, available_capabilities: List[Capability]) -> str:
