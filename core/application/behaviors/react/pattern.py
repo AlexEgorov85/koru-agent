@@ -497,8 +497,12 @@ class ReActPattern(BaseBehaviorPattern):
         - prompt_context: контекст для подстановки
 
         ВОЗВРАЩАЕТ:
-        - str: минимальный промпт для рассуждения с ПОЛНОЙ JSON схемой
+        - str: минимальный промпт для рассуждения с JSON схемой из контракта
         """
+        # Генерируем схему динамически из контракта
+        schema_json = self._get_schema_json_for_prompt()
+        required_fields = self._get_required_fields_list()
+        
         return f"""ЦЕЛЬ: {prompt_context.get('goal', 'Неизвестная цель')}
 
 КОНТЕКСТ:
@@ -506,42 +510,11 @@ class ReActPattern(BaseBehaviorPattern):
 
 Верни JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
 
-{{
-  "thought": "Развёрнутое рассуждение о текущей ситуации",
-  "analysis": {{
-    "progress": "Описание прогресса к цели",
-    "current_state": "Текущее состояние задачи",
-    "issues": []
-  }},
-  "decision": {{
-    "next_action": "Имя capability для следующего действия",
-    "reasoning": "Обоснование выбора",
-    "parameters": {{}},
-    "expected_outcome": "Ожидаемый результат"
-  }},
-  "confidence": 0.5,
-  "alternative_actions": [],
-  "stop_condition": false,
-  "stop_reason": null
-}}
+{schema_json}
 
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: thought, decision, decision.next_action, confidence, stop_condition
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {required_fields}
 
-ПРИМЕР:
-{{
-  "thought": "Нужно найти книги Пушкина",
-  "analysis": {{
-    "progress": "Начало выполнения",
-    "current_state": "Требуется поиск книг"
-  }},
-  "decision": {{
-    "next_action": "book_library.execute_script",
-    "reasoning": "Скрипт быстро найдёт книги",
-    "parameters": {{"script_name": "get_books_by_author"}}
-  }},
-  "confidence": 0.9,
-  "stop_condition": false
-}}"""
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
 
     def _get_default_system_prompt(self) -> str:
         """
@@ -549,62 +522,114 @@ class ReActPattern(BaseBehaviorPattern):
         Используется ТОЛЬКО если system_prompt_template не загружен из реестра.
 
         ВОЗВРАЩАЕТ:
-        - str: системный промпт с ПОЛНОЙ JSON схемой
+        - str: системный промпт с JSON схемой из контракта
         """
-        return """Ты — модуль рассуждения ReAct. Твоя задача — анализировать ситуацию и выбирать следующее действие.
+        # Генерируем промпт с динамической схемой из контракта
+        schema_json = self._get_schema_json_for_prompt()
+        
+        return f"""Ты — модуль рассуждения ReAct. Твоя задача — анализировать ситуацию и выбирать следующее действие.
 
 ВЕРНИ JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
 
-{
-  "thought": "Развёрнутое рассуждение о текущей ситуации",
-  "analysis": {
-    "progress": "Описание прогресса к цели",
-    "current_state": "Текущее состояние задачи",
-    "issues": []
-  },
-  "decision": {
-    "next_action": "Название capability для следующего действия",
-    "reasoning": "Обоснование выбора",
-    "parameters": {},
-    "expected_outcome": "Ожидаемый результат"
-  },
-  "confidence": 0.5,
-  "alternative_actions": [],
-  "stop_condition": false,
-  "stop_reason": null
-}
+{schema_json}
 
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ:
-- thought: string — твоё рассуждение
-- decision: object — решение о следующем действии
-- decision.next_action: string — имя capability
-- confidence: number (0.0-1.0) — уверенность
-- stop_condition: boolean — завершена ли задача
-
-ПРИМЕР:
-{
-  "thought": "Нужно найти книги Пушкина. В библиотеке есть скрипт get_books_by_author.",
-  "analysis": {
-    "progress": "Начало выполнения",
-    "current_state": "Требуется поиск книг",
-    "issues": []
-  },
-  "decision": {
-    "next_action": "book_library.execute_script",
-    "reasoning": "Скрипт get_books_by_author быстро найдёт книги",
-    "parameters": {
-      "script_name": "get_books_by_author",
-      "parameters": {"author": "Александр Пушкин"}
-    },
-    "expected_outcome": "Список книг Пушкина"
-  },
-  "confidence": 0.9,
-  "alternative_actions": [],
-  "stop_condition": false,
-  "stop_reason": null
-}
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {self._get_required_fields_list()}
 
 ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
+
+    def _get_schema_json_for_prompt(self) -> str:
+        """
+        Генерирует JSON схему для промпта из контракта.
+        
+        ВОЗВРАЩАЕТ:
+        - str: отформатированная JSON схема
+        """
+        import json
+        
+        if not self.reasoning_schema:
+            # Fallback если схема не загружена
+            return '{"thought": "string", "decision": {"next_action": "string", "parameters": {}}, "confidence": "number", "stop_condition": "boolean"}'
+        
+        # Создаём упрощённую версию схемы для промпта (без излишних деталей)
+        simplified_schema = self._simplify_schema_for_prompt(self.reasoning_schema)
+        
+        return json.dumps(simplified_schema, indent=2, ensure_ascii=False)
+
+    def _simplify_schema_for_prompt(self, schema: dict) -> dict:
+        """
+        Упрощает схему для отображения в промпте.
+        
+        ПАРАМЕТРЫ:
+        - schema: полная JSON схема
+        
+        ВОЗВРАЩАЕТ:
+        - dict: упрощённая схема с типами данных
+        """
+        if not schema or 'properties' not in schema:
+            return schema
+        
+        simplified = {
+            "type": "object",
+            "properties": {},
+            "required": schema.get("required", [])
+        }
+        
+        for prop_name, prop_schema in schema.get('properties', {}).items():
+            # Упрощаем каждое поле
+            simplified['properties'][prop_name] = self._simplify_property(prop_schema)
+        
+        return simplified
+
+    def _simplify_property(self, prop_schema: dict, depth: int = 0) -> dict:
+        """
+        Упрощает свойство схемы для отображения.
+        
+        ПАРАМЕТРЫ:
+        - prop_schema: схема свойства
+        - depth: текущая глубина вложенности
+        
+        ВОЗВРАЩАЕТ:
+        - dict: упрощённая схема свойства
+        """
+        if depth > 2:
+            # Не углубляемся больше 2 уровней
+            return {"type": prop_schema.get('type', 'object')}
+        
+        prop_type = prop_schema.get('type', 'string')
+        description = prop_schema.get('description', '')
+        
+        simplified = {
+            "type": prop_type,
+            "description": description
+        }
+        
+        # Для объектов рекурсивно упрощаем вложенные свойства
+        if prop_type == 'object' and 'properties' in prop_schema:
+            simplified['properties'] = {}
+            for sub_name, sub_schema in prop_schema.get('properties', {}).items():
+                simplified['properties'][sub_name] = self._simplify_property(sub_schema, depth + 1)
+        
+        # Для массивов упрощаем элементы
+        if prop_type == 'array' and 'items' in prop_schema:
+            simplified['items'] = self._simplify_property(prop_schema['items'], depth + 1)
+        
+        return simplified
+
+    def _get_required_fields_list(self) -> str:
+        """
+        Получает список обязательных полей из схемы.
+        
+        ВОЗВРАЩАЕТ:
+        - str: список обязательных полей через запятую
+        """
+        if not self.reasoning_schema:
+            return "thought, decision, confidence, stop_condition"
+        
+        required = self.reasoning_schema.get('required', [])
+        if not required:
+            return "thought, decision, confidence, stop_condition"
+        
+        return ", ".join(required)
 
     async def analyze_context(
         self,
@@ -1153,7 +1178,7 @@ class ReActPattern(BaseBehaviorPattern):
                         "decision": {
                             "next_action": "final_answer.generate",
                             "reasoning": "fallback после ошибки валидации",
-                            "parameters": {"query": session_context.get_goal() or "Продолжить"}
+                            "parameters": {"query": session_context.get_goal() or "Прод��лжить"}
                         },
                         "available_capabilities": available_capabilities,
                         "needs_rollback": False
