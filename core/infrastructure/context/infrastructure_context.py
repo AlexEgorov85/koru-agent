@@ -5,6 +5,9 @@
 - Провайдеры (LLM, DB) - с общими пулами соединений
 - Хранилища (без кэширования) - только загрузка из ФС/БД
 - Шина событий - глобальная для всех агентов
+
+ЖИЗНЕННЫЙ ЦИКЛ:
+- Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
 from typing import Dict, Optional, Any
@@ -22,6 +25,7 @@ from core.infrastructure.context.lifecycle_manager import LifecycleManager, Reso
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+from core.components.lifecycle import ComponentState
 
 # Импорты для сборщиков метрик и логов
 from core.infrastructure.metrics_storage import FileSystemMetricsStorage
@@ -43,7 +47,7 @@ class InfrastructureContext:
         """
         self.id = str(uuid.uuid4())
         self.config = config
-        self._initialized = False
+        self._state = ComponentState.CREATED  # ← НОВОЕ: enum состояний
         self.event_bus_logger = None  # Будет инициализирован после создания event_bus
 
         # Основные компоненты инфраструктуры
@@ -89,11 +93,26 @@ class InfrastructureContext:
         Инициализация инфраструктурных ресурсов.
 
         ВАЖНО: После инициализации контекст становится неизменяемым.
+        
+        ЖИЗНЕННЫЙ ЦИКЛ:
+        - Переводит контекст в состояние INITIALIZING
+        - При успехе: READY
+        - При ошибке: FAILED
         """
-        if self._initialized:
+        # Проверка повторной инициализации
+        if self._state == ComponentState.READY:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
             return True
+        
+        # Проверка на предыдущую ошибку
+        if self._state == ComponentState.FAILED:
+            if self.event_bus_logger:
+                await self.event_bus_logger.error("InfrastructureContext в состоянии FAILED")
+            return False
+        
+        # Переход в состояние INITIALIZING
+        self._state = ComponentState.INITIALIZING
 
         # === ЭТАП 1: Базовая инициализация ===
 
@@ -188,16 +207,18 @@ class InfrastructureContext:
         try:
             await self.event_bus_logger.info("=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===")
             await self._register_providers_from_config()
-            
+
             # Инициализация всех зарегистрированных провайдеров через LifecycleManager
             await self.event_bus_logger.info("Вызов lifecycle_manager.initialize_all()...")
             await self.lifecycle_manager.initialize_all()
             await self.event_bus_logger.info("✅ LifecycleManager инициализирован")
         except Exception as e:
             await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}", exc_info=True)
+            self._state = ComponentState.FAILED
             return False
-        
-        self._initialized = True
+
+        # Переход в состояние READY
+        self._state = ComponentState.READY
         return True
 
     async def _register_providers_from_config(self):
@@ -572,9 +593,15 @@ class InfrastructureContext:
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""
-        if not self._initialized:
+        if self._state != ComponentState.READY:
+            if self._state == ComponentState.SHUTDOWN:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("InfrastructureContext уже завершён")
             return
 
+        # Переход в состояние SHUTDOWN
+        self._state = ComponentState.SHUTDOWN
+        
         await self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
 
         # Сохранение Vector Search индексов
@@ -613,5 +640,32 @@ class InfrastructureContext:
             shutdown_logging(self.file_handler)
             await self.event_bus_logger.info("Обработчики логирования закрыты")
 
-        self._initialized = False
         await self.event_bus_logger.info("InfrastructureContext завершен")
+    
+    # =============================================================================
+    # ПРОВЕРКИ СОСТОЯНИЯ
+    # =============================================================================
+    
+    @property
+    def is_ready(self) -> bool:
+        """Проверка готовности инфраструктурного контекста."""
+        return self._state == ComponentState.READY
+    
+    @property
+    def is_initialized(self) -> bool:
+        """Проверка, был ли контекст инициализирован."""
+        return self._state in (ComponentState.READY, ComponentState.SHUTDOWN)
+    
+    @property
+    def is_failed(self) -> bool:
+        """Проверка, завершилась ли инициализация ошибкой."""
+        return self._state == ComponentState.FAILED
+    
+    @property
+    def state(self) -> ComponentState:
+        """Текущее состояние инфраструктурного контекста."""
+        return self._state
+    
+    def is_fully_initialized(self) -> bool:
+        """Проверка полной инициализации (для обратной совместимости)."""
+        return self.is_ready

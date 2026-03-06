@@ -10,6 +10,7 @@
 6. Кэширование промптов и контрактов при инициализации
 7. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
 8. Возврат SkillResult для единого формата результатов
+9. Наследование LifecycleMixin для управления состояниями (CREATED → INITIALIZING → READY → SHUTDOWN)
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
@@ -55,12 +56,16 @@ class BaseSkill(BaseComponent):
         """
         Инициализация с единовременной загрузкой ВСЕХ ресурсов из локальной конфигурации.
         После завершения метода компонент НЕ должен обращаться к внешним сервисам.
+        
+        ЖИЗНЕННЫЙ ЦИКЛ:
+        - Вызывает super().initialize() который управляет состояниями
+        - При успехе: READY
+        - При ошибке: FAILED
         """
-        # Вызов родительского метода инициализации
+        # Вызов родительского метода инициализации (управляет состояниями)
         success = await super().initialize()
 
         if success:
-            self._is_initialized = True
             if hasattr(self.application_context, 'logger'):
                 self.application_context.logger.info(
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "

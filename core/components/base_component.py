@@ -12,6 +12,10 @@
 - BaseComponent наследует LogComponentMixin для универсального логирования
 - Используйте self.log_start(), self.log_success(), self.log_error() для ручного логирования
 - Или используйте декоратор @log_execution для автоматического логирования
+
+ЖИЗНЕННЫЙ ЦИКЛ:
+- Наследует LifecycleMixin для управления состояниями
+- Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import asyncio
 from abc import ABC
@@ -22,13 +26,14 @@ from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.infrastructure.logging import EventBusLogger
+from core.components.lifecycle import LifecycleMixin, ComponentState
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
     from core.application.agent.components.executor import ActionExecutor
 
 
-class BaseComponent(ABC):
+class BaseComponent(LifecycleMixin, ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
@@ -70,18 +75,17 @@ class BaseComponent(ABC):
         component_config: ComponentConfig,
         executor: 'ActionExecutor'  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
     ):
+        # Вызов конструктора LifecycleMixin
+        LifecycleMixin.__init__(self, name)
+        
         if not component_config or not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
                 "Legacy-режим (agent_config) больше не поддерживается."
             )
-        self.name = name
         self.application_context = application_context
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
-
-        # Инициализация флага инициализации
-        self._initialized = False
 
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
@@ -91,7 +95,7 @@ class BaseComponent(ABC):
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
         self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
         self.output_contracts: Dict[str, Type[BaseModel]] = {}
-        
+
         # ← НОВОЕ: Автоматическое разделение system/user промптов
         self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
         self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
@@ -137,11 +141,28 @@ class BaseComponent(ABC):
 
         ВАЖНО: Все ресурсы уже загружены в component_config.application_context
         на уровне ApplicationContext.initialize().
+        
+        ЖИЗНЕННЫЙ ЦИКЛ:
+        - Переводит компонент в состояние INITIALIZING
+        - При успехе: READY
+        - При ошибке: FAILED
         """
         import logging
         import time
         logger = logging.getLogger(__name__)
         current_time = time.time()
+        
+        # Проверка: нельзя инициализировать повторно
+        if self._state == ComponentState.READY:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Компонент '{self.name}' уже инициализирован")
+            else:
+                logger.warning(f"Компонент '{self.name}' уже инициализирован")
+            return True
+        
+        # Переход в состояние INITIALIZING
+        await self._transition_to(ComponentState.INITIALIZING)
+        
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
         else:
@@ -151,27 +172,32 @@ class BaseComponent(ABC):
             # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
             if not await self._validate_manifest():
                 self._safe_log_sync("error", f"{self.name}: Валидация манифеста не пройдена")
+                await self._transition_to(ComponentState.FAILED)
                 return False
 
             # === ЭТАП 2: Предзагрузка ресурсов ===
             if not await self._preload_resources(current_time):
                 self._safe_log_sync("error", f"{self.name}: Предзагрузка ресурсов не удалась")
+                await self._transition_to(ComponentState.FAILED)
                 return False
 
             # === ЭТАП 3: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
                 self._safe_log_sync("error", f"{self.name}: Валидация загруженных ресурсов не пройдена")
+                await self._transition_to(ComponentState.FAILED)
                 return False
 
             msg = f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}"
             self._safe_log_sync("info", msg)
-            self._initialized = True
+            
+            # Переход в состояние READY
+            await self._transition_to(ComponentState.READY)
             return True
 
         except Exception as e:
             self._safe_log_sync("error", f"Ошибка инициализации компонента '{self.name}': {e}")
             logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
-            self._initialized = False
+            await self._transition_to(ComponentState.FAILED)
             return False
 
     async def _validate_manifest(self) -> bool:
@@ -430,13 +456,17 @@ class BaseComponent(ABC):
     def _ensure_initialized(self):
         """
         Проверяет, что компонент инициализирован перед использованием.
+        
+        DEPRECATED: Используйте ensure_ready() из LifecycleMixin.
+        Этот метод сохранён для обратной совместимости.
 
         RAISES:
         - RuntimeError: если компонент не инициализирован
         """
-        if not self._initialized:
+        # Для обратной совместимости проверяем старое условие
+        if self._state not in (ComponentState.READY, ComponentState.SHUTDOWN):
             raise RuntimeError(
-                f"Компонент '{self.name}' не инициализирован. "
+                f"Компонент '{self.name}' не инициализирован (state={self._state.value}). "
                 f"Вызовите .initialize() перед использованием."
             )
 

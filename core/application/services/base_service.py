@@ -1,5 +1,9 @@
 ﻿"""
 Базовый класс для инфраструктурных сервисов.
+
+ЖИЗНЕННЫЙ ЦИКЛ:
+- Наследует LifecycleMixin через BaseComponent
+- Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import inspect
 import asyncio

@@ -7,6 +7,9 @@
 - Сессионные сервисы (при необходимости)
 - Конфигурацию: AppConfig, флаги (side_effects_enabled, detailed_metrics)
 - Ссылку на InfrastructureContext (только для чтения)
+
+ЖИЗНЕННЫЙ ЦИКЛ:
+- Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
 import asyncio
@@ -27,6 +30,7 @@ from core.application.context.base_system_context import BaseSystemContext
 from core.application.data_repository import DataRepository
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.infrastructure.logging import EventBusLogger
+from core.components.lifecycle import ComponentState
 
 
 from core.models.enums.common_enums import ComponentType
@@ -76,14 +80,14 @@ class ApplicationContext(BaseSystemContext):
         - use_data_repository: использовать новый DataRepository (по умолчанию True)
         """
         from core.config.app_config import AppConfig
-        
+
         self.id = str(uuid.uuid4())
         self.infrastructure_context = infrastructure_context  # Только для чтения!
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
-        self._initialized = False  # Защита от раннего доступа
+        self._state = ComponentState.CREATED  # ← НОВОЕ: enum состояний
         self.use_data_repository = use_data_repository  # Новый флаг
-        
+
         # Если конфигурация не передана, создаем пустую для последующего авто-заполнения
         if config is None:
             self.config = AppConfig(config_id=f"auto_{profile}_{infrastructure_context.id[:8]}")

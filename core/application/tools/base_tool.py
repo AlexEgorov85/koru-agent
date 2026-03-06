@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 from core.config.component_config import ComponentConfig
 from core.components.base_component import BaseComponent
 
+# =============================================================================
+# БАЗОВЫЕ КЛАССЫ
+# =============================================================================
+
 class ToolInput(ABC):
     """Абстрактный класс для входных данных инструмента."""
     pass
@@ -21,7 +25,13 @@ class ToolOutput(ABC):
     pass
 
 class BaseTool(BaseComponent):
-    """Базовый класс для инструментов с инверсией зависимостей."""
+    """
+    Базовый класс для инструментов с инверсией зависимостей.
+    
+    ЖИЗНЕННЫЙ ЦИКЛ:
+    - Наследует LifecycleMixin через BaseComponent
+    - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
+    """
 
     @property
     @abstractmethod
