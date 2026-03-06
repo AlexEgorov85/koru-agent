@@ -1,7 +1,8 @@
 # Места для рефакторинга: dict → объекты
 
 **Дата:** 6 марта 2026 г.  
-**Приоритет:** Средний (после критических исправлений)
+**Приоритет:** Средний (после критических исправлений)  
+**Статус:** Этапы 1-2 выполнены ✅
 
 ---
 
@@ -27,6 +28,92 @@ return True, response, ""  # response — StructuredLLMResponse объект
 ```
 
 **Коммит:** `593e553`
+
+---
+
+### 2. analyze_context → ContextAnalysis
+**Файл:** `core/application/agent/strategies/react/utils.py`
+
+**Было:**
+```python
+def analyze_context(session_context: 'SessionContext') -> Dict[str, Any]:
+    return {
+        "goal": goal,
+        "last_steps": last_steps,
+        ...
+    }
+```
+
+**Стало:**
+```python
+@dataclass
+class ContextAnalysis:
+    goal: str
+    last_steps: List[Any] = field(default_factory=list)
+    ...
+
+def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
+    return ContextAnalysis(goal=..., last_steps=...)
+```
+
+**Коммит:** `59d2326`
+
+---
+
+### 3. AgentState.snapshot → AgentStateSnapshot
+**Файл:** `core/application/agent/components/state.py`
+
+**Было:**
+```python
+def snapshot(self) -> Dict[str, Any]:
+    return {
+        'step': self.step,
+        'error_count': self.error_count,
+        ...
+    }
+```
+
+**Стало:**
+```python
+@dataclass
+class AgentStateSnapshot:
+    step: int
+    error_count: int
+    ...
+
+def snapshot(self) -> AgentStateSnapshot:
+    return AgentStateSnapshot(step=..., error_count=...)
+```
+
+**Коммит:** `59d2326`
+
+---
+
+### 4. validate_reasoning_result → ReasoningResult
+**Файл:** `core/application/agent/strategies/react/validation.py`
+
+**Было:**
+```python
+def validate_reasoning_result(result: Any) -> Dict[str, Any]:
+    # Сложная логика с dict
+    return {...}
+```
+
+**Стало:**
+```python
+@dataclass
+class ReasoningResult:
+    thought: str
+    analysis: AnalysisResult
+    decision: DecisionResult
+    confidence: float
+    ...
+
+def validate_reasoning_result(result: Any) -> ReasoningResult:
+    return ReasoningResult(...)
+```
+
+**Коммит:** `59d2326`
 
 ---
 
