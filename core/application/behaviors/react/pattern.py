@@ -510,7 +510,12 @@ class ReActPattern(BaseBehaviorPattern):
                 # Преобразуем схему в словарь параметров
                 # Ожидаем формат: {"input": {"type": "string", "required": True}}
                 params_schema = {}
-                if hasattr(schema, 'model_json_schema'):
+                
+                # Проверяем тип схемы
+                if hasattr(schema, 'to_dict'):
+                    # CapabilitySchema объект (из schema_validator.py)
+                    params_schema = schema.to_dict()
+                elif hasattr(schema, 'model_json_schema'):
                     # Pydantic модель
                     schema_dict = schema.model_json_schema()
                     properties = schema_dict.get('properties', {})
