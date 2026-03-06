@@ -10,11 +10,10 @@ from contextlib import asynccontextmanager
 import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
-from core.interfaces.database import DatabaseInterface
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 
 
-class PostgreSQLProvider(BaseDBProvider, DatabaseInterface):
+class PostgreSQLProvider(BaseDBProvider):
     """
     Провайдер для PostgreSQL с использованием asyncpg.
     Обеспечивает асинхронный доступ к базе данных.

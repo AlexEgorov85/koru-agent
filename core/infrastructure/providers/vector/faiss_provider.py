@@ -16,11 +16,10 @@ except ImportError:
     faiss = None
 
 from core.infrastructure.providers.vector.base_faiss_provider import IFAISSProvider
-from core.interfaces.vector import VectorInterface
 from core.config.vector_config import FAISSConfig
 
 
-class FAISSProvider(IFAISSProvider, VectorInterface):
+class FAISSProvider(IFAISSProvider):
     """
     Реализация FAISS провайдера.
     
