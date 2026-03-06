@@ -287,13 +287,21 @@ class AgentRuntime:
             )
 
         except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
+            
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}")
+                await self.event_bus_logger.error(f"Traceback: {tb_str}")
+            
             self._result = ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 result=str(e),
+                error=str(e),
                 metadata={
                     "error": str(e),
+                    "error_type": type(e).__name__,
+                    "traceback": tb_str,
                     "goal": self.goal,
                     "steps_executed": self._current_step,
                     "execution_time": datetime.now().timestamp()

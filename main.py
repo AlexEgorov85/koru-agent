@@ -143,19 +143,41 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         # Проверка на ошибку в result.error (для ExecutionResult)
         if hasattr(result, 'error') and result.error:
+            # Детальная информация об ошибке
+            error_details = {
+                "error": result.error,
+                "error_type": type(result.error).__name__ if hasattr(result.error, '__class__') else type(result.error),
+                "result_type": type(result).__name__,
+            }
+            
+            # Если error это dict, добавим детали
+            if isinstance(result.error, dict):
+                error_details["error_dict"] = result.error
+            elif hasattr(result, 'metadata'):
+                error_details["metadata"] = getattr(result, 'metadata', None)
+            elif hasattr(result, 'state'):
+                error_details["state"] = getattr(result, 'state', None)
+            
+            import traceback
+            error_details["traceback"] = traceback.format_exc()
+            
             error_context = ErrorContext(
                 component="AgentRuntime",
                 operation="run",
                 session_id=session_id,
-                metadata={"goal": goal}
+                metadata={
+                    "goal": goal,
+                    "error_details": error_details,
+                }
             )
             await error_handler.handle(
-                RuntimeError(result.error),
+                RuntimeError(f"{result.error} (type: {type(result.error).__name__})"),
                 context=error_context,
                 severity=ErrorSeverity.HIGH
             )
             await session_logger.error(f"❌ Ошибка агента: {result.error}")
-            raise RuntimeError(f"Ошибка агента: {result.error}")
+            await session_logger.error(f"📋 Детали ошибки: {error_details}")
+            raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__}, файл: main.py, строка: 158)")
 
         # Проверка на ошибку в metadata
         if hasattr(result, 'metadata') and result.metadata:
@@ -163,19 +185,33 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             if isinstance(metadata, dict):
                 error_msg = metadata.get('error')
                 if error_msg:
+                    # Детальная информация об ошибке
+                    error_details = {
+                        "error_msg": error_msg,
+                        "metadata": metadata,
+                        "result_type": type(result).__name__,
+                    }
+                    
+                    import traceback
+                    error_details["traceback"] = traceback.format_exc()
+                    
                     error_context = ErrorContext(
                         component="AgentRuntime",
                         operation="run",
                         session_id=session_id,
-                        metadata={"goal": goal}
+                        metadata={
+                            "goal": goal,
+                            "error_details": error_details,
+                        }
                     )
                     await error_handler.handle(
-                        RuntimeError(error_msg),
+                        RuntimeError(f"{error_msg} (из metadata)"),
                         context=error_context,
                         severity=ErrorSeverity.HIGH
                     )
                     await session_logger.error(f"❌ Ошибка в metadata: {error_msg}")
-                    raise RuntimeError(f"Ошибка агента: {error_msg}")
+                    await session_logger.error(f"📋 Детали metadata: {metadata}")
+                    raise RuntimeError(f"Ошибка агента: {error_msg} (из metadata, файл: main.py, строка: 200)")
 
         # Завершение сессии успешно
         result_preview = str(result)[:500] if len(str(result)) > 500 else str(result)
