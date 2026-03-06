@@ -497,28 +497,49 @@ class ReActPattern(BaseBehaviorPattern):
         - prompt_context: контекст для подстановки
 
         ВОЗВРАЩАЕТ:
-        - str: минимальный промпт для рассуждения
+        - str: минимальный промпт для рассуждения с ПОЛНОЙ JSON схемой
         """
         return f"""ЦЕЛЬ: {prompt_context.get('goal', 'Неизвестная цель')}
 
 КОНТЕКСТ:
 {prompt_context.get('input', '')}
 
-Верни решение в формате JSON:
+Верни JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
+
 {{
-  "thought": "Рассуждение о ситуации",
+  "thought": "Развёрнутое рассуждение о текущей ситуации",
   "analysis": {{
-    "progress": "Прогресс к цели",
-    "current_state": "Текущее состояние",
+    "progress": "Описание прогресса к цели",
+    "current_state": "Текущее состояние задачи",
     "issues": []
   }},
   "decision": {{
-    "next_action": "Имя capability",
-    "reasoning": "Обоснование",
+    "next_action": "Имя capability для следующего действия",
+    "reasoning": "Обоснование выбора",
     "parameters": {{}},
     "expected_outcome": "Ожидаемый результат"
   }},
   "confidence": 0.5,
+  "alternative_actions": [],
+  "stop_condition": false,
+  "stop_reason": null
+}}
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: thought, decision, decision.next_action, confidence, stop_condition
+
+ПРИМЕР:
+{{
+  "thought": "Нужно найти книги Пушкина",
+  "analysis": {{
+    "progress": "Начало выполнения",
+    "current_state": "Требуется поиск книг"
+  }},
+  "decision": {{
+    "next_action": "book_library.execute_script",
+    "reasoning": "Скрипт быстро найдёт книги",
+    "parameters": {{"script_name": "get_books_by_author"}}
+  }},
+  "confidence": 0.9,
   "stop_condition": false
 }}"""
 
@@ -528,9 +549,62 @@ class ReActPattern(BaseBehaviorPattern):
         Используется ТОЛЬКО если system_prompt_template не загружен из реестра.
 
         ВОЗВРАЩАЕТ:
-        - str: системный промпт
+        - str: системный промпт с ПОЛНОЙ JSON схемой
         """
-        return """Ты — модуль рассуждения ReAct. Верни JSON: {"thought": "...", "decision": {"next_action": "...", "parameters": {}}, "stop_condition": false}"""
+        return """Ты — модуль рассуждения ReAct. Твоя задача — анализировать ситуацию и выбирать следующее действие.
+
+ВЕРНИ JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
+
+{
+  "thought": "Развёрнутое рассуждение о текущей ситуации",
+  "analysis": {
+    "progress": "Описание прогресса к цели",
+    "current_state": "Текущее состояние задачи",
+    "issues": []
+  },
+  "decision": {
+    "next_action": "Название capability для следующего действия",
+    "reasoning": "Обоснование выбора",
+    "parameters": {},
+    "expected_outcome": "Ожидаемый результат"
+  },
+  "confidence": 0.5,
+  "alternative_actions": [],
+  "stop_condition": false,
+  "stop_reason": null
+}
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ:
+- thought: string — твоё рассуждение
+- decision: object — решение о следующем действии
+- decision.next_action: string — имя capability
+- confidence: number (0.0-1.0) — уверенность
+- stop_condition: boolean — завершена ли задача
+
+ПРИМЕР:
+{
+  "thought": "Нужно найти книги Пушкина. В библиотеке есть скрипт get_books_by_author.",
+  "analysis": {
+    "progress": "Начало выполнения",
+    "current_state": "Требуется поиск книг",
+    "issues": []
+  },
+  "decision": {
+    "next_action": "book_library.execute_script",
+    "reasoning": "Скрипт get_books_by_author быстро найдёт книги",
+    "parameters": {
+      "script_name": "get_books_by_author",
+      "parameters": {"author": "Александр Пушкин"}
+    },
+    "expected_outcome": "Список книг Пушкина"
+  },
+  "confidence": 0.9,
+  "alternative_actions": [],
+  "stop_condition": false,
+  "stop_reason": null
+}
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
 
     async def analyze_context(
         self,
@@ -1115,7 +1189,7 @@ class ReActPattern(BaseBehaviorPattern):
                 await self._log("info", "Попытка упрощенного рассуждения после ошибки")
                 return {
                     "analysis": {
-                        "current_situation": "Ошибка в основном процессе рассуждения",
+                        "current_situation": "Ошибка в основно�� процессе рассуждения",
                         "progress_assessment": "��еизвестно",
                         "confidence": 0.3,
                         "errors_detected": True,
