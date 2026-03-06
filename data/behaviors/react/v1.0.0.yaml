@@ -4,22 +4,22 @@ version: v1.0.0
 owner: team-behavior
 status: active
 
-# Промпты для ReAct паттерна
-prompts:
-  - behavior.react.think.system
-  - behavior.react.think.user
-  - behavior.react.act.system
-  - behavior.react.act.user
-  - behavior.react.observe.system
-  - behavior.react.observe.user
+# Промпты для ReAct паттерна (используется prompt_versions для загрузки)
+prompt_versions:
+  behavior.react.think.system: v1.0.0
+  behavior.react.think.user: v1.0.0
+  behavior.react.act.system: v1.0.0
+  behavior.react.act.user: v1.0.0
+  behavior.react.observe.system: v1.0.0
+  behavior.react.observe.user: v1.0.0
 
 # Контракты для ReAct паттерна
-input_contracts:
-  - behavior.react.think
-  - behavior.react.act
-  - behavior.react.observe
+input_contract_versions:
+  behavior.react.think: v1.0.0
+  behavior.react.act: v1.0.0
+  behavior.react.observe: v1.0.0
 
-output_contracts:
-  - behavior.react.think
-  - behavior.react.act
-  - behavior.react.observe
+output_contract_versions:
+  behavior.react.think: v1.0.0
+  behavior.react.act: v1.0.0
+  behavior.react.observe: v1.0.0
