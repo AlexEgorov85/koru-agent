@@ -190,7 +190,7 @@ class ApplicationContext(BaseSystemContext):
         """Разрешение класса компонента по имени и типу (через фабрику или реестр)"""
         # Используем новую фабрику компонентов
         from core.application.components.component_factory import ComponentFactory
-        factory = ComponentFactory()
+        factory = ComponentFactory(self.infrastructure_context)
         return factory._resolve_component_class(component_type.value, name)
 
     async def _create_component(self, component_type: ComponentType, name: str, config: Any, executor: 'ActionExecutor') -> 'BaseComponent':
@@ -202,7 +202,7 @@ class ApplicationContext(BaseSystemContext):
         from core.application.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
 
-        factory = ComponentFactory()
+        factory = ComponentFactory(self.infrastructure_context)
 
         # Преобразуем ComponentType в строку для фабрики
         component_type_str = component_type.value
@@ -1088,7 +1088,7 @@ class ApplicationContext(BaseSystemContext):
                         contract_obj = await contract_repository.load(capability, version, "input")
                         
                         # Для контрактов пока не про��еряем статус, но можно добавить в буду��ем
-                        # В продакшне можно добавить проверки на соответствие определенным критер��ям
+                        # В пр��дакшне можно добавить проверки на соответствие определенным критер��ям
                         
                     except Exception as e:
                         self.logger.error(
