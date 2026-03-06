@@ -140,16 +140,10 @@ class ReActPattern(BaseBehaviorPattern):
             
             # Успешный ответ
             await self._log("info", f"LLM вызов через оркестратор завершён успешно")
-            
-            # Оборачиваем в формат ожидаемый _perform_structured_reasoning
-            # Orchestrator возвращает LLMResponse, а нам нужно dict с raw_response
-            structured_response = {
-                'raw_response': response,
-                'content': response.content,
-                'metadata': response.metadata
-            }
-            
-            return True, structured_response, ""
+
+            # Возвращаем StructuredLLMResponse объект (не dict!)
+            # response уже имеет: .parsed_content, .raw_response, .success, .validation_errors
+            return True, response, ""
             
         except Exception as e:
             # Исключение из оркестратора (должно быть редко)
@@ -684,14 +678,39 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
         # === 6. ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===
+        # response — это StructuredLLMResponse объект
+        await self._log("info", f"=== ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===")
+        await self._log("info", f"Тип response: {type(response).__name__}")
+        
         result = None
         
-        if hasattr(response, 'parsed_content') and response.parsed_content:
-            if hasattr(response.parsed_content, 'model_dump'):
-                result = response.parsed_content.model_dump()
+        # Проверяем что это StructuredLLMResponse
+        if hasattr(response, 'parsed_content') and hasattr(response, 'raw_response'):
+            # ✅ Правильный путь: используем parsed_content из StructuredLLMResponse
+            if response.parsed_content:
+                if hasattr(response.parsed_content, 'model_dump'):
+                    result = response.parsed_content.model_dump()
+                    await self._log("info", f"✅ Извлечено из parsed_content.model_dump()")
+                else:
+                    result = response.parsed_content
+                    await self._log("info", f"✅ Извлечено из parsed_content (прямой доступ)")
+            elif response.raw_response:
+                # Fallback: пробуем распарсить raw_response.content
+                await self._log("warning", "parsed_content пуст, пробуем распарсить raw_response")
+                content_val = response.raw_response.content
+                if isinstance(content_val, str):
+                    try:
+                        result = json.loads(content_val)
+                        await self._log("info", f"✅ Распарсено из raw_response.content")
+                    except (json.JSONDecodeError, ValueError) as e:
+                        await self._log("error", f"LLM вернул невалидный JSON: {content_val[:200]}...")
+                else:
+                    result = content_val
             else:
-                result = response.parsed_content
+                await self._log("error", "StructuredLLMResponse пуст (нет parsed_content или raw_response)")
         elif hasattr(response, 'content'):
+            # Fallback для простого LLMResponse
+            await self._log("warning", "response — простой LLMResponse, пробуем распарсить content")
             content_val = response.content
             if isinstance(content_val, str):
                 try:
@@ -701,6 +720,7 @@ class ReActPattern(BaseBehaviorPattern):
             else:
                 result = content_val
         else:
+            await self._log("error", f"Неизвестный тип response: {type(response).__name__}")
             result = response
 
         if result is None:
