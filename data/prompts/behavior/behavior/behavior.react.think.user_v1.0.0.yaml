@@ -13,11 +13,30 @@ content: |
   === ИНСТРУМЕНТЫ ===
   {available_tools}
 
+  === ПРИМЕР ПРАВИЛЬНОГО ОТВЕТА ===
+  {{
+    "thought": "Анализирую ситуацию. Нужно найти книги Пушкина.",
+    "analysis": {{
+      "progress": "Начало выполнения, шагов не сделано",
+      "current_state": "Требуется поиск информации о книгах Пушкина",
+      "issues": []
+    }},
+    "decision": {{
+      "next_action": "book_library.execute_script",
+      "reasoning": "Есть готовый скрипт для поиска книг по автору",
+      "parameters": {{
+        "script_name": "get_books_by_author",
+        "author": "Пушкин"
+      }},
+      "expected_outcome": "Список книг Пушкина"
+    }},
+    "confidence": 0.9,
+    "stop_condition": false
+  }}
+
   === ЗАДАНИЕ ===
-  Сформируй план действий для достижения цели.
-  Верни ТОЛЬКО один JSON объект согласно схеме из системного промпта.
-  
-  Начни свой ответ с открывающей фигурной скобки {{ и закончи закрывающей }}.
+  Верни ТОЛЬКО один JSON объект в формате из примера выше.
+  Начни с {{ и закончи }}.
 variables:
   - name: input
     description: Текущий контекст задачи и состояние
@@ -32,10 +51,10 @@ variables:
     description: Результат последнего наблюдения
     required: false
   - name: available_tools
-    description: Список доступных инструментов с описаниями
+    description: Список доступных инструментов с описаниями и параметрами
     required: false
 metadata:
   author: system
   created: '2026-02-19'
-  description: User prompt для behavior.react.think
-  version_notes: 'Убран пример JSON чтобы модель не повторяла шаблон'
+  description: User prompt для behavior.react.think с примером формата
+  version_notes: 'Добавлен явный пример правильного JSON ответа'
