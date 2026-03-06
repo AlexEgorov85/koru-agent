@@ -3,3 +3,23 @@ component_type: behavior
 version: v1.0.0
 owner: team-behavior
 status: active
+
+# Промпты для ReAct паттерна
+prompts:
+  - behavior.react.think.system
+  - behavior.react.think.user
+  - behavior.react.act.system
+  - behavior.react.act.user
+  - behavior.react.observe.system
+  - behavior.react.observe.user
+
+# Контракты для ReAct паттерна
+input_contracts:
+  - behavior.react.think
+  - behavior.react.act
+  - behavior.react.observe
+
+output_contracts:
+  - behavior.react.think
+  - behavior.react.act
+  - behavior.react.observe
