@@ -5,11 +5,13 @@
 - Использует изолированные кэши, предзагруженные через ComponentConfig
 - Зависимости запрашиваются из инфраструктуры при выполнении
 - Поддержка sandbox режима для безопасного выполнения операций
+- Асинхронные файловые операции через aiofiles
 """
 import asyncio
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
+import aiofiles
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
@@ -158,7 +160,7 @@ class FileTool(BaseTool):
         return result
 
     async def _read_file(self, path: Path) -> Dict[str, Any]:
-        """Чтение содержимого файла."""
+        """Чтение содержимого файла (асинхронно)."""
         try:
             if not path.exists():
                 return {
@@ -172,8 +174,8 @@ class FileTool(BaseTool):
                     "error": "Путь указывает на директорию, а не на файл"
                 }
 
-            with open(path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+                content = await f.read()
 
             return {
                 "success": True,
@@ -188,13 +190,13 @@ class FileTool(BaseTool):
             }
 
     async def _write_file(self, path: Path, content: str) -> Dict[str, Any]:
-        """Запись содержимого в файл."""
+        """Запись содержимого в файл (асинхронно)."""
         try:
-            # Создаем директории, если они не существуют
+            # Создаем директории, если они не существуют (синхронно, т.к. aiofiles не поддерживает mkdir)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(content)
+            async with aiofiles.open(path, 'w', encoding='utf-8') as f:
+                await f.write(content)
 
             return {
                 "success": True,

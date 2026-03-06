@@ -418,23 +418,33 @@ class ErrorHandler:
     ):
         """
         Декоратор для автоматической обработки ошибок.
-        
+
         ARGS:
         - component: имя компонента
         - operation: имя операции (по умолчанию имя функции)
         - reraise: пробрасывать ли ошибку дальше
         - severity: уровень серьезности
-        
+
         EXAMPLE:
         ```python
         @error_handler.handle_errors(component="agent", reraise=False)
         async def run_agent(goal: str):
             # ... код ...
         ```
+        
+        NOTE: Поддерживаются ТОЛЬКО асинхронные функции.
         """
         def decorator(func: Callable):
             op_name = operation or func.__name__
             
+            # ПРОВЕРКА: функция должна быть асинхронной
+            if not inspect.iscoroutinefunction(func):
+                raise TypeError(
+                    f"Function '{func.__name__}' must be async. "
+                    f"Sync functions are not supported by handle_errors decorator. "
+                    f"Please convert '{func.__name__}' to async."
+                )
+
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 context = ErrorContext(
@@ -448,27 +458,9 @@ class ErrorHandler:
                     if reraise:
                         raise
                     return None
-            
-            @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                context = ErrorContext(
-                    component=component,
-                    operation=op_name,
-                )
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    # Для синхронных функций используем asyncio.run
-                    asyncio.run(self.handle(e, context, severity=severity))
-                    if reraise:
-                        raise
-                    return None
-            
-            if inspect.iscoroutinefunction(func):
-                return async_wrapper
-            else:
-                return sync_wrapper
-        
+
+            return async_wrapper
+
         return decorator
     
     def get_stats(self) -> Dict[str, Any]:
