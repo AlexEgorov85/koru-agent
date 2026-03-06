@@ -34,30 +34,7 @@ from core.components.lifecycle import ComponentState
 
 
 from core.models.enums.common_enums import ComponentType
-
-
-class ComponentRegistry:
-    """Единый реестр ВСЕХ компонентов прикладного контекста"""
-    
-    def __init__(self):
-        # {component_type: {component_name: component_instance}}
-        self._components: Dict[ComponentType, Dict[str, 'BaseComponent']] = {
-            t: {} for t in ComponentType
-        }
-    
-    def register(self, component_type: ComponentType, name: str, component: 'BaseComponent'):
-        if name in self._components[component_type]:
-            raise ValueError(f"Компонент {component_type.value}.{name} уже зарегистрирован")
-        self._components[component_type][name] = component
-    
-    def get(self, component_type: ComponentType, name: str) -> Optional['BaseComponent']:
-        return self._components[component_type].get(name)
-    
-    def all_of_type(self, component_type: ComponentType) -> list['BaseComponent']:
-        return list(self._components[component_type].values())
-    
-    def all_components(self) -> list['BaseComponent']:
-        return [comp for comps in self._components.values() for comp in comps.values()]
+from core.application.registry.component_registry import ComponentRegistry
 
 
 class ApplicationContext(BaseSystemContext):
@@ -119,6 +96,19 @@ class ApplicationContext(BaseSystemContext):
         
         # LLMOrchestrator для централизованного управления LLM вызовами
         self.llm_orchestrator = None  # Будет создан в initialize()
+        
+        # Флаг инициализации
+        self._initialized = False
+
+    @property
+    def is_ready(self) -> bool:
+        """Проверка готовности контекста."""
+        return self._state == ComponentState.READY and self._initialized
+
+    @property
+    def is_initialized(self) -> bool:
+        """Проверка инициализации контекста."""
+        return self._initialized
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
@@ -491,6 +481,7 @@ class ApplicationContext(BaseSystemContext):
             return False
 
         self._initialized = True
+        self._state = ComponentState.READY  # ← Переход в состояние READY
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
@@ -1104,7 +1095,7 @@ class ApplicationContext(BaseSystemContext):
                             f"Н�� удалось загрузить входной контрак�� {capability}@{version}: {e}. "
                             f"Откло��ено для профиля {self.profile}."
                         )
-                        # Если не удалось ��агрузить контракт, в проде - не разрешаем
+                        # Если не удалось ��агрузить контракт, в п��оде - не разрешаем
                         if self.profile == "prod":
                             return False
             except Exception:
