@@ -679,24 +679,27 @@ class ApplicationContext(BaseSystemContext):
         """Загружает ВСЕ промпты из хранилища ОДИН РАЗ"""
         storage = self.infrastructure_context.get_prompt_storage()
         prompts = {}
-        
+
         # Собираем все уникальные (capability, version) из всех конфигов
         unique_prompts = set()
         for comp_type, configs in self._resolve_component_configs().items():
             for config in configs.values():
                 for cap, ver in getattr(config, 'prompt_versions', {}).items():
                     unique_prompts.add((cap, ver))
-        
+
+        self.logger.info(f"Найдено {len(unique_prompts)} уникальных промптов для предзагрузки: {unique_prompts}")
+
         # Загружаем ОДИН РАЗ через инфраструктурное хранилище
         for capability, version in unique_prompts:
             try:
                 prompt_obj = await storage.load(capability, version)
                 prompts[(capability, version)] = prompt_obj.content
+                self.logger.debug(f"Загружен промпт {capability}@{version}")
             except Exception as e:
                 self.logger.warning(f"Промпт {capability}@{version} не найден или ошибка загрузки: {e}. Пропускаем.")
                 # Добавляем пустую строку для отсутствующего промпта, чтобы не было KeyError позже
                 prompts[(capability, version)] = ""
-        
+
         self.logger.info(f"Предзагружено {len(prompts)} промптов")
         return prompts
 
