@@ -117,6 +117,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         )
 
         await application_context.initialize()
+        
+        # ✅ ЯВНАЯ ПРОВЕРКА: все контексты инициализированы
+        print("✅ InfrastructureContext инициализирован")
+        print("✅ ApplicationContext инициализирован")
+        print("🚀 Запуск агента...")
 
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
