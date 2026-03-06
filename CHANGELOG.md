@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## [5.33.0] - 2026-03-06
+
+### Added
+- **Система управления жизненным циклом компонентов**
+  - ComponentState enum: CREATED → INITIALIZING → READY → SHUTDOWN/FAILED
+  - LifecycleMixin для управления состояниями
+  - Методы: ensure_ready(), is_ready, is_initialized, is_failed, state
+  - Автоматические переходы состояний при инициализации
+
+- **Проверки готовности контекстов**
+  - AgentRuntime проверяет application_context.is_ready
+  - AgentRuntime проверяет infrastructure_context.is_ready
+  - BehaviorManager проверяет инициализацию перед генерацией decision
+  - RuntimeError при попытке использования до инициализации
+
+- **Юнит-тесты жизненного цикла**
+  - tests/test_lifecycle.py: 20 тестов
+  - Покрытие: ComponentState, LifecycleMixin, BaseComponent
+  - Тесты AgentRuntime проверок
+  - Тесты BehaviorManager проверок
+  - Тесты handle_errors декоратора
+
+- **Документация**
+  - docs/architecture/lifecycle.md — жизненный цикл компонентов
+  - docs/guides/async_best_practices.md — лучшие практики асинхронности
+  - docs/async_issues.md — анализ проблем (обновлён)
+
+### Changed
+- **BaseComponent**
+  - Наследует LifecycleMixin
+  - initialize() управляет состояниями (INITIALIZING → READY/FAILED)
+  - _ensure_initialized() использует ComponentState
+
+- **InfrastructureContext**
+  - _initialized: bool → _state: ComponentState
+  - Добавлены свойства: is_ready, is_initialized, is_failed, state
+  - shutdown() переводит в SHUTDOWN
+
+- **ApplicationContext**
+  - _initialized: bool → _state: ComponentState
+  - Интеграция с системой состояний
+
+- **BaseSkill, BaseTool, BaseService**
+  - Автоматическое наследование LifecycleMixin через BaseComponent
+  - Обновлена документация
+
+### Fixed
+- **Критическое: asyncio.run() в декораторе handle_errors**
+  - Удалена поддержка синхронных функций
+  - Убран asyncio.run() из sync_wrapper
+  - Добавлена проверка inspect.iscoroutinefunction()
+  - TypeError при декорировании синхронных функций
+
+- **Синхронные файловые операции**
+  - FileTool._read_file() использует aiofiles
+  - FileTool._write_file() использует aiofiles
+  - Устранена блокировка event loop
+
+### Technical
+- Создан core/components/lifecycle.py
+- Установлена зависимость aiofiles>=23.0.0
+- Все тесты проходят (20/20)
+
 ## [5.32.0] - 2026-03-05
 
 ### Added
