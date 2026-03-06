@@ -367,9 +367,53 @@ class ReActPattern(BaseBehaviorPattern):
             if not self.reasoning_schema:
                 self.reasoning_schema = ReasoningResult.model_json_schema()
 
+            # === ДОБАВЛЕНИЕ JSON СХЕМЫ В СИСТЕМНЫЙ ПРОМПТ ===
+            # Если схема загружена, добавляем её в системный промпт
+            if self.reasoning_schema and self.system_prompt_template:
+                self.system_prompt_template = self._inject_schema_into_system_prompt(
+                    self.system_prompt_template,
+                    self.reasoning_schema
+                )
+
             return True
         except Exception as e:
+            self.event_bus_logger.error_sync(f"Ошибка загрузки reasoning ресурсов: {e}")
             return False
+
+    def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
+        """
+        Добавляет JSON схему в системный промпт.
+        
+        ПАРАМЕТРЫ:
+        - system_prompt: исходный системный промпт
+        - schema: JSON схема из контракта
+        
+        ВОЗВРАЩАЕТ:
+        - str: системный промпт с добавленной схемой
+        """
+        import json
+        
+        # Проверяем есть ли уже схема в промпте
+        if 'JSON' in system_prompt.upper() and 'SCHEMA' in system_prompt.upper():
+            # Схема уже есть, не добавляем
+            return system_prompt
+        
+        # Генерируем JSON схему для промпта
+        schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
+        
+        # Добавляем схему в конец системного промпта
+        return f"""{system_prompt}
+
+=== JSON СХЕМА ОТВЕТА ===
+Ты ДОЛЖЕН вернуть JSON следующей структуры:
+
+```json
+{schema_json}
+```
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(schema.get('required', []))}
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
 
     def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
         """
