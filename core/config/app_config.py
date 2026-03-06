@@ -287,9 +287,8 @@ class AppConfig(BaseModel):
                             'output_contracts': {}
                         }
 
-                    # Добавляем промпт (исключаем .system промпты — они используются отдельно)
-                    if not prompt.capability.endswith('.system'):
-                        component_resources[component_name]['prompts'][prompt.capability] = prompt.version
+                    # Добавляем промпт (включая .system промпты — они нужны для системных промптов)
+                    component_resources[component_name]['prompts'][prompt.capability] = prompt.version
 
         # Собираем контракты для компонентов
         for contract in contracts:
