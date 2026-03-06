@@ -18,6 +18,17 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
     - Валидированный результат в виде словаря (ВСЕГДА dict!)
     """
     logger = logging.getLogger(__name__)
+    
+    # === ДИАГНОСТИКА: Логируем что пришло ===
+    import traceback
+    logger.info(f"🔍 validate_reasoning_result: тип result = {type(result).__name__}")
+    logger.info(f"📍 Вызов из:\n{''.join(traceback.format_stack()[-3:-1])}")
+    if isinstance(result, str):
+        logger.info(f"📝 result (строка, {len(result)} симв): {result[:300]}...")
+    elif isinstance(result, dict):
+        logger.info(f"📝 result (dict): ключи = {list(result.keys())}")
+    else:
+        logger.info(f"📝 result: {result}")
 
     try:
         # Если результат уже словарь, используем его напрямую
