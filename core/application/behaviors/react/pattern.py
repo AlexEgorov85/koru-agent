@@ -1058,6 +1058,32 @@ class ReActPattern(BaseBehaviorPattern):
 
             # Валидация результата
             reasoning_result = validate_reasoning_result(result)
+            
+            # Проверка что результат — dict, а не строка
+            if isinstance(reasoning_result, str):
+                await self._log("error", f"validate_reasoning_result вернул строку вместо dict: {reasoning_result[:200]}")
+                # Пытаемся распарсить как JSON
+                try:
+                    import json
+                    reasoning_result = json.loads(reasoning_result)
+                except:
+                    # Возвращаем fallback
+                    return {
+                        "analysis": {
+                            "current_situation": "Ошибка валидации — строка вместо dict",
+                            "progress_assessment": "Неизвестно",
+                            "confidence": 0.0,
+                            "errors_detected": True,
+                            "consecutive_errors": self.error_count + 1,
+                        },
+                        "decision": {
+                            "next_action": "final_answer.generate",
+                            "reasoning": "fallback после ошибки валидации",
+                            "parameters": {"query": session_context.get_goal() or "Продолжить"}
+                        },
+                        "available_capabilities": available_capabilities,
+                        "needs_rollback": False
+                    }
 
             # Добавляем available_capabilities в результат для последующего использования
             reasoning_result['available_capabilities'] = available_capabilities

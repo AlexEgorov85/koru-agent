@@ -8,14 +8,14 @@ from typing import Any, Dict
 def validate_reasoning_result(result: Any) -> Dict[str, Any]:
     """
     Валидирует результат структурированного рассуждения.
-    
+
     СООТВЕТСТВУЕТ КОНТРАКТУ: behavior.react.think_output_v1.0.0
-    
+
     ARGS:
     - result: результат рассуждения для валидации
 
     RETURNS:
-    - Валидированный результат в виде словаря
+    - Валидированный результат в виде словаря (ВСЕГДА dict!)
     """
     logger = logging.getLogger(__name__)
 
@@ -41,17 +41,17 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         elif isinstance(result, str):
             import json
             import re
-            
+
             # Очищаем строку от markdown-разметки ```json ... ```
             cleaned = re.sub(r'^```json\s*', '', result)
             cleaned = re.sub(r'\s*```$', '', cleaned)
             cleaned = cleaned.strip()
-            
+
             # Пытаемся найти первый полный JSON объект (сбалансированные скобки)
             depth = 0
             start_idx = None
             json_str = None
-            
+
             for i, char in enumerate(cleaned):
                 if char == '{':
                     if depth == 0:
@@ -62,13 +62,51 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
                     if depth == 0 and start_idx is not None:
                         json_str = cleaned[start_idx:i+1]
                         break
-            
+
             if json_str:
                 validated_result = json.loads(json_str)
             else:
-                validated_result = json.loads(cleaned)
+                # Не удалось найти JSON — возвращаем fallback dict
+                logger.warning(f"Не удалось найти JSON в строке: {result[:200]}")
+                return {
+                    'thought': 'Ошибка парсинга JSON',
+                    'analysis': {
+                        'progress': 'Неизвестно',
+                        'current_state': 'Не удалось распарсить ответ LLM',
+                        'issues': ['JSON не найден']
+                    },
+                    'decision': {
+                        'next_action': 'final_answer.generate',
+                        'reasoning': 'fallback после ошибки парсинга',
+                        'parameters': {'input': 'Продолжить выполнение задачи'},
+                        'expected_outcome': 'Неизвестно'
+                    },
+                    'confidence': 0.1,
+                    'stop_condition': False,
+                    'stop_reason': 'parse_error',
+                    'alternative_actions': []
+                }
         else:
-            raise ValueError(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
+            logger.error(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
+            # Возвращаем fallback dict
+            return {
+                'thought': 'Ошибка валидации',
+                'analysis': {
+                    'progress': 'Неизвестно',
+                    'current_state': f'Неподдерживаемый тип: {type(result)}',
+                    'issues': []
+                },
+                'decision': {
+                    'next_action': 'final_answer.generate',
+                    'reasoning': 'fallback после ошибки валидации',
+                    'parameters': {'input': 'Продолжить выполнение задачи'},
+                    'expected_outcome': 'Неизвестно'
+                },
+                'confidence': 0.1,
+                'stop_condition': False,
+                'stop_reason': 'validation_error',
+                'alternative_actions': []
+            }
         
         # Проверяем наличие обязательных полей (согласно контракту)
         if 'thought' not in validated_result:
