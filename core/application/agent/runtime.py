@@ -106,15 +106,29 @@ class AgentRuntime:
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.user_context = user_context
 
+        # === ПРОВЕРКА ГОТОВНОСТИ CONTEXT ===
+        if not hasattr(application_context, 'is_ready') or not application_context.is_ready:
+            raise RuntimeError(
+                f"ApplicationContext not initialized (state={getattr(application_context, '_state', 'unknown')}). "
+                f"Call await application_context.initialize() first."
+            )
+        
+        if not hasattr(application_context.infrastructure_context, 'is_ready') or not application_context.infrastructure_context.is_ready:
+            raise RuntimeError(
+                "InfrastructureContext not initialized. "
+                "Call await infrastructure_context.initialize() first."
+            )
+        # ===================================
+
         # Инициализация компонентов
         self.policy = policy or AgentPolicy()
         self.state = AgentState()
         self.progress = ProgressScorer()
-        
+
         # В новой архитектуре ApplicationContext сам является системным контекстом
         # так как наследуется от BaseSystemContext
         self.executor = ActionExecutor(application_context)
-        
+
         # Инициализация менеджера поведения
         self.behavior_manager = BehaviorManager(application_context=application_context)
         self.progress_metrics = ProgressMetrics()

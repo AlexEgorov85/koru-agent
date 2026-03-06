@@ -74,8 +74,12 @@ class BehaviorManager:
         session_context: 'SessionContext',
         available_capabilities: List[Capability]
     ) -> BehaviorDecision:
+        # ПРОВЕРКА: инициализирован ли BehaviorManager
         if not self._current_pattern:
-            raise ValueError("BehaviorManager не инициализирован")
+            raise RuntimeError(
+                "BehaviorManager not initialized. "
+                "Call await initialize(component_name) first."
+            )
 
         # Единая точка анализа контекста
         context_analysis = await self._current_pattern.analyze_context(
