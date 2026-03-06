@@ -53,14 +53,16 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
             # (в промпте могут быть JSON-схемы, но они обычно в ```json ... ```)
             # Также ищем просто { в конце строки (после всего текста)
             json_start_patterns = [
-                cleaned.find('{"'),       # Стандартное начало JSON
-                cleaned.find('{ "'),      # С пробелом
-                cleaned.find('{{"'),      # Двойная скобка
-                cleaned.find('{{ "'),     # Двойная с пробелом
-                cleaned.find('{\n'),      # С переносом строки
-                cleaned.find('{{\n'),     # Двойная с переносом строки
-                cleaned.find('{\r\n'),    # С Windows переносом
-                cleaned.find('{{\r\n'),   # Двойная с Windows переносом
+                cleaned.find('{"'),          # Стандартное начало JSON
+                cleaned.find('{ "'),         # С пробелом
+                cleaned.find('{{"'),         # Двойная скобка
+                cleaned.find('{{ "'),        # Двойная с пробелом
+                cleaned.find('{\n'),         # С переносом строки
+                cleaned.find('{{\n'),        # Двойная с переносом строки
+                cleaned.find('{{ \n'),       # Двойная с пробелом и переносом
+                cleaned.find('{{  \n'),      # Двойная с двумя пробелами и переносом
+                cleaned.find('{\r\n'),       # С Windows переносом
+                cleaned.find('{{\r\n'),      # Двойная с Windows переносом
             ]
             # Берём первый найденный паттерн (минимальный положительный индекс)
             json_start_idx = -1

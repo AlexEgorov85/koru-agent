@@ -712,12 +712,16 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
         # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
+        await self._log("info", f"=== ВАЛИДАЦИЯ РЕЗУЛЬТАТА LLM ===")
+        await self._log("info", f"Перед валидацией: тип result={type(result).__name__}")
         reasoning_result = validate_reasoning_result(result)
-
+        await self._log("info", f"После валидации: тип reasoning_result={type(reasoning_result).__name__}")
         if isinstance(reasoning_result, dict):
             reasoning_result['available_capabilities'] = available_capabilities
-            await self._log("info", "=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
-            await self._log("debug", f"decision: {reasoning_result.get('decision', {})}")
+            await self._log("info", f"thought={reasoning_result.get('thought', 'N/A')[:50]}...")
+            await self._log("info", f"decision={reasoning_result.get('decision', {})}")
+        else:
+            await self._log("error", f"validate_reasoning_result вернул неверный тип: {type(reasoning_result)}")
 
         return reasoning_result
 
@@ -818,6 +822,16 @@ class ReActPattern(BaseBehaviorPattern):
         """Принимает решение о следующем действии на основе анализа контекста."""
 
         try:
+            # ПРОВЕРКА ТИПА: reasoning_result должен быть dict
+            if not isinstance(reasoning_result, dict):
+                await self._log("error", f"_make_decision_from_reasoning: reasoning_result имеет неверный тип",
+                               actual_type=type(reasoning_result).__name__,
+                               actual_value=str(reasoning_result)[:500] if reasoning_result else None)
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.RETRY,
+                    reason=f"invalid_reasoning_result_type:{type(reasoning_result).__name__}"
+                )
+
             # 1. Проверка условия остановки (согласно контракту behavior.react.think)
             if reasoning_result.get("stop_condition", False):
                 return BehaviorDecision(
@@ -827,6 +841,14 @@ class ReActPattern(BaseBehaviorPattern):
 
             # 2. Извлечение capability_name из decision.next_action ИЛИ recommended_action.capability_name
             decision = reasoning_result.get("decision", {})
+            
+            # ПРОВЕРКА: decision тоже должен быть dict
+            if not isinstance(decision, dict):
+                await self._log("error", f"_make_decision_from_reasoning: decision имеет неверный тип",
+                               actual_type=type(decision).__name__,
+                               decision_value=str(decision)[:200] if decision else None)
+                decision = {}
+            
             capability_name = decision.get("next_action")
             
             # Fallback: проверяем recommended_action (для упрощённой логики без LLM)
