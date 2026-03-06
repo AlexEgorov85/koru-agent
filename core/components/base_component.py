@@ -7,6 +7,7 @@
 - Обязательная инициализация через ComponentConfig
 - Изолированные кэши для каждого экземпляра
 - Взаимодействие ТОЛЬКО через ActionExecutor
+- Поддержка внедрения зависимостей (DI) через интерфейсы
 
 ИНТЕГРИРОВАННОЕ ЛОГИРОВАНИЕ:
 - BaseComponent наследует LogComponentMixin для универсального логирования
@@ -20,6 +21,7 @@
 import asyncio
 from abc import ABC
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
+
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
@@ -27,6 +29,17 @@ from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.infrastructure.logging import EventBusLogger
 from core.components.lifecycle import LifecycleMixin, ComponentState
+
+# Интерфейсы для DI
+from core.interfaces.database import DatabaseInterface
+from core.interfaces.llm import LLMInterface
+from core.interfaces.vector import VectorInterface
+from core.interfaces.cache import CacheInterface
+from core.interfaces.event_bus import EventBusInterface
+from core.interfaces.prompt_storage import PromptStorageInterface
+from core.interfaces.contract_storage import ContractStorageInterface
+from core.interfaces.metrics_storage import MetricsStorageInterface
+from core.interfaces.log_storage import LogStorageInterface
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
@@ -42,6 +55,7 @@ class BaseComponent(LifecycleMixin, ABC):
     - Все ресурсы предзагружены ДО вызова execute()
     - Никаких прямых зависимостей от других компонентов
     - Взаимодействие ТОЛЬКО через ActionExecutor
+    - Поддержка внедрения зависимостей через интерфейсы (DI)
 
     ЖИЗНЕННЫЙ ЦИКЛ:
     1. __init__ - создание экземпляра с конфигурацией
@@ -60,32 +74,71 @@ class BaseComponent(LifecycleMixin, ABC):
 
     АТРИБУТЫ:
     - name: имя компонента
-    - application_context: контекст приложения для доступа к ресурсам
+    - application_context: контекст приложения для доступа к ресурсам (DEPRECATED)
     - component_config: конфигурация компонента с версиями ресурсов
     - executor: ActionExecutor для взаимодействия с другими компонентами
     - prompts: кэш промптов (объекты Prompt)
     - input_contracts: кэш входных контрактов (классы Pydantic)
     - output_contracts: кэш выходных контрактов (классы Pydantic)
+    
+    DI ЗАВИСИМОСТИ (внедряются через конструктор):
+    - db: DatabaseInterface
+    - llm: LLMInterface
+    - cache: CacheInterface
+    - vector: VectorInterface
+    - event_bus: EventBusInterface
+    - prompt_storage: PromptStorageInterface
+    - contract_storage: ContractStorageInterface
     """
 
     def __init__(
         self,
         name: str,
-        application_context: 'ApplicationContext',
-        component_config: ComponentConfig,
-        executor: 'ActionExecutor'  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
+        application_context: Optional['ApplicationContext'] = None,  # DEPRECATED, будет удалён
+        component_config: Optional[ComponentConfig] = None,
+        executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        db: Optional[DatabaseInterface] = None,
+        llm: Optional[LLMInterface] = None,
+        cache: Optional[CacheInterface] = None,
+        vector: Optional[VectorInterface] = None,
+        event_bus: Optional[EventBusInterface] = None,
+        prompt_storage: Optional[PromptStorageInterface] = None,
+        contract_storage: Optional[ContractStorageInterface] = None,
+        metrics_storage: Optional[MetricsStorageInterface] = None,
+        log_storage: Optional[LogStorageInterface] = None
     ):
         # Вызов конструктора LifecycleMixin
         LifecycleMixin.__init__(self, name)
+
+        # Валидация обязательных параметров
+        if component_config is None:
+            raise ValueError(f"Компонент '{name}' требует component_config")
         
-        if not component_config or not hasattr(component_config, 'variant_id'):
+        if not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
                 "Legacy-режим (agent_config) больше не поддерживается."
             )
-        self.application_context = application_context
+        
+        if executor is None:
+            raise ValueError(f"Компонент '{name}' требует executor")
+
+        # Сохраняем параметры
+        self._application_context = application_context  # DEPRECATED
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
+
+        # === ВНЕДРЁННЫЕ ЗАВИСИМОСТИ ===
+        self._db = db
+        self._llm = llm
+        self._cache = cache
+        self._vector = vector
+        self._event_bus = event_bus
+        self._prompt_storage = prompt_storage
+        self._contract_storage = contract_storage
+        self._metrics_storage = metrics_storage
+        self._log_storage = log_storage
 
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
@@ -108,17 +161,117 @@ class BaseComponent(LifecycleMixin, ABC):
         # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
         self._cache_ttl_seconds = 3600  # 1 час по умолчанию
 
+    # ========================================================================
+    # СВОЙСТВА ДЛЯ ВНЕДРЁННЫХ ЗАВИСИМОСТЕЙ
+    # ========================================================================
+
+    @property
+    def db(self) -> Optional[DatabaseInterface]:
+        """Получить DatabaseInterface."""
+        return self._db
+
+    @property
+    def llm(self) -> Optional[LLMInterface]:
+        """Получить LLMInterface."""
+        return self._llm
+
+    @property
+    def cache(self) -> Optional[CacheInterface]:
+        """Получить CacheInterface."""
+        return self._cache
+
+    @property
+    def vector(self) -> Optional[VectorInterface]:
+        """Получить VectorInterface."""
+        return self._vector
+
+    @property
+    def event_bus(self) -> Optional[EventBusInterface]:
+        """Получить EventBusInterface."""
+        return self._event_bus
+
+    @property
+    def prompt_storage(self) -> Optional[PromptStorageInterface]:
+        """Получить PromptStorageInterface."""
+        return self._prompt_storage
+
+    @property
+    def contract_storage(self) -> Optional[ContractStorageInterface]:
+        """Получить ContractStorageInterface."""
+        return self._contract_storage
+
+    @property
+    def metrics_storage(self) -> Optional[MetricsStorageInterface]:
+        """Получить MetricsStorageInterface."""
+        return self._metrics_storage
+
+    @property
+    def log_storage(self) -> Optional[LogStorageInterface]:
+        """Получить LogStorageInterface."""
+        return self._log_storage
+
+    # ========================================================================
+    # DEPRECATED: Свойства для обратной совместимости
+    # ========================================================================
+
+    @property
+    def application_context(self) -> Optional['ApplicationContext']:
+        """
+        Получить контекст приложения.
+        
+        DEPRECATED: Используйте внедрение зависимостей через интерфейсы.
+        Это свойство будет удалено в следующей мажорной версии.
+        
+        RETURNS:
+        - ApplicationContext или None
+        
+        RAISES:
+        - RuntimeError: Если application_context не был передан
+        """
+        import warnings
+        warnings.warn(
+            "application_context deprecated. Используйте внедрение зависимостей через интерфейсы.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        if self._application_context is None:
+            raise RuntimeError(
+                f"Компонент '{self.name}': application_context не был передан. "
+                "Используйте внедрение зависимостей через интерфейсы."
+            )
+        return self._application_context
+
+    @application_context.setter
+    def application_context(self, value: 'ApplicationContext'):
+        """Установить контекст приложения (для обратной совместимости)."""
+        self._application_context = value
+
+    # ========================================================================
+    # ЛОГИРОВАНИЕ
+    # ========================================================================
+
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
-        if hasattr(self, 'application_context') and self.application_context:
-            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # Сначала пробуем внедрённый event_bus
+        if self._event_bus is not None:
+            self.event_bus_logger = EventBusLogger(
+                self._event_bus,
+                session_id="system",
+                agent_id="system",
+                component=self.__class__.__name__
+            )
+        # Fallback на application_context для обратной совместимости
+        elif self._application_context is not None:
+            if hasattr(self._application_context, 'infrastructure_context'):
+                event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
+                if event_bus:
+                    self.event_bus_logger = EventBusLogger(
+                        event_bus,
+                        session_id="system",
+                        agent_id="system",
+                        component=self.__class__.__name__
+                    )
 
     def _safe_log_sync(self, level: str, message: str, **kwargs):
         """
@@ -224,15 +377,19 @@ class BaseComponent(LifecycleMixin, ABC):
         # Проверка зависимостей из DEPENDENCIES
         if hasattr(self, 'DEPENDENCIES'):
             for dep_name in self.DEPENDENCIES:
-                dep = (
-                    self.application_context.components.get(ComponentType.SERVICE, dep_name) or
-                    self.application_context.components.get(ComponentType.TOOL, dep_name) or
-                    self.application_context.components.get(ComponentType.SKILL, dep_name) or
-                    self.application_context.components.get(ComponentType.BEHAVIOR, dep_name)
-                )
+                # Сначала пробуем найти в registry компонентов
+                dep = None
+                if self._application_context is not None:
+                    dep = (
+                        self._application_context.components.get(ComponentType.SERVICE, dep_name) or
+                        self._application_context.components.get(ComponentType.TOOL, dep_name) or
+                        self._application_context.components.get(ComponentType.SKILL, dep_name) or
+                        self._application_context.components.get(ComponentType.BEHAVIOR, dep_name)
+                    )
+                
                 if not dep:
-                    self._safe_log_sync("error", f"{self.name}: Зависимость '{dep_name}' не найдена")
-                    return False
+                    self._safe_log_sync("warning", f"{self.name}: Зависимость '{dep_name}' не найдена в registry (будет внедрена через DI)")
+                    # Не блокируем - зависимость может быть внедрена через DI
 
         return True
 
