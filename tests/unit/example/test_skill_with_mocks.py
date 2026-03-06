@@ -1,9 +1,9 @@
 """
-Примеры юнит-тестов с использованием mock-портов.
+Примеры юнит-тестов с использованием mock-интерфейсов.
 
 ДЕМОНСТРАЦИЯ:
 - Как тестировать навыки без реальной инфраструктуры
-- Как проверять вызовы портов через assert
+- Как проверять вызовы интерфейсов через assert
 - Как изолировать тесты от внешних зависимостей
 
 ЗАПУСК:
@@ -14,12 +14,12 @@ pytest tests/unit/example/test_skill_with_mocks.py -v
 import pytest
 from typing import Dict, Any, List
 
-from tests.mocks.ports import MockDatabasePort, MockLLMPort, MockCachePort
-from core.infrastructure.interfaces.ports import DatabasePort, LLMPort, CachePort
+from tests.mocks.interfaces import MockDatabase, MockLLM, MockCache
+from core.interfaces import DatabaseInterface, LLMInterface, CacheInterface
 
 
 # ============================================================
-# Пример 1: Простой тест с MockDatabasePort
+# Пример 1: Простой тест с MockDatabase
 # ============================================================
 
 class ExampleSkillWithDB:
@@ -32,8 +32,8 @@ class ExampleSkillWithDB:
     def __init__(
         self,
         name: str,
-        db_port: DatabasePort,
-        cache_port: CachePort
+        db_port: DatabaseInterface,
+        cache_port: CacheInterface
     ):
         self.name = name
         self._db_port = db_port
@@ -72,9 +72,9 @@ class TestExampleSkillWithDB:
     """Тесты навыка с mock-портами."""
     
     @pytest.fixture
-    def mock_db(self) -> DatabasePort:
+    def mock_db(self) -> DatabaseInterface:
         """Создать mock БД с предопределёнными результатами."""
-        return MockDatabasePort(predefined_results={
+        return MockDatabase(predefined_results={
             "SELECT * FROM books": [
                 {"id": 1, "title": "Test Book 1", "author": "Author 1"},
                 {"id": 2, "title": "Test Book 2", "author": "Author 2"},
@@ -85,12 +85,12 @@ class TestExampleSkillWithDB:
         })
     
     @pytest.fixture
-    def mock_cache(self) -> CachePort:
+    def mock_cache(self) -> CacheInterface:
         """Создать mock кэша."""
-        return MockCachePort()
+        return MockCache()
     
     @pytest.fixture
-    def skill(self, mock_db: DatabasePort, mock_cache: CachePort):
+    def skill(self, mock_db: DatabaseInterface, mock_cache: CacheInterface):
         """Создать навык для тестирования."""
         return ExampleSkillWithDB(
             name="example_skill",
@@ -101,7 +101,7 @@ class TestExampleSkillWithDB:
     async def test_search_books_returns_results(
         self,
         skill: ExampleSkillWithDB,
-        mock_db: MockDatabasePort
+        mock_db: MockDatabase
     ):
         """Тест: поиск книг возвращает результаты."""
         # Arrange
@@ -121,8 +121,8 @@ class TestExampleSkillWithDB:
     async def test_search_books_uses_cache(
         self,
         skill: ExampleSkillWithDB,
-        mock_db: MockDatabasePort,
-        mock_cache: MockCachePort
+        mock_db: MockDatabase,
+        mock_cache: MockCache
     ):
         """Тест: повторный поиск использует кэш."""
         # Arrange
@@ -144,7 +144,7 @@ class TestExampleSkillWithDB:
     async def test_get_book_count(
         self,
         skill: ExampleSkillWithDB,
-        mock_db: MockDatabasePort
+        mock_db: MockDatabase
     ):
         """Тест: получение количества книг."""
         # Arrange
@@ -159,7 +159,7 @@ class TestExampleSkillWithDB:
 
 
 # ============================================================
-# Пример 2: Тест с MockLLMPort
+# Пример 2: Тест с MockLLM
 # ============================================================
 
 class ExampleSkillWithLLM:
@@ -168,7 +168,7 @@ class ExampleSkillWithLLM:
     def __init__(
         self,
         name: str,
-        llm_port: LLMPort
+        llm_port: LLMInterface
     ):
         self.name = name
         self._llm_port = llm_port
@@ -213,9 +213,9 @@ class TestExampleSkillWithLLM:
     """Тесты навыка с mock LLM."""
     
     @pytest.fixture
-    def mock_llm(self) -> LLMPort:
+    def mock_llm(self) -> LLMInterface:
         """Создать mock LLM с предопределёнными ответами."""
-        return MockLLMPort(
+        return MockLLM(
             predefined_responses=[
                 "This text is positive and optimistic.",
                 "Summary: The main points are..."
@@ -224,7 +224,7 @@ class TestExampleSkillWithLLM:
         )
     
     @pytest.fixture
-    def skill(self, mock_llm: LLMPort):
+    def skill(self, mock_llm: LLMInterface):
         """Создать навык для тестирования."""
         return ExampleSkillWithLLM(
             name="example_llm_skill",
@@ -234,7 +234,7 @@ class TestExampleSkillWithLLM:
     async def test_analyze_text_calls_llm(
         self,
         skill: ExampleSkillWithLLM,
-        mock_llm: MockLLMPort
+        mock_llm: MockLLM
     ):
         """Тест: анализ текста вызывает LLM."""
         # Arrange
@@ -250,7 +250,7 @@ class TestExampleSkillWithLLM:
     async def test_summarize_records_messages(
         self,
         skill: ExampleSkillWithLLM,
-        mock_llm: MockLLMPort
+        mock_llm: MockLLM
     ):
         """Тест: summarize записывает историю сообщений."""
         # Arrange
@@ -268,7 +268,7 @@ class TestExampleSkillWithLLM:
     async def test_multiple_calls_cycle_responses(
         self,
         skill: ExampleSkillWithLLM,
-        mock_llm: MockLLMPort
+        mock_llm: MockLLM
     ):
         """Тест: множественные вызовы циклически используют ответы."""
         # Arrange
@@ -294,9 +294,9 @@ class ExampleComplexSkill:
     def __init__(
         self,
         name: str,
-        db_port: DatabasePort,
-        llm_port: LLMPort,
-        cache_port: CachePort
+        db_port: DatabaseInterface,
+        llm_port: LLMInterface,
+        cache_port: CacheInterface
     ):
         self.name = name
         self._db_port = db_port
@@ -348,29 +348,29 @@ class TestExampleComplexSkill:
     """Тесты сложного навыка с комбинацией портов."""
     
     @pytest.fixture
-    def mock_db(self) -> DatabasePort:
-        return MockDatabasePort(predefined_results={
+    def mock_db(self) -> DatabaseInterface:
+        return MockDatabase(predefined_results={
             "SELECT content FROM documents": [
                 {"content": "Document content here"}
             ]
         })
     
     @pytest.fixture
-    def mock_llm(self) -> LLMPort:
-        return MockLLMPort(
+    def mock_llm(self) -> LLMInterface:
+        return MockLLM(
             predefined_responses=["Processed by LLM"]
         )
     
     @pytest.fixture
-    def mock_cache(self) -> CachePort:
-        return MockCachePort()
+    def mock_cache(self) -> CacheInterface:
+        return MockCache()
     
     @pytest.fixture
     def skill(
         self,
-        mock_db: DatabasePort,
-        mock_llm: LLMPort,
-        mock_cache: CachePort
+        mock_db: DatabaseInterface,
+        mock_llm: LLMInterface,
+        mock_cache: CacheInterface
     ):
         return ExampleComplexSkill(
             name="complex_skill",
@@ -382,9 +382,9 @@ class TestExampleComplexSkill:
     async def test_process_query_uses_all_ports(
         self,
         skill: ExampleComplexSkill,
-        mock_db: MockDatabasePort,
-        mock_llm: MockLLMPort,
-        mock_cache: MockCachePort
+        mock_db: MockDatabase,
+        mock_llm: MockLLM,
+        mock_cache: MockCache
     ):
         """Тест: обработка запроса использует все порты."""
         # Arrange
@@ -406,9 +406,9 @@ class TestExampleComplexSkill:
     async def test_process_query_uses_cache_on_second_call(
         self,
         skill: ExampleComplexSkill,
-        mock_db: MockDatabasePort,
-        mock_llm: MockLLMPort,
-        mock_cache: CachePort
+        mock_db: MockDatabase,
+        mock_llm: MockLLM,
+        mock_cache: CacheInterface
     ):
         """Тест: повторный вызов использует кэш."""
         # Arrange
@@ -439,8 +439,8 @@ class TestErrorHandling:
     ):
         """Тест: навык корректно обрабатывает ошибку БД."""
         # Arrange
-        mock_db = MockDatabasePort(should_fail=True)
-        mock_cache = MockCachePort()
+        mock_db = MockDatabase(should_fail=True)
+        mock_cache = MockCache()
         
         skill = ExampleSkillWithDB(
             name="test_skill",
@@ -458,7 +458,7 @@ class TestErrorHandling:
     ):
         """Тест: навык корректно обрабатывает таймаут LLM."""
         # Arrange
-        mock_llm = MockLLMPort(should_fail=True)
+        mock_llm = MockLLM(should_fail=True)
         
         skill = ExampleSkillWithLLM(
             name="test_skill",

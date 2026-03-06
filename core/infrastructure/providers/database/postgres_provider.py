@@ -4,16 +4,17 @@
 """
 import asyncio
 import time
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Callable, Awaitable
 from contextlib import asynccontextmanager
 
 import asyncpg
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
+from core.interfaces.database import DatabaseInterface
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 
 
-class PostgreSQLProvider(BaseDBProvider):
+class PostgreSQLProvider(BaseDBProvider, DatabaseInterface):
     """
     Провайдер для PostgreSQL с использованием asyncpg.
     Обеспечивает асинхронный доступ к базе данных.
@@ -284,6 +285,59 @@ class PostgreSQLProvider(BaseDBProvider):
             except Exception as e:
                 await tx.rollback()
                 raise
+
+    # Методы для совместимости с DatabaseInterface
+    async def query(
+        self,
+        sql: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """Выполнить SELECT запрос (для совместимости с DatabaseInterface)."""
+        result = await self.execute_query(sql, params)
+        return result
+
+    async def execute(
+        self,
+        sql: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Выполнить INSERT/UPDATE/DELETE запрос (для совместимости с DatabaseInterface).
+        Возвращает количество затронутых строк.
+        """
+        # Для INSERT/UPDATE/DELETE используем execute_single для получения rowcount
+        if not self.is_initialized or not self.pool:
+            await self.initialize()
+
+        start_time = time.time()
+        try:
+            async with self.pool.acquire() as conn:
+                if params:
+                    if isinstance(params, dict):
+                        param_values = [params[key] for key in sorted(params.keys())]
+                        result = await conn.execute(sql, *param_values)
+                    elif isinstance(params, (list, tuple)):
+                        result = await conn.execute(sql, *params)
+                    else:
+                        result = await conn.execute(sql)
+                else:
+                    result = await conn.execute(sql)
+
+                # parse rowcount from result string like "INSERT 0 1"
+                parts = result.split()
+                rowcount = int(parts[-1]) if parts else 0
+
+                self._update_metrics(time.time() - start_time)
+                return rowcount
+
+        except Exception as e:
+            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
+            self._update_metrics(time.time() - start_time, success=False)
+            raise
+
+    async def close(self) -> None:
+        """Закрыть соединение (для совместимости с DatabaseInterface)."""
+        await self.shutdown()
 
 
 # Alias для совместимости с фабрикой

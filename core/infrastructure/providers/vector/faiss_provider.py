@@ -16,10 +16,11 @@ except ImportError:
     faiss = None
 
 from core.infrastructure.providers.vector.base_faiss_provider import IFAISSProvider
+from core.interfaces.vector import VectorInterface
 from core.config.vector_config import FAISSConfig
 
 
-class FAISSProvider(IFAISSProvider):
+class FAISSProvider(IFAISSProvider, VectorInterface):
     """
     Реализация FAISS провайдера.
     
@@ -219,3 +220,56 @@ class FAISSProvider(IFAISSProvider):
         """Закрытие провайдера."""
         self.index = None
         self.metadata = {}
+
+    # Методы для совместимости с VectorInterface
+    async def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+        threshold: float = 0.7
+    ) -> List[Dict[str, Any]]:
+        """
+        Поиск похожих векторов (для совместимости с VectorInterface).
+        Требует наличия embedding функции.
+        """
+        # Для поиска нужна embedding функция - это ограничение данной реализации
+        # В полной реализации embedding функция должна передаваться в конструктор
+        raise NotImplementedError(
+            "FAISSProvider.search(query) requires embedding function. "
+            "Use search(query_vector) directly or provide embedding function."
+        )
+
+    async def add(
+        self,
+        documents: List[Dict[str, Any]]
+    ) -> List[str]:
+        """
+        Добавить документы в индекс (для совместимости с VectorInterface).
+        Требует наличия embedding функции.
+        """
+        # Для добавления нужна embedding функция - это ограничение данной реализации
+        raise NotImplementedError(
+            "FAISSProvider.add(documents) requires embedding function. "
+            "Use add(vectors, metadata) directly or provide embedding function."
+        )
+
+    async def delete(self, ids: List[str]) -> int:
+        """
+        Удалить документы по ID (для совместимости с VectorInterface).
+        """
+        deleted = 0
+        for doc_id in ids:
+            # Пытаемся удалить по ID через фильтр
+            filter_result = await self.delete_by_filter({"id": doc_id})
+            deleted += filter_result
+        return deleted
+
+    async def rebuild_index(self) -> bool:
+        """
+        Перестроить индекс (для совместимости с VectorInterface).
+        Для FAISS это может означать переобучение IVF индекса.
+        """
+        # В текущей реализации FAISSProvider это не требуется
+        # IVF индекс обучается автоматически при добавлении
+        return True

@@ -6,10 +6,11 @@ import asyncio
 import time
 import json
 import re
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional, Type, List
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+from core.interfaces.llm import LLMInterface
 from core.models.types.llm_types import (
     LLMRequest, 
     LLMResponse, 
@@ -73,7 +74,7 @@ class LlamaCppConfig(BaseModel):
 MockLlamaCppConfig = LlamaCppConfig
 
 
-class LlamaCppProvider(BaseLLMProvider):
+class LlamaCppProvider(BaseLLMProvider, LLMInterface):
     """
     Провайдер для Llama.cpp с использованием llama-cpp-python.
     Обеспечивает локальный запуск LLM моделей.
@@ -377,3 +378,134 @@ class LlamaCppProvider(BaseLLMProvider):
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка в сессии Llama.cpp: {str(e)}")
             raise
+
+    # Методы для совместимости с LLMInterface
+    async def generate(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None
+    ) -> str:
+        """
+        Сгенерировать текстовый ответ (для совместимости с LLMInterface).
+        """
+        if not self.is_initialized or not self.llm:
+            await self.initialize()
+
+        # Форматируем сообщения в промт
+        prompt = self._format_messages_to_prompt(messages)
+
+        # Создаём запрос
+        request = LLMRequest(
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens or self.config.get('max_tokens', 512),
+            stop_sequences=stop_sequences
+        )
+
+        # Выполняем генерацию
+        response = await self._generate_impl(request)
+        return response.content
+
+    async def generate_structured(
+        self,
+        messages: List[Dict[str, str]],
+        response_schema: Dict[str, Any],
+        temperature: float = 0.7
+    ) -> Dict[str, Any]:
+        """
+        Сгенерировать структурированный ответ (для совместимости с LLMInterface).
+        """
+        if not self.is_initialized or not self.llm:
+            await self.initialize()
+
+        # Добавляем инструкцию для JSON вывода
+        schema_json = json.dumps(response_schema, ensure_ascii=False)
+        system_message = {
+            "role": "system",
+            "content": f"Ответь ТОЛЬКО валидным JSON согласно этой схеме:\n{schema_json}"
+        }
+
+        # Объединяем сообщения
+        all_messages = [system_message] + messages
+
+        # Форматируем в промт
+        prompt = self._format_messages_to_prompt(all_messages)
+
+        # Создаём запрос
+        request = LLMRequest(
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=1000  # Увеличиваем для JSON
+        )
+
+        # Выполняем генерацию
+        response = await self._generate_impl(request)
+
+        # Извлекаем и парсим JSON
+        content = response.content
+
+        # Пытаемся найти JSON в ответе
+        json_content = self._extract_json_from_response(content)
+
+        return json.loads(json_content)
+
+    async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
+        """
+        Подсчитать количество токенов в сообщениях (для совместимости с LLMInterface).
+        """
+        if not self.is_initialized or not self.llm:
+            await self.initialize()
+
+        prompt = self._format_messages_to_prompt(messages)
+
+        # LlamaCpp имеет метод для токенизации
+        if hasattr(self.llm, 'tokenize'):
+            tokens = self.llm.tokenize(prompt.encode())
+            return len(tokens)
+
+        # Fallback: приблизительный подсчёт
+        return len(prompt.split()) // 4
+
+    def _format_messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
+        """
+        Форматировать сообщения в промт для LlamaCpp.
+
+        Использует ChatML формат или формат конкретной модели.
+        """
+        prompt_parts = []
+
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+
+            if role == 'system':
+                prompt_parts.append(f"<|system|>\n{content}</s>")
+            elif role == 'user':
+                prompt_parts.append(f"<|user|>\n{content}</s>")
+            elif role == 'assistant':
+                prompt_parts.append(f"<|assistant|>\n{content}</s>")
+            else:
+                prompt_parts.append(content)
+
+        # Добавляем префикс для ответа ассистента
+        prompt_parts.append("<|assistant|>")
+
+        return "\n".join(prompt_parts)
+
+    def _extract_json_from_response(self, content: str) -> str:
+        """
+        Извлечь JSON из ответа LLM.
+
+        LLM часто добавляют текст до/после JSON.
+        """
+        # Пытаемся найти JSON по скобкам
+        start = content.find('{')
+        end = content.rfind('}') + 1
+
+        if start != -1 and end > start:
+            return content[start:end]
+
+        # Если не найдено, возвращаем как есть (возможно, это чистый JSON)
+        return content.strip()
