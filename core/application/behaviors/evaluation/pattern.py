@@ -4,7 +4,13 @@ from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
+from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
+from core.session_context.session_context import SessionContext
 
 
 class EvaluationPattern(BaseBehaviorPattern):
@@ -15,6 +21,7 @@ class EvaluationPattern(BaseBehaviorPattern):
     - component_name используется для получения config из AppConfig
     - Промпты и контракты загружаются через BaseBehaviorPattern
     - pattern_id генерируется из component_name для совместимости
+    - LLM вызовы через LLMOrchestrator (как в ReActPattern)
     """
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
@@ -27,9 +34,37 @@ class EvaluationPattern(BaseBehaviorPattern):
         - executor: ActionExecutor для взаимодействия
         """
         super().__init__(component_name, component_config, application_context, executor)
-        
+
         # System prompt для оценки (загружается из реестра)
         self.system_prompt_template: Optional[str] = None
+        self.reasoning_schema: Optional[dict] = None
+        
+        # EventBusLogger для логирования
+        self.event_bus_logger = None
+
+    @property
+    def llm_orchestrator(self):
+        """Получение LLMOrchestrator из application_context."""
+        if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
+            return self.application_context.llm_orchestrator
+        return None
+
+    async def _log(self, level: str, message: str, **extra_data):
+        """Универсальный метод логирования через EventBusLogger."""
+        if self.event_bus_logger is None:
+            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+                from core.infrastructure.logging import EventBusLogger
+                self.event_bus_logger = EventBusLogger(
+                    event_bus=self.application_context.infrastructure_context.event_bus,
+                    session_id="system",
+                    agent_id="system",
+                    component="evaluation_pattern"
+                )
+
+        if self.event_bus_logger:
+            log_method = getattr(self.event_bus_logger, level, None)
+            if log_method:
+                await log_method(message, **extra_data)
 
     async def _load_evaluation_resources(self) -> bool:
         """Загружает system prompt для оценки из автоматически разделённых промптов.
@@ -159,126 +194,105 @@ class EvaluationPattern(BaseBehaviorPattern):
         })
 
         try:
-            # LLM через infrastructure_context (ПРАВИЛЬНО)
+            # Логирование начала оценки
+            await self._log("info", f"🔍 Оценка достижения цели: {goal[:100]}...")
+            
+            # Получение LLM провайдера
             llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+            if not llm_provider:
+                raise RuntimeError("LLM провайдер 'default_llm' не найден")
 
-            # Получаем output контракт из кэша BaseComponent (ПРАВИЛЬНО)
-            output_schema = self.get_output_contract("behavior.evaluation")
-
+            # Получаем схему из контракта (уже загружена в _load_evaluation_resources)
+            output_schema = self.reasoning_schema
             if not output_schema:
-                self.logger.warning("Output контракт не загружен, используем fallback схему")
+                # Fallback если схема не загружена
                 from pydantic import BaseModel, Field
                 from typing import Optional
-                
+
                 class EvaluationResult(BaseModel):
                     achieved: bool = Field(description="Достигнута ли цель")
                     partial_progress: bool = Field(description="Есть ли частичный прогресс")
                     confidence: float = Field(ge=0.0, le=1.0, description="Уверенность в оценке")
                     summary: str = Field(description="Краткое резюме")
                     reasoning: str = Field(description="Обоснование оценки")
-                
+
                 output_schema = EvaluationResult.model_json_schema()
 
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
-            # System prompt из реестра (уже загружен с JSON схемой)
-            system_prompt = self.system_prompt_template
-
+            # Создаём LLMRequest для структурированного вывода
             llm_request = LLMRequest(
                 prompt=evaluation_prompt,
-                system_prompt=system_prompt,
+                system_prompt=self.system_prompt_template,
+                temperature=0.3,
+                max_tokens=1000,
                 structured_output=StructuredOutputConfig(
                     output_model="EvaluationResult",
-                    schema_def=output_schema
+                    schema_def=output_schema,
+                    max_retries=3,
+                    strict_mode=False
                 )
             )
 
-            # Вызов через executor (который использует orchestrator)
-            result = await self.executor.execute_action(
-                action_name="llm.generate_structured",
-                llm_provider=llm_provider,
-                parameters={
-                    'prompt': evaluation_prompt,
-                    'system_prompt': system_prompt,
-                    'structured_output': StructuredOutputConfig(
-                        output_model="EvaluationResult",
-                        schema_def=output_schema
-                    )
-                }
+            # === ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
+            orchestrator = self.llm_orchestrator
+            if not orchestrator:
+                raise RuntimeError("LLMOrchestrator недоступен")
+
+            await self._log("info", f"🧠 Запуск оценки через LLMOrchestrator")
+            
+            response = await orchestrator.execute_structured(
+                request=llm_request,
+                provider=llm_provider,
+                max_retries=3
             )
-            
+
             # Проверка успеха
-            if not result.get('success'):
-                raise RuntimeError(f"LLM error: {result.get('error')}")
-            
-            response = result['data']['parsed_content']
+            if not response.success:
+                error_msg = f"Structured output failed after {response.parsing_attempts} attempts"
+                await self._log("error", error_msg)
+                raise RuntimeError(error_msg)
 
-            # Оркестратор уже опубликовал событие об успешном ответе
-            # === ПРОВЕРКА НА ОШИБКУ LLM ===
-            llm_response = response
-            if isinstance(response, dict) and 'raw_response' in response:
-                llm_response = response['raw_response']
+            # Извлекаем результат
+            result = response.parsed_content
+            if hasattr(result, 'model_dump'):
+                result = result.model_dump()
 
-            if getattr(llm_response, 'finish_reason', None) == 'error':
-                error_msg = "Неизвестная ошибка LLM"
-                if hasattr(llm_response, 'metadata') and llm_response.metadata:
-                    if isinstance(llm_response.metadata, dict):
-                        error_msg = llm_response.metadata.get('error', error_msg)
-                    elif isinstance(llm_response.metadata, str):
-                        error_msg = llm_response.metadata
-                self.logger.error(f"LLM вернул ошибку при оценке: {error_msg}")
-
-                # Оркестратор уже опубликовал событие об ошибке
-                raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
-
-            if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
-                error_msg = llm_response.metadata['error']
-                self.logger.error(f"LLM вернул ошибку в metadata: {error_msg}")
-
-                # Оркестратор уже опубликовал событие об ошибке
-                raise RuntimeError(f"Ошибка LLM при оценке: {error_msg}")
-
-            # Обработка результата
-            result = response.content if hasattr(response, 'content') else response
-            if isinstance(result, str):
-                import json
-                result = json.loads(result)
-
-            # Создание объекта оценки
-            class EvaluationResult:
-                def __init__(self, data):
-                    self.achieved = data.get("achieved", False)
-                    self.partial_progress = data.get("partial_progress", False)
-                    self.confidence = data.get("confidence", 0.0)
-                    self.summary = data.get("summary", "")
-                    self.reasoning = data.get("reasoning", "")
-                    self.refined_goal = data.get("refined_goal", goal)
-
-            evaluation = EvaluationResult(result)
+            # Логирование успешной оценки
+            await self._log("info", f"✅ Оценка завершена: confidence={result.get('confidence', 0):.2f}")
 
             # Принятие решения на основе оценки
-            if evaluation.achieved or (evaluation.confidence > 0.8 and not evaluation.partial_progress):
+            achieved = result.get("achieved", False)
+            partial_progress = result.get("partial_progress", False)
+            confidence = result.get("confidence", 0.0)
+            summary = result.get("summary", "")
+            reasoning = result.get("reasoning", "")
+
+            if achieved or (confidence > 0.8 and not partial_progress):
+                await self._log("info", f"🎯 Цель достигнута: {summary}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
-                    reason=f"goal_achieved: {evaluation.summary}"
+                    reason=f"goal_achieved: {summary}"
                 )
-            elif evaluation.confidence < 0.3:
+            elif confidence < 0.3:
+                await self._log("warning", f"⚠️ Низкая уверенность: {reasoning}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
                     next_pattern="fallback.v1.0.0",
-                    reason=f"low_confidence: {evaluation.reasoning}"
+                    reason=f"low_confidence: {reasoning}"
                 )
             else:
+                await self._log("info", f"🔄 Продолжаем выполнение: {summary}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.CONTINUE,
-                    reason=f"continue_execution: {evaluation.summary}"
+                    reason=f"continue_execution: {summary}"
                 )
 
         except Exception as e:
             error_msg = f"Ошибка при оценке цели: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            await self._log("error", error_msg, exc_info=True)
 
-            # Оркестратор опубликует событие при следующем вызове
+            # Оркестратор уже опубликовал событие об ошибке
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="fallback.v1.0.0",
