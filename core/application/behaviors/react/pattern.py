@@ -315,14 +315,16 @@ class ReActPattern(BaseBehaviorPattern):
         try:
             # ← НОВОЕ: Используем автоматически разделённые промпты
             # system_prompts содержит {base_capability: Prompt}
-            if 'behavior.react.think.system' in self.system_prompts:
-                system_prompt_obj = self.system_prompts['behavior.react.think.system']
+            # behavior.react.think.system → system_prompts['behavior.react.think']
+            if 'behavior.react.think' in self.system_prompts:
+                system_prompt_obj = self.system_prompts['behavior.react.think']
                 if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
                     self.system_prompt_template = system_prompt_obj.content
 
             # user_prompts содержит {base_capability: Prompt}
-            if 'behavior.react.think.user' in self.user_prompts:
-                user_prompt_obj = self.user_prompts['behavior.react.think.user']
+            # behavior.react.think.user → user_prompts['behavior.react.think']
+            if 'behavior.react.think' in self.user_prompts:
+                user_prompt_obj = self.user_prompts['behavior.react.think']
                 if hasattr(user_prompt_obj, 'content') and user_prompt_obj.content:
                     self.reasoning_prompt_template = user_prompt_obj.content
 
