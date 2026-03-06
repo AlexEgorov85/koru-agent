@@ -1,0 +1,86 @@
+[
+  {
+    "agent_id": "de56f5be-c836-44fe-b303-09ffc139041d",
+    "capability": "data_analysis",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-06T13:11:17.853236",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  },
+  {
+    "agent_id": "de56f5be-c836-44fe-b303-09ffc139041d",
+    "capability": "data_analysis",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-06T13:11:17.853236",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  },
+  {
+    "agent_id": "f668f52e-87f1-41e8-8c7c-3b7c5c985e7c",
+    "capability": "data_analysis",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-06T13:18:49.036180",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  },
+  {
+    "agent_id": "f668f52e-87f1-41e8-8c7c-3b7c5c985e7c",
+    "capability": "data_analysis",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-06T13:18:49.036180",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  },
+  {
+    "agent_id": "1e658d25-027d-46ce-8435-2edd93794adc",
+    "capability": "data_analysis",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-06T13:19:46.261777",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  },
+  {
+    "agent_id": "1e658d25-027d-46ce-8435-2edd93794adc",
+    "capability": "data_analysis",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-06T13:19:46.261777",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "ValueError"
+    }
+  }
+]

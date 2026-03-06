@@ -18,7 +18,7 @@ from core.infrastructure.storage.contract_storage import ContractStorage
 from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IContractStorage
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
-from core.infrastructure.context.lifecycle_manager import LifecycleManager
+from core.infrastructure.context.lifecycle_manager import LifecycleManager, ResourceType as LifecycleResourceType
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
@@ -184,31 +184,37 @@ class InfrastructureContext:
             await self._init_vector_search()
 
         # === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
-        # Регистрация инициализаторов в менеджере жизненного цикла
+        # Вызываем регистрацию провайдеров через LifecycleManager
         try:
-            self.lifecycle_manager.register_initializer(self._register_providers_from_config)
-            self.lifecycle_manager.register_cleanup(self._cleanup_providers)
-
-            # Инициализация всех ресурсов через менеджер жизненного цикла
-            success = await self.lifecycle_manager.initialize_all()
+            await self.event_bus_logger.info("=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===")
+            await self._register_providers_from_config()
+            
+            # Инициализация всех зарегистрированных провайдеров через LifecycleManager
+            await self.event_bus_logger.info("Вызов lifecycle_manager.initialize_all()...")
+            await self.lifecycle_manager.initialize_all()
+            await self.event_bus_logger.info("✅ LifecycleManager инициализирован")
         except Exception as e:
-            await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}")
-            success = False
-
-        if success:
-            self._initialized = True
-
-        return success
+            await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}", exc_info=True)
+            return False
+        
+        self._initialized = True
+        return True
 
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
+        # Вывод в консоль для отладки (event_bus_logger ещё не работает)
+        print(f"🤖 LLM → _register_providers_from_config: начало")
+        print(f"🤖 LLM → llm_providers: {list(self.config.llm_providers.keys())}")
+
         # Регистрация LLM провайдеров
         first_llm_registered = False
         for provider_name, provider_config in self.config.llm_providers.items():
+            print(f"🤖 LLM → Обработка: {provider_name}, enabled={provider_config.enabled}")
             if provider_config.enabled:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
+                    print(f"🤖 LLM → Тип провайдера: {provider_type}")
                     if provider_type == "mock":
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
                         config_obj = MockLLMConfig(**provider_config.parameters)
@@ -219,6 +225,7 @@ class InfrastructureContext:
                         if hasattr(provider_config, 'timeout_seconds'):
                             params['timeout_seconds'] = provider_config.timeout_seconds
                         config_obj = MockLlamaCppConfig(**params)
+                        print(f"🤖 LLM → model_path: {config_obj.model_path}")
                     else:
                         # For other providers, try to create a generic config
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
@@ -228,28 +235,33 @@ class InfrastructureContext:
                         provider_type=provider_type,
                         config=config_obj
                     )
+                    print(f"🤖 LLM → ✅ Провайдер создан: {type(provider).__name__}")
 
-                    # Инициализация провайдера
-                    if hasattr(provider, 'initialize') and callable(provider.initialize):
-                        try:
-                            await provider.initialize()
-                        except Exception as init_error:
-                            raise
+                    # Регистрация в LifecycleManager (инициализация будет в initialize_all)
+                    await self.lifecycle_manager.register_resource(
+                        name=provider_name,
+                        resource=provider,
+                        resource_type=LifecycleResourceType.LLM,
+                        metadata={"is_default": not first_llm_registered}
+                    )
+                    print(f"🤖 LLM → ✅ Зарегистрирован в LifecycleManager")
 
-                    if provider:
-                        # Регистрация LLM провайдера в системе
-                        info_llm = ResourceInfo(
-                            name=provider_name,
-                            resource_type=ResourceType.LLM_PROVIDER,
-                            instance=provider
-                        )
-                        # Устанавливаем первый успешно зарегистрированный провайдер как default
-                        info_llm.is_default = not first_llm_registered
-                        if not first_llm_registered:
-                            first_llm_registered = True
-                        self.resource_registry.register_resource(info_llm)
+                    # Также регистрируем в resource_registry для обратной совместимости
+                    info_llm = ResourceInfo(
+                        name=provider_name,
+                        resource_type=ResourceType.LLM_PROVIDER,
+                        instance=provider
+                    )
+                    info_llm.is_default = not first_llm_registered
+                    if not first_llm_registered:
+                        first_llm_registered = True
+                    self.resource_registry.register_resource(info_llm)
+
                 except Exception as e:
-                    await self.event_bus_logger.error(f"❌ Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}")
+                    print(f"🤖 LLM → ❌ Ошибка: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    await self.event_bus_logger.error(f"❌ Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
@@ -265,24 +277,25 @@ class InfrastructureContext:
                         config=config_obj
                     )
 
-                    # Инициализация провайдера
-                    if hasattr(provider, 'initialize') and callable(provider.initialize):
-                        try:
-                            await provider.initialize()
-                        except Exception as init_err:
-                            raise
+                    # Регистрация в LifecycleManager
+                    await self.lifecycle_manager.register_resource(
+                        name=provider_name,
+                        resource=provider,
+                        resource_type=LifecycleResourceType.DATABASE
+                    )
 
-                    if provider:
-                        # Регистрация DB провайдера в системе
-                        info_db = ResourceInfo(
-                            name=provider_name,
-                            resource_type=ResourceType.DATABASE,
-                            instance=provider
-                        )
-                        info_db.is_default = True
-                        self.resource_registry.register_resource(info_db)
+                    # Также регистрируем в resource_registry для обратной совместимости
+                    info_db = ResourceInfo(
+                        name=provider_name,
+                        resource_type=ResourceType.DATABASE,
+                        instance=provider
+                    )
+                    info_db.is_default = True
+                    self.resource_registry.register_resource(info_db)
                 except Exception as e:
-                    await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}")
+                    await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}", exc_info=True)
+
+        print(f"🤖 LLM → _register_providers_from_config: завершено")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска."""

@@ -256,7 +256,11 @@ class LlamaCppProvider(BaseLLMProvider):
         """
         Реализация генерации текста для Llama.cpp.
 
-        Логирование выполняется в базовом классе BaseLLMProvider.
+        АРХИТЕКТУРА:
+        - ТОЛЬКО выполняет вызов модели
+        - НЕ публикует события (это делает LLMOrchestrator)
+        - НЕ логирует (это делает LLMOrchestrator через события)
+        - Возвращает LLMResponse или бросает исключение
         """
         if not self.is_initialized or not self.llm:
             await self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
@@ -264,193 +268,59 @@ class LlamaCppProvider(BaseLLMProvider):
 
         start_time = time.time()
 
-        try:
-            # === ПУБЛИКАЦИЯ СОБЫТИЯ: НАЧАЛО LLM ВЫЗОВА ===
-            # Публикуем событие с полной информацией для логирования в сессию
-            if hasattr(self, '_event_bus') and self._event_bus:
-                from core.infrastructure.event_bus.unified_event_bus import EventType
-                await self._event_bus.publish(
-                    event=EventType.LLM_CALL_STARTED,
-                    data={
-                        "agent_id": getattr(self, '_agent_id', 'unknown'),
-                        "session_id": getattr(self, '_session_id', 'unknown'),
-                        "component": getattr(self, '_component', 'llama_cpp'),
-                        "phase": getattr(self, '_phase', 'generation'),
-                        "goal": getattr(self, '_goal', 'unknown'),
-                        "provider": type(self).__name__,
-                        "model": self.model_name,
-                        "is_initialized": self.is_initialized,
-                        "prompt_length": len(request.prompt),
-                        "max_tokens": request.max_tokens,
-                        "temperature": request.temperature,
-                        "top_p": request.top_p,
-                        "frequency_penalty": request.frequency_penalty,
-                        "presence_penalty": request.presence_penalty,
-                        "stop_sequences": request.stop_sequences,
-                        "structured_output": hasattr(request, 'structured_output') and request.structured_output,
-                        "timeout_seconds": self.timeout_seconds
-                    },
-                    source="llama_cpp_provider.execute",
-                    correlation_id=getattr(self, '_session_id', '')
-                )
+        # Подготовим параметры для вызова модели
+        max_tokens = request.max_tokens
+        if hasattr(request, 'structured_output') and request.structured_output:
+            max_tokens = min(max_tokens, 1000)
 
-            # Подготовим параметры для вызова модели
-            max_tokens = request.max_tokens
-            if hasattr(request, 'structured_output') and request.structured_output:
-                # Если запрошена структурированная генерация
-                max_tokens = min(max_tokens, 1000)  # ограничим для структурированного вывода
+        # Проверка что модель инициализирована
+        if not self.llm:
+            await self.initialize()
 
-            # Проверка что модель инициализирована
-            if not self.llm:
-                # Публикуем событие о проблеме инициализации
-                if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.unified_event_bus import EventType
-                    await self._event_bus.publish(
-                        event=EventType.ERROR_OCCURRED,
-                        data={
-                            "agent_id": getattr(self, '_agent_id', 'unknown'),
-                            "session_id": getattr(self, '_session_id', 'unknown'),
-                            "component": getattr(self, '_component', 'llama_cpp'),
-                            "error_type": "initialization_error",
-                            "error_message": "LLM не инициализирован, вызываем initialize()",
-                        },
-                        source="llama_cpp_provider.execute",
-                        correlation_id=getattr(self, '_session_id', '')
-                    )
-                await self.initialize()
-
-            # Выполняем запрос к модели (в отдельном потоке чтобы не блокировать event loop)
-            import asyncio
-            from asyncio import wait_for, TimeoutError
-            import threading
+        # Создаем executor если не создан
+        if not self._executor:
             from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(
+                max_workers=2,
+                thread_name_prefix='llm_worker'
+            )
 
-            # Используем существующий ThreadPoolExecutor
-            if not self._executor:
-                self._executor = ThreadPoolExecutor(
-                    max_workers=2,
-                    thread_name_prefix='llm_worker'
+        # Выполняем вызов модели в потоке
+        import threading
+        import asyncio
+        from asyncio import wait_for, TimeoutError
+
+        def _call_llm_sync():
+            """Синхронный вызов модели."""
+            if not self.llm:
+                raise RuntimeError("LLM модель не загружена")
+
+            return self.llm(
+                request.prompt,
+                max_tokens=max_tokens,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                frequency_penalty=request.frequency_penalty,
+                presence_penalty=request.presence_penalty,
+                echo=False,
+                stop=request.stop_sequences or None
+            )
+
+        try:
+            # Проверяем, выполняемся ли мы уже в потоке executor'а
+            current_thread = threading.current_thread()
+            is_executor_thread = current_thread.name.startswith('llm_worker') or \
+                                 current_thread.name.startswith('llm_orchestrator')
+
+            if is_executor_thread:
+                # Уже в потоке - вызываем напрямую
+                response = _call_llm_sync()
+            else:
+                # Не в потоке - используем run_in_executor
+                response = await wait_for(
+                    asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
+                    timeout=self.timeout_seconds
                 )
-                await self.event_bus_logger.warning("ThreadPoolExecutor не был создан при инициализации, создан сейчас")
-
-            # Флаг для отслеживания завершения вызова
-            call_completed = {'done': False, 'error': None}
-
-            def _call_llm_sync():
-                try:
-                    if not self.llm:
-                        raise RuntimeError("LLM модель не загружена")
-
-                    result = self.llm(
-                        request.prompt,
-                        max_tokens=max_tokens,
-                        temperature=request.temperature,
-                        top_p=request.top_p,
-                        frequency_penalty=request.frequency_penalty,
-                        presence_penalty=request.presence_penalty,
-                        echo=False,
-                        stop=request.stop_sequences or None
-                    )
-
-                    # === ЛОГИРОВАНИЕ ОТВЕТА LLM ===
-                    # Логируем СРАЗУ чтобы не потерять при завершении процесса
-                    content = result.get('choices', [{}])[0].get('text', '') if result.get('choices') else ''
-                    content_preview = content[:500] if len(content) > 500 else content
-                    self.event_bus_logger.info_sync(
-                        f"✅ LLM ответ получен: {len(content)} символов, "
-                        f"preview: {content_preview[:100]}..."
-                    )
-
-                    call_completed['done'] = True
-                    return result
-                except Exception as e:
-                    call_completed['error'] = str(e)
-                    self.event_bus_logger.error_sync(f"Ошибка в _call_llm_sync: {e}")
-                    raise  # Пробрасываем ошибку дальше
-
-            try:
-                await self.event_bus_logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
-                await self.event_bus_logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
-
-                # === ПРОВЕРКА: выполняемся ли мы уже в потоке executor'а? ===
-                # Если да (вызов из LLMOrchestrator._sync_call_wrapper), то вызываем напрямую
-                # Иначе используем run_in_executor для неблокирующего вызова
-                current_thread = threading.current_thread()
-                is_executor_thread = current_thread.name.startswith('llm_worker') or \
-                                     current_thread.name.startswith('llm_orchestrator')
-                
-                if is_executor_thread:
-                    # Уже в потоке - вызываем напрямую без run_in_executor
-                    await self.event_bus_logger.debug("Выполнение в потоке executor'а - вызываем напрямую")
-                    response = _call_llm_sync()
-                else:
-                    # Не в потоке - используем run_in_executor
-                    response = await wait_for(
-                        asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
-                        timeout=self.timeout_seconds
-                    )
-
-                await self.event_bus_logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
-
-                elapsed_time = time.time() - start_time
-
-                # === ПУБЛИКАЦИЯ СОБЫТИЯ: LLM ВЫЗОВ ЗАВЕРШЁН ===
-                if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.unified_event_bus import EventType
-                    await self._event_bus.publish(
-                        event=EventType.LLM_CALL_COMPLETED,
-                        data={
-                            "agent_id": getattr(self, '_agent_id', 'unknown'),
-                            "session_id": getattr(self, '_session_id', 'unknown'),
-                            "component": getattr(self, '_component', 'llama_cpp'),
-                            "phase": getattr(self, '_phase', 'generation'),
-                            "goal": getattr(self, '_goal', 'unknown'),
-                            "provider": type(self).__name__,
-                            "model": self.model_name,
-                            "success": True,
-                            "elapsed_time": elapsed_time,
-                            "result_length": len(response.get('choices', [{}])[0].get('text', '')) if response.get('choices') else 0
-                        },
-                        source="llama_cpp_provider.execute",
-                        correlation_id=getattr(self, '_session_id', '')
-                    )
-
-            except TimeoutError as e:
-                elapsed = time.time() - start_time
-                await self.event_bus_logger.error(f"⏰ LLM TIMEOUT после {elapsed:.2f}с (timeout={self.timeout_seconds}с)")
-                await self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
-                await self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
-                await self.event_bus_logger.error(f"  - executor: {self._executor}")
-                await self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
-                await self.event_bus_logger.error(f"  - call_completed: {call_completed}")
-                await self.event_bus_logger.error(f"  - active_threads: {threading.active_count()}")
-                
-                # === ПУБЛИКАЦИЯ СОБЫТИЯ: ТАЙМАУТ LLM ===
-                if hasattr(self, '_event_bus') and self._event_bus:
-                    from core.infrastructure.event_bus.unified_event_bus import EventType
-                    await self._event_bus.publish(
-                        event=EventType.LLM_CALL_FAILED,
-                        data={
-                            "agent_id": getattr(self, '_agent_id', 'unknown'),
-                            "session_id": getattr(self, '_session_id', 'unknown'),
-                            "component": getattr(self, '_component', 'llama_cpp'),
-                            "phase": getattr(self, '_phase', 'generation'),
-                            "goal": getattr(self, '_goal', 'unknown'),
-                            "provider": type(self).__name__,
-                            "model": self.model_name,
-                            "success": False,
-                            "error_type": "timeout",
-                            "error_message": f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)",
-                            "timeout_seconds": self.timeout_seconds,
-                            "elapsed_seconds": elapsed,
-                            "call_completed": call_completed['done'],
-                            "active_threads": threading.active_count()
-                        },
-                        source="llama_cpp_provider.execute",
-                        correlation_id=getattr(self, '_session_id', '')
-                    )
-
-                raise TimeoutError(f"Превышено время ожидания ответа от LLM ({self.timeout_seconds} секунд)") from e
 
             # Обрабатываем результат
             choices = response.get('choices', [])
@@ -480,32 +350,9 @@ class LlamaCppProvider(BaseLLMProvider):
         except TimeoutError as e:
             # Re-raise timeout without wrapping in generic error
             raise
-        
-        except Exception as e:
-            elapsed = time.time() - start_time
-            await self.event_bus_logger.error(f"❌ LLM вызов failed после {elapsed:.2f}с: {type(e).__name__}: {str(e)}")
-            await self.event_bus_logger.error(f"  - prompt_length: {len(request.prompt)}")
-            await self.event_bus_logger.error(f"  - max_tokens: {max_tokens}")
-            await self.event_bus_logger.error(f"  - executor: {self._executor}")
-            await self.event_bus_logger.error(f"  - llm loaded: {self.llm is not None}")
-            
-            # Публикуем событие об ошибке
-            if hasattr(self, '_event_bus') and self._event_bus:
-                from core.infrastructure.event_bus.unified_event_bus import EventType
-                await self._event_bus.publish(
-                    event=EventType.ERROR_OCCURRED,
-                    data={
-                        "agent_id": getattr(self, '_agent_id', 'unknown'),
-                        "session_id": getattr(self, '_session_id', 'unknown'),
-                        "component": getattr(self, '_component', 'llama_cpp'),
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                        "elapsed_seconds": elapsed
-                    },
-                    source="llama_cpp_provider.execute",
-                    correlation_id=getattr(self, '_session_id', '')
-                )
 
+        except Exception as e:
+            # Возвращаем ошибку без логирования (это делает LLMOrchestrator)
             self._update_metrics(time.time() - start_time, success=False)
 
             return LLMResponse(
@@ -516,262 +363,6 @@ class LlamaCppProvider(BaseLLMProvider):
                 finish_reason="error",
                 metadata={"error": str(e)}
             )
-
-    async def _generate_structured_impl(
-        self,
-        request: LLMRequest
-    ) -> LLMResponse:
-        """
-        Упрощённая генерация для структурированного вывода.
-
-        АРХИТЕКТУРА:
-        - Провайдер ТОЛЬКО выполняет синхронный вызов модели
-        - Возвращает сырой текст (LLMResponse)
-        - Без retry, без парсинга JSON, без валидации
-        - Вся логика структурированного вывода в LLMOrchestrator
-
-        ПАРАМЕТРЫ:
-        - request: Запрос к LLM (с structured_output)
-
-        ВОЗВРАЩАЕТ:
-        - LLMResponse: Сырой ответ от модели
-
-        ПРИМЕЧАНИЕ:
-        - LLMOrchestrator вызывает этот метод и выполняет:
-          1. Парсинг JSON
-          2. Валидацию схемы
-          3. Retry при ошибках
-          4. Формирование corrective prompt
-        """
-        if not request.structured_output:
-            # Если structured_output не указан, просто вызываем обычную генерацию
-            return await self._generate_impl(request)
-
-        # Добавляем схему в промпт для лучшей генерации
-        enhanced_prompt = self._add_schema_to_prompt(
-            request.prompt,
-            request.structured_output.schema_def
-        )
-
-        # Создаем запрос с улучшенным промптом
-        structured_request = LLMRequest(
-            prompt=enhanced_prompt,
-            system_prompt=request.system_prompt,
-            temperature=0.1,  # Низкая температура для точности
-            max_tokens=min(request.max_tokens, 1500),  # Ограничение для JSON
-            top_p=request.top_p,
-            frequency_penalty=request.frequency_penalty,
-            presence_penalty=request.presence_penalty,
-            stop_sequences=request.stop_sequences,
-            metadata=request.metadata,
-            correlation_id=request.correlation_id,
-            capability_name=request.capability_name
-        )
-
-        # Вызываем обычную генерацию и возвращаем сырой ответ
-        # LLMOrchestrator распарсит и валидирует результат
-        raw_response = await self._generate_impl(structured_request)
-
-        await self.event_bus_logger.debug(
-            f"Structured raw response: {len(raw_response.content)} символов, "
-            f"model={raw_response.model}"
-        )
-
-        return raw_response
-    
-    def _add_schema_to_prompt(
-        self, 
-        prompt: str, 
-        schema_def: Dict[str, Any]
-    ) -> str:
-        """
-        Добавляет JSON схему в промпт.
-        
-        ARGS:
-        - prompt: Исходный текст промпта
-        - schema_def: JSON Schema словарь
-        
-        RETURNS:
-        - str: Промпт с добавленной схемой
-        """
-        schema_section = f"""
-
-### ТРЕБУЕМЫЙ ФОРМАТ ОТВЕТА (JSON Schema) ###
-Твой ответ ДОЛЖЕН быть валидным JSON, соответствующим этой схеме:
-
-```json
-{json.dumps(schema_def, indent=2, ensure_ascii=False)}
-```
-
-⚠️ **ВАЖНО:**
-- ОТВЕТЬ ТОЛЬКО JSON
-- Не добавляй никаких объяснений
-- Не используй markdown кроме ```json ... ```
-- Все поля из "required" обязательны
-"""
-        return prompt + schema_section
-    
-    def _extract_json_from_response(self, content: str) -> Dict[str, Any]:
-        """
-        Извлекает JSON из ответа LLM.
-        
-        LLM может вернуть:
-        - Чистый JSON: {"key": "value"}
-        - JSON в markdown: ```json {...} ```
-        - JSON с текстом: Вот ответ: {...}
-        
-        ARGS:
-        - content: Ответ от LLM
-        
-        RETURNS:
-        - Dict[str, Any]: Распарсенный JSON
-        
-        RAISES:
-        - json.JSONDecodeError: если не удалось извлечь JSON
-        """
-        content = content.strip()
-        
-        # Попытка 1: Чистый JSON
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
-        
-        # Попытка 2: JSON в markdown блоке
-        markdown_pattern = r'```(?:json)?\s*({.*?})\s*```'
-        match = re.search(markdown_pattern, content, re.DOTALL | re.IGNORECASE)
-        if match:
-            try:
-                return json.loads(match.group(1))
-            except json.JSONDecodeError:
-                pass
-        
-        # Попытка 3: Поиск первой { и последней }
-        start_idx = content.find('{')
-        end_idx = content.rfind('}') + 1
-        if start_idx != -1 and end_idx > start_idx:
-            json_str = content[start_idx:end_idx]
-            try:
-                return json.loads(json_str)
-            except json.JSONDecodeError:
-                pass
-        
-        # Попытка 4: Возвращаем ошибку
-        raise json.JSONDecodeError(
-            "Не удалось извлечь JSON из ответа",
-            content,
-            0
-        )
-    
-    def _create_pydantic_from_schema(
-        self, 
-        model_name: str, 
-        schema_def: Dict[str, Any]
-    ) -> Type[BaseModel]:
-        """
-        Создаёт Pydantic модель из JSON Schema.
-        
-        ARGS:
-        - model_name: Имя создаваемой модели
-        - schema_def: JSON Schema словарь
-        
-        RETURNS:
-        - Type[BaseModel]: Класс Pydantic модели
-        """
-        from typing import List, Optional, Union
-        
-        def build_field(field_schema: Dict) -> tuple:
-            field_type = field_schema.get('type', 'string')
-            description = field_schema.get('description', '')
-            default = field_schema.get('default', ...)
-            
-            type_mapping = {
-                'string': str,
-                'integer': int,
-                'number': float,
-                'boolean': bool,
-                'array': List[Any],
-                'object': Dict[str, Any]
-            }
-            
-            python_type = type_mapping.get(field_type, Any)
-            
-            if description:
-                field_info = Field(default=default, description=description) if default is not ... else Field(description=description)
-            else:
-                field_info = Field(default=default) if default is not ... else Field()
-            
-            return (python_type, field_info)
-        
-        fields = {}
-        properties = schema_def.get('properties', {})
-        required = schema_def.get('required', [])
-        
-        for field_name, field_schema in properties.items():
-            if field_name in required:
-                fields[field_name] = build_field(field_schema)
-            else:
-                # Необязательное поле
-                field_type, field_info = build_field(field_schema)
-                fields[field_name] = (Optional[field_type], field_info)
-        
-        return create_model(model_name, **fields)
-    
-    def _add_error_to_prompt(
-        self, 
-        request: LLMRequest, 
-        invalid_json: Any, 
-        error_message: str
-    ) -> LLMRequest:
-        """
-        Добавляет информацию об ошибке в промпт для retry.
-        
-        ARGS:
-        - request: Текущий запрос
-        - invalid_json: Невалидный JSON который вернул LLM
-        - error_message: Сообщение об ошибке валидации
-        
-        RETURNS:
-        - LLMRequest: Новый запрос с обновлённым промптом
-        """
-        # Преобразуем JSON в строку если нужно
-        if isinstance(invalid_json, dict):
-            invalid_json_str = json.dumps(invalid_json, ensure_ascii=False)[:500]
-        else:
-            invalid_json_str = str(invalid_json)[:500]
-        
-        error_section = f"""
-
-### ПРЕДЫДУЩАЯ ПОПЫТКА НЕ УДАЛАСЬ ###
-Твой предыдущий ответ не прошёл валидацию:
-
-```json
-{invalid_json_str}...
-```
-
-Ошибка: {error_message}
-
-ПОПРОБУЙ ЕЩЁ РАЗ. Убедись что:
-1. JSON синтаксически корректен (проверь запятые, кавычки, скобки)
-2. Все required поля присутствуют
-3. Типы данных соответствуют схеме (string, integer, number, boolean)
-4. Не добавляй никаких объяснений, только JSON
-"""
-        
-        return LLMRequest(
-            prompt=request.prompt + error_section,
-            system_prompt=request.system_prompt,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-            top_p=request.top_p,
-            frequency_penalty=request.frequency_penalty,
-            presence_penalty=request.presence_penalty,
-            stop_sequences=request.stop_sequences,
-            metadata=request.metadata,
-            correlation_id=request.correlation_id,
-            capability_name=request.capability_name,
-            structured_output=request.structured_output
-        )
 
     @asynccontextmanager
     async def session(self):

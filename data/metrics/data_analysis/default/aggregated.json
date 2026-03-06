@@ -1,0 +1,21 @@
+[
+  {
+    "capability": "data_analysis",
+    "version": "default",
+    "total_runs": 3,
+    "success_count": 0,
+    "failure_count": 3,
+    "accuracy": 0.0,
+    "avg_execution_time_ms": 0.0,
+    "min_execution_time_ms": 0.0,
+    "max_execution_time_ms": 0.0,
+    "std_execution_time_ms": 0.0,
+    "total_tokens": 0,
+    "avg_tokens": 0.0,
+    "time_range": [
+      "2026-03-06T13:11:17.853236",
+      "2026-03-06T13:19:46.261777"
+    ],
+    "custom_metrics": {}
+  }
+]

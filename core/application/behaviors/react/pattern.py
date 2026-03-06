@@ -290,6 +290,12 @@ class ReActPattern(BaseBehaviorPattern):
         # Генерируем JSON схему для промпта
         schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
 
+        # Получаем обязательные поля
+        required = schema.get('required', [])
+        if not required:
+            # Если required пустой, берем ключевые поля
+            required = ['thought', 'decision', 'confidence', 'stop_condition']
+
         # Добавляем схему в конец системного промпта
         return f"""{system_prompt}
 
@@ -300,7 +306,7 @@ class ReActPattern(BaseBehaviorPattern):
 {schema_json}
 ```
 
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(schema.get('required', []))}
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(required)}
 
 ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {{\"next_action\": \"string\", \"parameters\": \"object\"}} — это только пример формата."""
 
