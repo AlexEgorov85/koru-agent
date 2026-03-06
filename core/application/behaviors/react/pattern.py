@@ -439,8 +439,22 @@ class ReActPattern(BaseBehaviorPattern):
         # Регистрируем схемы для всех capability в SchemaValidator
         self._register_capability_schemas(available_capabilities)
 
-        # Выполняем анализ контекста сессии
-        analysis = analyze_context(session_context)
+        # Выполняем анализ контекста сессии (возвращает ContextAnalysis объект)
+        analysis_obj = analyze_context(session_context)
+
+        # Преобразуем в dict для обратной совместимости
+        # В будущем можно вернуть ContextAnalysis напрямую
+        analysis = {
+            "goal": analysis_obj.goal,
+            "last_steps": analysis_obj.last_steps,
+            "progress": analysis_obj.progress,
+            "current_step": analysis_obj.current_step,
+            "execution_time_seconds": analysis_obj.execution_time_seconds,
+            "last_activity": analysis_obj.last_activity,
+            "no_progress_steps": analysis_obj.no_progress_steps,
+            "consecutive_errors": analysis_obj.consecutive_errors,
+            "summary": analysis_obj.summary,
+        }
 
         # Добавляем информацию о доступных capability
         # Фильтрация только по supported_strategies (без хардкода навыков)
@@ -449,11 +463,6 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
         await self._log("debug", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}")
-
-        # Добавляем информацию о прогрессе
-        # В новой архитектуре используем атрибуты или возвращаем 0, если метод не существует
-        analysis["no_progress_steps"] = getattr(session_context, 'no_progress_steps', 0)
-        analysis["consecutive_errors"] = getattr(session_context, 'consecutive_errors', 0)
 
         return analysis
 
@@ -734,14 +743,20 @@ class ReActPattern(BaseBehaviorPattern):
         # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
         await self._log("info", f"=== ВАЛИДАЦИЯ РЕЗУЛЬТАТА LLM ===")
         await self._log("info", f"Перед валидацией: тип result={type(result).__name__}")
+        
+        # validate_reasoning_result теперь возвращает ReasoningResult объект
         reasoning_result = validate_reasoning_result(result)
+        
         await self._log("info", f"После валидации: тип reasoning_result={type(reasoning_result).__name__}")
-        if isinstance(reasoning_result, dict):
-            reasoning_result['available_capabilities'] = available_capabilities
-            await self._log("info", f"thought={reasoning_result.get('thought', 'N/A')[:50]}...")
-            await self._log("info", f"decision={reasoning_result.get('decision', {})}")
-        else:
-            await self._log("error", f"validate_reasoning_result вернул неверный тип: {type(reasoning_result)}")
+        
+        # Добавляем available_capabilities в объект
+        reasoning_result.available_capabilities = available_capabilities
+        
+        # Логируем через атрибуты объекта
+        await self._log("info", f"thought={reasoning_result.thought[:50]}...")
+        if reasoning_result.decision:
+            await self._log("info", f"decision.next_action={reasoning_result.decision.next_action}")
+            await self._log("info", f"decision.reasoning={reasoning_result.decision.reasoning}")
 
         return reasoning_result
 
@@ -836,14 +851,21 @@ class ReActPattern(BaseBehaviorPattern):
     async def _make_decision_from_reasoning(
         self,
         session_context,
-        reasoning_result: Dict[str, Any],
-        available_capabilities: List[Capability]  # НОВЫЙ параметр
+        reasoning_result,  # ReasoningResult объект (или dict для обратной совместимости)
+        available_capabilities: List[Capability]
     ) -> BehaviorDecision:
         """Принимает решение о следующем действии на основе анализа контекста."""
 
         try:
-            # ПРОВЕРКА ТИПА: reasoning_result должен быть dict
-            if not isinstance(reasoning_result, dict):
+            # Проверяем тип reasoning_result
+            # Может быть ReasoningResult (новый путь) или dict (старый путь)
+            if hasattr(reasoning_result, 'to_dict'):
+                # ReasoningResult объект — конвертируем в dict для обратной совместимости
+                reasoning_dict = reasoning_result.to_dict()
+            elif isinstance(reasoning_result, dict):
+                # dict — используем напрямую (старый путь)
+                reasoning_dict = reasoning_result
+            else:
                 await self._log("error", f"_make_decision_from_reasoning: reasoning_result имеет неверный тип",
                                actual_type=type(reasoning_result).__name__,
                                actual_value=str(reasoning_result)[:500] if reasoning_result else None)
@@ -853,27 +875,27 @@ class ReActPattern(BaseBehaviorPattern):
                 )
 
             # 1. Проверка условия остановки (согласно контракту behavior.react.think)
-            if reasoning_result.get("stop_condition", False):
+            if reasoning_dict.get("stop_condition", False):
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
-                    reason=reasoning_result.get("stop_reason", "goal_achieved")
+                    reason=reasoning_dict.get("stop_reason", "goal_achieved")
                 )
 
-            # 2. Извлечение capability_name из decision.next_action ИЛИ recommended_action.capability_name
-            decision = reasoning_result.get("decision", {})
-            
+            # 2. Извлечение capability_name из decision.next_action
+            decision_dict = reasoning_dict.get("decision", {})
+
             # ПРОВЕРКА: decision тоже должен быть dict
-            if not isinstance(decision, dict):
+            if not isinstance(decision_dict, dict):
                 await self._log("error", f"_make_decision_from_reasoning: decision имеет неверный тип",
-                               actual_type=type(decision).__name__,
-                               decision_value=str(decision)[:200] if decision else None)
-                decision = {}
+                               actual_type=type(decision_dict).__name__,
+                               decision_value=str(decision_dict)[:200] if decision_dict else None)
+                decision_dict = {}
             
-            capability_name = decision.get("next_action")
+            capability_name = decision_dict.get("next_action")
             
             # Fallback: проверяем recommended_action (для упрощённой логики без LLM)
             if not capability_name:
-                recommended_action = reasoning_result.get("recommended_action", {})
+                recommended_action = reasoning_dict.get("recommended_action", {})
                 capability_name = recommended_action.get("capability_name")
 
             # КРИТИЧЕСКАЯ ПРОВЕРКА: capability_name должен быть указан

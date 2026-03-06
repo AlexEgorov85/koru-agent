@@ -1,8 +1,37 @@
 ﻿"""
 Состояние агента для новой архитектуры
+
+АРХИТЕКТУРА:
+- Типизированные объекты вместо dict
+- Dataclass для структур данных
 """
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+
+@dataclass
+class AgentStateSnapshot:
+    """
+    Типизированный снимок состояния агента.
+    
+    Используется для детекции зацикливания и отсутствия прогресса.
+    
+    ATTRIBUTES:
+    - step: Текущий шаг
+    - error_count: Общее количество ошибок
+    - consecutive_errors: Последовательные ошибки
+    - no_progress_steps: Шаги без прогресса
+    - finished: Флаг завершения
+    - history_length: Длина истории
+    - last_history_item: Последний элемент истории
+    """
+    step: int
+    error_count: int
+    consecutive_errors: int
+    no_progress_steps: int
+    finished: bool
+    history_length: int
+    last_history_item: Optional[str] = None
 
 
 @dataclass
@@ -34,21 +63,21 @@ class AgentState:
         else:
             self.no_progress_steps += 1
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> AgentStateSnapshot:
         """
         Возвращает снимок состояния для сравнения.
-        
+
         Используется для детекции зацикливания и отсутствия прогресса.
         """
-        return {
-            'step': self.step,
-            'error_count': self.error_count,
-            'consecutive_errors': self.consecutive_errors,
-            'no_progress_steps': self.no_progress_steps,
-            'finished': self.finished,
-            'history_length': len(self.history),
-            'last_history_item': self.history[-1] if self.history else None
-        }
+        return AgentStateSnapshot(
+            step=self.step,
+            error_count=self.error_count,
+            consecutive_errors=self.consecutive_errors,
+            no_progress_steps=self.no_progress_steps,
+            finished=self.finished,
+            history_length=len(self.history),
+            last_history_item=self.history[-1] if self.history else None
+        )
 
     def __eq__(self, other):
         """Сравнение состояний по snapshot."""
