@@ -890,70 +890,31 @@ class ReActPattern(BaseBehaviorPattern):
                                 "available_capabilities": available_capabilities,
                                 "needs_rollback": False
                             }
-                
+
                 else:
-                    # === FALLBACK: ПРЯМОЙ ВЫЗОВ БЕЗ ORCHESTRATOR ===
-                    # Для обратной совместимости если оркестратор не доступен
-                    await self._log("debug", f"[Попытка {retry_count + 1}] LLMOrchestrator недоступен, прямой вызов...")
+                    # === ORCHESTRATOR НЕ ДОСТУПЕН — КРИТИЧЕСКАЯ ОШИБКА ===
+                    error_msg = "LLMOrchestrator недоступен — критическая ошибка инфраструктуры"
+                    await self._log("error", error_msg)
                     
-                    try:
-                        await self._log("info", f"[Попытка {retry_count + 1}] ВЫЗОВ llm_provider.generate_structured()...")
-                        response = await asyncio.wait_for(
-                            llm_provider.generate_structured(llm_request),
-                            timeout=llm_timeout
-                        )
-                        await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] LLM ответ ПОЛУЧЕН!")
-
-                        # Оркестратор уже опубликовал событие об успешном ответе
-                        break  # Успех, выходим из цикла retry
-                    
-                    except (AsyncTimeoutError, TimeoutError) as e:
-                        retry_count += 1
-                        error_msg = f"LLM вызов превысил таймаут {llm_timeout}с (попытка {retry_count}/{max_retries})"
-                        await self._log("warning", error_msg)
-                        
-                        if retry_count < max_retries:
-                            await self._log("info", f"Повторная попытка через {retry_delay}с...")
-                            await asyncio.sleep(retry_delay)
-                            retry_delay *= 1.5
-                        else:
-                            # === КРИТИЧЕСКАЯ ОШИБКА: ТАЙМАУТ LLM ===
-                            error_msg = f"КРИТИЧЕСКАЯ ОШИБКА: LLM вызов превысил таймаут после {max_retries} попыток"
-                            await self._log("error", error_msg)
-
-                            # Оркестратор уже опубликовал событие о таймауте
-                            # Возвращаем fallback вместо исключения
-                            return {
-                                "analysis": {
-                                    "current_situation": f"LLM таймаут после {max_retries} попыток",
-                                    "progress_assessment": "Неизвестно",
-                                    "confidence": 0.3,
-                                    "errors_detected": True,
-                                    "consecutive_errors": self.error_count + 1,
-                                    "execution_time": context_analysis.get("execution_time_seconds", 0),
-                                    "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                                },
-                                "decision": {
-                                    "next_action": "book_library.search_books",
-                                    "reasoning": f"fallback после LLM таймаута",
-                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
-                                },
-                                "available_capabilities": available_capabilities,
-                                "needs_rollback": False
-                            }
-                    
-                    except Exception as e:
-                        error_msg = f"Ошибка LLM вызова: {type(e).__name__}: {e}"
-                        await self._log("error", error_msg)
-
-                        # Оркестратор уже опубликовал событие об ошибке
-
-                        # Пробрасываем только если это последняя попытка
-                        if retry_count >= max_retries - 1:
-                            raise
-                        retry_count += 1
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 1.5
+                    # Возвращаем fallback вместо попытки прямого вызова
+                    return {
+                        "analysis": {
+                            "current_situation": "LLMOrchestrator недоступен",
+                            "progress_assessment": "Неизвестно",
+                            "confidence": 0.0,
+                            "errors_detected": True,
+                            "consecutive_errors": self.error_count + 1,
+                            "execution_time": context_analysis.get("execution_time_seconds", 0),
+                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+                        },
+                        "decision": {
+                            "next_action": "final_answer.generate",
+                            "reasoning": "Инфраструктурная ошибка — используем fallback",
+                            "parameters": {"query": session_context.get_goal() or "Продолжить"}
+                        },
+                        "available_capabilities": available_capabilities,
+                        "needs_rollback": False
+                    }
 
             # === ПРОВЕРКА НА ОШИБКУ LLM ===
             # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)

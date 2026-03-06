@@ -603,81 +603,48 @@ class ActionExecutor:
         )
 
         # Вызов через оркестратор если доступен
-        if orchestrator:
-            response = await orchestrator.execute_structured(
-                request=request,
-                provider=llm_provider,
-                max_retries=parameters.get("max_retries", 3),
-                attempt_timeout=parameters.get("attempt_timeout"),
-                total_timeout=parameters.get("total_timeout"),
-                session_id=parameters.get('session_id'),
-                agent_id=parameters.get('agent_id'),
-                step_number=parameters.get('step_number'),
-                phase=parameters.get('phase', 'unknown')
+        if not orchestrator:
+            return ActionResult(
+                success=False,
+                error="LLMOrchestrator недоступен — требуется для структурированной генерации"
             )
 
-            # Проверка успеха
-            if response.success:
-                return ActionResult(
-                    success=True,
-                    data={
-                        "parsed_content": response.parsed_content.model_dump() if hasattr(response.parsed_content, 'model_dump') else response.parsed_content,
-                        "raw_content": response.raw_response.content
-                    },
-                    metadata={
-                        "model": response.raw_response.model,
-                        "tokens_used": response.raw_response.tokens_used,
-                        "generation_time": response.raw_response.generation_time,
-                        "parsing_attempts": response.parsing_attempts,
-                        "success": response.success
-                    }
-                )
-            else:
-                # Ошибка валидации
-                return ActionResult(
-                    success=False,
-                    error=f"Structured output failed after {response.parsing_attempts} attempts",
-                    metadata={
-                        "validation_errors": response.validation_errors,
-                        "parsing_attempts": response.parsing_attempts,
-                        "error_type": "StructuredOutputError"
-                    }
-                )
+        response = await orchestrator.execute_structured(
+            request=request,
+            provider=llm_provider,
+            max_retries=parameters.get("max_retries", 3),
+            attempt_timeout=parameters.get("attempt_timeout"),
+            total_timeout=parameters.get("total_timeout"),
+            session_id=parameters.get('session_id'),
+            agent_id=parameters.get('agent_id'),
+            step_number=parameters.get('step_number'),
+            phase=parameters.get('phase', 'unknown')
+        )
+
+        # Проверка успеха
+        if response.success:
+            return ActionResult(
+                success=True,
+                data={
+                    "parsed_content": response.parsed_content.model_dump() if hasattr(response.parsed_content, 'model_dump') else response.parsed_content,
+                    "raw_content": response.raw_response.content
+                },
+                metadata={
+                    "model": response.raw_response.model,
+                    "tokens_used": response.raw_response.tokens_used,
+                    "generation_time": response.raw_response.generation_time,
+                    "parsing_attempts": response.parsing_attempts,
+                    "success": response.success
+                }
+            )
         else:
-            # Fallback: прямой вызов через провайдер
-            from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
-
-            try:
-                response = await llm_provider.generate_structured(request)
-
-                return ActionResult(
-                    success=True,
-                    data={
-                        "parsed_content": response.parsed_content.model_dump(),
-                        "raw_content": response.raw_response.content
-                    },
-                    metadata={
-                        "model": response.raw_response.model,
-                        "tokens_used": response.raw_response.tokens_used,
-                        "generation_time": response.raw_response.generation_time,
-                        "parsing_attempts": response.parsing_attempts,
-                        "success": response.success
-                    }
-                )
-
-            except StructuredOutputError as e:
-                return ActionResult(
-                    success=False,
-                    error=f"Structured output error: {e.message}",
-                    metadata={
-                        "attempts": e.attempts,
-                        "validation_errors": e.validation_errors,
-                        "error_type": "StructuredOutputError"
-                    }
-                )
-            except ValueError as e:
-                return ActionResult(
-                    success=False,
-                    error=f"Invalid request: {str(e)}",
-                    metadata={"error_type": "ValueError"}
-                )
+            # Ошибка валидации
+            return ActionResult(
+                success=False,
+                error=f"Structured output failed after {response.parsing_attempts} attempts",
+                metadata={
+                    "validation_errors": response.validation_errors,
+                    "parsing_attempts": response.parsing_attempts,
+                    "error_type": "StructuredOutputError"
+                }
+            )
