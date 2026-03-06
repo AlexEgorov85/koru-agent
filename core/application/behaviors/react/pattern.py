@@ -408,9 +408,14 @@ class ReActPattern(BaseBehaviorPattern):
                 rendered = rendered.replace(f"{{{key}}}", str(value))
             return rendered
         else:
-            # Fallback: минимальный шаблон (только если промпт не загружен из registry)
-            self.event_bus_logger.warning_sync("[ReAct] reasoning_prompt_template не загружен, используем минимальный fallback")
-            return self._build_minimal_fallback_prompt(prompt_context)
+            # КРИТИЧЕСКАЯ ОШИБКА: промпт не загружен
+            error_msg = (
+                "reasoning_prompt_template не загружен! "
+                "Промпт должен быть загружен при инициализации из PromptService. "
+                "Проверьте наличие промпта behavior.react.think в реестре."
+            )
+            self.event_bus_logger.error_sync(error_msg)
+            raise RuntimeError(error_msg)
 
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
         """
@@ -489,147 +494,17 @@ class ReActPattern(BaseBehaviorPattern):
 
         return "\n".join(lines)
 
-    def _build_minimal_fallback_prompt(self, prompt_context: Dict[str, Any]) -> str:
-        """
-        Минимальный fallback промпт (только если промпт не загружен из registry).
-
-        ПАРАМЕТРЫ:
-        - prompt_context: контекст для подстановки
-
-        ВОЗВРАЩАЕТ:
-        - str: минимальный промпт для рассуждения с JSON схемой из контракта
-        """
-        # Генерируем схему динамически из контракта
-        schema_json = self._get_schema_json_for_prompt()
-        required_fields = self._get_required_fields_list()
-        
-        return f"""ЦЕЛЬ: {prompt_context.get('goal', 'Неизвестная цель')}
-
-КОНТЕКСТ:
-{prompt_context.get('input', '')}
-
-Верни JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
-
-{schema_json}
-
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {required_fields}
-
-ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
-
     def _get_default_system_prompt(self) -> str:
         """
-        Возвращает системный промпт по умолчанию (fallback).
-        Используется ТОЛЬКО если system_prompt_template не загружен из реестра.
-
-        ВОЗВРАЩАЕТ:
-        - str: системный промпт с JSON схемой из контракта
-        """
-        # Генерируем промпт с динамической схемой из контракта
-        schema_json = self._get_schema_json_for_prompt()
+        Возвращает системный промпт по умолчанию.
         
-        return f"""Ты — модуль рассуждения ReAct. Твоя задача — анализировать ситуацию и выбирать следующее действие.
-
-ВЕРНИ JSON СЛЕДУЮЩЕЙ СТРУКТУРЫ:
-
-{schema_json}
-
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {self._get_required_fields_list()}
-
-ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
-
-    def _get_schema_json_for_prompt(self) -> str:
-        """
-        Генерирует JSON схему для промпта из контракта.
+        ВНИМАНИЕ: Этот метод НЕ должен использоваться в production!
+        Системный промпт должен загружаться из PromptService.
         
         ВОЗВРАЩАЕТ:
-        - str: отформатированная JSON схема
+        - str: простой системный промпт
         """
-        import json
-        
-        if not self.reasoning_schema:
-            # Fallback если схема не загружена
-            return '{"thought": "string", "decision": {"next_action": "string", "parameters": {}}, "confidence": "number", "stop_condition": "boolean"}'
-        
-        # Создаём упрощённую версию схемы для промпта (без излишних деталей)
-        simplified_schema = self._simplify_schema_for_prompt(self.reasoning_schema)
-        
-        return json.dumps(simplified_schema, indent=2, ensure_ascii=False)
-
-    def _simplify_schema_for_prompt(self, schema: dict) -> dict:
-        """
-        Упрощает схему для отображения в промпте.
-        
-        ПАРАМЕТРЫ:
-        - schema: полная JSON схема
-        
-        ВОЗВРАЩАЕТ:
-        - dict: упрощённая схема с типами данных
-        """
-        if not schema or 'properties' not in schema:
-            return schema
-        
-        simplified = {
-            "type": "object",
-            "properties": {},
-            "required": schema.get("required", [])
-        }
-        
-        for prop_name, prop_schema in schema.get('properties', {}).items():
-            # Упрощаем каждое поле
-            simplified['properties'][prop_name] = self._simplify_property(prop_schema)
-        
-        return simplified
-
-    def _simplify_property(self, prop_schema: dict, depth: int = 0) -> dict:
-        """
-        Упрощает свойство схемы для отображения.
-        
-        ПАРАМЕТРЫ:
-        - prop_schema: схема свойства
-        - depth: текущая глубина вложенности
-        
-        ВОЗВРАЩАЕТ:
-        - dict: упрощённая схема свойства
-        """
-        if depth > 2:
-            # Не углубляемся больше 2 уровней
-            return {"type": prop_schema.get('type', 'object')}
-        
-        prop_type = prop_schema.get('type', 'string')
-        description = prop_schema.get('description', '')
-        
-        simplified = {
-            "type": prop_type,
-            "description": description
-        }
-        
-        # Для объектов рекурсивно упрощаем вложенные свойства
-        if prop_type == 'object' and 'properties' in prop_schema:
-            simplified['properties'] = {}
-            for sub_name, sub_schema in prop_schema.get('properties', {}).items():
-                simplified['properties'][sub_name] = self._simplify_property(sub_schema, depth + 1)
-        
-        # Для массивов упрощаем элементы
-        if prop_type == 'array' and 'items' in prop_schema:
-            simplified['items'] = self._simplify_property(prop_schema['items'], depth + 1)
-        
-        return simplified
-
-    def _get_required_fields_list(self) -> str:
-        """
-        Получает список обязательных полей из схемы.
-        
-        ВОЗВРАЩАЕТ:
-        - str: список обязательных полей через запятую
-        """
-        if not self.reasoning_schema:
-            return "thought, decision, confidence, stop_condition"
-        
-        required = self.reasoning_schema.get('required', [])
-        if not required:
-            return "thought, decision, confidence, stop_condition"
-        
-        return ", ".join(required)
+        return """Ты — модуль рассуждения ReAct. Верни JSON с полями: thought, decision, confidence, stop_condition."""
 
     async def analyze_context(
         self,
