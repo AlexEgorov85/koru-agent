@@ -139,10 +139,33 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         agent = await agent_factory.create_agent(goal=goal, config=agent_config)
 
         await session_logger.info("🚀 Запуск выполнения агента...")
-        result = await agent.run(goal)
-
+        
+        # === ДИАГНОСТИКА: Проверяем result перед использованием ===
+        import sys
+        import traceback
+        
+        try:
+            result = await agent.run(goal)
+        except Exception as run_error:
+            # Ошибка во время выполнения agent.run()
+            await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА при выполнении agent.run(): {run_error}")
+            await session_logger.error(f"📋 Тип: {type(run_error).__name__}")
+            await session_logger.error(f"📝 Traceback:\n{traceback.format_exc()}")
+            raise
+        
+        # Проверяем что result это не строка
+        if isinstance(result, str):
+            await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: agent.run() вернул строку вместо объекта!")
+            await session_logger.error(f"📋 Значение: {result[:500] if len(result) > 500 else result}")
+            raise RuntimeError(f"agent.run() вернул строку вместо ExecutionResult: {result}")
+        
         # Проверка на ошибку в result.error (для ExecutionResult)
         if hasattr(result, 'error') and result.error:
+            # Проверяем что error это не строка (должна быть None или Exception)
+            if isinstance(result.error, str):
+                await session_logger.error(f"⚠️ result.error это строка (не Exception): {result.error}")
+                await session_logger.error(f"📋 Это может быть причиной проблемы 'str object has no attribute get'")
+            
             # Детальная информация об ошибке
             error_details = {
                 "error": result.error,
@@ -150,11 +173,25 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                 "result_type": type(result).__name__,
             }
             
+            # Проверяем metadata - это dict?
+            if hasattr(result, 'metadata'):
+                metadata = getattr(result, 'metadata', None)
+                if metadata is not None and not isinstance(metadata, dict):
+                    await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: result.metadata это не dict (тип: {type(metadata).__name__})")
+                    await session_logger.error(f"📋 Значение: {metadata}")
+                    error_details["metadata_type"] = type(metadata).__name__
+                    error_details["metadata_value"] = str(metadata)
+                elif isinstance(metadata, dict):
+                    error_details["metadata"] = metadata
+                    # Проверяем есть ли в metadata ошибка
+                    if 'error' in metadata:
+                        meta_error = metadata.get('error')
+                        if isinstance(meta_error, str):
+                            await session_logger.error(f"⚠️ metadata['error'] это строка: {meta_error}")
+            
             # Если error это dict, добавим детали
             if isinstance(result.error, dict):
                 error_details["error_dict"] = result.error
-            elif hasattr(result, 'metadata'):
-                error_details["metadata"] = getattr(result, 'metadata', None)
             elif hasattr(result, 'state'):
                 error_details["state"] = getattr(result, 'state', None)
             
@@ -177,7 +214,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             )
             await session_logger.error(f"❌ Ошибка агента: {result.error}")
             await session_logger.error(f"📋 Детали ошибки: {error_details}")
-            raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__}, файл: main.py, строка: 158)")
+            raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__}, файл: main.py, строка: 176)")
 
         # Проверка на ошибку в metadata
         if hasattr(result, 'metadata') and result.metadata:
