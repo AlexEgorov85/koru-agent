@@ -323,10 +323,10 @@ class LlamaCppProvider(BaseLLMProvider):
             import asyncio
             from asyncio import wait_for, TimeoutError
             import threading
+            from concurrent.futures import ThreadPoolExecutor
 
             # Используем существующий ThreadPoolExecutor
             if not self._executor:
-                from concurrent.futures import ThreadPoolExecutor
                 self._executor = ThreadPoolExecutor(
                     max_workers=2,
                     thread_name_prefix='llm_worker'
@@ -360,7 +360,7 @@ class LlamaCppProvider(BaseLLMProvider):
                         f"✅ LLM ответ получен: {len(content)} символов, "
                         f"preview: {content_preview[:100]}..."
                     )
-                    
+
                     call_completed['done'] = True
                     return result
                 except Exception as e:
@@ -372,10 +372,23 @@ class LlamaCppProvider(BaseLLMProvider):
                 await self.event_bus_logger.info(f"Запуск LLM вызова: prompt_length={len(request.prompt)}, max_tokens={max_tokens}, timeout={self.timeout_seconds}с")
                 await self.event_bus_logger.debug(f"Executor: {self._executor}, llm loaded: {self.llm is not None}")
 
-                response = await wait_for(
-                    asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
-                    timeout=self.timeout_seconds
-                )
+                # === ПРОВЕРКА: выполняемся ли мы уже в потоке executor'а? ===
+                # Если да (вызов из LLMOrchestrator._sync_call_wrapper), то вызываем напрямую
+                # Иначе используем run_in_executor для неблокирующего вызова
+                current_thread = threading.current_thread()
+                is_executor_thread = current_thread.name.startswith('llm_worker') or \
+                                     current_thread.name.startswith('llm_orchestrator')
+                
+                if is_executor_thread:
+                    # Уже в потоке - вызываем напрямую без run_in_executor
+                    await self.event_bus_logger.debug("Выполнение в потоке executor'а - вызываем напрямую")
+                    response = _call_llm_sync()
+                else:
+                    # Не в потоке - используем run_in_executor
+                    response = await wait_for(
+                        asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
+                        timeout=self.timeout_seconds
+                    )
 
                 await self.event_bus_logger.info(f"LLM вызов завершён успешно за {time.time() - start_time:.2f}с")
 

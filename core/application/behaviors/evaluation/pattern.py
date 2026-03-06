@@ -32,26 +32,75 @@ class EvaluationPattern(BaseBehaviorPattern):
         self.system_prompt_template: Optional[str] = None
 
     async def _load_evaluation_resources(self) -> bool:
-        """Загружает system prompt для оценки из автоматически разделённых промптов."""
+        """Загружает system prompt для оценки из автоматически разделённых промптов.
+        
+        ДОБАВЛЯЕТ JSON схему из контракта в системный промпт.
+        """
         try:
             # ← НОВОЕ: Используем автоматически разделённые промпты
             if 'behavior.evaluation' in self.system_prompts:
                 system_prompt_obj = self.system_prompts['behavior.evaluation']
                 if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
                     self.system_prompt_template = system_prompt_obj.content
-                    return True
 
             # Fallback: ищем в prompts (для обратной совместимости)
-            if self.prompts and "behavior.evaluation.system" in self.prompts:
-                system_prompt_obj = self.prompts["behavior.evaluation.system"]
-                if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
-                    self.system_prompt_template = system_prompt_obj.content
-                    return True
+            if not self.system_prompt_template and self.prompts:
+                if "behavior.evaluation.system" in self.prompts:
+                    system_prompt_obj = self.prompts["behavior.evaluation.system"]
+                    if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
+                        self.system_prompt_template = system_prompt_obj.content
 
-            return False
+            # Загружаем схему из контракта
+            if self.output_contracts and "behavior.evaluation" in self.output_contracts:
+                schema_cls = self.output_contracts["behavior.evaluation"]
+                if schema_cls and hasattr(schema_cls, 'model_json_schema'):
+                    self.reasoning_schema = schema_cls.model_json_schema()
+
+            # === ДОБАВЛЕНИЕ JSON СХЕМЫ В СИСТЕМНЫЙ ПРОМПТ ===
+            if hasattr(self, 'reasoning_schema') and self.reasoning_schema and self.system_prompt_template:
+                self.system_prompt_template = self._inject_schema_into_system_prompt(
+                    self.system_prompt_template,
+                    self.reasoning_schema
+                )
+
+            return self.system_prompt_template is not None
         except Exception as e:
             self.logger.error(f"Ошибка загрузки system prompt: {e}")
             return False
+
+    def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
+        """
+        Добавляет JSON схему в системный промпт.
+        
+        ПАРАМЕТРЫ:
+        - system_prompt: исходный системный промпт
+        - schema: JSON схема из контракта
+        
+        ВОЗВРАЩАЕТ:
+        - str: системный промпт с добавленной схемой
+        """
+        import json
+        
+        # Проверяем есть ли уже схема в промпте
+        if 'JSON' in system_prompt.upper() and 'SCHEMA' in system_prompt.upper():
+            return system_prompt
+        
+        # Генерируем JSON схему для промпта
+        schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
+        
+        # Добавляем схему в конец системного промпта
+        return f"""{system_prompt}
+
+=== JSON СХЕМА ОТВЕТА ===
+Ты ДОЛЖЕН вернуть JSON следующей структуры:
+
+```json
+{schema_json}
+```
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(schema.get('required', []))}
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
 
     async def analyze_context(
         self,
@@ -79,10 +128,18 @@ class EvaluationPattern(BaseBehaviorPattern):
         - Использует промпт из self.prompts (загружен BaseComponent.initialize())
         - Использует output контракт из self.output_contracts
         - LLM через infrastructure_context (не session_context!)
+        - JSON схема добавляется в системный промпт автоматически
         """
         # ← НОВОЕ: Загружаем system prompt если ещё не загружен
         if not self.system_prompt_template:
             await self._load_evaluation_resources()
+
+        # Проверка что промпт загружен
+        if not self.system_prompt_template:
+            raise RuntimeError(
+                "system_prompt_template не загружен! "
+                "Промпт должен быть загружен при инициализации из PromptService."
+            )
         
         # Подготовка контекста для оценки
         goal = context_analysis["goal"]
@@ -124,8 +181,8 @@ class EvaluationPattern(BaseBehaviorPattern):
 
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
 
-            # System prompt из реестра или fallback
-            system_prompt = self.system_prompt_template or """Ты — модуль оценки. Верни JSON: {"achieved": true/false, "partial_progress": true/false, "confidence": 0.0-1.0, "summary": "...", "reasoning": "..."}"""
+            # System prompt из реестра (уже загружен с JSON схемой)
+            system_prompt = self.system_prompt_template
 
             llm_request = LLMRequest(
                 prompt=evaluation_prompt,

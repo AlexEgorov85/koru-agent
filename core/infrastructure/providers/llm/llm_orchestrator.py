@@ -1056,7 +1056,9 @@ class LLMOrchestrator:
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED
+        await self._logger.debug(f"Публикация события LLM_RESPONSE_RECEIVED для call_id={record.call_id}")
         await self._publish_response_event(record, result, record.duration or 0, success=True)
+        await self._logger.debug(f"Событие LLM_RESPONSE_RECEIVED опубликовано для call_id={record.call_id}")
 
     async def _log_call_timeout(self, record: CallRecord, elapsed: float, timeout: float) -> None:
         """Логирование таймаута вызова."""
