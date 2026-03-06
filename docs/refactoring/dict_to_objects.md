@@ -2,7 +2,7 @@
 
 **Дата:** 6 марта 2026 г.  
 **Приоритет:** Средний (после критических исправлений)  
-**Статус:** Этапы 1-2 выполнены ✅
+**Статус:** Этапы 1-3 выполнены ✅
 
 ---
 
@@ -117,7 +117,48 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
 
 ---
 
-## 📋 Требуют рефакторинга
+### 5. SchemaValidator → CapabilitySchema
+**Файл:** `core/application/agent/strategies/react/schema_validator.py`
+
+**Было:**
+```python
+class SchemaValidator:
+    _schemas_cache: Dict[str, Dict[str, Any]]
+    
+    def register_capability_schema(self, name: str, schema: Dict[str, Any]):
+```
+
+**Стало:**
+```python
+@dataclass
+class ParameterSchema:
+    name: str
+    type: str
+    required: bool
+    ...
+
+@dataclass
+class CapabilitySchema:
+    capability_name: str
+    input_parameters: List[ParameterSchema]
+    ...
+
+@dataclass
+class ValidationResult:
+    success: bool
+    validated_params: Dict[str, Any]
+    errors: List[str]
+    warnings: List[str]
+
+class SchemaValidator:
+    _schemas_cache: Dict[str, CapabilitySchema]
+```
+
+**Коммит:** `47f947d`
+
+---
+
+## 📋 Требуют рефакторинга (Этап 4 — высокий риск)
 
 ### 2. validate_reasoning_result
 **Файл:** `core/application/agent/strategies/react/validation.py`
