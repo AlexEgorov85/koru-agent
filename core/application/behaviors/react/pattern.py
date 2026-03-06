@@ -315,14 +315,14 @@ class ReActPattern(BaseBehaviorPattern):
         try:
             # ← НОВОЕ: Используем автоматически разделённые промпты
             # system_prompts содержит {base_capability: Prompt}
-            if 'behavior.react.think' in self.system_prompts:
-                system_prompt_obj = self.system_prompts['behavior.react.think']
+            if 'behavior.react.think.system' in self.system_prompts:
+                system_prompt_obj = self.system_prompts['behavior.react.think.system']
                 if hasattr(system_prompt_obj, 'content') and system_prompt_obj.content:
                     self.system_prompt_template = system_prompt_obj.content
 
             # user_prompts содержит {base_capability: Prompt}
-            if 'behavior.react.think' in self.user_prompts:
-                user_prompt_obj = self.user_prompts['behavior.react.think']
+            if 'behavior.react.think.user' in self.user_prompts:
+                user_prompt_obj = self.user_prompts['behavior.react.think.user']
                 if hasattr(user_prompt_obj, 'content') and user_prompt_obj.content:
                     self.reasoning_prompt_template = user_prompt_obj.content
 
@@ -334,8 +334,8 @@ class ReActPattern(BaseBehaviorPattern):
                         self.system_prompt_template = system_prompt_obj.content
 
             if not self.reasoning_prompt_template and self.prompts:
-                if "behavior.react.think" in self.prompts:
-                    prompt_obj = self.prompts["behavior.react.think"]
+                if "behavior.react.think.user" in self.prompts:
+                    prompt_obj = self.prompts["behavior.react.think.user"]
                     if hasattr(prompt_obj, 'content') and prompt_obj.content:
                         self.reasoning_prompt_template = prompt_obj.content
 
@@ -1148,7 +1148,7 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> Optional[Capability]:
         """Поиск capability по имени в списке доступных."""
         
-        # 1. Прямое совпадение по имени
+        # 1. Прямое совпадение по име��и
         for cap in available_capabilities:
             if cap.name == capability_name:
                 return cap

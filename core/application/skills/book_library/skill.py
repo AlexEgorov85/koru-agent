@@ -665,6 +665,9 @@ class BookLibrarySkill(BaseComponent):
             script_name: имя скрипта (для static)
         """
         try:
+            if not hasattr(self, 'application_context') or not self.application_context:
+                return
+                
             event_bus = self.application_context.infrastructure_context.event_bus
 
             # Публикуем событие о выполнении
