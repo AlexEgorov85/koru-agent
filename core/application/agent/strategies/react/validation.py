@@ -43,14 +43,17 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
             import re
 
             # Очищаем строку от markdown-разметки ```json ... ```
-            cleaned = re.sub(r'^```json\s*', '', result)
-            cleaned = re.sub(r'\s*```$', '', cleaned)
+            # Удаляем все markdown блоки чтобы получить чистый текст
+            cleaned = result
+            cleaned = re.sub(r'```json', '', cleaned)
+            cleaned = re.sub(r'```', '', cleaned)
             cleaned = cleaned.strip()
 
-            # Пытаемся найти первый полный JSON объект (сбалансированные скобки)
+            # Пытаемся найти ВСЕ JSON объекты (сбалансированные скобки)
+            # и берем ПОСЛЕДНИЙ валидный (это настоящий ответ LLM, а не шаблон)
+            json_objects = []
             depth = 0
             start_idx = None
-            json_str = None
 
             for i, char in enumerate(cleaned):
                 if char == '{':
@@ -61,19 +64,31 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
                     depth -= 1
                     if depth == 0 and start_idx is not None:
                         json_str = cleaned[start_idx:i+1]
-                        break
+                        json_objects.append(json_str)
+                        start_idx = None
 
-            if json_str:
-                validated_result = json.loads(json_str)
-            else:
-                # Не удалось найти JSON — возвращаем fallback dict
-                logger.warning(f"Не удалось найти JSON в строке: {result[:200]}")
+            # Пытаемся распарсить каждый найденный JSON с конца, берем первый валидный
+            # (последний в списке = последний в ответе LLM = настоящий ответ)
+            validated_result = None
+            for idx in range(len(json_objects) - 1, -1, -1):
+                json_str = json_objects[idx]
+                try:
+                    validated_result = json.loads(json_str)
+                    break
+                except json.JSONDecodeError as e:
+                    logger.warning(f"JSON #{idx+1} невалидный: {e}")
+                    continue
+
+            if validated_result is None:
+                # Не удалось распарсить ни один JSON
+                logger.warning(f"Не удалось распарсить ни один JSON из {len(json_objects)} найденных")
+                logger.warning(f"Исходная строка: {result[:200]}...")
                 return {
                     'thought': 'Ошибка парсинга JSON',
                     'analysis': {
                         'progress': 'Неизвестно',
                         'current_state': 'Не удалось распарсить ответ LLM',
-                        'issues': ['JSON не найден']
+                        'issues': ['JSON не найден или невалидный']
                     },
                     'decision': {
                         'next_action': 'final_answer.generate',
@@ -125,16 +140,26 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
         
         if 'decision' not in validated_result:
             validated_result['decision'] = {}
-        
+
         decision = validated_result['decision']
         # next_action — это capability_name в новой архитектуре
+        # ПРОВЕРКА: если next_action на верхнем уровне, перемещаем его в decision
         if 'next_action' not in decision:
             # Пробуем найти в capability_name (альтернативное имя)
             decision['next_action'] = decision.get('capability_name', 'generic.execute')
+            # Если next_action на верхнем уровне, используем его
+            if 'next_action' in validated_result:
+                decision['next_action'] = validated_result['next_action']
+                del validated_result['next_action']
         if 'reasoning' not in decision:
             decision['reasoning'] = decision.get('reason', 'Действие по умолчанию')
         if 'parameters' not in decision:
-            decision['parameters'] = decision.get('parameters', {})
+            # Если parameters на верхнем уровне, используем его
+            if 'parameters' in validated_result:
+                decision['parameters'] = validated_result['parameters']
+                del validated_result['parameters']
+            else:
+                decision['parameters'] = decision.get('parameters', {})
         if 'expected_outcome' not in decision:
             decision['expected_outcome'] = 'Неизвестно'
         

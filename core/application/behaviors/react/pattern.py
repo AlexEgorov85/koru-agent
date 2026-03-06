@@ -184,123 +184,6 @@ class ReActPattern(BaseBehaviorPattern):
             if log_method:
                 await log_method(message, **extra_data)
 
-    def _log_llm_trace(self, prompt: str, response: Any, context: Optional['SessionContext'] = None):
-        """
-        ЛОГИРОВАНИЕ ВЫЗОВА LLM ДЛЯ ОТЛАДКИ.
-        
-        ВЫВОДИТ:
-        - PROMPT: полный текст промпта
-        - RESPONSE: сырой ответ от LLM
-        - PARSED DECISION: распарсенное решение
-        
-        ИСПОЛЬЗУЕТСЯ: только в development/debug режиме
-        """
-        print("\n" + "=" * 80)
-        print("━━━━━━━━ LLM CALL ━━━━━━━━")
-        print("=" * 80)
-        
-        # PROMPT
-        print(f"\n📝 PROMPT ({len(prompt)} символов)\n")
-        print("-" * 60)
-        # Показываем первые 2000 символов промпта чтобы не засорять консоль
-        prompt_preview = prompt[:2000] if len(prompt) > 2000 else prompt
-        print(prompt_preview)
-        if len(prompt) > 2000:
-            print(f"\n... (ещё {len(prompt) - 2000} символов)")
-        
-        # RESPONSE
-        print("\n" + "-" * 60)
-        print("💬 RESPONSE\n")
-        print("-" * 60)
-        
-        # Извлекаем сырой ответ
-        if isinstance(response, dict):
-            if 'raw_response' in response:
-                raw = response['raw_response']
-                if hasattr(raw, 'content'):
-                    response_text = raw.content
-                elif isinstance(raw, dict):
-                    response_text = str(raw)
-                else:
-                    response_text = str(raw) if raw else '<пустой ответ>'
-            elif 'content' in response:
-                response_text = response['content']
-            else:
-                response_text = str(response)
-        elif hasattr(response, 'content'):
-            response_text = response.content
-        elif hasattr(response, 'raw_response'):
-            response_text = response.raw_response
-        else:
-            response_text = str(response) if response else '<пустой ответ>'
-        
-        # Показываем первые 1500 символов ответа
-        response_preview = response_text[:1500] if len(response_text) > 1500 else response_text
-        print(response_preview)
-        if len(response_text) > 1500:
-            print(f"\n... (ещё {len(response_text) - 1500} символов)")
-        
-        # Пытаемся распарсить решение для отображения
-        print("\n" + "-" * 60)
-        print("🎯 PARSED DECISION\n")
-        print("-" * 60)
-        
-        try:
-            # Пытаемся извлечь решение из response
-            decision_data = None
-            
-            if isinstance(response, dict):
-                if 'raw_response' in response and hasattr(response['raw_response'], 'model_dump'):
-                    # Pydantic модель
-                    decision_data = response['raw_response'].model_dump()
-                elif 'parsed_content' in response:
-                    decision_data = response['parsed_content']
-                elif 'content' in response and isinstance(response['content'], dict):
-                    decision_data = response['content']
-            elif hasattr(response, 'parsed_content'):
-                decision_data = response.parsed_content
-            elif hasattr(response, 'model_dump'):
-                decision_data = response.model_dump()
-            
-            if decision_data:
-                # Извлекаем ключевые поля
-                decision = decision_data.get('decision', {})
-                action_type = decision.get('next_action', 'N/A')
-                reasoning = decision.get('reasoning', 'N/A')[:200] if decision.get('reasoning') else 'N/A'
-                
-                print(f"action_type: {action_type}")
-                print(f"reasoning: {reasoning}")
-                
-                # Показываем доступные capability
-                if 'available_capabilities' in decision_data:
-                    caps = decision_data['available_capabilities']
-                    if isinstance(caps, list) and len(caps) > 0:
-                        print(f"\n📦 Доступно capabilities: {len(caps)}")
-                        for cap in caps[:5]:  # Показываем первые 5
-                            cap_name = cap.name if hasattr(cap, 'name') else str(cap)
-                            print(f"  - {cap_name}")
-                        if len(caps) > 5:
-                            print(f"  ... и ещё {len(caps) - 5}")
-            else:
-                print("Не удалось распарсить решение")
-                print(f"Raw response type: {type(response)}")
-                
-        except Exception as e:
-            print(f"⚠️ Ошибка парсинга решения: {e}")
-        
-        # Контекст
-        if context:
-            print("\n" + "-" * 60)
-            print("📌 CONTEXT\n")
-            print("-" * 60)
-            print(f"goal: {context.get_goal() if hasattr(context, 'get_goal') else 'N/A'}")
-            if hasattr(context, 'current_step'):
-                print(f"step: {context.current_step}")
-        
-        print("\n" + "=" * 80)
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("=" * 80 + "\n")
-
     def _load_reasoning_resources(self) -> bool:
         """
         Загружает system prompt для рассуждения из автоматически разделённых промптов.
@@ -389,24 +272,24 @@ class ReActPattern(BaseBehaviorPattern):
     def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
         """
         Добавляет JSON схему в системный промпт.
-        
+
         ПАРАМЕТРЫ:
         - system_prompt: исходный системный промпт
         - schema: JSON схема из контракта
-        
+
         ВОЗВРАЩАЕТ:
         - str: системный промпт с добавленной схемой
         """
         import json
-        
-        # Проверяем есть ли уже схема в промпте
-        if 'JSON' in system_prompt.upper() and 'SCHEMA' in system_prompt.upper():
+
+        # Проверяем есть ли уже схема в промпте (ищем маркер "JSON СХЕМА ОТВЕТА")
+        if 'JSON СХЕМА ОТВЕТА' in system_prompt or 'JSON SCHEMA' in system_prompt.upper():
             # Схема уже есть, не добавляем
             return system_prompt
-        
+
         # Генерируем JSON схему для промпта
         schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
-        
+
         # Добавляем схему в конец системного промпта
         return f"""{system_prompt}
 
@@ -419,7 +302,7 @@ class ReActPattern(BaseBehaviorPattern):
 
 ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(schema.get('required', []))}
 
-ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений."""
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {{\"next_action\": \"string\", \"parameters\": \"object\"}} — это только пример формата."""
 
     def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
         """
@@ -719,437 +602,162 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any],
         available_capabilities: List[Capability]
     ) -> Dict[str, Any]:
-        """Выполняет структурированное рассуждение через LLM."""
-        try:
-            # Загружаем промпт и контракт из кэша BaseComponent
-            load_result = self._load_reasoning_resources()
+        """
+        Выполняет структурированное рассуждение через LLM.
 
-            if not load_result or not self.reasoning_prompt_template:
-                # Fallback: создаем упрощенную версию рассуждения
-                await self._log("warning", "Промпт не загружен, используем упрощенную логику рассуждения")
-                
-                # Определяем первую доступную capability
-                fallback_capability = "final_answer.generate"
-                if available_capabilities:
-                    fallback_capability = available_capabilities[0].name if hasattr(available_capabilities[0], 'name') else list(available_capabilities[0].values())[0] if isinstance(available_capabilities[0], dict) else "final_answer.generate"
-
-                return {
-                    "analysis": {
-                        "current_situation": "Промпт не загружен",
-                        "progress_assessment": "Неизвестно",
-                        "confidence": 0.5,
-                        "errors_detected": False,
-                        "consecutive_errors": self.error_count if hasattr(self, 'error_count') else 0,
-                        "execution_time": context_analysis.get("execution_time_seconds", 0),
-                        "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                    },
-                    "decision": {
-                        "next_action": fallback_capability,
-                        "reasoning": "Промпт недоступен, используем fallback",
-                        "parameters": {"query": session_context.get_goal() if session_context else "Продолжить выполнение задачи"}
-                    },
-                    "available_capabilities": available_capabilities,
-                    "needs_rollback": False
-                }
-
-            # Флаг для гарантии вызова LLM
-            llm_was_called = False
-
-            # Рендерим промпт из шаблона (передаём оригинальные Capability объекты)
-            reasoning_prompt = self._render_reasoning_prompt(
+        АРХИТЕКТУРА:
+        1. Проверка загрузки ресурсов
+        2. Рендеринг промпта
+        3. Вызов LLM через LLMOrchestrator (structured output)
+        4. Возврат распарсенного результата
+        """
+        # === 1. ПРОВЕРКА ЗАГРУЗКИ РЕСУРСОВ ===
+        if not self._load_reasoning_resources():
+            await self._log("warning", "Промпт не загружен, используем fallback")
+            return self._create_fallback_reasoning(
                 context_analysis=context_analysis,
-                available_capabilities=available_capabilities
+                available_capabilities=available_capabilities,
+                reason="prompt_not_loaded"
             )
 
-            start_time = time.time()
+        # === 2. ПОДГОТОВКА ЗАПРОСА ===
+        reasoning_prompt = self._render_reasoning_prompt(
+            context_analysis=context_analysis,
+            available_capabilities=available_capabilities
+        )
 
-            # Генерация структурированного ответа через LLM
-            llm_provider = None
-            if self.application_context:
-                llm_provider = self.application_context.get_provider("default_llm")
-
-            if llm_provider is None:
-                # Fallback: создаем упрощенную версию рассуждения
-                await self._log("warning", "LLM провайдер недоступен, используем упрощенную логику рассуждения")
-
-                # Оркестратор опубликует событие при следующем вызове
-                # Определяем первую доступную capability
-                fallback_capability = "book_library.search_books"
-                if available_capabilities:
-                    fallback_capability = available_capabilities[0].name
-
-                return {
-                    "analysis": {
-                        "current_situation": "LLM провайдер недоступен",
-                        "progress_assessment": "Неизвестно",
-                        "confidence": 0.5,
-                        "errors_detected": False,
-                        "consecutive_errors": self.error_count,
-                        "execution_time": context_analysis.get("execution_time_seconds", 0),
-                        "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                    },
-                    "decision": {
-                        "next_action": fallback_capability,
-                        "reasoning": "LLM недоступен, используем fallback",
-                        "parameters": {"query": session_context.get_goal() or "Продолжить выполнение задачи"}
-                    },
-                    "available_capabilities": available_capabilities,
-                    "needs_rollback": False
-                }
-
-            # === LLM БУДЕТ ВЫЗВАН ===
-            llm_was_called = True
-
-            # Проверка что системный промпт загружен
-            if not self.system_prompt_template:
-                raise RuntimeError(
-                    "system_prompt_template не загружен! "
-                    "Промпт должен быть загружен при инициализации из PromptService."
-                )
-
-            llm_request = LLMRequest(
-                prompt=reasoning_prompt,
-                system_prompt=self.system_prompt_template,
-                temperature=0.3,
-                max_tokens=1000,
-                structured_output=StructuredOutputConfig(
-                    output_model="ReasoningResult",
-                    schema_def=self.reasoning_schema,
-                    max_retries=3,
-                    strict_mode=False
-                )
+        llm_provider = self.application_context.get_provider("default_llm") if self.application_context else None
+        if not llm_provider:
+            await self._log("warning", "LLM провайдер недоступен, используем fallback")
+            return self._create_fallback_reasoning(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason="llm_provider_not_available"
             )
 
-            # === УСТАНОВКА КОНТЕКСТА ВЫЗОВА В LLM ПРОВАЙДЕРЕ ===
-            # correlation_id будет сгенерирован автоматически в BaseLLMProvider
-            if hasattr(llm_provider, 'set_call_context'):
-                # Получаем agent_id из session_context или используем значение по умолчанию
-                current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
-                llm_provider.set_call_context(
-                    event_bus=self.application_context.infrastructure_context.event_bus,
-                    session_id=getattr(session_context, 'session_id', 'unknown'),
-                    agent_id=current_agent_id,
-                    component="react_pattern",
-                    phase="think",
-                    goal=session_context.get_goal() if session_context else 'unknown'
-                )
+        # === 3. ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
+        llm_request = LLMRequest(
+            prompt=reasoning_prompt,
+            system_prompt=self.system_prompt_template,
+            temperature=0.3,
+            max_tokens=1000,
+            structured_output=StructuredOutputConfig(
+                output_model="ReasoningResult",
+                schema_def=self.reasoning_schema,
+                max_retries=3,
+                strict_mode=False
+            )
+        )
 
-            await self._log("info", f"🧠 Запуск рассуждения ReAct | Цель: {session_context.get_goal() if session_context else 'unknown'}")
-            await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
+        # Устанавливаем контекст для логирования
+        if hasattr(llm_provider, 'set_call_context'):
+            current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
+            llm_provider.set_call_context(
+                event_bus=self.application_context.infrastructure_context.event_bus,
+                session_id=getattr(session_context, 'session_id', 'unknown'),
+                agent_id=current_agent_id,
+                component="react_pattern",
+                phase="think",
+                goal=session_context.get_goal() if session_context else 'unknown'
+            )
 
-            # === ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR (ПРЕДОЧТИТЕЛЬНО) ===
-            # LLMOrchestrator обеспечивает:
-            # 1. Управление таймаутами без потерь результатов
-            # 2. Реестр активных вызовов с метриками
-            # 3. Корректное завершение фоновых потоков
-            # 4. Мониторинг "брошенных" вызовов
-            
-            import asyncio
-            from asyncio import TimeoutError as AsyncTimeoutError
-            
-            llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-            max_retries = 3
-            retry_delay = 5.0
-            retry_count = 0
-            response = None
-            
-            while retry_count < max_retries:
-                # Попытка вызова через LLMOrchestrator
-                orchestrator = self.llm_orchestrator
-                
-                if orchestrator:
-                    # === ВЫЗОВ ЧЕРЕЗ ORCHESTRATOR ===
-                    await self._log("info", f"[Попытка {retry_count + 1}/{max_retries}] Вызов через LLMOrchestrator с таймаутом {llm_timeout}с...")
-                    
-                    success, resp, error = await self._execute_llm_with_orchestrator(
-                        llm_request=llm_request,
-                        llm_provider=llm_provider,
-                        timeout=llm_timeout,
-                        session_context=session_context
-                    )
-                    
-                    if success:
-                        response = resp
-                        await self._log("info", f"[Попытка {retry_count + 1}] LLM ответ получен через оркестратор")
-                        break
-                    else:
-                        # Ошибка от оркестратора
-                        retry_count += 1
-                        await self._log("warning", f"[Попытка {retry_count}] Ошибка оркестратора: {error}")
-                        
-                        if retry_count < max_retries:
-                            await self._log("info", f"Повторная попытка через {retry_delay}с...")
-                            await asyncio.sleep(retry_delay)
-                            retry_delay *= 1.5
-                        else:
-                            # === ТАЙМАУТ ПОСЛЕ ВСЕХ ПОПЫТОК ===
-                            error_msg = f"LLM вызов не удался после {max_retries} попыток через оркестратор"
-                            await self._log("error", error_msg)
+        await self._log("info", f"Запуск рассуждения ReAct | Цель: {session_context.get_goal() if session_context else 'unknown'}")
+        await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
-                            # Оркестратор уже опубликовал событие о таймауте
-                            # Возвращаем fallback вместо исключения
-                            return {
-                                "analysis": {
-                                    "current_situation": f"LLM таймаут после {max_retries} попыток",
-                                    "progress_assessment": "Неизвестно",
-                                    "confidence": 0.3,
-                                    "errors_detected": True,
-                                    "consecutive_errors": self.error_count + 1,
-                                    "execution_time": context_analysis.get("execution_time_seconds", 0),
-                                    "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                                },
-                                "decision": {
-                                    "next_action": "book_library.search_books",
-                                    "reasoning": f"fallback после LLM таймаута",
-                                    "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
-                                },
-                                "available_capabilities": available_capabilities,
-                                "needs_rollback": False
-                            }
+        # === 4. ВЫПОЛНЕНИЕ ЧЕРЕЗ ORCHESTRATOR ===
+        llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
+        
+        success, response, error = await self._execute_llm_with_orchestrator(
+            llm_request=llm_request,
+            llm_provider=llm_provider,
+            timeout=llm_timeout,
+            session_context=session_context
+        )
 
-                else:
-                    # === ORCHESTRATOR НЕ ДОСТУПЕН — КРИТИЧЕСКАЯ ОШИБКА ===
-                    error_msg = "LLMOrchestrator недоступен — критическая ошибка инфраструктуры"
-                    await self._log("error", error_msg)
-                    
-                    # Возвращаем fallback вместо попытки прямого вызова
-                    return {
-                        "analysis": {
-                            "current_situation": "LLMOrchestrator недоступен",
-                            "progress_assessment": "Неизвестно",
-                            "confidence": 0.0,
-                            "errors_detected": True,
-                            "consecutive_errors": self.error_count + 1,
-                            "execution_time": context_analysis.get("execution_time_seconds", 0),
-                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                        },
-                        "decision": {
-                            "next_action": "final_answer.generate",
-                            "reasoning": "Инфраструктурная ошибка — используем fallback",
-                            "parameters": {"query": session_context.get_goal() or "Продолжить"}
-                        },
-                        "available_capabilities": available_capabilities,
-                        "needs_rollback": False
-                    }
+        # === 5. ОБРАБОТКА ОТВЕТА ===
+        if not success:
+            await self._log("error", f"LLM вызов не удался: {error}")
+            return self._create_fallback_reasoning(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason=f"llm_call_failed:{error}"
+            )
 
-            # === ПРОВЕРКА НА ОШИБКУ LLM ===
-            # Обрабатываем случаи когда LLM вернул ошибку (таймаут, пустой контент и т.д.)
-            # Детальное логирование выполняется на уровне провайдера
-            llm_response = None
-            if isinstance(response, dict) and 'raw_response' in response:
-                raw_resp = response['raw_response']
-                if hasattr(raw_resp, 'finish_reason'):
-                    llm_response = raw_resp
-            elif hasattr(response, 'finish_reason'):
-                llm_response = response
-            elif hasattr(response, 'content') and hasattr(response, 'metadata'):
-                # LLMResponse object
-                llm_response = response
-
-            if llm_response is not None:
-                # Проверяем finish_reason на ошибку
-                if getattr(llm_response, 'finish_reason', None) == 'error':
-                    error_msg = "Неизвестная ошибка LLM"
-                    if hasattr(llm_response, 'metadata') and llm_response.metadata:
-                        if isinstance(llm_response.metadata, dict):
-                            error_msg = llm_response.metadata.get('error', error_msg)
-                        elif isinstance(llm_response.metadata, str):
-                            error_msg = llm_response.metadata
-
-                    await self._log("error", f"LLM вернул ошибку: {error_msg}")
-
-                    # Оркестратор уже опубликовал событие об ошибке
-                    # Возвращаем fallback решение
-                    return {
-                        "analysis": {
-                            "current_situation": f"Ошибка LLM: {error_msg}",
-                            "progress_assessment": "Неизвестно",
-                            "confidence": 0.3,
-                            "errors_detected": True,
-                            "consecutive_errors": self.error_count + 1,
-                            "execution_time": context_analysis.get("execution_time_seconds", 0),
-                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                        },
-                        "recommended_action": {
-                            "action_type": "execute_capability",
-                            "capability_name": "book_library.search_books",
-                            "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
-                            "reasoning": f"fallback после ошибки LLM: {error_msg}"
-                        },
-                        "available_capabilities": available_capabilities,
-                        "needs_rollback": False
-                    }
-
-                # Проверяем metadata на наличие ошибки
-                if hasattr(llm_response, 'metadata') and llm_response.metadata and 'error' in llm_response.metadata:
-                    error_msg = llm_response.metadata['error']
-                    await self._log("error", f"LLM вернул ошибку в metadata: {error_msg}")
-
-                    # Оркестратор уже опубликовал событие об ошибке
-                    return {
-                        "analysis": {
-                            "current_situation": f"Ошибка LLM: {error_msg}",
-                            "progress_assessment": "Неизвестно",
-                            "confidence": 0.3,
-                            "errors_detected": True,
-                            "consecutive_errors": self.error_count + 1,
-                            "execution_time": context_analysis.get("execution_time_seconds", 0),
-                            "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                        },
-                        "recommended_action": {
-                            "action_type": "execute_capability",
-                            "capability_name": "book_library.search_books",
-                            "parameters": {"input": session_context.get_goal() or "Продолжить выполнение задачи"},
-                            "reasoning": f"fallback после ошибки LLM: {error_msg}"
-                        },
-                        "available_capabilities": available_capabilities,
-                        "needs_rollback": False
-                    }
-
-                # Проверяем на пустой или обрезанный ответ
-                content = getattr(llm_response, 'content', '')
-                if not content or (isinstance(content, str) and len(content.strip()) == 0):
-                    await self._log("warning", "LLM вернул пустой ответ!")
-
-            # correlation_id больше не публикуется здесь — это делает BaseLLMProvider
-            # Ответ уже опубликован в событии LLM_RESPONSE_RECEIVED с правильным correlation_id
-
-            # === LLM TRACE: ЛОГИРОВАНИЕ ВЫЗОВА LLM ===
-            self._log_llm_trace(prompt=reasoning_prompt, response=response, context=session_context)
-
-            # Обработка ответа для валидации
-            # Поддержка разных форматов ответа:
-            # 1. StructuredLLMResponse (от LLMOrchestrator.execute_structured)
-            # 2. Dict с raw_response (старый формат)
-            # 3. LLMResponse с content
-            # 4. Прямой dict
-            
-            result = None
-            
-            # Проверяем на StructuredLLMResponse
-            if hasattr(response, 'parsed_content') and response.parsed_content:
-                # StructuredLLMResponse — используем распарсенный контент
-                if hasattr(response.parsed_content, 'model_dump'):
-                    result = response.parsed_content.model_dump()
-                else:
-                    result = response.parsed_content
-            elif isinstance(response, dict) and 'raw_response' in response:
-                # Старый формат с raw_response
-                raw = response['raw_response']
-                if hasattr(raw, 'model_dump'):
-                    result = raw.model_dump()
-                elif hasattr(raw, 'content'):
-                    result = raw.content
-                else:
-                    result = raw
-            elif hasattr(response, 'content'):
-                # LLMResponse с content
-                result = response.content
-                # Если content это строка, пробуем распарсить как JSON
-                if isinstance(result, str):
-                    try:
-                        result = json.loads(result)
-                    except (json.JSONDecodeError, ValueError):
-                        await self._log("warning", f"LLM вернул невалидный JSON: {result[:200]}...")
-                        # Возвращаем fallback результат
-                        return {
-                            "analysis": {
-                                "current_situation": "Ошибка парсинга ответа LLM",
-                                "progress_assessment": "Неизвестно",
-                                "confidence": 0.3,
-                                "errors_detected": True,
-                                "consecutive_errors": self.error_count + 1,
-                            },
-                            "decision": {
-                                "next_action": "book_library.search_books",
-                                "reasoning": "fallback после ошибки парсинга JSON",
-                                "parameters": {"query": session_context.get_goal() if session_context else "Продолжить"}
-                            },
-                            "available_capabilities": available_capabilities,
-                            "needs_rollback": False
-                        }
+        # === 6. ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===
+        result = None
+        
+        if hasattr(response, 'parsed_content') and response.parsed_content:
+            if hasattr(response.parsed_content, 'model_dump'):
+                result = response.parsed_content.model_dump()
             else:
-                # Прямой dict
-                result = response
-
-            # Валидация результата
-            reasoning_result = validate_reasoning_result(result)
-            
-            # Проверка что результат — dict, а не строка
-            if isinstance(reasoning_result, str):
-                await self._log("error", f"validate_reasoning_result вернул строку вместо dict: {reasoning_result[:200]}")
-                # Пытаемся распарсить как JSON
+                result = response.parsed_content
+        elif hasattr(response, 'content'):
+            content_val = response.content
+            if isinstance(content_val, str):
                 try:
-                    import json
-                    reasoning_result = json.loads(reasoning_result)
-                except:
-                    # Возвращаем fallback
-                    return {
-                        "analysis": {
-                            "current_situation": "Ошибка валидации — строка вместо dict",
-                            "progress_assessment": "Неизвестно",
-                            "confidence": 0.0,
-                            "errors_detected": True,
-                            "consecutive_errors": self.error_count + 1,
-                        },
-                        "decision": {
-                            "next_action": "final_answer.generate",
-                            "reasoning": "fallback после ошибки валидации",
-                            "parameters": {"query": session_context.get_goal() or "Прод��лжить"}
-                        },
-                        "available_capabilities": available_capabilities,
-                        "needs_rollback": False
-                    }
-
-            # Добавляем available_capabilities в результат для последующего использования
-            reasoning_result['available_capabilities'] = available_capabilities
-
-            # Логирование результата для отладки
-            await self._log("info", f"=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
-            await self._log("debug", f"decision: {reasoning_result.get('decision', {})}")
-            await self._log("debug", f"next_action: {reasoning_result.get('decision', {}).get('next_action', 'NOT FOUND')}")
-            await self._log("debug", f"parameters: {reasoning_result.get('decision', {}).get('parameters', {})}")
-            await self._log("info", f"===========================")
-
-            self.last_reasoning_time = time.time() - start_time
-            await self._log("debug", f"Структурированное рассуждение выполнено за {self.last_reasoning_time:.2f} секунд")
-            
-            # ГАРАНТИЯ: LLM должен быть вызван
-            if not llm_was_called:
-                raise InfrastructureError(
-                    "LLM was not called in _perform_structured_reasoning - ReAct pattern violation"
-                )
-            
-            return reasoning_result
-        except Exception as e:
-            error_msg = f"Ошибка в процессе рассуждения: {str(e)}"
-            await self._log("error", error_msg, exc_info=True)
-
-            # Оркестратор опубликует событие при следующем вызове
-            # Попытка fallback рассуждения с упрощенной схемо��
-            if self.error_count < self.max_consecutive_errors:
-                await self._log("info", "Попытка упрощенного рассуждения после ошибки")
-                return {
-                    "analysis": {
-                        "current_situation": "Ошибка в основно�� процессе рассуждения",
-                        "progress_assessment": "��еизвестно",
-                        "confidence": 0.3,
-                        "errors_detected": True,
-                        "consecutive_errors": self.error_count + 1,
-                        "execution_time": context_analysis.get("execution_time_seconds", 0),
-                        "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-                    },
-                    "recommended_action": {
-                        "action_type": "execute_capability",
-                        "capability_name": "book_library.search_books",  # Используем доступную capability
-                        "parameters": {"input": session_context.get_goal() or "Пр��должить выполнение задачи"},
-                        "reasoning": f"fallback после ошибки: {str(e)}"
-                    },
-                    "available_capabilities": available_capabilities,  # ← Передаем д��ступные capability
-                    "needs_rollback": False
-                }
+                    result = json.loads(content_val)
+                except (json.JSONDecodeError, ValueError):
+                    await self._log("warning", f"LLM вернул невалидный JSON: {content_val[:200]}...")
             else:
-                raise
+                result = content_val
+        else:
+            result = response
+
+        if result is None:
+            await self._log("error", "LLM вернул пустой результат")
+            return self._create_fallback_reasoning(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason="empty_response"
+            )
+
+        # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
+        reasoning_result = validate_reasoning_result(result)
+
+        if isinstance(reasoning_result, dict):
+            reasoning_result['available_capabilities'] = available_capabilities
+            await self._log("info", "=== РЕЗУЛЬТАТ РАССУЖДЕНИЯ ===")
+            await self._log("debug", f"decision: {reasoning_result.get('decision', {})}")
+
+        return reasoning_result
+
+    def _create_fallback_reasoning(
+        self,
+        context_analysis: Dict[str, Any],
+        available_capabilities: List[Capability],
+        reason: str
+    ) -> Dict[str, Any]:
+        """Создает fallback результат рассуждения."""
+        fallback_capability = "final_answer.generate"
+        if available_capabilities:
+            fallback_capability = (
+                available_capabilities[0].name if hasattr(available_capabilities[0], 'name')
+                else "final_answer.generate"
+            )
+
+        return {
+            "analysis": {
+                "current_situation": f"Fallback: {reason}",
+                "progress_assessment": "Неизвестно",
+                "confidence": 0.3,
+                "errors_detected": True,
+                "consecutive_errors": getattr(self, 'error_count', 0) + 1,
+                "execution_time": context_analysis.get("execution_time_seconds", 0),
+                "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+            },
+            "decision": {
+                "next_action": fallback_capability,
+                "reasoning": f"fallback после ошибки: {reason}",
+                "parameters": {"query": context_analysis.get("goal", "Продолжить")},
+                "expected_outcome": "Неизвестно"
+            },
+            "available_capabilities": available_capabilities,
+            "confidence": 0.1,
+            "stop_condition": False,
+            "stop_reason": "fallback",
+            "alternative_actions": [],
+            "thought": f"Fallback из-за: {reason}"
+        }
 
     def _find_capability(
         self, 

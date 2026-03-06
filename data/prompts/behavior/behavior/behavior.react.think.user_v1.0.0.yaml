@@ -13,10 +13,11 @@ content: |
   === ИНСТРУМЕНТЫ ===
   {available_tools}
 
-  === ПРИМЕР ===
-  Цель: "Найти книги Пушкина" → Decision: {"next_action": "book_library.execute_script", "parameters": {"script_name": "get_books_by_author", "parameters": {"author": "Александр Пушкин"}}}
-
-  Верни JSON согласно формату из системного промпта:
+  === ЗАДАНИЕ ===
+  Сформируй план действий для достижения цели.
+  Верни ТОЛЬКО один JSON объект согласно схеме из системного промпта.
+  
+  Начни свой ответ с открывающей фигурной скобки {{ и закончи закрывающей }}.
 variables:
   - name: input
     description: Текущий контекст задачи и состояние
@@ -36,5 +37,5 @@ variables:
 metadata:
   author: system
   created: '2026-02-19'
-  description: User prompt для behavior.react.think (~800 симв)
-  version_notes: 'Только контекст и данные. Формат и правила в system_prompt'
+  description: User prompt для behavior.react.think
+  version_notes: 'Убран пример JSON чтобы модель не повторяла шаблон'

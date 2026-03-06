@@ -421,6 +421,20 @@ class LLMOrchestrator:
         # Логирование начала вызова
         await self._log_call_start(call_record)
 
+        # === ПОЛНОЕ ЛОГИРОВАНИЕ ПРОМПТА И ОТВЕТА ===
+        self._print_prompt(request, call_id)
+
+        # Установка контекста в провайдере для логирования
+        if hasattr(provider, 'set_call_context'):
+            provider.set_call_context(
+                event_bus=self._event_bus,
+                session_id=session_id or "unknown",
+                agent_id=agent_id or "system",
+                component=capability_name or "unknown",
+                phase=phase or "unknown",
+                goal=goal or "unknown"
+            )
+
         try:
             # Запуск выполнения
             return await self._execute_with_timeout(
@@ -982,6 +996,9 @@ class LLMOrchestrator:
             # Логирование успешного завершения
             await self._log_call_success(record, result)
 
+            # === ПОЛНОЕ ЛОГИРОВАНИЕ ОТВЕТА ===
+            self._print_response(result, call_id, record.duration or 0)
+
             return result
 
         except asyncio.TimeoutError:
@@ -1056,9 +1073,7 @@ class LLMOrchestrator:
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED
-        await self._logger.debug(f"Публикация события LLM_RESPONSE_RECEIVED для call_id={record.call_id}")
         await self._publish_response_event(record, result, record.duration or 0, success=True)
-        await self._logger.debug(f"Событие LLM_RESPONSE_RECEIVED опубликовано для call_id={record.call_id}")
 
     async def _log_call_timeout(self, record: CallRecord, elapsed: float, timeout: float) -> None:
         """Логирование таймаута вызова."""
@@ -1073,7 +1088,7 @@ class LLMOrchestrator:
             f"prompt_len={len(record.request.prompt)}"
         )
 
-        # Публикация события LLM_CALL_FAILED с таймаутом
+        # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
         await self._publish_response_event(
             record,
             None,
@@ -1094,7 +1109,7 @@ class LLMOrchestrator:
             f"{type(error).__name__}: {str(error)[:200]} | elapsed={elapsed:.2f}s"
         )
 
-        # Публикация события об ошибке
+        # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
         await self._publish_response_event(
             record,
             None,
@@ -1489,3 +1504,71 @@ class LLMOrchestrator:
             "metrics": metrics,
             "recent_calls": pending[:10]  # Последние 10
         }
+
+    def _print_prompt(self, request: LLMRequest, call_id: str) -> None:
+        """
+        Полное логирование промпта и ответа LLM.
+        
+        ВЫВОДИТ:
+        - PROMPT: полный текст промпта с системной инструкцией
+        - RESPONSE: ответ от LLM (после получения)
+        """
+        print("\n" + "=" * 80)
+        print("━━━━━━━━ LLM CALL ━━━━━━━━")
+        print("=" * 80)
+        
+        # PROMPT
+        print(f"\n📝 PROMPT (call_id={call_id})")
+        print("-" * 60)
+        
+        # Системный промпт
+        if request.system_prompt:
+            print("=== SYSTEM ===")
+            print(request.system_prompt[:2000])
+            if len(request.system_prompt) > 2000:
+                print(f"... (ещё {len(request.system_prompt) - 2000} символов)")
+            print()
+        
+        # User промпт
+        print("=== USER ===")
+        print(request.prompt[:2000])
+        if len(request.prompt) > 2000:
+            print(f"... (ещё {len(request.prompt) - 2000} символов)")
+        
+        print(f"\n📊 Длина промпта: {len(request.prompt)} символов")
+        print(f"🌡️ Temperature: {request.temperature}")
+        print(f"🎯 Max tokens: {request.max_tokens}")
+        if request.structured_output:
+            print(f"📋 Structured output: {request.structured_output.output_model}")
+
+    def _print_response(self, result: LLMResponse, call_id: str, duration: float) -> None:
+        """
+        Полное логирование ответа LLM.
+        
+        ВЫВОДИТ:
+        - RESPONSE: полный текст ответа
+        - METRICS: время генерации, токены
+        """
+        print("\n" + "-" * 60)
+        print("💬 RESPONSE")
+        print("-" * 60)
+        
+        # Извлекаем контент
+        content = getattr(result, 'content', '') if result else ''
+        
+        print(content[:2000])
+        if len(content) > 2000:
+            print(f"... (ещё {len(content) - 2000} символов)")
+        
+        # Метрики
+        print(f"\n⏱️ Время генерации: {duration:.2f}с")
+        if hasattr(result, 'tokens_used'):
+            print(f"🪙 Токенов: {result.tokens_used}")
+        if hasattr(result, 'generation_time'):
+            print(f"⏱️ Generation time: {result.generation_time:.2f}с")
+        if hasattr(result, 'finish_reason'):
+            print(f"🏁 Finish reason: {result.finish_reason}")
+        
+        print("\n" + "=" * 80)
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("=" * 80 + "\n")
