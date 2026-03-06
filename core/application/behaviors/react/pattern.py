@@ -83,17 +83,6 @@ class ReActPattern(BaseBehaviorPattern):
             return self.application_context.llm_orchestrator
         return None
 
-    def _init_event_bus_logger(self):
-        """Инициализирует EventBusLogger когда становится доступен event_bus."""
-        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            from core.infrastructure.logging import EventBusLogger
-            self.event_bus_logger = EventBusLogger(
-                event_bus=self.application_context.infrastructure_context.event_bus,
-                session_id="system",
-                agent_id="system",
-                component="react_pattern.think"
-            )
-
     async def _execute_llm_with_orchestrator(
         self,
         llm_request: LLMRequest,
@@ -181,7 +170,14 @@ class ReActPattern(BaseBehaviorPattern):
         """
         # Инициализируем event_bus_logger если ещё не инициализирован
         if self.event_bus_logger is None:
-            self._init_event_bus_logger()
+            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+                from core.infrastructure.logging import EventBusLogger
+                self.event_bus_logger = EventBusLogger(
+                    event_bus=self.application_context.infrastructure_context.event_bus,
+                    session_id="system",
+                    agent_id="system",
+                    component="react_pattern.think"
+                )
 
         if self.event_bus_logger:
             log_method = getattr(self.event_bus_logger, level, None)
@@ -538,18 +534,6 @@ class ReActPattern(BaseBehaviorPattern):
 
         return "\n".join(lines)
 
-    def _get_default_system_prompt(self) -> str:
-        """
-        Возвращает системный промпт по умолчанию.
-        
-        ВНИМАНИЕ: Этот метод НЕ должен использоваться в production!
-        Системный промпт должен загружаться из PromptService.
-        
-        ВОЗВРАЩАЕТ:
-        - str: простой системный промпт
-        """
-        return """Ты — модуль рассуждения ReAct. Верни JSON с полями: thought, decision, confidence, stop_condition."""
-
     async def analyze_context(
         self,
         session_context: 'SessionContext',
@@ -806,12 +790,16 @@ class ReActPattern(BaseBehaviorPattern):
             # === LLM БУДЕТ ВЫЗВАН ===
             llm_was_called = True
 
-            # Создаем LLMRequest для структурированного вывода
-            system_prompt = self.system_prompt_template or self._get_default_system_prompt()
+            # Проверка что системный промпт загружен
+            if not self.system_prompt_template:
+                raise RuntimeError(
+                    "system_prompt_template не загружен! "
+                    "Промпт должен быть загружен при инициализации из PromptService."
+                )
 
             llm_request = LLMRequest(
                 prompt=reasoning_prompt,
-                system_prompt=system_prompt,
+                system_prompt=self.system_prompt_template,
                 temperature=0.3,
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
