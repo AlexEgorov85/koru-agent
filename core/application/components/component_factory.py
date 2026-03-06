@@ -63,39 +63,43 @@ class ComponentFactory:
     def _get_providers(self) -> dict:
         """
         Получить все провайдеры из инфраструктурного контекста.
-        
+
         RETURNS:
         - dict: Словарь с провайдерами по именам
         """
         providers = {}
         infra = self._infrastructure_context
-        
-        # Получаем провайдеры через фабрики
-        if hasattr(infra, 'db_provider_factory') and infra.db_provider_factory:
-            providers['db'] = infra.db_provider_factory.get_provider("default_db")
-        
-        if hasattr(infra, 'llm_provider_factory') and infra.llm_provider_factory:
-            providers['llm'] = infra.llm_provider_factory.get_provider("default_llm")
-        
+
+        # Получаем провайдеры напрямую из инфраструктурного контекста
+        # DB провайдер
+        db_provider = infra.get_provider("default_db")
+        if db_provider:
+            providers['db'] = db_provider
+
+        # LLM провайдер
+        llm_provider = infra.get_provider("default_llm")
+        if llm_provider:
+            providers['llm'] = llm_provider
+
         # Vector провайдеры
         if hasattr(infra, '_faiss_providers'):
             providers['vector'] = infra._faiss_providers.get("default_vector")
-        
+
         # Кэш - используем MemoryCacheProvider
         if hasattr(infra, 'cache_provider'):
             providers['cache'] = infra.cache_provider
-        
+
         # Хранилища
         if hasattr(infra, 'prompt_storage'):
             providers['prompt_storage'] = infra.prompt_storage
-        
+
         if hasattr(infra, 'contract_storage'):
             providers['contract_storage'] = infra.contract_storage
-        
+
         # Шина событий
         if hasattr(infra, 'event_bus'):
             providers['event_bus'] = infra.event_bus
-        
+
         # Хранилища метрик и логов
         if hasattr(infra, 'metrics_storage'):
             providers['metrics_storage'] = infra.metrics_storage
