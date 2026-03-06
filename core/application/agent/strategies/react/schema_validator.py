@@ -1,17 +1,101 @@
 ﻿"""
 Валидатор схемы для ReAct стратегии в новой архитектуре
+
+АРХИТЕКТУРА:
+- Типизированные объекты вместо dict
+- Dataclass для структур данных
 """
 import logging
-from typing import Dict, Any, Optional
+import re
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional, List
 from core.models.data.capability import Capability
+
+
+@dataclass
+class ParameterSchema:
+    """
+    Схема параметра capability.
+    
+    ATTRIBUTES:
+    - name: Имя параметра
+    - type: Ожидаемый тип (string, integer, number, boolean)
+    - required: Обязательность параметра
+    - description: Описание параметра
+    - default: Значение по умолчанию
+    """
+    name: str
+    type: str = "string"
+    required: bool = False
+    description: str = ""
+    default: Any = None
+
+
+@dataclass
+class CapabilitySchema:
+    """
+    Типизированная схема capability.
+    
+    ATTRIBUTES:
+    - capability_name: Имя capability
+    - input_parameters: Параметры входных данных
+    - output_schema: Схема выходных данных
+    - description: Описание capability
+    """
+    capability_name: str
+    input_parameters: List[ParameterSchema] = field(default_factory=list)
+    output_schema: Optional[Dict[str, Any]] = None
+    description: str = ""
+    
+    def get_required_params(self) -> List[str]:
+        """Получить список обязательных параметров."""
+        return [p.name for p in self.input_parameters if p.required]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертация в dict для обратной совместимости."""
+        return {
+            param.name: {
+                'type': param.type,
+                'required': param.required,
+                'description': param.description,
+                'default': param.default
+            }
+            for param in self.input_parameters
+        }
+
+
+@dataclass
+class ValidationResult:
+    """
+    Результат валидации параметров.
+    
+    ATTRIBUTES:
+    - success: Успешность валидации
+    - validated_params: Валидированные параметры
+    - errors: Список ошибок
+    - warnings: Список предупреждений
+    """
+    success: bool
+    validated_params: Dict[str, Any] = field(default_factory=dict)
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    
+    def add_error(self, error: str):
+        """Добавить ошибку."""
+        self.errors.append(error)
+        self.success = False
+    
+    def add_warning(self, warning: str):
+        """Добавить предупреждение."""
+        self.warnings.append(warning)
 
 
 class SchemaValidator:
     """Валидатор параметров capability для ReAct стратегии"""
 
     def __init__(self):
-        # Кэш схем: {capability_name: {"input": schema_dict}}
-        self._schemas_cache: Dict[str, Dict[str, Any]] = {}
+        # Кэш схем: {capability_name: CapabilitySchema}
+        self._schemas_cache: Dict[str, CapabilitySchema] = {}
 
     def register_capability_schema(self, capability_name: str, input_schema: Dict[str, Any]):
         """
@@ -19,12 +103,38 @@ class SchemaValidator:
 
         ARGS:
         - capability_name: имя capability
-        - input_schema: схема входных параметров из контракта
+        - input_schema: схема входных параметров из контракта (dict для обратной совместимости)
         """
-        self._schemas_cache[capability_name] = input_schema
+        # Конвертируем dict в CapabilitySchema
+        schema = self._dict_to_capability_schema(capability_name, input_schema)
+        self._schemas_cache[capability_name] = schema
         return True
+    
+    def _dict_to_capability_schema(self, capability_name: str, input_dict: Dict[str, Any]) -> CapabilitySchema:
+        """Конвертация dict схемы в CapabilitySchema."""
+        parameters = []
+        for param_name, param_info in input_dict.items():
+            if isinstance(param_info, dict):
+                parameters.append(ParameterSchema(
+                    name=param_name,
+                    type=param_info.get('type', 'string'),
+                    required=param_info.get('required', False),
+                    description=param_info.get('description', ''),
+                    default=param_info.get('default')
+                ))
+            else:
+                # Упрощённый формат: просто тип
+                parameters.append(ParameterSchema(
+                    name=param_name,
+                    type=param_info if isinstance(param_info, str) else 'string'
+                ))
+        
+        return CapabilitySchema(
+            capability_name=capability_name,
+            input_parameters=parameters
+        )
 
-    def get_capability_schema(self, capability_name: str) -> Optional[Dict[str, Any]]:
+    def get_capability_schema(self, capability_name: str) -> Optional[CapabilitySchema]:
         """
         Получает схему для capability.
 
@@ -32,7 +142,7 @@ class SchemaValidator:
         - capability_name: имя capability
 
         RETURNS:
-        - Схема параметров или None
+        - CapabilitySchema или None
         """
         return self._schemas_cache.get(capability_name)
 
@@ -53,87 +163,99 @@ class SchemaValidator:
         RETURNS:
         - Валидированные параметры или None, если валидация не удалась
         """
-        import logging
-        import re
         logger = logging.getLogger(__name__)
 
         if not capability or not raw_params:
             return None
 
         # Получаем схему из кэша по имени capability
-        params_schema = self.get_capability_schema(capability.name)
-
-        # logger.info(f"validate_parameters: capability={capability.name}, raw_params={raw_params}, params_schema={params_schema}")
+        schema = self.get_capability_schema(capability.name)
 
         # Если схема не найдена в кэше, пробуем получить из meta capability
-        if not params_schema:
-            # Пытаемся получить из meta (если там есть contract_schema)
-            params_schema = capability.meta.get('contract_schema', {})
-            logger.debug(f"Схема не найдена в кэше, пробуем из meta: {params_schema}")
-
+        params_schema_dict = None
+        if schema:
+            params_schema_dict = schema.to_dict()
+        elif capability.meta.get('contract_schema'):
+            params_schema_dict = capability.meta.get('contract_schema', {})
+            logger.debug(f"Схема не найдена в кэше, используем из meta: {params_schema_dict}")
+        
         # Если схема всё ещё пуста, создаём минимальную схему с "input"
-        if not params_schema:
-            # Дефолтная схема: требуется поле "input" типа string
-            params_schema = {
+        if not params_schema_dict:
+            params_schema_dict = {
                 "input": {"type": "string", "required": True}
             }
-            logger.debug(f"Используем дефолтную схему: {params_schema}")
+            logger.debug(f"Используем дефолтную схему: {params_schema_dict}")
 
         # СПЕЦИАЛЬНАЯ ЛОГИКА для book_library.execute_script
-        # Если LLM передал только {"input": "..."}, пытаемся извлечь автора и создать правильные параметры
         if capability.name == "book_library.execute_script":
-            validated_params = self._try_fix_book_library_params(raw_params, params_schema)
+            validated_params = self._try_fix_book_library_params(raw_params, params_schema_dict)
             if validated_params:
                 logger.info(f"✅ Параметры для book_library.execute_script исправлены: {validated_params}")
                 return validated_params
 
+        # Валидация через схему
+        result = self._validate_with_schema(params_schema_dict, raw_params, logger)
+        
+        if result.success:
+            return result.validated_params
+        else:
+            for warning in result.warnings:
+                logger.warning(warning)
+            for error in result.errors:
+                logger.error(error)
+            return None
+    
+    def _validate_with_schema(
+        self,
+        schema_dict: Dict[str, Any],
+        raw_params: Dict[str, Any],
+        logger: logging.Logger
+    ) -> ValidationResult:
+        """Валидация параметров через схему."""
+        result = ValidationResult(success=True)
         validated_params = {}
 
-        # Проходим по каждому параметру и валидируем его
-        for param_name, param_info in params_schema.items():
+        for param_name, param_info in schema_dict.items():
             if param_name in raw_params:
-                # Простая валидация типов
                 param_value = raw_params[param_name]
-
-                # Проверяем тип, если он указан в схеме
-                expected_type = param_info.get('type')
+                
+                # Простая валидация типов
+                expected_type = param_info.get('type') if isinstance(param_info, dict) else param_info
                 if expected_type:
-                    if expected_type == 'string' and not isinstance(param_value, str):
-                        # Попробуем преобразовать к строке
-                        try:
-                            param_value = str(param_value)
-                        except:
-                            # Если не удается преобразовать, пропускаем этот параметр
-                            logger.warning(f"Не удалось преобразовать параметр {param_name} к строке")
-                            continue
-                    elif expected_type == 'integer' and not isinstance(param_value, int):
-                        try:
-                            param_value = int(param_value)
-                        except:
-                            logger.warning(f"Не удалось преобразовать параметр {param_name} к integer")
-                            continue
-                    elif expected_type == 'number' and not isinstance(param_value, (int, float)):
-                        try:
-                            param_value = float(param_value)
-                        except:
-                            logger.warning(f"Не удалось преобразовать параметр {param_name} к number")
-                            continue
-                    elif expected_type == 'boolean' and not isinstance(param_value, bool):
-                        try:
-                            param_value = bool(param_value)
-                        except:
-                            logger.warning(f"Не удалось преобразовать параметр {param_name} к boolean")
-                            continue
+                    converted_value = self._convert_type(param_name, param_value, expected_type, logger, result)
+                    if converted_value is not None:
+                        validated_params[param_name] = converted_value
+                else:
+                    validated_params[param_name] = param_value
+                    
+            elif isinstance(param_info, dict) and param_info.get('required', False):
+                result.add_error(f"Обязательный параметр {param_name} отсутствует")
 
-                validated_params[param_name] = param_value
-                # logger.debug(f"Валидирован параметр {param_name}={param_value}")
-            elif param_info.get('required', False):
-                # Если параметр обязательный, но отсутствует, возвращаем None
-                logger.warning(f"Обязательный параметр {param_name} отсутствует")
-                return None
-
-        # logger.info(f"validate_parameters: result={validated_params}")
-        return validated_params
+        result.validated_params = validated_params
+        return result
+    
+    def _convert_type(
+        self,
+        param_name: str,
+        value: Any,
+        expected_type: str,
+        logger: logging.Logger,
+        result: ValidationResult
+    ) -> Optional[Any]:
+        """Преобразование значения к ожидаемому типу."""
+        try:
+            if expected_type == 'string' and not isinstance(value, str):
+                return str(value)
+            elif expected_type == 'integer' and not isinstance(value, int):
+                return int(value)
+            elif expected_type == 'number' and not isinstance(value, (int, float)):
+                return float(value)
+            elif expected_type == 'boolean' and not isinstance(value, bool):
+                return bool(value)
+            return value
+        except Exception as e:
+            result.add_warning(f"Не удалось преобразовать параметр {param_name} к {expected_type}: {e}")
+            return None
 
     def _try_fix_book_library_params(
         self,
@@ -142,75 +264,60 @@ class SchemaValidator:
     ) -> Optional[Dict[str, Any]]:
         """
         Пытается исправить параметры для book_library.execute_script.
-        
-        Если LLM передал только {"input": "Какие книги написал Александр Пушкин?"},
-        извлекаем имя автора и создаём правильные параметры.
-        
-        RETURNS:
-        - Исправленные параметры или None
         """
-        import logging
-        import re
         logger = logging.getLogger(__name__)
 
         # Если уже есть script_name, ничего не делаем
         if 'script_name' in raw_params:
-            logger.debug("script_name уже присутствует, пропускаем исправление")
             return None
 
         # Если есть только input, пытаемся извлечь информацию
         input_text = raw_params.get('input', '')
         if not input_text:
-            logger.debug("input текст пустой")
             return None
 
         logger.info(f"_try_fix_book_library_params: Пытаемся исправить параметры для input='{input_text}'")
 
-        # Паттерны для извлечения авторов (русские имена)
-        author_patterns = [
-            # "книги написал Александр Пушкин"
-            r'(?:написал|написали|автор|авторы)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?\s+[А-Я][а-яё]+)',
-            # "книги Александра Пушкина" (родительный падеж)
-            r'(?:книги|произведения|творения)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?[а-яё]+)',
-            # "Пушкин" или "Лев Толстой" (просто имя)
-            r'([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?(?:ов|ев|ин|ский|ц[а-яё]+)?\s+[А-Я][а-яё]+(?:-[А-Я][а-яё]+)?)',
-        ]
-
-        # Пробуем найти имя автора
-        author = None
-        for i, pattern in enumerate(author_patterns):
-            match = re.search(pattern, input_text)
-            if match:
-                author = match.group(1).strip()
-                # Очищаем от лишних окончаний
-                author = re.sub(r'(?:ова|ева|ина|ская|цкого|ого|ему|ым|ою|е)$', '', author)
-                logger.info(f"Найден автор по паттерну #{i} '{pattern}': {author}")
-                break
-
+        # Паттерны для извлечения авторов
+        author = self._extract_author_from_text(input_text, logger)
+        
         # Если автор найден, создаём правильные параметры
         if author and len(author) > 2:
-            result = {
+            return {
                 "script_name": "get_books_by_author",
                 "parameters": {
                     "author": author,
                     "max_rows": 20
                 }
             }
-            logger.info(f"✅ Созданы исправленные параметры: {result}")
-            return result
 
         # Если автора нет, пробуем определить тип запроса
         input_lower = input_text.lower()
         if "все книги" in input_lower or "полный список" in input_lower:
-            result = {
+            return {
                 "script_name": "get_all_books",
                 "parameters": {
                     "max_rows": 50
                 }
             }
-            logger.info(f"✅ Определён запрос 'все книги': {result}")
-            return result
 
-        # Для других запросов - используем fallback на dynamic search
         logger.warning(f"❌ Не удалось определить параметры для input='{input_text}'")
+        return None
+    
+    def _extract_author_from_text(self, text: str, logger: logging.Logger) -> Optional[str]:
+        """Извлечение имени автора из текста."""
+        author_patterns = [
+            r'(?:написал|написали|автор|авторы)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?\s+[А-Я][а-яё]+)',
+            r'(?:книги|произведения|творения)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?[а-яё]+)',
+            r'([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?(?:ов|ев|ин|ский|ц[а-яё]+)?\s+[А-Я][а-яё]+(?:-[А-Я][а-яё]+)?)',
+        ]
+
+        for i, pattern in enumerate(author_patterns):
+            match = re.search(pattern, text)
+            if match:
+                author = match.group(1).strip()
+                author = re.sub(r'(?:ова|ева|ина|ская|цкого|ого|ему|ым|ою|е)$', '', author)
+                logger.info(f"Найден автор по паттерну #{i}: {author}")
+                return author
+        
         return None
