@@ -49,6 +49,57 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
             cleaned = re.sub(r'```', '', cleaned)
             cleaned = cleaned.strip()
 
+            # Ищем первый {", который начинает настоящий JSON ответ LLM
+            # (в промпте могут быть JSON-схемы, но они обычно в ```json ... ```)
+            # Также ищем просто { в конце строки (после всего текста)
+            json_start_patterns = [
+                cleaned.find('{"'),       # Стандартное начало JSON
+                cleaned.find('{ "'),      # С пробелом
+                cleaned.find('{{"'),      # Двойная скобка
+                cleaned.find('{{ "'),     # Двойная с пробелом
+                cleaned.find('{\n'),      # С переносом строки
+                cleaned.find('{{\n'),     # Двойная с переносом строки
+                cleaned.find('{\r\n'),    # С Windows переносом
+                cleaned.find('{{\r\n'),   # Двойная с Windows переносом
+            ]
+            # Берём первый найденный паттерн (минимальный положительный индекс)
+            json_start_idx = -1
+            for idx in json_start_patterns:
+                if idx >= 0:
+                    if json_start_idx < 0 or idx < json_start_idx:
+                        json_start_idx = idx
+            
+            # Если не нашли паттерны с кавычками, ищем просто последнюю {
+            # (это может быть JSON без кавычек или с другим форматом)
+            if json_start_idx < 0:
+                json_start_idx = cleaned.rfind('{')
+            
+            if json_start_idx > 0:
+                cleaned = cleaned[json_start_idx:]
+
+            # Исправляем распространённую ошибку LLM: двойные скобки
+            # Заменяем {{ на { в начале
+            if cleaned.startswith('{{'):
+                cleaned = '{' + cleaned[2:]
+            
+            # Считаем количество скобок и удаляем лишние закрывающие с конца
+            open_braces = cleaned.count('{')
+            close_braces = cleaned.count('}')
+            if close_braces > open_braces:
+                excess = close_braces - open_braces
+                logger.info(f"Найдено лишних закрывающих скобок: {excess} (открывающих={open_braces}, закрывающих={close_braces})")
+                # Удаляем лишние } с конца строки
+                cleaned_list = list(cleaned)
+                removed = 0
+                i = len(cleaned_list) - 1
+                while i >= 0 and removed < excess:
+                    if cleaned_list[i] == '}':
+                        cleaned_list[i] = ''
+                        removed += 1
+                    i -= 1
+                cleaned = ''.join(cleaned_list)
+                logger.info(f"Удалено {removed} лишних закрывающих скобок")
+
             # Пытаемся найти ВСЕ JSON объекты (сбалансированные скобки)
             # и берем ПОСЛЕДНИЙ валидный (это настоящий ответ LLM, а не шаблон)
             json_objects = []
@@ -74,33 +125,51 @@ def validate_reasoning_result(result: Any) -> Dict[str, Any]:
                 json_str = json_objects[idx]
                 try:
                     validated_result = json.loads(json_str)
+                    logger.info(f"Успешно распарсен JSON #{idx+1} из {len(json_objects)} найденных")
                     break
                 except json.JSONDecodeError as e:
                     logger.warning(f"JSON #{idx+1} невалидный: {e}")
                     continue
 
             if validated_result is None:
-                # Не удалось распарсить ни один JSON
+                # Не удалось распарсить ни один JSON - пробуем исправить распространённые ошибки
                 logger.warning(f"Не удалось распарсить ни один JSON из {len(json_objects)} найденных")
-                logger.warning(f"Исходная строка: {result[:200]}...")
-                return {
-                    'thought': 'Ошибка парсинга JSON',
-                    'analysis': {
-                        'progress': 'Неизвестно',
-                        'current_state': 'Не удалось распарсить ответ LLM',
-                        'issues': ['JSON не найден или невалидный']
-                    },
-                    'decision': {
-                        'next_action': 'final_answer.generate',
-                        'reasoning': 'fallback после ошибки парсинга',
-                        'parameters': {'input': 'Продолжить выполнение задачи'},
-                        'expected_outcome': 'Неизвестно'
-                    },
-                    'confidence': 0.1,
-                    'stop_condition': False,
-                    'stop_reason': 'parse_error',
-                    'alternative_actions': []
-                }
+                
+                # Пробуем исправить двойные скобки внутри JSON
+                if len(json_objects) > 0:
+                    for idx in range(len(json_objects) - 1, -1, -1):
+                        json_str = json_objects[idx]
+                        # Исправляем двойные закрывающие скобки внутри JSON
+                        fixed_str = re.sub(r'\}\}', '}', json_str)
+                        # Исправляем двойные открывающие скобки в начале
+                        fixed_str = re.sub(r'^\{\{', '{', fixed_str)
+                        try:
+                            validated_result = json.loads(fixed_str)
+                            logger.info(f"Успешно исправлен JSON #{idx+1} после коррекции скобок")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                
+                if validated_result is None:
+                    logger.warning(f"Исходная строка: {result[:200]}...")
+                    return {
+                        'thought': 'Ошибка парсинга JSON',
+                        'analysis': {
+                            'progress': 'Неизвестно',
+                            'current_state': 'Не удалось распарсить ответ LLM',
+                            'issues': ['JSON не найден или невалидный']
+                        },
+                        'decision': {
+                            'next_action': 'final_answer.generate',
+                            'reasoning': 'fallback после ошибки парсинга',
+                            'parameters': {'input': 'Продолжить выполнение задачи'},
+                            'expected_outcome': 'Неизвестно'
+                        },
+                        'confidence': 0.1,
+                        'stop_condition': False,
+                        'stop_reason': 'parse_error',
+                        'alternative_actions': []
+                    }
         else:
             logger.error(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
             # Возвращаем fallback dict

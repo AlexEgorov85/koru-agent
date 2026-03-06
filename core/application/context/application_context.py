@@ -387,7 +387,7 @@ class ApplicationContext(BaseSystemContext):
                 self.llm_orchestrator = LLMOrchestrator(
                     event_bus=self.infrastructure_context.event_bus,
                     max_workers=4,
-                    cleanup_interval=60.0,
+                    cleanup_interval=600.0,
                     max_pending_calls=100
                 )
                 await self.llm_orchestrator.initialize()

@@ -235,7 +235,7 @@ class LLMOrchestrator:
         self,
         event_bus: UnifiedEventBus,
         max_workers: int = 4,
-        cleanup_interval: float = 60.0,
+        cleanup_interval: float = 600.0,
         max_pending_calls: int = 100
     ):
         """

@@ -118,13 +118,6 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         await application_context.initialize()
 
-        # Подписка на события LLM через LLMEventSubscriber
-        llm_subscriber = LLMEventSubscriber(
-            event_bus=infrastructure_context.event_bus,
-            log_full_content=True
-        )
-        llm_subscriber.subscribe(infrastructure_context.event_bus)
-
         # Создание фабрики агентов
         agent_factory = AgentFactory(application_context)
 
