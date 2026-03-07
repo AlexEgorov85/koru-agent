@@ -628,8 +628,9 @@ class ActionExecutor:
                 "model": response.raw_response.model if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'model', 'unknown'),
                 # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
                 "tokens_used": response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'tokens_used', 0),
-                "generation_time": response.generation_time,
-                "finish_reason": response.finish_reason
+                # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет generation_time/finish_reason напрямую
+                "generation_time": response.raw_response.generation_time if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'generation_time', 0),
+                "finish_reason": response.raw_response.finish_reason if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'finish_reason', 'unknown')
             }
         )
 

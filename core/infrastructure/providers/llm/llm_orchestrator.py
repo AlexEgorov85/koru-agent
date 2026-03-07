@@ -1458,11 +1458,13 @@ class LLMOrchestrator:
         """Публикация события завершения вызова."""
         # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
         tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
+        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет finish_reason напрямую
+        finish_reason = result.raw_response.finish_reason if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'finish_reason', 'unknown')
         await self._event_bus.publish(
             event_type=EventType.LLM_CALL_COMPLETED,
             data={
                 "call_id": call_id,
-                "success": result.finish_reason != "error",
+                "success": finish_reason != "error",
                 "duration": duration,
                 "tokens_used": tokens_used,
                 "content_length": (len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)),
@@ -1496,7 +1498,7 @@ class LLMOrchestrator:
         error: Exception,
         elapsed: float
     ) -> None:
-        """Публикация события ошибки."""
+        """Пу��ликация события ошибки."""
         await self._event_bus.publish(
             event_type=EventType.ERROR_OCCURRED,
             data={
