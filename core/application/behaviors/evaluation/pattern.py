@@ -45,12 +45,14 @@ class EvaluationPattern(BaseBehaviorPattern):
     @property
     def llm_orchestrator(self):
         """
-        DEPRECATED: Получение LLMOrchestrator из application_context.
-        Используйте self.llm (LLMInterface) напрямую.
-        """
-        import warnings
-        warnings.warn("llm_orchestrator deprecated. Используйте self.llm (LLMInterface)", DeprecationWarning, stacklevel=2)
+        Получение LLMOrchestrator из application_context.
         
+        LLMOrchestrator обеспечивает:
+        - Retry при ошибках парсинга
+        - Валидацию через JSON Schema
+        - Трассировку вызовов
+        - Метрики и мониторинг
+        """
         if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
             return self.application_context.llm_orchestrator
         return None
@@ -203,10 +205,14 @@ class EvaluationPattern(BaseBehaviorPattern):
             # Логирование начала оценки
             await self._log("info", f"🔍 Оценка достижения цели: {goal[:100]}...")
 
-            # Используем внедрённый LLMInterface из BaseComponent
-            llm_provider = self.llm
+            # Получаем LLM провайдер напрямую из инфраструктуры
+            llm_provider = None
+            if hasattr(self, 'application_context') and self.application_context:
+                if hasattr(self.application_context, 'infrastructure_context'):
+                    llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+            
             if not llm_provider:
-                raise RuntimeError("LLMInterface не внедрён")
+                raise RuntimeError("LLM провайдер 'default_llm' не найден")
 
             # Получаем схему из контракта (уже загружена в _load_evaluation_resources)
             output_schema = self.reasoning_schema

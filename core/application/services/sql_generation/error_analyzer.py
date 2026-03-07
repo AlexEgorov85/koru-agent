@@ -27,7 +27,7 @@ class SQLErrorAnalyzer(BaseService):
     def description(self) -> str:
         return "Анализатор ошибок выполнения SQL-запросов"
     
-    def __init__(self, application_context: ApplicationContext, component_config=None):
+    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -37,7 +37,7 @@ class SQLErrorAnalyzer(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__("sql_error_analyzer", application_context, component_config)
+        super().__init__("sql_error_analyzer", application_context, component_config, executor)
         self.error_patterns = {
             "syntax_error": [
                 r"syntax error",

@@ -6,13 +6,11 @@
 - Контроль зависимостей и порядка выполнения
 - Единая точка для метрик и логирования
 - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
-- Внедрение зависимостей через интерфейсы
 """
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
-from core.interfaces.llm import LLMInterface
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
@@ -50,27 +48,11 @@ class ActionExecutor:
     - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
     """
 
-    def __init__(
-        self, 
-        application_context: 'ApplicationContext',
-        llm: Optional[LLMInterface] = None  # ← Внедрение LLMInterface
-    ):
+    def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
-        self._llm = llm  # ← Сохраняем внедрённую зависимость
         # Ленивое получение logger чтобы избежать циклического импорта
         import logging
         self.logger = logging.getLogger(__name__)
-    
-    @property
-    def llm(self) -> Optional[LLMInterface]:
-        """Получить LLMInterface."""
-        # Сначала пробуем внедрённый llm
-        if self._llm is not None:
-            return self._llm
-        # Fallback на llm_orchestrator для обратной совместимости
-        if hasattr(self.application_context, 'llm_orchestrator'):
-            return self.application_context.llm_orchestrator
-        return None
     
     async def execute_action(
         self,
@@ -489,16 +471,18 @@ class ActionExecutor:
         - ActionResult: результат выполнения
         """
         try:
-            # Используем внедрённый LLMInterface
-            llm_provider = self.llm
+            # Получаем LLM провайдер напрямую из инфраструктуры
+            llm_provider = None
+            if hasattr(self.application_context, 'infrastructure_context'):
+                llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
 
             if not llm_provider:
                 return ActionResult(
                     success=False,
-                    error="LLMInterface не внедрён"
+                    error="LLM провайдер 'default_llm' не найден"
                 )
 
-            # Получаем LLMOrchestrator (если доступен) для обратной совместимости
+            # Получаем LLMOrchestrator (если доступен) для retry и валидации
             orchestrator = None
             if hasattr(self.application_context, 'llm_orchestrator'):
                 orchestrator = self.application_context.llm_orchestrator

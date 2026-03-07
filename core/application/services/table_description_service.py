@@ -186,10 +186,10 @@ class TableDescriptionService(BaseService):
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
 
-            # Получаем DB провайдер из инфраструктурного контекста через прикладной контекст
-            db_provider = self.application_context.infrastructure_context.get_provider("default_db")
+            # Используем внедрённый DatabaseInterface из BaseComponent
+            db_provider = self.db
             if not db_provider:
-                raise RuntimeError("DB провайдер не найден в инфраструктурном контексте")
+                raise RuntimeError("DatabaseInterface не внедрён")
 
             # Выполняем SQL-запросы через DB провайдер
             columns_result = await db_provider.execute(sql, {"p1": schema_name, "p2": table_name})

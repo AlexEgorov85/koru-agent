@@ -5,12 +5,20 @@ from pathlib import Path
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.executor import ActionExecutor
 
 class BehaviorStorage:
-    def __init__(self, data_dir: str, prompt_service: 'PromptService', application_context: Optional['ApplicationContext'] = None):
+    def __init__(
+        self, 
+        data_dir: str, 
+        prompt_service: 'PromptService', 
+        application_context: Optional['ApplicationContext'] = None,
+        executor: Optional['ActionExecutor'] = None  # ← Добавляем executor
+    ):
         self._data_dir = data_dir
         self._prompt_service = prompt_service
         self._application_context = application_context
+        self._executor = executor  # ← Сохраняем executor
         self._cache: Dict[str, 'BehaviorPattern'] = {}
 
     async def load_pattern(self, pattern_id: str) -> 'BehaviorPattern':
@@ -76,14 +84,14 @@ class BehaviorStorage:
         
         # Получаем класс паттерна
         pattern_class = self._get_pattern_class(pattern_type, "v1.0.0")  # Версия не важна для новой архитектуры
-        
+
         # Создание экземпляра паттерна с component_name и component_config
-        # executor=None так как паттерны генерируют решения, а не выполняют действия
+        # Передаём executor для совместимости с BaseComponent
         pattern_instance = pattern_class(
             component_name=component_name,
             component_config=component_config,
             application_context=self._application_context,
-            executor=None  # Паттерны не используют executor напрямую
+            executor=self._executor  # ← Передаём executor из behavior_manager
         )
 
         return pattern_instance

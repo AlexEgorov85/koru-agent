@@ -19,7 +19,7 @@ class SQLCorrectionEngine(BaseService):
     def description(self) -> str:
         return "Движок коррекции SQL-запросов"
     
-    def __init__(self, application_context: ApplicationContext, component_config=None):
+    def __init__(self, application_context: ApplicationContext, component_config=None, executor=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -29,8 +29,8 @@ class SQLCorrectionEngine(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__("sql_correction_engine", application_context, component_config)
-        self.error_analyzer = SQLErrorAnalyzer(application_context, component_config)
+        super().__init__("sql_correction_engine", application_context, component_config, executor)
+        self.error_analyzer = SQLErrorAnalyzer(application_context, executor=executor)
     
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""

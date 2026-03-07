@@ -129,8 +129,11 @@ class AgentRuntime:
         # так как наследуется от BaseSystemContext
         self.executor = ActionExecutor(application_context)
 
-        # Инициализация менеджера поведения
-        self.behavior_manager = BehaviorManager(application_context=application_context)
+        # Инициализация менеджера поведения с executor
+        self.behavior_manager = BehaviorManager(
+            application_context=application_context,
+            executor=self.executor  # ← Передаём executor
+        )
         self.progress_metrics = ProgressMetrics()
 
         # Шлюз выполнения для координации действий
@@ -154,7 +157,7 @@ class AgentRuntime:
         has_app_ctx = hasattr(self, 'application_context') and self.application_context
         has_infra = has_app_ctx and hasattr(self.application_context, 'infrastructure_context')
         has_event_bus = has_infra and getattr(self.application_context.infrastructure_context, 'event_bus', None)
-        
+
         if has_app_ctx and has_infra and has_event_bus:
             self.event_bus_logger = EventBusLogger(
                 event_bus=self.application_context.infrastructure_context.event_bus,

@@ -18,16 +18,23 @@ from core.infrastructure.logging import EventBusLogger
 class BehaviorManager:
     """Управление паттернами поведения с изоляцией через ApplicationContext"""
 
-    def __init__(self, application_context: 'ApplicationContext', initial_component_name: str = None):
+    def __init__(
+        self, 
+        application_context: 'ApplicationContext', 
+        initial_component_name: str = None,
+        executor: Optional['ActionExecutor'] = None  # ← Добавляем executor
+    ):
         """
         Инициализация менеджера поведения.
 
         ПАРАМЕТРЫ:
         - application_context: Прикладной контекст
         - initial_component_name: Имя начального компонента (из AppConfig, например "react_pattern")
+        - executor: ActionExecutor для передачи в паттерны
         """
         self._app_ctx = application_context
         self._initial_component_name = initial_component_name or "react_pattern"  # Fallback для совместимости
+        self._executor = executor  # ← Сохраняем executor
         self._current_pattern: Optional[BehaviorPatternInterface] = None
         self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None
@@ -58,7 +65,8 @@ class BehaviorManager:
         self._behavior_storage = BehaviorStorage(
             data_dir="data",
             prompt_service=prompt_service,
-            application_context=self._app_ctx  # ← Передаём ApplicationContext
+            application_context=self._app_ctx,  # ← Передаём ApplicationContext
+            executor=self._executor  # ← Передаём executor
         )
 
         # Загрузка начального паттерна (через component_name)

@@ -75,16 +75,38 @@ class ReActPattern(BaseBehaviorPattern):
     @property
     def llm_orchestrator(self):
         """
-        DEPRECATED: Получение LLMOrchestrator из application_context.
-        Используйте self.llm (LLMInterface) напрямую.
+        Получение LLMOrchestrator из application_context.
+        
+        LLMOrchestrator обеспечивает:
+        - Retry при ошибках парсинга
+        - Валидацию через JSON Schema
+        - Трассировку вызовов
+        - Метрики и мониторинг
         
         Возвращает orchestrator если доступен, иначе None.
         """
-        import warnings
-        warnings.warn("llm_orchestrator deprecated. Используйте self.llm (LLMInterface)", DeprecationWarning, stacklevel=2)
-        
         if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
             return self.application_context.llm_orchestrator
+        return None
+    
+    @property
+    def llm(self):
+        """
+        DEPRECATED: Прямой доступ к LLM провайдеру.
+        Используйте llm_orchestrator для генерации с валидацией и retry.
+        
+        Возвращает LLM провайдер если доступен, иначе None.
+        """
+        import warnings
+        warnings.warn(
+            "llm (LLMInterface) deprecated. Используйте llm_orchestrator для генерации с валидацией и retry.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        # Fallback: получаем LLM провайдер напрямую (без orchestrator)
+        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+            return self.application_context.infrastructure_context.get_provider("default_llm")
         return None
 
     async def _execute_llm_with_orchestrator(
@@ -402,7 +424,12 @@ class ReActPattern(BaseBehaviorPattern):
             # Получаем схему параметров из schema_validator
             params_schema = None
             if hasattr(self, 'schema_validator') and self.schema_validator:
-                params_schema = self.schema_validator.get_capability_schema(name)
+                schema_obj = self.schema_validator.get_capability_schema(name)
+                # Конвертируем CapabilitySchema в dict если нужно
+                if schema_obj and hasattr(schema_obj, 'to_dict'):
+                    params_schema = schema_obj.to_dict()
+                else:
+                    params_schema = schema_obj
 
             # Формируем строку инструмента
             line = f"- {name}: {description}"
@@ -410,11 +437,13 @@ class ReActPattern(BaseBehaviorPattern):
             # Добавляем параметры если есть схема
             if params_schema:
                 params_list = []
-                for param_name, param_info in params_schema.items():
-                    param_type = param_info.get('type', 'string') if isinstance(param_info, dict) else 'string'
-                    required = param_info.get('required', False) if isinstance(param_info, dict) else False
-                    req_mark = "(required)" if required else "(optional)"
-                    params_list.append(f"{param_name}: {param_type} {req_mark}")
+                # Проверяем что params_schema это dict перед вызовом .items()
+                if isinstance(params_schema, dict):
+                    for param_name, param_info in params_schema.items():
+                        param_type = param_info.get('type', 'string') if isinstance(param_info, dict) else 'string'
+                        required = param_info.get('required', False) if isinstance(param_info, dict) else False
+                        req_mark = "(required)" if required else "(optional)"
+                        params_list.append(f"{param_name}: {param_type} {req_mark}")
 
                 if params_list:
                     line += "\n    Параметры:"
@@ -514,11 +543,17 @@ class ReActPattern(BaseBehaviorPattern):
                 # Преобразуем схему в словарь параметров
                 # Ожидаем формат: {"input": {"type": "string", "required": True}}
                 params_schema = {}
-                
+
                 # Проверяем тип схемы
                 if hasattr(schema, 'to_dict'):
                     # CapabilitySchema объект (из schema_validator.py)
-                    params_schema = schema.to_dict()
+                    to_dict_result = schema.to_dict()
+                    # Проверяем что результат это dict
+                    if isinstance(to_dict_result, dict):
+                        params_schema = to_dict_result
+                    else:
+                        self.event_bus_logger.debug_sync(f"⚠️ to_dict() вернул не dict для {cap.name}: {type(to_dict_result)}")
+                        params_schema = {}
                 elif hasattr(schema, 'model_json_schema'):
                     # Pydantic модель
                     schema_dict = schema.model_json_schema()
@@ -533,11 +568,19 @@ class ReActPattern(BaseBehaviorPattern):
                     # Словарь schema_data из YAML контракта
                     properties = schema.get('properties', {})
                     required = schema.get('required', [])
-                    for prop_name, prop_info in properties.items():
-                        params_schema[prop_name] = {
-                            'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string',
-                            'required': prop_name in required
-                        }
+                    # Проверяем что properties это dict, а не CapabilitySchema
+                    if isinstance(properties, dict):
+                        for prop_name, prop_info in properties.items():
+                            params_schema[prop_name] = {
+                                'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string',
+                                'required': prop_name in required
+                            }
+                    else:
+                        self.event_bus_logger.debug_sync(f"⚠️ properties не dict для {cap.name}: {type(properties)}")
+                else:
+                    # Неизвестный тип схемы
+                    self.event_bus_logger.debug_sync(f"⚠️ Неизвестный тип схемы для {cap.name}: {type(schema)}")
+                    self.event_bus_logger.debug_sync(f"  schema attributes: {dir(schema)}")
 
                 if params_schema:
                     self.schema_validator.register_capability_schema(cap.name, params_schema)
@@ -638,8 +681,13 @@ class ReActPattern(BaseBehaviorPattern):
             available_capabilities=available_capabilities
         )
 
-        # Используем внедрённый LLMInterface из BaseComponent
-        llm_provider = self.llm
+        # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
+        # Получаем LLM провайдер напрямую из инфраструктуры (не через orchestrator)
+        # Orchestrator будет использован в _execute_llm_with_orchestrator
+        llm_provider = None
+        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+        
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
             return self._create_fallback_reasoning(
@@ -648,7 +696,7 @@ class ReActPattern(BaseBehaviorPattern):
                 reason="llm_provider_not_available"
             )
 
-        # === 3. ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
+        # === 4. ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
         llm_request = LLMRequest(
             prompt=reasoning_prompt,
             system_prompt=self.system_prompt_template,

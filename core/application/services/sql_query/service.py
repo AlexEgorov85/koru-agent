@@ -67,7 +67,7 @@ class SQLQueryService(BaseService):
             # Доступны через: self.sql_validator_service_instance, self.sql_generation_instance
 
             # Инициализация анализатора ошибок
-            self.error_analyzer = SQLErrorAnalyzer(self.application_context)
+            self.error_analyzer = SQLErrorAnalyzer(self.application_context, executor=self.executor)
             if not await self.error_analyzer.initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
@@ -249,7 +249,10 @@ class SQLQueryService(BaseService):
         """
         try:
             # Получаем SQLGenerationService для генерации безопасного запроса
-            sql_gen_service = self.application_context.get_service("sql_generation")
+            # Используем components.get() напрямую вместо get_service()
+            sql_gen_service = None
+            if hasattr(self, '_application_context') and self._application_context:
+                sql_gen_service = self._application_context.components.get(ComponentType.SERVICE, "sql_generation")
 
             if not sql_gen_service:
                 return DBQueryResult(

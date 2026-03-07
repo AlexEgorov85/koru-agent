@@ -41,10 +41,16 @@ class AgentFactory:
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger."""
+        # Используем infrastructure_context напрямую (это правильный путь для Factory)
         if hasattr(self.application_context, 'infrastructure_context'):
             event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
             if event_bus:
-                self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="AgentFactory")
+                self.event_bus_logger = EventBusLogger(
+                    event_bus, 
+                    session_id="system", 
+                    agent_id="system", 
+                    component="AgentFactory"
+                )
 
     async def create_agent(
         self,
@@ -104,21 +110,21 @@ class AgentFactory:
         # Получаем инфраструктурный контекст из application_context
         infra = self.application_context.infrastructure_context
 
-        # Проверка промптов через инфраструктурное хранилище
-        prompt_storage = infra.get_resource("prompt_storage")
+        # Проверка промптов через prompt_storage напрямую
+        prompt_storage = infra.prompt_storage
         if prompt_storage:
             for capability, version in config.prompt_versions.items():
-                exists = await prompt_storage.check_version_exists(capability, version)
+                exists = await prompt_storage.exists(capability, version)
                 if not exists:
                     errors.append(f"Промпт {capability}@{version} не существует")
 
-        # Проверка контрактов через инфраструктурное хранилище
-        contract_storage = infra.get_resource("contract_storage")
+        # Проверка контрактов через contract_storage напрямую
+        contract_storage = infra.contract_storage
         if contract_storage:
             for contract_name, version in config.contract_versions.items():
                 # Проверяем как input, так и output контракты
-                input_exists = await contract_storage.check_version_exists(contract_name, version, "input")
-                output_exists = await contract_storage.check_version_exists(contract_name, version, "output")
+                input_exists = await contract_storage.exists(contract_name, version, "input")
+                output_exists = await contract_storage.exists(contract_name, version, "output")
 
                 if not input_exists:
                     errors.append(f"Input-контракт {contract_name}@{version} не существует")

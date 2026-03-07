@@ -78,14 +78,14 @@ class SQLGenerationService(BaseService):
 
             # Инициализация анализатора ошибок
             # В новой архитектуре SQLErrorAnalyzer может использовать application_context
-            self.error_analyzer = SQLErrorAnalyzer(self.application_context)
+            self.error_analyzer = SQLErrorAnalyzer(self.application_context, executor=self.executor)
             if not await self.error_analyzer.initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
                 return False
 
             # Инициализация движка коррекции
-            self.correction_engine = SQLCorrectionEngine(self.application_context)
+            self.correction_engine = SQLCorrectionEngine(self.application_context, executor=self.executor)
 
             # Проверка критических зависимостей
             if not self.table_description_service_instance:
@@ -211,14 +211,14 @@ class SQLGenerationService(BaseService):
             
             # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
             # Типизация на уровне компиляции: ответ будет StructuredLLMResponse[SQLGenerationOutput]
-            # ИСПОЛЬЗУЕМ LLMOrchestrator через application_context для retry и валидации
-            llm_provider = self.application_context.get_provider("default_llm")
+            # ИСПОЛЬЗУЕМ внедрённый LLMInterface для генерации
+            llm_provider = self.llm
             if not llm_provider:
-                raise RuntimeError("LLM провайдер не доступен")
+                raise RuntimeError("LLMInterface не внедрён")
 
-            # Получаем orchestrator если доступен
-            orchestrator = getattr(self.application_context, 'llm_orchestrator', None)
-            
+            # Получаем orchestrator если доступен (для обратной совместимости)
+            orchestrator = getattr(self.application_context, 'llm_orchestrator', None) if hasattr(self, 'application_context') and self.application_context else None
+
             if orchestrator:
                 # Вызов через orchestrator с retry и валидацией
                 response = await orchestrator.execute_structured(
@@ -229,7 +229,7 @@ class SQLGenerationService(BaseService):
                     total_timeout=300.0,
                     phase="sql_generation"
                 )
-                
+
                 # Проверка успеха
                 if not response.success:
                     errors = '; '.join([e.get('message', 'unknown') for e in response.validation_errors])
@@ -462,8 +462,12 @@ class SQLGenerationService(BaseService):
     # Вспомогательные методы (приватные)
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:
         """Получение метаданных таблиц через существующий сервис"""
-        # Используем уже зарегистрированный TableDescriptionService из application_context
-        table_service = self.application_context.get_service("table_description_service")
+        # Используем components.get() напрямую вместо get_service()
+        if hasattr(self, '_application_context') and self._application_context:
+            table_service = self._application_context.components.get(ComponentType.SERVICE, "table_description_service")
+        else:
+            table_service = None
+            
         if not table_service:
             raise RuntimeError("table_description_service не зарегистрирован в прикладном контексте")
 
@@ -495,48 +499,83 @@ class SQLGenerationService(BaseService):
 
     async def _publish_generation_event(self, event_type: str, data: Any, input_data: SQLGenerationInput, safety_score: float = 0.0):
         """Публикация события генерации через EventBus"""
-        # В новой архитектуре используем event_bus из infrastructure_context
-        await self.application_context.infrastructure_context.event_bus.publish(
-            event_type=f"sql_generation.{event_type}",
-            data={
-                "user_question": input_data.user_question,
-                "tables": input_data.tables,
-                "result": str(data)[:500],  # Ограничиваем для логов
-                "safety_score": safety_score,
-                "timestamp": self.application_context.created_at.isoformat() if hasattr(self.application_context, 'created_at') else ""
-            },
-            source="SQLGenerationService",
-            correlation_id=f"sql_gen_{hash(input_data.user_question)}"
-        )
+        # Используем внедрённый event_bus из BaseComponent
+        if hasattr(self, '_event_bus') and self._event_bus is not None:
+            await self._event_bus.publish(
+                event_type=f"sql_generation.{event_type}",
+                payload={
+                    "user_question": input_data.user_question,
+                    "tables": input_data.tables,
+                    "result": str(data)[:500],
+                    "safety_score": safety_score
+                }
+            )
+        # Fallback на infrastructure_context для обратной совместимости
+        elif hasattr(self, '_application_context') and self._application_context:
+            await self._application_context.infrastructure_context.event_bus.publish(
+                event_type=f"sql_generation.{event_type}",
+                data={
+                    "user_question": input_data.user_question,
+                    "tables": input_data.tables,
+                    "result": str(data)[:500],
+                    "safety_score": safety_score,
+                    "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
+                },
+                source="SQLGenerationService",
+                correlation_id=f"sql_gen_{hash(input_data.user_question)}"
+            )
 
     async def _publish_correction_event(self, event_type: str, data: Any, attempt: int, error_analysis: Any):
         """Публикация события коррекции"""
-        await self.application_context.infrastructure_context.event_bus.publish(
-            event_type=f"sql_correction.{event_type}",
-            data={
-                "attempt": attempt,
-                "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
-                "result": str(data)[:500],
-                "timestamp": self.application_context.created_at.isoformat() if hasattr(self.application_context, 'created_at') else ""
-            },
-            source="SQLGenerationService",
-            correlation_id=f"sql_corr_{attempt}"
-        )
+        if hasattr(self, '_event_bus') and self._event_bus is not None:
+            await self._event_bus.publish(
+                event_type=f"sql_correction.{event_type}",
+                payload={
+                    "attempt": attempt,
+                    "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
+                    "result": str(data)[:500]
+                }
+            )
+        elif hasattr(self, '_application_context') and self._application_context:
+            await self._application_context.infrastructure_context.event_bus.publish(
+                event_type=f"sql_correction.{event_type}",
+                data={
+                    "attempt": attempt,
+                    "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
+                    "result": str(data)[:500],
+                    "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
+                },
+                source="SQLGenerationService",
+                correlation_id=f"sql_corr_{attempt}"
+            )
 
     async def _publish_execution_event(self, event_type: str, result: DBQueryResult, attempt: int):
         """Публикация события выполнения"""
-        await self.application_context.infrastructure_context.event_bus.publish(
-            event_type=f"sql_execution.{event_type}",
-            data={
-                "attempt": attempt,
-                "rowcount": result.rowcount,
-                "success": result.success,
-                "execution_time": result.execution_time,
-                "timestamp": self.application_context.created_at.isoformat() if hasattr(self.application_context, 'created_at') else ""
-            },
-            source="SQLGenerationService",
-            correlation_id=f"sql_exec_{attempt}"
-        )
+        # Используем внедрённый event_bus из BaseComponent
+        if hasattr(self, '_event_bus') and self._event_bus is not None:
+            await self._event_bus.publish(
+                event_type=f"sql_execution.{event_type}",
+                payload={
+                    "attempt": attempt,
+                    "rowcount": result.rowcount,
+                    "success": result.success,
+                    "execution_time": result.execution_time
+                }
+            )
+        # Fallback на infrastructure_context для обратной совместимости
+        elif hasattr(self, '_application_context') and self._application_context:
+            await self._application_context.infrastructure_context.event_bus.publish(
+                event_type=f"sql_execution.{event_type}",
+                data={
+                    "attempt": attempt,
+                    "rowcount": result.rowcount,
+                    "success": result.success,
+                    "execution_time": result.execution_time,
+                    "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
+                },
+                source="SQLGenerationService",
+                correlation_id=f"sql_exec_{attempt}"
+            )
 
     def _classify_db_error(self, error_message: Optional[str]) -> str:
         """Классификация ошибок БД для анализа"""
