@@ -104,7 +104,10 @@ class TerminalLogFormatter:
 
         self._last_message = message
 
-        msg_type = self._classify(message, level)
+        # Определяем тип сообщения по компоненту (приоритет) или по тексту
+        component = data.get("component", "").lower() if data else ""
+        msg_type = self._classify_by_component(component) or self._classify(message, level)
+        
         icon = self.ICONS.get(msg_type, "•")
 
         if msg_type == "stage":
@@ -123,6 +126,37 @@ class TerminalLogFormatter:
             return f"\n{icon} ERROR → {message}"
 
         return f"{icon} {message}"
+    
+    def _classify_by_component(self, component: str) -> str:
+        """
+        Классификация по имени компонента (приоритет над текстом).
+        
+        ARGS:
+        - component: Имя компонента из данных события
+        
+        RETURNS:
+        - Тип сообщения или None если не определено
+        """
+        if not component:
+            return None
+        
+        # Компоненты которые работают с LLM
+        if "llm" in component or "provider" in component:
+            return "llm"
+        
+        # Компоненты которые работают с инструментами
+        if "tool" in component or "skill" in component:
+            return "tool"
+        
+        # Паттерны поведения
+        if "pattern" in component or "behavior" in component:
+            return "stage"
+        
+        # Фабрики и сервисы
+        if "factory" in component or "service" in component:
+            return "info"
+        
+        return None
 
     def _classify(self, message, level):
         msg = message.lower()
