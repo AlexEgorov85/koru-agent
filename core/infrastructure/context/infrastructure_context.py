@@ -400,7 +400,16 @@ class InfrastructureContext:
             await self.log_collector.shutdown()
 
     def get_provider(self, name: str):
-        """Получение провайдера по имени."""
+        """
+        DEPRECATED: Получение провайдера по имени.
+        Используйте прямые свойства для доступа к провайдерам.
+        """
+        import warnings
+        warnings.warn(
+            "get_provider deprecated. Используйте прямые свойства (db_provider_factory, llm_provider_factory, etc.)",
+            DeprecationWarning,
+            stacklevel=2
+        )
         resource_info = self.resource_registry.get_resource(name)
         if resource_info:
             return resource_info.instance
@@ -409,7 +418,16 @@ class InfrastructureContext:
 
 
     def get_resource(self, name: str):
-        """Получение ресурса по имени."""
+        """
+        DEPRECATED: Получение ресурса по имени.
+        Используйте прямые свойства для доступа к ресурсам.
+        """
+        import warnings
+        warnings.warn(
+            "get_resource deprecated. Используйте прямые свойства (prompt_storage, contract_storage, etc.)",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Попробуем найти в реестре ресурсов
         resource_info = self.resource_registry.get_resource(name)
         if resource_info:
@@ -419,27 +437,39 @@ class InfrastructureContext:
             return self.prompt_storage
         elif name == "contract_storage":
             return self.contract_storage
-        # Убрали возврат инструментов и capability_registry, так как они должны быть в прикладном контексте
         return None
 
     # Методы для доступа из прикладного слоя
+    # DEPRECATED: Используйте свойства напрямую
+
     def get_prompt_storage(self) -> IPromptStorage:
+        """DEPRECATED: Используйте свойство prompt_storage напрямую"""
+        import warnings
+        warnings.warn("get_prompt_storage deprecated. Используйте self.prompt_storage напрямую", DeprecationWarning, stacklevel=2)
         if not hasattr(self, 'prompt_storage'):
             raise RuntimeError("PromptStorage не инициализирован")
         return self.prompt_storage
 
     def get_contract_storage(self) -> IContractStorage:
+        """DEPRECATED: Используйте свойство contract_storage напрямую"""
+        import warnings
+        warnings.warn("get_contract_storage deprecated. Используйте self.contract_storage напрямую", DeprecationWarning, stacklevel=2)
         if not hasattr(self, 'contract_storage'):
             raise RuntimeError("ContractStorage не инициализирован")
         return self.contract_storage
 
     def get_resource_discovery(self) -> ResourceDiscovery:
-        """Получение единого экземпляра ResourceDiscovery."""
+        """DEPRECATED: Используйте свойство resource_discovery напрямую"""
+        import warnings
+        warnings.warn("get_resource_discovery deprecated. Используйте self.resource_discovery напрямую", DeprecationWarning, stacklevel=2)
         if not hasattr(self, 'resource_discovery') or self.resource_discovery is None:
             raise RuntimeError("ResourceDiscovery не инициализирован")
         return self.resource_discovery
 
     def get_metrics_storage(self) -> IMetricsStorage:
+        """DEPRECATED: Используйте свойство metrics_storage напрямую"""
+        import warnings
+        warnings.warn("get_metrics_storage deprecated. Используйте self.metrics_storage напрямую", DeprecationWarning, stacklevel=2)
         if not hasattr(self, 'metrics_storage'):
             raise RuntimeError("MetricsStorage не инициализирован")
         return self.metrics_storage

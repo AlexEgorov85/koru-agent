@@ -993,14 +993,24 @@ class ApplicationContext(BaseSystemContext):
         return health_report
 
     # === ЕДИНЫЕ точки доступа к компонентам ===
-    
+    # DEPRECATED: Используйте components.get() напрямую или внедрение зависимостей
+
     def get_service(self, name: str) -> Optional['BaseComponent']:
+        """DEPRECATED: Используйте components.get(ComponentType.SERVICE, name)"""
+        import warnings
+        warnings.warn("get_service deprecated. Используйте components.get(ComponentType.SERVICE, name)", DeprecationWarning, stacklevel=2)
         return self.components.get(ComponentType.SERVICE, name)
-    
+
     def get_skill(self, name: str) -> Optional['BaseComponent']:
+        """DEPRECATED: Используйте components.get(ComponentType.SKILL, name)"""
+        import warnings
+        warnings.warn("get_skill deprecated. Используйте components.get(ComponentType.SKILL, name)", DeprecationWarning, stacklevel=2)
         return self.components.get(ComponentType.SKILL, name)
-    
+
     def get_tool(self, name: str) -> Optional['BaseComponent']:
+        """DEPRECATED: Используйте components.get(ComponentType.TOOL, name)"""
+        import warnings
+        warnings.warn("get_tool deprecated. Используйте components.get(ComponentType.TOOL, name)", DeprecationWarning, stacklevel=2)
         return self.components.get(ComponentType.TOOL, name)
     
 
@@ -1332,26 +1342,35 @@ class ApplicationContext(BaseSystemContext):
         return contract_service.get_contract(capability_name, "output")
 
     def get_provider(self, name: str):
-        """Получение провайдера через инфраструктурный контекст."""
+        """
+        DEPRECATED: Получение провайдера через инфраструктурный контекст.
+        Используйте внедрение зависимостей через интерфейсы.
+        """
+        import warnings
+        warnings.warn(
+            "get_provider deprecated. Используйте внедрение зависимостей через интерфейсы (DatabaseInterface, LLMInterface, etc.)",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.infrastructure_context.get_provider(name)
 
     def get_llm_timeout(self, provider_name: str = "default_llm") -> float:
         """
         Получение таймаута для LLM провайдера.
+        
+        DEPRECATED: Используйте конфигурацию напрямую.
 
         ПАРАМЕТРЫ:
         - provider_name: Имя LLM провайдера (по умолчанию "default_llm")
 
         ВОЗВРАЩАЕТ:
         - float: Таймаут в секундах
-
-        ПРИОРИТЕТ:
-        1. Таймаут из конфигурации LLMProviderConfig (если доступен провайдер)
-        2. Глобальный llm_timeout_seconds из AppConfig
-        3. Значение по умолчанию 120.0 секунд
         """
+        import warnings
+        warnings.warn("get_llm_timeout deprecated. Используйте конфигурацию напрямую.", DeprecationWarning, stacklevel=2)
+        
         # Пытаемся получить таймаут из конфигурации провайдера
-        llm_provider = self.get_provider(provider_name)
+        llm_provider = self.infrastructure_context.get_provider(provider_name)
         if llm_provider and hasattr(llm_provider, 'timeout_seconds'):
             return llm_provider.timeout_seconds
 
@@ -1371,7 +1390,12 @@ class ApplicationContext(BaseSystemContext):
         return 120.0
 
     def get_tool(self, name: str):
-        """Получение инструмента через изолированный контекст приложения."""
+        """
+        DEPRECATED: Получение инструмента.
+        Используйте components.get(ComponentType.TOOL, name) напрямую.
+        """
+        import warnings
+        warnings.warn("get_tool deprecated. Используйте components.get(ComponentType.TOOL, name)", DeprecationWarning, stacklevel=2)
         return self.components.get(ComponentType.TOOL, name)
 
     async def get_all_capabilities(self) -> List['Capability']:
@@ -1518,8 +1542,11 @@ class ApplicationContext(BaseSystemContext):
 
     def get_service(self, name: str):
         """
-        Получение сервиса по имени.
+        DEPRECATED: Получение сервиса по имени.
+        Используйте components.get(ComponentType.SERVICE, name) напрямую.
         """
+        import warnings
+        warnings.warn("get_service deprecated. Используйте components.get(ComponentType.SERVICE, name)", DeprecationWarning, stacklevel=2)
         return self.components.get(ComponentType.SERVICE, name)
 
     def is_fully_initialized(self) -> bool:
