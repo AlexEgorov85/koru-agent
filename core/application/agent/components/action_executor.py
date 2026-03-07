@@ -624,7 +624,8 @@ class ActionExecutor:
             success=True,
             data={"content": response.content},
             metadata={
-                "model": response.model,
+                # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет model напрямую
+                "model": response.raw_response.model if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'model', 'unknown'),
                 # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
                 "tokens_used": response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'tokens_used', 0),
                 "generation_time": response.generation_time,

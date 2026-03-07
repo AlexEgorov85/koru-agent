@@ -1307,9 +1307,10 @@ class LLMOrchestrator:
 
             # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
             tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
+            model = result.raw_response.model if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'model', 'unknown')
             data.update({
                 "tokens_used": tokens_used,
-                "model": result.model
+                "model": model
             })
         else:
             data.update({
