@@ -126,10 +126,16 @@ class PromptService(BaseService):
             return True
 
         success = True
+        # Используем внедрённый prompt_storage из BaseComponent
+        storage = self.prompt_storage
+        
+        if storage is None:
+            self.event_bus_logger.error_sync("prompt_storage не внедрён")
+            return False
+        
         for capability_name, version in component_config.prompt_versions.items():
             try:
                 # Загружаем промпт и помещаем его в кэш
-                storage = self.application_context.infrastructure_context.get_prompt_storage()
                 prompt_obj = await storage.load(capability_name, version)
 
                 # Помещаем в кэш для быстрого доступа
@@ -158,7 +164,12 @@ class PromptService(BaseService):
 
         if capability not in self.prompts or version not in self.prompts[capability]:
             # Загружаем из хранилища, если нет в кэше
-            storage = self.application_context.infrastructure_context.get_prompt_storage()
+            # Используем внедрённый prompt_storage из BaseComponent
+            storage = self.prompt_storage
+            
+            if storage is None:
+                raise RuntimeError("prompt_storage не внедрён")
+            
             prompt_obj = await storage.load(capability, version)
 
             # Сохраняем в кэш

@@ -1,6 +1,11 @@
 ﻿"""
 Базовый класс для инфраструктурных сервисов.
 
+АРХИТЕКТУРА:
+- Наследует BaseComponent для получения внедрённых зависимостей
+- Все сервисы получают зависимости через интерфейсы
+- Никаких прямых обращений к контекстам
+
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin через BaseComponent
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
@@ -9,11 +14,23 @@ import inspect
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, ClassVar, List
+
 from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
 from core.infrastructure.logging import EventBusLogger, create_logger
+
+# Интерфейсы для внедрения зависимостей
+from core.interfaces.database import DatabaseInterface
+from core.interfaces.llm import LLMInterface
+from core.interfaces.vector import VectorInterface
+from core.interfaces.cache import CacheInterface
+from core.interfaces.event_bus import EventBusInterface
+from core.interfaces.prompt_storage import PromptStorageInterface
+from core.interfaces.contract_storage import ContractStorageInterface
+from core.interfaces.metrics_storage import MetricsStorageInterface
+from core.interfaces.log_storage import LogStorageInterface
 
 
 class ServiceInput(ABC):
@@ -50,21 +67,39 @@ class BaseService(BaseComponent):
         """
         pass
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, executor=None, component_config: Optional['ComponentConfig'] = None):
+    def __init__(
+        self, 
+        name: str, 
+        application_context: Optional['ApplicationContext'] = None,
+        app_config: Optional['AppConfig'] = None,
+        executor=None,
+        component_config: Optional['ComponentConfig'] = None,
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        db: Optional[DatabaseInterface] = None,
+        llm: Optional[LLMInterface] = None,
+        cache: Optional[CacheInterface] = None,
+        vector: Optional[VectorInterface] = None,
+        event_bus: Optional[EventBusInterface] = None,
+        prompt_storage: Optional[PromptStorageInterface] = None,
+        contract_storage: Optional[ContractStorageInterface] = None,
+        metrics_storage: Optional[MetricsStorageInterface] = None,
+        log_storage: Optional[LogStorageInterface] = None
+    ):
         """
         Инициализация базового сервиса.
 
         ARGS:
         - name: имя сервиса
-        - application_context: прикладной контекст для доступа к ресурсам
+        - application_context: прикладной контекст (DEPRECATED)
         - app_config: конфигурация приложения (AppConfig) [устаревший параметр]
         - executor: ActionExecutor для взаимодействия между компонентами
-        - component_config: конфигурация компонента (ComponentConfig) [новый параметр]
+        - component_config: конфигурация компонента (ComponentConfig)
+        - **kwargs: Внедрение зависимостей через интерфейсы
         """
         # Для обратной совместимости с существующими сервисами,
         # преобразуем AppConfig в ComponentConfig
         from core.config.component_config import ComponentConfig
-        
+
         # Новый путь: используем переданный component_config напрямую
         if component_config is not None and isinstance(component_config, ComponentConfig):
             # Используем существующий component_config (новый путь)
@@ -91,9 +126,24 @@ class BaseService(BaseComponent):
             )
 
         # Вызов конструктора родительского класса с ComponentConfig и executor
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+        # Передаем все внедрённые зависимости
+        super().__init__(
+            name, 
+            application_context, 
+            component_config=component_config, 
+            executor=executor,
+            db=db,
+            llm=llm,
+            cache=cache,
+            vector=vector,
+            event_bus=event_bus,
+            prompt_storage=prompt_storage,
+            contract_storage=contract_storage,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
 
-        # Устанавливаем атрибут component_config для обратной совместимости с существующими сервисами
+        # Устанавливаем атрибут component_config для обратной совместимости
         self.component_config = component_config
 
         # Сохраняем executor как атрибут
@@ -109,9 +159,21 @@ class BaseService(BaseComponent):
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
-        if hasattr(self, 'application_context') and self.application_context:
-            event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
-            session_id = getattr(self.application_context.infrastructure_context, 'id', 'unknown')
+        # Сначала пробуем внедрённый event_bus (новый путь)
+        if hasattr(self, '_event_bus') and self._event_bus is not None:
+            session_id = "system"
+            agent_id = getattr(self, 'name', 'unknown')
+            if self._event_bus:
+                self.event_bus_logger = create_logger(
+                    self._event_bus,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    component=self.__class__.__name__
+                )
+        # Fallback на application_context для обратной совместимости
+        elif hasattr(self, '_application_context') and self._application_context:
+            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
+            session_id = getattr(self._application_context.infrastructure_context, 'id', 'unknown')
             agent_id = getattr(self, 'name', 'unknown')
             if event_bus:
                 self.event_bus_logger = create_logger(
@@ -263,7 +325,7 @@ class BaseService(BaseComponent):
     def get_dependency(self, name: str) -> Optional[Any]:
         """
         Безопасное получение зависимости по имени.
-        Сначала ищем в локальном кэше, затем в прикладном контексте.
+        Сначала ищем в локальном кэше, затем в registry компонентов.
         """
         self.event_bus_logger.debug_sync(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
 
@@ -272,34 +334,24 @@ class BaseService(BaseComponent):
             self.event_bus_logger.debug_sync(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
             return self._dependencies[name]
 
-        # Затем ищем в прикладном контексте
-        if self.application_context:
-            # Пытаемся получить сервис из прикладного контекста
-            service = self.application_context.get_service(name)
+        # Затем ищем в registry компонентов (используем components напрямую)
+        if hasattr(self, '_application_context') and self._application_context:
+            # Пытаемся получить сервис из registry компонентов
+            service = self._application_context.components.get(ComponentType.SERVICE, name)
             if service:
-                self.event_bus_logger.debug_sync(f"get_dependency: сервис '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.event_bus_logger.debug_sync(f"get_dependency: сервис '{name}' найден в registry компонентов")
                 return service
-            else:
-                self.event_bus_logger.debug_sync(f"get_dependency: сервис '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
-                # Дополнительная диагностика - проверим, что есть в компонентах
-                all_services = list(self.application_context.components.all_of_type(ComponentType.SERVICE))
-                self.event_bus_logger.debug_sync(f"get_dependency: все зарегистрированные сервисы: {[s.name for s in all_services]}")
 
             # Если не сервис, пробуем другие типы компонентов
-            skill = self.application_context.get_skill(name)
+            skill = self._application_context.components.get(ComponentType.SKILL, name)
             if skill:
-                self.event_bus_logger.debug_sync(f"get_dependency: навык '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.event_bus_logger.debug_sync(f"get_dependency: навык '{name}' найден в registry компонентов")
                 return skill
-            else:
-                self.event_bus_logger.debug_sync(f"get_dependency: навык '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
 
-            tool = self.application_context.get_tool(name)
+            tool = self._application_context.components.get(ComponentType.TOOL, name)
             if tool:
-                self.event_bus_logger.debug_sync(f"get_dependency: инструмент '{name}' найден в прикладном контексте для компонента '{self.name}'")
+                self.event_bus_logger.debug_sync(f"get_dependency: инструмент '{name}' найден в registry компонентов")
                 return tool
-            else:
-                self.event_bus_logger.debug_sync(f"get_dependency: инструмент '{name}' НЕ НАЙДЕН в прикладном контексте для компонента '{self.name}'")
-
         else:
             self.event_bus_logger.error_sync(f"get_dependency: application_context отсутствует для компонента '{self.name}'")
 

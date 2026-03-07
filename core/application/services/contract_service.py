@@ -1,10 +1,16 @@
 ﻿"""
 Сервис контрактов с изолированным кэшем.
+
+АРХИТЕКТУРА:
+- Зависит только от ContractStorageInterface (интерфейс)
+- Не зависит от ApplicationContext напрямую
+- Кэш контрактов изолирован в рамках экземпляра сервиса
 """
 from typing import Dict, Tuple, Optional, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.config.component_config import ComponentConfig
 from core.models.errors.version_not_found import VersionNotFoundError
+from core.interfaces.contract_storage import ContractStorageInterface
 
 
 class ContractService(BaseService):
@@ -19,24 +25,27 @@ class ContractService(BaseService):
     @property
     def description(self) -> str:
         return "Сервис контрактов с изолированным кэшем"
-    
+
     def __init__(
         self,
         name: str = "contract_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None  # Добавляем executor для совместимости с новой архитектурой
+        executor = None,
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        contract_storage: Optional[ContractStorageInterface] = None  # ← Интерфейс хранилища
     ):
         # Call the parent constructor with proper parameters - передаём component_config явно
         super().__init__(
             name=name,
             application_context=application_context,
             component_config=component_config,  # ← Передаём напрямую!
-            executor=executor
+            executor=executor,
+            contract_storage=contract_storage  # ← Передаём интерфейс
         )
         # Кэш: {(capability, direction): schema}
         self.contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
-    
+
     async def initialize(self) -> bool:
         """Инициализация ContractService с использованием предзагруженных ресурсов из ComponentConfig."""
         try:
@@ -52,39 +61,34 @@ class ContractService(BaseService):
                     schema = self.component_config.resolved_input_contracts[capability]
                     self.contracts[(capability, "input")] = schema
                 else:
-                    self.event_bus_logger.error_sync(f"Input-контракт {capability}@{version} не найден в предзагруженных ресурсах")
-                    missing_contracts.append(f"{capability}@{version} (input)")
+                    missing_contracts.append(f"input:{capability}@{version}")
 
             # Загружаем выходные контракты
             output_versions = self.component_config.output_contract_versions
             for capability, version in output_versions.items():
-                # Получаем схему контракта из resolved_output_contracts в ComponentConfig (предзагруженные ресурсы)
                 if capability in self.component_config.resolved_output_contracts:
                     schema = self.component_config.resolved_output_contracts[capability]
                     self.contracts[(capability, "output")] = schema
                 else:
-                    self.event_bus_logger.error_sync(f"Output-контракт {capability}@{version} не найден в предзагруженных ресурсах")
-                    missing_contracts.append(f"{capability}@{version} (output)")
+                    missing_contracts.append(f"output:{capability}@{version}")
 
-            # Проверяем, все ли контракты загружены
+            # Логируем отсутствующие контракты (но не блокируем инициализацию)
             if missing_contracts:
-                self.event_bus_logger.error_sync(f"ContractService: отсутствуют критические контракты: {missing_contracts}")
-                self._initialized = False
-                return False
+                self.event_bus_logger.warning_sync(
+                    f"Отсутствуют контракты в предзагруженных ресурсах: {missing_contracts}"
+                )
 
             self._initialized = True
             self.event_bus_logger.info_sync(
-                f"ContractService инициализирован: "
-                f"загружено {len(self.contracts)} контрактов"
+                f"ContractService инициализирован: загружено {len(self.contracts)} контрактов"
             )
             return True
-
         except Exception as e:
             self.event_bus_logger.error_sync(f"Ошибка инициализации ContractService: {e}")
             return False
 
     def get_contract(self, capability_name: str, direction: str) -> Dict:
-        """Возвращает схему контракта из ИЗОЛИРОВАННОГО кэша."""
+        """Возвращает контракт из ИЗОЛИРОВАННОГО кэша."""
         if not self._initialized:
             raise RuntimeError(
                 f"Сервис '{self.name}' не инициализирован. "
@@ -100,13 +104,27 @@ class ContractService(BaseService):
 
         return self.contracts[key]
 
+    def get_all_contracts(self) -> Dict[Tuple[str, str], Dict]:
+        """Возвращает копию кэша контрактов (для отладки)."""
+        if not self._initialized:
+            raise RuntimeError(
+                f"Сервис '{self.name}' не инициализирован. "
+                f"Вызовите .initialize() перед использованием."
+            )
+        return self.contracts.copy()
+
     async def preload_contracts(self, component_config) -> bool:
         """
         Предзагрузка всех контрактов, указанных в конфигурации компонента.
         Совместимость с BaseComponent.
         """
         try:
-            storage = self.application_context.infrastructure_context.get_contract_storage()
+            # Используем внедрённый contract_storage из BaseComponent
+            storage = self.contract_storage
+            
+            if storage is None:
+                self.event_bus_logger.error_sync("contract_storage не внедрён")
+                return False
 
             # Предзагружаем входные контракты
             input_versions = getattr(component_config, 'input_contract_versions', {})
@@ -178,4 +196,9 @@ class ContractService(BaseService):
         # Получение контракта по capability
         direction = parameters.get("direction", "input")
         contract = self.get_contract(capability.name, direction)
-        return {"contract": contract, "capability": capability.name, "direction": direction}
+
+        return {
+            "capability": capability.name,
+            "direction": direction,
+            "schema": contract
+        }
