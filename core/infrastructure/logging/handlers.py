@@ -84,7 +84,7 @@ class TerminalLogFormatter:
         "result": "📊",
         "llm": "🤖",
         "error": "❌",
-        "info": "•",
+        # info → без иконки (пустая строка по умолчанию)
     }
 
     def __init__(self):
@@ -108,7 +108,7 @@ class TerminalLogFormatter:
         component = data.get("component", "").lower() if data else ""
         msg_type = self._classify_by_component(component) or self._classify(message, level)
         
-        icon = self.ICONS.get(msg_type, "•")
+        icon = self.ICONS.get(msg_type, "")
 
         if msg_type == "stage":
             return f"\n{icon} {message}"
@@ -125,7 +125,8 @@ class TerminalLogFormatter:
         if msg_type == "error":
             return f"\n{icon} ERROR → {message}"
 
-        return f"{icon} {message}"
+        # INFO сообщения — без иконки и префикса
+        return message
     
     def _classify_by_component(self, component: str) -> str:
         """
