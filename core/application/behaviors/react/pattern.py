@@ -75,10 +75,14 @@ class ReActPattern(BaseBehaviorPattern):
     @property
     def llm_orchestrator(self):
         """
-        Получение LLMOrchestrator из application_context.
+        DEPRECATED: Получение LLMOrchestrator из application_context.
+        Используйте self.llm (LLMInterface) напрямую.
         
         Возвращает orchestrator если доступен, иначе None.
         """
+        import warnings
+        warnings.warn("llm_orchestrator deprecated. Используйте self.llm (LLMInterface)", DeprecationWarning, stacklevel=2)
+        
         if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
             return self.application_context.llm_orchestrator
         return None
@@ -634,7 +638,8 @@ class ReActPattern(BaseBehaviorPattern):
             available_capabilities=available_capabilities
         )
 
-        llm_provider = self.application_context.get_provider("default_llm") if self.application_context else None
+        # Используем внедрённый LLMInterface из BaseComponent
+        llm_provider = self.llm
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
             return self._create_fallback_reasoning(
