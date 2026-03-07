@@ -207,13 +207,31 @@ class SessionContext(BaseSessionContext):
         if self.step_context.steps:
             summary_dict["last_steps"] = []
             for step in self.step_context.steps[-3:]:  # Последние 3 шага
-                summary_dict["last_steps"].append({
+                step_data = {
                     "step_number": step.step_number,
                     "capability": step.capability_name,
                     "skill": step.skill_name,
-                    "parameters": self.get_context_item(step.action_item_id).content.get("parameters"),
+                    "parameters": self.get_context_item(step.action_item_id).content.get("parameters") if self.get_context_item(step.action_item_id) else {},
                     "summary": step.summary
-                })
+                }
+                
+                # Добавляем observation если есть
+                if step.observation_item_ids:
+                    observations = []
+                    for obs_id in step.observation_item_ids:
+                        obs_item = self.get_context_item(obs_id)
+                        if obs_item:
+                            obs_content = obs_item.content
+                            # Извлекаем полезную информацию из observation
+                            if isinstance(obs_content, dict):
+                                obs_data = obs_content.get('data', obs_content.get('rows', obs_content))
+                                observations.append(str(obs_data)[:200])  # Ограничиваем длину
+                            else:
+                                observations.append(str(obs_content)[:200])
+                    if observations:
+                        step_data["observation"] = "\n".join(observations)
+                
+                summary_dict["last_steps"].append(step_data)
         
         return summary_dict
 

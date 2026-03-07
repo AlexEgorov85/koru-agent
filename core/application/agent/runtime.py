@@ -451,19 +451,71 @@ class AgentRuntime:
                             "result": execution_result,
                             "timestamp": datetime.now().isoformat()
                         }, step_number=self._current_step + 1)
-                        
+
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.debug(f"✅ Action записан с ID: {action_id}")
+
+                        # КРИТИЧНО: Записываем observation из результата выполнения
+                        # Навыки не записывают observation явно, делаем это в runtime
+                        observation_id = None
+                        try:
+                            # Извлекаем данные для observation из execution_result
+                            obs_data = None
+                            if hasattr(execution_result, 'result') and execution_result.result:
+                                # Если result это dict, используем его
+                                if isinstance(execution_result.result, dict):
+                                    obs_data = execution_result.result
+                                else:
+                                    # Иначе оборачиваем в dict
+                                    obs_data = {"result": execution_result.result}
+                            
+                            if obs_data:
+                                observation_id = self.application_context.session_context.record_observation(
+                                    observation_data=obs_data,
+                                    source=decision.capability_name,
+                                    step_number=self._current_step + 1
+                                )
+                                if self.event_bus_logger:
+                                    await self.event_bus_logger.debug(f"✅ Observation записана с ID: {observation_id}")
+                        except Exception as e:
+                            if self.event_bus_logger:
+                                await self.event_bus_logger.warning(f"⚠️ Не удалось записать observation: {e}")
+
                         # КРИТИЧНО: Записываем STEP чтобы update_summary() обновился!
                         # Без этого get_summary() возвращает одинаковые last_steps
                         # и ProgressScorer.evaluate() возвращает False
-                        self.application_context.session_context.record_step(
-                            step_number=self._current_step + 1,
-                            capability_name=decision.capability_name,
-                            skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
-                            action_item_id=action_id,
-                            observation_item_ids=[],
-                            summary=f"Выполнено: {decision.capability_name}",
-                            status="completed"
-                        )
+                        # ИСПРАВЛЕНО: record_step -> register_step (правильное имя метода)
+                        
+                        # Извлекаем observation_id из metadata если есть
+                        observation_item_ids = []
+                        if observation_id:
+                            observation_item_ids = [observation_id]
+                        elif hasattr(execution_result, 'metadata') and execution_result.metadata:
+                            obs_id = execution_result.metadata.get('observation_id')
+                            if obs_id:
+                                observation_item_ids = [obs_id]
+                        
+                        try:
+                            if self.event_bus_logger:
+                                await self.event_bus_logger.info(f"🔵 Вызов register_step: step={self._current_step + 1}, capability={decision.capability_name}, obs_ids={observation_item_ids}")
+                                await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.application_context.session_context.step_context.count()}")
+                            
+                            self.application_context.session_context.register_step(
+                                step_number=self._current_step + 1,
+                                capability_name=decision.capability_name,
+                                skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
+                                action_item_id=action_id,
+                                observation_item_ids=observation_item_ids,
+                                summary=f"Выполнено: {decision.capability_name}",
+                                status="completed"
+                            )
+                            
+                            if self.event_bus_logger:
+                                await self.event_bus_logger.info(f"✅ Step {self._current_step + 1} зарегистрирован в step_context")
+                                await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.application_context.session_context.step_context.count()}")
+                        except Exception as e:
+                            if self.event_bus_logger:
+                                await self.event_bus_logger.error(f"❌ Ошибка register_step: {e}")
 
                     # Оценка прогресса и обновление состояния
                     progressed = self.progress.evaluate(self.application_context.session_context)

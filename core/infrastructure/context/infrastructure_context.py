@@ -53,7 +53,7 @@ class InfrastructureContext:
         # Основные компоненты инфраструктуры
         self.lifecycle_manager: Optional[LifecycleManager] = None
         # Шина событий: UnifiedEventBus или EventBusConcurrent в зависимости от флага
-        self.event_bus: Optional[UnifiedEventBus | EventBusConcurrent] = None
+        self.event_bus: Optional[UnifiedEventBus] = None
         self.resource_registry: Optional[ResourceRegistry] = None
 
         # Фабрики провайдеров
@@ -115,11 +115,13 @@ class InfrastructureContext:
         self._state = ComponentState.INITIALIZING
 
         # === ЭТАП 1: Базовая инициализация ===
+        print("🚀 Инициализация инфраструктурного контекста...", flush=True)
 
         # Инициализация шины событий (ПЕРВЫЙ компонент)
         # Используем UnifiedEventBus — единую шину событий
         self.event_bus = UnifiedEventBus()
         await self._log_event_bus_info("UnifiedEventBus")
+        print("✅ InfrastructureContext инициализирован", flush=True)
 
         # Инициализация обработчиков логирования
         # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
@@ -150,6 +152,7 @@ class InfrastructureContext:
         )
 
         await self.event_bus_logger.info("✅ Обработчики логирования инициализированы")
+        print("✅ EventBusLogger инициализирован", flush=True)
 
         # Инициализация менеджера жизненного цикла (нужен event_bus)
         self.lifecycle_manager = LifecycleManager(self.event_bus)

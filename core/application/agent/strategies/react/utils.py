@@ -52,13 +52,30 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
 
     try:
         # Получаем историю последних шагов
-        last_steps = session_context.get_last_steps(limit=5) if hasattr(session_context, 'get_last_steps') else []
+        last_steps = []
+        if hasattr(session_context, 'get_last_steps'):
+            last_steps = session_context.get_last_steps(limit=5)
+            logger.info(f"analyze_context: get_last_steps() вернул {len(last_steps)} шагов")
+        elif hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'get_last_steps'):
+            last_steps = session_context.step_context.get_last_steps(5)
+            logger.info(f"analyze_context: step_context.get_last_steps() вернул {len(last_steps)} шагов")
+        else:
+            logger.warning(f"analyze_context: не удалось получить last_steps. session_context имеет атрибуты: {dir(session_context)}")
 
         # Получаем цель сессии
         goal = session_context.goal if hasattr(session_context, 'goal') else "Неизвестная цель"
-
+        
         # Получаем текущий прогресс
         progress = session_context.get_progress() if hasattr(session_context, 'get_progress') else {}
+        
+        # Получаем summary для проверки
+        summary = {}
+        if hasattr(session_context, 'get_summary'):
+            try:
+                summary = session_context.get_summary()
+                logger.info(f"analyze_context: get_summary() вернул {summary.get('step_count', 0)} шагов, last_steps={len(summary.get('last_steps', []))}")
+            except Exception as e:
+                logger.warning(f"analyze_context: get_summary() ошибка: {e}")
 
         # Собираем информацию о контексте и возвращаем объект
         return ContextAnalysis(
@@ -70,7 +87,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
             last_activity=getattr(session_context, 'last_activity', None),
             no_progress_steps=getattr(session_context, 'no_progress_steps', 0),
             consecutive_errors=getattr(session_context, 'consecutive_errors', 0),
-            summary=session_context.get_summary() if hasattr(session_context, 'get_summary') else {}
+            summary=summary
         )
 
     except Exception as e:

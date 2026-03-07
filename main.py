@@ -78,8 +78,10 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
     # Создание и инициализация инфраструктурного контекста
     # (логирование инициализируется внутри)
+    print("🚀 Создание инфраструктурного контекста...", flush=True)
     infrastructure_context = InfrastructureContext(config)
     await infrastructure_context.initialize()
+    print("✅ Инфраструктурный контекст инициализирован", flush=True)
 
     # Получаем session_id и создаём логгер сессии
     session_id = str(infrastructure_context.id)
@@ -144,14 +146,24 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         import sys
         import traceback
         
+        # Синхронный вывод для критических сообщений
         try:
+            # Принудительная синхронная печать для последовательности
+            print("🔄 Запуск выполнения агента...", flush=True)
+            await session_logger.info("🔄 Запуск выполнения агента...")
             result = await agent.run(goal)
+            print("✅ Выполнение агента завершено", flush=True)
+            await session_logger.info("✅ Выполнение агента завершено")
         except Exception as run_error:
             # Ошибка во время выполнения agent.run()
+            print("❌ КРИТИЧЕСКАЯ ОШИБКА при выполнении agent.run()", flush=True)
             await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА при выполнении agent.run(): {run_error}")
             await session_logger.error(f"📋 Тип: {type(run_error).__name__}")
             await session_logger.error(f"📝 Traceback:\n{traceback.format_exc()}")
             raise
+        
+        # Добавим синхронный вывод для завершения
+        print("🚀 Агент успешно завершён", flush=True)
         
         # Проверяем что result это не строка
         if isinstance(result, str):

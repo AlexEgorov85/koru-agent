@@ -14,29 +14,29 @@ content: |
   {available_tools}
 
   === ПРИМЕР ПРАВИЛЬНОГО ОТВЕТА ===
-  {{
+  {
     "thought": "Анализирую ситуацию. Нужно найти книги Пушкина.",
-    "analysis": {{
+    "analysis": {
       "progress": "Начало выполнения, шагов не сделано",
       "current_state": "Требуется поиск информации о книгах Пушкина",
       "issues": []
-    }},
-    "decision": {{
+    },
+    "decision": {
       "next_action": "book_library.execute_script",
       "reasoning": "Есть готовый скрипт для поиска книг по автору",
-      "parameters": {{
+      "parameters": {
         "script_name": "get_books_by_author",
         "author": "Пушкин"
-      }},
+      },
       "expected_outcome": "Список книг Пушкина"
-    }},
+    },
     "confidence": 0.9,
     "stop_condition": false
-  }}
+  }
 
   === ЗАДАНИЕ ===
   Верни ТОЛЬКО один JSON объект в формате из примера выше.
-  Начни с {{ и закончи }}.
+  Начни с { и закончи }.
 variables:
   - name: input
     description: Текущий контекст задачи и состояние

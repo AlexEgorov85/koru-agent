@@ -273,9 +273,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         max_tokens = request.max_tokens
         if hasattr(request, 'structured_output') and request.structured_output:
             max_tokens = min(max_tokens, 1000)
+            msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
+            print(msg, flush=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(msg)
 
         # Проверка что модель инициализирована
         if not self.llm:
+            await self.event_bus_logger.warning("⚠️ [LLM] Модель не инициализирована! Вызываем initialize()...")
             await self.initialize()
 
         # Создаем executor если не создан
@@ -326,15 +331,77 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             # Обрабатываем результат
             choices = response.get('choices', [])
             usage = response.get('usage', {})
-            
+
+            msg = f"🔵 [LLM] Получен ответ: choices={len(choices)}"
+            print(msg, flush=True)
+
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
+                print(f"🔵 [LLM] generated_text[:80]: {generated_text[:80]}...", flush=True)
+                print(f"🔵 [LLM] finish_reason: {finish_reason}", flush=True)
             else:
                 generated_text = ''
                 finish_reason = 'error'
+                print("⚠️ [LLM] choices пуст!", flush=True)
 
-            # Создаем результат
+            # === ОБРАБОТКА STRUCTURED OUTPUT ===
+            if hasattr(request, 'structured_output') and request.structured_output:
+                msg = f"🔵 Structured output запрошен: {request.structured_output.output_model}"
+                print(msg, flush=True)
+                # Пытаемся распарсить JSON и валидировать по схеме
+                try:
+                    json_content = self._extract_json_from_response(generated_text)
+                    print(f"🔵 JSON извлечён: {json_content[:80]}...", flush=True)
+                    parsed_json = json.loads(json_content)
+                    print(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}", flush=True)
+                    
+                    # Валидируем по схеме если есть Pydantic модель
+                    parsed_content = None
+                    if request.structured_output.output_model:
+                        # Пытаемся найти модель по имени
+                        try:
+                            from core.models.schemas.react_models import ReasoningResult
+                            if request.structured_output.output_model == "ReasoningResult":
+                                parsed_content = ReasoningResult.model_validate(parsed_json)
+                                print(f"✅ Валидировано по ReasoningResult: stop_condition={parsed_content.stop_condition}", flush=True)
+                        except Exception as model_error:
+                            print(f"⚠️ Не удалось валидировать по модели: {model_error}", flush=True)
+                            parsed_content = parsed_json
+                    else:
+                        parsed_content = parsed_json
+                    
+                    # Создаём StructuredLLMResponse
+                    structured_response = StructuredLLMResponse(
+                        parsed_content=parsed_content,
+                        raw_response=RawLLMResponse(
+                            content=generated_text,
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason=finish_reason
+                        ),
+                        parsing_attempts=1,
+                        validation_errors=[]
+                    )
+                    
+                    print(f"✅ StructuredLLMResponse создан (success={structured_response.success})", flush=True)
+                    
+                    # Обновляем метрики
+                    self._update_metrics(structured_response.raw_response.generation_time)
+                    
+                    return structured_response
+                    
+                except json.JSONDecodeError as json_err:
+                    print(f"❌ Structured output JSON parse error: {json_err}", flush=True)
+                    # Fallback: возвращаем обычный LLMResponse
+                except Exception as struct_err:
+                    print(f"❌ Structured output error: {struct_err}", flush=True)
+                    # Fallback: возвращаем обычный LLMResponse
+
+            print(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)", flush=True)
+
+            # Создаем обычный результат
             llm_response = LLMResponse(
                 content=generated_text,
                 model=self.model_name,

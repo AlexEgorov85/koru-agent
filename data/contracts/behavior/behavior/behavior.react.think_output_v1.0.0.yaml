@@ -10,6 +10,11 @@ schema_data:
       description: Развёрнутое рассуждение о текущей ситуации
     analysis:
       type: object
+      description: Анализ текущей ситуации
+      required:
+        - progress
+        - current_state
+        - issues
       properties:
         progress:
           type: string
@@ -24,6 +29,12 @@ schema_data:
           description: Список проблем, если есть
     decision:
       type: object
+      description: Решение о следующем действии
+      required:
+        - next_action
+        - reasoning
+        - parameters
+        - expected_outcome
       properties:
         next_action:
           type: string
@@ -56,6 +67,7 @@ schema_data:
       description: Причина остановки
   required:
     - thought
+    - analysis
     - decision
     - confidence
     - stop_condition

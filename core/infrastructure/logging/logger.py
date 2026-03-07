@@ -13,6 +13,7 @@ class MyComponent:
 ```
 """
 import asyncio
+import sys
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -272,6 +273,8 @@ async def init_logging_system(
     """
     global _global_event_bus, _default_logger
     
+    print("🚀 Инициализация системы логирования...", flush=True)
+    
     if event_bus is not None:
         _global_event_bus = event_bus
     else:
@@ -280,6 +283,7 @@ async def init_logging_system(
     
     _default_logger = EventBusLogger(_global_event_bus, session_id, agent_id, 'system')
     
+    print("✅ Система логирования инициализирована", flush=True)
     return _global_event_bus
 
 

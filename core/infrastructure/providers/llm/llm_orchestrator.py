@@ -682,7 +682,13 @@ class LLMOrchestrator:
                 )
 
             # Парсинг и валидация ответа
-            raw_content = response.content
+            # response может быть LLMResponse или StructuredLLMResponse
+            if hasattr(response, 'parsed_content') and response.parsed_content:
+                # StructuredLLMResponse - уже распарсен
+                raw_content = response.raw_response.content if hasattr(response, 'raw_response') else str(response.parsed_content)
+            else:
+                # LLMResponse - берём content
+                raw_content = response.content
             validation_result = self._validate_structured_response(
                 raw_content=raw_content,
                 schema=request.structured_output.schema_def if request.structured_output else None
@@ -697,7 +703,7 @@ class LLMOrchestrator:
                     error_type=None,
                     error_message=None,
                     duration=duration,
-                    tokens_used=response.tokens_used
+                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
                 )
             else:
                 return RetryAttempt(
@@ -708,7 +714,7 @@ class LLMOrchestrator:
                     error_type=validation_result["error_type"],
                     error_message=validation_result["error_message"],
                     duration=duration,
-                    tokens_used=response.tokens_used
+                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
                 )
 
         except asyncio.TimeoutError:
@@ -993,6 +999,20 @@ class LLMOrchestrator:
             self._metrics.completed_calls += 1
             self._metrics.total_generation_time += record.duration or 0
 
+            # Логирование типа результата
+            result_type = type(result).__name__
+            if hasattr(result, 'parsed_content'):
+                msg = f"✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type={type(result.parsed_content).__name__ if result.parsed_content else 'None'}"
+                print(msg, flush=True)
+                if self._logger:
+                    await self._logger.info(msg)
+            else:
+                content_preview = str(result.parsed_content)[:50] if hasattr(result, 'parsed_content') and result.parsed_content else (str(result.content)[:50] if hasattr(result, 'content') and result.content else 'None')
+                msg = f"🔵 [Orchestrator] Получен LLMResponse: content[:50]={content_preview}"
+                print(msg, flush=True)
+                if self._logger:
+                    await self._logger.info(msg)
+
             # Логирование успешного завершения
             await self._log_call_success(record, result)
 
@@ -1064,7 +1084,7 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        content_length = len(result.content) if result.content else 0
+        content_length = len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)
         await self._logger.info(
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
@@ -1246,7 +1266,7 @@ class LLMOrchestrator:
         # Извлекаем контент ответа
         response_content = ""
         if result and hasattr(result, 'content'):
-            response_content = result.content or ""
+            response_content = str(result.parsed_content) if hasattr(result, 'parsed_content') and result.parsed_content else (result.content or "" if hasattr(result, 'content') else "")
 
         data = {
             "call_id": record.call_id,
@@ -1299,7 +1319,7 @@ class LLMOrchestrator:
         # Извлекаем контент ответа если доступен
         response_content = ""
         if record.result and hasattr(record.result, 'content'):
-            response_content = record.result.content or ""
+            response_content = str(record.result.parsed_content) if hasattr(record.result, 'parsed_content') and record.result.parsed_content else (record.result.content or "" if hasattr(record.result, 'content') else "")
 
         data = {
             "call_id": record.call_id,
@@ -1429,7 +1449,7 @@ class LLMOrchestrator:
                 "success": result.finish_reason != "error",
                 "duration": duration,
                 "tokens_used": result.tokens_used,
-                "content_length": len(result.content) if result.content else 0
+                "content_length": (len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)),
             },
             source="LLMOrchestrator",
             correlation_id=call_id

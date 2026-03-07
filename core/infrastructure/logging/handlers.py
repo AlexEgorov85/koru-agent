@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from core.infrastructure.event_bus.unified_event_bus import Event, EventType, UnifiedEventBus
 from core.infrastructure.logging.config import (
+    LogFormat,
     LoggingConfig,
     FileOutputConfig,
     get_logging_config,
@@ -237,6 +238,10 @@ class TerminalLogHandler:
         with self._lock:
             stream = sys.stderr if level in ("ERROR", "CRITICAL") else sys.stdout
             print(formatted, file=stream, flush=True)
+            
+        # Добавим принудительную синхронизацию для лучшей последовательности
+        if hasattr(stream, 'flush'):
+            stream.flush()
 
     def _should_log(self, level):
         return (

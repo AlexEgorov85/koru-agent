@@ -150,14 +150,30 @@ class ReActPattern(BaseBehaviorPattern):
             )
             
             # Проверка на ошибку в ответе
-            if response.finish_reason == "error":
+            # response может быть LLMResponse или StructuredLLMResponse
+            finish_reason = None
+            if hasattr(response, 'raw_response') and response.raw_response:
+                # StructuredLLMResponse
+                finish_reason = response.raw_response.finish_reason
+            elif hasattr(response, 'finish_reason'):
+                # LLMResponse
+                finish_reason = response.finish_reason
+            
+            if finish_reason == "error":
                 error_msg = "Неизвестная ошибка LLM"
-                if response.metadata:
-                    if isinstance(response.metadata, dict):
-                        error_msg = response.metadata.get('error', error_msg)
-                    elif isinstance(response.metadata, str):
-                        error_msg = response.metadata
-                
+                # Получаем metadata
+                metadata = None
+                if hasattr(response, 'raw_response') and response.raw_response:
+                    metadata = response.raw_response.metadata
+                elif hasattr(response, 'metadata'):
+                    metadata = response.metadata
+                    
+                if metadata:
+                    if isinstance(metadata, dict):
+                        error_msg = metadata.get('error', error_msg)
+                    elif isinstance(metadata, str):
+                        error_msg = metadata
+
                 # Логируем ошибку
                 await self._log("error", f"LLM вызов через оркестратор вернул ошибку: {error_msg}")
 
@@ -353,8 +369,8 @@ class ReActPattern(BaseBehaviorPattern):
         prompt_context = {
             "input": self._build_input_context(context_analysis, available_capabilities),
             "goal": goal,
-            "step_history": "\n".join([f"{i+1}. {s}" for i, s in enumerate(last_steps[-3:])]) if last_steps else "Шаги не выполнены",
-            "observation": last_steps[-1] if last_steps else "Нет наблюдений",
+            "step_history": self._build_step_history(last_steps),
+            "observation": self._extract_last_observation(last_steps),
             "available_tools": self._format_available_tools(available_capabilities),
             "no_progress_steps": no_progress_steps,
             "consecutive_errors": consecutive_errors
@@ -404,6 +420,59 @@ class ReActPattern(BaseBehaviorPattern):
 
         # Примечание: Список инструментов добавляется отдельно через {available_tools}
         return "\n".join(parts)
+
+    def _build_step_history(self, last_steps: list) -> str:
+        """
+        Формирует читаемую историю шагов для промпта.
+        
+        ПАРАМЕТРЫ:
+        - last_steps: список шагов из context_analysis
+        
+        ВОЗВРАЩАЕТ:
+        - str: отформатированная история шагов
+        """
+        if not last_steps:
+            return "Шаги не выполнены"
+        
+        step_lines = []
+        for i, step in enumerate(last_steps[-3:], 1):
+            if isinstance(step, dict):
+                capability = step.get('capability', 'unknown')
+                summary = step.get('summary', '')
+                obs = step.get('observation', '')
+                
+                step_text = f"{capability}: {summary}"
+                if obs:
+                    step_text += f" → {obs[:100]}"
+                step_lines.append(f"{i}. {step_text}")
+            else:
+                step_lines.append(f"{i}. {step}")
+        
+        return "\n".join(step_lines)
+
+    def _extract_last_observation(self, last_steps: list) -> str:
+        """
+        Извлекает последнее наблюдение из истории шагов.
+        
+        ПАРАМЕТРЫ:
+        - last_steps: список шагов из context_analysis
+        
+        ВОЗВРАЩАЕТ:
+        - str: последнее наблюдение или "Нет наблюдений"
+        """
+        if not last_steps:
+            return "Нет наблюдений"
+        
+        # Ищем observation в последнем шаге
+        last_step = last_steps[-1]
+        if isinstance(last_step, dict):
+            obs = last_step.get('observation', '')
+            if obs:
+                return obs
+        
+        # Если observation нет в явном виде, пробуем извлечь из summary
+        summary = last_step.get('summary', '') if isinstance(last_step, dict) else str(last_step)
+        return summary if summary else "Нет наблюдений"
 
     def _format_available_tools(self, available_capabilities: List[Capability]) -> str:
         """
@@ -600,6 +669,8 @@ class ReActPattern(BaseBehaviorPattern):
         # Логирование начала через EventBusLogger
         await self._log("info", "generate_decision: started",
                        step=session_context.current_step if hasattr(session_context, 'current_step') else 0)
+        
+        await self._log("info", f"generate_decision: context_analysis.last_steps={len(context_analysis.get('last_steps', []))}")
 
         try:
             # 1. Структурированное рассуждение через LLM
@@ -609,20 +680,28 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities
             )
             # Логирование результата рассуждения
-            await self._log("debug", f"generate_decision: reasoning_result получен",
-                           decision=reasoning_result.get('decision', {}))
-            
+            print(f"🔵 [generate_decision] reasoning_result тип={type(reasoning_result).__name__}", flush=True)
+            if hasattr(reasoning_result, 'to_dict'):
+                d = reasoning_result.to_dict()
+                print(f"🔵 [generate_decision] to_dict() decision={d.get('decision')}", flush=True)
+                print(f"🔵 [generate_decision] to_dict() stop_condition={d.get('stop_condition')}", flush=True)
+            elif isinstance(reasoning_result, dict):
+                print(f"🔵 [generate_decision] reasoning_result.decision={reasoning_result.get('decision', {})}", flush=True)
+                print(f"🔵 [generate_decision] reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}", flush=True)
+
             # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
                 session_context=session_context,
                 reasoning_result=reasoning_result,
                 available_capabilities=available_capabilities  # КРИТИЧНО: передаём available_capabilities
             )
-            
+
             # Логирование финального решения
             await self._log("info", f"generate_decision: decision получен",
                            action=decision.action.value,
                            capability_name=decision.capability_name)
+            
+            await self._log("info", f"  decision.action={decision.action}, decision.capability_name={decision.capability_name}")
             
             # 3. Сброс счётчика ошибок при успешном решении
             self.error_count = 0
@@ -748,6 +827,11 @@ class ReActPattern(BaseBehaviorPattern):
         # response — это StructuredLLMResponse объект
         await self._log("info", f"=== ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===")
         await self._log("info", f"Тип response: {type(response).__name__}")
+        await self._log("info", f"response.parsed_content: {response.parsed_content is not None}")
+        await self._log("info", f"response.raw_response: {response.raw_response is not None}")
+        
+        if response.raw_response and hasattr(response.raw_response, 'content'):
+            await self._log("info", f"response.raw_response.content[:200]: {str(response.raw_response.content)[:200]}")
         
         result = None
         
@@ -801,11 +885,16 @@ class ReActPattern(BaseBehaviorPattern):
         # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
         await self._log("info", f"=== ВАЛИДАЦИЯ РЕЗУЛЬТАТА LLM ===")
         await self._log("info", f"Перед валидацией: тип result={type(result).__name__}")
-        
+
         # validate_reasoning_result теперь возвращает ReasoningResult объект
         reasoning_result = validate_reasoning_result(result)
         
         await self._log("info", f"После валидации: тип reasoning_result={type(reasoning_result).__name__}")
+        if hasattr(reasoning_result, 'to_dict'):
+            reasoning_dict = reasoning_result.to_dict()
+            await self._log("info", f"reasoning_result.to_dict(): {reasoning_dict}")
+        elif isinstance(reasoning_result, dict):
+            await self._log("info", f"reasoning_result (dict): {reasoning_result}")
         
         # Добавляем available_capabilities в объект
         reasoning_result.available_capabilities = available_capabilities
@@ -815,6 +904,13 @@ class ReActPattern(BaseBehaviorPattern):
         if reasoning_result.decision:
             await self._log("info", f"decision.next_action={reasoning_result.decision.next_action}")
             await self._log("info", f"decision.reasoning={reasoning_result.decision.reasoning}")
+        
+        print(f"🔵 [_perform_structured_reasoning] Возвращаем: type={type(reasoning_result).__name__}", flush=True)
+        if hasattr(reasoning_result, 'decision'):
+            print(f"🔵 [_perform_structured_reasoning] reasoning_result.decision={reasoning_result.decision}", flush=True)
+            if hasattr(reasoning_result.decision, 'next_action'):
+                print(f"🔵 [_perform_structured_reasoning] decision.next_action={reasoning_result.decision.next_action}", flush=True)
+        print(f"🔵 [_perform_structured_reasoning] reasoning_result.stop_condition={reasoning_result.stop_condition}", flush=True)
 
         return reasoning_result
 
@@ -917,13 +1013,21 @@ class ReActPattern(BaseBehaviorPattern):
         try:
             # Проверяем тип reasoning_result
             # Может быть ReasoningResult (новый путь) или dict (старый путь)
+            print(f"🔵 [_make_decision] reasoning_result type={type(reasoning_result).__name__}", flush=True)
+            
             if hasattr(reasoning_result, 'to_dict'):
                 # ReasoningResult объект — конвертируем в dict для обратной совместимости
+                print(f"🔵 [_make_decision] Вызываем to_dict()...", flush=True)
                 reasoning_dict = reasoning_result.to_dict()
+                print(f"🔵 [_make_decision] reasoning_dict keys={list(reasoning_dict.keys())}", flush=True)
+                print(f"🔵 [_make_decision] reasoning_dict.decision={reasoning_dict.get('decision')}", flush=True)
+                print(f"🔵 [_make_decision] reasoning_dict.stop_condition={reasoning_dict.get('stop_condition')}", flush=True)
             elif isinstance(reasoning_result, dict):
                 # dict — используем напрямую (старый путь)
+                print(f"🔵 [_make_decision] Используем dict напрямую", flush=True)
                 reasoning_dict = reasoning_result
             else:
+                print(f"❌ [_make_decision] Неверный тип: {type(reasoning_result).__name__}", flush=True)
                 await self._log("error", f"_make_decision_from_reasoning: reasoning_result имеет неверный тип",
                                actual_type=type(reasoning_result).__name__,
                                actual_value=str(reasoning_result)[:500] if reasoning_result else None)
@@ -933,7 +1037,12 @@ class ReActPattern(BaseBehaviorPattern):
                 )
 
             # 1. Проверка условия остановки (согласно контракту behavior.react.think)
-            if reasoning_dict.get("stop_condition", False):
+            stop_condition = reasoning_dict.get("stop_condition", False)
+            await self._log("info", f"_make_decision_from_reasoning: stop_condition={stop_condition}")
+            await self._log("info", f"_make_decision_from_reasoning: reasoning_dict keys={list(reasoning_dict.keys()) if isinstance(reasoning_dict, dict) else 'not dict'}")
+            
+            if stop_condition:
+                await self._log("warning", f"STOP condition detected: {reasoning_dict.get('stop_reason', 'goal_achieved')}")
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
                     reason=reasoning_dict.get("stop_reason", "goal_achieved")
@@ -941,6 +1050,7 @@ class ReActPattern(BaseBehaviorPattern):
 
             # 2. Извлечение capability_name из decision.next_action
             decision_dict = reasoning_dict.get("decision", {})
+            await self._log("info", f"_make_decision_from_reasoning: decision_dict={decision_dict}")
 
             # ПРОВЕРКА: decision тоже должен быть dict
             if not isinstance(decision_dict, dict):
@@ -986,7 +1096,7 @@ class ReActPattern(BaseBehaviorPattern):
                     )
             
             # 4. Вали��ация и корректировка параметров через SchemaValidator
-            parameters = decision.get("parameters", {})
+            parameters = decision_dict.get("parameters", {})
             validated_params = self._validate_parameters(capability, parameters)
             
             # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
