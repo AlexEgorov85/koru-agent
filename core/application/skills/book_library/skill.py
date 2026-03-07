@@ -191,25 +191,33 @@ class BookLibrarySkill(BaseComponent):
         start_time = time.time()
         await self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
 
-        # 1. Валидация входных параметров через кэшированную схему из YAML контракта
-        input_schema = self.get_cached_input_contract_safe("book_library.search_books")
-        if input_schema:
-            try:
-                validated_params = input_schema.model_validate(params)
-                params = validated_params.model_dump()
-            except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+        # 1. Валидация входных параметров
+        # ✅ ПРИМЕЧАНИЕ: BaseComponent.execute() уже валидировал параметры через validate_input_typed()
+        # params уже может быть Pydantic моделью BookLibrarySearchInput
+        # Проверяем и используем напрямую если это модель
+        from pydantic import BaseModel
+        if isinstance(params, BaseModel):
+            # params уже валидированная модель — используем напрямую
+            await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
+        else:
+            # Fallback для обратной совместимости
+            input_schema = self.get_cached_input_contract_safe("book_library.search_books")
+            if input_schema:
+                try:
+                    validated_params = input_schema.model_validate(params)
+                    params = validated_params
+                except Exception as e:
+                    await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+                    return SkillResult.failure(
+                        error=f"Неверные параметры: {str(e)}",
+                        metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
+                    )
+            else:
+                await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
                 return SkillResult.failure(
-                    error=f"Неверные параметры: {str(e)}",
+                    error="Внутренняя ошибка: контракт не загружен",
                     metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
                 )
-        else:
-            # Критическая ошибка: контракт не загружен в кэш
-            await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
-            return SkillResult.failure(
-                error="Внутренняя ошибка: контракт не загружен",
-                metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
-            )
 
         # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
         prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
@@ -314,18 +322,22 @@ class BookLibrarySkill(BaseComponent):
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 6. Валидация результатов через выходную схему
+        # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
         output_schema = self.get_cached_output_contract_safe("book_library.search_books")
         result_data = result.copy()
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
-                result_data = validated_result.model_dump()
+                result_data = validated_result  # ← Сохраняем модель, не dict!
             except Exception as e:
                 await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+        else:
+            # Fallback на dict если схема не загружена
+            result_data = result.copy()
 
         # Возвращаем SkillResult с side_effect=True (SQL query executed)
         return SkillResult.success(
-            data=result_data,
+            data=result_data,  # ← Pydantic модель!
             metadata={
                 "execution_time_ms": total_time * 1000,
                 "rows_returned": len(rows),
@@ -460,18 +472,22 @@ class BookLibrarySkill(BaseComponent):
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 8. Валидация результатов через выходную схему
+        # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
         output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
         result_data = result.copy()
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result)
-                result_data = validated_result.model_dump()
+                result_data = validated_result  # ← Сохраняем модель, не dict!
             except Exception as e:
                 await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
+        else:
+            # Fallback на dict если схема не загружена
+            result_data = result.copy()
 
         # Возвращаем SkillResult с side_effect=True (SQL query executed)
         return SkillResult.success(
-            data=result_data,
+            data=result_data,  # ← Pydantic модель!
             metadata={
                 "execution_time_ms": total_time * 1000,
                 "rows_returned": len(rows),
@@ -544,19 +560,23 @@ class BookLibrarySkill(BaseComponent):
         await self.event_bus_logger.info(f"Возвращено {len(scripts_list)} скриптов")
 
         # Валидация через схему из сервиса контрактов
+        # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
         output_schema = self.get_cached_output_contract_safe("book_library.list_scripts")
         if output_schema:
             try:
                 # Создаём валидированную модель через схему контракта
                 validated_result = output_schema.model_validate(result_data)
-                result_data = validated_result.model_dump()
+                result_data = validated_result  # ← Сохраняем модель!
             except Exception as e:
                 await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
                 # Возвращаем данные без валидации (fallback)
+        else:
+            # Fallback на dict если схема не загружена
+            pass
 
         # Возвращаем SkillResult (no side effect - только чтение)
         return SkillResult.success(
-            data=result_data,
+            data=result_data,  # ← Pydantic модель!
             metadata={"scripts_count": len(scripts_list)},
             side_effect=False
         )

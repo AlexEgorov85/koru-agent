@@ -224,8 +224,16 @@ class PlanningSkill(BaseComponent):
                     }
                 )
 
-            # 5. Получаем структурированные данные (Pydantic model_dump())
-            plan_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            # 5. Получаем структурированные данные
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            llm_result_data = llm_result.result
+            if hasattr(llm_result_data, 'parsed_content'):
+                # StructuredLLMResponse — извлекаем parsed_content
+                plan_data = llm_result_data.parsed_content
+            elif isinstance(llm_result_data, dict):
+                plan_data = llm_result_data.get("parsed_content", {})
+            else:
+                plan_data = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
@@ -368,8 +376,16 @@ class PlanningSkill(BaseComponent):
                     }
                 )
 
-            # 6. Получаем структурированные данные (Pydantic model_dump())
-            updated_plan = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            # 6. Получаем структурированные данные
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            llm_result_data = llm_result.result
+            if hasattr(llm_result_data, 'parsed_content'):
+                # StructuredLLMResponse — извлекаем parsed_content
+                updated_plan = llm_result_data.parsed_content
+            elif isinstance(llm_result_data, dict):
+                updated_plan = llm_result_data.get("parsed_content", {})
+            else:
+                updated_plan = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
@@ -718,8 +734,16 @@ class PlanningSkill(BaseComponent):
                     }
                 )
 
-            # Получаем структурированные данные (Pydantic model_dump())
-            corrected_plan = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            # Получаем структурированные данные
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            llm_result_data = llm_result.result
+            if hasattr(llm_result_data, 'parsed_content'):
+                # StructuredLLMResponse — извлекаем parsed_content
+                corrected_plan = llm_result_data.parsed_content
+            elif isinstance(llm_result_data, dict):
+                corrected_plan = llm_result_data.get("parsed_content", {})
+            else:
+                corrected_plan = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -805,8 +829,16 @@ class PlanningSkill(BaseComponent):
                     }
                 )
 
-            # Получаем структурированные данные (Pydantic model_dump())
-            decompose_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            # Получаем структурированные данные
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            llm_result_data = llm_result.result
+            if hasattr(llm_result_data, 'parsed_content'):
+                # StructuredLLMResponse — извлекаем parsed_content
+                decompose_data = llm_result_data.parsed_content
+            elif isinstance(llm_result_data, dict):
+                decompose_data = llm_result_data.get("parsed_content", {})
+            else:
+                decompose_data = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:

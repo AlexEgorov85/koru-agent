@@ -498,7 +498,16 @@ class LLMOrchestrator:
         - session_id, agent_id, step_number, phase, goal: Контекст трассировки
 
         ВОЗВРАЩАЕТ:
-        - StructuredLLMResponse: Результат с историей попыток
+        - StructuredLLMResponse[T]: Результат с историей попыток
+          - parsed_content: Pydantic модель типа T (сохраняется типизация!)
+          - raw_response: Сырой ответ для отладки
+          - parsing_attempts: Количество попыток
+          - validation_errors: Ошибки валидации
+        
+        ARCHITECTURE:
+        - Сохраняет Generic тип T для parsed_content
+        - Вызывающий код получает типизированный доступ к полям
+        - Сериализация (model_dump) только на границах приложения
         """
         if not request.structured_output:
             return StructuredLLMResponse(

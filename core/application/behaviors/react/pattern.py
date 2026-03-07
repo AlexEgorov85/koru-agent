@@ -829,22 +829,19 @@ class ReActPattern(BaseBehaviorPattern):
         await self._log("info", f"Тип response: {type(response).__name__}")
         await self._log("info", f"response.parsed_content: {response.parsed_content is not None}")
         await self._log("info", f"response.raw_response: {response.raw_response is not None}")
-        
+
         if response.raw_response and hasattr(response.raw_response, 'content'):
             await self._log("info", f"response.raw_response.content[:200]: {str(response.raw_response.content)[:200]}")
-        
+
         result = None
-        
+
         # Проверяем что это StructuredLLMResponse
         if hasattr(response, 'parsed_content') and hasattr(response, 'raw_response'):
-            # ✅ Правильный путь: используем parsed_content из StructuredLLMResponse
+            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict
+            # validate_reasoning_result примет модель и сконвертирует при необходимости
             if response.parsed_content:
-                if hasattr(response.parsed_content, 'model_dump'):
-                    result = response.parsed_content.model_dump()
-                    await self._log("info", f"✅ Извлечено из parsed_content.model_dump()")
-                else:
-                    result = response.parsed_content
-                    await self._log("info", f"✅ Извлечено из parsed_content (прямой доступ)")
+                result = response.parsed_content  # ← Pydantic модель, не dict!
+                await self._log("info", f"✅ Извлечено из parsed_content (Pydantic модель типа {type(result).__name__})")
             elif response.raw_response:
                 # Fallback: пробуем распарсить raw_response.content
                 await self._log("warning", "parsed_content пуст, пробуем распарсить raw_response")

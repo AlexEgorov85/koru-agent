@@ -826,6 +826,10 @@ class BaseComponent(LifecycleMixin, ABC):
     def validate_input(self, capability_name: str, data: Dict) -> bool:
         """
         Типобезопасная валидация через скомпилированную схему.
+        
+        ARCHITECTURE:
+        - Валидирует входные данные через Pydantic модель
+        - Для типизированной валидации используйте validate_input_typed()
         """
         if capability_name not in self.input_contracts:
             self._safe_log_sync("warning", f"Схема для {capability_name} не загружена, пропускаем валидацию")
@@ -839,6 +843,35 @@ class BaseComponent(LifecycleMixin, ABC):
         except Exception as e:
             self._safe_log_sync("error", f"Валидация входных данных для {capability_name} провалена: {e}")
             return False
+    
+    def validate_input_typed(self, capability_name: str, data: Dict) -> Optional[BaseModel]:
+        """
+        Типобезопасная валидация с возвратом Pydantic модели.
+        
+        ARCHITECTURE:
+        - Возвращает валидированную Pydantic модель вместо dict
+        - Сохраняет типизацию для IDE автокомплита
+        - None если валидация не пройдена
+        
+        EXAMPLE:
+            validated: BookLibrarySearchInput = self.validate_input_typed('search', data)
+            if validated:
+                query = validated.query  # ✅ IDE знает тип
+                max_results = validated.max_results  # ✅ IDE знает тип
+        """
+        if capability_name not in self.input_contracts:
+            self._safe_log_sync("warning", f"Схема для {capability_name} не загружена, пропускаем валидацию")
+            # Возвращаем данные как есть если схема не загружена
+            return data
+
+        schema_cls = self.input_contracts[capability_name]
+        try:
+            # Pydantic автоматически валидирует и конвертирует типы
+            validated = schema_cls.model_validate(data)
+            return validated  # ← Pydantic модель типа T
+        except Exception as e:
+            self._safe_log_sync("error", f"Валидация входных данных для {capability_name} провалена: {e}")
+            return None
 
     def validate_output(self, capability_name: str, data: Any) -> bool:
         """
@@ -863,6 +896,34 @@ class BaseComponent(LifecycleMixin, ABC):
         except Exception as e:
             self._safe_log_sync("error", f"Валидация выходных данных для {capability_name} провалена: {e}")
             return False
+    
+    def validate_output_typed(self, capability_name: str, data: Any) -> Optional[BaseModel]:
+        """
+        Типобезопасная валидация выходных данных с возвратом Pydantic модели.
+        
+        ARCHITECTURE:
+        - Возвращает валидированную Pydantic модель вместо dict
+        - Сохраняет типизацию для IDE автокомплита
+        - None если валидация не пройдена
+        
+        EXAMPLE:
+            validated: BookLibrarySearchOutput = self.validate_output_typed('search', result)
+            if validated:
+                rows = validated.rows  # ✅ IDE знает тип
+                rowcount = validated.rowcount  # ✅ IDE знает тип
+        """
+        if capability_name not in self.output_contracts:
+            self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
+            return data
+
+        schema_cls = self.output_contracts[capability_name]
+        try:
+            # Pydantic автоматически валидирует и конвертирует типы
+            validated = schema_cls.model_validate(data)
+            return validated  # ← Pydantic модель типа T
+        except Exception as e:
+            self._safe_log_sync("error", f"Валидация выходных данных для {capability_name} провалена: {e}")
+            return None
 
     def render_prompt(self, capability_name: str, **kwargs) -> str:
         """
@@ -1132,6 +1193,11 @@ class BaseComponent(LifecycleMixin, ABC):
         - Использовать предзагруженные ресурсы из кэшей
         - Вызывать другие действия через self.executor.execute_action()
         - Валидировать входные/выходные данные через контракты из кэша
+        
+        ARCHITECTURE:
+        - Сохраняет типизацию Pydantic моделей до границ приложения
+        - validate_input_typed возвращает Pydantic модель вместо dict
+        - result может быть Pydantic моделью (сохраняется типизация)
         """
         import time
         from core.models.data.execution import ExecutionResult, ExecutionStatus
@@ -1145,12 +1211,14 @@ class BaseComponent(LifecycleMixin, ABC):
         #     'capability': capability.name,
         #     'parameters_count': len(parameters)
         # })
-        
+
         try:
             # === ЭТАП 1: Валидация входных данных ===
-            if not self.validate_input(capability.name, parameters):
+            # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
+            validated_input = self.validate_input_typed(capability.name, parameters)
+            if validated_input is None:
                 execution_time_ms = (time.time() - start_time) * 1000
-                
+
                 # Публикация метрики ошибки валидации
                 await self._publish_metrics(
                     EventType.ERROR_OCCURRED,
@@ -1160,7 +1228,7 @@ class BaseComponent(LifecycleMixin, ABC):
                     error="Input validation failed",
                     error_category="validation"
                 )
-                
+
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
                     error="Input validation failed",
@@ -1168,12 +1236,15 @@ class BaseComponent(LifecycleMixin, ABC):
                 )
 
             # === ЭТАП 2: Выполнение бизнес-логики ===
-            result = await self._execute_impl(capability, parameters, execution_context)
+            # ✅ ИСПРАВЛЕНО: Передаем валидированный input (Pydantic модель)
+            result = await self._execute_impl(capability, validated_input, execution_context)
 
             # === ЭТАП 3: Валидация выходных данных ===
-            if not self.validate_output(capability.name, result):
+            # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
+            validated_output = self.validate_output_typed(capability.name, result)
+            if validated_output is None:
                 execution_time_ms = (time.time() - start_time) * 1000
-                
+
                 await self._publish_metrics(
                     EventType.ERROR_OCCURRED,
                     capability_name=capability.name,
@@ -1182,7 +1253,7 @@ class BaseComponent(LifecycleMixin, ABC):
                     error="Output validation failed",
                     error_category="validation"
                 )
-                
+
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
                     error="Output validation failed",
@@ -1200,12 +1271,14 @@ class BaseComponent(LifecycleMixin, ABC):
                 capability_name=capability.name,
                 success=True,
                 execution_time_ms=execution_time_ms,
-                result=result
+                # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель, сериализация на границе
+                result=validated_output.model_dump() if hasattr(validated_output, 'model_dump') else validated_output
             )
 
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
-                result=result,
+                # ✅ ИСПРАВЛЕНО: Возвращаем Pydantic модель (сохраняется типизация)
+                result=validated_output,
                 metadata={
                     "capability": capability.name,
                     "execution_time_ms": execution_time_ms

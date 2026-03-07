@@ -266,19 +266,20 @@ class EvaluationPattern(BaseBehaviorPattern):
                 raise RuntimeError(error_msg)
 
             # Извлекаем результат
-            result = response.parsed_content
-            if hasattr(result, 'model_dump'):
-                result = result.model_dump()
+            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель для типизированного доступа
+            result = response.parsed_content  # ← Pydantic модель, не dict!
 
             # Логирование успешной оценки
-            await self._log("info", f"✅ Оценка завершена: confidence={result.get('confidence', 0):.2f}")
+            confidence_val = result.confidence if hasattr(result, 'confidence') else result.get('confidence', 0)
+            await self._log("info", f"✅ Оценка завершена: confidence={confidence_val:.2f}")
 
             # Принятие решения на основе оценки
-            achieved = result.get("achieved", False)
-            partial_progress = result.get("partial_progress", False)
-            confidence = result.get("confidence", 0.0)
-            summary = result.get("summary", "")
-            reasoning = result.get("reasoning", "")
+            # ✅ Используем атрибуты модели вместо dict.get()
+            achieved = result.achieved if hasattr(result, 'achieved') else result.get("achieved", False)
+            partial_progress = result.partial_progress if hasattr(result, 'partial_progress') else result.get("partial_progress", False)
+            confidence = confidence_val
+            summary = result.summary if hasattr(result, 'summary') else result.get("summary", "")
+            reasoning = result.reasoning if hasattr(result, 'reasoning') else result.get("reasoning", "")
 
             if achieved or (confidence > 0.8 and not partial_progress):
                 await self._log("info", f"🎯 Цель достигнута: {summary}")

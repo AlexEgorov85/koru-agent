@@ -1,5 +1,10 @@
 ﻿"""
 Модели для выполнения задач.
+
+ARCHITECTURE:
+- SkillResult и ExecutionResult сохраняют Pydantic модели в data/result
+- Сериализация (to_dict) вызывается только на границах приложения
+- Внутри приложения данные остаются типизированными
 """
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -17,13 +22,18 @@ class SkillResult:
 
     ATTRIBUTES:
     - technical_success: технический успех выполнения (True/False)
-    - data: полезные данные результата
+    - data: полезные данные результата (может быть Pydantic моделью!)
     - error: описание ошибки (если была)
     - metadata: дополнительные метаданные (время, токены, версии)
     - side_effect: был ли side-effect (файл, сеть, БД, изменение контекста)
+    
+    ARCHITECTURE:
+    - data сохраняет Pydantic модель для типизированного доступа
+    - to_dict() вызывается только на границах (EventBus/Storage)
+    - Внутри приложения: result.data.field (IDE автокомплит!)
     """
     technical_success: bool = True
-    data: Optional[Any] = None
+    data: Optional[Any] = None  # ← Может быть Pydantic моделью!
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     side_effect: bool = False
@@ -34,10 +44,18 @@ class SkillResult:
             self.metadata = {}
 
     def to_dict(self) -> Dict[str, Any]:
-        """Конвертация в словарь для сериализации."""
+        """
+        Конвертация в словарь для сериализации на границах приложения.
+        
+        ARCHITECTURE:
+        - Вызывается ТОЛЬКО на границах (EventBus/Storage/API)
+        - Pydantic модели конвертируются через model_dump()
+        - Внутри приложения используйте .data напрямую
+        """
+        from pydantic import BaseModel
         return {
             "technical_success": self.technical_success,
-            "data": self.data,
+            "data": self.data.model_dump() if isinstance(self.data, BaseModel) else self.data,
             "error": self.error,
             "metadata": self.metadata,
             "side_effect": self.side_effect
@@ -48,7 +66,7 @@ class SkillResult:
         """Factory метод для успешного результата."""
         return cls(
             technical_success=True,
-            data=data,
+            data=data,  # ← Может быть Pydantic моделью!
             error=None,
             metadata=metadata or {},
             side_effect=side_effect
@@ -73,18 +91,40 @@ class ExecutionResult:
 
     ATTRIBUTES:
     - status: статус выполнения
-    - result: результат выполнения
+    - result: результат выполнения (может быть Pydantic моделью!)
     - error: ошибка (если была)
     - metadata: дополнительные метаданные
+    
+    ARCHITECTURE:
+    - result сохраняет Pydantic модель для типизированного доступа
+    - to_dict() вызывается только на границах (EventBus/Storage)
+    - Внутри приложения: result.result.field (IDE автокомплит!)
     """
     status: ExecutionStatus
-    result: Optional[Any] = None
+    result: Optional[Any] = None  # ← Может быть Pydantic моделью!
     error: Optional[str] = None
     metadata: Dict[str, Any] = None
 
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Конвертация в словарь для сериализации на границах приложения.
+        
+        ARCHITECTURE:
+        - Вызывается ТОЛЬКО на границах (EventBus/Storage/API)
+        - Pydantic модели конвертируются через model_dump()
+        - Внутри приложения используйте .result напрямую
+        """
+        from pydantic import BaseModel
+        return {
+            "status": self.status.value if hasattr(self.status, 'value') else str(self.status),
+            "result": self.result.model_dump() if isinstance(self.result, BaseModel) else self.result,
+            "error": self.error,
+            "metadata": self.metadata
+        }
 
 
 @dataclass

@@ -89,10 +89,15 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
     СООТВЕТСТВУЕТ КОНТРАКТУ: behavior.react.think_output_v1.0.0
 
     ARGS:
-    - result: результат рассуждения для валидации
+    - result: результат рассуждения для валидации (Pydantic модель или dict)
 
     RETURNS:
     - ReasoningResult: типизированный результат валидации
+    
+    ARCHITECTURE:
+    - Принимает Pydantic модель напрямую (без model_dump)
+    - Конвертирует в dict только для валидации полей
+    - Возвращает ReasoningResult объект для типизированного доступа
     """
     logger = logging.getLogger(__name__)
 
@@ -101,6 +106,9 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
     logger.info(f"📍 Вызов из:\n{''.join(traceback.format_stack()[-3:-1])}")
     if isinstance(result, str):
         logger.info(f"📝 result (строка, {len(result)} симв): {result[:300]}...")
+    elif hasattr(result, '__class__') and hasattr(result, '__dict__'):
+        # Pydantic модель или dataclass
+        logger.info(f"📝 result (объект {result.__class__.__name__}): {result}")
     elif isinstance(result, dict):
         logger.info(f"📝 result (dict): ключи = {list(result.keys())}")
     else:
@@ -109,10 +117,16 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
     try:
         # === 1. Извлечение данных из результата ===
         validated_dict = None
-        
+
         # Если результат уже словарь, используем его напрямую
         if isinstance(result, dict):
             validated_dict = result
+        # Если результат - Pydantic модель, извлекаем данные через model_fields
+        elif hasattr(result, 'model_fields') and hasattr(result, 'model_dump'):
+            # ✅ ИСПРАВЛЕНО: Принимаем Pydantic модель напрямую
+            # Конвертируем в dict только для валидации
+            validated_dict = result.model_dump()
+            logger.info(f"✅ Pydantic модель конвертирована: {list(validated_dict.keys())}")
         # Если результат - StructuredLLMResponse, извлекаем parsed_content
         elif hasattr(result, 'parsed_content') and hasattr(result, 'raw_response'):
             # StructuredLLMResponse — извлекаем содержимое
@@ -124,13 +138,13 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
             else:
                 # Пытаемся конвертировать в dict
                 validated_dict = vars(parsed) if hasattr(parsed, '__dict__') else {'data': str(parsed)}
-        # Если результат - объект Pydantic, конвертируем его в словарь
-        elif hasattr(result, 'model_dump'):
-            validated_dict = result.model_dump()
+        # Если результат - dataclass или другой объект с __dict__
+        elif hasattr(result, '__dict__'):
+            validated_dict = vars(result)
         # Если результат - строка, пытаемся распарсить как JSON
         elif isinstance(result, str):
             validated_dict = _parse_json_from_string(result, logger)
-        
+
         # Если не удалось извлечь dict, возвращаем fallback
         if validated_dict is None:
             logger.error(f"Неподдерживаемый тип результата рассуждения: {type(result)}")

@@ -264,26 +264,35 @@ class DataAnalysisSkill(BaseSkill):
         """
         start_time = time.time()
 
-        # 1. Валидация входных параметров через кэшированную схему
-        input_schema = self.get_cached_input_contract_safe("data_analysis.analyze_step_data")
-        if input_schema:
-            try:
-                validated_params = input_schema.model_validate(params)
-                params = validated_params.model_dump()
-            except Exception as e:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                else:
-                    self.logger.error(f"Ошибка валидации параметров: {e}")
-                return SkillResult.failure(
-                    error=f"Неверные параметры: {str(e)}",
-                    metadata={"answer": "", "confidence": 0.0, "evidence": []}
-                )
+        # 1. Валидация входных параметров
+        # ✅ ПРИМЕЧАНИЕ: BaseComponent.execute() уже валидировал параметры через validate_input_typed()
+        # params уже может быть Pydantic моделью DataAnalysisInput
+        from pydantic import BaseModel
+        if isinstance(params, BaseModel):
+            # params уже валидированная модель — используем напрямую
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
+        else:
+            # Fallback для обратной совместимости
+            input_schema = self.get_cached_input_contract_safe("data_analysis.analyze_step_data")
+            if input_schema:
+                try:
+                    validated_params = input_schema.model_validate(params)
+                    params = validated_params
+                except Exception as e:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
+                    else:
+                        self.logger.error(f"Ошибка валидации параметров: {e}")
+                    return SkillResult.failure(
+                        error=f"Неверные параметры: {str(e)}",
+                        metadata={"answer": "", "confidence": 0.0, "evidence": []}
+                    )
 
-        step_id = params.get("step_id")
-        question = params.get("question")
-        data_source = params.get("data_source", {})
-        analysis_config = params.get("analysis_config", {})
+        step_id = params.get("step_id") if not isinstance(params, BaseModel) else getattr(params, 'step_id', None)
+        question = params.get("question") if not isinstance(params, BaseModel) else getattr(params, 'question', None)
+        data_source = params.get("data_source", {}) if not isinstance(params, BaseModel) else getattr(params, 'data_source', {})
+        analysis_config = params.get("analysis_config", {}) if not isinstance(params, BaseModel) else getattr(params, 'analysis_config', {})
 
         # 2. Загрузка данных
         try:
@@ -389,19 +398,23 @@ class DataAnalysisSkill(BaseSkill):
             answer_data["metadata"]["structured_output"] = True
 
             # 10. Валидация выхода (уже валидно через structured output)
+            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(answer_data)
-                    answer_data = validated_result.model_dump()
+                    answer_data = validated_result  # ← Сохраняем модель!
                 except Exception as e:
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
                     else:
                         self.logger.error(f"Ошибка валидации результата: {e}")
+            else:
+                # Fallback на dict если схема не загружена
+                pass
 
             # Возвращаем SkillResult с side_effect=True
             return SkillResult.success(
-                data=answer_data,
+                data=answer_data,  # ← Pydantic модель!
                 metadata={
                     "chunks_processed": len(chunks) if chunks else 1,
                     "processing_time_ms": (time.time() - start_time) * 1000,

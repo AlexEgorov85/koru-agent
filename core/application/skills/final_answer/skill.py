@@ -338,8 +338,16 @@ class FinalAnswerSkill(BaseSkill):
                     await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
-            # Получаем структурированные данные (Pydantic model_dump())
-            parsed_response = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
+            # Получаем структурированные данные
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            llm_result_data = llm_result.result
+            if hasattr(llm_result_data, 'parsed_content'):
+                # StructuredLLMResponse — извлекаем parsed_content
+                parsed_response = llm_result_data.parsed_content
+            elif isinstance(llm_result_data, dict):
+                parsed_response = llm_result_data.get("parsed_content", {})
+            else:
+                parsed_response = llm_result_data if llm_result_data else {}
 
             # Логирование успешного structured output
             if self.event_bus_logger:
@@ -348,11 +356,24 @@ class FinalAnswerSkill(BaseSkill):
                 )
 
             # Формирование финального результата
+            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            from pydantic import BaseModel
+            if isinstance(parsed_response, BaseModel):
+                # Pydantic модель — используем атрибуты
+                final_answer_val = getattr(parsed_response, 'answer', '')
+                confidence_val = getattr(parsed_response, 'confidence', 0.8)
+                remaining_questions_val = getattr(parsed_response, 'remaining_questions', [])
+            else:
+                # dict — используем .get()
+                final_answer_val = parsed_response.get("answer", "")
+                confidence_val = parsed_response.get("confidence", 0.8)
+                remaining_questions_val = parsed_response.get("remaining_questions", [])
+
             result_data = {
-                "final_answer": parsed_response.get("answer", ""),
+                "final_answer": final_answer_val,
                 "sources": observations[-max_sources:] if include_evidence else [],
-                "confidence_score": parsed_response.get("confidence", 0.8),
-                "remaining_questions": parsed_response.get("remaining_questions", []),
+                "confidence_score": confidence_val,
+                "remaining_questions": remaining_questions_val,
                 "summary_of_steps": self._build_steps_summary(steps_taken) if include_steps else "",
                 "metadata": {
                     "total_observations": len(observations),
