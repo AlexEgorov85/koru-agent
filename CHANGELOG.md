@@ -1,5 +1,66 @@
 # CHANGELOG
 
+## [5.34.0] - 2026-03-06
+
+### Added
+- **Миграция на интерфейсы и внедрение зависимостей (DI)**
+  - 9 интерфейсов в core/interfaces/: DatabaseInterface, LLMInterface, VectorInterface, CacheInterface, PromptStorageInterface, ContractStorageInterface, EventBusInterface, MetricsStorageInterface, LogStorageInterface
+  - Провайдеры реализуют интерфейсы явно (PostgreSQLProvider, LlamaCppProvider, FAISSProvider, MemoryCacheProvider)
+  - DI через конструкторы компонентов
+  - Контексты не используются напрямую в компонентах
+
+- **ComponentFactory с DI**
+  - Получает провайдеры из InfrastructureContext
+  - Передаёт интерфейсы в конструкторы компонентов
+  - Автоматическое разрешение зависимостей
+
+- **BaseComponent с внедрёнными зависимостями**
+  - 9 параметров конструктора для интерфейсов
+  - Свойства: db, llm, cache, vector, event_bus, prompt_storage, contract_storage, metrics_storage, log_storage
+  - application_context помечен как DEPRECATED
+
+### Changed
+- **Сервисы используют интерфейсы**
+  - PromptService: self.prompt_storage вместо infrastructure_context.get_prompt_storage()
+  - ContractService: self.contract_storage вместо infrastructure_context.get_contract_storage()
+  - TableDescriptionService: self.db вместо get_provider("default_db")
+  - SQLGenerationService: self.llm, self.event_bus
+  - SQLQueryService: self.llm, self.event_bus
+
+- **Behavior Patterns используют llm_orchestrator**
+  - ReActPattern: llm_orchestrator для retry/валидации
+  - EvaluationPattern: llm_orchestrator для структурированного вывода
+  - PlanningPattern: через BaseService
+
+- **ActionExecutor**
+  - Принимает executor в BehaviorManager
+  - BehaviorManager передаёт executor в BehaviorStorage
+  - BehaviorStorage передаёт executor в паттерны
+
+### Fixed
+- **'CapabilitySchema' object has no attribute 'items'**
+  - Исправлена регистрация схем в ReActPattern
+  - Конвертация CapabilitySchema в dict перед использованием
+  - Проверка типа схемы перед вызовом .items()
+
+- **Компоненты требовали executor но не получали его**
+  - SQLErrorAnalyzer: добавлен параметр executor
+  - SQLCorrectionEngine: добавлен параметр executor
+  - BehaviorStorage: принимает и передаёт executor
+  - BehaviorManager: принимает и передаёт executor
+
+- **Deprecated методы**
+  - ApplicationContext.get_service() → components.get()
+  - ApplicationContext.get_provider() → infrastructure_context.get_provider()
+  - InfrastructureContext.get_prompt_storage() → prompt_storage
+  - Все get_*() методы помечены DeprecationWarning
+
+### Testing
+- Все 36 файлов компилируются без ошибок
+- Агент запускается без ошибок
+- Интерфейсы работают корректно
+- executor передаётся во все компоненты
+
 ## [5.33.0] - 2026-03-06
 
 ### Added
