@@ -665,78 +665,139 @@ class BookLibrarySkill(BaseComponent):
             script_name: имя скрипта (для static)
         """
         try:
-            if not hasattr(self, 'application_context') or not self.application_context:
-                return
-                
-            event_bus = self.application_context.infrastructure_context.event_bus
+            # Используем внедрённый event_bus из BaseComponent
+            if hasattr(self, '_event_bus') and self._event_bus is not None:
+                await self._event_bus.publish(
+                    event_type="book_library.script_executed",
+                    payload={
+                        "capability": capability,
+                        "execution_type": execution_type,
+                        "execution_time_ms": execution_time_ms,
+                        "rows_returned": rows_returned,
+                        "success": success,
+                        "script_name": script_name
+                    }
+                )
+            # Fallback на application_context для обратной совместимости
+            elif hasattr(self, '_application_context') and self.application_context:
+                event_bus = self._application_context.infrastructure_context.event_bus
 
-            # Публикуем событие о выполнении
-            await event_bus.publish(
-                event_type="book_library.script_executed",
-                data={
-                    "capability": capability,
-                    "execution_type": execution_type,
-                    "execution_time_ms": execution_time_ms,
-                    "rows_returned": rows_returned,
-                    "success": success,
-                    "script_name": script_name,
-                    "timestamp": self.application_context.created_at.isoformat() if hasattr(self.application_context, 'created_at') else None
-                },
-                source="book_library"
-            )
+                # Публикуем событие о выполнении
+                await event_bus.publish(
+                    event_type="book_library.script_executed",
+                    data={
+                        "capability": capability,
+                        "execution_type": execution_type,
+                        "execution_time_ms": execution_time_ms,
+                        "rows_returned": rows_returned,
+                        "success": success,
+                        "script_name": script_name,
+                        "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else None
+                    },
+                    source="book_library"
+                )
 
             # Публикуем метрику времени выполнения
-            await event_bus.publish(
-                event_type="metric.book_library.execution_time",
-                data={
-                    "value": execution_time_ms,
-                    "unit": "ms",
-                    "labels": {
-                        "execution_type": execution_type,
-                        "capability": capability
+            if hasattr(self, '_event_bus') and self._event_bus is not None:
+                await self._event_bus.publish(
+                    event_type="metric.book_library.execution_time",
+                    payload={
+                        "value": execution_time_ms,
+                        "unit": "ms",
+                        "labels": {
+                            "execution_type": execution_type,
+                            "capability": capability
+                        }
                     }
-                },
-                source="book_library"
-            )
+                )
+            elif hasattr(self, '_application_context') and self.application_context:
+                await self._application_context.infrastructure_context.event_bus.publish(
+                    event_type="metric.book_library.execution_time",
+                    data={
+                        "value": execution_time_ms,
+                        "unit": "ms",
+                        "labels": {
+                            "execution_type": execution_type,
+                            "capability": capability
+                        }
+                    },
+                    source="book_library"
+                )
 
             # Публикуем метрику количества выполнений
-            await event_bus.publish(
-                event_type="metric.book_library.total_executions",
-                data={
-                    "value": 1,
-                    "labels": {
-                        "execution_type": execution_type,
-                        "capability": capability,
-                        "status": "success" if success else "failed"
+            if hasattr(self, '_event_bus') and self._event_bus is not None:
+                await self._event_bus.publish(
+                    event_type="metric.book_library.total_executions",
+                    payload={
+                        "value": 1,
+                        "labels": {
+                            "execution_type": execution_type,
+                            "capability": capability,
+                            "status": "success" if success else "failed"
+                        }
                     }
-                },
-                source="book_library"
-            )
+                )
+            elif hasattr(self, '_application_context') and self.application_context:
+                await self._application_context.infrastructure_context.event_bus.publish(
+                    event_type="metric.book_library.total_executions",
+                    data={
+                        "value": 1,
+                        "labels": {
+                            "execution_type": execution_type,
+                            "capability": capability,
+                            "status": "success" if success else "failed"
+                        }
+                    },
+                    source="book_library"
+                )
 
             # Для static скриптов публикуем дополнительную метрику
             if execution_type == "static" and script_name:
-                await event_bus.publish(
-                    event_type="metric.book_library.static_script_executions",
-                    data={
-                        "value": 1,
-                        "labels": {
-                            "script_name": script_name,
-                            "status": "success" if success else "failed"
+                if hasattr(self, '_event_bus') and self._event_bus is not None:
+                    await self._event_bus.publish(
+                        event_type="metric.book_library.static_script_executions",
+                        payload={
+                            "value": 1,
+                            "labels": {
+                                "script_name": script_name,
+                                "status": "success" if success else "failed"
+                            }
                         }
-                    },
-                    source="book_library"
-                )
+                    )
+                elif hasattr(self, '_application_context') and self.application_context:
+                    await self._application_context.infrastructure_context.event_bus.publish(
+                        event_type="metric.book_library.static_script_executions",
+                        data={
+                            "value": 1,
+                            "labels": {
+                                "script_name": script_name,
+                                "status": "success" if success else "failed"
+                            }
+                        },
+                        source="book_library"
+                    )
             elif execution_type == "dynamic":
-                await event_bus.publish(
-                    event_type="metric.book_library.dynamic_search_executions",
-                    data={
-                        "value": 1,
-                        "labels": {
-                            "status": "success" if success else "failed"
+                if hasattr(self, '_event_bus') and self._event_bus is not None:
+                    await self._event_bus.publish(
+                        event_type="metric.book_library.dynamic_search_executions",
+                        payload={
+                            "value": 1,
+                            "labels": {
+                                "status": "success" if success else "failed"
+                            }
                         }
-                    },
-                    source="book_library"
-                )
+                    )
+                elif hasattr(self, '_application_context') and self.application_context:
+                    await self._application_context.infrastructure_context.event_bus.publish(
+                        event_type="metric.book_library.dynamic_search_executions",
+                        data={
+                            "value": 1,
+                            "labels": {
+                                "status": "success" if success else "failed"
+                            }
+                        },
+                        source="book_library"
+                    )
 
         except Exception as e:
             # Логгируем но не выбрасываем ошибку - метрики не должны ломать основную логику
