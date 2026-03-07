@@ -1094,10 +1094,12 @@ class LLMOrchestrator:
             return
 
         content_length = len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)
+        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
+        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
         await self._logger.info(
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
-            f"response_len={content_length} | tokens={result.tokens_used} | "
+            f"response_len={content_length} | tokens={tokens_used} | "
             f"duration={record.duration:.2f}s"
         )
 
@@ -1302,9 +1304,11 @@ class LLMOrchestrator:
             except (json.JSONDecodeError, Exception):
                 # Не JSON - сохраняем как текст
                 data["response_preview"] = response_content[:500]
-            
+
+            # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
+            tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
             data.update({
-                "tokens_used": result.tokens_used,
+                "tokens_used": tokens_used,
                 "model": result.model
             })
         else:
@@ -1451,13 +1455,15 @@ class LLMOrchestrator:
         duration: Optional[float]
     ) -> None:
         """Публикация события завершения вызова."""
+        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
+        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
         await self._event_bus.publish(
             event_type=EventType.LLM_CALL_COMPLETED,
             data={
                 "call_id": call_id,
                 "success": result.finish_reason != "error",
                 "duration": duration,
-                "tokens_used": result.tokens_used,
+                "tokens_used": tokens_used,
                 "content_length": (len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)),
             },
             source="LLMOrchestrator",
@@ -1591,8 +1597,9 @@ class LLMOrchestrator:
         
         # Метрики
         print(f"\n⏱️ Время генерации: {duration:.2f}с")
-        if hasattr(result, 'tokens_used'):
-            print(f"🪙 Токенов: {result.tokens_used}")
+        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
+        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
+        print(f"🪙 Токенов: {tokens_used}")
         if hasattr(result, 'generation_time'):
             print(f"⏱️ Generation time: {result.generation_time:.2f}с")
         if hasattr(result, 'finish_reason'):
