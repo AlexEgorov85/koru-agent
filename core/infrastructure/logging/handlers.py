@@ -142,11 +142,12 @@ class TerminalLogFormatter:
         if any(k in msg for k in self.RESULT_KEYWORDS):
             return "result"
 
-        # LLM классификация — только если слово не в контексте провайдеров
+        # LLM классификация — только если слово не в контексте провайдеров/компонентов
         # Избегаем ложных срабатываний на "получены провайдеры: db, llm, ..."
+        # и "ComponentFactory: создание компонента"
         if any(k in msg for k in self.LLM_KEYWORDS):
-            # Не считаем LM сообщением если есть слова о провайдерах
-            if "получен" in msg or "провайдер" in msg:
+            # Не считаем LLM сообщением если есть слова о провайдерах или компонентах
+            if "получен" in msg or "провайдер" in msg or "component" in msg:
                 return "info"
             return "llm"
 
