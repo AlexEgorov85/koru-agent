@@ -6,8 +6,14 @@
 - Контроль зависимостей и порядка выполнения
 - Единая точка для метрик и логирования
 - Возможность внедрения мидлварей (ретраи, рейт-лимиты)
+
+АРХИТЕКТУРНЫЙ ПРИНЦИП:
+- Сохранение типизации Pydantic моделей до границ приложения
+- Сериализация (model_dump) только на границах (EventBus/Storage/API)
+- Generic тип T для data позволяет сохранять тип модели
 """
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING, Generic, TypeVar
+from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
@@ -15,18 +21,79 @@ from core.models.data.capability import Capability
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
 
+# Generic тип для типизированных данных в ActionResult
+T = TypeVar('T')
 
-class ActionResult:
-    """Результат выполнения действия через ActionExecutor"""
-    def __init__(self, success: bool, data: Any = None, metadata: Dict[str, Any] = None, error: str = None, llm_called: bool = False):
+
+class ActionResult(Generic[T]):
+    """
+    Результат выполнения действия через ActionExecutor.
+    
+    ARCHITECTURE:
+    - data сохраняет тип T (Pydantic модель) до границ приложения
+    - model_dump() вызывается только при сериализации на границах
+    - Generic тип позволяет IDE поддерживать автокомплит и валидацию типов
+    
+    EXAMPLE:
+        # Компонент возвращает типизированный результат
+        result: ActionResult[BookLibrarySearchOutput] = await executor.execute(...)
+        
+        # Доступ к полям через IDE автокомплит
+        books = result.data.rows  # ✅ IDE знает тип rows
+        count = result.data.rowcount  # ✅ IDE знает тип rowcount
+        
+        # Сериализация только на границе
+        await event_bus.publish(..., data=result.to_dict())  # ← model_dump() здесь
+    """
+    
+    def __init__(
+        self, 
+        success: bool, 
+        data: Optional[T] = None, 
+        metadata: Dict[str, Any] = None, 
+        error: str = None, 
+        llm_called: bool = False
+    ):
         self.success = success
-        self.data = data or {}
+        self.data = data  # ← Сохраняем тип T (Pydantic модель или None)
         self.metadata = metadata or {}
         self.error = error
-        self.llm_called = llm_called  # Флаг вызова LLM для гарантии что LLM был вызван
+        self.llm_called = llm_called
 
     def __repr__(self):
-        return f"ActionResult(success={self.success}, data={self.data}, error={self.error}, llm_called={self.llm_called})"
+        data_repr = f"{type(self.data).__name__}(...)" if isinstance(self.data, BaseModel) else self.data
+        return f"ActionResult(success={self.success}, data={data_repr}, error={self.error}, llm_called={self.llm_called})"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Сериализация в dict — ТОЛЬКО для использования на границах приложения.
+        
+        ГРАНИЦЫ ПРИЛОЖЕНИЯ:
+        - EventBus (публикация событий)
+        - Storage (сохранение в БД/файлы)
+        - API (HTTP/WebSocket ответы)
+        
+        ВНУТРИ ПРИЛОЖЕНИЯ:
+        - Используйте self.data напрямую (сохраняется типизация)
+        - IDE поддерживает автокомплит полей Pydantic модели
+        """
+        return {
+            'success': self.success,
+            'data': self.data.model_dump() if isinstance(self.data, BaseModel) else self.data,
+            'metadata': self.metadata,
+            'error': self.error,
+            'llm_called': self.llm_called
+        }
+    
+    @classmethod
+    def success_result(cls, data: T, metadata: Optional[Dict[str, Any]] = None) -> 'ActionResult[T]':
+        """Factory метод для успешного результата с типизированными данными."""
+        return cls(success=True, data=data, metadata=metadata or {})
+    
+    @classmethod
+    def failure_result(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'ActionResult':
+        """Factory метод для неудачного результата."""
+        return cls(success=False, data=None, error=error, metadata=metadata or {})
 
 
 class ExecutionContext:
@@ -626,24 +693,22 @@ class ActionExecutor:
 
         # Проверка успеха
         if response.success:
-            return ActionResult(
-                success=True,
-                data={
-                    "parsed_content": response.parsed_content.model_dump() if hasattr(response.parsed_content, 'model_dump') else response.parsed_content,
-                    "raw_content": response.raw_response.content
-                },
+            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict
+            # Сериализация будет вызвана только на границе через result.to_dict()
+            return ActionResult.success_result(
+                data=response.parsed_content,  # ← Pydantic модель типа T
                 metadata={
                     "model": response.raw_response.model,
                     "tokens_used": response.raw_response.tokens_used,
                     "generation_time": response.raw_response.generation_time,
                     "parsing_attempts": response.parsing_attempts,
-                    "success": response.success
+                    "success": response.success,
+                    "raw_content": response.raw_response.content  # Для отладки
                 }
             )
         else:
             # Ошибка валидации
-            return ActionResult(
-                success=False,
+            return ActionResult.failure_result(
                 error=f"Structured output failed after {response.parsing_attempts} attempts",
                 metadata={
                     "validation_errors": response.validation_errors,
