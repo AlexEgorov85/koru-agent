@@ -265,10 +265,6 @@ class FileSystemDataSource(ResourceDataSource):
 
                         # Создаем объект Contract - валидация происходит автоматически при создании Pydantic модели
                         contract = Contract(**raw)
-                        
-                        # Отладочный вывод для book_library
-                        if 'book_library' in capability:
-                            print(f"[FS_DEBUG] Загружен контракт: {capability}@{version} direction={direction} component_type={raw.get('component_type')} -> {contract.component_type}", flush=True)
 
                         # Сохраняем в кэш
                         self._loaded_contracts[f"{capability}:{version}:{direction}"] = contract
