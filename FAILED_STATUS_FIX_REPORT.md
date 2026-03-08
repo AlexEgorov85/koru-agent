@@ -130,4 +130,38 @@ except Exception as e:
 ## Файлы изменённые в ходе исправления
 
 1. `core/application/agent/runtime.py` — логика определения финального статуса
-2. `test_failed_status_fix.py` — новый файл с тестами (создан)
+2. `core/application/agent/components/executor.py` — передача поля `error` в ExecutionResult
+3. `test_failed_status_fix.py` — новый файл с тестами (создан)
+
+## Обновление от 8 марта 2026 (дополнительное исправление)
+
+### Выявлена вторая проблема: потеря error в executor.py
+
+**Симптом:** В логе `error=None` даже при реальной ошибке выполнения.
+
+**Причина:** В `core/application/agent/components/executor.py` (строки ~52-60) при создании нового `ExecutionResult` не передавалось поле `error`:
+
+```python
+# ДО ИСПРАВЛЕНИЯ
+return ExecutionResult(
+    status=result.status,
+    data=result.data,
+    metadata={'capability': capability.name, 'step': step_number}
+    # ❌ error не передавался!
+)
+```
+
+**Исправление:**
+
+```python
+# ПОСЛЕ ИСПРАВЛЕНИЯ
+return ExecutionResult(
+    status=result.status,
+    data=result.data,
+    error=result.error,  # ✅ Передаём ошибку
+    metadata={'capability': capability.name, 'step': step_number},
+    side_effect=result.side_effect if hasattr(result, 'side_effect') else False
+)
+```
+
+**Коммит:** `42f6a5c fix: передача поля error в ExecutionResult в executor.py`
