@@ -1,63 +1,50 @@
 capability: book_library.search_books
 component_type: skill
-description: Выходной контракт для динамического поиска книг
+description: Output contract for book_library.search_books - результат динамического поиска книг
 direction: output
 schema_data:
   type: object
   properties:
     rows:
       type: array
-      description: Список найденных книг
+      description: Результаты поиска книг
       items:
         type: object
         properties:
-          book_id:
+          id:
             type: integer
             description: ID книги
-          book_title:
+          title:
             type: string
             description: Название книги
+          author:
+            type: string
+            description: Автор книги
+          year:
+            type: integer
+            description: Год публикации
           isbn:
             type: string
-            description: ISBN книги
-          publication_date:
+            description: ISBN
+          genre:
             type: string
-            format: date
-            description: Дата публикации
-          author_id:
-            type: integer
-            description: ID автора
-          first_name:
-            type: string
-            description: Имя автора
-          last_name:
-            type: string
-            description: Фамилия автора
-          birth_date:
-            type: string
-            format: date
-            description: Дата рождения автора
+            description: Жанр
     rowcount:
       type: integer
-      description: Количество найденных строк
+      description: Общее количество найденных книг
     execution_time:
       type: number
       description: Время выполнения в секундах
-    execution_type:
-      type: string
-      enum:
-        - dynamic
-        - static
-      description: Тип выполнения (dynamic для генерации SQL через LLM)
     sql_query:
       type: string
-      description: Сгенерированный SQL-запрос
-    error:
+      description: Сгенерированный SQL-запрос (для отладки)
+    execution_type:
       type: string
-      description: Сообщение об ошибке (если произошла ошибка)
+      description: Тип выполнения (dynamic)
+      enum:
+        - dynamic
   required:
     - rows
     - rowcount
-    - execution_type
 status: active
 version: v1.0.0

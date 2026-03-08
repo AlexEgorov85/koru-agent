@@ -1,21 +1,18 @@
 capability: book_library.search_books
 component_type: skill
-description: Входной контракт для динамического поиска книг с генерацией SQL через LLM
+description: Input contract for book_library.search_books - динамический поиск книг через LLM
 direction: input
 schema_data:
   type: object
   properties:
     query:
       type: string
-      description: Текстовый запрос пользователя для поиска книг (например, 'книги про искусственный интеллект' или 'автор Пушкин')
+      description: Естественный язык запроса для поиска книг (например, "Найти все книги Пушкина")
     max_results:
       type: integer
-      minimum: 1
-      maximum: 100
+      description: Максимальное количество результатов
       default: 10
-      description: Максимальное количество результатов для возврата
   required:
     - query
-  additionalProperties: false
 status: active
 version: v1.0.0

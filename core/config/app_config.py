@@ -341,6 +341,10 @@ class AppConfig(BaseModel):
         # Создаем ComponentConfig для каждого компонента с заполненными версиями
         for component_name, resources in component_resources.items():
             comp_type = resources['type']
+            
+            # Отладочный вывод для book_library
+            if component_name == 'book_library':
+                print(f"[APP_CONFIG_DEBUG] book_library: comp_type={comp_type}, resources={resources}", flush=True)
 
             # Создаем конфигурацию компонента с заполненными версиями
             component_config = ComponentConfig(

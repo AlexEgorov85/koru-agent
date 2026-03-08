@@ -1,5 +1,5 @@
 capability: book_library.execute_script
-component_type: tool
+component_type: skill
 content: |
   Вы - исполнитель заготовленных SQL-скриптов для библиотеки книг.
 

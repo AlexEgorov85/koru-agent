@@ -1,74 +1,59 @@
 capability: book_library.execute_script
 component_type: skill
-description: Выходной контракт для выполнения заготовленного SQL-скрипта
+description: Output contract for book_library.execute_script - результат выполнения заготовленного SQL-скрипта
 direction: output
 schema_data:
   type: object
   properties:
     rows:
       type: array
-      description: Список результатов выполнения скрипта
+      description: Результаты выполнения запроса
       items:
         type: object
-        description: Строка результата (зависит от скрипта)
         properties:
-          book_id:
+          id:
             type: integer
             description: ID книги
-          book_title:
+          title:
             type: string
             description: Название книги
+          author:
+            type: string
+            description: Автор книги
+          year:
+            type: integer
+            description: Год публикации
           isbn:
             type: string
-            description: ISBN книги
-          publication_date:
-            type: string
-            format: date
-            description: Дата публикации
-          author_id:
-            type: integer
-            description: ID автора
-          first_name:
-            type: string
-            description: Имя автора
-          last_name:
-            type: string
-            description: Фамилия автора
-          birth_date:
-            type: string
-            format: date
-            description: Дата рождения автора
+            description: ISBN
           genre:
             type: string
-            description: Жанр книги
+            description: Жанр
           count:
             type: integer
-            description: Количество (для скриптов подсчёта)
+            description: Количество (для агрегирующих запросов)
+          book_count:
+            type: integer
+            description: Количество книг (для статистики)
           avg_year:
             type: number
             description: Средний год (для статистики)
     rowcount:
       type: integer
-      description: Количество возвращённых строк
+      description: Общее количество возвращённых строк
     execution_time:
       type: number
       description: Время выполнения в секундах
-    execution_type:
-      type: string
-      enum:
-        - dynamic
-        - static
-      description: Тип выполнения (static для заготовленных скриптов)
     script_name:
       type: string
       description: Имя выполненного скрипта
-    error:
+    execution_type:
       type: string
-      description: Сообщение об ошибке (если произошла ошибка)
+      description: Тип выполнения (static)
+      enum:
+        - static
   required:
     - rows
     - rowcount
-    - execution_type
-    - script_name
 status: active
 version: v1.0.0

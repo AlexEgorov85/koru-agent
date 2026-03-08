@@ -1,5 +1,5 @@
 capability: book_library.search_books
-component_type: tool
+component_type: skill
 content: 'Default prompt for book_library: {input}'
 metadata:
   author: system

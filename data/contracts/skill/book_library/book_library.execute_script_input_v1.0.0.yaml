@@ -1,13 +1,13 @@
 capability: book_library.execute_script
 component_type: skill
-description: Входной контракт для выполнения заготовленного SQL-скрипта по имени
+description: Input contract for book_library.execute_script - выполнение заготовленного SQL-скрипта
 direction: input
 schema_data:
   type: object
   properties:
     script_name:
       type: string
-      description: Имя заготовленного скрипта для выполнения (например, 'get_all_books', 'get_books_by_author')
+      description: Имя заготовленного скрипта для выполнения
     author:
       type: string
       description: Имя автора (для get_books_by_author)
@@ -28,12 +28,9 @@ schema_data:
       description: Шаблон названия (для get_books_by_title_pattern)
     max_rows:
       type: integer
-      minimum: 1
-      maximum: 1000
+      description: Максимальное количество результатов
       default: 100
-      description: Максимальное количество строк для возврата
   required:
     - script_name
-  additionalProperties: true
 status: active
 version: v1.0.0
