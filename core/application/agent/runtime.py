@@ -214,8 +214,14 @@ class AgentRuntime:
             no_progress_counter = 0
 
             # Цикл рассуждений
+            print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
+            print(f"🔵 [RUNTIME] state.finished={self.state.finished}", flush=True)
+            
             while self._running and self._current_step < self._max_steps:
+                print(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===", flush=True)
+                
                 if self.state.finished:
+                    print(f"🔴 [RUNTIME] BREAK: state.finished=True", flush=True)
                     break
 
                 # Получаем доступные capability для использования в паттернах поведения
@@ -228,11 +234,16 @@ class AgentRuntime:
                 else:
                     available_caps = []
 
+                print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
+                
                 # Получаем decision
+                print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
                 decision = await self.behavior_manager.generate_next_decision(
                     session_context=self.application_context.session_context,
                     available_capabilities=available_caps
                 )
+                
+                print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
 
                 # ПРОВЕРКА 1: Повторение decision без изменения state
                 if previous_decision and decision:
@@ -248,7 +259,19 @@ class AgentRuntime:
                                 )
 
                 # Выполняем шаг (без повторного вызова generate_next_decision)
+                print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
                 step_result = await self._execute_single_step_internal(decision, available_caps)
+                print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
+
+                # ПРОВЕРКА: Если шаг вернул ExecutionResult с ошибкой — прерываем цикл
+                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.FAILED:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(
+                            f"Агент завершил выполнение с ошибкой на шаге {self._current_step}: {step_result.error}"
+                        )
+                    self._result = step_result
+                    self._running = False
+                    break
 
                 # ПРОВЕРКА 2: Изменился ли state
                 current_snapshot = self.state.snapshot()
@@ -265,26 +288,60 @@ class AgentRuntime:
                 previous_snapshot = current_snapshot
                 previous_decision = decision
 
+                # ПРОВЕРКА: Превышен ли лимит отсутствия прогресса
+                if self.policy.should_stop_no_progress(self.state):
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(
+                            f"Нет прогресса в течение {self.state.no_progress_steps} шагов (лимит: {self.policy.max_no_progress_steps}). "
+                            f"Агент завершает выполнение."
+                        )
+                    self._result = ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        error=f"Нет прогресса: {self.state.no_progress_steps} шагов без изменений",
+                        metadata={
+                            "no_progress_steps": self.state.no_progress_steps,
+                            "max_no_progress_steps": self.policy.max_no_progress_steps,
+                            "steps_executed": self._current_step
+                        }
+                    )
+                    self._running = False
+                    break
+
                 # Проверка завершения
                 if self._is_final_result(step_result):
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
+                    print(f"🔴 [RUNTIME] BREAK: _is_final_result=True", flush=True)
                     break
 
                 self._current_step += 1
+                print(f"🔵 [RUNTIME] _current_step увеличен до {self._current_step}", flush=True)
 
             # Формирование результата
-            final_status = ExecutionStatus.COMPLETED if self._current_step < self._max_steps else ExecutionStatus.FAILED
-            if self._current_step >= self._max_steps:
-                final_status = ExecutionStatus.FAILED  # Превышено максимальное количество шагов
-            
+            # ПРОВЕРКА: Определяем статус с учётом ошибок и отсутствия прогресса
+            error_message = None
+            if self.state.error_count >= self.policy.max_errors:
+                final_status = ExecutionStatus.FAILED
+                error_message = f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}"
+            elif self.state.no_progress_steps >= self.policy.max_no_progress_steps:
+                final_status = ExecutionStatus.FAILED
+                error_message = f"Нет прогресса в течение {self.state.no_progress_steps} шагов"
+            elif self._current_step >= self._max_steps:
+                final_status = ExecutionStatus.FAILED
+                error_message = "Превышено максимальное количество шагов"
+            else:
+                final_status = ExecutionStatus.COMPLETED
+
             self._result = ExecutionResult(
                 status=final_status,
                 result=self._extract_final_result(),
+                error=error_message,
                 metadata={
                     "goal": self.goal,
                     "max_steps": self._max_steps,
                     "steps_executed": self._current_step,
+                    "error_count": self.state.error_count,
+                    "no_progress_steps": self.state.no_progress_steps,
                     "execution_time": datetime.now().timestamp()
                 }
             )
@@ -321,6 +378,9 @@ class AgentRuntime:
 
         Используется в run() для избежания дублирования вызова generate_next_decision.
         """
+        print(f"\n🔵 [_execute_single_step_internal] НАЧАЛО: step={self._current_step}, decision.action={decision.action.value}", flush=True)
+        print(f"🔵 [_execute_single_step_internal] decision.capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
+        
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
 
@@ -358,8 +418,9 @@ class AgentRuntime:
             print("   1. LLM incorrectly parsed the goal as already achieved")
             print("   2. No capabilities were available to the LLM")
             print("   3. Prompt template needs adjustment\n")
-            
+
             # Возвращаем ошибку чтобы behavior manager мог переключиться на fallback
+            print(f"🔴 [_execute_single_step_internal] Возврат SWITCH (safeguard)", flush=True)
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="fallback_pattern",
@@ -367,179 +428,257 @@ class AgentRuntime:
             )
 
         if decision.action == BehaviorDecisionType.STOP:
+            print(f"🔵 [_execute_single_step_internal] decision.action=STOP", flush=True)
             self.state.finished = True
             # Регистрируем финальное решение
             self.application_context.session_context.record_decision(
                 decision_data="STOP",
                 reasoning="goal_achieved"
             )
+            print(f"🔴 [_execute_single_step_internal] Возврат STOP decision", flush=True)
             return decision
 
         if decision.action == BehaviorDecisionType.ACT:
+            print(f"🔵 [_execute_single_step_internal] decision.action=ACT", flush=True)
             # ПРОВЕРКА: capability_name должен быть указан
             if not decision.capability_name:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"ACT decision но capability_name не указан!")
                 self.state.register_error()
+                
+                # ПРОВЕРКА: Превышен ли лимит ошибок
+                if self.policy.should_fallback(self.state):
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(
+                            f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
+                            f"Агент переходит в режим завершения."
+                        )
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
+                        metadata={
+                            "error_count": self.state.error_count,
+                            "max_errors": self.policy.max_errors,
+                            "failed_at_step": self._current_step + 1
+                        }
+                    )
+                
+                print(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)", flush=True)
                 return None
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"=== ВЫПОЛНЕНИЕ ACT ===")
-                await self.event_bus_logger.info(f"decision.capability_name: {decision.capability_name}")
-                await self.event_bus_logger.info(f"decision.parameters: {decision.parameters}")
-                await self.event_bus_logger.info(f"🎯 Выбранный навык: {decision.capability_name}")
-                await self.event_bus_logger.info(f"📦 Параметры: {decision.parameters}")
-                await self.event_bus_logger.info(f"🔍 Поиск capability: {decision.capability_name}...")
+            print(f"🔵 [_execute_single_step_internal] Поиск capability в application_context...", flush=True)
+            print(f"🔵 [_execute_single_step_internal] self.event_bus_logger={self.event_bus_logger is not None}", flush=True)
+            
+            # В новой архитектуре capability хранятся в components
+            capability = None
+            print(f"🔵 [_execute_single_step_internal] hasattr(application_context, 'components')={hasattr(self.application_context, 'components')}", flush=True)
+            
+            if hasattr(self.application_context, 'components'):
+                print(f"🔵 [_execute_single_step_internal] application_context.components доступен", flush=True)
+                # Пытаемся получить через components (универсальный метод)
+                # Разбиваем capability_name на skill/tool name и capability name
+                parts = decision.capability_name.split('.')
+                print(f"🔵 [_execute_single_step_internal] parts={parts}", flush=True)
+                if len(parts) >= 2:
+                    component_name = parts[0]  # например, book_library
+                    print(f"🔵 [_execute_single_step_internal] component_name={component_name}", flush=True)
+                    # Ищем во всех типах компонентов
+                    from core.models.enums.common_enums import ComponentType
+                    print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...", flush=True)
+                    comp = self.application_context.components.get(ComponentType.SKILL, component_name)
+                    if comp:
+                        capability = comp
+                        print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SKILL.{component_name}", flush=True)
+                    
+                    if not capability:
+                        print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...", flush=True)
+                        comp = self.application_context.components.get(ComponentType.TOOL, component_name)
+                        if comp:
+                            capability = comp
+                            print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.{component_name}", flush=True)
+                    
+                    if not capability:
+                        print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SERVICE...", flush=True)
+                        comp = self.application_context.components.get(ComponentType.SERVICE, component_name)
+                        if comp:
+                            capability = comp
+                            print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SERVICE.{component_name}", flush=True)
+            else:
+                print(f"🔴 [_execute_single_step_internal] capability_name не содержит '.' : {decision.capability_name}", flush=True)
+        else:
+            print(f"🔴 [_execute_single_step_internal] application_context.components НЕ доступен", flush=True)
 
-                # В новой архитектуре capability хранятся в components
-                capability = None
-                if hasattr(self.application_context, 'components'):
-                    # Пытаемся получить через components (универсальный метод)
-                    # Разбиваем capability_name на skill/tool name и capability name
-                    parts = decision.capability_name.split('.')
-                    if len(parts) >= 2:
-                        component_name = parts[0]  # например, book_library
-                        # Ищем во всех типах компонентов
-                        from core.models.enums.common_enums import ComponentType
-                        for comp_type in [ComponentType.SKILL, ComponentType.TOOL, ComponentType.SERVICE]:
-                            comp = self.application_context.components.get(comp_type, component_name)
-                            if comp:
-                                capability = comp
-                                await self.event_bus_logger.info(f"✅ Найден компонент {comp_type.value}.{component_name}")
-                                break
+        # Fallback: проверяем специальные методы если components не сработал
+        if not capability:
+            if hasattr(self.application_context, 'get_skill'):
+                # Пытаемся получить как skill (для совместимости)
+                skill_name = decision.capability_name.split('.')[0]
+                capability = self.application_context.get_skill(skill_name)
+                if capability:
+                    print(f"🔵 [_execute_single_step_internal] ✅ Найден skill: {skill_name}", flush=True)
 
-                # Fallback: проверяем специальные методы если components не сработал
-                if not capability:
-                    if hasattr(self.application_context, 'get_skill'):
-                        # Пытаемся получить как skill (для совместимости)
-                        skill_name = decision.capability_name.split('.')[0]
-                        capability = self.application_context.get_skill(skill_name)
-                        if capability:
-                            await self.event_bus_logger.info(f"✅ Найден skill: {skill_name}")
-
-                await self.event_bus_logger.info(f"capability found: {capability is not None}")
-                if not capability:
-                    await self.event_bus_logger.error(f"Capability '{decision.capability_name}' не найдена")
-                    return None
-
-                # Выполняем capability
-                try:
-                    await self.event_bus_logger.info(f"🚀 Запуск выполнения {decision.capability_name}...")
-                    execution_result = await self.executor.execute_capability(
-                        capability=capability,
-                        parameters=decision.parameters,
-                        session_context=self.application_context.session_context,
-                        user_context=self.user_context
+        print(f"🔵 [_execute_single_step_internal] capability found: {capability is not None}", flush=True)
+        if not capability:
+            print(f"🔴 [_execute_single_step_internal] Capability '{decision.capability_name}' не найдена", flush=True)
+            self.state.register_error()
+            
+            # ПРОВЕРКА: Превышен ли лимит ошибок
+            if self.policy.should_fallback(self.state):
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(
+                        f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
+                        f"Агент переходит в режим завершения."
                     )
-                    await self.event_bus_logger.info(f"✅ {decision.capability_name} выполнен успешно")
-                    await self.event_bus_logger.info(f"📊 Результат: {execution_result}")
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
+                    metadata={
+                        "error_count": self.state.error_count,
+                        "max_errors": self.policy.max_errors,
+                        "failed_at_step": self._current_step + 1
+                    }
+                )
+            
+            return None
 
-                    # ПРОВЕРКА: Если decision требует LLM, проверяем что он был вызван
-                    if getattr(decision, 'requires_llm', False):
-                        # ExecutionResult может иметь llm_called флаг
-                        if hasattr(execution_result, 'llm_called') and not execution_result.llm_called:
-                            raise InfrastructureError(
-                                f"Decision requires LLM but LLM was not called for {decision.capability_name}"
-                            )
+        # Выполняем capability
+        try:
+            print(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...", flush=True)
+            execution_result = await self.executor.execute_capability(
+                capability=capability,
+                parameters=decision.parameters,
+                session_context=self.application_context.session_context,
+                user_context=self.user_context
+            )
+            print(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно", flush=True)
+            print(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}", flush=True)
 
-                    # Обновление контекста выполнения
-                    if (hasattr(self.application_context, 'session_context') and
-                        self.application_context.session_context):
-                        action_id = self.application_context.session_context.record_action({
-                            "step": self._current_step + 1,
-                            "action": decision.capability_name,
-                            "result": execution_result,
-                            "timestamp": datetime.now().isoformat()
-                        }, step_number=self._current_step + 1)
+            # ПРОВЕРКА: Если decision требует LLM, проверяем что он был вызван
+            if getattr(decision, 'requires_llm', False):
+                # ExecutionResult может иметь llm_called флаг
+                if hasattr(execution_result, 'llm_called') and not execution_result.llm_called:
+                    raise InfrastructureError(
+                        f"Decision requires LLM but LLM was not called for {decision.capability_name}"
+                    )
 
+            # Обновление контекста выполнения
+            if (hasattr(self.application_context, 'session_context') and
+                self.application_context.session_context):
+                action_id = self.application_context.session_context.record_action({
+                    "step": self._current_step + 1,
+                    "action": decision.capability_name,
+                    "result": execution_result,
+                    "timestamp": datetime.now().isoformat()
+                }, step_number=self._current_step + 1)
+
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"✅ Action записан с ID: {action_id}")
+
+                # КРИТИЧНО: Записываем observation из результата выполнения
+                # Навыки не записывают observation явно, делаем это в runtime
+                observation_id = None
+                try:
+                    # Извлекаем данные для observation из execution_result
+                    obs_data = None
+                    if hasattr(execution_result, 'result') and execution_result.result:
+                        # Если result это dict, используем его
+                        if isinstance(execution_result.result, dict):
+                            obs_data = execution_result.result
+                        else:
+                            # Иначе оборачиваем в dict
+                            obs_data = {"result": execution_result.result}
+
+                    if obs_data:
+                        observation_id = self.application_context.session_context.record_observation(
+                            observation_data=obs_data,
+                            source=decision.capability_name,
+                            step_number=self._current_step + 1
+                        )
                         if self.event_bus_logger:
-                            await self.event_bus_logger.debug(f"✅ Action записан с ID: {action_id}")
-
-                        # КРИТИЧНО: Записываем observation из результата выполнения
-                        # Навыки не записывают observation явно, делаем это в runtime
-                        observation_id = None
-                        try:
-                            # Извлекаем данные для observation из execution_result
-                            obs_data = None
-                            if hasattr(execution_result, 'result') and execution_result.result:
-                                # Если result это dict, используем его
-                                if isinstance(execution_result.result, dict):
-                                    obs_data = execution_result.result
-                                else:
-                                    # Иначе оборачиваем в dict
-                                    obs_data = {"result": execution_result.result}
-                            
-                            if obs_data:
-                                observation_id = self.application_context.session_context.record_observation(
-                                    observation_data=obs_data,
-                                    source=decision.capability_name,
-                                    step_number=self._current_step + 1
-                                )
-                                if self.event_bus_logger:
-                                    await self.event_bus_logger.debug(f"✅ Observation записана с ID: {observation_id}")
-                        except Exception as e:
-                            if self.event_bus_logger:
-                                await self.event_bus_logger.warning(f"⚠️ Не удалось записать observation: {e}")
-
-                        # КРИТИЧНО: Записываем STEP чтобы update_summary() обновился!
-                        # Без этого get_summary() возвращает одинаковые last_steps
-                        # и ProgressScorer.evaluate() возвращает False
-                        # ИСПРАВЛЕНО: record_step -> register_step (правильное имя метода)
-                        
-                        # Извлекаем observation_id из metadata если есть
-                        observation_item_ids = []
-                        if observation_id:
-                            observation_item_ids = [observation_id]
-                        elif hasattr(execution_result, 'metadata') and execution_result.metadata:
-                            obs_id = execution_result.metadata.get('observation_id')
-                            if obs_id:
-                                observation_item_ids = [obs_id]
-                        
-                        try:
-                            if self.event_bus_logger:
-                                await self.event_bus_logger.info(f"🔵 Вызов register_step: step={self._current_step + 1}, capability={decision.capability_name}, obs_ids={observation_item_ids}")
-                                await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.application_context.session_context.step_context.count()}")
-                            
-                            self.application_context.session_context.register_step(
-                                step_number=self._current_step + 1,
-                                capability_name=decision.capability_name,
-                                skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
-                                action_item_id=action_id,
-                                observation_item_ids=observation_item_ids,
-                                summary=f"Выполнено: {decision.capability_name}",
-                                status="completed"
-                            )
-                            
-                            if self.event_bus_logger:
-                                await self.event_bus_logger.info(f"✅ Step {self._current_step + 1} зарегистрирован в step_context")
-                                await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.application_context.session_context.step_context.count()}")
-                        except Exception as e:
-                            if self.event_bus_logger:
-                                await self.event_bus_logger.error(f"❌ Ошибка register_step: {e}")
-
-                    # Оценка прогресса и обновление состояния
-                    progressed = self.progress.evaluate(self.application_context.session_context)
-                    self.state.register_progress(progressed)
-
-                    return execution_result
-
+                            await self.event_bus_logger.debug(f"✅ Observation записана с ID: {observation_id}")
                 except Exception as e:
                     if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}")
-                    self.state.register_error()
+                        await self.event_bus_logger.warning(f"⚠️ Не удалось записать observation: {e}")
 
-                    # Регистрация ошибки в контексте
-                    self.application_context.session_context.record_error(
-                        error_data=str(e),
-                        error_type="execution_error",
-                        step_number=self._current_step + 1
+                # КРИТИЧНО: Записываем STEP чтобы update_summary() обновился!
+                # Без этого get_summary() возвращает одинаковые last_steps
+                # и ProgressScorer.evaluate() возвращает False
+                # ИСПРАВЛЕНО: record_step -> register_step (правильное имя метода)
+
+                # Извлекаем observation_id из metadata если есть
+                observation_item_ids = []
+                if observation_id:
+                    observation_item_ids = [observation_id]
+                elif hasattr(execution_result, 'metadata') and execution_result.metadata:
+                    obs_id = execution_result.metadata.get('observation_id')
+                    if obs_id:
+                        observation_item_ids = [obs_id]
+
+                try:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"🔵 Вызов register_step: step={self._current_step + 1}, capability={decision.capability_name}, obs_ids={observation_item_ids}")
+                        await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.application_context.session_context.step_context.count()}")
+
+                    self.application_context.session_context.register_step(
+                        step_number=self._current_step + 1,
+                        capability_name=decision.capability_name,
+                        skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
+                        action_item_id=action_id,
+                        observation_item_ids=observation_item_ids,
+                        summary=f"Выполнено: {decision.capability_name}",
+                        status="completed"
                     )
 
-                    return None
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"✅ Step {self._current_step + 1} зарегистрирован в step_context")
+                        await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.application_context.session_context.step_context.count()}")
+                except Exception as e:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"❌ Ошибка register_step: {e}")
+
+                # Оценка прогресса и обновление состояния
+                progressed = self.progress.evaluate(self.application_context.session_context)
+                self.state.register_progress(progressed)
+
+                return execution_result
+
+        except Exception as e:
+            print(f"🔴 [_execute_single_step_internal] ❌ Ошибка выполнения: {e}", flush=True)
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}")
+            self.state.register_error()
+
+            # Регистрация ошибки в контексте
+            self.application_context.session_context.record_error(
+                error_data=str(e),
+                error_type="execution_error",
+                step_number=self._current_step + 1
+            )
+
+            # ПРОВЕРКА: Превышен ли лимит ошибок
+            if self.policy.should_fallback(self.state):
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(
+                        f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
+                        f"Агент переходит в режим завершения."
+                    )
+                # Возвращаем специальный маркер для прерывания цикла
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
+                    metadata={
+                        "error_count": self.state.error_count,
+                        "max_errors": self.policy.max_errors,
+                        "failed_at_step": self._current_step + 1
+                    }
+                )
+
+            return None
 
         # В любом случае увеличиваем номер текущего шага для следующей итерации
         self.state.step += 1
 
+        print(f"🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action={decision.action.value})", flush=True)
         return None
 
     async def _execute_single_step(self) -> Any:
