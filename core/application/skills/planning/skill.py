@@ -32,9 +32,9 @@ class PlanningSkill(BaseComponent):
         execution_context: ExecutionContext
     ) -> ExecutionResult:
         """
-        Переопределение execute() для возврата SkillResult вместо ExecutionResult.
-        
-        Это обеспечивает совместимость с архитектурой навыков где используется SkillResult.
+        Переопределение execute() для вызова _execute_impl.
+
+        BaseComponent.execute() оборачивает результат в ExecutionResult.
         """
         return await self._execute_impl(capability, parameters, execution_context)
 
