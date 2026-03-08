@@ -49,10 +49,12 @@ class ActionExecutor:
                 return ExecutionResult(
                     status=result.status if isinstance(result.status, ExecutionStatus) else ExecutionStatus(result.status if isinstance(result.status, str) else str(result.status)),
                     data=result.data,
+                    error=result.error,  # ✅ ИСПРАВЛЕНО: Передаём ошибку
                     metadata={
                         'capability': capability.name,
                         'step': step_number
-                    }
+                    },
+                    side_effect=result.side_effect if hasattr(result, 'side_effect') else False
                 )
             else:
                 # Если результат — dict, считаем это успешным выполнением
