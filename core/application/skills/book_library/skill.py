@@ -322,12 +322,15 @@ class BookLibrarySkill(BaseComponent):
 
         # 5. Публикация метрик через EventBus
         try:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                capability="book_library.search_books",
-                execution_type="dynamic",
-                execution_time_ms=total_time * 1000,
-                rows_returned=len(rows),
+                event_type=EventType.ACTION_COMPLETED if is_success else EventType.ERROR_OCCURRED,
+                capability_name="book_library.search_books",
                 success=is_success,
+                execution_time_ms=total_time * 1000,
+                tokens_used=0,
+                execution_type="dynamic",
+                rows_returned=len(rows),
                 script_name=None
             )
         except Exception as e:
@@ -472,12 +475,15 @@ class BookLibrarySkill(BaseComponent):
 
         # 7. Публикация метрик через EventBus
         try:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                capability="book_library.execute_script",
-                execution_type="static",
-                execution_time_ms=total_time * 1000,
-                rows_returned=len(rows),
+                event_type=EventType.ACTION_COMPLETED if is_success else EventType.ERROR_OCCURRED,
+                capability_name="book_library.execute_script",
                 success=is_success,
+                execution_time_ms=total_time * 1000,
+                tokens_used=0,
+                execution_type="static",
+                rows_returned=len(rows),
                 script_name=script_name
             )
         except Exception as e:
@@ -678,23 +684,38 @@ class BookLibrarySkill(BaseComponent):
 
     async def _publish_metrics(
         self,
-        capability: str,
-        execution_type: str,
-        execution_time_ms: float,
-        rows_returned: int,
-        success: bool,
-        script_name: Optional[str] = None
+        event_type,  # EventType для совместимости с BaseComponent
+        capability_name: str,  # имя capability
+        success: bool,  # флаг успеха
+        execution_time_ms: float,  # время выполнения
+        tokens_used: int = 0,  # количество токенов (для совместимости)
+        error: Optional[str] = None,  # сообщение об ошибке
+        error_type: Optional[str] = None,  # тип ошибки
+        error_category: Optional[str] = None,  # категория ошибки
+        # Специфичные параметры book_library
+        execution_type: Optional[str] = None,  # static | dynamic
+        rows_returned: int = 0,  # количество строк
+        script_name: Optional[str] = None,  # имя скрипта
+        result: Optional[dict] = None  # результат выполнения
     ):
         """
         Публикация метрик выполнения через EventBus.
-
+        
+        Сигнатура совместима с BaseComponent._publish_metrics().
+        
         ARGS:
-            capability: имя выполненной capability
-            execution_type: тип выполнения (static | dynamic)
-            execution_time_ms: время выполнения в миллисекундах
-            rows_returned: количество возвращённых строк
+            event_type: тип события (EventType)
+            capability_name: имя выполненной capability
             success: флаг успешного выполнения
+            execution_time_ms: время выполнения в миллисекундах
+            tokens_used: количество использованных токенов
+            error: сообщение об ошибке (если была)
+            error_type: тип ошибки
+            error_category: категория ошибки
+            execution_type: тип выполнения (static | dynamic)
+            rows_returned: количество возвращённых строк
             script_name: имя скрипта (для static)
+            result: результат выполнения
         """
         try:
             # Используем внедрённый event_bus из BaseComponent

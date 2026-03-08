@@ -103,6 +103,9 @@ class BehaviorManager:
             context_analysis
         )
 
+        # 🔵 ОТЛАДКА: Получен decision от паттерна
+        print(f"🔵 [BehaviorManager] Получен decision: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
+
         # КРИТИЧЕСКАЯ ПРОВЕРКА: decision должен иметь capability_name для ACT
         if decision.action == BehaviorDecisionType.ACT:
             if not decision.capability_name:
@@ -119,10 +122,26 @@ class BehaviorManager:
                 )
 
             # Проверка что capability существует в доступных
+            # ИСПОЛЬЗУЕМ ту же логику что и _find_capability (с поиском по префиксу)
+            # 🔵 ОТЛАДКА: Перед проверкой capability_exists
+            print(f"🔵 [BehaviorManager] Проверка capability: {decision.capability_name}", flush=True)
             capability_exists = any(
                 cap.name == decision.capability_name
                 for cap in available_capabilities
             )
+            
+            # Если точное совпадение не найдено, проверяем по префиксу
+            if not capability_exists and '.' in decision.capability_name:
+                prefix = decision.capability_name.split('.')[0]
+                capability_exists = any(
+                    cap.name == prefix
+                    for cap in available_capabilities
+                )
+                if capability_exists and self.event_bus_logger:
+                    await self.event_bus_logger.debug(
+                        f"Capability '{decision.capability_name}' найдена по префиксу '{prefix}'"
+                    )
+            
             if not capability_exists:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(
@@ -147,6 +166,9 @@ class BehaviorManager:
         # Автоматическое переключение паттернов
         if decision.action == BehaviorDecisionType.SWITCH and decision.next_pattern:
             await self._switch_pattern(decision.next_pattern, decision.reason)
+
+        # 🔵 ОТЛАДКА: Перед возвратом decision
+        print(f"🔵 [BehaviorManager] Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
 
         return decision
 

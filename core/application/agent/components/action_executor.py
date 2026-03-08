@@ -12,88 +12,16 @@
 - Сериализация (model_dump) только на границах (EventBus/Storage/API)
 - Generic тип T для data позволяет сохранять тип модели
 """
-from typing import Dict, Any, Optional, TYPE_CHECKING, Generic, TypeVar
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from pydantic import BaseModel
 
-from core.models.data.execution import ExecutionResult
+from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
 
-# Generic тип для типизированных данных в ActionResult
-T = TypeVar('T')
 
-
-class ActionResult(Generic[T]):
-    """
-    Результат выполнения действия через ActionExecutor.
-    
-    ARCHITECTURE:
-    - data сохраняет тип T (Pydantic модель) до границ приложения
-    - model_dump() вызывается только при сериализации на границах
-    - Generic тип позволяет IDE поддерживать автокомплит и валидацию типов
-    
-    EXAMPLE:
-        # Компонент возвращает типизированный результат
-        result: ActionResult[BookLibrarySearchOutput] = await executor.execute(...)
-        
-        # Доступ к полям через IDE автокомплит
-        books = result.data.rows  # ✅ IDE знает тип rows
-        count = result.data.rowcount  # ✅ IDE знает тип rowcount
-        
-        # Сериализация только на границе
-        await event_bus.publish(..., data=result.to_dict())  # ← model_dump() здесь
-    """
-    
-    def __init__(
-        self, 
-        success: bool, 
-        data: Optional[T] = None, 
-        metadata: Dict[str, Any] = None, 
-        error: str = None, 
-        llm_called: bool = False
-    ):
-        self.success = success
-        self.data = data  # ← Сохраняем тип T (Pydantic модель или None)
-        self.metadata = metadata or {}
-        self.error = error
-        self.llm_called = llm_called
-
-    def __repr__(self):
-        data_repr = f"{type(self.data).__name__}(...)" if isinstance(self.data, BaseModel) else self.data
-        return f"ActionResult(success={self.success}, data={data_repr}, error={self.error}, llm_called={self.llm_called})"
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Сериализация в dict — ТОЛЬКО для использования на границах приложения.
-        
-        ГРАНИЦЫ ПРИЛОЖЕНИЯ:
-        - EventBus (публикация событий)
-        - Storage (сохранение в БД/файлы)
-        - API (HTTP/WebSocket ответы)
-        
-        ВНУТРИ ПРИЛОЖЕНИЯ:
-        - Используйте self.data напрямую (сохраняется типизация)
-        - IDE поддерживает автокомплит полей Pydantic модели
-        """
-        return {
-            'success': self.success,
-            'data': self.data.model_dump() if isinstance(self.data, BaseModel) else self.data,
-            'metadata': self.metadata,
-            'error': self.error,
-            'llm_called': self.llm_called
-        }
-    
-    @classmethod
-    def success_result(cls, data: T, metadata: Optional[Dict[str, Any]] = None) -> 'ActionResult[T]':
-        """Factory метод для успешного результата с типизированными данными."""
-        return cls(success=True, data=data, metadata=metadata or {})
-    
-    @classmethod
-    def failure_result(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'ActionResult':
-        """Factory метод для неудачного результата."""
-        return cls(success=False, data=None, error=error, metadata=metadata or {})
 
 
 class ExecutionContext:
@@ -126,7 +54,7 @@ class ActionExecutor:
         action_name: str,
         parameters: Dict[str, Any],
         context: ExecutionContext
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Выполнение действия через ActionExecutor.
         
@@ -154,23 +82,23 @@ class ActionExecutor:
             target_component = self._resolve_component_for_action(action_name)
 
             if not target_component:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Компонент для действия '{action_name}' не найден"
                 )
 
             # 3. Валидируем входные параметры через контракт компонента
             capability = self._resolve_capability(action_name)
             if not capability:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Capability для действия '{action_name}' не найден"
                 )
 
             # 4. Проверяем, что компонент инициализирован
             if not hasattr(target_component, '_initialized') or not target_component._initialized:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Компонент '{target_component.name}' не инициализирован"
                 )
 
@@ -185,8 +113,8 @@ class ActionExecutor:
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=str(e)
             )
 
@@ -195,7 +123,7 @@ class ActionExecutor:
         action_name: str,
         parameters: Dict[str, Any],
         context: ExecutionContext
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Выполнение действий контекста (context.*).
 
@@ -211,8 +139,8 @@ class ActionExecutor:
         session_context = context.session_context
 
         if not session_context:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="session_context не доступен для выполнения действия контекста"
             )
 
@@ -231,16 +159,25 @@ class ActionExecutor:
                 return self._context_record_action(parameters, session_context)
             elif action_name == "context.record_observation":
                 return self._context_record_observation(parameters, session_context)
+            # НОВЫЕ ДЕЙСТВИЯ для изоляции компонентов
+            elif action_name == "context.get_goal":
+                return self._context_get_goal(parameters, session_context)
+            elif action_name == "context.get_summary":
+                return self._context_get_summary(parameters, session_context)
+            elif action_name == "context.get_recent_errors":
+                return self._context_get_recent_errors(parameters, session_context)
+            elif action_name == "context.get_current_step":
+                return self._context_get_current_step(parameters, session_context)
             else:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Неизвестное действие контекста: {action_name}"
                 )
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Ошибка действия контекста: {str(e)}"
             )
 
@@ -248,15 +185,15 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Сохранение плана в контекст"""
         plan_data = parameters.get("plan_data")
         plan_type = parameters.get("plan_type", "initial")
         metadata = parameters.get("metadata")
 
         if not plan_data:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="plan_data не указан для сохранения плана"
             )
 
@@ -266,8 +203,8 @@ class ActionExecutor:
             metadata=metadata
         )
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={"item_id": item_id},
             metadata={"plan_type": plan_type}
         )
@@ -276,19 +213,19 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Получение текущего плана"""
         plan = session_context.get_current_plan()
 
         if not plan:
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data=None,
                 metadata={"exists": False, "message": "Текущий план не найден"}
             )
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data=plan.content if hasattr(plan, 'content') else plan,
             metadata={
                 "exists": True,
@@ -301,28 +238,28 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Получение элемента контекста по ID"""
         item_id = parameters.get("item_id")
         raise_on_missing = parameters.get("raise_on_missing", False)
 
         if not item_id:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="item_id не указан для получения элемента контекста"
             )
 
         item = session_context.get_context_item(item_id, raise_on_missing=raise_on_missing)
 
         if not item:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Элемент контекста с ID {item_id} не найден",
                 metadata={"item_id": item_id}
             )
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={
                 "item_id": item.item_id if hasattr(item, 'item_id') else item_id,
                 "content": item.content if hasattr(item, 'content') else item,
@@ -335,7 +272,7 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Получение всех элементов контекста"""
         try:
             # Получаем все items из data_context
@@ -346,20 +283,20 @@ class ActionExecutor:
                 for item in all_items:
                     item_id = item.item_id if hasattr(item, 'item_id') else str(item)
                     items_dict[item_id] = item
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"items": items_dict},
                     metadata={"count": len(items_dict)}
                 )
             else:
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"items": {}},
                     metadata={"count": 0, "message": "data_context не доступен"}
                 )
         except Exception as e:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Ошибка получения всех items: {str(e)}"
             )
 
@@ -367,7 +304,7 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Получение истории шагов выполнения"""
         try:
             # Получаем step_history из session_context
@@ -384,20 +321,20 @@ class ActionExecutor:
                         })
                     else:
                         steps_data.append(step)
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"steps": steps_data},
                     metadata={"count": len(steps_data)}
                 )
             else:
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"steps": []},
                     metadata={"count": 0, "message": "step_context не доступен"}
                 )
         except Exception as e:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Ошибка получения step history: {str(e)}"
             )
 
@@ -405,15 +342,15 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Запись действия в контекст"""
         action_data = parameters.get("action_data")
         step_number = parameters.get("step_number")
         metadata = parameters.get("metadata")
 
         if not action_data:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="action_data не указан для записи действия"
             )
 
@@ -423,8 +360,8 @@ class ActionExecutor:
             metadata=metadata
         )
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={"item_id": item_id},
             metadata={"step_number": step_number}
         )
@@ -433,7 +370,7 @@ class ActionExecutor:
         self,
         parameters: Dict[str, Any],
         session_context
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """Запись наблюдения в контекст"""
         observation_data = parameters.get("observation_data")
         source = parameters.get("source")
@@ -441,8 +378,8 @@ class ActionExecutor:
         metadata = parameters.get("metadata")
 
         if not observation_data:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="observation_data не указан для записи наблюдения"
             )
 
@@ -453,12 +390,91 @@ class ActionExecutor:
             metadata=metadata
         )
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={"item_id": item_id},
             metadata={"source": source, "step_number": step_number}
         )
-    
+
+    # === НОВЫЕ МЕТОДЫ ДЛЯ ИЗОЛЯЦИИ КОМПОНЕНТОВ ===
+
+    def _context_get_goal(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ExecutionResult:
+        """Получение текущей цели из session_context"""
+        try:
+            goal = session_context.get_goal() if hasattr(session_context, 'get_goal') else None
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"goal": goal if goal else "unknown"},
+                metadata={"exists": goal is not None}
+            )
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Ошибка получения цели: {str(e)}"
+            )
+
+    def _context_get_summary(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ExecutionResult:
+        """Получение резюме сессии"""
+        try:
+            summary = session_context.get_summary() if hasattr(session_context, 'get_summary') else None
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"summary": summary if summary else ""},
+                metadata={"exists": summary is not None}
+            )
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Ошибка получения резюме: {str(e)}"
+            )
+
+    def _context_get_recent_errors(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ExecutionResult:
+        """Получение последних ошибок"""
+        try:
+            limit = parameters.get("limit", 5)
+            errors = session_context.get_recent_errors(limit=limit) if hasattr(session_context, 'get_recent_errors') else []
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"errors": errors},
+                metadata={"count": len(errors)}
+            )
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Ошибка получения ошибок: {str(e)}"
+            )
+
+    def _context_get_current_step(
+        self,
+        parameters: Dict[str, Any],
+        session_context
+    ) -> ExecutionResult:
+        """Получение текущего номера шага"""
+        try:
+            current_step = session_context.current_step if hasattr(session_context, 'current_step') else 0
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"current_step": current_step},
+                metadata={"step_number": current_step}
+            )
+        except Exception as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Ошибка получения текущего шага: {str(e)}"
+            )
+
     def _resolve_component_for_action(self, action_name: str):
         """
         Разрешение компонента по имени действия.
@@ -521,7 +537,7 @@ class ActionExecutor:
         action_name: str,
         parameters: Dict[str, Any],
         context: ExecutionContext
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Выполнение LLM действий (llm.*).
 
@@ -544,8 +560,8 @@ class ActionExecutor:
                 llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
 
             if not llm_provider:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error="LLM провайдер 'default_llm' не найден"
                 )
 
@@ -560,16 +576,16 @@ class ActionExecutor:
             elif action_name == "llm.generate_structured":
                 return await self._llm_generate_structured(llm_provider, parameters, orchestrator, context)
             else:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Неизвестное LLM действие: {action_name}"
                 )
 
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=str(e)
             )
 
@@ -579,7 +595,7 @@ class ActionExecutor:
         parameters: Dict[str, Any],
         orchestrator: Any = None,
         context: ExecutionContext = None
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Обычная генерация текста через LLM.
 
@@ -593,7 +609,7 @@ class ActionExecutor:
 
         prompt = parameters.get("prompt", "")
         if not prompt:
-            return ActionResult(success=False, error="Параметр 'prompt' обязателен")
+            return ExecutionResult(status=ExecutionStatus.FAILED, error="Параметр 'prompt' обязателен")
 
         request = LLMRequest(
             prompt=prompt,
@@ -620,8 +636,8 @@ class ActionExecutor:
             # Fallback: прямой вызов
             response = await llm_provider.generate(request)
 
-        return ActionResult(
-            success=True,
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={"content": response.content},
             metadata={
                 # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет model напрямую
@@ -640,7 +656,7 @@ class ActionExecutor:
         parameters: Dict[str, Any],
         orchestrator: Any = None,
         context: ExecutionContext = None
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Структурированная генерация через LLM с JSON Schema.
 
@@ -656,12 +672,12 @@ class ActionExecutor:
 
         prompt = parameters.get("prompt", "")
         if not prompt:
-            return ActionResult(success=False, error="Параметр 'prompt' обязателен")
+            return ExecutionResult(status=ExecutionStatus.FAILED, error="Параметр 'prompt' обязателен")
 
         # Получаем конфигурацию структурированного вывода
         structured_output = parameters.get("structured_output")
         if not structured_output:
-            return ActionResult(success=False, error="Параметр 'structured_output' обязателен")
+            return ExecutionResult(status=ExecutionStatus.FAILED, error="Параметр 'structured_output' обязателен")
 
         # Если передан dict, создаём StructuredOutputConfig
         if isinstance(structured_output, dict):
@@ -677,8 +693,8 @@ class ActionExecutor:
 
         # Вызов через оркестратор если доступен
         if not orchestrator:
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error="LLMOrchestrator недоступен — требуется для структурированной генерации"
             )
 

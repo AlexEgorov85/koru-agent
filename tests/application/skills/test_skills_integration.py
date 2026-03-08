@@ -140,7 +140,7 @@ class TestBookLibrarySkillIntegration:
                     },
                     metadata={}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 
@@ -209,7 +209,7 @@ class TestPlanningSkillIntegration:
                     result={"item_id": "plan_001"},
                     metadata={"plan_type": "initial"}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 
@@ -266,7 +266,7 @@ class TestPlanningSkillIntegration:
                     },
                     metadata={"exists": True}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 
@@ -337,7 +337,7 @@ class TestFinalAnswerSkillIntegration:
                     },
                     metadata={"parsing_attempts": 1}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 
@@ -403,7 +403,7 @@ class TestDataAnalysisSkillIntegration:
                     },
                     metadata={"parsing_attempts": 1, "tokens_used": 150}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 
@@ -496,18 +496,18 @@ class TestSkillsEndToEnd:
                         metadata={"parsing_attempts": 1}
                     )
             elif action_name == "context.record_plan":
-                return ExecutionResult(status="success", result={"item_id": "plan_001"})
+                return ExecutionResult(status=ExecutionStatus.COMPLETED, data={"item_id": "plan_001"})
             elif action_name == "context.get_all_items":
-                return ExecutionResult(status="success", result={"items": {}})
+                return ExecutionResult(status=ExecutionStatus.COMPLETED, data={"items": {}})
             elif action_name == "context.get_step_history":
-                return ExecutionResult(status="success", result={"steps": []})
+                return ExecutionResult(status=ExecutionStatus.COMPLETED, data={"steps": []})
             elif action_name == "context.get_current_plan":
                 return ExecutionResult(
                     status="success",
                     result={"plan_id": "test_plan_001", "steps": []},
                     metadata={"exists": True}
                 )
-            return ExecutionResult(status="success", result={})
+            return ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
 
         executor.execute_action = mock_execute_action
 

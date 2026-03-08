@@ -47,7 +47,7 @@ class ActionExecutor:
             if isinstance(result, ExecutionResult):
                 return ExecutionResult(
                     status=result.status.value if hasattr(result.status, 'value') else str(result.status),
-                    result=result.result,
+                    data=result.data,  # ← ИСПРАВЛЕНО: result → data
                     metadata={
                         'capability': capability.name,
                         'step': step_number
@@ -57,7 +57,7 @@ class ActionExecutor:
                 # Если результат — dict, считаем это успешным выполнением
                 return ExecutionResult(
                     status='completed',
-                    result=result,
+                    data=result,  # ← ИСПРАВЛЕНО: result → data
                     metadata={
                         'capability': capability.name,
                         'step': step_number
@@ -82,6 +82,6 @@ class ActionExecutor:
                     )
                 return ExecutionResult(
                     status='failed',
-                    result={'error': f'Cannot execute capability {capability.name}'},
+                    data={'error': f'Cannot execute capability {capability.name}'},  # ← ИСПРАВЛЕНО: result → data
                     metadata={'capability': capability.name, 'step': step_number}
                 )

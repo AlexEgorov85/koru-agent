@@ -22,6 +22,7 @@ from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig, LLMResponse
 from core.models.errors import InfrastructureError
+from core.application.agent.components.action_executor import ExecutionContext
 
 
 class ReActPattern(BaseBehaviorPattern):
@@ -94,7 +95,7 @@ class ReActPattern(BaseBehaviorPattern):
         """
         DEPRECATED: Прямой доступ к LLM провайдеру.
         Используйте llm_orchestrator для генерации с валидацией и retry.
-        
+
         Возвращает LLM провайдер если доступен, иначе None.
         """
         import warnings
@@ -103,10 +104,11 @@ class ReActPattern(BaseBehaviorPattern):
             DeprecationWarning,
             stacklevel=2
         )
-        
-        # Fallback: получаем LLM провайдер напрямую (без orchestrator)
-        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            return self.application_context.infrastructure_context.get_provider("default_llm")
+
+        # ✅ ИСПРАВЛЕНО: Используем llm_orchestrator вместо прямого доступа
+        orchestrator = self.llm_orchestrator
+        if orchestrator and hasattr(orchestrator, 'provider'):
+            return orchestrator.provider
         return None
 
     async def _execute_llm_with_orchestrator(
@@ -696,16 +698,20 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities  # КРИТИЧНО: передаём available_capabilities
             )
 
+            print(f"🔵 [generate_decision] decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
+
             # Логирование финального решения
             await self._log("info", f"generate_decision: decision получен",
                            action=decision.action.value,
                            capability_name=decision.capability_name)
-            
+
             await self._log("info", f"  decision.action={decision.action}, decision.capability_name={decision.capability_name}")
-            
+
             # 3. Сброс счётчика ошибок при успешном решении
             self.error_count = 0
-            
+
+            print(f"🔵 [generate_decision] Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
+
             return decision
             
         except Exception as e:
@@ -761,12 +767,16 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
         # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
-        # Получаем LLM провайдер напрямую из инфраструктуры (не через orchestrator)
-        # Orchestrator будет использован в _execute_llm_with_orchestrator
+        # ✅ ИСПРАВЛЕНО: Используем llm_orchestrator вместо прямого доступа к infrastructure_context
         llm_provider = None
-        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+        orchestrator = self.llm_orchestrator
+        if orchestrator and hasattr(orchestrator, 'provider'):
+            llm_provider = orchestrator.provider
         
+        # Fallback: получаем из application_context если orchestrator недоступен
+        if not llm_provider and self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
             return self._create_fallback_reasoning(
@@ -792,16 +802,25 @@ class ReActPattern(BaseBehaviorPattern):
         # Устанавливаем контекст для логирования
         if hasattr(llm_provider, 'set_call_context'):
             current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
+            # ✅ ИСПРАВЛЕНО: Используем event_bus из infrastructure_context через orchestrator
+            event_bus = None
+            if orchestrator and hasattr(orchestrator, 'event_bus'):
+                event_bus = orchestrator.event_bus
+            elif self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+                event_bus = self.application_context.infrastructure_context.event_bus
+            
             llm_provider.set_call_context(
-                event_bus=self.application_context.infrastructure_context.event_bus,
+                event_bus=event_bus,
                 session_id=getattr(session_context, 'session_id', 'unknown'),
                 agent_id=current_agent_id,
                 component="react_pattern",
-                phase="think",
-                goal=session_context.get_goal() if session_context else 'unknown'
+                phase="think"
             )
 
-        await self._log("info", f"Запуск рассуждения ReAct | Цель: {session_context.get_goal() if session_context else 'unknown'}")
+        # Получаем цель из session_context
+        goal_value = session_context.get_goal() if session_context else "unknown"
+        
+        await self._log("info", f"Запуск рассуждения ReAct | Цель: {goal_value}")
         await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
         # === 4. ВЫПОЛНЕНИЕ ЧЕРЕЗ ORCHESTRATOR ===
@@ -950,30 +969,72 @@ class ReActPattern(BaseBehaviorPattern):
         }
 
     def _find_capability(
-        self, 
-        available_capabilities: List[Capability], 
+        self,
+        available_capabilities: List[Capability],
         capability_name: str
     ) -> Optional[Capability]:
-        """Поиск capability по имени в списке доступных."""
-        
-        # 1. Прямое совпадение по име��и
+        """Поиск capability по имени в списке доступных.
+
+        Поддерживает поиск по префиксу: если LLM возвращает 'book_library.execute_script',
+        а capability записано как 'book_library', будет найдено по префиксу.
+        """
+        # Логирование начала поиска
+        print(f"🔍 [_find_capability] поиск '{capability_name}' среди {len(available_capabilities)} доступных", flush=True)
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: поиск '{capability_name}' среди {len(available_capabilities)} доступных")
+        else:
+            print(f"⚠️ [_find_capability] event_bus_logger не инициализирован", flush=True)
+
+        # 1. Прямое совпадение по имени
         for cap in available_capabilities:
             if cap.name == capability_name:
+                print(f"✅ [_find_capability] найдено по прямому совпадению '{cap.name}'", flush=True)
+                self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по прямому совпадению '{cap.name}'")
                 return cap
-        
-        # 2. Частичное совпадение (для совместимости)
+
+        # 2. Если capability_name содержит '.', извлекаем префикс и ищем по нему
+        if '.' in capability_name:
+            prefix = capability_name.split('.')[0]
+            print(f"🔍 [_find_capability] извлечён префикс '{prefix}' из '{capability_name}'", flush=True)
+            self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: извлечён префикс '{prefix}' из '{capability_name}'")
+
+            # Поиск по префиксу (точное совпадение с именем capability)
+            for cap in available_capabilities:
+                if cap.name == prefix:
+                    print(f"✅ [_find_capability] найдено по префиксу (имя) '{cap.name}'", flush=True)
+                    self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу (имя) '{cap.name}'")
+                    return cap
+
+                # Проверка атрибута skill_name если он есть
+                if hasattr(cap, 'skill_name') and cap.skill_name:
+                    if cap.skill_name == prefix:
+                        print(f"✅ [_find_capability] найдено по префиксу (skill_name) '{cap.skill_name}'", flush=True)
+                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу (skill_name) '{cap.skill_name}'")
+                        return cap
+                    # Также проверяем префикс skill_name
+                    if '.' in cap.skill_name and cap.skill_name.split('.')[0] == prefix:
+                        print(f"✅ [_find_capability] найдено по префиксу skill_name '{cap.skill_name}'", flush=True)
+                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу skill_name '{cap.skill_name}'")
+                        return cap
+
+        # 3. Частичное совпадение (для совместимости)
         for cap in available_capabilities:
             if capability_name.lower() in cap.name.lower():
+                print(f"✅ [_find_capability] найдено по частичному совпадению '{cap.name}'", flush=True)
+                self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по частичному совпадению '{cap.name}'")
                 return cap
-        
-        # 3. Поиск по supported_strategies
+
+        # 4. Поиск по supported_strategies
         for cap in available_capabilities:
             if any(s.lower() == "react" for s in (cap.supported_strategies or [])):
-                if capability_name.lower() in cap.skill_name.lower():
-                    return cap
-        
-        return None
+                if hasattr(cap, 'skill_name') and cap.skill_name:
+                    if capability_name.lower() in cap.skill_name.lower():
+                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по supported_strategies и skill_name '{cap.skill_name}'")
+                        return cap
 
+        # Не найдено
+        self.event_bus_logger.warning_sync(f"[ReAct] _find_capability: НЕ найдено '{capability_name}' среди доступных capability")
+        return None
     def _validate_parameters(
         self,
         capability: Capability,
@@ -1097,14 +1158,16 @@ class ReActPattern(BaseBehaviorPattern):
             validated_params = self._validate_parameters(capability, parameters)
             
             # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
+            print(f"✅ [_make_decision] Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}", flush=True)
             return BehaviorDecision(
                 action=BehaviorDecisionType.ACT,
                 capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
                 parameters=validated_params,
-                reason=decision.get("reasoning", "capability_execution")
+                reason=decision_dict.get("reasoning", "capability_execution")
             )
-            
+
         except Exception as e:
+            print(f"❌ [_make_decision] Исключение: {e}", flush=True)
             await self._log("error", f"_make_decision_from_reasoning: ошибка",
                            error=str(e),
                            exc_info=True)
@@ -1112,7 +1175,7 @@ class ReActPattern(BaseBehaviorPattern):
 
     def _build_rollback_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
         """Создает решение для отката."""
-        # В новой схеме нет rollback_steps, используем stop_condition
+        # В ��овой схеме нет rollback_steps, используем stop_condition
         reason = reasoning_result.get("stop_reason", "rollback_requested")
 
         # Используем generic.execute как fallback для отката
@@ -1140,7 +1203,7 @@ class ReActPattern(BaseBehaviorPattern):
             action=BehaviorDecisionType.ACT,
             capability_name="generic.execute",
             parameters={
-                "input": reasoning_result.get("analysis", {}).get("current_state", session_context.get_goal()),
+                "input": reasoning_result.get("analysis", {}).get("current_state", "Продолжить выполнение задачи"),
                 "context": f"Откат из-за: {reason}"
             },
             reason=f"rollback_{reason}"
@@ -1197,7 +1260,8 @@ class ReActPattern(BaseBehaviorPattern):
 
         if not validated_params:
             # Попытка создать минимально необходимые параметры
-            validated_params = {"input": session_context.get_goal() or "Продолжить выполнение задачи"}
+            # ✅ ИСПРАВЛЕНО: Используем значение по умолчанию вместо session_context.get_goal()
+            validated_params = {"input": "Продолжить выполнение задачи"}
             self.event_bus_logger.warning_sync(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
         else:
             self.event_bus_logger.info_sync(f"✅ Параметры успешно валидированы")
@@ -1223,11 +1287,12 @@ class ReActPattern(BaseBehaviorPattern):
 
         for cap in available_caps:
             if any(s.lower() == "react" for s in cap.supported_strategies or []):
+                # ✅ ИСПРАВЛЕНО: Используем значение по умолчанию вместо session_context.get_goal()
                 return BehaviorDecision(
                     action=BehaviorDecisionType.ACT,
                     capability_name=cap.name,
                     parameters={
-                        "input": session_context.get_goal() or "Продолжить выполнение задачи",
+                        "input": "Продолжить выполнение задачи",
                         "context": reason
                     },
                     reason=f"fallback_{reason}"

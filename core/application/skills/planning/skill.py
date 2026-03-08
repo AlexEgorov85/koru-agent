@@ -6,7 +6,8 @@ import time
 from typing import Any, Dict, List
 from core.components.base_component import BaseComponent
 from core.models.data.capability import Capability
-from core.application.agent.components.action_executor import ExecutionContext, ActionResult
+from core.application.agent.components.action_executor import ExecutionContext
+from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.infrastructure.logging import EventBusLogger
 
 
@@ -136,7 +137,7 @@ class PlanningSkill(BaseComponent):
             raise ValueError(f"Неизвестная capability: {capability.name}")
 
         # Извлекаем данные из ActionResult
-        if isinstance(result, ActionResult):
+        if isinstance(result, ExecutionResult):
             return result.data if result.data else {}
         return result if result else {}
     
@@ -174,7 +175,7 @@ class PlanningSkill(BaseComponent):
             else:
                 self.logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
 
-    async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         try:
             # 1. Валидация через КЭШИРОВАННЫЙ контракт (без обращения к сервису!)
             input_contract = self.get_input_contract("planning.create_plan")
@@ -208,11 +209,11 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not llm_result.success:
+            if not llm_result.status == ExecutionStatus.COMPLETED:
                 error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
                 attempts = llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Ошибка генерации плана: {llm_result.error}",
                     metadata={
                         "error_type": error_type,
@@ -252,9 +253,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not save_result.success:
-                return ActionResult(
-                    success=False,
+            if not save_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Не удалось сохранить план: {save_result.error}"
                 )
 
@@ -270,8 +271,8 @@ class PlanningSkill(BaseComponent):
             )
 
             parsing_attempts = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data=plan_data,
                 metadata={
                     "steps_count": len(plan_data.get("plan", [])),
@@ -286,12 +287,12 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось создать план: {str(e)[:100]}"
             )
 
-    async def _update_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _update_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         """
         Обновление существующего плана.
         Поддерживает добавление, модификацию, удаление и переупорядочивание шагов.
@@ -312,9 +313,9 @@ class PlanningSkill(BaseComponent):
                     parameters={"item_id": plan_id},
                     context=execution_context
                 )
-                if not plan_result.success:
-                    return ActionResult(
-                        success=False,
+                if not plan_result.status == ExecutionStatus.COMPLETED:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
                         error=f"План с ID {plan_id} не найден"
                     )
                 current_plan = plan_result.data.get("content", {}) if plan_result.data else {}
@@ -325,9 +326,9 @@ class PlanningSkill(BaseComponent):
                     parameters={},
                     context=execution_context
                 )
-                if not plan_result.success:
-                    return ActionResult(
-                        success=False,
+                if not plan_result.status == ExecutionStatus.COMPLETED:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
                         error="Нет текущего плана для обновления"
                     )
                 current_plan = plan_result.data
@@ -360,11 +361,11 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not llm_result.success:
+            if not llm_result.status == ExecutionStatus.COMPLETED:
                 error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
                 attempts = llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Ошибка обновления плана: {llm_result.error}",
                     metadata={
                         "error_type": error_type,
@@ -404,9 +405,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not save_result.success:
-                return ActionResult(
-                    success=False,
+            if not save_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error="Не удалось сохранить обновленный план"
                 )
 
@@ -421,8 +422,8 @@ class PlanningSkill(BaseComponent):
                 execution_context=execution_context
             )
 
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data={
                     "plan": updated_plan,
                     "update_applied": True
@@ -438,12 +439,12 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить план: {str(e)[:100]}"
             )
 
-    async def _get_next_step(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _get_next_step(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         """
         Получение следующего шага из плана с поддержкой иерархии.
         Обходит вложенные планы (сначала подзадачи, потом родительские).
@@ -457,17 +458,17 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not plan_result.success:
-                return ActionResult(
-                    success=False,
+            if not plan_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Нет текущего плана для получения следующего шага: {plan_result.error}"
                 )
 
             # Проверяем, существует ли план
             exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
             if not plan_result.data or not exists:
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"step": None},
                     metadata={"step_found": False, "message": "Текущий план не найден"}
                 )
@@ -483,14 +484,14 @@ class PlanningSkill(BaseComponent):
                 next_step = await self._get_next_step_from_flat_plan(current_plan, input_data)
 
             if next_step:
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"step": next_step},
                     metadata={"step_found": True}
                 )
             else:
-                return ActionResult(
-                    success=True,
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
                     data={"step": None},
                     metadata={"step_found": False}
                 )
@@ -500,8 +501,8 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось получить следующего шага: {str(e)[:100]}"
             )
 
@@ -544,7 +545,7 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if sub_plan_result.success and sub_plan_result.data:
+            if sub_plan_result.status == ExecutionStatus.COMPLETED and sub_plan_result.data:
                 # Извлекаем контент из результата
                 sub_plan = sub_plan_result.data.get("content", sub_plan_result.data)
                 # Создаем временный input_data для подплана
@@ -567,7 +568,7 @@ class PlanningSkill(BaseComponent):
         # Если в подпланах больше нет шагов, возвращаем None
         return None
 
-    async def _update_step_status(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _update_step_status(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         """
         Обновление статуса шага плана.
         При ошибке выполнения шага вызывает автоматическую коррекцию плана.
@@ -580,17 +581,17 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not plan_result.success:
-                return ActionResult(
-                    success=False,
+            if not plan_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Нет текущего плана для обновления статуса шага: {plan_result.error}"
                 )
 
             # Проверяем, существует ли план
             exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
             if not plan_result.data or not exists:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error="Текущий план не найден в контексте"
                 )
 
@@ -608,8 +609,8 @@ class PlanningSkill(BaseComponent):
                     break
 
             if not step_to_update:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Шаг с ID {target_step_id} не найден в плане"
                 )
 
@@ -630,7 +631,7 @@ class PlanningSkill(BaseComponent):
                     execution_context=execution_context
                 )
 
-                if correction_result.success:
+                if correction_result.status == ExecutionStatus.COMPLETED:
                     # Если коррекция прошла успешно, возвращаем результат коррекции
                     return correction_result
 
@@ -651,9 +652,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not update_result.success:
-                return ActionResult(
-                    success=False,
+            if not update_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Не удалось обновить план в контексте: {update_result.error}"
                 )
 
@@ -662,8 +663,8 @@ class PlanningSkill(BaseComponent):
             if step_index >= 0 and step_index + 1 < len(updated_steps):
                 next_step = updated_steps[step_index + 1]
 
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data={
                     "updated_step": step_to_update,
                     "next_step": next_step
@@ -676,8 +677,8 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить статус шага: {str(e)[:100]}"
             )
 
@@ -687,7 +688,7 @@ class PlanningSkill(BaseComponent):
         failed_step: Dict[str, Any],
         error_info: str,
         execution_context: ExecutionContext
-    ) -> ActionResult:
+    ) -> ExecutionResult:
         """
         Автоматическая коррекция плана после ошибки выполнения шага.
         """
@@ -720,9 +721,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not llm_result.success:
-                return ActionResult(
-                    success=False,
+            if not llm_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Ошибка коррекции плана: {llm_result.error}",
                     metadata={
                         "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
@@ -761,14 +762,14 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not update_result.success:
-                return ActionResult(
-                    success=False,
+            if not update_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error="Не удалось сохранить скорректированный план"
                 )
 
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data=llm_result.result,
                 metadata={"correction_applied": True}
             )
@@ -777,12 +778,12 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Ошибка коррекции плана: {str(e)[:100]}"
             )
 
-    async def _decompose_task(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _decompose_task(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         """
         Декомпозиция сложной задачи на иерархию подзадач.
         """
@@ -815,9 +816,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not llm_result.success:
-                return ActionResult(
-                    success=False,
+            if not llm_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Ошибка декомпозиции задачи: {llm_result.error}",
                     metadata={
                         "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
@@ -868,7 +869,7 @@ class PlanningSkill(BaseComponent):
                 
                 sub_plan_result = await self._create_plan(sub_plan_params, execution_context)
                 
-                if sub_plan_result.success:
+                if sub_plan_result.status == ExecutionStatus.COMPLETED:
                     sub_plans.append({
                         "subtask_id": subtask_id,
                         "plan_id": sub_plan_result.data.get("plan_id") if isinstance(sub_plan_result.data, dict) else None,
@@ -894,14 +895,14 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not hierarchy_result.success:
-                return ActionResult(
-                    success=False,
+            if not hierarchy_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Не удалось сохранить иерархию плана: {hierarchy_result.error}"
                 )
 
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data=hierarchy_data,
                 metadata={"subtasks_count": len(sub_plans)}
             )
@@ -910,12 +911,12 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось декомпозировать задачу: {str(e)[:100]}"
             )
 
-    async def _mark_task_completed(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ActionResult:
+    async def _mark_task_completed(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         """
         Отметка задачи как завершенной.
         Обновляет статус шага, проверяет завершение всех задач и определяет следующий шаг.
@@ -936,9 +937,9 @@ class PlanningSkill(BaseComponent):
                     parameters={"item_id": plan_id},
                     context=execution_context
                 )
-                if not plan_result.success:
-                    return ActionResult(
-                        success=False,
+                if not plan_result.status == ExecutionStatus.COMPLETED:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
                         error=f"План с ID {plan_id} не найден: {plan_result.error}"
                     )
                 current_plan = plan_result.data.get("content", {}) if plan_result.data else {}
@@ -948,17 +949,17 @@ class PlanningSkill(BaseComponent):
                     parameters={},
                     context=execution_context
                 )
-                if not plan_result.success:
-                    return ActionResult(
-                        success=False,
+                if not plan_result.status == ExecutionStatus.COMPLETED:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
                         error=f"Нет текущего плана для отметки задачи: {plan_result.error}"
                     )
 
                 # Проверяем, существует ли план
                 exists = plan_result.metadata.get("exists", False) if isinstance(plan_result.metadata, dict) else False
                 if not plan_result.data or not exists:
-                    return ActionResult(
-                        success=False,
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
                         error="Текущий план не найден в контексте"
                     )
                 
@@ -976,8 +977,8 @@ class PlanningSkill(BaseComponent):
                     break
 
             if not step_to_update:
-                return ActionResult(
-                    success=False,
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Шаг с ID {step_id} не найден в плане"
                 )
 
@@ -1019,9 +1020,9 @@ class PlanningSkill(BaseComponent):
                 context=execution_context
             )
 
-            if not update_result.success:
-                return ActionResult(
-                    success=False,
+            if not update_result.status == ExecutionStatus.COMPLETED:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
                     error=f"Не удалось сохранить обновленный план: {update_result.error}"
                 )
 
@@ -1036,8 +1037,8 @@ class PlanningSkill(BaseComponent):
                 execution_context=execution_context
             )
 
-            return ActionResult(
-                success=True,
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
                 data={
                     "step_id": step_id,
                     "all_tasks_completed": all_completed,
@@ -1055,8 +1056,8 @@ class PlanningSkill(BaseComponent):
                 await self.event_bus_logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
-            return ActionResult(
-                success=False,
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
                 error=f"Не удалось отметить задачу как завершенную: {str(e)[:100]}"
             )
 
