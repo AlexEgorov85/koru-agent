@@ -1,5 +1,5 @@
 capability: book_library.execute_script
-component_type: tool
+component_type: skill
 description: Output contract for book_library.execute_script - результат выполнения заготовленного SQL-скрипта
 direction: output
 schema_data:

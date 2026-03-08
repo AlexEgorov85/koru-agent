@@ -8,10 +8,24 @@ schema_data:
     script_name:
       type: string
       description: Имя заготовленного скрипта для выполнения (например, 'get_all_books', 'get_books_by_author')
-    parameters:
-      type: object
-      description: Параметры для скрипта (зависят от конкретного скрипта)
-      additionalProperties: true
+    author:
+      type: string
+      description: Имя автора (для get_books_by_author)
+    genre:
+      type: string
+      description: Жанр книги (для get_books_by_genre)
+    year_from:
+      type: integer
+      description: Начальный год диапазона (для get_books_by_year_range)
+    year_to:
+      type: integer
+      description: Конечный год диапазона (для get_books_by_year_range)
+    book_id:
+      type: integer
+      description: ID книги (для get_book_by_id)
+    title_pattern:
+      type: string
+      description: Шаблон названия (для get_books_by_title_pattern)
     max_rows:
       type: integer
       minimum: 1
@@ -20,6 +34,6 @@ schema_data:
       description: Максимальное количество строк для возврата
   required:
     - script_name
-  additionalProperties: false
+  additionalProperties: true
 status: active
 version: v1.0.0

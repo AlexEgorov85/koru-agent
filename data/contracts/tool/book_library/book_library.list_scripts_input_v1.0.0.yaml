@@ -1,5 +1,5 @@
 capability: book_library.list_scripts
-component_type: tool
+component_type: skill
 description: Input contract for book_library.list_scripts - получение списка доступных скриптов
 direction: input
 schema_data:

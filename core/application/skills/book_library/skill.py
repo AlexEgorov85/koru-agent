@@ -428,14 +428,21 @@ class BookLibrarySkill(BaseComponent):
 
         # 4. Валидация параметров для скрипта
         # [BOOK_DEBUG] 1.4. Извлечение script_params
+        # Поддержка как вложенной (parameters: {}), так и плоской структуры
         script_params = params.get('parameters', {}) if isinstance(params, dict) else getattr(params, 'parameters', {})
         await self.event_bus_logger.info(f"[BOOK_DEBUG] script_params (из parameters) = {script_params}")
 
-        # Если script_params пуст, возможно, параметры переданы на верхнем уровне
+        # Если script_params пуст, возможно, параметры переданы на верхнем уровне (плоская структура)
         if not script_params:
             flat_params = {k: v for k, v in params.items() if k not in ['script_name', 'max_rows']}
             await self.event_bus_logger.info(f"[BOOK_DEBUG] попытка использовать плоские параметры: {flat_params}")
             script_params = flat_params
+        
+        # Также добавляем max_rows из верхнего уровня если есть
+        if isinstance(params, dict) and 'max_rows' in params:
+            script_params['max_rows'] = params['max_rows']
+        elif hasattr(params, 'max_rows'):
+            script_params['max_rows'] = getattr(params, 'max_rows')
             
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())

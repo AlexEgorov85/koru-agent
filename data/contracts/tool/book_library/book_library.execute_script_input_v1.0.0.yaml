@@ -1,5 +1,5 @@
 capability: book_library.execute_script
-component_type: tool
+component_type: skill
 description: Input contract for book_library.execute_script - выполнение заготовленного SQL-скрипта
 direction: input
 schema_data:

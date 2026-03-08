@@ -1,5 +1,5 @@
 capability: book_library.search_books
-component_type: tool
+component_type: skill
 description: Output contract for book_library.search_books - результат динамического поиска книг
 direction: output
 schema_data:

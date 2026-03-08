@@ -1,5 +1,5 @@
 capability: book_library.search_books
-component_type: tool
+component_type: skill
 description: Input contract for book_library.search_books - динамический поиск книг через LLM
 direction: input
 schema_data:
