@@ -212,8 +212,14 @@ class PostgreSQLProvider(BaseDBProvider):
 
         start_time = time.time()
 
+        # [DB_DEBUG] 3.1. Входные параметры
+        await self.event_bus_logger.info(f"[DB_DEBUG] execute вызван с query={query}, params={params}")
+
         try:
             async with self.pool.acquire() as conn:
+                # [DB_DEBUG] 3.2. Выполнение запроса
+                await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
+                
                 # Логируем запрос при необходимости
                 await self.event_bus_logger.debug(f"Executing query: {query}")
                 if params:
@@ -249,6 +255,9 @@ class PostgreSQLProvider(BaseDBProvider):
                 # Обрабатываем результат
                 rows = [dict(row) for row in result]
                 columns = list(rows[0].keys()) if rows else []
+                
+                # [DB_DEBUG] 3.2. Результат выполнения
+                await self.event_bus_logger.info(f"[DB_DEBUG] запрос выполнен, rows={len(rows) if rows else 0}")
 
                 # Создаем результат
                 query_result = DBQueryResult(
@@ -263,6 +272,9 @@ class PostgreSQLProvider(BaseDBProvider):
                         "affected_rows": len(rows)
                     }
                 )
+                
+                # [DB_DEBUG] 3.3. Возврат DBQueryResult
+                await self.event_bus_logger.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={query_result.success}, error={query_result.error}, rows={len(query_result.rows)}")
 
                 # Обновляем метрики
                 self._update_metrics(query_result.execution_time)
@@ -270,14 +282,17 @@ class PostgreSQLProvider(BaseDBProvider):
                 return query_result
 
         except Exception as e:
+            # [DB_DEBUG] 3.2. Исключение при выполнении
+            await self.event_bus_logger.error(f"[DB_DEBUG] исключение при выполнении запроса: {e}")
             self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
             self.event_bus_logger.error(f"Query was: {query}")
             if params:
                 self.event_bus_logger.error(f"Params were: {params}")
 
             self._update_metrics(time.time() - start_time, success=False)
-
-            return DBQueryResult(
+            
+            # [DB_DEBUG] 3.3. Возврат DBQueryResult (ошибка)
+            error_result = DBQueryResult(
                 success=False,
                 rows=[],
                 rowcount=-1,
@@ -290,6 +305,8 @@ class PostgreSQLProvider(BaseDBProvider):
                     "error_type": type(e).__name__
                 }
             )
+            await self.event_bus_logger.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={error_result.success}, error={error_result.error}, rows={len(error_result.rows)}")
+            return error_result
 
     @asynccontextmanager
     async def transaction(self):
