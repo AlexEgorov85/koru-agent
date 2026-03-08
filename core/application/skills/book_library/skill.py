@@ -35,7 +35,7 @@ from core.components.base_component import BaseComponent
 from core.config.component_config import ComponentConfig
 from core.application.context.application_context import ApplicationContext
 from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
-from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
+from core.models.data.execution import ExecutionResult, ExecutionStatus
 
 
 # ============================================================================
@@ -162,21 +162,33 @@ class BookLibrarySkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> SkillResult:
+    ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики навыка библиотеки.
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+
+        ВОЗВРАЩАЕТ:
+        - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         if capability.name not in self.supported_capabilities:
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
         # Выполняем действие
         result = await self.supported_capabilities[capability.name](parameters)
-        return result
+        
+        # Извлекаем данные из ExecutionResult
+        if hasattr(result, 'data') and result.data:
+            return result.data
+        elif hasattr(result, 'result') and result.result:
+            return result.result
+        else:
+            # Fallback: возвращаем пустой dict
+            self.event_bus_logger.warning_sync(f"ExecutionResult не содержит данных для {capability.name}")
+            return {}
 
-    async def _search_books_dynamic(self, params: Dict[str, Any]) -> SkillResult:
+    async def _search_books_dynamic(self, params: Dict[str, Any]) -> ExecutionResult:
         """
         Динамическая генерация SQL через LLM.
 
@@ -208,13 +220,13 @@ class BookLibrarySkill(BaseComponent):
                     params = validated_params
                 except Exception as e:
                     await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                    return SkillResult.failure(
+                    return ExecutionResult.failure(
                         error=f"Неверные параметры: {str(e)}",
                         metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
                     )
             else:
                 await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
-                return SkillResult.failure(
+                return ExecutionResult.failure(
                     error="Внутренняя ошибка: контракт не загружен",
                     metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
                 )
@@ -222,7 +234,7 @@ class BookLibrarySkill(BaseComponent):
         # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
         prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
         if not prompt_with_contract:
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error="Промпт для поиска книг не найден",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
             )
@@ -335,8 +347,8 @@ class BookLibrarySkill(BaseComponent):
             # Fallback на dict если схема не загружена
             result_data = result.copy()
 
-        # Возвращаем SkillResult с side_effect=True (SQL query executed)
-        return SkillResult.success(
+        # Возвращаем ExecutionResult с side_effect=True (SQL query executed)
+        return ExecutionResult.success(
             data=result_data,  # ← Pydantic модель!
             metadata={
                 "execution_time_ms": total_time * 1000,
@@ -347,7 +359,7 @@ class BookLibrarySkill(BaseComponent):
             side_effect=True  # SQL query был выполнен
         )
 
-    async def _execute_script_static(self, params: Dict[str, Any]) -> SkillResult:
+    async def _execute_script_static(self, params: Dict[str, Any]) -> ExecutionResult:
         """
         Выполнение заготовленного SQL-скрипта по имени.
 
@@ -365,7 +377,7 @@ class BookLibrarySkill(BaseComponent):
         # 1. Валидация входных параметров
         script_name = params.get('script_name')
         if not script_name:
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error="Требуется параметр 'script_name'",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
             )
@@ -374,7 +386,7 @@ class BookLibrarySkill(BaseComponent):
         allowed_scripts = self._get_allowed_scripts()
         if script_name not in allowed_scripts:
             available_scripts = list(allowed_scripts.keys())
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error=f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
             )
@@ -389,7 +401,7 @@ class BookLibrarySkill(BaseComponent):
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())
             if missing_params:
-                return SkillResult.failure(
+                return ExecutionResult.failure(
                     error=f"Отсутствуют обязательные параметры: {missing_params}",
                     metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
                 )
@@ -441,7 +453,7 @@ class BookLibrarySkill(BaseComponent):
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error=f"Ошибка выполнения скрипта: {str(e)}",
                 metadata={"rows": [], "rowcount": 0, "execution_type": "static", "script_name": script_name}
             )
@@ -485,8 +497,8 @@ class BookLibrarySkill(BaseComponent):
             # Fallback на dict если схема не загружена
             result_data = result.copy()
 
-        # Возвращаем SkillResult с side_effect=True (SQL query executed)
-        return SkillResult.success(
+        # Возвращаем ExecutionResult с side_effect=True (SQL query executed)
+        return ExecutionResult.success(
             data=result_data,  # ← Pydantic модель!
             metadata={
                 "execution_time_ms": total_time * 1000,
@@ -497,7 +509,7 @@ class BookLibrarySkill(BaseComponent):
             side_effect=True  # SQL query был выполнен
         )
 
-    async def _list_scripts(self, params: Dict[str, Any] = None) -> SkillResult:
+    async def _list_scripts(self, params: Dict[str, Any] = None) -> ExecutionResult:
         """
         Получение списка доступных заготовленных скриптов.
 
@@ -574,8 +586,8 @@ class BookLibrarySkill(BaseComponent):
             # Fallback на dict если схема не загружена
             pass
 
-        # Возвращаем SkillResult (no side effect - только чтение)
-        return SkillResult.success(
+        # Возвращаем ExecutionResult (no side effect - только чтение)
+        return ExecutionResult.success(
             data=result_data,  # ← Pydantic модель!
             metadata={"scripts_count": len(scripts_list)},
             side_effect=False

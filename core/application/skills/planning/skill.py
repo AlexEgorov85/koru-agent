@@ -8,7 +8,6 @@ from core.components.base_component import BaseComponent
 from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext, ActionResult
 from core.infrastructure.logging import EventBusLogger
-from core.models.data.execution import SkillResult
 
 
 class PlanningSkill(BaseComponent):
@@ -31,7 +30,7 @@ class PlanningSkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
-    ) -> SkillResult:
+    ) -> ExecutionResult:
         """
         Переопределение execute() для возврата SkillResult вместо ExecutionResult.
         
@@ -110,12 +109,15 @@ class PlanningSkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
-    ) -> SkillResult:
+    ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики навыка планирования.
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+
+        ВОЗВРАЩАЕТ:
+        - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
@@ -133,16 +135,10 @@ class PlanningSkill(BaseComponent):
         else:
             raise ValueError(f"Неизвестная capability: {capability.name}")
 
-        # Конвертируем ActionResult в SkillResult
+        # Извлекаем данные из ActionResult
         if isinstance(result, ActionResult):
-            return SkillResult(
-                technical_success=result.success,
-                data=result.data,
-                error=result.error,
-                metadata=result.metadata if hasattr(result, 'metadata') else {},
-                side_effect=True  # Planning skill всегда меняет контекст
-            )
-        return result
+            return result.data if result.data else {}
+        return result if result else {}
     
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""

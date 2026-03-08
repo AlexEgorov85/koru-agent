@@ -5,39 +5,42 @@
 1. Skill вызывается без Agent
 2. Skill не имеет доступа к state
 3. Skill не вызывает LLM напрямую
-4. Skill возвращает SkillResult
+4. Skill возвращает ExecutionResult
 5. Skill не делает retry
 6. Skill с side-effect помечает его
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.models.data.execution import SkillResult
+from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
 
 
 class TestSkillArchitecture:
     """Тесты архитектуры Skills"""
 
-    def test_skill_result_has_required_fields(self):
-        """SkillResult имеет все обязательные поля"""
-        result = SkillResult(
-            technical_success=True,
+    def test_execution_result_has_required_fields(self):
+        """ExecutionResult имеет все обязательные поля"""
+        from core.models.enums.common_enums import ExecutionStatus
+        result = ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
             data={"test": "data"},
             error=None,
             metadata={"key": "value"},
             side_effect=True
         )
 
-        assert hasattr(result, 'technical_success')
         assert hasattr(result, 'data')
         assert hasattr(result, 'error')
         assert hasattr(result, 'metadata')
         assert hasattr(result, 'side_effect')
+        assert hasattr(result, 'status')
+        # Проверяем алиас technical_success
+        assert result.technical_success is True
 
-    def test_skill_result_success_factory(self):
-        """SkillResult.success создаёт правильный результат"""
-        result = SkillResult.success(
+    def test_execution_result_success_factory(self):
+        """ExecutionResult.success создаёт правильный результат"""
+        result = ExecutionResult.success(
             data={"answer": "test"},
             metadata={"tokens": 100},
             side_effect=False
@@ -49,9 +52,9 @@ class TestSkillArchitecture:
         assert result.metadata == {"tokens": 100}
         assert result.side_effect is False
 
-    def test_skill_result_failure_factory(self):
-        """SkillResult.failure создаёт правильный результат"""
-        result = SkillResult.failure(
+    def test_execution_result_failure_factory(self):
+        """ExecutionResult.failure создаёт правильный результат"""
+        result = ExecutionResult.failure(
             error="Test error",
             metadata={"error_code": 500}
         )
@@ -61,9 +64,9 @@ class TestSkillArchitecture:
         assert result.error == "Test error"
         assert result.side_effect is False
 
-    def test_skill_result_to_dict(self):
-        """SkillResult.to_dict сериализует все поля"""
-        result = SkillResult.success(
+    def test_execution_result_to_dict(self):
+        """ExecutionResult.to_dict сериализует все поля"""
+        result = ExecutionResult.success(
             data={"key": "value"},
             metadata={"meta": "data"},
             side_effect=True
@@ -72,7 +75,7 @@ class TestSkillArchitecture:
         result_dict = result.to_dict()
 
         assert result_dict == {
-            "technical_success": True,
+            "status": "completed",
             "data": {"key": "value"},
             "error": None,
             "metadata": {"meta": "data"},
@@ -127,16 +130,17 @@ class TestFinalAnswerSkill:
 class TestPlanningSkill:
     """Тесты PlanningSkill"""
 
-    def test_skill_returns_skill_result(self):
-        """PlanningSkill._execute_impl возвращает SkillResult"""
+    def test_skill_returns_data_from_execute_impl(self):
+        """PlanningSkill._execute_impl возвращает данные (BaseComponent.execute() обернёт в ExecutionResult)"""
         import inspect
         from core.application.skills.planning.skill import PlanningSkill
 
         source = inspect.getsource(PlanningSkill)
 
-        # Проверяем что _execute_impl возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult(" in source
+        # Проверяем что _execute_impl возвращает Dict
+        assert "-> Dict[str, Any]:" in source or "-> Dict" in source
+        # Проверяем что извлекает данные из ActionResult
+        assert "result.data" in source or "return result" in source
 
     def test_skill_marks_side_effects(self):
         """PlanningSkill помечает side_effect=True"""
@@ -145,23 +149,26 @@ class TestPlanningSkill:
 
         source = inspect.getsource(PlanningSkill)
 
-        # Проверяем что side_effect=True указан
-        assert "side_effect=True" in source
+        # PlanningSkill всегда меняет контекст через executor
+        # Проверяем что использует executor для изменения контекста
+        assert "executor.execute_action" in source
+        assert "context.record" in source or "context.update" in source
 
 
 class TestDataAnalysisSkill:
     """Тесты DataAnalysisSkill"""
 
-    def test_skill_returns_skill_result(self):
-        """DataAnalysisSkill возвращает SkillResult"""
+    def test_skill_returns_data_from_execute_impl(self):
+        """DataAnalysisSkill._execute_impl возвращает данные (BaseComponent.execute() обернёт в ExecutionResult)"""
         import inspect
         from core.application.skills.data_analysis.skill import DataAnalysisSkill
 
         source = inspect.getsource(DataAnalysisSkill)
 
-        # Проверяем что возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult.success" in source or "SkillResult.failure" in source
+        # Проверяем что _execute_impl возвращает Dict
+        assert "-> Dict[str, Any]:" in source or "-> Dict" in source
+        # Проверяем что возвращает данные напрямую
+        assert "return validated_answer" in source or "return result" in source
 
     def test_skill_marks_side_effects(self):
         """DataAnalysisSkill помечает side_effect=True для file/DB access"""

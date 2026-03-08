@@ -2,7 +2,8 @@
 Модели для выполнения задач.
 
 ARCHITECTURE:
-- SkillResult и ExecutionResult сохраняют Pydantic модели в data/result
+- ExecutionResult — ЕДИНЫЙ класс для всех компонентов (Skills, Tools, Services)
+- ExecutionResult сохраняет Pydantic модели в data
 - Сериализация (to_dict) вызывается только на границах приложения
 - Внутри приложения данные остаются типизированными
 """
@@ -14,25 +15,25 @@ from core.models.enums.common_enums import ExecutionStatus
 
 
 @dataclass
-class SkillResult:
+class ExecutionResult:
     """
-    Унифицированный результат выполнения Skill.
+    ЕДИНЫЙ результат выполнения компонента (Skill, Tool, Service).
 
-    ИСПОЛЬЗУЕТСЯ ВО ВСЕХ SKILLS ДЛЯ ЕДИНОГО ФОРМАТА ВОЗВРАТА.
+    ИСПОЛЬЗУЕТСЯ ВО ВСЕХ КОМПОНЕНТАХ ДЛЯ ЕДИНОГО ФОРМАТА ВОЗВРАТА.
 
     ATTRIBUTES:
-    - technical_success: технический успех выполнения (True/False)
+    - status: статус выполнения (ExecutionStatus)
     - data: полезные данные результата (может быть Pydantic моделью!)
     - error: описание ошибки (если была)
     - metadata: дополнительные метаданные (время, токены, версии)
     - side_effect: был ли side-effect (файл, сеть, БД, изменение контекста)
-    
+
     ARCHITECTURE:
     - data сохраняет Pydantic модель для типизированного доступа
-    - to_dict() вызывается только на границах (EventBus/Storage)
+    - to_dict() вызывается ТОЛЬКО на границах (EventBus/Storage/API)
     - Внутри приложения: result.data.field (IDE автокомплит!)
     """
-    technical_success: bool = True
+    status: ExecutionStatus
     data: Optional[Any] = None  # ← Может быть Pydantic моделью!
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -46,7 +47,7 @@ class SkillResult:
     def to_dict(self) -> Dict[str, Any]:
         """
         Конвертация в словарь для сериализации на границах приложения.
-        
+
         ARCHITECTURE:
         - Вызывается ТОЛЬКО на границах (EventBus/Storage/API)
         - Pydantic модели конвертируются через model_dump()
@@ -54,7 +55,7 @@ class SkillResult:
         """
         from pydantic import BaseModel
         return {
-            "technical_success": self.technical_success,
+            "status": self.status.value if hasattr(self.status, 'value') else str(self.status),
             "data": self.data.model_dump() if isinstance(self.data, BaseModel) else self.data,
             "error": self.error,
             "metadata": self.metadata,
@@ -62,10 +63,10 @@ class SkillResult:
         }
 
     @classmethod
-    def success(cls, data: Any = None, metadata: Optional[Dict[str, Any]] = None, side_effect: bool = False) -> 'SkillResult':
+    def success(cls, data: Any = None, metadata: Optional[Dict[str, Any]] = None, side_effect: bool = False) -> 'ExecutionResult':
         """Factory метод для успешного результата."""
         return cls(
-            technical_success=True,
+            status=ExecutionStatus.COMPLETED,
             data=data,  # ← Может быть Pydantic моделью!
             error=None,
             metadata=metadata or {},
@@ -73,67 +74,45 @@ class SkillResult:
         )
 
     @classmethod
-    def failure(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'SkillResult':
+    def failure(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'ExecutionResult':
         """Factory метод для неудачного результата."""
         return cls(
-            technical_success=False,
+            status=ExecutionStatus.FAILED,
             data=None,
             error=error,
             metadata=metadata or {},
             side_effect=False
         )
 
+    # Алиасы для обратной совместимости
+    @property
+    def result(self) -> Optional[Any]:
+        """Алиас на data для обратной совместимости."""
+        return self.data
 
-@dataclass
-class ExecutionResult:
-    """
-    Результат выполнения задачи.
+    @result.setter
+    def result(self, value: Optional[Any]):
+        """Сеттер для обратной совместимости."""
+        self.data = value
 
-    ATTRIBUTES:
-    - status: статус выполнения
-    - result: результат выполнения (может быть Pydantic моделью!)
-    - error: ошибка (если была)
-    - metadata: дополнительные метаданные
-    
-    ARCHITECTURE:
-    - result сохраняет Pydantic модель для типизированного доступа
-    - to_dict() вызывается только на границах (EventBus/Storage)
-    - Внутри приложения: result.result.field (IDE автокомплит!)
-    """
-    status: ExecutionStatus
-    result: Optional[Any] = None  # ← Может быть Pydantic моделью!
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    @property
+    def technical_success(self) -> bool:
+        """Алиас: True если статус COMPLETED."""
+        return self.status == ExecutionStatus.COMPLETED
 
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Конвертация в словарь для сериализации на границах приложения.
-        
-        ARCHITECTURE:
-        - Вызывается ТОЛЬКО на границах (EventBus/Storage/API)
-        - Pydantic модели конвертируются через model_dump()
-        - Внутри приложения используйте .result напрямую
-        """
-        from pydantic import BaseModel
-        return {
-            "status": self.status.value if hasattr(self.status, 'value') else str(self.status),
-            "result": self.result.model_dump() if isinstance(self.result, BaseModel) else self.result,
-            "error": self.error,
-            "metadata": self.metadata
-        }
+    @technical_success.setter
+    def technical_success(self, value: bool):
+        """Сеттер для обратной совместимости."""
+        self.status = ExecutionStatus.COMPLETED if value else ExecutionStatus.FAILED
 
 
 @dataclass
 class ExecutionContextSnapshot:
     """
     Снимок контекста выполнения для обучения.
-    
+
     СОХРАНЯЕТСЯ В ЛОГИ ДЛЯ АНАЛИЗА РЕШЕНИЙ АГЕНТА.
-    
+
     ATTRIBUTES:
     - agent_id: идентификатор агента
     - session_id: идентификатор сессии
@@ -156,33 +135,33 @@ class ExecutionContextSnapshot:
     session_id: str
     step_number: int
     timestamp: datetime = field(default_factory=datetime.now)
-    
+
     # Контекст решения
     available_capabilities: List[str] = field(default_factory=list)
     selected_capability: str = ""
     behavior_pattern: str = ""
     reasoning: str = ""
-    
+
     # Параметры выполнения
     input_parameters: Dict[str, Any] = field(default_factory=dict)
     output_result: Optional[Dict[str, Any]] = None
-    
+
     # Метрики
     execution_time_ms: float = 0.0
     tokens_used: int = 0
     success: bool = True
-    
+
     # Версии ресурсов
     prompt_version: str = ""
     contract_version: str = ""
-    
+
     # Оценка качества (для обучения)
     step_quality_score: Optional[float] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Конвертация в словарь для логирования.
-        
+
         RETURNS:
         - Dict[str, Any]: словарь с данными контекста
         """
@@ -204,15 +183,15 @@ class ExecutionContextSnapshot:
             'contract_version': self.contract_version,
             'step_quality_score': self.step_quality_score
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ExecutionContextSnapshot':
         """
         Десериализация из словаря.
-        
+
         ARGS:
         - data: словарь с данными
-        
+
         RETURNS:
         - ExecutionContextSnapshot: объект контекста
         """

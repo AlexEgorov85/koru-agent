@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
-from core.models.data.execution import SkillResult, ExecutionResult
+from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
 from core.session_context.session_context import SessionContext
 from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
@@ -99,8 +99,8 @@ class TestBookLibrarySkillIntegration:
             )
         )
 
-        # Проверяем что результат SkillResult
-        assert isinstance(result, SkillResult)
+        # Проверяем что результат ExecutionResult
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
         assert result.data is not None
         assert "scripts" in result.data
@@ -155,7 +155,7 @@ class TestBookLibrarySkillIntegration:
         )
 
         # Проверяем результат
-        assert isinstance(result, SkillResult)
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
         assert result.data is not None
         assert result.side_effect is True  # SQL query выполнен
@@ -227,7 +227,7 @@ class TestPlanningSkillIntegration:
         )
 
         # Проверяем результат
-        assert isinstance(result, SkillResult)
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
         assert result.data is not None
         assert "plan_id" in result.data or "steps" in result.data
@@ -281,7 +281,7 @@ class TestPlanningSkillIntegration:
         )
 
         # Проверяем результат
-        assert isinstance(result, SkillResult)
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
 
 
@@ -356,7 +356,7 @@ class TestFinalAnswerSkillIntegration:
         )
 
         # Проверяем результат
-        assert isinstance(result, SkillResult)
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
         assert result.data is not None
         assert "final_answer" in result.data
@@ -429,7 +429,7 @@ class TestDataAnalysisSkillIntegration:
         )
 
         # Проверяем результат
-        assert isinstance(result, SkillResult)
+        assert isinstance(result, ExecutionResult)
         assert result.technical_success is True
         assert result.data is not None
         assert "answer" in result.data
@@ -526,7 +526,7 @@ class TestSkillsEndToEnd:
             )
         )
 
-        assert isinstance(planning_result, SkillResult)
+        assert isinstance(planning_result, ExecutionResult)
         assert planning_result.technical_success is True
         assert planning_result.side_effect is True
 
@@ -543,7 +543,7 @@ class TestSkillsEndToEnd:
             )
         )
 
-        assert isinstance(final_result, SkillResult)
+        assert isinstance(final_result, ExecutionResult)
         assert final_result.technical_success is True
         assert final_result.side_effect is False
 

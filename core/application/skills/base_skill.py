@@ -9,14 +9,14 @@
 5. Четкое разделение ответственности
 6. Кэширование промптов и контрактов при инициализации
 7. Поддержка локальных конфигураций компонентов с разделением input/output контрактов
-8. Возврат SkillResult для единого формата результатов
+8. Возврат ExecutionResult для единого формата результатов
 9. Наследование LifecycleMixin для управления состояниями (CREATED → INITIALIZING → READY → SHUTDOWN)
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from core.session_context.base_session_context import BaseSessionContext
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult, SkillResult
+from core.models.data.execution import ExecutionResult
 from core.config.app_config import AppConfig
 from core.config.component_config import ComponentConfig
 from core.components.base_component import BaseComponent

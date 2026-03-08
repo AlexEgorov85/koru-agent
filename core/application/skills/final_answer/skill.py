@@ -18,8 +18,6 @@ from core.session_context.base_session_context import BaseSessionContext
 from core.application.skills.base_skill import BaseSkill
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
-from core.models.data.prompt import Prompt
 from core.infrastructure.logging import EventBusLogger
 
 
@@ -156,12 +154,15 @@ class FinalAnswerSkill(BaseSkill):
         capability: str,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> SkillResult:
+    ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики навыка финального ответа.
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+
+        ВОЗВРАЩАЕТ:
+        - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         if capability.name != "final_answer.generate":
             raise ValueError(f"Неподдерживаемая capability: {capability.name}")
@@ -171,16 +172,20 @@ class FinalAnswerSkill(BaseSkill):
 
         # Генерация финального ответа
         result = await self._generate_final_answer(session_context, parameters, execution_context)
-        
-        # result уже SkillResult из _generate_final_answer
-        return result if isinstance(result, SkillResult) else SkillResult.success(data=result)
+
+        # Извлекаем данные из ExecutionResult если нужно
+        if isinstance(result, dict):
+            return result
+        elif hasattr(result, 'data') and result.data:
+            return result.data
+        return {}
 
     async def _generate_final_answer(
         self,
         context: BaseSessionContext,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> SkillResult:
+    ) -> ExecutionResult:
         """
         Генерация финального ответа на основе контекста сессии.
 
@@ -384,7 +389,7 @@ class FinalAnswerSkill(BaseSkill):
                 }
             }
 
-            return SkillResult.success(
+            return ExecutionResult.success(
                 data=result_data,
                 metadata={
                     "observations_count": len(observations),
@@ -399,7 +404,7 @@ class FinalAnswerSkill(BaseSkill):
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
             fallback_result = self._build_fallback_response(goal, observations, steps_taken, format_type)
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error=str(e),
                 metadata=fallback_result
             )

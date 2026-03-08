@@ -17,7 +17,7 @@ from pathlib import Path
 
 from core.application.skills.base_skill import BaseSkill
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult, ExecutionStatus, SkillResult
+from core.models.data.execution import ExecutionStatus
 from core.models.enums.common_enums import ErrorCategory
 from core.models.types.llm_types import LLMRequest
 from core.application.tools.file_tool import FileToolInput
@@ -130,12 +130,15 @@ class DataAnalysisSkill(BaseSkill):
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> SkillResult:
+    ) -> Dict[str, Any]:
         """
         Реализация бизнес-логики анализа данных.
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
+        
+        ВОЗВРАЩАЕТ:
+            - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         step_id = parameters.get("step_id")
         question = parameters.get("question")
@@ -204,16 +207,16 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
             else:
                 self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
-            return SkillResult.failure(
-                error=f"Ошибка LLM: {error_msg}",
-                metadata={
+            return {
+                "error": f"Ошибка LLM: {error_msg}",
+                "metadata": {
                     "chunks_processed": len(chunks) if chunks else 1,
                     "total_tokens": 0,
                     "data_size_mb": data_metadata.get("size_mb", 0),
                     "error_type": error_type,
                     "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
                 }
-            )
+            }
 
         # 7. Получаем структурированные данные (Pydantic model_dump())
         answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
@@ -241,18 +244,10 @@ class DataAnalysisSkill(BaseSkill):
         # 8. Валидация выхода (уже валидно через structured output, но проверяем для безопасности)
         validated_answer = self._validate_output(answer_data, capability.name)
 
-        # Возвращаем SkillResult с side_effect=True (file/DB access possible)
-        return SkillResult.success(
-            data=validated_answer,
-            metadata={
-                "chunks_processed": len(chunks) if chunks else 1,
-                "data_size_mb": data_metadata.get("size_mb", 0),
-                "structured_output": True
-            },
-            side_effect=True  # Data analysis может читать файлы/БД
-        )
+        # Возвращаем данные напрямую (BaseComponent.execute() обернёт в ExecutionResult)
+        return validated_answer
 
-    async def _analyze_step_data(self, params: Dict[str, Any]) -> SkillResult:
+    async def _analyze_step_data(self, params: Dict[str, Any]) -> ExecutionResult:
         """
         Основная логика анализа данных шага.
 
@@ -284,7 +279,7 @@ class DataAnalysisSkill(BaseSkill):
                         await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
                     else:
                         self.logger.error(f"Ошибка валидации параметров: {e}")
-                    return SkillResult.failure(
+                    return ExecutionResult.failure(
                         error=f"Неверные параметры: {str(e)}",
                         metadata={"answer": "", "confidence": 0.0, "evidence": []}
                     )
@@ -305,7 +300,7 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
             else:
                 self.logger.error(f"Ошибка загрузки данных: {e}")
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error=f"Ошибка загрузки данных: {str(e)}",
                 metadata={"answer": "", "confidence": 0.0, "evidence": []}
             )
@@ -333,7 +328,7 @@ class DataAnalysisSkill(BaseSkill):
         # 5. Получение промпта С КОНТРАКТАМИ
         prompt_with_contract = self.get_prompt_with_contract("data_analysis.analyze_step_data")
         if not prompt_with_contract:
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error="Промпт не найден",
                 metadata={"answer": "", "confidence": 0.0, "evidence": []}
             )
@@ -364,7 +359,7 @@ class DataAnalysisSkill(BaseSkill):
             # Проверка на ошибку
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
-                return SkillResult.failure(
+                return ExecutionResult.failure(
                     error=f"Ошибка LLM: {llm_result.error}",
                     metadata={
                         "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
@@ -412,8 +407,8 @@ class DataAnalysisSkill(BaseSkill):
                 # Fallback на dict если схема не загружена
                 pass
 
-            # Возвращаем SkillResult с side_effect=True
-            return SkillResult.success(
+            # Возвращаем ExecutionResult с side_effect=True
+            return ExecutionResult.success(
                 data=answer_data,  # ← Pydantic модель!
                 metadata={
                     "chunks_processed": len(chunks) if chunks else 1,
@@ -429,7 +424,7 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
-            return SkillResult.failure(
+            return ExecutionResult.failure(
                 error=f"Ошибка анализа: {str(e)}",
                 metadata={"answer": "", "confidence": 0.0, "evidence": []}
             )
@@ -685,3 +680,4 @@ class DataAnalysisSkill(BaseSkill):
             data["confidence"] = max(0, min(1, float(confidence)))
 
         return data
+

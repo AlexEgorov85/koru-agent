@@ -400,15 +400,15 @@ class TestPlanningCompletes:
         assert skill.name == "planning"
 
     @pytest.mark.asyncio
-    async def test_planning_skill_returns_skill_result_on_error(self):
+    async def test_planning_skill_returns_execution_result_on_error(self):
         """
-        Тест: PlanningSkill.execute() возвращает SkillResult даже при ошибке.
-        
-        Проверяет что результат всегда имеет тип SkillResult.
+        Тест: PlanningSkill.execute() возвращает ExecutionResult даже при ошибке.
+
+        Проверяет что результат всегда имеет тип ExecutionResult.
         """
         from core.application.skills.planning.skill import PlanningSkill
         from core.application.agent.components.action_executor import ExecutionContext, ActionExecutor
-        from core.models.data.execution import SkillResult
+        from core.models.data.execution import ExecutionResult
 
         # Создаём полный мок application_context
         mock_app_ctx = MagicMock()
@@ -417,10 +417,10 @@ class TestPlanningCompletes:
         mock_app_ctx.infrastructure_context = MagicMock()
         mock_app_ctx.infrastructure_context.event_bus = AsyncMock()
         mock_app_ctx.infrastructure_context.event_bus.publish = AsyncMock()
-        
+
         # Создаём мок executor
         mock_executor = MagicMock(spec=ActionExecutor)
-        
+
         # Мокаем execute_action чтобы он возвращал ошибку (симуляция отсутствия промптов)
         async def mock_execute_action(action_name, parameters, context):
             return MagicMock(
@@ -444,7 +444,7 @@ class TestPlanningCompletes:
         capabilities = skill.get_capabilities()
         create_plan_cap = next(c for c in capabilities if c.name == "planning.create_plan")
 
-        # Выполняем capability (должно вернуть SkillResult даже с ошибкой)
+        # Выполняем capability (должно вернуть ExecutionResult даже с ошибкой)
         result = await skill.execute(
             capability=create_plan_cap,
             parameters={"goal": "Тест"},
@@ -454,8 +454,8 @@ class TestPlanningCompletes:
             )
         )
 
-        # Проверяем что результат — SkillResult (даже при ошибке)
-        assert isinstance(result, SkillResult)
+        # Проверяем что результат — ExecutionResult (даже при ошибке)
+        assert isinstance(result, ExecutionResult)
         # technical_success может быть False из-за отсутствия промптов
         # Главное что тип правильный
 

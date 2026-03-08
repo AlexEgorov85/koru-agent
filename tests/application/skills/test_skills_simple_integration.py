@@ -1,76 +1,76 @@
 """
 Упрощённые интеграционные тесты для Skills.
 
-Проверяют что skills возвращают SkillResult с правильными полями.
+Проверяют что skills возвращают ExecutionResult с правильными полями.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.models.data.execution import SkillResult
+from core.models.data.execution import ExecutionResult
 
 
-class TestAllSkillsReturnSkillResult:
+class TestAllSkillsReturnExecutionResult:
     """
-    Тесты что ВСЕ skills возвращают SkillResult.
-    
+    Тесты что ВСЕ skills возвращают ExecutionResult.
+
     Это критично для единой архитектуры.
     """
 
-    def test_skill_result_exists(self):
-        """SkillResult класс существует"""
-        from core.models.data.execution import SkillResult
-        assert SkillResult is not None
+    def test_execution_result_exists(self):
+        """ExecutionResult класс существует"""
+        from core.models.data.execution import ExecutionResult
+        assert ExecutionResult is not None
 
-    def test_book_library_skill_returns_skill_result_type(self):
-        """BookLibrarySkill._execute_impl возвращает SkillResult (проверка типа)"""
+    def test_book_library_skill_returns_execution_result_type(self):
+        """BookLibrarySkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
         from core.application.skills.book_library.skill import BookLibrarySkill
-        
-        source = inspect.getsource(BookLibrarySkill)
-        
-        # Проверяем что метод возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult.success" in source or "SkillResult.failure" in source
 
-    def test_planning_skill_returns_skill_result_type(self):
-        """PlanningSkill._execute_impl возвращает SkillResult (проверка типа)"""
+        source = inspect.getsource(BookLibrarySkill)
+
+        # Проверяем что метод возвращает ExecutionResult
+        assert "-> ExecutionResult:" in source
+        assert "ExecutionResult.success" in source or "ExecutionResult.failure" in source
+
+    def test_planning_skill_returns_execution_result_type(self):
+        """PlanningSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
         from core.application.skills.planning.skill import PlanningSkill
-        
-        source = inspect.getsource(PlanningSkill)
-        
-        # Проверяем что метод возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult(" in source
 
-    def test_final_answer_skill_returns_skill_result_type(self):
-        """FinalAnswerSkill._execute_impl возвращает SkillResult (проверка типа)"""
+        source = inspect.getsource(PlanningSkill)
+
+        # Проверяем что метод возвращает ExecutionResult
+        assert "-> ExecutionResult:" in source
+        assert "ExecutionResult(" in source
+
+    def test_final_answer_skill_returns_execution_result_type(self):
+        """FinalAnswerSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
         from core.application.skills.final_answer.skill import FinalAnswerSkill
-        
-        source = inspect.getsource(FinalAnswerSkill)
-        
-        # Проверяем что метод возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult.success" in source or "SkillResult.failure" in source
 
-    def test_data_analysis_skill_returns_skill_result_type(self):
-        """DataAnalysisSkill._execute_impl возвращает SkillResult (проверка типа)"""
+        source = inspect.getsource(FinalAnswerSkill)
+
+        # Проверяем что метод возвращает ExecutionResult
+        assert "-> ExecutionResult:" in source
+        assert "ExecutionResult.success" in source or "ExecutionResult.failure" in source
+
+    def test_data_analysis_skill_returns_execution_result_type(self):
+        """DataAnalysisSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
         from core.application.skills.data_analysis.skill import DataAnalysisSkill
-        
+
         source = inspect.getsource(DataAnalysisSkill)
-        
-        # Проверяем что метод возвращает SkillResult
-        assert "-> SkillResult:" in source
-        assert "SkillResult.success" in source or "SkillResult.failure" in source
+
+        # Проверяем что метод возвращает ExecutionResult
+        assert "-> ExecutionResult:" in source
+        assert "ExecutionResult.success" in source or "ExecutionResult.failure" in source
 
 
-class TestSkillResultUsage:
-    """Тесты правильного использования SkillResult"""
+class TestExecutionResultUsage:
+    """Тесты правильного использования ExecutionResult"""
 
     def test_all_skills_use_success_factory(self):
-        """Все skills используют SkillResult.success или конструктор для успешных результатов"""
+        """Все skills используют ExecutionResult.success или конструктор для успешных результатов"""
         import inspect
         from core.application.skills.book_library.skill import BookLibrarySkill
         from core.application.skills.planning.skill import PlanningSkill
@@ -80,11 +80,11 @@ class TestSkillResultUsage:
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
             # Проверяем что используется factory метод ИЛИ конструктор
-            has_success = "SkillResult.success" in source or "SkillResult(" in source
-            assert has_success, f"{skill_class.__name__} не использует SkillResult"
+            has_success = "ExecutionResult.success" in source or "ExecutionResult(" in source
+            assert has_success, f"{skill_class.__name__} не использует ExecutionResult"
 
     def test_all_skills_use_failure_factory(self):
-        """Все skills используют SkillResult.failure или конструктор для ошибок"""
+        """Все skills используют ExecutionResult.failure или конструктор для ошибок"""
         import inspect
         from core.application.skills.book_library.skill import BookLibrarySkill
         from core.application.skills.planning.skill import PlanningSkill
@@ -94,8 +94,8 @@ class TestSkillResultUsage:
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
             # Проверяем что используется factory метод ИЛИ конструктор для ошибок
-            has_failure = "SkillResult.failure" in source or "SkillResult(" in source
-            assert has_failure, f"{skill_class.__name__} не использует SkillResult для ошибок"
+            has_failure = "ExecutionResult.failure" in source or "ExecutionResult(" in source
+            assert has_failure, f"{skill_class.__name__} не использует ExecutionResult для ошибок"
 
     def test_side_effect_flag_used(self):
         """Skills явно указывают side_effect"""
@@ -111,12 +111,12 @@ class TestSkillResultUsage:
             assert "side_effect=" in source, f"{skill_class.__name__} не указывает side_effect"
 
 
-class TestSkillResultFields:
-    """Тесты полей SkillResult"""
+class TestExecutionResultFields:
+    """Тесты полей ExecutionResult"""
 
-    def test_skill_result_has_all_fields(self):
-        """SkillResult имеет все обязательные поля"""
-        result = SkillResult(
+    def test_execution_result_has_all_fields(self):
+        """ExecutionResult имеет все обязательные поля"""
+        result = ExecutionResult(
             technical_success=True,
             data={"test": "data"},
             error=None,
@@ -130,9 +130,9 @@ class TestSkillResultFields:
         assert result.metadata == {"key": "value"}
         assert result.side_effect is False
 
-    def test_skill_result_default_values(self):
-        """SkillResult имеет правильные значения по умолчанию"""
-        result = SkillResult()
+    def test_execution_result_default_values(self):
+        """ExecutionResult имеет правильные значения по умолчанию"""
+        result = ExecutionResult()
 
         assert result.technical_success is True
         assert result.data is None
@@ -140,9 +140,9 @@ class TestSkillResultFields:
         assert result.metadata == {}
         assert result.side_effect is False
 
-    def test_skill_result_success_factory_creates_correct_result(self):
-        """SkillResult.success создаёт правильный результат"""
-        result = SkillResult.success(
+    def test_execution_result_success_factory_creates_correct_result(self):
+        """ExecutionResult.success создаёт правильный результат"""
+        result = ExecutionResult.success(
             data={"answer": "test"},
             metadata={"tokens": 100},
             side_effect=True
@@ -154,9 +154,9 @@ class TestSkillResultFields:
         assert result.metadata == {"tokens": 100}
         assert result.side_effect is True
 
-    def test_skill_result_failure_factory_creates_correct_result(self):
-        """SkillResult.failure создаёт правильный результат"""
-        result = SkillResult.failure(
+    def test_execution_result_failure_factory_creates_correct_result(self):
+        """ExecutionResult.failure создаёт правильный результат"""
+        result = ExecutionResult.failure(
             error="Test error message",
             metadata={"error_code": 500}
         )
@@ -166,9 +166,9 @@ class TestSkillResultFields:
         assert result.error == "Test error message"
         assert result.side_effect is False
 
-    def test_skill_result_to_dict(self):
-        """SkillResult.to_dict сериализует все поля"""
-        result = SkillResult.success(
+    def test_execution_result_to_dict(self):
+        """ExecutionResult.to_dict сериализует все поля"""
+        result = ExecutionResult.success(
             data={"key": "value"},
             metadata={"meta": "data"},
             side_effect=True
@@ -185,27 +185,27 @@ class TestSkillResultFields:
         }
 
 
-class TestSkillResultInExecutionContext:
-    """Тесты что SkillResult правильно используется в контексте выполнения"""
+class TestExecutionResultInExecutionContext:
+    """Тесты что ExecutionResult правильно используется в контексте выполнения"""
 
-    def test_skill_result_can_be_wrapped_in_execution_result(self):
-        """SkillResult может быть обёрнут в ExecutionResult"""
+    def test_execution_result_can_be_wrapped_in_execution_result(self):
+        """ExecutionResult может быть обёрнут в ExecutionResult"""
         from core.models.data.execution import ExecutionResult, ExecutionStatus
 
-        skill_result = SkillResult.success(
+        execution_result = ExecutionResult.success(
             data={"answer": "test"},
             side_effect=False
         )
 
-        # ExecutionResult может содержать SkillResult как данные
+        # ExecutionResult может содержать ExecutionResult как данные
         exec_result = ExecutionResult(
             status=ExecutionStatus.COMPLETED,
-            result=skill_result,
+            result=execution_result,
             metadata={"skill_name": "test_skill"}
         )
 
         assert exec_result.status == ExecutionStatus.COMPLETED
-        assert isinstance(exec_result.result, SkillResult)
+        assert isinstance(exec_result.result, ExecutionResult)
         assert exec_result.result.data == {"answer": "test"}
 
 
@@ -240,9 +240,9 @@ class TestSkillsHaveNoLegacyPatterns:
                     # Пропускаем внутренние методы (начинаются с _)
                     if current_method and current_method.startswith('_'):
                         continue
-                    # Проверяем что это часть SkillResult
+                    # Проверяем что это часть ExecutionResult
                     context = '\n'.join(lines[max(0, i-5):i+1])
-                    assert "SkillResult" in context, \
+                    assert "ExecutionResult" in context, \
                         f"{skill_class.__name__}.{current_method} возвращает dict напрямую: {stripped}"
 
 
