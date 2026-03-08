@@ -212,6 +212,10 @@ class AgentRuntime:
             previous_snapshot = None
             previous_decision = None
             no_progress_counter = 0
+            
+            # Переменные для отслеживания ошибок выполнения
+            last_step_failed = False
+            last_error_message = None
 
             # Цикл рассуждений
             print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
@@ -269,6 +273,9 @@ class AgentRuntime:
                         await self.event_bus_logger.error(
                             f"Агент завершил выполнение с ошибкой на шаге {self._current_step}: {step_result.error}"
                         )
+                    # Устанавливаем флаги для корректного финального статуса
+                    last_step_failed = True
+                    last_error_message = step_result.error
                     self._result = step_result
                     self._running = False
                     break
@@ -330,6 +337,10 @@ class AgentRuntime:
             elif self._current_step >= self._max_steps:
                 final_status = ExecutionStatus.FAILED
                 error_message = "Превышено максимальное количество шагов"
+            elif last_step_failed:
+                # КРИТИЧНО: Если последний шаг завершился ошибкой, агент не может считаться успешным
+                final_status = ExecutionStatus.FAILED
+                error_message = last_error_message or "Последний шаг выполнения завершился ошибкой"
             else:
                 final_status = ExecutionStatus.COMPLETED
 
