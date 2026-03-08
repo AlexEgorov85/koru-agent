@@ -5,8 +5,25 @@
 Этот модуль содержит предопределённые SQL-скрипты для выполнения
 через capability book_library.execute_script.
 
+СХЕМА БАЗЫ ДАННЫХ (нормализованная):
+    "Lib".books (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        author_id INTEGER REFERENCES "Lib".authors(id),
+        year INTEGER,
+        isbn TEXT,
+        genre TEXT
+    )
+    
+    "Lib".authors (
+        id SERIAL PRIMARY KEY,
+        first_name TEXT,
+        last_name TEXT,
+        birth_date DATE
+    )
+
 ПРИМЕЧАНИЕ:
-Скрипты используют реальную структуру таблиц из БД.
+Скрипты используют реальную структуру таблиц из БД с JOIN между books и authors.
 Для обновления схемы выполните: python analyze_library_schema.py
 """
 from typing import Dict, Any, List, Optional
@@ -62,9 +79,11 @@ def get_table_columns(table_name: str, schema: Dict[str, Any] = None) -> List[st
         if table_info.get('status') == 'found':
             return [col['name'] for col in table_info.get('columns', [])]
     
-    # Fallback на стандартную схему
+    # Fallback на нормализованную схему
     if table_name == 'books':
-        return ['id', 'title', 'author', 'year', 'isbn', 'genre']
+        return ['id', 'title', 'author_id', 'year', 'isbn', 'genre']
+    elif table_name == 'authors':
+        return ['id', 'first_name', 'last_name', 'birth_date']
     return []
 
 
@@ -101,124 +120,247 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     # -------------------------------------------------------------------------
     "get_all_books": ScriptConfig(
         name="get_all_books",
-        sql="SELECT id, title, author, year, isbn, genre FROM books ORDER BY id LIMIT $1",
-        description="Получить все книги с лимитом",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            ORDER BY b.id
+            LIMIT $1
+        """,
+        description="Получить все книги с лимитом (с данными авторов)",
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=100,
         output_contract="book_library.get_all_books_output"
     ),
-    
+
     # -------------------------------------------------------------------------
-    # Поиск книг по автору
+    # Поиск книг по автору (по фамилии)
     # -------------------------------------------------------------------------
     "get_books_by_author": ScriptConfig(
         name="get_books_by_author",
-        sql="SELECT id, title, author, year, isbn, genre FROM books WHERE author = $1 ORDER BY title LIMIT $2",
-        description="Получить книги по автору",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE a.last_name ILIKE $1
+            ORDER BY b.title
+            LIMIT $2
+        """,
+        description="Получить книги по фамилии автора (ILIKE поиск)",
         parameters=["author", "max_rows"],
         required_parameters=["author"],
         max_rows=50,
         output_contract="book_library.get_books_by_author_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Поиск книг по жанру
     # -------------------------------------------------------------------------
     "get_books_by_genre": ScriptConfig(
         name="get_books_by_genre",
-        sql="SELECT id, title, author, year, isbn, genre FROM books WHERE genre = $1 ORDER BY title LIMIT $2",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE b.genre = $1
+            ORDER BY b.title
+            LIMIT $2
+        """,
         description="Получить книги по жанру",
         parameters=["genre", "max_rows"],
         required_parameters=["genre"],
         max_rows=50,
         output_contract="book_library.get_books_by_genre_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Поиск книг по диапазону лет
     # -------------------------------------------------------------------------
     "get_books_by_year_range": ScriptConfig(
         name="get_books_by_year_range",
-        sql="SELECT id, title, author, year, isbn, genre FROM books WHERE year BETWEEN $1 AND $2 ORDER BY year LIMIT $3",
-        description="Получить книги по диапазону лет",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE EXTRACT(YEAR FROM b.publication_date) BETWEEN $1 AND $2
+            ORDER BY b.publication_date
+            LIMIT $3
+        """,
+        description="Получить книги по диапазону лет публикации",
         parameters=["year_from", "year_to", "max_rows"],
         required_parameters=["year_from", "year_to"],
         max_rows=100,
         output_contract="book_library.get_books_by_year_range_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Получение книги по ID
     # -------------------------------------------------------------------------
     "get_book_by_id": ScriptConfig(
         name="get_book_by_id",
-        sql="SELECT id, title, author, year, isbn, genre FROM books WHERE id = $1",
-        description="Получить книгу по ID",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE b.id = $1
+        """,
+        description="Получить книгу по ID (с данными автора)",
         parameters=["book_id"],
         required_parameters=["book_id"],
         max_rows=1,
         output_contract="book_library.get_book_by_id_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Подсчёт количества книг автора
     # -------------------------------------------------------------------------
     "count_books_by_author": ScriptConfig(
         name="count_books_by_author",
-        sql="SELECT COUNT(*) as count, author FROM books WHERE author = $1 GROUP BY author",
-        description="Посчитать количество книг автора",
+        sql="""
+            SELECT 
+                COUNT(*) as count,
+                a.last_name as author_last_name,
+                a.first_name as author_first_name
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE a.last_name ILIKE $1
+            GROUP BY a.id, a.first_name, a.last_name
+        """,
+        description="Посчитать количество книг по фамилии автора",
         parameters=["author"],
         required_parameters=["author"],
         max_rows=1,
         output_contract="book_library.count_books_by_author_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Поиск книг по названию (LIKE)
     # -------------------------------------------------------------------------
     "get_books_by_title_pattern": ScriptConfig(
         name="get_books_by_title_pattern",
-        sql="SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE $1 ORDER BY title LIMIT $2",
+        sql="""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE b.title ILIKE $1
+            ORDER BY b.title
+            LIMIT $2
+        """,
         description="Получить книги по шаблону названия (ILIKE)",
         parameters=["title_pattern", "max_rows"],
         required_parameters=["title_pattern"],
         max_rows=50,
         output_contract="book_library.get_books_by_title_pattern_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Список уникальных авторов
     # -------------------------------------------------------------------------
     "get_distinct_authors": ScriptConfig(
         name="get_distinct_authors",
-        sql="SELECT DISTINCT author FROM books WHERE author IS NOT NULL ORDER BY author LIMIT $1",
-        description="Получить список уникальных авторов",
+        sql="""
+            SELECT DISTINCT
+                a.id as author_id,
+                a.first_name,
+                a.last_name,
+                a.birth_date
+            FROM "Lib".authors a
+            JOIN "Lib".books b ON a.id = b.author_id
+            WHERE a.last_name IS NOT NULL
+            ORDER BY a.last_name
+            LIMIT $1
+        """,
+        description="Получить список уникальных авторов у которых есть книги",
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=100,
         output_contract="book_library.get_distinct_authors_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Список уникальных жанров
     # -------------------------------------------------------------------------
     "get_distinct_genres": ScriptConfig(
         name="get_distinct_genres",
-        sql="SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL ORDER BY genre LIMIT $1",
+        sql="""
+            SELECT DISTINCT genre
+            FROM "Lib".books
+            WHERE genre IS NOT NULL
+            ORDER BY genre
+            LIMIT $1
+        """,
         description="Получить список уникальных жанров",
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=50,
         output_contract="book_library.get_distinct_genres_output"
     ),
-    
+
     # -------------------------------------------------------------------------
     # Статистика по жанрам
     # -------------------------------------------------------------------------
     "get_genre_statistics": ScriptConfig(
         name="get_genre_statistics",
-        sql="SELECT genre, COUNT(*) as book_count, AVG(year) as avg_year FROM books WHERE genre IS NOT NULL GROUP BY genre ORDER BY book_count DESC LIMIT $1",
+        sql="""
+            SELECT 
+                genre,
+                COUNT(*) as book_count,
+                AVG(EXTRACT(YEAR FROM publication_date)) as avg_year
+            FROM "Lib".books
+            WHERE genre IS NOT NULL
+            GROUP BY genre
+            ORDER BY book_count DESC
+            LIMIT $1
+        """,
         description="Получить статистику по жанрам (количество книг, средний год)",
         parameters=["max_rows"],
         required_parameters=[],

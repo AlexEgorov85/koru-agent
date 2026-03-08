@@ -106,7 +106,7 @@ class BookLibrarySkill(BaseComponent):
             ),
             Capability(
                 name="book_library.execute_script",
-                description="Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author, get_books_by_genre, get_books_by_year_range, get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Быстро ~100мс.",
+                description="Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author (поиск по фамилии), get_books_by_genre, get_books_by_year_range, get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Нормализованная схема: Lib.books JOIN Lib.authors. Быстро ~100мс.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
                 visiable=True,
@@ -115,7 +115,8 @@ class BookLibrarySkill(BaseComponent):
                     "prompt_version": "v1.1.0",
                     "requires_llm": False,
                     "execution_type": "static",
-                    "scripts_count": 10
+                    "scripts_count": 10,
+                    "schema": "normalized (books JOIN authors)"
                 }
             ),
             Capability(
@@ -177,7 +178,14 @@ class BookLibrarySkill(BaseComponent):
 
         # Выполняем действие
         result = await self.supported_capabilities[capability.name](parameters)
-        
+
+        # Проверяем статус выполнения
+        from core.models.enums.common_enums import ExecutionStatus
+        if hasattr(result, 'status') and result.status == ExecutionStatus.FAILED:
+            # Если выполнение не удалось, выбрасываем исключение
+            error_msg = result.error if hasattr(result, 'error') and result.error else "Неизвестная ошибка выполнения"
+            raise ValueError(error_msg)
+
         # Извлекаем данные из ExecutionResult
         if hasattr(result, 'data') and result.data:
             return result.data
@@ -242,24 +250,47 @@ class BookLibrarySkill(BaseComponent):
         # 3. Генерация SQL через sql_generation
         sql_query = ""
         try:
-            exec_context = ExecutionResult  # type: ignore
-            from core.models.data.execution import ExecutionContext
+            from core.application.agent.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
+
+            # Получаем значения из params (поддержка dict и Pydantic модели)
+            query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
+            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
 
             # Генерируем SQL запрос через сервис генерации
             gen_result = await self.executor.execute_action(
                 action_name="sql_generation.generate_query",
                 parameters={
-                    "natural_language_request": params.get('query', ''),
-                    "table_schema": "books(id INTEGER, title TEXT, author TEXT, year INTEGER, isbn TEXT, genre TEXT)",
+                    "natural_language_request": query_val,
+                    "table_schema": """
+                        "Lib".books (
+                            id INTEGER PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            author_id INTEGER REFERENCES "Lib".authors(id),
+                            isbn TEXT,
+                            publication_date DATE,
+                            genre TEXT
+                        ),
+                        "Lib".authors (
+                            id INTEGER PRIMARY KEY,
+                            first_name TEXT,
+                            last_name TEXT,
+                            birth_date DATE
+                        )
+                    """.strip(),
                     "prompt": prompt_with_contract  # Передаём промпт с контрактами
                 },
                 context=exec_context
             )
 
             from core.models.data.execution import ExecutionStatus
-            if gen_result.status == ExecutionStatus.COMPLETED and gen_result.result:
-                sql_query = gen_result.result.get('sql_query', '')
+            if gen_result.status == ExecutionStatus.COMPLETED and gen_result.data:
+                # gen_result.data может быть dict или Pydantic моделью
+                if hasattr(gen_result.data, 'model_dump'):
+                    data_dict = gen_result.data.model_dump()
+                else:
+                    data_dict = gen_result.data
+                sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
                 await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
             else:
                 await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
@@ -269,8 +300,24 @@ class BookLibrarySkill(BaseComponent):
 
         # Fallback: простой SQL запрос если генерация не удалась
         if not sql_query:
-            query = params.get('query', '')
-            sql_query = f"SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE '%{query}%' OR author ILIKE '%{query}%' LIMIT {params.get('max_results', 10)}"
+            query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
+            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
+            # Нормализованная схема с JOIN между books и authors
+            sql_query = f"""
+                SELECT 
+                    b.id as book_id,
+                    b.title as book_title,
+                    b.isbn,
+                    b.publication_date,
+                    a.id as author_id,
+                    a.first_name,
+                    a.last_name,
+                    a.birth_date
+                FROM "Lib".books b
+                JOIN "Lib".authors a ON b.author_id = a.id
+                WHERE b.title ILIKE '%{query_val}%' OR a.last_name ILIKE '%{query_val}%' OR a.first_name ILIKE '%{query_val}%'
+                LIMIT {max_results_val}
+            """
             await self.event_bus_logger.info(f"Использован fallback SQL: {sql_query}")
 
         # 4. Выполнение SQL через sql_query_service
@@ -279,20 +326,22 @@ class BookLibrarySkill(BaseComponent):
         try:
             exec_context = ExecutionContext()
 
+            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
+
             query_result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
                     "sql": sql_query,
                     "parameters": {},
-                    "max_rows": params.get('max_results', 10)
+                    "max_rows": max_results_val
                 },
                 context=exec_context
             )
 
             from core.models.data.execution import ExecutionStatus
-            if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
-                rows = query_result.result.get('rows', [])
-                execution_time = query_result.result.get('execution_time', 0.0)
+            if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
+                rows = query_result.data.get('rows', [])
+                execution_time = query_result.data.get('execution_time', 0.0)
                 await self.event_bus_logger.info(f"Найдено строк: {len(rows)}")
 
         except Exception as e:
@@ -362,7 +411,7 @@ class BookLibrarySkill(BaseComponent):
             side_effect=True  # SQL query был выполнен
         )
 
-    async def _execute_script_static(self, params: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_script_static(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Выполнение заготовленного SQL-скрипта по имени.
 
@@ -373,41 +422,36 @@ class BookLibrarySkill(BaseComponent):
 
         НЕДОСТАТКИ:
         - Ограничено заранее определёнными запросами
+        
+        ВОЗВРАЩАЕТ:
+        - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         start_time = time.time()
         await self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
 
         # 1. Валидация входных параметров
-        script_name = params.get('script_name')
+        # Поддержка dict и Pydantic модели
+        script_name = params.get('script_name') if isinstance(params, dict) else getattr(params, 'script_name', None)
         if not script_name:
-            return ExecutionResult.failure(
-                error="Требуется параметр 'script_name'",
-                metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
-            )
+            raise ValueError("Требуется параметр 'script_name'")
 
         # 2. Проверка, что скрипт существует в реестре
         allowed_scripts = self._get_allowed_scripts()
         if script_name not in allowed_scripts:
             available_scripts = list(allowed_scripts.keys())
-            return ExecutionResult.failure(
-                error=f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}",
-                metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
-            )
+            raise ValueError(f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}")
 
         # 3. Получение SQL-скрипта из реестра
         script_config = allowed_scripts[script_name]
         sql_query = script_config['sql']
-        max_rows = params.get('max_rows', script_config.get('max_rows', 100))
+        max_rows = params.get('max_rows', script_config.get('max_rows', 100)) if isinstance(params, dict) else getattr(params, 'max_rows', script_config.get('max_rows', 100))
 
         # 4. Валидация параметров для скрипта
-        script_params = params.get('parameters', {})
+        script_params = params.get('parameters', {}) if isinstance(params, dict) else getattr(params, 'parameters', {})
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())
             if missing_params:
-                return ExecutionResult.failure(
-                    error=f"Отсутствуют обязательные параметры: {missing_params}",
-                    metadata={"rows": [], "rowcount": 0, "execution_type": "static"}
-                )
+                raise ValueError(f"Отсутствуют обязательные параметры: {missing_params}")
 
         # 5. Подготовка параметров для SQL-запроса
         # Преобразуем именованные параметры в позиционные для PostgreSQL
@@ -425,34 +469,44 @@ class BookLibrarySkill(BaseComponent):
             if param_name == 'max_rows':
                 continue  # max_rows обрабатывается отдельно
             if param_name in script_params:
-                sql_params[f'p{param_index}'] = script_params[param_name]
+                param_value = script_params[param_name]
+                # Для параметров ILIKE (author, title_pattern) добавляем % если нет wildcard
+                if param_name in ['author', 'title_pattern']:
+                    if '%' not in param_value:
+                        param_value = f'%{param_value}%'
+                sql_params[str(param_index)] = param_value
                 param_index += 1
 
         # Добавляем max_rows как последний параметр если он есть в SQL
         if '$' + str(param_index) in sql_query or 'LIMIT $' + str(param_index) in sql_query:
-            sql_params[f'p{param_index}'] = max_rows
+            sql_params[str(param_index)] = max_rows
 
-        # 6. Выполнение SQL через sql_query_service
+        # 6. Выполнение SQL через sql_query_service (прямой вызов сервиса)
         rows = []
         execution_time = 0.0
         try:
-            exec_context = ExecutionContext()
-
-            query_result = await self.executor.execute_action(
-                action_name="sql_query.execute",
-                parameters={
-                    "sql": sql_query,
-                    "parameters": sql_params,
-                    "max_rows": max_rows
-                },
-                context=exec_context
-            )
-
+            # Получаем сервис напрямую из application_context
+            from core.models.enums.common_enums import ComponentType
+            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
+            
+            if not sql_query_svc:
+                raise RuntimeError("Сервис sql_query_service не найден")
+            
+            # Вызываем метод execute_query напрямую
             from core.models.data.execution import ExecutionStatus
-            if query_result.status == ExecutionStatus.COMPLETED and query_result.result:
-                rows = query_result.result.get('rows', [])
-                execution_time = query_result.result.get('execution_time', 0.0)
+            result = await sql_query_svc.execute_query(
+                sql_query=sql_query,
+                parameters=sql_params
+                # max_rows передаётся внутри parameters через LIMIT в SQL
+            )
+            
+            if hasattr(result, 'success') and result.success:
+                rows = result.rows if hasattr(result, 'rows') else []
+                execution_time = result.execution_time if hasattr(result, 'execution_time') else 0.0
                 await self.event_bus_logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
+            else:
+                error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
+                raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")

@@ -115,13 +115,17 @@ class InfrastructureContext:
         self._state = ComponentState.INITIALIZING
 
         # === ЭТАП 1: Базовая инициализация ===
-        print("🚀 Инициализация инфраструктурного контекста...", flush=True)
+        # Используем sys.stdout.buffer.write для поддержки emoji в Windows
+        import sys
+        sys.stdout.buffer.write("🚀 Инициализация инфраструктурного контекста...\n".encode('utf-8'))
+        sys.stdout.flush()
 
         # Инициализация шины событий (ПЕРВЫЙ компонент)
         # Используем UnifiedEventBus — единую шину событий
         self.event_bus = UnifiedEventBus()
         await self._log_event_bus_info("UnifiedEventBus")
-        print("✅ InfrastructureContext инициализирован", flush=True)
+        sys.stdout.buffer.write("✅ InfrastructureContext инициализирован\n".encode('utf-8'))
+        sys.stdout.flush()
 
         # Инициализация обработчиков логирования
         # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
@@ -151,8 +155,8 @@ class InfrastructureContext:
             component="InfrastructureContext"
         )
 
-        await self.event_bus_logger.info("✅ Обработчики логирования инициализированы")
-        print("✅ EventBusLogger инициализирован", flush=True)
+        await self.event_bus_logger.info("Обработчики логирования инициализированы")
+        print("EventBusLogger инициализирован", flush=True)
 
         # Инициализация менеджера жизненного цикла (нужен event_bus)
         self.lifecycle_manager = LifecycleManager(self.event_bus)

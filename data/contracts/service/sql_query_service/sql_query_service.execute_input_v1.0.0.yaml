@@ -14,5 +14,9 @@ schema_data:
       type: object
       description: Query parameters
       additionalProperties: true
+    max_rows:
+      type: integer
+      description: Maximum number of rows to return
+      default: 50
   required:
     - sql

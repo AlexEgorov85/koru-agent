@@ -150,6 +150,7 @@ class SQLTool(BaseTool):
         # Проверяем, поддерживает ли провайдер параметр max_rows
         import inspect
         sig = inspect.signature(db_provider.execute)
+        
         if 'max_rows' in sig.parameters:
             result = await db_provider.execute(
                 query=input_data.sql,

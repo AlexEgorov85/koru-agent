@@ -1,4 +1,5 @@
-﻿from typing import Dict, Any, List, Optional
+﻿import time
+from typing import Dict, Any, List, Optional
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.models.types.db_types import DBQueryResult
 from core.application.services.sql_generation.error_analyzer import SQLErrorAnalyzer
@@ -123,7 +124,7 @@ class SQLQueryService(BaseService):
         ВОЗВРАЩАЕТ:
         - DBQueryResult: результат выполнения запроса
         """
-        from core.models.data.execution import ExecutionContext
+        from core.application.agent.components.action_executor import ExecutionContext
         from core.application.tools.sql_tool import SQLToolInput
         
         try:
@@ -172,50 +173,48 @@ class SQLQueryService(BaseService):
                     error=f"Запрос не прошел валидацию: {validation_result.validation_errors}"
                 )
 
-            # === ЭТАП 3: Выполнение через SQLTool через ActionExecutor ===
-            # Используем executor для вызова инструмента
-            exec_context = ExecutionContext()
-            
-            tool_result = await self.executor.execute_action(
-                action_name="sql_tool.execute_query",
-                parameters={
-                    "sql": validation_result.sql,
-                    "parameters": parameters,
-                    "max_rows": max_rows
-                },
-                context=exec_context
-            )
+            # === ЭТАП 3: Выполнение запроса через db_provider ===
+            # Получаем db_provider напрямую из infrastructure_context
+            db_provider = None
+            if hasattr(self, 'application_context') and self.application_context:
+                if hasattr(self.application_context, 'infrastructure_context'):
+                    db_provider = self.application_context.infrastructure_context.get_provider("default_db")
 
-            # === ЭТАП 4: Валидация выходных данных через схему ===
-            output_schema = self.get_cached_output_contract_safe("sql_query_service.execute")
-            if output_schema and tool_result.success and tool_result.data:
-                try:
-                    output_schema.model_validate({
-                        "rows": tool_result.data.get('rows', []),
-                        "columns": tool_result.data.get('columns', []),
-                        "rowcount": tool_result.data.get('rowcount', 0),
-                        "execution_time": tool_result.data.get('execution_time', 0)
-                    })
-                except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
-
-            # Преобразуем результат в DBQueryResult
-            if tool_result.success and tool_result.data:
-                return DBQueryResult(
-                    success=True,
-                    rows=tool_result.data.get('rows', []),
-                    columns=tool_result.data.get('columns', []),
-                    rowcount=tool_result.data.get('rowcount', 0),
-                    execution_time=tool_result.data.get('execution_time', 0)
-                )
-            else:
+            if not db_provider:
                 return DBQueryResult(
                     success=False,
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error=tool_result.error or "Неизвестная ошибка при выполнении запроса"
+                    error="DB провайдер не найден"
+                )
+
+            # Выполняем запрос напрямую через db_provider
+            start_exec_time = time.time()
+            try:
+                result = await db_provider.execute(
+                    sql=validation_result.sql,
+                    params=parameters
+                )
+                execution_time = time.time() - start_exec_time
+
+                # Преобразуем результат в DBQueryResult
+                return DBQueryResult(
+                    success=True,
+                    rows=result.rows if hasattr(result, 'rows') else [],
+                    columns=result.columns if hasattr(result, 'columns') else [],
+                    rowcount=result.rowcount if hasattr(result, 'rowcount') else len(result.rows) if hasattr(result, 'rows') else 0,
+                    execution_time=execution_time
+                )
+            except Exception as e:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
+                return DBQueryResult(
+                    success=False,
+                    rows=[],
+                    columns=[],
+                    rowcount=0,
+                    error=f"Ошибка выполнения SQL: {str(e)}"
                 )
 
         except Exception as e:

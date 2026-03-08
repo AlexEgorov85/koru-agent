@@ -11,24 +11,32 @@ schema_data:
       items:
         type: object
         properties:
-          id:
+          book_id:
             type: integer
             description: ID книги
-          title:
+          book_title:
             type: string
             description: Название книги
-          author:
-            type: string
-            description: Автор книги
-          year:
-            type: integer
-            description: Год издания
           isbn:
             type: string
             description: ISBN книги
-          genre:
+          publication_date:
             type: string
-            description: Жанр книги
+            format: date
+            description: Дата публикации
+          author_id:
+            type: integer
+            description: ID автора
+          first_name:
+            type: string
+            description: Имя автора
+          last_name:
+            type: string
+            description: Фамилия автора
+          birth_date:
+            type: string
+            format: date
+            description: Дата рождения автора
     rowcount:
       type: integer
       description: Количество найденных строк

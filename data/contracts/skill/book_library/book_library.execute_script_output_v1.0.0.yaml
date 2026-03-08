@@ -10,7 +10,43 @@ schema_data:
       description: Список результатов выполнения скрипта
       items:
         type: object
-        description: Строка результата
+        description: Строка результата (зависит от скрипта)
+        properties:
+          book_id:
+            type: integer
+            description: ID книги
+          book_title:
+            type: string
+            description: Название книги
+          isbn:
+            type: string
+            description: ISBN книги
+          publication_date:
+            type: string
+            format: date
+            description: Дата публикации
+          author_id:
+            type: integer
+            description: ID автора
+          first_name:
+            type: string
+            description: Имя автора
+          last_name:
+            type: string
+            description: Фамилия автора
+          birth_date:
+            type: string
+            format: date
+            description: Дата рождения автора
+          genre:
+            type: string
+            description: Жанр книги
+          count:
+            type: integer
+            description: Количество (для скриптов подсчёта)
+          avg_year:
+            type: number
+            description: Средний год (для статистики)
     rowcount:
       type: integer
       description: Количество возвращённых строк

@@ -238,7 +238,8 @@ class SQLValidatorService(BaseService):
         validated = {}
         for key, value in parameters.items():
             # Проверка имени параметра
-            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
+            # Разрешаем имена вида '1', '2' (для PostgreSQL $1, $2) или 'p1', 'p2' или обычные имена
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$|^\d+$', key):
                 raise ValueError(f"Некорректное имя параметра: '{key}'")
 
             # Санитизация значений (ограничение типов)

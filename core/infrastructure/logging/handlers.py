@@ -237,8 +237,14 @@ class TerminalLogHandler:
 
         with self._lock:
             stream = sys.stderr if level in ("ERROR", "CRITICAL") else sys.stdout
-            print(formatted, file=stream, flush=True)
-            
+            # Используем buffer.write для поддержки emoji в Windows
+            try:
+                stream.buffer.write((formatted + '\n').encode('utf-8'))
+                stream.buffer.flush()
+            except (AttributeError, UnicodeEncodeError):
+                # Fallback для старых терминалов
+                print(formatted, file=stream, flush=True)
+
         # Добавим принудительную синхронизацию для лучшей последовательности
         if hasattr(stream, 'flush'):
             stream.flush()

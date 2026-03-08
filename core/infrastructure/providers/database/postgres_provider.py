@@ -169,7 +169,19 @@ class PostgreSQLProvider(BaseDBProvider):
                 if params:
                     if isinstance(params, dict):
                         # Если параметры переданы как словарь, извлекаем значения в правильном порядке
-                        param_values = [params[key] for key in sorted(params.keys())]
+                        # Сортируем по числовому значению (1, 2, 3...), не alphabetically!
+                        # Ключи могут быть вида '1', '2' или 'p1', 'p2'
+                        def sort_key(key):
+                            try:
+                                # Пробуем извлечь число напрямую (ключи '1', '2', ...)
+                                return int(key)
+                            except (ValueError, IndexError):
+                                # Если не получилось, пробуем извлечь число из ключа вида 'p1', 'p2', etc.
+                                try:
+                                    return int(key[1:]) if key.startswith('p') else 0
+                                except (ValueError, IndexError):
+                                    return 0
+                        param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
                         result = await conn.fetch(query, *param_values)
                     elif isinstance(params, (list, tuple)):
                         # Если параметры переданы как список или кортеж, передаем напрямую
@@ -211,7 +223,19 @@ class PostgreSQLProvider(BaseDBProvider):
                 if params:
                     if isinstance(params, dict):
                         # Если параметры переданы как словарь, извлекаем значения в правильном порядке
-                        param_values = [params[key] for key in sorted(params.keys())]
+                        # Сортируем по числовому значению (1, 2, 3...), не alphabetically!
+                        # Ключи могут быть вида '1', '2' или 'p1', 'p2'
+                        def sort_key(key):
+                            try:
+                                # Пробуем извлечь число напрямую (ключи '1', '2', ...)
+                                return int(key)
+                            except (ValueError, IndexError):
+                                # Если не получилось, пробуем извлечь число из ключа вида 'p1', 'p2', etc.
+                                try:
+                                    return int(key[1:]) if key.startswith('p') else 0
+                                except (ValueError, IndexError):
+                                    return 0
+                        param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
                         result = await conn.fetch(query, *param_values)
                     elif isinstance(params, (list, tuple)):
                         # Если параметры переданы как список или кортеж, передаем напрямую

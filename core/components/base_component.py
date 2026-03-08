@@ -1270,15 +1270,13 @@ class BaseComponent(LifecycleMixin, ABC):
                 event_type,
                 capability_name=capability.name,
                 success=True,
-                execution_time_ms=execution_time_ms,
-                # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель, сериализация на границе
-                result=validated_output.model_dump() if hasattr(validated_output, 'model_dump') else validated_output
+                execution_time_ms=execution_time_ms
             )
 
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
                 # ✅ ИСПРАВЛЕНО: Возвращаем Pydantic модель (сохраняется типизация)
-                result=validated_output,
+                data=validated_output,
                 metadata={
                     "capability": capability.name,
                     "execution_time_ms": execution_time_ms
