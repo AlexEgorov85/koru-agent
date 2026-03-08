@@ -80,12 +80,17 @@ class Contract(TemplateValidatorMixin, BaseModel):
             if field_name in required:
                 field_kwargs["default"] = ...
             else:
-                field_kwargs["default"] = None
-            field_definitions[field_name] = (field_type, Field(**field_kwargs))
+                # Проверяем есть ли default в схеме
+                if "default" in field_schema:
+                    field_kwargs["default"] = field_schema["default"]
+                else:
+                    field_kwargs["default"] = None
+            # Pydantic v2 синтаксис: просто Field(), аннотации отдельно
+            field_definitions[field_name] = Field(**field_kwargs)
         class_name = f"{self.capability.replace('.', '').title()}{self.direction.value.title()}Schema"
         return type(class_name, (BaseModel,), {
             "__annotations__": annotations,
-            **{name: field for name, field in field_definitions.items()},
+            **field_definitions,
             "model_config": ConfigDict(extra="forbid")
         })
 
