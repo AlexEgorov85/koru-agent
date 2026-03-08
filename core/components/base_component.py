@@ -1216,7 +1216,12 @@ class BaseComponent(LifecycleMixin, ABC):
             # === ЭТАП 1: Валидация входных данных ===
             # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
             validated_input = self.validate_input_typed(capability.name, parameters)
+            
+            # [BASE_DEBUG] 4.1. После валидации входа
+            await self.event_bus_logger.info(f"[BASE_DEBUG] validated_input: {validated_input is not None}")
             if validated_input is None:
+                await self.event_bus_logger.error("[BASE_DEBUG] входная валидация не пройдена")
+                
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 # Публикация метрики ошибки валидации
@@ -1238,11 +1243,19 @@ class BaseComponent(LifecycleMixin, ABC):
             # === ЭТАП 2: Выполнение бизнес-логики ===
             # ✅ ИСПРАВЛЕНО: Передаем валидированный input (Pydantic модель)
             result = await self._execute_impl(capability, validated_input, execution_context)
+            
+            # [BASE_DEBUG] 4.2. После выполнения _execute_impl
+            await self.event_bus_logger.info(f"[BASE_DEBUG] результат _execute_impl: {type(result).__name__}, data keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
 
             # === ЭТАП 3: Валидация выходных данных ===
             # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
             validated_output = self.validate_output_typed(capability.name, result)
+            
+            # [BASE_DEBUG] 4.3. После валидации выхода
+            await self.event_bus_logger.info(f"[BASE_DEBUG] validated_output: {validated_output is not None}")
             if validated_output is None:
+                await self.event_bus_logger.error("[BASE_DEBUG] выходная валидация не пройдена")
+                
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 await self._publish_metrics(
@@ -1272,6 +1285,9 @@ class BaseComponent(LifecycleMixin, ABC):
                 success=True,
                 execution_time_ms=execution_time_ms
             )
+            
+            # [BASE_DEBUG] 4.4. Перед возвратом ExecutionResult
+            await self.event_bus_logger.info(f"[BASE_DEBUG] возвращаем ExecutionResult: status=completed, error=None, data type={type(validated_output).__name__ if validated_output else 'None'}")
 
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
@@ -1296,6 +1312,9 @@ class BaseComponent(LifecycleMixin, ABC):
                 error=str(e),
                 error_type=type(e).__name__
             )
+            
+            # [BASE_DEBUG] 4.4. Перед возвратом ExecutionResult (ошибка)
+            await self.event_bus_logger.info(f"[BASE_DEBUG] возвращаем ExecutionResult: status=failed, error={str(e)}, data type=None")
 
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,

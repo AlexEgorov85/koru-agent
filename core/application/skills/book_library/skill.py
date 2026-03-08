@@ -78,6 +78,13 @@ class BookLibrarySkill(BaseComponent):
 
         # Кэш реестра скриптов
         self._scripts_registry = None
+        
+        # [BOOK_DEBUG] 5. Проверка инициализации event_bus_logger
+        if self.event_bus_logger is None:
+            print("[WARN] [BOOK_DEBUG] event_bus_logger не инициализирован, использую print", flush=True)
+            self._print_fallback = True
+        else:
+            self._print_fallback = False
 
     def get_capabilities(self) -> List[Capability]:
         """
@@ -163,7 +170,7 @@ class BookLibrarySkill(BaseComponent):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
         Реализация бизнес-логики навыка библиотеки.
 
@@ -171,32 +178,18 @@ class BookLibrarySkill(BaseComponent):
         Здесь только бизнес-логика.
 
         ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: Данные результата (не ExecutionResult!)
+        - Pydantic модель (выходной контракт) или Dict (fallback)
         """
         if capability.name not in self.supported_capabilities:
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
-        # Выполняем действие
+        # Выполняем действие — возвращает Pydantic модель или Dict
         result = await self.supported_capabilities[capability.name](parameters)
+        
+        # Возвращаем результат напрямую (Pydantic модель или Dict)
+        return result
 
-        # Проверяем статус выполнения
-        from core.models.enums.common_enums import ExecutionStatus
-        if hasattr(result, 'status') and result.status == ExecutionStatus.FAILED:
-            # Если выполнение не удалось, выбрасываем исключение
-            error_msg = result.error if hasattr(result, 'error') and result.error else "Неизвестная ошибка выполнения"
-            raise ValueError(error_msg)
-
-        # Извлекаем данные из ExecutionResult
-        if hasattr(result, 'data') and result.data:
-            return result.data
-        elif hasattr(result, 'result') and result.result:
-            return result.result
-        else:
-            # Fallback: возвращаем пустой dict
-            self.event_bus_logger.warning_sync(f"ExecutionResult не содержит данных для {capability.name}")
-            return {}
-
-    async def _search_books_dynamic(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _search_books_dynamic(self, params: Dict[str, Any]) -> Any:
         """
         Динамическая генерация SQL через LLM.
 
@@ -209,7 +202,7 @@ class BookLibrarySkill(BaseComponent):
         - Требует валидации сгенерированного SQL
         
         ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: Данные результата (не ExecutionResult!)
+        - Pydantic модель (выходной контракт) или Dict (fallback)
         """
         start_time = time.time()
         await self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
@@ -377,10 +370,16 @@ class BookLibrarySkill(BaseComponent):
         except Exception as e:
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
-        # ✅ Возвращаем Dict, валидация будет в execute()
-        return result
+        # ✅ Возвращаем Pydantic модель напрямую
+        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
+        if output_schema:
+            validated_result = output_schema.model_validate(result)
+            return validated_result  # ← Pydantic модель
+        else:
+            # Fallback: возвращаем dict если схема не загружена
+            return result
 
-    async def _execute_script_static(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_script_static(self, params: Dict[str, Any]) -> Any:
         """
         Выполнение заготовленного SQL-скрипта по имени.
 
@@ -393,7 +392,7 @@ class BookLibrarySkill(BaseComponent):
         - Ограничено заранее определёнными запросами
 
         ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: Данные результата (не ExecutionResult!)
+        - Pydantic модель (выходной контракт) или Dict (fallback)
         """
         start_time = time.time()
         
@@ -543,8 +542,14 @@ class BookLibrarySkill(BaseComponent):
         except Exception as e:
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
-        # ✅ Возвращаем Dict, валидация будет в execute()
-        return result_data
+        # ✅ Возвращаем Pydantic модель напрямую
+        output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
+        if output_schema:
+            validated_result = output_schema.model_validate(result_data)
+            return validated_result  # ← Pydantic модель
+        else:
+            # Fallback: возвращаем dict если схема не загружена
+            return result_data
 
     async def _list_scripts(self, params: Dict[str, Any] = None) -> Dict[str, Any]:
         """

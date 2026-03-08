@@ -8,32 +8,28 @@ schema_data:
     script_name:
       type: string
       description: Имя заготовленного скрипта для выполнения
-    parameters:
-      type: object
-      description: Параметры для скрипта
-      properties:
-        author:
-          type: string
-          description: Имя автора
-        genre:
-          type: string
-          description: Жанр книги
-        year_from:
-          type: integer
-          description: Начальный год диапазона
-        year_to:
-          type: integer
-          description: Конечный год диапазона
-        book_id:
-          type: integer
-          description: ID книги
-        title_pattern:
-          type: string
-          description: Шаблон названия (для LIKE поиска)
-        max_rows:
-          type: integer
-          description: Максимальное количество результатов
-          default: 100
+    author:
+      type: string
+      description: Имя автора (для get_books_by_author)
+    genre:
+      type: string
+      description: Жанр книги (для get_books_by_genre)
+    year_from:
+      type: integer
+      description: Начальный год диапазона (для get_books_by_year_range)
+    year_to:
+      type: integer
+      description: Конечный год диапазона (для get_books_by_year_range)
+    book_id:
+      type: integer
+      description: ID книги (для get_book_by_id)
+    title_pattern:
+      type: string
+      description: Шаблон названия (для get_books_by_title_pattern)
+    max_rows:
+      type: integer
+      description: Максимальное количество результатов
+      default: 100
   required:
     - script_name
 status: active
