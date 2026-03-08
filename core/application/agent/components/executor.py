@@ -21,12 +21,13 @@ class ActionExecutor:
         capability: Capability,
         parameters: dict,
         session_context: BaseSessionContext,
-        user_context: Optional['UserContext'] = None  # Добавляем контекст пользователя
+        user_context: Optional['UserContext'] = None,  # Добавляем контекст пользователя
+        capability_name: Optional[str] = None  # Имя capability для валидации
     ) -> ExecutionResult:
         """Выполняет capability с заданными параметрами и контекстом."""
         # Получаем текущий номер шага из сессии
         step_number = getattr(session_context, 'current_step', 0) + 1
-        
+
         # В новой архитектуре вызываем capability напрямую через компонент
         # capability — это экземпляр BaseComponent (skill/tool/service)
         if hasattr(capability, 'execute'):
@@ -37,13 +38,24 @@ class ActionExecutor:
                 user_context=user_context
             )
             
+            # Создаём объект Capability с правильным именем для валидации в компоненте
+            from core.models.data.capability import Capability as CapabilityModel
+            cap_obj = CapabilityModel(
+                name=capability_name or getattr(capability, 'name', 'unknown'),
+                description=f"Capability {capability_name}",
+                skill_name=getattr(capability, 'name', 'unknown'),
+                supported_strategies=["react", "planning"],
+                visiable=True,
+                meta={}
+            )
+
             # Вызываем метод execute компонента с правильными параметрами
             result = await capability.execute(
-                capability=capability,  # Передаём сам объект capability
+                capability=cap_obj,  # Передаём объект Capability с правильным именем
                 parameters=parameters,
                 execution_context=execution_context
             )
-            
+
             # Обрабатываем результат — может быть ExecutionResult или dict
             if isinstance(result, ExecutionResult):
                 return ExecutionResult(
@@ -51,7 +63,7 @@ class ActionExecutor:
                     data=result.data,
                     error=result.error,  # ✅ ИСПРАВЛЕНО: Передаём ошибку
                     metadata={
-                        'capability': capability.name,
+                        'capability': capability_name or getattr(capability, 'name', 'unknown'),
                         'step': step_number
                     },
                     side_effect=result.side_effect if hasattr(result, 'side_effect') else False
@@ -62,7 +74,7 @@ class ActionExecutor:
                     status=ExecutionStatus.COMPLETED,
                     data=result,
                     metadata={
-                        'capability': capability.name,
+                        'capability': capability_name or getattr(capability, 'name', 'unknown'),
                         'step': step_number
                     }
                 )
@@ -81,10 +93,10 @@ class ActionExecutor:
                 # Логирование через EventBusLogger если доступен system_context
                 if hasattr(self.system, 'infrastructure_context') and hasattr(self.system.infrastructure_context, 'event_bus_logger'):
                     await self.system.infrastructure_context.event_bus_logger.error(
-                        f"Capability {capability.name} не имеет метода execute и execution_gateway недоступен"
+                        f"Capability {capability_name or getattr(capability, 'name', 'N/A')} не имеет метода execute и execution_gateway недоступен"
                     )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
-                    data={'error': f'Cannot execute capability {capability.name}'},
-                    metadata={'capability': capability.name, 'step': step_number}
+                    data={'error': f'Cannot execute capability {capability_name or getattr(capability, "name", "N/A")}'},
+                    metadata={'capability': capability_name or getattr(capability, 'name', 'N/A'), 'step': step_number}
                 )

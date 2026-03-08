@@ -559,22 +559,14 @@ class AgentRuntime:
         try:
             print(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...", flush=True)
             
-            # Создаём объект Capability с правильным именем для передачи в компонент
-            from core.models.data.capability import Capability
-            cap_obj = Capability(
-                name=decision.capability_name,
-                description=f"Capability {decision.capability_name}",
-                skill_name=component_name,
-                supported_strategies=["react", "planning"],
-                visiable=True,
-                meta={}
-            )
-            
+            # component уже найден (SKILL.book_library или TOOL.book_library)
+            # capability — это компонент, а cap_obj — объект Capability для валидации
             execution_result = await self.executor.execute_capability(
-                capability=cap_obj,  # Передаём объект Capability с правильным именем
+                capability=capability,  # Передаём компонент (SKILL.book_library)
                 parameters=decision.parameters,
                 session_context=self.application_context.session_context,
-                user_context=self.user_context
+                user_context=self.user_context,
+                capability_name=decision.capability_name  # Передаём имя capability для валидации
             )
             print(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно", flush=True)
             print(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}", flush=True)
