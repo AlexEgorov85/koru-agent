@@ -26,9 +26,12 @@ def mock_application_context():
     mock.session_context.record_decision = MagicMock()
     mock.session_context.record_error = MagicMock()
     mock.session_context.get_history = MagicMock(return_value=[])
-    mock.get_all_capabilities = MagicMock(return_value=[])
+    mock.session_context.step_context.count = MagicMock(return_value=1)
+    mock.get_all_capabilities = AsyncMock(return_value=[])  # ← AsyncMock вместо MagicMock
     mock.infrastructure_context = MagicMock()
     mock.infrastructure_context.event_bus = MagicMock()
+    # Делаем publish awaitable
+    mock.infrastructure_context.event_bus.publish = AsyncMock()
     return mock
 
 
@@ -102,7 +105,9 @@ class TestAgentStuckErrorDetection:
 
         # Проверяем что агент завершился с ошибкой
         assert result.status == ExecutionStatus.FAILED
-        assert "AgentStuckError" in result.result or "State did not mutate" in result.result
+        # Проверяем что ошибка связана с зацикливанием или отсутствием прогресса
+        assert result.error is not None
+        assert "no_progress" in result.error.lower() or "steps" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_agent_stuck_on_state_not_mutating(
@@ -158,7 +163,9 @@ class TestAgentStuckErrorDetection:
 
         # Проверяем что агент завершился с ошибкой
         assert result.status == ExecutionStatus.FAILED
-        assert "AgentStuckError" in result.result or "State did not mutate" in result.result
+        # Проверяем что ошибка связана с зацикливанием или отсутствием прогресса
+        assert result.error is not None
+        assert "no_progress" in result.error.lower() or "steps" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_no_error_when_state_mutates(

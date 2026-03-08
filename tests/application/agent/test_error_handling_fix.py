@@ -115,6 +115,7 @@ class TestAgentRuntimeErrorHandling:
                 from core.models.data.execution import ExecutionResult
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
+                    data=None,  # ← ИСПРАВЛЕНО: result -> data
                     error=f"Превышен лимит ошибок: {runtime.state.error_count}",
                     metadata={"error_count": runtime.state.error_count}
                 )
