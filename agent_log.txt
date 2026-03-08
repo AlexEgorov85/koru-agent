@@ -1,0 +1,872 @@
+🚀 Создание инфраструктурного контекста...
+🚀 Инициализация инфраструктурного контекста...
+✅ InfrastructureContext инициализирован
+✅ EventBusLogger инициализирован
+🤖 LLM → _register_providers_from_config: начало
+🤖 LLM → llm_providers: ['default_llm']
+🤖 LLM → Обработка: default_llm, enabled=True
+🤖 LLM → Тип провайдера: llama_cpp
+🤖 LLM → model_path: C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf
+🤖 LLM → ✅ Провайдер создан: LlamaCppProvider
+🤖 LLM → ✅ Зарегистрирован в LifecycleManager
+🤖 LLM → _register_providers_from_config: завершено
+✅ Обработчики логирования инициализированы
+=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
+Вызов lifecycle_manager.initialize_all()...
+MetricsCollector инициализирован: подписан на 4 событий
+LogCollector инициализирован: подписан на 11 событий
+Начало инициализации 2 инфраструктурных ресурсов
+✅ Инфраструктурный контекст инициализирован
+c:\Users\Алексей\Documents\WORK\Agent_v5\main.py:113: DeprecationWarning: get_resource_discovery deprecated. Используйте self.resource_discovery напрямую
+  discovery=infrastructure_context.get_resource_discovery()  # ← Передаём общий экземпляр
+✅ InfrastructureContext инициализирован
+✅ ApplicationContext инициализирован
+🚀 Запуск агента...
+🔄 Запуск выполнения агента...
+
+🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step=0, _max_steps=10, _running=True
+🔵 [RUNTIME] state.finished=False
+
+🔵 [RUNTIME] === ИТЕРАЦИЯ 0 ===
+🔵 [RUNTIME] available_caps count=17
+🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...
+
+================================================================================
+━━━━━━━━ LLM CALL ━━━━━━━━
+================================================================================
+
+📝 PROMPT (call_id=llm_1772915823_1)
+------------------------------------------------------------
+=== SYSTEM ===
+Ты — поведенческий паттерн ReAct для рассуждения.
+
+=== ТВОЯ ЗАДАЧА ===
+Проанализируй контекст и верни решение о следующем действии в формате JSON.
+
+=== ФОРМАТ ОТВЕТА ===
+Верни ТОЛЬКО один JSON объект со структурой:
+- thought: твоё рассуждение о ситуации
+- analysis: анализ прогресса и текущего состояния
+- decision: решение о следующем действии (next_action, reasoning, parameters)
+- confidence: уверенность 0.0-1.0
+- stop_condition: false если есть ещё шаги, true если задача завершена
+
+=== ВАЖНО ===
+- Никакого текста до или после JSON
+- Только один JSON объект
+- Используй формат из примера в user-промпте
+
+
+=== JSON СХЕМА ОТВЕТА ===
+Ты ДОЛЖЕН вернуть JSON следующей структуры:
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "thought": {
+      "title": "Thought",
+      "type": "string"
+    },
+    "analysis": {
+      "additionalProperties": true,
+      "title": "Analysis",
+      "type": "object"
+    },
+    "decision": {
+      "additionalProperties": true,
+      "title": "Decision",
+      "type": "object"
+    },
+    "confidence": {
+      "title": "Confidence",
+      "type": "number"
+    },
+    "alternative_actions": {
+      "items": {},
+      "title": "Alternative Actions",
+      "type": "array"
+    },
+    "stop_condition": {
+      "title": "Stop Condition",
+      "type": "boolean"
+    },
+    "stop_reason": {
+      "title": "Stop Reason",
+      "type": "string"
+    }
+  },
+  "title": "BehaviorreactthinkOutputSchema",
+  "type": "object"
+}
+```
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: thought, decision, confidence, stop_condition
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {"next_action": "string", "parameters": "object"} — это только пример формата.
+
+=== USER ===
+=== КОНТЕКСТ ===
+ЦЕЛЬ: Какие книги написал Пушкин?
+Шагов выполнено: 0
+Шагов без прогресса: 0
+Ошибок подряд: 0
+Цель: Какие книги написал Пушкин?
+История: Шаги не выполнены
+Наблюдение: Нет наблюдений
+
+=== ИНСТРУМЕНТЫ ===
+- data_analysis.analyze_step_data: Анализ сырых данных по шагу и ответ на заданный вопрос с поддержкой больших данных
+    Параметры:
+      - step_id: string (optional)
+      - question: string (optional)
+      - data_source: object (optional)
+      - analysis_config: object (optional)
+- final_answer.generate: Генерация финального ответа на основе всего контекста сессии с поддержкой различных форматов вывода
+    Параметры:
+      - include_steps: boolean (optional)
+      - include_evidence: boolean (optional)
+      - format_type: string (optional)
+      - confidence_threshold: number (optional)
+      - max_sources: integer (optional)
+- planning.create_plan: Создание первичного плана действий
+    Параметры:
+      - capabilities_list: array (optional)
+      - context: string (optional)
+      - goal: string (optional)
+- planning.update_plan: Обновление существующего плана
+    Параметры:
+      - plan_id: string (optional)
+      - updates: object (optional)
+      - reason: string (optional)
+- planning.get_next_step: Получение следующего шага из плана
+    Параметры:
+      - plan_id: string (optional)
+      - current_step_id: string (optional)
+      - skip_completed: boolean (optional)
+- planning.update_step_status: Обновление статуса шага плана
+    Параметры:
+      - error_message: string (optional)
+      - plan_id: string (optional)
+      - result: string (optional)
+      - status: string (optional)
+      - step_id: string (optional)
+- planning.decompose_task: Декомпозиция сложной задачи на подзадачи
+    Параметры:
+      - context: string (optional)
+      - max_subtasks: integer (optional)
+      - task_description: string (optional)
+      - task_id: string (optional)
+- planning.mark_task_completed: Отметка задачи как завершенной
+    Параметры:
+      - plan_i
+... (ещё 2725 символов)
+
+📊 Длина промпта: 4725 символов
+🌡️ Temperature: 0.3
+🎯 Max tokens: 1000
+📋 Structured output: ReasoningResult
+🔵 [LLM] Structured output активирован: model=ReasoningResult
+Все инфраструктурные ресурсы инициализированы: 2/2 успешно
+🤖 LLM → LLMOrchestrator инициализирован: max_workers=4, cleanup_interval=600.0с
+ComponentFactory: создание компонента contract_service типа service
+Разрешение класса компонента: тип=service, имя=contract_service
+Поиск сервиса: contract_service
+Найден ContractService
+ComponentFactory: найден класс ContractService для contract_service
+Создание компонента contract_service типа ContractService
+Получены провайдеры для contract_service: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание ContractService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, contract_storage=ContractStorage
+Компонент contract_service создан (инициализация будет выполнена позже)
+ComponentFactory: компонент contract_service успешно создан
+ComponentFactory: создание компонента sql_generation типа service
+Разрешение класса компонента: тип=service, имя=sql_generation
+Поиск сервиса: sql_generation
+ComponentFactory: найден класс SQLGenerationService для sql_generation
+Создание компонента sql_generation типа SQLGenerationService
+Получены провайдеры для sql_generation: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание SQLGenerationService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент sql_generation создан (инициализация будет выполнена позже)
+ComponentFactory: компонент sql_generation успешно создан
+ComponentFactory: создание компонента contract типа service
+Разрешение класса компонента: тип=service, имя=contract
+Поиск сервиса: contract
+Динамически найден сервис: <class 'core.application.services.contract_service.ContractService'>
+ComponentFactory: найден класс ContractService для contract
+Создание компонента contract типа ContractService
+Получены провайдеры для contract: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание ContractService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, contract_storage=ContractStorage
+Компонент contract создан (инициализация будет выполнена позже)
+ComponentFactory: компонент contract успешно создан
+ComponentFactory: создание компонента prompt_service типа service
+Разрешение класса компонента: тип=service, имя=prompt_service
+Поиск сервиса: prompt_service
+Найден PromptService
+ComponentFactory: найден класс PromptService для prompt_service
+Создание компонента prompt_service типа PromptService
+Получены провайдеры для prompt_service: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание PromptService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент prompt_service создан (инициализация будет выполнена позже)
+ComponentFactory: компонент prompt_service успешно создан
+ComponentFactory: создание компонента sql_query_service типа service
+Разрешение класса компонента: тип=service, имя=sql_query_service
+Поиск сервиса: sql_query_service
+ComponentFactory: найден класс SQLQueryService для sql_query_service
+Создание компонента sql_query_service типа SQLQueryService
+Получены провайдеры для sql_query_service: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание SQLQueryService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент sql_query_service создан (инициализация будет выполнена позже)
+ComponentFactory: компонент sql_query_service успешно создан
+ComponentFactory: создание компонента sql_validator_service типа service
+Разрешение класса компонента: тип=service, имя=sql_validator_service
+Поиск сервиса: sql_validator_service
+ComponentFactory: найден класс SQLValidatorService для sql_validator_service
+Создание компонента sql_validator_service типа SQLValidatorService
+Получены провайдеры для sql_validator_service: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание SQLValidatorService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент sql_validator_service создан (инициализация будет выполнена позже)
+ComponentFactory: компонент sql_validator_service успешно создан
+ComponentFactory: создание компонента table_description_service типа service
+Разрешение класса компонента: тип=service, имя=table_description_service
+Поиск сервиса: table_description_service
+ComponentFactory: найден класс TableDescriptionService для table_description_service
+Создание компонента table_description_service типа TableDescriptionService
+Получены провайдеры для table_description_service: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание TableDescriptionService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент table_description_service создан (инициализация будет выполнена позже)
+ComponentFactory: компонент table_description_service успешно создан
+ComponentFactory: создание компонента data_analysis типа skill
+Разрешение класса компонента: тип=skill, имя=data_analysis
+Найден навык: <class 'core.application.skills.data_analysis.skill.DataAnalysisSkill'>
+ComponentFactory: найден класс DataAnalysisSkill для data_analysis
+Создание компонента data_analysis типа DataAnalysisSkill
+Получены провайдеры для data_analysis: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание DataAnalysisSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент data_analysis создан (инициализация будет выполнена позже)
+ComponentFactory: компонент data_analysis успешно создан
+ComponentFactory: создание компонента final_answer типа skill
+Разрешение класса компонента: тип=skill, имя=final_answer
+Найден навык: <class 'core.application.skills.final_answer.skill.FinalAnswerSkill'>
+ComponentFactory: найден класс FinalAnswerSkill для final_answer
+Создание компонента final_answer типа FinalAnswerSkill
+Получены провайдеры для final_answer: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание FinalAnswerSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент final_answer создан (инициализация будет выполнена позже)
+ComponentFactory: компонент final_answer успешно создан
+ComponentFactory: создание компонента planning типа skill
+Разрешение класса компонента: тип=skill, имя=planning
+Найден навык: <class 'core.application.skills.planning.skill.PlanningSkill'>
+ComponentFactory: найден класс PlanningSkill для planning
+Создание компонента planning типа PlanningSkill
+Получены провайдеры для planning: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание PlanningSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент planning создан (инициализация будет выполнена позже)
+ComponentFactory: компонент planning успешно создан
+ComponentFactory: создание компонента book_library типа tool
+Разрешение класса компонента: тип=tool, имя=book_library
+ComponentFactory: найден класс BookLibrarySkill для book_library
+Создание компонента book_library типа BookLibrarySkill
+Получены провайдеры для book_library: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание BookLibrarySkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент book_library создан (инициализация будет выполнена позже)
+ComponentFactory: компонент book_library успешно создан
+ComponentFactory: создание компонента file_tool типа tool
+Разрешение класса компонента: тип=tool, имя=file_tool
+ComponentFactory: найден класс FileTool для file_tool
+Создание компонента file_tool типа FileTool
+Получены провайдеры для file_tool: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание FileTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент file_tool создан (инициализация будет выполнена позже)
+ComponentFactory: компонент file_tool успешно создан
+ComponentFactory: создание компонента sql_tool типа tool
+Разрешение класса компонента: тип=tool, имя=sql_tool
+ComponentFactory: найден класс SQLTool для sql_tool
+Создание компонента sql_tool типа SQLTool
+Получены провайдеры для sql_tool: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание SQLTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент sql_tool создан (инициализация будет выполнена позже)
+ComponentFactory: компонент sql_tool успешно создан
+ComponentFactory: создание компонента vector_books типа tool
+Разрешение класса компонента: тип=tool, имя=vector_books
+Найден инструмент: <class 'core.application.tools.vector_books_tool.VectorBooksTool'>
+ComponentFactory: найден класс VectorBooksTool для vector_books
+Создание компонента vector_books типа VectorBooksTool
+Получены провайдеры для vector_books: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание VectorBooksTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+Компонент vector_books создан (инициализация будет выполнена позже)
+ComponentFactory: компонент vector_books успешно создан
+ComponentFactory: создание компонента evaluation_pattern типа behavior
+Разрешение класса компонента: тип=behavior, имя=evaluation_pattern
+ComponentFactory: найден класс EvaluationPattern для evaluation_pattern
+Создание компонента evaluation_pattern типа EvaluationPattern
+Получены провайдеры для evaluation_pattern: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание behavior pattern EvaluationPattern с component_name=evaluation_pattern
+Создание EvaluationPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+Компонент evaluation_pattern создан (инициализация будет выполнена позже)
+ComponentFactory: компонент evaluation_pattern успешно создан
+ComponentFactory: создание компонента planning_pattern типа behavior
+Разрешение класса компонента: тип=behavior, имя=planning_pattern
+ComponentFactory: найден класс PlanningPattern для planning_pattern
+Создание компонента planning_pattern типа PlanningPattern
+Получены провайдеры для planning_pattern: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание behavior pattern PlanningPattern с component_name=planning_pattern
+Создание PlanningPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+Компонент planning_pattern создан (инициализация будет выполнена позже)
+ComponentFactory: компонент planning_pattern успешно создан
+ComponentFactory: создание компонента react_pattern типа behavior
+Разрешение класса компонента: тип=behavior, имя=react_pattern
+ComponentFactory: найден класс ReActPattern для react_pattern
+Создание компонента react_pattern типа ReActPattern
+Получены провайдеры для react_pattern: db, llm, prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+Создание behavior pattern ReActPattern с component_name=react_pattern
+Создание ReActPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+Компонент react_pattern создан (инициализация будет выполнена позже)
+ComponentFactory: компонент react_pattern успешно создан
+🔧 TOOL → BaseComponent.initialize: начало инициализации для file_tool
+🔧 TOOL → _preload_resources: file_tool - prompt_versions=[], input_contract_versions=['file_tool.read_write'], output_contract_versions=['file_tool.read_write']
+🔧 TOOL → Компонент 'file_tool' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+🔧 TOOL → BaseComponent.initialize: начало инициализации для sql_tool
+🔧 TOOL → _preload_resources: sql_tool - prompt_versions=[], input_contract_versions=['sql_tool.execute_query'], output_contract_versions=['sql_tool.execute_query']
+🔧 TOOL → Компонент 'sql_tool' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+🔧 TOOL → BaseComponent.initialize: начало инициализации для vector_books
+🔧 TOOL → _preload_resources: vector_books - prompt_versions=[], input_contract_versions=['vector_books.analyze', 'vector_books.get_document', 'vector_books.query', 'vector_books.search'], output_contract_versions=['vector_books.analyze', 'vector_books.get_document', 'vector_books.query', 'vector_books.search']
+🔧 TOOL → Компонент 'vector_books' полностью инициализирован. Ресурсы: промпты=0, input_contracts=4, output_contracts=4
+🔧 TOOL → BaseComponent.initialize: начало инициализации для data_analysis
+🔧 TOOL → _preload_resources: data_analysis - prompt_versions=['data_analysis.analyze_step_data.system', 'data_analysis.analyze_step_data'], input_contract_versions=['data_analysis.analyze_step_data'], output_contract_versions=['data_analysis.analyze_step_data']
+🔧 TOOL → Компонент 'data_analysis' полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+🔧 TOOL → DataAnalysisSkill инициализирован с capability: ['data_analysis.analyze_step_data']
+🔧 TOOL → BaseComponent.initialize: начало инициализации для final_answer
+🔧 TOOL → _preload_resources: final_answer - prompt_versions=['final_answer.generate.system', 'final_answer.generate'], input_contract_versions=['final_answer.generate'], output_contract_versions=['final_answer.generate']
+🔧 TOOL → Компонент 'final_answer' полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+🔧 TOOL → Промпт для final_answer.generate загружен: v1.0.0
+🔧 TOOL → Входная схема для final_answer.generate загружена
+🔧 TOOL → Выходная схема для final_answer.generate загружена
+🔧 TOOL → FinalAnswerSkill инициализирован с capability: ['final_answer.generate']
+🔧 TOOL → BaseComponent.initialize: начало инициализации для planning
+🔧 TOOL → _preload_resources: planning - prompt_versions=['planning.create_plan.system', 'planning.create_plan', 'planning.decompose_task.system', 'planning.decompose_task', 'planning.mark_task_completed.system', 'planning.mark_task_completed', 'planning.update_plan.system', 'planning.update_plan'], input_contract_versions=['planning.create_plan', 'planning.decompose_task', 'planning.get_next_step', 'planning.mark_task_completed', 'planning.update_plan', 'planning.update_step_status', 'planning'], output_contract_versions=['planning.create_plan', 'planning.decompose_task', 'planning.get_next_step', 'planning.mark_task_completed', 'planning.update_plan', 'planning.update_step_status', 'planning']
+🔧 TOOL → Компонент 'planning' полностью инициализирован. Ресурсы: промпты=8, input_contracts=7, output_contracts=7
+
+🧠 BaseComponent.initialize: начало инициализации для planning_pattern
+
+🧠 _preload_resources: planning_pattern - prompt_versions=['behavior.planning.decompose.system', 'behavior.planning.decompose', 'behavior.planning.sequence.system', 'behavior.planning.sequence', 'behavior.planning.system', 'behavior.planning'], input_contract_versions=['behavior.planning.decompose', 'behavior.planning.sequence', 'behavior.planning'], output_contract_versions=['behavior.planning.decompose', 'behavior.planning.sequence', 'behavior.planning']
+
+🧠 Компонент 'planning_pattern' полностью инициализирован. Ресурсы: промпты=6, input_contracts=3, output_contracts=3
+🔧 TOOL → BaseComponent.initialize: начало инициализации для book_library
+🔧 TOOL → _preload_resources: book_library - prompt_versions=['book_library.execute_script', 'book_library.search_books', 'book_library.search_books.system'], input_contract_versions=['book_library.execute_script', 'book_library.list_scripts', 'book_library.search_books', 'book_library'], output_contract_versions=['book_library.execute_script', 'book_library.search_books', 'book_library.list_scripts', 'book_library']
+🔧 TOOL → Компонент 'book_library' полностью инициализирован. Ресурсы: промпты=3, input_contracts=4, output_contracts=4
+🔧 TOOL → Загружено 10 скриптов в реестр
+🔧 TOOL → BookLibrarySkill инициализирован с capability: ['book_library.search_books', 'book_library.execute_script', 'book_library.list_scripts']
+Создан агент с ID 220bd191-59ce-45b3-99f9-a89611dd8e7e. Версии: из конфигурации
+Запуск агента с целью: Какие книги написал Пушкин?...
+
+🧠 [ReAct] === РЕГИСТРАЦИЯ СХЕМ ===
+
+🧠 [ReAct] Всего capability: 17
+
+🧠 generate_decision: started
+
+🧠 generate_decision: context_analysis.last_steps=0
+
+🧠 [ReAct] system_prompts: ['behavior.react.act', 'behavior.react.observe', 'behavior.react', 'behavior.react.think']
+
+🧠 [ReAct] user_prompts: ['behavior.react.think']
+
+🧠 [ReAct] prompts: ['behavior.react.act.system', 'behavior.react.act', 'behavior.react.observe.system', 'behavior.react.observe', 'behavior.react.system', 'behavior.react.think.system', 'behavior.react.think.user', 'behavior.react']
+
+🧠 [ReAct] system_prompt_template загружен: True
+
+🧠 [ReAct] reasoning_prompt_template загружен: True
+
+🧠 Запуск рассуждения ReAct | Цель: Какие книги написал Пушкин?
+
+🧠 Длина промпта: 4725 символов
+🤖 LLM → 🧩 LLM вызов | call_id=llm_1772915823_1 | session=None | agent=None | step=None | phase=None | prompt_len=4725 | timeout=300.0s
+✅ LifecycleManager инициализирован
+Начало инициализации ApplicationContext 220bd191-59ce-45b3-99f9-a89611dd8e7e
+✅ DataRepository инициализирован успешно:
+============================================================
+ОТЧЁТ ВАЛИДАЦИИ DATA REPOSITORY
+============================================================
+
+✅ Все проверки пройдены успешно
+
+📊 Статистика репозитория:
+   Промптов загружено: 36
+   Контрактов загружено: 70
+   Профиль: prod
+============================================================
+✅ Ресурсы загружены: промптов=35, входных контрактов=35, выходных контрактов=35
+🤖 LLM → ✅ LLMOrchestrator инициализирован
+Начало создания компонентов...
+✅ Создано 17 компонентов
+=== НАЧАЛО _initialize_components_with_dependencies ===
+ContractService инициализирован: загружено 0 контрактов
+ContractService инициализирован: загружено 2 контрактов
+PromptService инициализирован: загружено 0 промптов
+BaseService.initialize: начало инициализации для table_description_service
+_resolve_dependencies: начата обработка зависимостей для сервиса 'table_description_service': []
+Все зависимости для сервиса 'table_description_service' успешно разрешены
+BaseService.initialize: вызов super().initialize() для table_description_service
+BaseComponent.initialize: начало инициализации для table_description_service
+_preload_resources: table_description_service - prompt_versions=[], input_contract_versions=['table_description_service.get_table'], output_contract_versions=['table_description_service.get_table']
+Компонент 'table_description_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+BaseService.initialize: super().initialize() вернул True для table_description_service
+Инициализация сервиса описания таблицы
+Сервис описания таблицы успешно инициализирован
+Сервис 'table_description_service' инициализирован. Зависимости: отсутствуют, _initialized flag set to: True
+📊 RESULT → Навык 'data_analysis' инициализирован с вариантом 'data_analysis_prod'. Загружено: промпты=2, input-контракты=1, output-контракты=1
+📊 RESULT → Навык 'final_answer' инициализирован с вариантом 'final_answer_prod'. Загружено: промпты=2, input-контракты=1, output-контракты=1
+BaseService.initialize: начало инициализации для sql_generation
+_resolve_dependencies: начата обработка зависимостей для сервиса 'sql_generation': ['table_description_service', 'prompt_service', 'contract_service']
+_resolve_dependencies: зависимость 'table_description_service' найдена для сервиса 'sql_generation'
+_resolve_dependencies: зависимость 'prompt_service' найдена для сервиса 'sql_generation'
+_resolve_dependencies: зависимость 'contract_service' найдена для сервиса 'sql_generation'
+Все зависимости для сервиса 'sql_generation' успешно разрешены
+BaseService.initialize: вызов super().initialize() для sql_generation
+BaseComponent.initialize: начало инициализации для sql_generation
+_preload_resources: sql_generation - prompt_versions=['sql_generation.generate_query.system', 'sql_generation.generate_query'], input_contract_versions=['sql_generation.generate_query', 'sql_generation'], output_contract_versions=['sql_generation.generate_query', 'sql_generation']
+Компонент 'sql_generation' полностью инициализирован. Ресурсы: промпты=2, input_contracts=2, output_contracts=2
+BaseService.initialize: super().initialize() вернул True для sql_generation
+SQLErrorAnalyzer успешно инициализирован
+Сервис 'sql_generation' инициализирован. Зависимости: ['table_description_service', 'prompt_service', 'contract_service'], _initialized flag set to: True
+BaseService.initialize: начало инициализации для sql_validator_service
+_resolve_dependencies: начата обработка зависимостей для сервиса 'sql_validator_service': ['table_description_service']
+_resolve_dependencies: зависимость 'table_description_service' найдена для сервиса 'sql_validator_service'
+Все зависимости для сервиса 'sql_validator_service' успешно разрешены
+BaseService.initialize: вызов super().initialize() для sql_validator_service
+BaseComponent.initialize: начало инициализации для sql_validator_service
+_preload_resources: sql_validator_service - prompt_versions=[], input_contract_versions=['sql_validator_service.validate'], output_contract_versions=['sql_validator_service.validate']
+Компонент 'sql_validator_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+BaseService.initialize: super().initialize() вернул True для sql_validator_service
+SQLValidatorService инициализирован с разрешенными операциями: {'SELECT'}
+Сервис 'sql_validator_service' инициализирован. Зависимости: ['table_description_service'], _initialized flag set to: True
+BaseService.initialize: начало инициализации для sql_query_service
+_resolve_dependencies: начата обработка зависимостей для сервиса 'sql_query_service': ['sql_validator_service', 'sql_generation']
+_resolve_dependencies: зависимость 'sql_validator_service' найдена для сервиса 'sql_query_service'
+_resolve_dependencies: зависимость 'sql_generation' найдена для сервиса 'sql_query_service'
+Все зависимости для сервиса 'sql_query_service' успешно разрешены
+BaseService.initialize: вызов super().initialize() для sql_query_service
+BaseComponent.initialize: начало инициализации для sql_query_service
+_preload_resources: sql_query_service - prompt_versions=[], input_contract_versions=['sql_query_service.execute'], output_contract_versions=['sql_query_service.execute']
+Компонент 'sql_query_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+BaseService.initialize: super().initialize() вернул True для sql_query_service
+SQLErrorAnalyzer успешно инициализирован
+SQLQueryService успешно инициализирован
+Сервис 'sql_query_service' инициализирован. Зависимости: ['sql_validator_service', 'sql_generation'], _initialized flag set to: True
+ApplicationContext 220bd191-59ce-45b3-99f9-a89611dd8e7e успешно инициализирован
+ErrorHandler инициализирован
+BaseComponent.initialize: начало инициализации для evaluation_pattern
+BaseComponent.initialize: начало инициализации для react_pattern
+
+🧠 analyze_context: step_context.get_last_steps() вернул 0 шагов
+
+🧠 analyze_context: get_summary() вернул 0 шагов, last_steps=0
+🔵 [LLM] Получен ответ: choices=1
+🔵 [LLM] generated_text[:80]: Не добавляй никаких пояснений, комментариев или текста.
+
+{"thought": "Анализирую...
+🔵 [LLM] finish_reason: stop
+🔵 Structured output запрошен: ReasoningResult
+🔵 JSON извлечён: {"thought": "Анализирую ситуацию. Нужно найти книги Пушкина.", "analysis": {"pro...
+✅ JSON распарсен: ключи=['thought', 'analysis', 'decision', 'confidence', 'stop_condition']
+✅ Валидировано по ReasoningResult: stop_condition=False
+✅ StructuredLLMResponse создан (success=True)
+✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type=ReasoningResult
+
+------------------------------------------------------------
+💬 RESPONSE
+------------------------------------------------------------
+
+
+⏱️ Время генерации: 106.11с
+🪙 Токенов: 1490
+
+================================================================================
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================================
+
+🔵 [_perform_structured_reasoning] Возвращаем: type=ReasoningResult
+🔵 [_perform_structured_reasoning] reasoning_result.decision=DecisionResult(next_action='book_library.execute_script', reasoning='Есть готовый скрипт для поиска книг по автору', parameters={'script_name': 'get_books_by_author', 'author': 'Пушкин'}, expected_outcome='Список книг Пушкина', capability_name=None, reason=None)
+🔵 [_perform_structured_reasoning] decision.next_action=book_library.execute_script
+🔵 [_perform_structured_reasoning] reasoning_result.stop_condition=False
+🔵 [generate_decision] reasoning_result тип=ReasoningResult
+🔵 [generate_decision] to_dict() decision={'next_action': 'book_library.execute_script', 'reasoning': 'Есть готовый скрипт для поиска книг по автору', 'parameters': {'script_name': 'get_books_by_author', 'author': 'Пушкин'}, 'expected_outcome': 'Список книг Пушкина'}
+🔵 [generate_decision] to_dict() stop_condition=False
+🔵 [_make_decision] reasoning_result type=ReasoningResult
+🔵 [_make_decision] Вызываем to_dict()...
+🔵 [_make_decision] reasoning_dict keys=['thought', 'analysis', 'decision', 'confidence', 'stop_condition', 'stop_reason', 'alternative_actions', 'available_capabilities']
+🔵 [_make_decision] reasoning_dict.decision={'next_action': 'book_library.execute_script', 'reasoning': 'Есть готовый скрипт для поиска книг по автору', 'parameters': {'script_name': 'get_books_by_author', 'author': 'Пушкин'}, 'expected_outcome': 'Список книг Пушкина'}
+🔵 [_make_decision] reasoning_dict.stop_condition=False
+🔍 [_find_capability] поиск 'book_library.execute_script' среди 17 доступных
+✅ [_find_capability] найдено по прямому совпадению 'book_library.execute_script'
+✅ [_make_decision] Возвращаем BehaviorDecision: action=act, capability_name=book_library.execute_script
+🔵 [generate_decision] decision от _make_decision_from_reasoning: action=act, capability_name=book_library.execute_script
+🔵 [generate_decision] Возвращаем decision: action=act, capability_name=book_library.execute_script
+🔵 [BehaviorManager] Получен decision: action=act, capability_name=book_library.execute_script
+🔵 [BehaviorManager] Проверка capability: book_library.execute_script
+🔵 [BehaviorManager] Возвращаем decision: action=act, capability_name=book_library.execute_script
+🔵 [RUNTIME] Получен decision: action=act, capability_name=book_library.execute_script
+🔵 [RUNTIME] Вызов _execute_single_step_internal()...
+
+🔵 [_execute_single_step_internal] НАЧАЛО: step=0, decision.action=act
+🔵 [_execute_single_step_internal] decision.capability_name=book_library.execute_script
+🔵 [_execute_single_step_internal] decision.action=ACT
+🔵 [_execute_single_step_internal] Поиск capability в application_context...
+🔵 [_execute_single_step_internal] self.event_bus_logger=True
+🔵 [_execute_single_step_internal] hasattr(application_context, 'components')=True
+🔵 [_execute_single_step_internal] application_context.components доступен
+🔵 [_execute_single_step_internal] parts=['book_library', 'execute_script']
+🔵 [_execute_single_step_internal] component_name=book_library
+🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...
+🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...
+🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.book_library
+🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action=act)
+🔵 [RUNTIME] _execute_single_step_internal вернул: NoneType
+🔵 [RUNTIME] _current_step увеличен до 1
+
+🔵 [RUNTIME] === ИТЕРАЦИЯ 1 ===
+🔵 [RUNTIME] available_caps count=17
+🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...
+
+================================================================================
+━━━━━━━━ LLM CALL ━━━━━━━━
+================================================================================
+
+📝 PROMPT (call_id=llm_1772915929_2)
+------------------------------------------------------------
+=== SYSTEM ===
+Ты — поведенческий паттерн ReAct для рассуждения.
+
+=== ТВОЯ ЗАДАЧА ===
+Проанализируй контекст и верни решение о следующем действии в формате JSON.
+
+=== ФОРМАТ ОТВЕТА ===
+Верни ТОЛЬКО один JSON объект со структурой:
+- thought: твоё рассуждение о ситуации
+- analysis: анализ прогресса и текущего состояния
+- decision: решение о следующем действии (next_action, reasoning, parameters)
+- confidence: уверенность 0.0-1.0
+- stop_condition: false если есть ещё шаги, true если задача завершена
+
+=== ВАЖНО ===
+- Никакого текста до или после JSON
+- Только один JSON объект
+- Используй формат из примера в user-промпте
+
+
+=== JSON СХЕМА ОТВЕТА ===
+Ты ДОЛЖЕН вернуть JSON следующей структуры:
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "thought": {
+      "title": "Thought",
+      "type": "string"
+    },
+    "analysis": {
+      "additionalProperties": true,
+      "title": "Analysis",
+      "type": "object"
+    },
+    "decision": {
+      "additionalProperties": true,
+      "title": "Decision",
+      "type": "object"
+    },
+    "confidence": {
+      "title": "Confidence",
+      "type": "number"
+    },
+    "alternative_actions": {
+      "items": {},
+      "title": "Alternative Actions",
+      "type": "array"
+    },
+    "stop_condition": {
+      "title": "Stop Condition",
+      "type": "boolean"
+    },
+    "stop_reason": {
+      "title": "Stop Reason",
+      "type": "string"
+    }
+  },
+  "title": "BehaviorreactthinkOutputSchema",
+  "type": "object"
+}
+```
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: thought, decision, confidence, stop_condition
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {"next_action": "string", "parameters": "object"} — это только пример формата.
+
+=== USER ===
+=== КОНТЕКСТ ===
+ЦЕЛЬ: Какие книги написал Пушкин?
+Шагов выполнено: 0
+Шагов без прогресса: 0
+Ошибок подряд: 0
+Цель: Какие книги написал Пушкин?
+История: Шаги не выполнены
+Наблюдение: Нет наблюдений
+
+=== ИНСТРУМЕНТЫ ===
+- data_analysis.analyze_step_data: Анализ сырых данных по шагу и ответ на заданный вопрос с поддержкой больших данных
+    Параметры:
+      - step_id: string (optional)
+      - question: string (optional)
+      - data_source: object (optional)
+      - analysis_config: object (optional)
+- final_answer.generate: Генерация финального ответа на основе всего контекста сессии с поддержкой различных форматов вывода
+    Параметры:
+      - include_steps: boolean (optional)
+      - include_evidence: boolean (optional)
+      - format_type: string (optional)
+      - confidence_threshold: number (optional)
+      - max_sources: integer (optional)
+- planning.create_plan: Создание первичного плана действий
+    Параметры:
+      - capabilities_list: array (optional)
+      - context: string (optional)
+      - goal: string (optional)
+- planning.update_plan: Обновление существующего плана
+    Параметры:
+      - plan_id: string (optional)
+      - updates: object (optional)
+      - reason: string (optional)
+- planning.get_next_step: Получение следующего шага из плана
+    Параметры:
+      - plan_id: string (optional)
+      - current_step_id: string (optional)
+      - skip_completed: boolean (optional)
+- planning.update_step_status: Обновление статуса шага плана
+    Параметры:
+      - error_message: string (optional)
+      - plan_id: string (optional)
+      - result: string (optional)
+      - status: string (optional)
+      - step_id: string (optional)
+- planning.decompose_task: Декомпозиция сложной задачи на подзадачи
+    Параметры:
+      - context: string (optional)
+      - max_subtasks: integer (optional)
+      - task_description: string (optional)
+      - task_id: string (optional)
+- planning.mark_task_completed: Отметка задачи как завершенной
+    Параметры:
+      - plan_i
+... (ещё 2725 символов)
+
+📊 Длина промпта: 4725 символов
+🌡️ Temperature: 0.3
+🎯 Max tokens: 1000
+📋 Structured output: ReasoningResult
+🔵 [LLM] Structured output активирован: model=ReasoningResult
+🔵 [LLM] Получен ответ: choices=1
+🔵 [LLM] generated_text[:80]: Не добавляй никаких пояснений.
+
+{  
+  "thought": "Анализирую ситуацию. Нужно най...
+🔵 [LLM] finish_reason: stop
+🔵 Structured output запрошен: ReasoningResult
+🔵 JSON извлечён: {  
+  "thought": "Анализирую ситуацию. Нужно найти книги Пушкина.",  
+  "analysi...
+✅ JSON распарсен: ключи=['thought', 'analysis', 'decision', 'confidence', 'stop_condition']
+✅ Валидировано по ReasoningResult: stop_condition=False
+✅ StructuredLLMResponse создан (success=True)
+✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type=ReasoningResult
+
+------------------------------------------------------------
+💬 RESPONSE
+------------------------------------------------------------
+
+
+⏱️ Время генерации: 44.48с
+🪙 Токенов: 1523
+
+================================================================================
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================================
+
+🔵 [_perform_structured_reasoning] Возвращаем: type=ReasoningResult
+🔵 [_perform_structured_reasoning] reasoning_result.decision=DecisionResult(next_action='book_library.execute_script', reasoning='Есть готовый скрипт для поиска книг по автору', parameters={'script_name': 'get_books_by_author', 'author': 'Пушкин'}, expected_outcome='Список книг Пушкина', capability_name=None, reason=None)
+🔵 [_perform_structured_reasoning] decision.next_action=book_library.execute_script
+🔵 [_perform_structured_reasoning] reasoning_result.stop_condition=False
+🔵 [generate_decision] reasoning_result тип=ReasoningResult
+🔵 [generate_decision] to_dict() decision={'next_action': 'book_library.execute_script', 'reasoning': 'Есть готовый скрипт для поиска книг по автору', 'parameters': {'script_name': 'get_books_by_author', 'author': 'Пушкин'}, 'expected_outcome': 'Список книг Пушкина'}
+🔵 [generate_decision] to_dict() stop_condition=False
+🔵 [_make_decision] reasoning_result type=ReasoningResult
+🔵 [_make_decision] Вызываем to_dict()...
+🔵 [_make_decision] reasoning_dict keys=['thought', 'analysis', 'decision', 'confidence', 'stop_condition', 'stop_reason', 'alternative_actions', 'available_capabilities']
+🔵 [_make_decision] reasoning_dict.decision={'next_action': 'book_library.execute_script', 'reasoning': 'Есть готовый скрипт для поиска книг по автору', 'parameters': {'script_name': 'get_books_by_author', 'author': 'Пушкин'}, 'expected_outcome': 'Список книг Пушкина'}
+🔵 [_make_decision] reasoning_dict.stop_condition=False
+🔍 [_find_capability] поиск 'book_library.execute_script' среди 17 доступных
+✅ [_find_capability] найдено по прямому совпадению 'book_library.execute_script'
+✅ [_make_decision] Возвращаем BehaviorDecision: action=act, capability_name=book_library.execute_script
+🔵 [generate_decision] decision от _make_decision_from_reasoning: action=act, capability_name=book_library.execute_script
+🔵 [generate_decision] Возвращаем decision: action=act, capability_name=book_library.execute_script
+🔵 [BehaviorManager] Получен decision: action=act, capability_name=book_library.execute_script
+🔵 [BehaviorManager] Проверка capability: book_library.execute_script
+🔵 [BehaviorManager] Возвращаем decision: action=act, capability_name=book_library.execute_script
+🔵 [RUNTIME] Получен decision: action=act, capability_name=book_library.execute_script
+🔵 [RUNTIME] Вызов _execute_single_step_internal()...
+
+🔵 [_execute_single_step_internal] НАЧАЛО: step=1, decision.action=act
+🔵 [_execute_single_step_internal] decision.capability_name=book_library.execute_script
+🔵 [_execute_single_step_internal] decision.action=ACT
+🔵 [_execute_single_step_internal] Поиск capability в application_context...
+🔵 [_execute_single_step_internal] self.event_bus_logger=True
+🔵 [_execute_single_step_internal] hasattr(application_context, 'components')=True
+🔵 [_execute_single_step_internal] application_context.components доступен
+🔵 [_execute_single_step_internal] parts=['book_library', 'execute_script']
+🔵 [_execute_single_step_internal] component_name=book_library
+🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...
+🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...
+🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.book_library
+🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action=act)
+🔵 [RUNTIME] _execute_single_step_internal вернул: NoneType
+🔵 [RUNTIME] _current_step увеличен до 2
+
+🔵 [RUNTIME] === ИТЕРАЦИЯ 2 ===
+🔵 [RUNTIME] available_caps count=17
+🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...
+
+================================================================================
+━━━━━━━━ LLM CALL ━━━━━━━━
+================================================================================
+
+📝 PROMPT (call_id=llm_1772915974_3)
+------------------------------------------------------------
+=== SYSTEM ===
+Ты — поведенческий паттерн ReAct для рассуждения.
+
+=== ТВОЯ ЗАДАЧА ===
+Проанализируй контекст и верни решение о следующем действии в формате JSON.
+
+=== ФОРМАТ ОТВЕТА ===
+Верни ТОЛЬКО один JSON объект со структурой:
+- thought: твоё рассуждение о ситуации
+- analysis: анализ прогресса и текущего состояния
+- decision: решение о следующем действии (next_action, reasoning, parameters)
+- confidence: уверенность 0.0-1.0
+- stop_condition: false если есть ещё шаги, true если задача завершена
+
+=== ВАЖНО ===
+- Никакого текста до или после JSON
+- Только один JSON объект
+- Используй формат из примера в user-промпте
+
+
+=== JSON СХЕМА ОТВЕТА ===
+Ты ДОЛЖЕН вернуть JSON следующей структуры:
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "thought": {
+      "title": "Thought",
+      "type": "string"
+    },
+    "analysis": {
+      "additionalProperties": true,
+      "title": "Analysis",
+      "type": "object"
+    },
+    "decision": {
+      "additionalProperties": true,
+      "title": "Decision",
+      "type": "object"
+    },
+    "confidence": {
+      "title": "Confidence",
+      "type": "number"
+    },
+    "alternative_actions": {
+      "items": {},
+      "title": "Alternative Actions",
+      "type": "array"
+    },
+    "stop_condition": {
+      "title": "Stop Condition",
+      "type": "boolean"
+    },
+    "stop_reason": {
+      "title": "Stop Reason",
+      "type": "string"
+    }
+  },
+  "title": "BehaviorreactthinkOutputSchema",
+  "type": "object"
+}
+```
+
+ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: thought, decision, confidence, stop_condition
+
+ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {"next_action": "string", "parameters": "object"} — это только пример формата.
+
+=== USER ===
+=== КОНТЕКСТ ===
+ЦЕЛЬ: Какие книги написал Пушкин?
+Шагов выполнено: 0
+Шагов без прогресса: 0
+Ошибок подряд: 0
+Цель: Какие книги написал Пушкин?
+История: Шаги не выполнены
+Наблюдение: Нет наблюдений
+
+=== ИНСТРУМЕНТЫ ===
+- data_analysis.analyze_step_data: Анализ сырых данных по шагу и ответ на заданный вопрос с поддержкой больших данных
+    Параметры:
+      - step_id: string (optional)
+      - question: string (optional)
+      - data_source: object (optional)
+      - analysis_config: object (optional)
+- final_answer.generate: Генерация финального ответа на основе всего контекста сессии с поддержкой различных форматов вывода
+    Параметры:
+      - include_steps: boolean (optional)
+      - include_evidence: boolean (optional)
+      - format_type: string (optional)
+      - confidence_threshold: number (optional)
+      - max_sources: integer (optional)
+- planning.create_plan: Создание первичного плана действий
+    Параметры:
+      - capabilities_list: array (optional)
+      - context: string (optional)
+      - goal: string (optional)
+- planning.update_plan: Обновление существующего плана
+    Параметры:
+      - plan_id: string (optional)
+      - updates: object (optional)
+      - reason: string (optional)
+- planning.get_next_step: Получение следующего шага из плана
+    Параметры:
+      - plan_id: string (optional)
+      - current_step_id: string (optional)
+      - skip_completed: boolean (optional)
+- planning.update_step_status: Обновление статуса шага плана
+    Параметры:
+      - error_message: string (optional)
+      - plan_id: string (optional)
+      - result: string (optional)
+      - status: string (optional)
+      - step_id: string (optional)
+- planning.decompose_task: Декомпозиция сложной задачи на подзадачи
+    Параметры:
+      - context: string (optional)
+      - max_subtasks: integer (optional)
+      - task_description: string (optional)
+      - task_id: string (optional)
+- planning.mark_task_completed: Отметка задачи как завершенной
+    Параметры:
+      - plan_i
+... (ещё 2725 символов)
+
+📊 Длина промпта: 4725 символов
+🌡️ Temperature: 0.3
+🎯 Max tokens: 1000
+📋 Structured output: ReasoningResult
+🔵 [LLM] Structured output активирован: model=ReasoningResult
