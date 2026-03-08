@@ -558,8 +558,20 @@ class AgentRuntime:
         # Выполняем capability
         try:
             print(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...", flush=True)
+            
+            # Создаём объект Capability с правильным именем для передачи в компонент
+            from core.models.data.capability import Capability
+            cap_obj = Capability(
+                name=decision.capability_name,
+                description=f"Capability {decision.capability_name}",
+                skill_name=component_name,
+                supported_strategies=["react", "planning"],
+                visiable=True,
+                meta={}
+            )
+            
             execution_result = await self.executor.execute_capability(
-                capability=capability,
+                capability=cap_obj,  # Передаём объект Capability с правильным именем
                 parameters=decision.parameters,
                 session_context=self.application_context.session_context,
                 user_context=self.user_context
