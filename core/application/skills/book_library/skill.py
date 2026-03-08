@@ -196,7 +196,7 @@ class BookLibrarySkill(BaseComponent):
             self.event_bus_logger.warning_sync(f"ExecutionResult не содержит данных для {capability.name}")
             return {}
 
-    async def _search_books_dynamic(self, params: Dict[str, Any]) -> ExecutionResult:
+    async def _search_books_dynamic(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Динамическая генерация SQL через LLM.
 
@@ -207,6 +207,9 @@ class BookLibrarySkill(BaseComponent):
         НЕДОСТАТКИ:
         - Требует LLM вызов (медленнее)
         - Требует валидации сгенерированного SQL
+        
+        ВОЗВРАЩАЕТ:
+        - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         start_time = time.time()
         await self.event_bus_logger.info(f"Запуск динамического поиска книг: {params}")
@@ -214,10 +217,8 @@ class BookLibrarySkill(BaseComponent):
         # 1. Валидация входных параметров
         # ✅ ПРИМЕЧАНИЕ: BaseComponent.execute() уже валидировал параметры через validate_input_typed()
         # params уже может быть Pydantic моделью BookLibrarySearchInput
-        # Проверяем и используем напрямую если это модель
         from pydantic import BaseModel
         if isinstance(params, BaseModel):
-            # params уже валидированная модель — используем напрямую
             await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
         else:
             # Fallback для обратной совместимости
@@ -228,24 +229,15 @@ class BookLibrarySkill(BaseComponent):
                     params = validated_params
                 except Exception as e:
                     await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
-                    return ExecutionResult.failure(
-                        error=f"Неверные параметры: {str(e)}",
-                        metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
-                    )
+                    raise ValueError(f"Неверные параметры: {str(e)}")
             else:
                 await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
-                return ExecutionResult.failure(
-                    error="Внутренняя ошибка: контракт не загружен",
-                    metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
-                )
+                raise ValueError("Внутренняя ошибка: контракт не загружен")
 
         # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
         prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
         if not prompt_with_contract:
-            return ExecutionResult.failure(
-                error="Промпт для поиска книг не найден",
-                metadata={"rows": [], "rowcount": 0, "execution_type": "dynamic"}
-            )
+            raise ValueError("Промпт для поиска книг не найден")
 
         # 3. Генерация SQL через sql_generation
         sql_query = ""
@@ -373,9 +365,9 @@ class BookLibrarySkill(BaseComponent):
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                event_type=EventType.ACTION_COMPLETED if is_success else EventType.ERROR_OCCURRED,
+                event_type=EventType.ACTION_COMPLETED,
                 capability_name="book_library.search_books",
-                success=is_success,
+                success=True,
                 execution_time_ms=total_time * 1000,
                 tokens_used=0,
                 execution_type="dynamic",
@@ -385,31 +377,8 @@ class BookLibrarySkill(BaseComponent):
         except Exception as e:
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
-        # 6. Валидация результатов через выходную схему
-        # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
-        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
-        result_data = result.copy()
-        if output_schema:
-            try:
-                validated_result = output_schema.model_validate(result)
-                result_data = validated_result  # ← Сохраняем модель, не dict!
-            except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-        else:
-            # Fallback на dict если схема не загружена
-            result_data = result.copy()
-
-        # Возвращаем ExecutionResult с side_effect=True (SQL query executed)
-        return ExecutionResult.success(
-            data=result_data,  # ← Pydantic модель!
-            metadata={
-                "execution_time_ms": total_time * 1000,
-                "rows_returned": len(rows),
-                "sql_query": sql_query,
-                "execution_type": "dynamic"
-            },
-            side_effect=True  # SQL query был выполнен
-        )
+        # ✅ Возвращаем Dict, валидация будет в execute()
+        return result
 
     async def _execute_script_static(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -422,16 +391,24 @@ class BookLibrarySkill(BaseComponent):
 
         НЕДОСТАТКИ:
         - Ограничено заранее определёнными запросами
-        
+
         ВОЗВРАЩАЕТ:
         - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
         start_time = time.time()
+        
+        # [BOOK_DEBUG] 1.1. Входные параметры
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] _execute_script_static: входные params = {params}")
+        
         await self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
 
         # 1. Валидация входных параметров
         # Поддержка dict и Pydantic модели
         script_name = params.get('script_name') if isinstance(params, dict) else getattr(params, 'script_name', None)
+        
+        # [BOOK_DEBUG] 1.2. Проверка наличия script_name
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] script_name = {script_name}")
+        
         if not script_name:
             raise ValueError("Требуется параметр 'script_name'")
 
@@ -443,11 +420,24 @@ class BookLibrarySkill(BaseComponent):
 
         # 3. Получение SQL-скрипта из реестра
         script_config = allowed_scripts[script_name]
+        
+        # [BOOK_DEBUG] 1.3. Получение конфигурации скрипта
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] script_config для '{script_name}': {script_config}")
+        
         sql_query = script_config['sql']
         max_rows = params.get('max_rows', script_config.get('max_rows', 100)) if isinstance(params, dict) else getattr(params, 'max_rows', script_config.get('max_rows', 100))
 
         # 4. Валидация параметров для скрипта
+        # [BOOK_DEBUG] 1.4. Извлечение script_params
         script_params = params.get('parameters', {}) if isinstance(params, dict) else getattr(params, 'parameters', {})
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] script_params (из parameters) = {script_params}")
+
+        # Если script_params пуст, возможно, параметры переданы на верхнем уровне
+        if not script_params:
+            flat_params = {k: v for k, v in params.items() if k not in ['script_name', 'max_rows']}
+            await self.event_bus_logger.info(f"[BOOK_DEBUG] попытка использовать плоские параметры: {flat_params}")
+            script_params = flat_params
+            
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())
             if missing_params:
@@ -481,16 +471,25 @@ class BookLibrarySkill(BaseComponent):
         if '$' + str(param_index) in sql_query or 'LIMIT $' + str(param_index) in sql_query:
             sql_params[str(param_index)] = max_rows
 
+        # [BOOK_DEBUG] 1.5. Формирование sql_params
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] сформированные sql_params (для БД): {sql_params}")
+
         # 6. Выполнение SQL через sql_query_service (прямой вызов сервиса)
         rows = []
         execution_time = 0.0
         try:
             # Получаем сервис напрямую из application_context
             from core.models.enums.common_enums import ComponentType
-            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
             
+            # [BOOK_DEBUG] 1.6. Получение сервиса sql_query_service
+            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
+            await self.event_bus_logger.info(f"[BOOK_DEBUG] sql_query_service найден: {sql_query_svc is not None}")
+
             if not sql_query_svc:
                 raise RuntimeError("Сервис sql_query_service не найден")
+
+            # [BOOK_DEBUG] 1.7. Вызов execute_query
+            await self.event_bus_logger.info(f"[BOOK_DEBUG] вызов sql_query_svc.execute_query с SQL: {sql_query}, params: {sql_params}")
             
             # Вызываем метод execute_query напрямую
             from core.models.data.execution import ExecutionStatus
@@ -499,27 +498,28 @@ class BookLibrarySkill(BaseComponent):
                 parameters=sql_params
                 # max_rows передаётся внутри parameters через LIMIT в SQL
             )
-            
+
+            await self.event_bus_logger.info(f"[BOOK_DEBUG] результат execute_query: success={getattr(result, 'success', None)}, error={getattr(result, 'error', None)}, rows_len={len(getattr(result, 'rows', [])) if hasattr(result, 'rows') else 'N/A'}")
+
             if hasattr(result, 'success') and result.success:
                 rows = result.rows if hasattr(result, 'rows') else []
                 execution_time = result.execution_time if hasattr(result, 'execution_time') else 0.0
-                await self.event_bus_logger.info(f"Скрипт '{script_name}' выполнен, найдено строк: {len(rows)}")
+                # [BOOK_DEBUG] 1.8. Обработка результата (успех)
+                await self.event_bus_logger.info(f"[BOOK_DEBUG] Успешное выполнение, rows={len(rows)}")
             else:
                 error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
+                # [BOOK_DEBUG] 1.8. Обработка результата (ошибка)
+                await self.event_bus_logger.error(f"[BOOK_DEBUG] Ошибка выполнения SQL: {error_msg}")
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка выполнения скрипта '{script_name}': {e}")
-            return ExecutionResult.failure(
-                error=f"Ошибка выполнения скрипта: {str(e)}",
-                metadata={"rows": [], "rowcount": 0, "execution_type": "static", "script_name": script_name}
-            )
+            raise  # Пробрасываем исключение вверх, execute() обработает
 
         # Формируем результат
         total_time = time.time() - start_time
-        is_success = len(rows) > 0 or True  # Считаем успешным если нет ошибки
 
-        result = {
+        result_data = {
             "rows": rows,
             "rowcount": len(rows),
             "execution_time": total_time,
@@ -531,9 +531,9 @@ class BookLibrarySkill(BaseComponent):
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                event_type=EventType.ACTION_COMPLETED if is_success else EventType.ERROR_OCCURRED,
+                event_type=EventType.ACTION_COMPLETED,
                 capability_name="book_library.execute_script",
-                success=is_success,
+                success=True,
                 execution_time_ms=total_time * 1000,
                 tokens_used=0,
                 execution_type="static",
@@ -543,33 +543,10 @@ class BookLibrarySkill(BaseComponent):
         except Exception as e:
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
-        # 8. Валидация результатов через выходную схему
-        # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
-        output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
-        result_data = result.copy()
-        if output_schema:
-            try:
-                validated_result = output_schema.model_validate(result)
-                result_data = validated_result  # ← Сохраняем модель, не dict!
-            except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка валидации результата: {e}")
-        else:
-            # Fallback на dict если схема не загружена
-            result_data = result.copy()
+        # ✅ Возвращаем Dict, валидация будет в execute()
+        return result_data
 
-        # Возвращаем ExecutionResult с side_effect=True (SQL query executed)
-        return ExecutionResult.success(
-            data=result_data,  # ← Pydantic модель!
-            metadata={
-                "execution_time_ms": total_time * 1000,
-                "rows_returned": len(rows),
-                "script_name": script_name,
-                "execution_type": "static"
-            },
-            side_effect=True  # SQL query был выполнен
-        )
-
-    async def _list_scripts(self, params: Dict[str, Any] = None) -> ExecutionResult:
+    async def _list_scripts(self, params: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Получение списка доступных заготовленных скриптов.
 

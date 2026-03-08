@@ -126,8 +126,11 @@ class SQLQueryService(BaseService):
         """
         from core.application.agent.components.action_executor import ExecutionContext
         from core.application.tools.sql_tool import SQLToolInput
-        
+
         try:
+            # [SQL_DEBUG] 2.1. Входные параметры
+            await self.event_bus_logger.info(f"[SQL_DEBUG] execute_query вызван с sql={sql_query}, parameters={parameters}, max_rows={max_rows}")
+            
             # === ЭТАП 1: Валидация входных данных через схему ===
             input_schema = self.get_cached_input_contract_safe("sql_query_service.execute")
             if input_schema:
@@ -175,10 +178,13 @@ class SQLQueryService(BaseService):
 
             # === ЭТАП 3: Выполнение запроса через db_provider ===
             # Получаем db_provider напрямую из infrastructure_context
+            # [SQL_DEBUG] 2.2. Получение db_provider
             db_provider = None
             if hasattr(self, 'application_context') and self.application_context:
                 if hasattr(self.application_context, 'infrastructure_context'):
                     db_provider = self.application_context.infrastructure_context.get_provider("default_db")
+            
+            await self.event_bus_logger.info(f"[SQL_DEBUG] db_provider найден: {db_provider is not None}")
 
             if not db_provider:
                 return DBQueryResult(
@@ -192,41 +198,55 @@ class SQLQueryService(BaseService):
             # Выполняем запрос напрямую через db_provider
             start_exec_time = time.time()
             try:
+                # [SQL_DEBUG] 2.3. Вызов db_provider.execute
+                await self.event_bus_logger.info(f"[SQL_DEBUG] вызов db_provider.execute с SQL: {validation_result.sql}, params: {parameters}")
+                
                 result = await db_provider.execute(
                     sql=validation_result.sql,
                     params=parameters
                 )
                 execution_time = time.time() - start_exec_time
+                
+                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute: success={result.success}, error={result.error}, rows={len(result.rows) if result.rows else 0}")
 
                 # Преобразуем результат в DBQueryResult
-                return DBQueryResult(
+                # [SQL_DEBUG] 2.4. Возврат DBQueryResult (успех)
+                db_result = DBQueryResult(
                     success=True,
                     rows=result.rows if hasattr(result, 'rows') else [],
                     columns=result.columns if hasattr(result, 'columns') else [],
                     rowcount=result.rowcount if hasattr(result, 'rowcount') else len(result.rows) if hasattr(result, 'rows') else 0,
                     execution_time=execution_time
                 )
+                await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+                return db_result
             except Exception as e:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
-                return DBQueryResult(
+                # [SQL_DEBUG] 2.4. Возврат DBQueryResult (ошибка исключения)
+                db_result = DBQueryResult(
                     success=False,
                     rows=[],
                     columns=[],
                     rowcount=0,
                     error=f"Ошибка выполнения SQL: {str(e)}"
                 )
+                await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+                return db_result
 
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
-            return DBQueryResult(
+            # [SQL_DEBUG] 2.4. Возврат DBQueryResult (общая ошибка)
+            db_result = DBQueryResult(
                 success=False,
                 rows=[],
                 columns=[],
                 rowcount=0,
                 error=str(e)
             )
+            await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+            return db_result
 
     async def execute_query_from_user_request(
         self,
