@@ -980,7 +980,6 @@ class ReActPattern(BaseBehaviorPattern):
         """
         # Логирование начала поиска
         print(f"🔍 [_find_capability] поиск '{capability_name}' среди {len(available_capabilities)} доступных", flush=True)
-        print(f"[FIND_CAP_DEBUG] все names: {[c.name for c in available_capabilities]}", flush=True)
         if self.event_bus_logger:
             self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: поиск '{capability_name}' среди {len(available_capabilities)} доступных")
         else:
@@ -990,7 +989,6 @@ class ReActPattern(BaseBehaviorPattern):
         for cap in available_capabilities:
             if cap.name == capability_name:
                 print(f"✅ [_find_capability] найдено по прямому совпадению '{cap.name}'", flush=True)
-                print(f"[FIND_CAP_DEBUG] возвращаем cap.name={cap.name}, cap.skill_name={getattr(cap, 'skill_name', 'N/A')}", flush=True)
                 self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по прямому совпадению '{cap.name}'")
                 return cap
 

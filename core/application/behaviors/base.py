@@ -113,10 +113,6 @@ class BehaviorPatternInterface(ABC):
         # Если pattern_prefix содержит "_pattern", извлекаем часть до "_"
         if "_pattern" in pattern_prefix:
             pattern_prefix = pattern_prefix.replace("_pattern", "")  # "react"
-        
-        # Отладочный вывод
-        print(f"[FILTER_DEBUG] pattern_prefix={pattern_prefix}, pattern_id={self.pattern_id}", flush=True)
-        print(f"[FILTER_DEBUG] входные capability: {[c.name for c in capabilities]}", flush=True)
 
         filtered = [
             cap for cap in capabilities
@@ -125,7 +121,5 @@ class BehaviorPatternInterface(ABC):
                 pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
             )
         ]
-        
-        print(f"[FILTER_DEBUG] отфильтрованные capability: {[c.name for c in filtered]}", flush=True)
 
         return filtered
