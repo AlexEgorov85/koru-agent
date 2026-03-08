@@ -6,6 +6,7 @@ from core.application.context.base_system_context import BaseSystemContext
 from core.models.data.capability import Capability
 from core.session_context.base_session_context import BaseSessionContext
 from core.models.data.execution import ExecutionResult
+from core.models.enums.common_enums import ExecutionStatus
 from core.security.user_context import UserContext
 
 
@@ -46,8 +47,8 @@ class ActionExecutor:
             # Обрабатываем результат — может быть ExecutionResult или dict
             if isinstance(result, ExecutionResult):
                 return ExecutionResult(
-                    status=result.status.value if hasattr(result.status, 'value') else str(result.status),
-                    data=result.data,  # ← ИСПРАВЛЕНО: result → data
+                    status=result.status if isinstance(result.status, ExecutionStatus) else ExecutionStatus(result.status if isinstance(result.status, str) else str(result.status)),
+                    data=result.data,
                     metadata={
                         'capability': capability.name,
                         'step': step_number
@@ -56,8 +57,8 @@ class ActionExecutor:
             else:
                 # Если результат — dict, считаем это успешным выполнением
                 return ExecutionResult(
-                    status='completed',
-                    data=result,  # ← ИСПРАВЛЕНО: result → data
+                    status=ExecutionStatus.COMPLETED,
+                    data=result,
                     metadata={
                         'capability': capability.name,
                         'step': step_number
@@ -81,7 +82,7 @@ class ActionExecutor:
                         f"Capability {capability.name} не имеет метода execute и execution_gateway недоступен"
                     )
                 return ExecutionResult(
-                    status='failed',
-                    data={'error': f'Cannot execute capability {capability.name}'},  # ← ИСПРАВЛЕНО: result → data
+                    status=ExecutionStatus.FAILED,
+                    data={'error': f'Cannot execute capability {capability.name}'},
                     metadata={'capability': capability.name, 'step': step_number}
                 )
