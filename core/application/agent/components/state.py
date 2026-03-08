@@ -13,9 +13,9 @@ from typing import List, Dict, Any, Optional
 class AgentStateSnapshot:
     """
     Типизированный снимок состояния агента.
-    
+
     Используется для детекции зацикливания и отсутствия прогресса.
-    
+
     ATTRIBUTES:
     - step: Текущий шаг
     - error_count: Общее количество ошибок
@@ -32,6 +32,26 @@ class AgentStateSnapshot:
     finished: bool
     history_length: int
     last_history_item: Optional[str] = None
+
+    def __getitem__(self, key: str) -> Any:
+        """Поддержка dict-подобного доступа для совместимости с тестами."""
+        return getattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Dict-подобный get() для безопасного доступа."""
+        return getattr(self, key, default)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертация в словарь."""
+        return {
+            "step": self.step,
+            "error_count": self.error_count,
+            "consecutive_errors": self.consecutive_errors,
+            "no_progress_steps": self.no_progress_steps,
+            "finished": self.finished,
+            "history_length": self.history_length,
+            "last_history_item": self.last_history_item
+        }
 
 
 @dataclass
