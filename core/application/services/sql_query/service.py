@@ -199,15 +199,15 @@ class SQLQueryService(BaseService):
             start_exec_time = time.time()
             try:
                 # [SQL_DEBUG] 2.3. Вызов db_provider.execute
-                await self.event_bus_logger.info(f"[SQL_DEBUG] вызов db_provider.execute с SQL: {validation_result.sql}, params: {parameters}")
-                
-                result = await db_provider.execute(
-                    sql=validation_result.sql,
+                await self.event_bus_logger.info(f"[SQL_DEBUG] вызов db_provider.execute_query с SQL: {validation_result.sql}, params: {parameters}")
+
+                result = await db_provider.execute_query(
+                    query=validation_result.sql,
                     params=parameters
                 )
                 execution_time = time.time() - start_exec_time
                 
-                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute: success={result.success}, error={result.error}, rows={len(result.rows) if result.rows else 0}")
+                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute_query: success={result.success}, error={result.error}, rows={len(result.rows) if result.rows else 0}")
 
                 # Преобразуем результат в DBQueryResult
                 # [SQL_DEBUG] 2.4. Возврат DBQueryResult (успех)

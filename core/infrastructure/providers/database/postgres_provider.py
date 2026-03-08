@@ -203,9 +203,9 @@ class PostgreSQLProvider(BaseDBProvider):
                 self.event_bus_logger.error(f"Params were: {params}")
             raise
 
-    async def execute(self, query: str, params: Optional[Dict[str, Any]] = None) -> DBQueryResult:
+    async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> DBQueryResult:
         """
-        Выполнение SQL запроса.
+        Выполнение SQL запроса (SELECT).
         """
         if not self.is_initialized or not self.pool:
             await self.initialize()
@@ -213,7 +213,7 @@ class PostgreSQLProvider(BaseDBProvider):
         start_time = time.time()
 
         # [DB_DEBUG] 3.1. Входные параметры
-        await self.event_bus_logger.info(f"[DB_DEBUG] execute вызван с query={query}, params={params}")
+        await self.event_bus_logger.info(f"[DB_DEBUG] execute_query вызван с query={query}, params={params}")
 
         try:
             async with self.pool.acquire() as conn:
