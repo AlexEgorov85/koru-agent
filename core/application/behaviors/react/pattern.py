@@ -426,52 +426,53 @@ class ReActPattern(BaseBehaviorPattern):
     def _build_step_history(self, last_steps: list) -> str:
         """
         Формирует читаемую историю шагов для промпта.
-        
+
         ПАРАМЕТРЫ:
         - last_steps: список шагов из context_analysis
-        
+
         ВОЗВРАЩАЕТ:
         - str: отформатированная история шагов
         """
         if not last_steps:
             return "Шаги не выполнены"
-        
+
         step_lines = []
         for i, step in enumerate(last_steps[-3:], 1):
             if isinstance(step, dict):
                 capability = step.get('capability', 'unknown')
                 summary = step.get('summary', '')
                 obs = step.get('observation', '')
-                
+
                 step_text = f"{capability}: {summary}"
                 if obs:
-                    step_text += f" → {obs[:100]}"
+                    # Показываем observation с переносом строки для читаемости
+                    step_text += f"\n   Наблюдение: {obs}"
                 step_lines.append(f"{i}. {step_text}")
             else:
                 step_lines.append(f"{i}. {step}")
-        
+
         return "\n".join(step_lines)
 
     def _extract_last_observation(self, last_steps: list) -> str:
         """
         Извлекает последнее наблюдение из истории шагов.
-        
+
         ПАРАМЕТРЫ:
         - last_steps: список шагов из context_analysis
-        
+
         ВОЗВРАЩАЕТ:
         - str: последнее наблюдение или "Нет наблюдений"
         """
         if not last_steps:
             return "Нет наблюдений"
-        
+
         # Ищем observation в последнем шаге
         last_step = last_steps[-1]
         if isinstance(last_step, dict):
             obs = last_step.get('observation', '')
             if obs:
                 return obs
-        
+
         # Если observation нет в явном виде, пробуем извлечь из summary
         summary = last_step.get('summary', '') if isinstance(last_step, dict) else str(last_step)
         return summary if summary else "Нет наблюдений"
@@ -1153,7 +1154,7 @@ class ReActPattern(BaseBehaviorPattern):
                         reason="no_available_capabilities"
                     )
             
-            # 4. Вали��ация и корректировка параметров через SchemaValidator
+            # 4. Вали��ация и коррек��ировка параметров через SchemaValidator
             parameters = decision_dict.get("parameters", {})
             validated_params = self._validate_parameters(capability, parameters)
             

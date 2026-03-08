@@ -599,17 +599,29 @@ class AgentRuntime:
                 obs_data = None
                 step_status = execution_result.status
                 step_summary = None
-                
+
                 try:
                     if execution_result.status == ExecutionStatus.COMPLETED:
                         # Успех — записываем результат
-                        if hasattr(execution_result, 'result') and execution_result.result:
-                            # Если result это dict, используем его
-                            if isinstance(execution_result.result, dict):
-                                obs_data = execution_result.result
+                        # ИСПРАВЛЕНО: проверяем execution_result.data вместо execution_result.result
+                        if hasattr(execution_result, 'data') and execution_result.data:
+                            # Если data это dict или Pydantic модель, извлекаем данные
+                            if isinstance(execution_result.data, dict):
+                                obs_data = execution_result.data
+                            elif hasattr(execution_result.data, 'model_dump'):
+                                # Pydantic модель → dict
+                                obs_data = execution_result.data.model_dump()
                             else:
                                 # Иначе оборачиваем в dict
-                                obs_data = {"result": execution_result.result}
+                                obs_data = {"result": execution_result.data}
+                            
+                            # Добавляем краткую сводку для LLM
+                            if 'rows' in obs_data and isinstance(obs_data['rows'], list):
+                                obs_data['summary'] = f"Найдено {len(obs_data['rows'])} записей"
+                                # Добавляем первые 3 записи для контекста
+                                if len(obs_data['rows']) > 0:
+                                    obs_data['preview'] = obs_data['rows'][:3]
+                        
                         step_summary = f"Выполнено: {decision.capability_name}"
                         self.state.register_progress(True)  # прогресс есть
                     else:
