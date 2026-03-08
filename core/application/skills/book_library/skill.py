@@ -183,9 +183,17 @@ class BookLibrarySkill(BaseComponent):
         if capability.name not in self.supported_capabilities:
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
+        # Конвертируем Pydantic модель в dict если нужно
+        if hasattr(parameters, 'model_dump'):
+            params_dict = parameters.model_dump()
+        elif isinstance(parameters, dict):
+            params_dict = parameters
+        else:
+            params_dict = {}
+
         # Выполняем действие — возвращает Pydantic модель или Dict
-        result = await self.supported_capabilities[capability.name](parameters)
-        
+        result = await self.supported_capabilities[capability.name](params_dict)
+
         # Возвращаем результат напрямую (Pydantic модель или Dict)
         return result
 
