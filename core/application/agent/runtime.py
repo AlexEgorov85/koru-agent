@@ -297,6 +297,7 @@ class AgentRuntime:
                         )
                     self._result = ExecutionResult(
                         status=ExecutionStatus.FAILED,
+                        data=None,
                         error=f"Нет прогресса: {self.state.no_progress_steps} шагов без изменений",
                         metadata={
                             "no_progress_steps": self.state.no_progress_steps,
@@ -334,7 +335,7 @@ class AgentRuntime:
 
             self._result = ExecutionResult(
                 status=final_status,
-                result=self._extract_final_result(),
+                data=self._extract_final_result(),
                 error=error_message,
                 metadata={
                     "goal": self.goal,
@@ -349,14 +350,14 @@ class AgentRuntime:
         except Exception as e:
             import traceback
             tb_str = traceback.format_exc()
-            
+
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}")
                 await self.event_bus_logger.error(f"Traceback: {tb_str}")
-            
+
             self._result = ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                result=str(e),
+                data=None,
                 error=str(e),
                 metadata={
                     "error": str(e),
@@ -445,7 +446,7 @@ class AgentRuntime:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"ACT decision но capability_name не указан!")
                 self.state.register_error()
-                
+
                 # ПРОВЕРКА: Превышен ли лимит ошибок
                 if self.policy.should_fallback(self.state):
                     if self.event_bus_logger:
@@ -455,6 +456,7 @@ class AgentRuntime:
                         )
                     return ExecutionResult(
                         status=ExecutionStatus.FAILED,
+                        data=None,
                         error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
                         metadata={
                             "error_count": self.state.error_count,
@@ -462,7 +464,7 @@ class AgentRuntime:
                             "failed_at_step": self._current_step + 1
                         }
                     )
-                
+
                 print(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)", flush=True)
                 return None
 
@@ -521,7 +523,7 @@ class AgentRuntime:
         if not capability:
             print(f"🔴 [_execute_single_step_internal] Capability '{decision.capability_name}' не найдена", flush=True)
             self.state.register_error()
-            
+
             # ПРОВЕРКА: Превышен ли лимит ошибок
             if self.policy.should_fallback(self.state):
                 if self.event_bus_logger:
@@ -531,6 +533,7 @@ class AgentRuntime:
                     )
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
+                    data=None,
                     error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
                     metadata={
                         "error_count": self.state.error_count,
@@ -538,7 +541,7 @@ class AgentRuntime:
                         "failed_at_step": self._current_step + 1
                     }
                 )
-            
+
             return None
 
         # Выполняем capability
@@ -576,17 +579,33 @@ class AgentRuntime:
 
                 # КРИТИЧНО: Записываем observation из результата выполнения
                 # Навыки не записывают observation явно, делаем это в runtime
+                # ИСПРАВЛЕНО: записываем observation даже при ошибке
                 observation_id = None
+                obs_data = None
+                step_status = execution_result.status
+                step_summary = None
+                
                 try:
-                    # Извлекаем данные для observation из execution_result
-                    obs_data = None
-                    if hasattr(execution_result, 'result') and execution_result.result:
-                        # Если result это dict, используем его
-                        if isinstance(execution_result.result, dict):
-                            obs_data = execution_result.result
-                        else:
-                            # Иначе оборачиваем в dict
-                            obs_data = {"result": execution_result.result}
+                    if execution_result.status == ExecutionStatus.COMPLETED:
+                        # Успех — записываем результат
+                        if hasattr(execution_result, 'result') and execution_result.result:
+                            # Если result это dict, используем его
+                            if isinstance(execution_result.result, dict):
+                                obs_data = execution_result.result
+                            else:
+                                # Иначе оборачиваем в dict
+                                obs_data = {"result": execution_result.result}
+                        step_summary = f"Выполнено: {decision.capability_name}"
+                        self.state.register_progress(True)  # прогресс есть
+                    else:
+                        # Ошибка — записываем информацию об ошибке
+                        obs_data = {
+                            "error": execution_result.error,
+                            "error_type": execution_result.metadata.get("error_type", "unknown") if execution_result.metadata else "unknown",
+                            "status": execution_result.status.value
+                        }
+                        step_summary = f"Ошибка при выполнении {decision.capability_name}: {execution_result.error or 'неизвестная ошибка'}"
+                        self.state.register_error()  # увеличиваем счётчик ошибок
 
                     if obs_data:
                         observation_id = self.application_context.session_context.record_observation(
@@ -625,8 +644,8 @@ class AgentRuntime:
                         skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
                         action_item_id=action_id,
                         observation_item_ids=observation_item_ids,
-                        summary=f"Выполнено: {decision.capability_name}",
-                        status="completed"
+                        summary=step_summary,
+                        status=step_status  # ← передаём ExecutionStatus вместо строки
                     )
 
                     if self.event_bus_logger:
@@ -665,6 +684,7 @@ class AgentRuntime:
                 # Возвращаем специальный маркер для прерывания цикла
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
+                    data=None,
                     error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
                     metadata={
                         "error_count": self.state.error_count,
