@@ -416,9 +416,11 @@ class ReActPattern(BaseBehaviorPattern):
         ]
 
         if last_steps:
+            # Используем _build_step_history для правильного форматирования
             parts.append("\nПОСЛЕДНИЕ ШАГИ:")
-            for i, step in enumerate(last_steps[-3:], 1):
-                parts.append(f"  {i}. {step}")
+            step_history = self._build_step_history(last_steps)
+            for line in step_history.split('\n'):
+                parts.append(f"  {line}")
 
         # Примечание: Список инструментов добавляется отдельно через {available_tools}
         return "\n".join(parts)

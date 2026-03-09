@@ -51,24 +51,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
     logger = logging.getLogger(__name__)
 
     try:
-        # Получаем историю последних шагов
-        last_steps = []
-        if hasattr(session_context, 'get_last_steps'):
-            last_steps = session_context.get_last_steps(limit=5)
-            logger.info(f"analyze_context: get_last_steps() вернул {len(last_steps)} шагов")
-        elif hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'get_last_steps'):
-            last_steps = session_context.step_context.get_last_steps(5)
-            logger.info(f"analyze_context: step_context.get_last_steps() вернул {len(last_steps)} шагов")
-        else:
-            logger.warning(f"analyze_context: не удалось получить last_steps. session_context имеет атрибуты: {dir(session_context)}")
-
-        # Получаем цель сессии
-        goal = session_context.goal if hasattr(session_context, 'goal') else "Неизвестная цель"
-        
-        # Получаем текущий прогресс
-        progress = session_context.get_progress() if hasattr(session_context, 'get_progress') else {}
-        
-        # Получаем summary для проверки
+        # Получаем summary с отформатированными last_steps
         summary = {}
         if hasattr(session_context, 'get_summary'):
             try:
@@ -77,10 +60,20 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
             except Exception as e:
                 logger.warning(f"analyze_context: get_summary() ошибка: {e}")
 
+        # Используем last_steps из summary (это dict с observation), а не get_last_steps()
+        last_steps = summary.get('last_steps', [])
+        logger.info(f"analyze_context: last_steps count={len(last_steps)}")
+
+        # Получаем цель сессии
+        goal = session_context.goal if hasattr(session_context, 'goal') else "Неизвестная цель"
+
+        # Получаем текущий прогресс
+        progress = session_context.get_progress() if hasattr(session_context, 'get_progress') else {}
+
         # Собираем информацию о контексте и возвращаем объект
         return ContextAnalysis(
             goal=str(goal) if goal is not None else "Неизвестная цель",
-            last_steps=last_steps,
+            last_steps=last_steps,  # ← Используем dict из summary
             progress=progress,
             current_step=getattr(session_context, 'current_step', 0),
             execution_time_seconds=float(getattr(session_context, 'execution_time', 0)),

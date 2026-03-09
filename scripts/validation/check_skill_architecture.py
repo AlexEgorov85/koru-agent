@@ -92,7 +92,7 @@ def check_file_for_violations(file_path: Path) -> List[Violation]:
             content = f.read()
             lines = content.split('\n')
     except Exception as e:
-        print(f"⚠️  Ошибка чтения файла {file_path}: {e}")
+        print(f"[WARN] Ошибка чтения файла {file_path}: {e}")
         return violations
 
     # Проверка на простые строковые паттерны
@@ -130,7 +130,7 @@ def check_file_for_violations(file_path: Path) -> List[Violation]:
         tree = ast.parse(content)
         violations.extend(check_ast_for_execution_result(tree, file_path, lines))
     except SyntaxError as e:
-        print(f"⚠️  Ошибка парсинга AST {file_path}: {e}")
+        print(f"[WARN] Ошибка парсинга AST {file_path}: {e}")
 
     return violations
 
@@ -203,7 +203,7 @@ def check_skills_directory(skills_dir: Path) -> Dict[str, List[Violation]]:
     results = {}
 
     if not skills_dir.exists():
-        print(f"❌ Директория навыков не найдена: {skills_dir}")
+        print(f"[ERROR] Директория навыков не найдена: {skills_dir}")
         return results
 
     # Рекурсивный поиск всех .py файлов
@@ -229,11 +229,11 @@ def print_violations_report(results: Dict[str, List[Violation]]) -> None:
         results: Результаты проверки
     """
     if not results:
-        print("\n✅ Нарушений архитектуры не найдено!")
+        print("\n[OK] Нарушений архитектуры не найдено!")
         return
 
     total_violations = sum(len(v) for v in results.values())
-    print(f"\n❌ Найдено нарушений: {total_violations}")
+    print(f"\n[ERROR] Найдено нарушений: {total_violations}")
     print("=" * 80)
 
     # Группировка по типам нарушений
@@ -245,12 +245,12 @@ def print_violations_report(results: Dict[str, List[Violation]]) -> None:
             by_type[violation.violation_type].append(violation)
 
     for violation_type, violations in by_type.items():
-        print(f"\n📋 {violation_type.value}: {len(violations)} нарушений")
+        print(f"\n[TYPE] {violation_type.value}: {len(violations)} нарушений")
         print("-" * 60)
         for v in violations:
-            print(f"  📁 {v.file_path}:{v.line_number}")
-            print(f"     {v.message}")
-            print(f"     Код: {v.code_snippet}")
+            print(f"  [FILE] {v.file_path}:{v.line_number}")
+            print(f"         {v.message}")
+            print(f"         Код: {v.code_snippet}")
             print()
 
     print("=" * 80)
