@@ -211,7 +211,7 @@ class FinalAnswerSkill(BaseSkill):
             from core.models.data.execution import ExecutionStatus
             import json
             from datetime import date, datetime
-            
+
             def serialize_for_prompt(obj):
                 """Сериализация объекта для промпта — datetime → строки."""
                 if isinstance(obj, (date, datetime)):
@@ -228,7 +228,18 @@ class FinalAnswerSkill(BaseSkill):
                     return serialize_for_prompt(obj.__dict__)
                 else:
                     return obj
-            
+
+            def format_book_data(row):
+                """Форматирование данных книги для промпта."""
+                if isinstance(row, dict):
+                    title = row.get('book_title', row.get('title', 'Без названия'))
+                    author = row.get('last_name', row.get('author', 'Без автора'))
+                    year = row.get('publication_date', '')
+                    if year:
+                        year = str(year)[:4]  # Только год
+                    return f"'{title}' ({author}, {year})" if year else f"'{title}' ({author})"
+                return str(row)
+
             all_items_result = await self.executor.execute_action(
                 action_name="context.get_all_items",
                 parameters={},
@@ -252,13 +263,23 @@ class FinalAnswerSkill(BaseSkill):
                         # Сериализуем данные наблюдения в JSON-подобный формат
                         if isinstance(item_content, str):
                             observations.append(item_content)
-                        else:
-                            # Сериализуем dict/объект с конвертацией datetime → строки
-                            serialized = serialize_for_prompt(item_content)
-                            if isinstance(serialized, dict):
-                                observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
+                        elif isinstance(item_content, dict):
+                            # Специальная обработка для book_library.execute_script
+                            if 'rows' in item_content and isinstance(item_content['rows'], list):
+                                # Форматируем каждую строку как книгу
+                                rows = item_content['rows']
+                                for row in rows:
+                                    formatted = format_book_data(row)
+                                    observations.append(formatted)
                             else:
-                                observations.append(str(serialized))
+                                # Сериализуем dict/объект с конвертацией datetime → строки
+                                serialized = serialize_for_prompt(item_content)
+                                if isinstance(serialized, dict):
+                                    observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
+                                else:
+                                    observations.append(str(serialized))
+                        else:
+                            observations.append(str(item_content))
                     elif item_type in ["THOUGHT", "DECISION"]:
                         thoughts.append(item_content if isinstance(item_content, str) else str(item_content))
                     elif item_type == "ACTION":
