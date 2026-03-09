@@ -110,7 +110,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         app_config = AppConfig.from_discovery(
             profile="prod",
             data_dir=str(getattr(infrastructure_context.config, 'data_dir', 'data')),
-            discovery=infrastructure_context.get_resource_discovery()  # ← Передаём общий экземпляр
+            discovery=infrastructure_context.resource_discovery  # ← Используем напрямую (не deprecated)
         )
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
