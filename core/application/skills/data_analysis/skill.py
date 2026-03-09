@@ -24,8 +24,8 @@ from core.infrastructure.logging import EventBusLogger
 class DataAnalysisSkill(BaseSkill):
     """Навык для анализа сырых данных по шагу и ответа на вопросы."""
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = ["file_tool", "sql_tool"]
+    # Зависимости больше не нужны — все вызовы через executor
+    # DEPENDENCIES = ["file_tool", "sql_tool"]
 
     name: str = "data_analysis"
     
@@ -72,45 +72,34 @@ class DataAnalysisSkill(BaseSkill):
 
     async def initialize(self) -> bool:
         """Инициализация навыка с предзагрузкой ресурсов."""
-        try:
-            self.logger.info(f"🔧 DataAnalysisSkill.initialize(): начало")
-            success = await super().initialize()
-            self.logger.info(f"🔧 DataAnalysisSkill.initialize(): super().initialize() вернул {success}")
-            if not success:
-                return False
-
-            # Проверяем наличие необходимых ресурсов
-            if "data_analysis.analyze_step_data" not in self.prompts:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-                else:
-                    self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-
-            if "data_analysis.analyze_step_data" not in self.input_contracts:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-                else:
-                    self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-
-            if "data_analysis.analyze_step_data" not in self.output_contracts:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-                else:
-                    self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-            else:
-                self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-            
-            self.logger.info(f"✅ DataAnalysisSkill.initialize(): успех")
-            return True
-        except Exception as e:
-            import traceback
-            tb_str = traceback.format_exc()
-            self.logger.error(f"❌ DataAnalysisSkill.initialize(): ошибка {e}")
-            self.logger.error(f"Traceback: {tb_str}")
+        success = await super().initialize()
+        if not success:
             return False
+
+        # Проверяем наличие необходимых ресурсов
+        if "data_analysis.analyze_step_data" not in self.prompts:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+            else:
+                self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+
+        if "data_analysis.analyze_step_data" not in self.input_contracts:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+
+        if "data_analysis.analyze_step_data" not in self.output_contracts:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+            else:
+                self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        else:
+            self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        return True
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка анализа данных."""

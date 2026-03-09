@@ -238,14 +238,21 @@ class AgentRuntime:
                 else:
                     available_caps = []
                 
-                # ФИЛЬТР: Исключаем навыки планирования из доступных инструментов
+                # ФИЛЬТР 1: Исключаем навыки планирования
                 # planning.* capability должны использоваться только внутри planning_pattern
+                # ФИЛЬТР 2: Исключаем инструменты (tools)
+                # file_tool, sql_tool, vector_books — низкоуровневые компоненты для навыков
+                # Агент должен использовать только навыки (skills)
                 available_caps = [
                     cap for cap in available_caps
-                    if not cap.name.startswith('planning.')
+                    if not cap.name.startswith('planning.')  # Не planning
+                    and not cap.name.startswith('file_tool.')  # Не file_tool
+                    and not cap.name.startswith('sql_tool.')  # Не sql_tool
+                    and not cap.name.startswith('vector_books.')  # Не vector_books
                 ]
 
                 print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
+                print(f"🔵 [RUNTIME] available_caps names: {[c.name for c in available_caps]}", flush=True)
                 
                 # Получаем decision
                 print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
@@ -752,11 +759,17 @@ class AgentRuntime:
             # Если нет специальных методов, возвращаем пустой список
             available_caps = []
         
-        # ФИЛЬТР: Исключаем навыки планирования из доступных инструментов
+        # ФИЛЬТР 1: Исключаем навыки планирования
         # planning.* capability должны использоваться только внутри planning_pattern
+        # ФИЛЬТР 2: Исключаем инструменты (tools)
+        # file_tool, sql_tool, vector_books — низкоуровневые компоненты для навыков
+        # Агент должен использовать только навыки (skills)
         available_caps = [
             cap for cap in available_caps
-            if not cap.name.startswith('planning.')
+            if not cap.name.startswith('planning.')  # Не planning
+            and not cap.name.startswith('file_tool.')  # Не file_tool
+            and not cap.name.startswith('sql_tool.')  # Не sql_tool
+            and not cap.name.startswith('vector_books.')  # Не vector_books
         ]
 
         if self.event_bus_logger:

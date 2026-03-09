@@ -59,15 +59,9 @@ class FinalAnswerSkill(BaseSkill):
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
-        # Используем внедрённый event_bus из BaseComponent
-        if hasattr(self, '_event_bus') and self._event_bus is not None:
-            self.event_bus_logger = EventBusLogger(
-                self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component=self.__class__.__name__
-            )
-        # Иначе event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
+        # event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
+        # Этот метод оставлен для совместимости но не делает ничего
+        pass
 
     def get_capabilities(self) -> List[Capability]:
         """
