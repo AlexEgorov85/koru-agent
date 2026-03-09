@@ -229,7 +229,19 @@ class FinalAnswerSkill(BaseSkill):
                         item_content = item.content
 
                     if item_type == "OBSERVATION":
-                        observations.append(item_content if isinstance(item_content, str) else str(item_content))
+                        # Сериализуем данные наблюдения в JSON-подобный формат
+                        if isinstance(item_content, str):
+                            observations.append(item_content)
+                        elif hasattr(item_content, 'model_dump'):
+                            # Pydantic модель → dict → str
+                            observations.append(str(item_content.model_dump()))
+                        elif hasattr(item_content, 'dict'):
+                            # Старый Pydantic v1
+                            observations.append(str(item_content.dict()))
+                        elif isinstance(item_content, dict):
+                            observations.append(str(item_content))
+                        else:
+                            observations.append(str(item_content))
                     elif item_type in ["THOUGHT", "DECISION"]:
                         thoughts.append(item_content if isinstance(item_content, str) else str(item_content))
                     elif item_type == "ACTION":
