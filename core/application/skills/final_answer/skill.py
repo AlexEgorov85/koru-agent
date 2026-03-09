@@ -67,16 +67,7 @@ class FinalAnswerSkill(BaseSkill):
                 agent_id="system",
                 component=self.__class__.__name__
             )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # Иначе event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
 
     def get_capabilities(self) -> List[Capability]:
         """

@@ -237,6 +237,13 @@ class AgentRuntime:
                     available_caps = self.application_context.get_all_tools()
                 else:
                     available_caps = []
+                
+                # ФИЛЬТР: Исключаем навыки планирования из доступных инструментов
+                # planning.* capability должны использоваться только внутри planning_pattern
+                available_caps = [
+                    cap for cap in available_caps
+                    if not cap.name.startswith('planning.')
+                ]
 
                 print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
                 
@@ -744,6 +751,13 @@ class AgentRuntime:
         else:
             # Если нет специальных методов, возвращаем пустой список
             available_caps = []
+        
+        # ФИЛЬТР: Исключаем навыки планирования из доступных инструментов
+        # planning.* capability должны использоваться только внутри planning_pattern
+        available_caps = [
+            cap for cap in available_caps
+            if not cap.name.startswith('planning.')
+        ]
 
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")

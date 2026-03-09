@@ -49,16 +49,7 @@ class PlanningSkill(BaseComponent):
                 agent_id="system",
                 component=self.__class__.__name__
             )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # Иначе event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка планирования."""
@@ -162,13 +153,9 @@ class PlanningSkill(BaseComponent):
                     payload=data,
                     metadata={"source": "planning_skill"}
                 )
-            # Fallback на infrastructure_context для обратной совместимости
-            elif hasattr(self, '_application_context'):
-                await self._application_context.infrastructure_context.event_bus.publish(
-                    event_type=event_type,
-                    data=data,
-                    source="planning_skill"
-                )
+            # Fallback на логирование через event_bus_logger
+            elif self.event_bus_logger:
+                await self.event_bus_logger.info(f"Событие {event_type}: {data}")
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")

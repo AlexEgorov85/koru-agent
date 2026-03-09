@@ -3,7 +3,7 @@
 
 Архитектурные гарантии:
 - Использует BaseComponent для изолированных кэшей
-- Доступ к инструментам только через ApplicationContext
+- Доступ к инструментам только через ActionExecutor
 - Валидация входных/выходных данных через контракты
 - Поддержка профилей prod/sandbox через AppConfig
 """
@@ -18,10 +18,6 @@ from pathlib import Path
 from core.application.skills.base_skill import BaseSkill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionStatus
-from core.models.enums.common_enums import ErrorCategory
-from core.models.types.llm_types import LLMRequest
-from core.application.tools.file_tool import FileToolInput
-from core.application.tools.sql_tool import SQLToolInput
 from core.infrastructure.logging import EventBusLogger
 
 
@@ -52,24 +48,9 @@ class DataAnalysisSkill(BaseSkill):
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
-        # Используем внедрённый event_bus из BaseComponent
-        if hasattr(self, '_event_bus') and self._event_bus is not None:
-            self.event_bus_logger = EventBusLogger(
-                self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component=self.__class__.__name__
-            )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
+        # Этот метод оставлен для совместимости но не делает ничего
+        pass
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список capability навыка."""
@@ -91,34 +72,45 @@ class DataAnalysisSkill(BaseSkill):
 
     async def initialize(self) -> bool:
         """Инициализация навыка с предзагрузкой ресурсов."""
-        success = await super().initialize()
-        if not success:
+        try:
+            self.logger.info(f"🔧 DataAnalysisSkill.initialize(): начало")
+            success = await super().initialize()
+            self.logger.info(f"🔧 DataAnalysisSkill.initialize(): super().initialize() вернул {success}")
+            if not success:
+                return False
+
+            # Проверяем наличие необходимых ресурсов
+            if "data_analysis.analyze_step_data" not in self.prompts:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+                else:
+                    self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
+
+            if "data_analysis.analyze_step_data" not in self.input_contracts:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+                else:
+                    self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
+
+            if "data_analysis.analyze_step_data" not in self.output_contracts:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+                else:
+                    self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
+
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+            else:
+                self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+            
+            self.logger.info(f"✅ DataAnalysisSkill.initialize(): успех")
+            return True
+        except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
+            self.logger.error(f"❌ DataAnalysisSkill.initialize(): ошибка {e}")
+            self.logger.error(f"Traceback: {tb_str}")
             return False
-
-        # Проверяем наличие необходимых ресурсов
-        if "data_analysis.analyze_step_data" not in self.prompts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-            else:
-                self.logger.warning("Промпт для data_analysis.analyze_step_data не загружен")
-
-        if "data_analysis.analyze_step_data" not in self.input_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-            else:
-                self.logger.warning("Входная схема для data_analysis.analyze_step_data не загружена")
-
-        if "data_analysis.analyze_step_data" not in self.output_contracts:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-            else:
-                self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
-
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-        else:
-            self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
-        return True
 
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка анализа данных."""
@@ -462,25 +454,19 @@ class DataAnalysisSkill(BaseSkill):
         if not file_path:
             raise ValueError("Путь к файлу не указан")
 
-        # Получение инструмента через ApplicationContext
-        file_tool = self.application_context.components.get(
-            type(self.application_context.components._components.get(type(self.application_context.components._components.keys()[0]).__call__()) if self.application_context.components._components else None), 
-            "file_tool"
+        # Чтение файла через executor
+        from core.application.agent.components.action_executor import ExecutionContext
+        exec_context = ExecutionContext()
+        
+        result = await self.executor.execute_action(
+            action_name="file_tool.read",
+            parameters={"path": file_path},
+            context=exec_context
         )
-        
-        # Альтернативный способ получения инструмента
-        from core.models.enums.common_enums import ComponentType
-        file_tool = self.application_context.components.get(ComponentType.TOOL, "file_tool")
-        
-        if not file_tool:
-            raise RuntimeError("FileTool не доступен")
 
-        # Чтение файла
-        input_data = FileToolInput(operation="read", path=file_path)
-        result = await file_tool.execute(input_data)
-
-        if not result.success:
-            raise RuntimeError(f"Ошибка чтения файла: {result.error}")
+        from core.models.data.execution import ExecutionStatus
+        if result.status != ExecutionStatus.COMPLETED or not result.data:
+            raise RuntimeError(f"Ошибка чтения файла: {result.error or 'Неизвестная ошибка'}")
 
         content = result.data.get("content", "")
         metadata["size_mb"] = len(content.encode('utf-8')) / (1024 * 1024)
@@ -501,12 +487,6 @@ class DataAnalysisSkill(BaseSkill):
         if not table_name and not query:
             raise ValueError("Укажите table_name или query для загрузки из БД")
 
-        from core.models.enums.common_enums import ComponentType
-        sql_tool = self.application_context.components.get(ComponentType.TOOL, "sql_tool")
-        
-        if not sql_tool:
-            raise RuntimeError("SQLTool не доступен")
-
         # Формирование запроса
         if query:
             sql = query
@@ -514,19 +494,26 @@ class DataAnalysisSkill(BaseSkill):
             max_rows = config.get("max_rows", 10000)
             sql = f"SELECT * FROM {table_name} LIMIT {max_rows}"
 
-        input_data = SQLToolInput(
-            sql=sql,
-            parameters=None,
-            max_rows=config.get("max_rows", 10000)
+        # Выполнение запроса через executor
+        from core.application.agent.components.action_executor import ExecutionContext
+        exec_context = ExecutionContext()
+        
+        result = await self.executor.execute_action(
+            action_name="sql_tool.execute",
+            parameters={
+                "sql": sql,
+                "max_rows": config.get("max_rows", 10000)
+            },
+            context=exec_context
         )
-        result = await sql_tool.execute(input_data)
 
-        if not result.rows:
-            raise RuntimeError(f"Ошибка выполнения запроса: пустой результат")
+        from core.models.data.execution import ExecutionStatus
+        if result.status != ExecutionStatus.COMPLETED or not result.data:
+            raise RuntimeError(f"Ошибка выполнения запроса: {result.error or 'пустой результат'}")
 
         # Конвертация результатов в CSV-like строку
-        rows = result.rows
-        columns = result.columns if hasattr(result, 'columns') and result.columns else list(rows[0].keys()) if rows else []
+        rows = result.data.get("rows", [])
+        columns = result.data.get("columns", list(rows[0].keys()) if rows else [])
 
         lines = [",".join(str(c) for c in columns)]
         for row in rows:

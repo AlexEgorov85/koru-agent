@@ -488,41 +488,30 @@ class BookLibrarySkill(BaseComponent):
         # [BOOK_DEBUG] 1.5. Формирование sql_params
         await self.event_bus_logger.info(f"[BOOK_DEBUG] сформированные sql_params (для БД): {sql_params}")
 
-        # 6. Выполнение SQL через sql_query_service (прямой вызов сервиса)
+        # 6. Выполнение SQL через sql_query_service ЧЕРЕЗ EXECUTOR
         rows = []
         execution_time = 0.0
         try:
-            # Получаем сервис напрямую из application_context
-            from core.models.enums.common_enums import ComponentType
-            
-            # [BOOK_DEBUG] 1.6. Получение сервиса sql_query_service
-            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
-            await self.event_bus_logger.info(f"[BOOK_DEBUG] sql_query_service найден: {sql_query_svc is not None}")
+            from core.application.agent.components.action_executor import ExecutionContext
+            exec_context = ExecutionContext()
 
-            if not sql_query_svc:
-                raise RuntimeError("Сервис sql_query_service не найден")
-
-            # [BOOK_DEBUG] 1.7. Вызов execute_query
-            await self.event_bus_logger.info(f"[BOOK_DEBUG] вызов sql_query_svc.execute_query с SQL: {sql_query}, params: {sql_params}")
-            
-            # Вызываем метод execute_query напрямую
-            from core.models.data.execution import ExecutionStatus
-            result = await sql_query_svc.execute_query(
-                sql_query=sql_query,
-                parameters=sql_params
-                # max_rows передаётся внутри parameters через LIMIT в SQL
+            query_result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": sql_query,
+                    "parameters": sql_params,
+                    "max_rows": max_rows
+                },
+                context=exec_context
             )
 
-            await self.event_bus_logger.info(f"[BOOK_DEBUG] результат execute_query: success={getattr(result, 'success', None)}, error={getattr(result, 'error', None)}, rows_len={len(getattr(result, 'rows', [])) if hasattr(result, 'rows') else 'N/A'}")
-
-            if hasattr(result, 'success') and result.success:
-                rows = result.rows if hasattr(result, 'rows') else []
-                execution_time = result.execution_time if hasattr(result, 'execution_time') else 0.0
-                # [BOOK_DEBUG] 1.8. Обработка результата (успех)
+            from core.models.data.execution import ExecutionStatus
+            if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
+                rows = query_result.data.get('rows', [])
+                execution_time = query_result.data.get('execution_time', 0.0)
                 await self.event_bus_logger.info(f"[BOOK_DEBUG] Успешное выполнение, rows={len(rows)}")
             else:
-                error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
-                # [BOOK_DEBUG] 1.8. Обработка результата (ошибка)
+                error_msg = query_result.error or "Неизвестная ошибка"
                 await self.event_bus_logger.error(f"[BOOK_DEBUG] Ошибка выполнения SQL: {error_msg}")
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
 
@@ -751,158 +740,28 @@ class BookLibrarySkill(BaseComponent):
     ):
         """
         Публикация метрик выполнения через EventBus.
-        
+
         Сигнатура совместима с BaseComponent._publish_metrics().
-        
-        ARGS:
-            event_type: тип события (EventType)
-            capability_name: имя выполненной capability
-            success: флаг успешного выполнения
-            execution_time_ms: время выполнения в миллисекундах
-            tokens_used: количество использованных токенов
-            error: сообщение об ошибке (если была)
-            error_type: тип ошибки
-            error_category: категория ошибки
-            execution_type: тип выполнения (static | dynamic)
-            rows_returned: количество возвращённых строк
-            script_name: имя скрипта (для static)
-            result: результат выполнения
         """
         try:
-            # Используем внедрённый event_bus из BaseComponent
-            if hasattr(self, '_event_bus') and self._event_bus is not None:
-                await self._event_bus.publish(
-                    event_type="book_library.script_executed",
-                    payload={
-                        "capability": capability,
-                        "execution_type": execution_type,
-                        "execution_time_ms": execution_time_ms,
-                        "rows_returned": rows_returned,
-                        "success": success,
-                        "script_name": script_name
-                    }
-                )
-            # Fallback на application_context для обратной совместимости
-            elif hasattr(self, '_application_context') and self.application_context:
-                event_bus = self._application_context.infrastructure_context.event_bus
-
+            # Используем event_bus_logger для публикации событий
+            if self.event_bus_logger:
                 # Публикуем событие о выполнении
-                await event_bus.publish(
-                    event_type="book_library.script_executed",
-                    data={
-                        "capability": capability,
-                        "execution_type": execution_type,
-                        "execution_time_ms": execution_time_ms,
-                        "rows_returned": rows_returned,
-                        "success": success,
-                        "script_name": script_name,
-                        "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else None
-                    },
-                    source="book_library"
+                await self.event_bus_logger.info(
+                    f"Метрика: {capability_name} | execution_type={execution_type} | "
+                    f"execution_time={execution_time_ms:.2f}ms | rows={rows_returned} | "
+                    f"success={success} | script={script_name}"
                 )
-
-            # Публикуем метрику времени выполнения
-            if hasattr(self, '_event_bus') and self._event_bus is not None:
-                await self._event_bus.publish(
-                    event_type="metric.book_library.execution_time",
-                    payload={
-                        "value": execution_time_ms,
-                        "unit": "ms",
-                        "labels": {
-                            "execution_type": execution_type,
-                            "capability": capability
-                        }
-                    }
-                )
-            elif hasattr(self, '_application_context') and self.application_context:
-                await self._application_context.infrastructure_context.event_bus.publish(
-                    event_type="metric.book_library.execution_time",
-                    data={
-                        "value": execution_time_ms,
-                        "unit": "ms",
-                        "labels": {
-                            "execution_type": execution_type,
-                            "capability": capability
-                        }
-                    },
-                    source="book_library"
-                )
-
-            # Публикуем метрику количества выполнений
-            if hasattr(self, '_event_bus') and self._event_bus is not None:
-                await self._event_bus.publish(
-                    event_type="metric.book_library.total_executions",
-                    payload={
-                        "value": 1,
-                        "labels": {
-                            "execution_type": execution_type,
-                            "capability": capability,
-                            "status": "success" if success else "failed"
-                        }
-                    }
-                )
-            elif hasattr(self, '_application_context') and self.application_context:
-                await self._application_context.infrastructure_context.event_bus.publish(
-                    event_type="metric.book_library.total_executions",
-                    data={
-                        "value": 1,
-                        "labels": {
-                            "execution_type": execution_type,
-                            "capability": capability,
-                            "status": "success" if success else "failed"
-                        }
-                    },
-                    source="book_library"
-                )
-
-            # Для static скриптов публикуем дополнительную метрику
-            if execution_type == "static" and script_name:
-                if hasattr(self, '_event_bus') and self._event_bus is not None:
-                    await self._event_bus.publish(
-                        event_type="metric.book_library.static_script_executions",
-                        payload={
-                            "value": 1,
-                            "labels": {
-                                "script_name": script_name,
-                                "status": "success" if success else "failed"
-                            }
-                        }
+                
+                # Для static скриптов публикуем дополнительную метрику
+                if execution_type == "static" and script_name:
+                    await self.event_bus_logger.info(
+                        f"Static скрипт выполнен: {script_name} | status={'success' if success else 'failed'}"
                     )
-                elif hasattr(self, '_application_context') and self.application_context:
-                    await self._application_context.infrastructure_context.event_bus.publish(
-                        event_type="metric.book_library.static_script_executions",
-                        data={
-                            "value": 1,
-                            "labels": {
-                                "script_name": script_name,
-                                "status": "success" if success else "failed"
-                            }
-                        },
-                        source="book_library"
+                elif execution_type == "dynamic":
+                    await self.event_bus_logger.info(
+                        f"Dynamic поиск выполнен | status={'success' if success else 'failed'}"
                     )
-            elif execution_type == "dynamic":
-                if hasattr(self, '_event_bus') and self._event_bus is not None:
-                    await self._event_bus.publish(
-                        event_type="metric.book_library.dynamic_search_executions",
-                        payload={
-                            "value": 1,
-                            "labels": {
-                                "status": "success" if success else "failed"
-                            }
-                        }
-                    )
-                elif hasattr(self, '_application_context') and self.application_context:
-                    await self._application_context.infrastructure_context.event_bus.publish(
-                        event_type="metric.book_library.dynamic_search_executions",
-                        data={
-                            "value": 1,
-                            "labels": {
-                                "status": "success" if success else "failed"
-                            }
-                        },
-                        source="book_library"
-                    )
-
         except Exception as e:
             # Логгируем но не выбрасываем ошибку - метрики не должны ломать основную логику
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")

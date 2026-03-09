@@ -118,15 +118,24 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             profile="prod"
         )
 
-        await application_context.initialize()
+        # Инициализация прикладного контекста
+        print("🔧 Начало инициализации ApplicationContext...", flush=True)
+        init_success = await application_context.initialize()
+        if not init_success:
+            print("❌ ОШИБКА: ApplicationContext не смог инициализироваться!", flush=True)
+            raise RuntimeError("ApplicationContext initialization failed")
         
         # ✅ ЯВНАЯ ПРОВЕРКА: все контексты инициализированы
-        print("✅ InfrastructureContext инициализирован")
-        print("✅ ApplicationContext инициализирован")
-        print("🚀 Запуск агента...")
+        print("✅ InfrastructureContext инициализирован", flush=True)
+        print("✅ ApplicationContext инициализирован", flush=True)
+        print(f"✅ ApplicationContext._initialized={application_context._initialized}", flush=True)
+        print(f"✅ ApplicationContext._state={application_context._state}", flush=True)
+        print("🚀 Запуск агента...", flush=True)
 
         # Создание фабрики агентов
+        print("🔧 Создание AgentFactory...", flush=True)
         agent_factory = AgentFactory(application_context)
+        print("✅ AgentFactory создан", flush=True)
 
         # Подготовка конфигурации агента
         agent_config_kwargs = {}

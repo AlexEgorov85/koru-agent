@@ -412,13 +412,17 @@ class ApplicationContext(BaseSystemContext):
 
             # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
             # Инициализируем компоненты в правильном порядке
+            self.logger.info("🔧 Начало _initialize_components_with_dependencies...")
             success = await self._initialize_components_with_dependencies()
+            self.logger.info(f"🔧 _initialize_components_with_dependencies вернул: {success}")
             if not success:
-                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+                self.logger.error("❌ Ошибка инициализации компонентов с учетом зависимостей")
                 return False
 
             # === ЭТАП 5: Валидация готовности системы ===
+            self.logger.info("🔧 Начало _verify_readiness...")
             if not await self._verify_readiness():
+                self.logger.error("❌ Ошибка _verify_readiness")
                 return False
 
         # === СТАРЫЙ ПУТЬ: Для обратной совместимости ===
@@ -862,32 +866,46 @@ class ApplicationContext(BaseSystemContext):
 
             try:
                 if hasattr(component, 'initialize') and callable(component.initialize):
-                    if await component.initialize():
+                    self.logger.info(f"🔧 Инициализация компонента: {component_name} (тип: {type(component).__name__})")
+                    init_result = await component.initialize()
+                    self.logger.info(f"🔧 {component_name}.initialize() вернул: {init_result}")
+                    if init_result:
+                        self.logger.info(f"✅ Компонент {component_name} инициализирован успешно")
                         initialized_components.add(component.name)
                     else:
-                        self.logger.error(f"❌ Компонент {component.name} не смог инициализироваться")
+                        self.logger.error(f"❌ Компонент {component.name} не смог инициализироваться (initialize вернул False)")
                         return False
                 else:
+                    self.logger.info(f"⚠️ Компонент {component_name} не имеет метода initialize, пропускаем")
                     initialized_components.add(component.name)
             except Exception as e:
+                import traceback
+                tb_str = traceback.format_exc()
                 self.logger.error(f"❌ Ошибка при инициализации компонента {component.name}: {e}")
+                self.logger.error(f"Traceback: {tb_str}")
                 return False
 
         # Проверяем, все ли компоненты были инициализированы
         all_names = {comp.name for comp in all_components}
+        self.logger.info(f"🔍 Проверка инициализации: initialized={len(initialized_components)}, total={len(all_names)}")
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
             self.logger.error(f"❌ Не все компоненты были инициализированы: {uninitialized}")
             return False
 
+        self.logger.info("✅ Все компоненты инициализированы успешно")
         return True
 
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе"""
+        self.logger.info("🔍 Начало _verify_readiness...")
         # Получаем все компоненты, которые должны быть загружены
         declared_components = self._resolve_component_configs()
+        
+        self.logger.info(f"🔍 declared_components: {declared_components.keys()}")
 
         for comp_type, names in declared_components.items():
+            self.logger.info(f"🔍 Проверка {comp_type.value}: {list(names.keys())}")
             for name in names:
                 component = self.components.get(comp_type, name)
                 if component is None:
@@ -896,13 +914,14 @@ class ApplicationContext(BaseSystemContext):
                 # Проверяем, что компонент инициализирован
                 if hasattr(component, '_initialized'):
                     if not component._initialized:
-                        self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
+                        self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован (_initialized=False)")
                         return False
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
                         self.logger.error(f"❌ Компонент {component.name} не готов к работе")
                         return False
-
+        
+        self.logger.info("✅ _verify_readiness пройден успешно")
         return True
 
     async def health_check(self) -> Dict[str, Any]:
@@ -1079,7 +1098,7 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.error(f"Ошибка при доступе к хранилищу промптов: {e}")
                 return False
 
-        # Валидация входных контрактов
+        # Валидация в��одных контрактов
         if input_contract_versions:
             try:
                 contract_repository = self.infrastructure_context.get_contract_storage()
