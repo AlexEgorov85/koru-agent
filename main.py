@@ -317,7 +317,33 @@ def main() -> int:
         print("\n" + "=" * 60)
         print("📋 ОТВЕТ АГЕНТА:")
         print("=" * 60)
-        print(result)
+        
+        # Проверяем тип результата
+        if hasattr(result, 'data') and result.data:
+            # ExecutionResult — извлекаем данные
+            if isinstance(result.data, dict):
+                final_answer = result.data.get('final_answer', '')
+                if final_answer:
+                    print(f"\n{final_answer}")
+                else:
+                    # Если final_answer нет, выводим summary
+                    summary = result.data.get('summary', str(result.data))
+                    print(f"\n{summary}")
+            else:
+                print(f"\n{result.data}")
+        else:
+            print(f"\n{result}")
+        
+        # Дополнительная информация
+        if hasattr(result, 'metadata'):
+            print("\n" + "-" * 60)
+            print("📊 Метаданные:")
+            if result.metadata:
+                steps = result.metadata.get('steps_executed', 'N/A')
+                errors = result.metadata.get('error_count', 0)
+                print(f"  - Шагов выполнено: {steps}")
+                print(f"  - Ошибок: {errors}")
+        
         print("=" * 60)
 
         return 0

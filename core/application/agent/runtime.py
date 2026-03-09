@@ -472,6 +472,12 @@ class AgentRuntime:
                 if self.event_bus_logger:
                     await self.event_bus_logger.info(f"✅ Финальный ответ сгенерирован: {final_answer_result.status}")
                 
+                # Логируем начало финального ответа
+                if final_answer_result.data:
+                    final_answer_text = final_answer_result.data.get('final_answer', '')
+                    if final_answer_text and self.event_bus_logger:
+                        await self.event_bus_logger.info(f"📝 ФИНАЛЬНЫЙ ОТВЕТ: {final_answer_text[:300]}...")
+                
                 # Возвращаем результат финального ответа
                 return final_answer_result
                 
