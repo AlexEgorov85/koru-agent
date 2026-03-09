@@ -320,6 +320,7 @@ class FinalAnswerSkill(BaseSkill):
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
+        # Увеличенный timeout для сложных запросов (120 секунд)
         try:
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
@@ -336,7 +337,8 @@ class FinalAnswerSkill(BaseSkill):
                         "strict_mode": True
                     },
                     "temperature": 0.3,
-                    "max_tokens": 1500
+                    "max_tokens": 1500,
+                    "timeout": 120.0  # Увеличенный timeout для final_answer
                 },
                 context=execution_context
             )
