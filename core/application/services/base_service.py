@@ -22,10 +22,6 @@ from core.models.enums.common_enums import ComponentType
 from core.infrastructure.logging import EventBusLogger
 
 # Интерфейсы для внедрения зависимостей
-from core.interfaces.database import DatabaseInterface
-from core.interfaces.llm import LLMInterface
-from core.interfaces.vector import VectorInterface
-from core.interfaces.cache import CacheInterface
 from core.interfaces.event_bus import EventBusInterface
 from core.interfaces.prompt_storage import PromptStorageInterface
 from core.interfaces.contract_storage import ContractStorageInterface
@@ -68,17 +64,14 @@ class BaseService(BaseComponent):
         pass
 
     def __init__(
-        self, 
-        name: str, 
+        self,
+        name: str,
         application_context: Optional['ApplicationContext'] = None,
         app_config: Optional['AppConfig'] = None,
         executor=None,
         component_config: Optional['ComponentConfig'] = None,
         # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        db: Optional[DatabaseInterface] = None,
-        llm: Optional[LLMInterface] = None,
-        cache: Optional[CacheInterface] = None,
-        vector: Optional[VectorInterface] = None,
+        # [REFACTOR Этап 7] db, llm, cache, vector удалены — используйте executor
         event_bus: Optional[EventBusInterface] = None,
         prompt_storage: Optional[PromptStorageInterface] = None,
         contract_storage: Optional[ContractStorageInterface] = None,

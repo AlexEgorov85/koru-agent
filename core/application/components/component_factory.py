@@ -64,31 +64,15 @@ class ComponentFactory:
         """
         Получить все провайдеры из инфраструктурного контекста.
 
+        [REFACTOR Этап 7] db, llm, cache, vector удалены — не нужны для BaseComponent
+
         RETURNS:
         - dict: Словарь с провайдерами по именам
         """
         providers = {}
         infra = self._infrastructure_context
 
-        # Получаем провайдеры напрямую из инфраструктурного контекста
-        # DB провайдер
-        db_provider = infra.get_provider("default_db")
-        if db_provider:
-            providers['db'] = db_provider
-
-        # LLM провайдер
-        llm_provider = infra.get_provider("default_llm")
-        if llm_provider:
-            providers['llm'] = llm_provider
-
-        # Vector провайдеры
-        if hasattr(infra, '_faiss_providers'):
-            providers['vector'] = infra._faiss_providers.get("default_vector")
-
-        # Кэш - используем MemoryCacheProvider
-        if hasattr(infra, 'cache_provider'):
-            providers['cache'] = infra.cache_provider
-
+        # [REFACTOR Этап 7] Получаем только необходимые интерфейсы
         # Хранилища
         if hasattr(infra, 'prompt_storage'):
             providers['prompt_storage'] = infra.prompt_storage
@@ -163,30 +147,21 @@ class ComponentFactory:
             kwargs['application_context'] = application_context
         
         # Передаем провайдеры по именам параметров
-        if 'db' in params and providers.get('db'):
-            kwargs['db'] = providers['db']
-        
-        if 'llm' in params and providers.get('llm'):
-            kwargs['llm'] = providers['llm']
-        
-        if 'cache' in params and providers.get('cache'):
-            kwargs['cache'] = providers['cache']
-        
-        if 'vector' in params and providers.get('vector'):
-            kwargs['vector'] = providers['vector']
-        
+        # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
+        # Оставлены только интерфейсы для логирования и хранения
+
         if 'event_bus' in params and providers.get('event_bus'):
             kwargs['event_bus'] = providers['event_bus']
-        
+
         if 'prompt_storage' in params and providers.get('prompt_storage'):
             kwargs['prompt_storage'] = providers['prompt_storage']
-        
+
         if 'contract_storage' in params and providers.get('contract_storage'):
             kwargs['contract_storage'] = providers['contract_storage']
-        
+
         if 'metrics_storage' in params and providers.get('metrics_storage'):
             kwargs['metrics_storage'] = providers['metrics_storage']
-        
+
         if 'log_storage' in params and providers.get('log_storage'):
             kwargs['log_storage'] = providers['log_storage']
         
