@@ -20,6 +20,7 @@ class BehaviorDecision:
     reason: str = ""
     confidence: float = 1.0
     requires_llm: bool = False  # Флаг что decision требует вызова LLM
+    is_final: bool = False  # Флаг финального шага (для final_answer.generate)
 
 
 # ============================================================================
