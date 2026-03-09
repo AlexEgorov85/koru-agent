@@ -229,12 +229,16 @@ class AgentRuntime:
                     break
 
                 # Получаем доступные capability для использования в паттернах поведения
-                if hasattr(self.application_context, 'get_all_capabilities'):
-                    available_caps = await self.application_context.get_all_capabilities()
-                elif hasattr(self.application_context, 'get_all_skills'):
+                # Агент использует ТОЛЬКО навыки (SKILL), не инструменты (TOOL)
+                if hasattr(self.application_context, 'get_all_skills'):
                     available_caps = self.application_context.get_all_skills()
-                elif hasattr(self.application_context, 'get_all_tools'):
-                    available_caps = self.application_context.get_all_tools()
+                elif hasattr(self.application_context, 'get_all_capabilities'):
+                    all_caps = await self.application_context.get_all_capabilities()
+                    # Фильтр: только SKILL capability (не TOOL, не planning)
+                    available_caps = [
+                        cap for cap in all_caps
+                        if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
+                    ]
                 else:
                     available_caps = []
 
@@ -722,15 +726,17 @@ class AgentRuntime:
             await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
 
         # Получаем доступные capability для использования в паттернах поведения
-        # В новой архитектуре используем метод get_all_capabilities() из ApplicationContext
-        if hasattr(self.application_context, 'get_all_capabilities'):
-            available_caps = await self.application_context.get_all_capabilities()
-        elif hasattr(self.application_context, 'get_all_skills'):
+        # Агент использует ТОЛЬКО навыки (SKILL), не инструменты (TOOL)
+        if hasattr(self.application_context, 'get_all_skills'):
             available_caps = self.application_context.get_all_skills()
-        elif hasattr(self.application_context, 'get_all_tools'):
-            available_caps = self.application_context.get_all_tools()
+        elif hasattr(self.application_context, 'get_all_capabilities'):
+            all_caps = await self.application_context.get_all_capabilities()
+            # Фильтр: только SKILL capability (не TOOL, не planning)
+            available_caps = [
+                cap for cap in all_caps
+                if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
+            ]
         else:
-            # Если нет специальных методов, возвращаем пустой список
             available_caps = []
 
         if self.event_bus_logger:

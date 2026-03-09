@@ -205,8 +205,8 @@ class BaseTool(BaseComponent):
                 name=cap_full_name,
                 description=f"Операция '{op_name}' инструмента {self.name}",
                 skill_name=self.name,
-                supported_strategies=[],  # ← Инструменты НЕ доступны агенту напрямую
-                visiable=False,  # ← Скрыты из промпта
+                supported_strategies=["react"],  # Инструменты поддерживают react стратегию
+                visiable=True,
                 meta={
                     "tool": self.name,
                     "operation": op_name,
