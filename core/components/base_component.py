@@ -30,11 +30,7 @@ from pydantic import BaseModel
 from core.infrastructure.logging import EventBusLogger
 from core.components.lifecycle import LifecycleMixin, ComponentState
 
-# Интерфейсы для DI
-from core.interfaces.database import DatabaseInterface
-from core.interfaces.llm import LLMInterface
-from core.interfaces.vector import VectorInterface
-from core.interfaces.cache import CacheInterface
+# Интерфейсы для DI (используются только необходимые)
 from core.interfaces.event_bus import EventBusInterface
 from core.interfaces.prompt_storage import PromptStorageInterface
 from core.interfaces.contract_storage import ContractStorageInterface
@@ -94,15 +90,10 @@ class BaseComponent(LifecycleMixin, ABC):
     def __init__(
         self,
         name: str,
-        application_context: Optional['ApplicationContext'] = None,  # [DEPRECATED Этап 2.4]
+        application_context: Optional['ApplicationContext'] = None,  # [DEPRECATED Этап 5]
         component_config: Optional[ComponentConfig] = None,
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
         # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        # [DEPRECATED Этап 2.4] Прямые зависимости будут удалены после миграции компонентов
-        db: Optional[DatabaseInterface] = None,
-        llm: Optional[LLMInterface] = None,
-        cache: Optional[CacheInterface] = None,
-        vector: Optional[VectorInterface] = None,
         event_bus: Optional[EventBusInterface] = None,
         prompt_storage: Optional[PromptStorageInterface] = None,
         contract_storage: Optional[ContractStorageInterface] = None,
@@ -126,16 +117,12 @@ class BaseComponent(LifecycleMixin, ABC):
             raise ValueError(f"Компонент '{name}' требует executor")
 
         # Сохраняем параметры
-        self._application_context = application_context  # [DEPRECATED Этап 2.4]
+        self._application_context = application_context  # [DEPRECATED Этап 5]
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
 
         # === ВНЕДРЁННЫЕ ЗАВИСИМОСТИ ===
-        # [DEPRECATED Этап 2.4] Предупреждения при использовании
-        self._db = db
-        self._llm = llm
-        self._cache = cache
-        self._vector = vector
+        # [REFACTOR Этап 5] db, llm, cache, vector удалены — используйте executor
         self._event_bus = event_bus
         self._prompt_storage = prompt_storage
         self._contract_storage = contract_storage
@@ -161,67 +148,8 @@ class BaseComponent(LifecycleMixin, ABC):
     # СВОЙСТВА ДЛЯ ВНЕДРЁННЫХ ЗАВИСИМОСТЕЙ
     # ========================================================================
 
-    @property
-    def db(self) -> Optional[DatabaseInterface]:
-        """
-        Получить DatabaseInterface.
-        
-        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
-        Используйте executor.execute_action("sql.*", ...) для работы с БД.
-        """
-        import warnings
-        warnings.warn(
-            "db property deprecated. Используйте executor.execute_action() для работы с БД.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self._db
-
-    @property
-    def llm(self) -> Optional[LLMInterface]:
-        """
-        Получить LLMInterface.
-        
-        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
-        Используйте executor.execute_action("llm.*", ...) для LLM вызовов.
-        """
-        import warnings
-        warnings.warn(
-            "llm property deprecated. Используйте executor.execute_action('llm.*', ...) для LLM вызовов.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self._llm
-
-    @property
-    def cache(self) -> Optional[CacheInterface]:
-        """
-        Получить CacheInterface.
-        
-        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
-        """
-        import warnings
-        warnings.warn(
-            "cache property deprecated.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self._cache
-
-    @property
-    def vector(self) -> Optional[VectorInterface]:
-        """
-        Получить VectorInterface.
-        
-        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
-        """
-        import warnings
-        warnings.warn(
-            "vector property deprecated.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self._vector
+    # [REFACTOR Этап 5] Свойства db, llm, cache, vector удалены как deprecated
+    # Используйте executor.execute_action() для взаимодействия с инфраструктурой
 
     @property
     def event_bus(self) -> Optional[EventBusInterface]:
@@ -249,7 +177,7 @@ class BaseComponent(LifecycleMixin, ABC):
         return self._log_storage
 
     # ========================================================================
-    # DEPRECATED: Свойства для обратной совместимости
+    # DEPRECATED: application_context (будет удалён после полной миграции)
     # ========================================================================
 
     @property
