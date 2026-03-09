@@ -176,6 +176,30 @@ class FinalAnswerSkill(BaseSkill):
         """
         # Извлечение цели
         goal = context.get_goal() or "Не указана цель"
+        
+        # Обработка параметров (могут быть Pydantic моделью или dict)
+        from pydantic import BaseModel
+        if isinstance(parameters, BaseModel):
+            # Pydantic модель — используем атрибуты
+            include_steps = getattr(parameters, 'include_steps', True)
+            include_evidence = getattr(parameters, 'include_evidence', True)
+            format_type = getattr(parameters, 'format_type', 'detailed')
+            confidence_threshold = getattr(parameters, 'confidence_threshold', 0.7)
+            max_sources = getattr(parameters, 'max_sources', 10)
+        elif isinstance(parameters, dict):
+            # dict — используем .get()
+            include_steps = parameters.get("include_steps", True)
+            include_evidence = parameters.get("include_evidence", True)
+            format_type = parameters.get("format_type", "detailed")
+            confidence_threshold = parameters.get("confidence_threshold", 0.7)
+            max_sources = parameters.get("max_sources", 10)
+        else:
+            # Fallback
+            include_steps = True
+            include_evidence = True
+            format_type = "detailed"
+            confidence_threshold = 0.7
+            max_sources = 10
 
         # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR (не напрямую!)
         observations = []
@@ -246,13 +270,6 @@ class FinalAnswerSkill(BaseSkill):
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
             # Продолжаем с пустыми шагами
-
-        # Параметры форматирования
-        include_steps = parameters.get("include_steps", True)
-        include_evidence = parameters.get("include_evidence", True)
-        format_type = parameters.get("format_type", "detailed")
-        confidence_threshold = parameters.get("confidence_threshold", 0.7)
-        max_sources = parameters.get("max_sources", 10)
 
         # Получение промпта С КОНТРАКТАМИ из кэша (через BaseComponent.get_prompt_with_contract)
         capability_name = "final_answer.generate"
