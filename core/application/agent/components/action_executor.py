@@ -78,7 +78,11 @@ class ActionExecutor:
             if action_name.startswith("llm."):
                 return await self._execute_llm_action(action_name, parameters, context)
 
-            # 3. Находим целевой компонент по имени действия
+            # 3. Обработка действий валидации (validation.*)
+            if action_name.startswith("validation."):
+                return await self._execute_validation_action(action_name, parameters, context)
+
+            # 4. Находим целевой компонент по имени действия
             target_component, component_type = self._resolve_component_for_action(action_name)
 
             if not target_component:
@@ -541,6 +545,158 @@ class ActionExecutor:
             description=f"Capability для действия {action_name}",
             input_schema={},
             output_schema={}
+        )
+
+    async def _execute_validation_action(
+        self,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> ExecutionResult:
+        """
+        Выполнение действий валидации (validation.*).
+
+        Поддерживаемые действия:
+        - validation.validate: валидация данных через Pydantic схему
+        - validation.is_valid: быстрая проверка валидности
+
+        ARGS:
+        - action_name: имя действия
+        - parameters: параметры для валидации
+        - context: контекст выполнения
+
+        RETURNS:
+        - ExecutionResult: результат валидации
+        """
+        # Импортируем сервис лениво для избежания циклического импорта
+        from core.application.services.validation_service import ValidationService
+        
+        service = ValidationService()
+        
+        try:
+            if action_name == "validation.validate":
+                return self._validation_validate(parameters, service)
+            elif action_name == "validation.is_valid":
+                return self._validation_is_valid(parameters, service)
+            else:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"Неизвестное действие валидации: {action_name}"
+                )
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Ошибка валидации '{action_name}': {e}", exc_info=True)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Ошибка валидации: {str(e)}"
+            )
+    
+    def _validation_validate(
+        self,
+        parameters: Dict[str, Any],
+        service: ValidationService
+    ) -> ExecutionResult:
+        """
+        Валидация данных через Pydantic схему.
+        
+        ПАРАМЕТРЫ:
+        - schema_name: имя схемы (путь к классу, например "my_module.MySchema")
+        - data: данные для валидации
+        
+        ВОЗВРАЩАЕТ:
+        - ExecutionResult с результатом валидации
+        """
+        schema_name = parameters.get("schema_name")
+        data = parameters.get("data")
+        
+        if not schema_name:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error="schema_name обязателен"
+            )
+        
+        if data is None:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error="data обязателен"
+            )
+        
+        # Получаем класс схемы по имени
+        # Формат: "module.Class" или просто "Class" (ищет в pydantic BaseModel)
+        try:
+            if "." in schema_name:
+                module_name, class_name = schema_name.rsplit(".", 1)
+                module = __import__(module_name, fromlist=[class_name])
+                schema_cls = getattr(module, class_name)
+            else:
+                # Если нет модуля, используем базовую валидацию dict
+                result = service.validate_dict(data)
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
+                    data=result.model_dump()
+                )
+        except (ImportError, AttributeError) as e:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Схема '{schema_name}' не найдена: {str(e)}"
+            )
+        
+        # Выполняем валидацию
+        result = service.validate(schema_cls, data)
+        
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED if result.is_valid else ExecutionStatus.FAILED,
+            data=result.model_dump(),
+            error=None if result.is_valid else result.error
+        )
+    
+    def _validation_is_valid(
+        self,
+        parameters: Dict[str, Any],
+        service: ValidationService
+    ) -> ExecutionResult:
+        """
+        Быстрая проверка валидности.
+        
+        ПАРАМЕТРЫ:
+        - schema_name: имя схемы
+        - data: данные для проверки
+        
+        ВОЗВРАЩАЕТ:
+        - ExecutionResult с is_valid=True/False
+        """
+        schema_name = parameters.get("schema_name")
+        data = parameters.get("data")
+        
+        if not schema_name:
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error="schema_name обязателен"
+            )
+        
+        try:
+            if "." in schema_name:
+                module_name, class_name = schema_name.rsplit(".", 1)
+                module = __import__(module_name, fromlist=[class_name])
+                schema_cls = getattr(module, class_name)
+            else:
+                # Базовая проверка dict
+                is_valid = isinstance(data, dict) and data is not None
+                return ExecutionResult(
+                    status=ExecutionStatus.COMPLETED,
+                    data={"is_valid": is_valid}
+                )
+        except (ImportError, AttributeError):
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=f"Схема '{schema_name}' не найдена"
+            )
+        
+        is_valid = service.is_valid(schema_cls, data)
+        
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
+            data={"is_valid": is_valid}
         )
 
     async def _execute_llm_action(
