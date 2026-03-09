@@ -18,6 +18,7 @@ from core.session_context.base_session_context import BaseSessionContext
 from core.application.skills.base_skill import BaseSkill
 from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
 from core.infrastructure.logging import EventBusLogger
 
 
@@ -396,7 +397,7 @@ class FinalAnswerSkill(BaseSkill):
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
-        # Увеличенный timeout для сложных запросов (300 секунд = 5 минут)
+        # Увеличенный timeout для сложных запросов (600 секунд = 10 минут)
         try:
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
@@ -412,13 +413,13 @@ class FinalAnswerSkill(BaseSkill):
                     "structured_output": {
                         "output_model": "final_answer.generate.output",
                         "schema_def": output_schema if output_schema else {},
-                        "max_retries": 3,
+                        "max_retries": 2,  # Уменьшим количество попыток
                         "strict_mode": True
                     },
-                    "temperature": 0.3,
-                    "max_tokens": 2000,
-                    "total_timeout": 300.0,  # Общий timeout на все попытки (5 минут)
-                    "attempt_timeout": 120.0  # Timeout на одну попытку (2 минуты)
+                    "temperature": 0.1,  # Низкая температура для точности
+                    "max_tokens": 1500,
+                    "total_timeout": 600.0,  # Общий timeout на все попытки (10 минут)
+                    "attempt_timeout": 300.0  # Timeout на одну попытку (5 минут)
                 },
                 context=execution_context
             )
