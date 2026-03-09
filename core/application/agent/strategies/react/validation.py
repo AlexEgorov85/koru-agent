@@ -296,21 +296,30 @@ def _build_reasoning_result(validated_dict: Dict[str, Any], logger: logging.Logg
 
 
 def _create_fallback_result(error_msg: str, error_type: str) -> ReasoningResult:
-    """Создание fallback результата при ошибке."""
+    """
+    Создание fallback результата при ошибке.
+    
+    ВАЖНО: Fallback НЕ должен генерировать final_answer.generate,
+    так как это приводит к преждевременному завершению агента без данных.
+    Вместо этого возвращаем RETRY или generic.execute для продолжения работы.
+    """
     return ReasoningResult(
-        thought='Ошибка валидации',
+        thought='Ошибка валидации результата рассуждения',
         analysis=AnalysisResult(
             progress='Неизвестно',
             current_state=error_msg,
-            issues=[]
+            issues=[f"Тип ошибки: {error_type}"]
         ),
         decision=DecisionResult(
-            next_action='final_answer.generate',
-            reasoning=f'fallback после ошибки: {error_type}',
-            parameters={'input': 'Продолжить выполнение задачи'},
-            expected_outcome='Неизвестно'
+            next_action='generic.execute',  # ← Используем generic вместо final_answer
+            reasoning=f'fallback после ошибки: {error_type}. Требуется повторная попытка рассуждения.',
+            parameters={
+                'input': 'Продолжить выполнение задачи. Предыдущая попытка рассуждения не удалась.',
+                'context': f'Ошибка: {error_msg}'
+            },
+            expected_outcome='Повторная попытка рассуждения и выполнения действия'
         ),
         confidence=0.1,
-        stop_condition=False,
+        stop_condition=False,  # ← НЕ останавливаем агента
         stop_reason=error_type
     )
