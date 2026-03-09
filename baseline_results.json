@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-03-09 14:23:56",
+  "initialization": {
+    "infrastructure_seconds": 3.632,
+    "app_context_seconds": 1.03,
+    "total_seconds": 4.662
+  },
+  "execute_script": {
+    "avg_seconds": 0.000626,
+    "runs": 10
+  },
+  "search_books": {
+    "avg_seconds": 0.003939,
+    "runs": 10
+  },
+  "memory": {
+    "current_mb": 311.7,
+    "peak_mb": 313.09
+  }
+}

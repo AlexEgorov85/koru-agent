@@ -27,6 +27,7 @@ if sys.platform == 'win32':
 from core.config import get_config
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
+from core.config.app_config import AppConfig
 from core.models.enums.common_enums import ComponentType, ExecutionStatus
 
 
@@ -55,9 +56,17 @@ async def run_baseline_tests():
     print("\n[2] Создание ApplicationContext...")
     start_time = time.time()
     
+    # Используем AppConfig.from_discovery() как в conftest.py
+    app_config = AppConfig.from_discovery(
+        profile="prod",
+        data_dir=infrastructure_context.config.data_dir,
+        discovery=infrastructure_context.resource_discovery
+    )
+    
     app_context = ApplicationContext(
         infrastructure_context=infrastructure_context,
-        agent_id="agent_baseline"
+        config=app_config,
+        profile="prod"
     )
     await app_context.initialize()
     
