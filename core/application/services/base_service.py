@@ -19,7 +19,7 @@ from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
-from core.infrastructure.logging import EventBusLogger, create_logger
+from core.infrastructure.logging import EventBusLogger
 
 # Интерфейсы для внедрения зависимостей
 from core.interfaces.database import DatabaseInterface
@@ -151,37 +151,12 @@ class BaseService(BaseComponent):
 
         self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
 
-        # Инициализация EventBusLogger
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+        # [REFACTOR Этап 6] EventBusLogger инициализируется в BaseComponent
+        # self.event_bus_logger будет доступен после вызова super().__init__()
 
         self.event_bus_logger.debug_sync(f"Инициализирован сервис: {self.name}")
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # Сначала пробуем внедрённый event_bus (новый путь)
-        if hasattr(self, '_event_bus') and self._event_bus is not None:
-            session_id = "system"
-            agent_id = getattr(self, 'name', 'unknown')
-            if self._event_bus:
-                self.event_bus_logger = create_logger(
-                    self._event_bus,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    component=self.__class__.__name__
-                )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            session_id = getattr(self._application_context.infrastructure_context, 'id', 'unknown')
-            agent_id = getattr(self, 'name', 'unknown')
-            if event_bus:
-                self.event_bus_logger = create_logger(
-                    event_bus,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    component=self.__class__.__name__
-                )
+    # [REFACTOR Этап 6] _init_event_bus_logger удалён — дублирует BaseComponent
 
     async def initialize(self) -> bool:
         """
