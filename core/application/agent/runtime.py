@@ -445,6 +445,43 @@ class AgentRuntime:
 
         if decision.action == BehaviorDecisionType.STOP:
             print(f"🔵 [_execute_single_step_internal] decision.action=STOP", flush=True)
+            
+            # АВТОМАТИЧЕСКИЙ ВЫЗОВ FINAL_ANSWER при остановке
+            # Генерируем финальный ответ на основе собранных данных
+            if self.event_bus_logger:
+                await self.event_bus_logger.info("🔄 STOP получен — генерируем финальный ответ...")
+            
+            try:
+                from core.application.agent.components.action_executor import ExecutionContext
+                exec_context = ExecutionContext(
+                    session_context=self.application_context.session_context,
+                    available_capabilities=available_caps
+                )
+                
+                # Вызываем final_answer.generate автоматически
+                final_answer_result = await self.executor.execute_action(
+                    action_name="final_answer.generate",
+                    parameters={
+                        "include_steps": True,
+                        "include_evidence": True,
+                        "format_type": "structured"
+                    },
+                    context=exec_context
+                )
+                
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(f"✅ Финальный ответ сгенерирован: {final_answer_result.status}")
+                
+                # Возвращаем результат финального ответа
+                return final_answer_result
+                
+            except Exception as e:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"❌ Ошибка генерации финального ответа: {e}")
+                # Если ошибка — просто завершаем
+                self.state.finished = True
+                return decision
+            
             self.state.finished = True
             # Регистрируем финальное решение
             self.application_context.session_context.record_decision(

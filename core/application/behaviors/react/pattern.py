@@ -562,9 +562,15 @@ class ReActPattern(BaseBehaviorPattern):
 
         # Добавляем информацию о доступных capability
         # Фильтрация только по supported_strategies (без хардкода навыков)
-        analysis["available_capabilities"] = self._filter_capabilities(
+        filtered_caps = self._filter_capabilities(
             available_capabilities
         )
+        
+        # Убираем final_answer.generate из списка доступных инструментов
+        # Он вызывается автоматически при STOP
+        filtered_caps = [cap for cap in filtered_caps if cap.name != "final_answer.generate"]
+
+        analysis["available_capabilities"] = filtered_caps
 
         await self._log("debug", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}")
 
