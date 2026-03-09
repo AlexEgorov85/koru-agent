@@ -121,14 +121,11 @@ class BaseService(BaseComponent):
         # Вызов конструктора родительского класса с ComponentConfig и executor
         # Передаем все внедрённые зависимости
         super().__init__(
-            name, 
-            application_context, 
-            component_config=component_config, 
+            name,
+            application_context,
+            component_config=component_config,
             executor=executor,
-            db=db,
-            llm=llm,
-            cache=cache,
-            vector=vector,
+            # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
             event_bus=event_bus,
             prompt_storage=prompt_storage,
             contract_storage=contract_storage,

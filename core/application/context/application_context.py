@@ -894,7 +894,11 @@ class ApplicationContext(BaseSystemContext):
                     self.logger.error(f"❌ Компонент {comp_type.value}.{name} не найден")
                     return False
                 # Проверяем, что компонент инициализирован
-                if hasattr(component, '_initialized'):
+                if hasattr(component, 'is_initialized') and callable(component.is_initialized):
+                    if not component.is_initialized():
+                        self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
+                        return False
+                elif hasattr(component, '_initialized'):
                     if not component._initialized:
                         self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
                         return False
