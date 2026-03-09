@@ -224,10 +224,21 @@ class SessionContext(BaseSessionContext):
                             obs_content = obs_item.content
                             # Извлекаем полезную информацию из observation
                             if isinstance(obs_content, dict):
-                                obs_data = obs_content.get('data', obs_content.get('rows', obs_content))
-                                observations.append(str(obs_data)[:200])  # Ограничиваем длину
+                                # Пробуем разные ключи для извлечения данных
+                                obs_data = (
+                                    obs_content.get('result') or  # ExecutionResult.data
+                                    obs_content.get('data') or
+                                    obs_content.get('rows') or
+                                    obs_content
+                                )
+                                # Сериализуем Pydantic модель если нужно
+                                if hasattr(obs_data, 'model_dump'):
+                                    obs_data = obs_data.model_dump()
+                                elif hasattr(obs_data, 'dict'):
+                                    obs_data = obs_data.dict()
+                                observations.append(str(obs_data)[:300])  # Ограничиваем длину
                             else:
-                                observations.append(str(obs_content)[:200])
+                                observations.append(str(obs_content)[:300])
                     if observations:
                         step_data["observation"] = "\n".join(observations)
                 
