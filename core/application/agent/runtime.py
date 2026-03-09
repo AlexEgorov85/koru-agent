@@ -611,6 +611,12 @@ class AgentRuntime:
                             # Если result это dict, используем его
                             if isinstance(execution_result.result, dict):
                                 obs_data = execution_result.result
+                            elif hasattr(execution_result.result, 'model_dump'):
+                                # Pydantic v2 модель → dict
+                                obs_data = execution_result.result.model_dump()
+                            elif hasattr(execution_result.result, 'dict'):
+                                # Pydantic v1 модель → dict
+                                obs_data = execution_result.result.dict()
                             else:
                                 # Иначе оборачиваем в dict
                                 obs_data = {"result": execution_result.result}
