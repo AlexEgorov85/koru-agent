@@ -78,8 +78,8 @@ class AgentRuntime:
     """Основной класс выполнения агента - runtime цикл рассуждений."""
 
     def __init__(
-        self, 
-        application_context: ApplicationContext, 
+        self,
+        application_context: ApplicationContext,
         goal: str,
         policy: AgentPolicy = None,
         max_steps: int = 10,
@@ -103,6 +103,7 @@ class AgentRuntime:
         self._current_step = 0
         self._max_steps = max_steps
         self._result: Optional[ExecutionResult] = None
+        self._final_answer_result: Optional[ExecutionResult] = None  # ← Результат final_answer.generate
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.user_context = user_context
 
@@ -299,6 +300,12 @@ class AgentRuntime:
                 previous_snapshot = current_snapshot
                 previous_decision = decision
 
+                # КРИТИЧНО: Проверка на финальный шаг по флагу is_final в decision
+                if hasattr(decision, 'is_final') and decision.is_final:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"Decision помечен как финальный (is_final=True)")
+                    print(f"🔵 [RUNTIME] decision.is_final=True — следующий шаг будет финальным", flush=True)
+
                 # ПРОВЕРКА: Превышен ли лимит отсутствия прогресса
                 if self.policy.should_stop_no_progress(self.state):
                     if self.event_bus_logger:
@@ -320,10 +327,26 @@ class AgentRuntime:
                     break
 
                 # Проверка завершения
+                # КРИТИЧНО: Сохраняем результат final_answer.generate перед выходом из цикла
                 if self._is_final_result(step_result):
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
                     print(f"🔴 [RUNTIME] BREAK: _is_final_result=True", flush=True)
+                    
+                    # Сохраняем результат final_answer.generate
+                    if isinstance(step_result, ExecutionResult):
+                        self._final_answer_result = step_result
+                        # Помечаем что это финальный ответ для последующего извлечения
+                        if step_result.metadata is None:
+                            step_result.metadata = {}
+                        step_result.metadata['is_final_answer'] = True
+                    elif isinstance(step_result, dict) and 'final_answer' in step_result:
+                        # Для обратной совместимости создаём ExecutionResult
+                        self._final_answer_result = ExecutionResult.success(
+                            data=step_result,
+                            metadata={'is_final_answer': True}
+                        )
+                    
                     break
 
                 self._current_step += 1
@@ -684,6 +707,15 @@ class AgentRuntime:
                 progressed = self.progress.evaluate(self.application_context.session_context)
                 self.state.register_progress(progressed)
 
+                # КРИТИЧНО: Помечаем результат final_answer.generate как финальный
+                if decision.capability_name == "final_answer.generate":
+                    if execution_result.metadata is None:
+                        execution_result.metadata = {}
+                    execution_result.metadata['is_final_answer'] = True
+                    # Также помечаем в data если есть
+                    if execution_result.data and isinstance(execution_result.data, dict):
+                        execution_result.data['is_final_answer'] = True
+
                 return execution_result
 
         except Exception as e:
@@ -758,17 +790,78 @@ class AgentRuntime:
         return await self._execute_single_step_internal(decision, available_caps)
 
     def _is_final_result(self, step_result: Any) -> bool:
-        """Проверка, является ли результат финальным."""
-        # В реальной реализации здесь будет проверка на достижение цели
-        # или получение финального ответа
+        """
+        Проверка, является ли результат финальным.
+        
+        ФИНАЛЬНЫЙ РЕЗУЛЬТАТ — это выполнение final_answer.generate,
+        которое содержит итоговый ответ агента.
+        """
+        # Проверка 1: ExecutionResult от final_answer.generate
+        if isinstance(step_result, ExecutionResult):
+            # Проверяем metadata или данные на наличие признака final_answer
+            if step_result.metadata and step_result.metadata.get('is_final_answer'):
+                return True
+            # Проверяем данные на наличие final_answer ключа
+            if step_result.data and isinstance(step_result.data, dict):
+                if 'final_answer' in step_result.data:
+                    return True
+        
+        # Проверка 2: BehaviorDecision с флагом is_final
+        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        if isinstance(step_result, BehaviorDecision):
+            if getattr(step_result, 'is_final', False):
+                return True
+            # STOP decision тоже считается финальным
+            if step_result.action == BehaviorDecisionType.STOP:
+                return True
+                
+        # Проверка 3: dict с action_type (для обратной совместимости)
         if isinstance(step_result, dict) and step_result.get("action_type") == "final_answer":
             return True
+            
         return False
 
     def _extract_final_result(self) -> Any:
-        """Извлечение финального результата."""
-        # В реальной реализации здесь будет извлечение результата
-        # из контекста выполнения или последнего шага
+        """
+        Извлечение финального результата.
+        
+        ПРИОРИТЕТЫ:
+        1. Результат final_answer.generate (сохранённый в _final_answer_result)
+        2. Данные из контекста сессии
+        3. Fallback результат
+        """
+        # Приоритет 1: Возвращаем результат final_answer.generate если он есть
+        if self._final_answer_result:
+            if self._final_answer_result.data:
+                return self._final_answer_result.data
+            # Если data пуст, но есть metadata с ответом
+            if self._final_answer_result.metadata:
+                return self._final_answer_result.metadata.get('final_answer_data', {})
+        
+        # Приоритет 2: Пытаемся извлечь из контекста сессии
+        if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
+            session_ctx = self.application_context.session_context
+            
+            # Пытаемся получить последний final_answer из контекста
+            try:
+                all_items_result = self.executor.execute_action_sync(
+                    action_name="context.get_all_items",
+                    parameters={},
+                    context=session_ctx
+                )
+                if all_items_result and all_items_result.result:
+                    items = all_items_result.result.get('items', {})
+                    # Ищем observation с final_answer
+                    for item_id, item in items.items():
+                        item_data = item if isinstance(item, dict) else (item.__dict__ if hasattr(item, '__dict__') else {})
+                        if isinstance(item_data, dict):
+                            content = item_data.get('content', {})
+                            if isinstance(content, dict) and 'final_answer' in content:
+                                return content
+            except Exception:
+                pass  # Игнорируем ошибки, используем fallback
+        
+        # Приоритет 3: Fallback результат
         return {
             "final_goal": self.goal,
             "steps_completed": self._current_step,
