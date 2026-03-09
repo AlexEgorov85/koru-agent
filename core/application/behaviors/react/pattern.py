@@ -225,9 +225,14 @@ class ReActPattern(BaseBehaviorPattern):
     def _load_reasoning_resources(self) -> bool:
         """
         Загружает system prompt для рассуждения из автоматически разделённых промптов.
-
+        
+        КРИТИЧНЫЕ РЕСУРСЫ:
+        - system_prompt_template: системный промпт для рассуждения
+        - reasoning_prompt_template: пользовательский промпт для рассуждения
+        - reasoning_schema: JSON схема для валидации ответа LLM
+        
         ВОЗВРАЩАЕТ:
-        - bool: True если успешно загружено
+        - bool: True если все критические ресурсы загружены
         """
         # Если уже загружено, ничего не делаем
         if self.reasoning_prompt_template and self.reasoning_schema and self.system_prompt_template:
@@ -286,13 +291,40 @@ class ReActPattern(BaseBehaviorPattern):
             if not self.reasoning_schema:
                 self.reasoning_schema = ReasoningResult.model_json_schema()
 
+            # === КРИТИЧНАЯ ВАЛИДАЦИЯ РЕСУРСОВ ===
+            # Проверяем что все критические ресурсы загружены
+            missing_resources = []
+            
+            if not self.system_prompt_template:
+                missing_resources.append("system_prompt_template")
+            
+            if not self.reasoning_prompt_template:
+                missing_resources.append("reasoning_prompt_template")
+            
+            if not self.reasoning_schema:
+                missing_resources.append("reasoning_schema")
+            
             # Логирование что найдено
             if self.event_bus_logger:
+                self.event_bus_logger.info_sync(f"[ReAct] === ЗАГРУЗКА РЕСУРСОВ ===")
                 self.event_bus_logger.info_sync(f"[ReAct] system_prompts: {list(self.system_prompts.keys()) if hasattr(self, 'system_prompts') and self.system_prompts else 'None'}")
                 self.event_bus_logger.info_sync(f"[ReAct] user_prompts: {list(self.user_prompts.keys()) if hasattr(self, 'user_prompts') and self.user_prompts else 'None'}")
                 self.event_bus_logger.info_sync(f"[ReAct] prompts: {list(self.prompts.keys()) if hasattr(self, 'prompts') and self.prompts else 'None'}")
                 self.event_bus_logger.info_sync(f"[ReAct] system_prompt_template загружен: {self.system_prompt_template is not None}")
                 self.event_bus_logger.info_sync(f"[ReAct] reasoning_prompt_template загружен: {self.reasoning_prompt_template is not None}")
+                self.event_bus_logger.info_sync(f"[ReAct] reasoning_schema загружена: {self.reasoning_schema is not None}")
+                
+                if missing_resources:
+                    self.event_bus_logger.warning_sync(f"[ReAct] Отсутствуют ресурсы: {missing_resources}")
+
+            # Если отсутствуют критические ресурсы — возвращаем False
+            # (не используем fallback, чтобы явно сигнализировать об ошибке инициализации)
+            if missing_resources:
+                self.event_bus_logger.error_sync(
+                    f"[ReAct] КРИТИЧНО: Отсутствуют критические ресурсы: {missing_resources}. "
+                    f"ReAct паттерн не может работать без промптов и схемы."
+                )
+                return False
 
             # === ДОБАВЛЕНИЕ JSON СХЕМЫ В СИСТЕМНЫЙ ПРОМПТ ===
             # Если схема загружена, добавляем её в системный промпт
@@ -1133,15 +1165,29 @@ class ReActPattern(BaseBehaviorPattern):
                     type('Capability', (), {'name': 'final_answer.generate', 'input_schema': {}})(),
                     parameters
                 )
+                # КРИТИЧНО: Помечаем как финальное решение
                 return BehaviorDecision(
                     action=BehaviorDecisionType.ACT,
                     capability_name="final_answer.generate",
                     parameters=validated_params,
-                    reason="final_answer_before_stop"
+                    reason="final_answer_before_stop",
+                    is_final=True  # ← Явно помечаем что это финальный шаг
                 )
 
             if stop_condition:
                 await self._log("warning", f"STOP condition detected: {reasoning_dict.get('stop_reason', 'goal_achieved')}")
+                # Если stop_condition=True, но capability_name не final_answer.generate,
+                # всё равно вызываем final_answer.generate для формирования ответа
+                if capability_name and capability_name != "final_answer.generate":
+                    await self._log("info", "STOP без final_answer — добавляем вызов final_answer.generate")
+                    return BehaviorDecision(
+                        action=BehaviorDecisionType.ACT,
+                        capability_name="final_answer.generate",
+                        parameters={"input": f"Цель достигнута: {reasoning_dict.get('stop_reason', 'goal_achieved')}"},
+                        reason="final_answer_on_stop",
+                        is_final=True  # ← Явно помечаем что это финальный шаг
+                    )
+                    
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
                     reason=reasoning_dict.get("stop_reason", "goal_achieved")
@@ -1179,14 +1225,19 @@ class ReActPattern(BaseBehaviorPattern):
             # 4. Вали��ация и корректировка параметров через SchemaValidator
             parameters = decision_dict.get("parameters", {})
             validated_params = self._validate_parameters(capability, parameters)
-            
+
             # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
             print(f"✅ [_make_decision] Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}", flush=True)
+            
+            # КРИТИЧНО: Помечаем final_answer.generate как финальный шаг
+            is_final = (capability_name == "final_answer.generate")
+            
             return BehaviorDecision(
                 action=BehaviorDecisionType.ACT,
                 capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
                 parameters=validated_params,
-                reason=decision_dict.get("reasoning", "capability_execution")
+                reason=decision_dict.get("reasoning", "capability_execution"),
+                is_final=is_final  # ← Помечаем финальный шаг
             )
 
         except Exception as e:
