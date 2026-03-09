@@ -94,10 +94,11 @@ class BaseComponent(LifecycleMixin, ABC):
     def __init__(
         self,
         name: str,
-        application_context: Optional['ApplicationContext'] = None,  # DEPRECATED, будет удалён
+        application_context: Optional['ApplicationContext'] = None,  # [DEPRECATED Этап 2.4]
         component_config: Optional[ComponentConfig] = None,
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
         # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        # [DEPRECATED Этап 2.4] Прямые зависимости будут удалены после миграции компонентов
         db: Optional[DatabaseInterface] = None,
         llm: Optional[LLMInterface] = None,
         cache: Optional[CacheInterface] = None,
@@ -114,22 +115,23 @@ class BaseComponent(LifecycleMixin, ABC):
         # Валидация обязательных параметров
         if component_config is None:
             raise ValueError(f"Компонент '{name}' требует component_config")
-        
+
         if not hasattr(component_config, 'variant_id'):
             raise ValueError(
                 f"Компонент '{name}' требует полную конфигурацию через ComponentConfig. "
                 "Legacy-режим (agent_config) больше не поддерживается."
             )
-        
+
         if executor is None:
             raise ValueError(f"Компонент '{name}' требует executor")
 
         # Сохраняем параметры
-        self._application_context = application_context  # DEPRECATED
+        self._application_context = application_context  # [DEPRECATED Этап 2.4]
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
 
         # === ВНЕДРЁННЫЕ ЗАВИСИМОСТИ ===
+        # [DEPRECATED Этап 2.4] Предупреждения при использовании
         self._db = db
         self._llm = llm
         self._cache = cache
@@ -153,13 +155,7 @@ class BaseComponent(LifecycleMixin, ABC):
         self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
         self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
 
-        # Временные метки для TTL
-        self.prompt_timestamps: Dict[str, float] = {}
-        self.input_contract_timestamps: Dict[str, float] = {}
-        self.output_contract_timestamps: Dict[str, float] = {}
-
-        # TTL для элементов кэша (в секундах, None означает бессрочный кэш)
-        self._cache_ttl_seconds = 3600  # 1 час по умолчанию
+        # [REFACTOR Этап 2.2] TTL-кэширование удалено — ресурсы не истекают
 
     # ========================================================================
     # СВОЙСТВА ДЛЯ ВНЕДРЁННЫХ ЗАВИСИМОСТЕЙ
@@ -167,22 +163,64 @@ class BaseComponent(LifecycleMixin, ABC):
 
     @property
     def db(self) -> Optional[DatabaseInterface]:
-        """Получить DatabaseInterface."""
+        """
+        Получить DatabaseInterface.
+        
+        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
+        Используйте executor.execute_action("sql.*", ...) для работы с БД.
+        """
+        import warnings
+        warnings.warn(
+            "db property deprecated. Используйте executor.execute_action() для работы с БД.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self._db
 
     @property
     def llm(self) -> Optional[LLMInterface]:
-        """Получить LLMInterface."""
+        """
+        Получить LLMInterface.
+        
+        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
+        Используйте executor.execute_action("llm.*", ...) для LLM вызовов.
+        """
+        import warnings
+        warnings.warn(
+            "llm property deprecated. Используйте executor.execute_action('llm.*', ...) для LLM вызовов.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self._llm
 
     @property
     def cache(self) -> Optional[CacheInterface]:
-        """Получить CacheInterface."""
+        """
+        Получить CacheInterface.
+        
+        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
+        """
+        import warnings
+        warnings.warn(
+            "cache property deprecated.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self._cache
 
     @property
     def vector(self) -> Optional[VectorInterface]:
-        """Получить VectorInterface."""
+        """
+        Получить VectorInterface.
+        
+        [DEPRECATED Этап 2.4] Прямые зависимости будут удалены.
+        """
+        import warnings
+        warnings.warn(
+            "vector property deprecated.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self._vector
 
     @property
@@ -315,11 +353,9 @@ class BaseComponent(LifecycleMixin, ABC):
         
         # Переход в состояние INITIALIZING
         await self._transition_to(ComponentState.INITIALIZING)
-        
+
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
-        else:
-            logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
 
         try:
             # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
@@ -349,7 +385,6 @@ class BaseComponent(LifecycleMixin, ABC):
 
         except Exception as e:
             self._safe_log_sync("error", f"Ошибка инициализации компонента '{self.name}': {e}")
-            logger.error(f"Ошибка инициализации компонента '{self.name}': {e}", exc_info=True)
             await self._transition_to(ComponentState.FAILED)
             return False
 
@@ -509,13 +544,7 @@ class BaseComponent(LifecycleMixin, ABC):
                     if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
                         return False
 
-            # Устанавливаем временные метки для всех загруженных ресурсов
-            for prompt_key in self.prompts:
-                self.prompt_timestamps[prompt_key] = current_time
-            for schema_key in self.input_contracts:
-                self.input_contract_timestamps[schema_key] = current_time
-            for schema_key in self.output_contracts:
-                self.output_contract_timestamps[schema_key] = current_time
+            # [REFACTOR Этап 2.2] Временные метки больше не устанавливаются (TTL удалён)
 
             # ← НОВОЕ: Автоматическое разделение system/user промптов
             self._separate_system_user_prompts()
@@ -627,93 +656,26 @@ class BaseComponent(LifecycleMixin, ABC):
                 f"Вызовите .initialize() перед использованием."
             )
 
-    def invalidate_cache(self, cache_type: str = None, key: str = None):
-        """
-        Инвалидация кэша компонента.
-
-        ARGS:
-        - cache_type: тип кэша для инвалидации ('prompts', 'input_contracts', 'output_contracts', или None для всех)
-        - key: конкретный ключ для инвалидации (или None для инвалидации всего типа кэша)
-        """
-        import time
-        current_time = time.time()
-
-        if cache_type is None or cache_type == 'prompts':
-            if key:
-                if key in self.prompts:
-                    del self.prompts[key]
-                if key in self.prompt_timestamps:
-                    del self.prompt_timestamps[key]
-            else:
-                self.prompts.clear()
-                self.prompt_timestamps.clear()
-
-        if cache_type is None or cache_type == 'input_contracts':
-            if key:
-                if key in self.input_contracts:
-                    del self.input_contracts[key]
-                if key in self.input_contract_timestamps:
-                    del self.input_contract_timestamps[key]
-            else:
-                self.input_contracts.clear()
-                self.input_contract_timestamps.clear()
-
-        if cache_type is None or cache_type == 'output_contracts':
-            if key:
-                if key in self.output_contracts:
-                    del self.output_contracts[key]
-                if key in self.output_contract_timestamps:
-                    del self.output_contract_timestamps[key]
-            else:
-                self.output_contracts.clear()
-                self.output_contract_timestamps.clear()
-
-    def _is_cache_expired(self, cache_type: str, key: str) -> bool:
-        """
-        Проверяет, истек ли срок действия элемента кэша.
-
-        ARGS:
-        - cache_type: тип кэша ('prompts', 'input_contracts', 'output_contracts')
-        - key: ключ элемента кэша
-
-        RETURNS:
-        - bool: True если кэш истек, False если действителен
-        """
-        import time
-
-        if self._cache_ttl_seconds is None:
-            return False  # Если TTL не установлен, кэш не истекает
-
-        timestamps = {
-            'prompts': self.prompt_timestamps,
-            'input_contracts': self.input_contract_timestamps,
-            'output_contracts': self.output_contract_timestamps
-        }.get(cache_type)
-
-        if not timestamps or key not in timestamps:
-            return True  # Если временная метка не найдена, считаем кэш просроченным
-
-        return (time.time() - timestamps[key]) > self._cache_ttl_seconds
+    # ========================================================================
+    # [REFACTOR Этап 2.2] TTL-кэширование удалено
+    # invalidate_cache() и _is_cache_expired() больше не используются
+    # ========================================================================
 
     def get_cached_prompt_safe(self, capability_name: str) -> str:
         """
-        Безопасное получение промта из кэша с обработкой ошибок и проверкой срока действия.
+        Безопасное получение промта из кэша.
+
+        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения промта
 
         RETURNS:
-        - str: текст промта или пустая строка если не найден или истек
+        - str: текст промта или пустая строка если не найден
         """
         self._ensure_initialized()
 
         if capability_name not in self.prompts:
-            return ""
-
-        # Проверяем, не истек ли срок действия кэша
-        if self._is_cache_expired('prompts', capability_name):
-            # Инвалидируем просроченный элемент
-            self.invalidate_cache('prompts', capability_name)
             return ""
 
         # Безопасное извлечение через атрибут объекта
@@ -724,46 +686,38 @@ class BaseComponent(LifecycleMixin, ABC):
 
     def get_cached_input_contract_safe(self, capability_name: str) -> Type[BaseModel]:
         """
-        Безопасное получение входной схемы из кэша с обработкой ошибок и проверкой срока действия.
+        Безопасное получение входной схемы из кэша.
+
+        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения входной схемы
 
         RETURNS:
-        - Type[BaseModel]: класс схемы или базовый BaseModel если не найден или истек
+        - Type[BaseModel]: класс схемы или базовый BaseModel если не найден
         """
         self._ensure_initialized()
 
         if capability_name not in self.input_contracts:
             return BaseModel
 
-        # Проверяем, не истек ли срок действия кэша
-        if self._is_cache_expired('input_contracts', capability_name):
-            # Инвалидируем просроченный элемент
-            self.invalidate_cache('input_contracts', capability_name)
-            return BaseModel
-
         return self.input_contracts[capability_name]
 
     def get_cached_output_contract_safe(self, capability_name: str) -> Type[BaseModel]:
         """
-        Безопасное получение выходной схемы из кэша с обработкой ошибок и проверкой срока действия.
+        Безопасное получение выходной схемы из кэша.
+
+        [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
         - capability_name: имя capability для получения выходной схемы
 
         RETURNS:
-        - Type[BaseModel]: класс схемы или базовый BaseModel если не найден или истек
+        - Type[BaseModel]: класс схемы или базовый BaseModel если не найден
         """
         self._ensure_initialized()
 
         if capability_name not in self.output_contracts:
-            return BaseModel
-
-        # Проверяем, не истек ли срок действия кэша
-        if self._is_cache_expired('output_contracts', capability_name):
-            # Инвалидируем просроченный элемент
-            self.invalidate_cache('output_contracts', capability_name)
             return BaseModel
 
         return self.output_contracts[capability_name]
@@ -1214,14 +1168,9 @@ class BaseComponent(LifecycleMixin, ABC):
 
         try:
             # === ЭТАП 1: Валидация входных данных ===
-            # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
             validated_input = self.validate_input_typed(capability.name, parameters)
-            
-            # [BASE_DEBUG] 4.1. После валидации входа
-            await self.event_bus_logger.info(f"[BASE_DEBUG] validated_input: {validated_input is not None}")
+
             if validated_input is None:
-                await self.event_bus_logger.error("[BASE_DEBUG] входная валидация не пройдена")
-                
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 # Публикация метрики ошибки валидации
@@ -1241,21 +1190,12 @@ class BaseComponent(LifecycleMixin, ABC):
                 )
 
             # === ЭТАП 2: Выполнение бизнес-логики ===
-            # ✅ ИСПРАВЛЕНО: Передаем валидированный input (Pydantic модель)
             result = await self._execute_impl(capability, validated_input, execution_context)
-            
-            # [BASE_DEBUG] 4.2. После выполнения _execute_impl
-            await self.event_bus_logger.info(f"[BASE_DEBUG] результат _execute_impl: {type(result).__name__}, data keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
 
             # === ЭТАП 3: Валидация выходных данных ===
-            # ✅ ИСПРАВЛЕНО: Используем типизированную валидацию
             validated_output = self.validate_output_typed(capability.name, result)
-            
-            # [BASE_DEBUG] 4.3. После валидации выхода
-            await self.event_bus_logger.info(f"[BASE_DEBUG] validated_output: {validated_output is not None}")
+
             if validated_output is None:
-                await self.event_bus_logger.error("[BASE_DEBUG] выходная валидация не пройдена")
-                
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 await self._publish_metrics(
@@ -1285,13 +1225,9 @@ class BaseComponent(LifecycleMixin, ABC):
                 success=True,
                 execution_time_ms=execution_time_ms
             )
-            
-            # [BASE_DEBUG] 4.4. Перед возвратом ExecutionResult
-            await self.event_bus_logger.info(f"[BASE_DEBUG] возвращаем ExecutionResult: status=completed, error=None, data type={type(validated_output).__name__ if validated_output else 'None'}")
 
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
-                # ✅ ИСПРАВЛЕНО: Возвращаем Pydantic модель (сохраняется типизация)
                 data=validated_output,
                 metadata={
                     "capability": capability.name,
@@ -1312,9 +1248,6 @@ class BaseComponent(LifecycleMixin, ABC):
                 error=str(e),
                 error_type=type(e).__name__
             )
-            
-            # [BASE_DEBUG] 4.4. Перед возвратом ExecutionResult (ошибка)
-            await self.event_bus_logger.info(f"[BASE_DEBUG] возвращаем ExecutionResult: status=failed, error={str(e)}, data type=None")
 
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
