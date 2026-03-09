@@ -496,19 +496,19 @@ class BookLibrarySkill(BaseComponent):
             exec_context = ExecutionContext()
 
             query_result = await self.executor.execute_action(
-                action_name="sql_query.execute",
+                action_name="sql_query_service.execute",
                 parameters={
-                    "sql": sql_query,
-                    "parameters": sql_params,
-                    "max_rows": max_rows
+                    "sql_query": sql_query,
+                    "parameters": sql_params
                 },
                 context=exec_context
             )
 
             from core.models.data.execution import ExecutionStatus
             if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
-                rows = query_result.data.get('rows', [])
-                execution_time = query_result.data.get('execution_time', 0.0)
+                result_data = query_result.data
+                rows = result_data.rows if hasattr(result_data, 'rows') else result_data.get('rows', [])
+                execution_time = result_data.execution_time if hasattr(result_data, 'execution_time') else result_data.get('execution_time', 0.0)
                 await self.event_bus_logger.info(f"[BOOK_DEBUG] Успешное выполнение, rows={len(rows)}")
             else:
                 error_msg = query_result.error or "Неизвестная ошибка"
@@ -740,8 +740,6 @@ class BookLibrarySkill(BaseComponent):
     ):
         """
         Публикация метрик выполнения через EventBus.
-
-        Сигнатура совместима с BaseComponent._publish_metrics().
         """
         try:
             # Используем event_bus_logger для публикации событий

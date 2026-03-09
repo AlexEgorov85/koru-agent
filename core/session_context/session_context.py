@@ -224,38 +224,10 @@ class SessionContext(BaseSessionContext):
                             obs_content = obs_item.content
                             # Извлекаем полезную информацию из observation
                             if isinstance(obs_content, dict):
-                                # Сначала проверяем summary и preview
-                                if 'summary' in obs_content:
-                                    observations.append(obs_content['summary'])
-                                if 'preview' in obs_content and obs_content['preview']:
-                                    # Форматируем preview для читаемости
-                                    preview = obs_content['preview']
-                                    if isinstance(preview, list):
-                                        for item in preview[:2]:  # Показываем первые 2 записи
-                                            if isinstance(item, dict):
-                                                # Форматируем как "Название (Автор)"
-                                                title = item.get('book_title', item.get('title', ''))
-                                                author = item.get('last_name', item.get('author', ''))
-                                                if title and author:
-                                                    observations.append(f"📚 {title} — {author}")
-                                            else:
-                                                observations.append(str(item)[:100])
-                                elif 'rows' in obs_content and obs_content['rows']:
-                                    rows = obs_content['rows']
-                                    observations.append(f"Найдено {len(rows)} записей")
-                                    # Показываем первые 2 записи
-                                    for row in rows[:2]:
-                                        if isinstance(row, dict):
-                                            title = row.get('book_title', row.get('title', ''))
-                                            author = row.get('last_name', row.get('author', ''))
-                                            if title and author:
-                                                observations.append(f"📚 {title} — {author}")
-                                else:
-                                    # Fallback: показываем данные
-                                    obs_data = obs_content.get('data', obs_content)
-                                    observations.append(str(obs_data)[:300])
+                                obs_data = obs_content.get('data', obs_content.get('rows', obs_content))
+                                observations.append(str(obs_data)[:200])  # Ограничиваем длину
                             else:
-                                observations.append(str(obs_content)[:300])
+                                observations.append(str(obs_content)[:200])
                     if observations:
                         step_data["observation"] = "\n".join(observations)
                 

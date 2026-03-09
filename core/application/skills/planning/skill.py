@@ -22,9 +22,7 @@ class PlanningSkill(BaseComponent):
         # Инициализация логгера
         import logging
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
+        # event_bus_logger будет инициализирован в BaseComponent.__init__()
 
     async def execute(
         self,
@@ -39,12 +37,6 @@ class PlanningSkill(BaseComponent):
         """
         return await self._execute_impl(capability, parameters, execution_context)
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
-        # Этот метод оставлен для совместимости но не делает ничего
-        pass
-
     def _get_event_type_for_success(self) -> 'EventType':
         """Возвращает тип события для успешного выполнения навыка планирования."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
@@ -56,36 +48,42 @@ class PlanningSkill(BaseComponent):
                 name="planning.create_plan",
                 description="Создание первичного плана действий",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             ),
             Capability(
                 name="planning.update_plan",
                 description="Обновление существующего плана",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             ),
             Capability(
                 name="planning.get_next_step",
                 description="Получение следующего шага из плана",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             ),
             Capability(
                 name="planning.update_step_status",
                 description="Обновление статуса шага плана",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             ),
             Capability(
                 name="planning.decompose_task",
                 description="Декомпозиция сложной задачи на подзадачи",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             ),
             Capability(
                 name="planning.mark_task_completed",
                 description="Отметка задачи как завершенной",
                 skill_name=self.name,
+                supported_strategies=["planning"],  # ← Только planning_pattern
                 visiable=True
             )
         ]
@@ -140,15 +138,8 @@ class PlanningSkill(BaseComponent):
         Публикация события в EventBus.
         """
         try:
-            # Используем внедрённый event_bus из BaseComponent
-            if hasattr(self, '_event_bus') and self._event_bus is not None:
-                await self._event_bus.publish(
-                    event_type=event_type,
-                    payload=data,
-                    metadata={"source": "planning_skill"}
-                )
-            # Fallback на логирование через event_bus_logger
-            elif self.event_bus_logger:
+            # Используем event_bus_logger для публикации событий
+            if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Событие {event_type}: {data}")
         except Exception as e:
             if self.event_bus_logger:

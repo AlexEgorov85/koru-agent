@@ -57,12 +57,12 @@ class ActionExecutor:
     ) -> ExecutionResult:
         """
         Выполнение действия через ActionExecutor.
-        
+
         ARGS:
         - action_name: имя действия для выполнения
         - parameters: параметры выполнения
         - context: контекст выполнения
-        
+
         RETURNS:
         - ActionResult: результат выполнения
         """
@@ -79,20 +79,12 @@ class ActionExecutor:
                 return await self._execute_llm_action(action_name, parameters, context)
 
             # 3. Находим целевой компонент по имени действия
-            target_component = self._resolve_component_for_action(action_name)
+            target_component, component_type = self._resolve_component_for_action(action_name)
 
             if not target_component:
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
                     error=f"Компонент для действия '{action_name}' не найден"
-                )
-
-            # 3. Валидируем входные параметры через контракт компонента
-            capability = self._resolve_capability(action_name)
-            if not capability:
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    error=f"Capability для действия '{action_name}' не найден"
                 )
 
             # 4. Проверяем, что компонент инициализирован
@@ -102,13 +94,16 @@ class ActionExecutor:
                     error=f"Компонент '{target_component.name}' не инициализирован"
                 )
 
-            # 5. Выполняем компонент
-            result = await target_component.execute(capability, parameters, context)
-
-            # 6. Валидируем выходные данные
-            # (в реальной реализации здесь будет валидация через контракт)
-
-            return result
+            # 5. Выполняем компонент в зависимости от типа
+            if component_type == "service":
+                # Сервисы: вызываем метод напрямую по имени действия
+                return await self._execute_service_action(target_component, action_name, parameters, context)
+            elif component_type == "tool":
+                # Инструменты: вызываем метод напрямую по имени действия
+                return await self._execute_tool_action(target_component, action_name, parameters, context)
+            else:
+                # Навыки и behavior: используем capability
+                return await self._execute_skill_or_behavior_action(target_component, action_name, parameters, context)
 
         except Exception as e:
             if self.logger:
@@ -478,23 +473,31 @@ class ActionExecutor:
     def _resolve_component_for_action(self, action_name: str):
         """
         Разрешение компонента по имени действия.
-        
+
+        Поддерживает два формата:
+        1. Явный: "service.sql_query_service.execute" -> тип=service, имя=sql_query_service
+        2. Неявный: "sql_query_service.execute" -> ищем во всех реестрах
+
         ARGS:
         - action_name: имя действия
-        
+
         RETURNS:
-        - BaseComponent: найденный компонент или None
+        - tuple: (найденный компонент или None, тип компонента как строка)
         """
-        # Разбиваем имя действия на тип и имя (например, "llm.generate" -> "llm", "generate")
-        if '.' in action_name:
-            component_type, component_name = action_name.split('.', 1)
-        else:
-            component_type = "skill"  # по умолчанию
-            component_name = action_name
-        
-        # Ищем компонент в соответствующем реестре
         from core.application.context.application_context import ComponentType
+
+        # Разбиваем имя действия на части
+        parts = action_name.split('.', 1)
         
+        # Проверяем явный формат (type.name.action)
+        if len(parts) >= 2 and parts[0] in ["skill", "tool", "service", "behavior"]:
+            component_type = parts[0]
+            component_name = parts[1].split('.', 1)[0]
+        else:
+            # Неявный формат — ищем компонент по имени во всех реестрах
+            component_name = parts[0]
+            component_type = None
+
         # Определяем тип компонента
         comp_type_map = {
             "skill": ComponentType.SKILL,
@@ -502,13 +505,21 @@ class ActionExecutor:
             "service": ComponentType.SERVICE,
             "behavior": ComponentType.BEHAVIOR
         }
-        
-        comp_type = comp_type_map.get(component_type, ComponentType.SKILL)
-        
-        # Получаем компонент из реестра
-        component = self.application_context.components.get(comp_type, component_name)
-        
-        return component
+
+        # Если тип указан явно, ищем в соответствующем реестре
+        if component_type and component_type in comp_type_map:
+            comp_type = comp_type_map[component_type]
+            component = self.application_context.components.get(comp_type, component_name)
+            if component:
+                return component, component_type
+
+        # Ищем во всех реестрах (для неявного формата или если не найдено)
+        for type_name, comp_type in comp_type_map.items():
+            component = self.application_context.components.get(comp_type, component_name)
+            if component:
+                return component, type_name
+
+        return None, None
     
     def _resolve_capability(self, action_name: str) -> Optional[Capability]:
         """
@@ -734,4 +745,171 @@ class ActionExecutor:
                     "parsing_attempts": response.parsing_attempts,
                     "error_type": "StructuredOutputError"
                 }
+            )
+
+    async def _execute_service_action(
+        self,
+        service: Any,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> ExecutionResult:
+        """
+        Выполнение действия сервиса.
+
+        Сервисы не имеют capability, поэтому вызываем метод напрямую по имени действия.
+        Например: sql_query_service.execute -> service.execute_query(...)
+
+        ARGS:
+        - service: сервис для выполнения
+        - action_name: имя действия (например, "sql_query_service.execute")
+        - parameters: параметры выполнения
+        - context: контекст выполнения
+
+        RETURNS:
+        - ExecutionResult: результат выполнения
+        """
+        try:
+            # Извлекаем имя метода из имени действия
+            # sql_query_service.execute -> execute
+            if '.' in action_name:
+                _, method_name = action_name.split('.', 1)
+                # service.execute -> execute_query (добавляем префикс если нужно)
+                if method_name == "execute":
+                    method_name = "execute_query"
+            else:
+                method_name = action_name
+
+            # Проверяем наличие метода
+            if not hasattr(service, method_name):
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"Метод '{method_name}' не найден в сервисе '{service.name}'"
+                )
+
+            # Вызываем метод сервиса
+            method = getattr(service, method_name)
+            result = await method(**parameters)
+
+            # Возвращаем результат
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data=result
+            )
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Ошибка выполнения сервиса '{service.name}': {e}", exc_info=True)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=str(e)
+            )
+
+    async def _execute_tool_action(
+        self,
+        tool: Any,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> ExecutionResult:
+        """
+        Выполнение действия инструмента.
+
+        Инструменты не имеют capability, поэтому вызываем метод напрямую по имени действия.
+        Например: file_tool.read -> tool.execute(FileToolInput(...))
+
+        ARGS:
+        - tool: инструмент для выполнения
+        - action_name: имя действия (например, "file_tool.read")
+        - parameters: параметры выполнения
+        - context: контекст выполнения
+
+        RETURNS:
+        - ExecutionResult: результат выполнения
+        """
+        try:
+            # Извлекаем имя метода из имени действия
+            # file_tool.read -> read
+            if '.' in action_name:
+                _, method_name = action_name.split('.', 1)
+            else:
+                method_name = action_name
+
+            # Для инструментов используем execute с параметрами
+            # Если метод не найден, пробуем execute
+            if not hasattr(tool, method_name):
+                method_name = "execute"
+
+            # Вызываем метод инструмента
+            method = getattr(tool, method_name)
+            
+            # Проверяем signature метода
+            import inspect
+            sig = inspect.signature(method)
+            
+            # Если метод принимает Pydantic модель, создаём её из parameters
+            if len(sig.parameters) > 0:
+                param_type = list(sig.parameters.values())[0].annotation
+                if hasattr(param_type, '__fields__'):  # Pydantic модель
+                    result = await method(param_type(**parameters))
+                else:
+                    result = await method(parameters)
+            else:
+                result = await method()
+
+            # Возвращаем результат
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data=result
+            )
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Ошибка выполнения инструмента '{tool.name}': {e}", exc_info=True)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=str(e)
+            )
+
+    async def _execute_skill_or_behavior_action(
+        self,
+        component: Any,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> ExecutionResult:
+        """
+        Выполнение действия навыка или behavior паттерна.
+
+        Навыки и behavior имеют capability, поэтому используем execute().
+
+        ARGS:
+        - component: навык или behavior для выполнения
+        - action_name: имя действия (например, "book_library.execute_script")
+        - parameters: параметры выполнения
+        - context: контекст выполнения
+
+        RETURNS:
+        - ExecutionResult: результат выполнения
+        """
+        try:
+            # Валидируем входные параметры через контракт компонента
+            capability = self._resolve_capability(action_name)
+            if not capability:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    error=f"Capability для действия '{action_name}' не найден"
+                )
+
+            # Выполняем компонент
+            result = await component.execute(capability, parameters, context)
+
+            return result
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Ошибка выполнения компонента '{component.name}': {e}", exc_info=True)
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=str(e)
             )

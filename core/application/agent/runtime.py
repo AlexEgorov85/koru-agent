@@ -237,22 +237,8 @@ class AgentRuntime:
                     available_caps = self.application_context.get_all_tools()
                 else:
                     available_caps = []
-                
-                # ФИЛЬТР 1: Исключаем навыки планирования
-                # planning.* capability должны использоваться только внутри planning_pattern
-                # ФИЛЬТР 2: Исключаем инструменты (tools)
-                # file_tool, sql_tool, vector_books — низкоуровневые компоненты для навыков
-                # Агент должен использовать только навыки (skills)
-                available_caps = [
-                    cap for cap in available_caps
-                    if not cap.name.startswith('planning.')  # Не planning
-                    and not cap.name.startswith('file_tool.')  # Не file_tool
-                    and not cap.name.startswith('sql_tool.')  # Не sql_tool
-                    and not cap.name.startswith('vector_books.')  # Не vector_books
-                ]
 
                 print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
-                print(f"🔵 [RUNTIME] available_caps names: {[c.name for c in available_caps]}", flush=True)
                 
                 # Получаем decision
                 print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
@@ -613,29 +599,17 @@ class AgentRuntime:
                 obs_data = None
                 step_status = execution_result.status
                 step_summary = None
-
+                
                 try:
                     if execution_result.status == ExecutionStatus.COMPLETED:
                         # Успех — записываем результат
-                        # ИСПРАВЛЕНО: проверяем execution_result.data вместо execution_result.result
-                        if hasattr(execution_result, 'data') and execution_result.data:
-                            # Если data это dict или Pydantic модель, извлекаем данные
-                            if isinstance(execution_result.data, dict):
-                                obs_data = execution_result.data
-                            elif hasattr(execution_result.data, 'model_dump'):
-                                # Pydantic модель → dict
-                                obs_data = execution_result.data.model_dump()
+                        if hasattr(execution_result, 'result') and execution_result.result:
+                            # Если result это dict, используем его
+                            if isinstance(execution_result.result, dict):
+                                obs_data = execution_result.result
                             else:
                                 # Иначе оборачиваем в dict
-                                obs_data = {"result": execution_result.data}
-                            
-                            # Добавляем краткую сводку для LLM
-                            if 'rows' in obs_data and isinstance(obs_data['rows'], list):
-                                obs_data['summary'] = f"Найдено {len(obs_data['rows'])} записей"
-                                # Добавляем первые 3 записи для контекста
-                                if len(obs_data['rows']) > 0:
-                                    obs_data['preview'] = obs_data['rows'][:3]
-                        
+                                obs_data = {"result": execution_result.result}
                         step_summary = f"Выполнено: {decision.capability_name}"
                         self.state.register_progress(True)  # прогресс есть
                     else:
@@ -758,19 +732,6 @@ class AgentRuntime:
         else:
             # Если нет специальных методов, возвращаем пустой список
             available_caps = []
-        
-        # ФИЛЬТР 1: Исключаем навыки планирования
-        # planning.* capability должны использоваться только внутри planning_pattern
-        # ФИЛЬТР 2: Исключаем инструменты (tools)
-        # file_tool, sql_tool, vector_books — низкоуровневые компоненты для навыков
-        # Агент должен использовать только навыки (skills)
-        available_caps = [
-            cap for cap in available_caps
-            if not cap.name.startswith('planning.')  # Не planning
-            and not cap.name.startswith('file_tool.')  # Не file_tool
-            and not cap.name.startswith('sql_tool.')  # Не sql_tool
-            and not cap.name.startswith('vector_books.')  # Не vector_books
-        ]
 
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")

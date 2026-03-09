@@ -24,7 +24,8 @@ from core.infrastructure.logging import EventBusLogger
 class DataAnalysisSkill(BaseSkill):
     """Навык для анализа сырых данных по шагу и ответа на вопросы."""
 
-    # Зависимости больше не нужны — все вызовы через executor
+    # Зависимости не используются — BaseSkill не обрабатывает DEPENDENCIES
+    # Все вызовы инструментов выполняются через executor
     # DEPENDENCIES = ["file_tool", "sql_tool"]
 
     name: str = "data_analysis"
@@ -42,15 +43,7 @@ class DataAnalysisSkill(BaseSkill):
         self.supported_capabilities = {
             "data_analysis.analyze_step_data": self._analyze_step_data
         }
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
-        # Этот метод оставлен для совместимости но не делает ничего
-        pass
+        # EventBusLogger будет инициализирован в BaseComponent.__init__()
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список capability навыка."""

@@ -53,15 +53,7 @@ class FinalAnswerSkill(BaseSkill):
 
         # Кэш для скриптов реестра
         self._scripts_registry = None
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # event_bus_logger будет инициализирован в BaseComponent._init_event_bus_logger()
-        # Этот метод оставлен для совместимости но не делает ничего
-        pass
+        # event_bus_logger будет инициализирован в BaseComponent.__init__()
 
     def get_capabilities(self) -> List[Capability]:
         """
