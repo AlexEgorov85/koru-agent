@@ -869,8 +869,8 @@ class ActionExecutor:
             request=request,
             provider=llm_provider,
             max_retries=parameters.get("max_retries", 3),
-            attempt_timeout=parameters.get("attempt_timeout"),
-            total_timeout=parameters.get("total_timeout"),
+            attempt_timeout=parameters.get("attempt_timeout", 60.0),  # Timeout на одну попытку
+            total_timeout=parameters.get("total_timeout", parameters.get("timeout", 120.0)),  # Общий timeout
             session_id=parameters.get('session_id'),
             agent_id=parameters.get('agent_id'),
             step_number=parameters.get('step_number'),

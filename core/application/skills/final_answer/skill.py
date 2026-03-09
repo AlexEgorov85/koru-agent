@@ -209,6 +209,26 @@ class FinalAnswerSkill(BaseSkill):
         # Получаем все items из контекста через executor
         try:
             from core.models.data.execution import ExecutionStatus
+            import json
+            from datetime import date, datetime
+            
+            def serialize_for_prompt(obj):
+                """Сериализация объекта для промпта — datetime → строки."""
+                if isinstance(obj, (date, datetime)):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {k: serialize_for_prompt(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [serialize_for_prompt(item) for item in obj]
+                elif hasattr(obj, 'model_dump'):
+                    return serialize_for_prompt(obj.model_dump())
+                elif hasattr(obj, 'dict'):
+                    return serialize_for_prompt(obj.dict())
+                elif hasattr(obj, '__dict__'):
+                    return serialize_for_prompt(obj.__dict__)
+                else:
+                    return obj
+            
             all_items_result = await self.executor.execute_action(
                 action_name="context.get_all_items",
                 parameters={},
@@ -232,16 +252,13 @@ class FinalAnswerSkill(BaseSkill):
                         # Сериализуем данные наблюдения в JSON-подобный формат
                         if isinstance(item_content, str):
                             observations.append(item_content)
-                        elif hasattr(item_content, 'model_dump'):
-                            # Pydantic модель → dict → str
-                            observations.append(str(item_content.model_dump()))
-                        elif hasattr(item_content, 'dict'):
-                            # Старый Pydantic v1
-                            observations.append(str(item_content.dict()))
-                        elif isinstance(item_content, dict):
-                            observations.append(str(item_content))
                         else:
-                            observations.append(str(item_content))
+                            # Сериализуем dict/объект с конвертацией datetime → строки
+                            serialized = serialize_for_prompt(item_content)
+                            if isinstance(serialized, dict):
+                                observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
+                            else:
+                                observations.append(str(serialized))
                     elif item_type in ["THOUGHT", "DECISION"]:
                         thoughts.append(item_content if isinstance(item_content, str) else str(item_content))
                     elif item_type == "ACTION":
@@ -259,6 +276,26 @@ class FinalAnswerSkill(BaseSkill):
         steps_taken = []
         try:
             from core.models.data.execution import ExecutionStatus
+            import json
+            from datetime import date, datetime
+            
+            def serialize_for_prompt(obj):
+                """Сериализация объекта для промпта — datetime → строки."""
+                if isinstance(obj, (date, datetime)):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {k: serialize_for_prompt(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [serialize_for_prompt(item) for item in obj]
+                elif hasattr(obj, 'model_dump'):
+                    return serialize_for_prompt(obj.model_dump())
+                elif hasattr(obj, 'dict'):
+                    return serialize_for_prompt(obj.dict())
+                elif hasattr(obj, '__dict__'):
+                    return serialize_for_prompt(obj.__dict__)
+                else:
+                    return obj
+            
             steps_result = await self.executor.execute_action(
                 action_name="context.get_step_history",
                 parameters={},
@@ -269,14 +306,32 @@ class FinalAnswerSkill(BaseSkill):
                 steps_list = steps_result.result.get("steps", [])
                 for step in steps_list[-10:]:  # Последние 10 шагов
                     if isinstance(step, dict):
+                        # Извлекаем capability_name и summary из AgentStep dict
+                        capability = step.get("capability_name", step.get("action", "неизвестно"))
+                        summary = step.get("summary", "")
+                        status = step.get("status", "")
+                        
+                        # Если есть observation_item_ids, пытаемся получить данные
+                        result_data = step.get("result", "") or step.get("observation", "")
+                        
                         steps_taken.append({
-                            "action": step.get("action", "неизвестно"),
-                            "result": str(step.get("result", ""))[:200] if step.get("result") else ""
+                            "action": capability,
+                            "summary": summary,
+                            "status": status.value if hasattr(status, 'value') else str(status),
+                            "result": serialize_for_prompt(result_data) if result_data else ""
                         })
                     else:
+                        # Объект AgentStep
+                        capability = getattr(step, 'capability_name', getattr(step, 'action', 'неизвестно'))
+                        summary = getattr(step, 'summary', '')
+                        status = getattr(step, 'status', '')
+                        result_data = getattr(step, 'result', '') or getattr(step, 'observation', '')
+                        
                         steps_taken.append({
-                            "action": getattr(step, 'action', 'неизвестно'),
-                            "result": getattr(step, 'result', '')[:200] if getattr(step, 'result') else ''
+                            "action": capability,
+                            "summary": summary,
+                            "status": status.value if hasattr(status, 'value') else str(status),
+                            "result": serialize_for_prompt(result_data) if result_data else ""
                         })
         except Exception as e:
             if self.event_bus_logger:
@@ -320,7 +375,7 @@ class FinalAnswerSkill(BaseSkill):
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
-        # Увеличенный timeout для сложных запросов (120 секунд)
+        # Увеличенный timeout для сложных запросов (180 секунд)
         try:
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
@@ -337,8 +392,9 @@ class FinalAnswerSkill(BaseSkill):
                         "strict_mode": True
                     },
                     "temperature": 0.3,
-                    "max_tokens": 1500,
-                    "timeout": 120.0  # Увеличенный timeout для final_answer
+                    "max_tokens": 2000,
+                    "total_timeout": 180.0,  # Общий timeout на все попытки
+                    "attempt_timeout": 90.0  # Timeout на одну попытку
                 },
                 context=execution_context
             )
