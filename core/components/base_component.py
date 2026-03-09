@@ -217,6 +217,22 @@ class BaseComponent(LifecycleMixin, ABC):
     # ЛОГИРОВАНИЕ
     # ========================================================================
 
+    def _get_logger_init_state(self):
+        """
+        Callback для EventBusLogger: получение текущего состояния инициализации.
+        
+        Возвращает LoggerInitializationState на основе _state компонента.
+        """
+        from core.infrastructure.logging.logger import LoggerInitializationState
+        
+        if self._state == ComponentState.READY:
+            return LoggerInitializationState.READY
+        elif self._state == ComponentState.INITIALIZING:
+            return LoggerInitializationState.INITIALIZING
+        else:
+            # CREATED, FAILED, SHUTDOWN → считаем как NOT_INITIALIZED
+            return LoggerInitializationState.NOT_INITIALIZED
+
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
         # Сначала пробуем внедрённый event_bus
@@ -225,7 +241,8 @@ class BaseComponent(LifecycleMixin, ABC):
                 self._event_bus,
                 session_id="system",
                 agent_id="system",
-                component=self.__class__.__name__
+                component=self.__class__.__name__,
+                get_init_state_callback=self._get_logger_init_state
             )
         # Fallback на application_context для обратной совместимости
         elif self._application_context is not None:
@@ -236,7 +253,8 @@ class BaseComponent(LifecycleMixin, ABC):
                         event_bus,
                         session_id="system",
                         agent_id="system",
-                        component=self.__class__.__name__
+                        component=self.__class__.__name__,
+                        get_init_state_callback=self._get_logger_init_state
                     )
 
     def _safe_log_sync(self, level: str, message: str, **kwargs):
@@ -260,17 +278,21 @@ class BaseComponent(LifecycleMixin, ABC):
 
         ВАЖНО: Все ресурсы уже загружены в component_config.application_context
         на уровне ApplicationContext.initialize().
-        
+
         ЖИЗНЕННЫЙ ЦИКЛ:
         - Переводит компонент в состояние INITIALIZING
         - При успехе: READY
         - При ошибке: FAILED
+        
+        ЛОГИРОВАНИЕ:
+        - Во время инициализации (INITIALIZING) логи выводятся синхронно
+        - После перехода в READY логи публикуются асинхронно через EventBus
         """
         import logging
         import time
         logger = logging.getLogger(__name__)
         current_time = time.time()
-        
+
         # Проверка: нельзя инициализировать повторно
         if self._state == ComponentState.READY:
             if self.event_bus_logger:
@@ -278,12 +300,18 @@ class BaseComponent(LifecycleMixin, ABC):
             else:
                 logger.warning(f"Компонент '{self.name}' уже инициализирован")
             return True
-        
+
         # Переход в состояние INITIALIZING
         await self._transition_to(ComponentState.INITIALIZING)
 
+        # Явно переключаем логгер в режим инициализации
         if self.event_bus_logger:
-            await self.event_bus_logger.info(f"BaseComponent.initialize: начало инициализации для {self.name}")
+            self.event_bus_logger._set_initializing()
+            # Первый лог уже пойдёт синхронно
+            self.event_bus_logger._write_sync(
+                f"BaseComponent.initialize: начало инициализации для {self.name}",
+                "INFO"
+            )
 
         try:
             # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
@@ -306,9 +334,14 @@ class BaseComponent(LifecycleMixin, ABC):
 
             msg = f"Компонент '{self.name}' полностью инициализирован. Ресурсы: промпты={len(self.prompts)}, input_contracts={len(self.input_contracts)}, output_contracts={len(self.output_contracts)}"
             self._safe_log_sync("info", msg)
-            
+
             # Переход в состояние READY
             await self._transition_to(ComponentState.READY)
+            
+            # Переключаем логгер в асинхронный режим после успешной инициализации
+            if self.event_bus_logger:
+                self.event_bus_logger._set_ready()
+            
             return True
 
         except Exception as e:

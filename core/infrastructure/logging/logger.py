@@ -11,27 +11,49 @@ class MyComponent:
         await self.logger.info("Started")
         await self.logger.debug("Details", extra={"key": "value"})
 ```
+
+АРХИТЕКТУРА ЛОГИРОВАНИЯ:
+- Во время инициализации компонента (состояние CREATED → INITIALIZING → READY) 
+  логи выводятся СИНХРОННО напрямую в stdout/stderr для гарантии порядка
+- После инициализации (состояние READY) логи публикуются АСИНХРОННО через EventBus
+- Переключение режима происходит автоматически при смене состояния компонента
 """
 import asyncio
 import sys
 from datetime import datetime
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any, Dict, Optional, Callable
 
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+
+
+class LoggerInitializationState(Enum):
+    """Состояние инициализации логгера."""
+    NOT_INITIALIZED = "not_initialized"
+    INITIALIZING = "initializing"
+    READY = "ready"
 
 
 class EventBusLogger:
     """
     Универсальный логгер через EventBus.
-    
+
     Все сообщения публикуются как события LOG_INFO/DEBUG/WARNING/ERROR
     и обрабатываются подписчиками (TerminalHandler, FileHandler, LogCollector).
-    
+
+    FEATURES:
+    - Автоматическое определение фазы инициализации
+    - Синхронный вывод во время инициализации (гарантия порядка)
+    - Асинхронная публикация после запуска (производительность)
+    - Обработка ошибок с fallback на альтернативный канал
+
     ATTRIBUTES:
     - event_bus: Шина событий для публикации
     - session_id: ID сессии
     - agent_id: ID агента
     - component: Имя компонента-источника
+    - _init_state: Текущее состояние инициализации
+    - _get_init_state_callback: Callback для получения состояния компонента
     """
 
     def __init__(
@@ -39,70 +61,189 @@ class EventBusLogger:
         event_bus: UnifiedEventBus,
         session_id: str,
         agent_id: str,
-        component: str = "unknown"
+        component: str = "unknown",
+        get_init_state_callback: Optional[Callable[[], LoggerInitializationState]] = None
     ):
         self.event_bus = event_bus
         self.session_id = session_id
         self.agent_id = agent_id
         self.component = component
+        
+        # Состояние инициализации (по умолчанию NOT_INITIALIZED)
+        self._init_state = LoggerInitializationState.NOT_INITIALIZED
+        # Callback для получения состояния от компонента
+        self._get_init_state_callback = get_init_state_callback
+
+    def _is_initializing(self) -> bool:
+        """
+        Проверка: находится ли компонент в фазе инициализации.
+        
+        Возвращает True если:
+        - Явно установлено состояние INITIALIZING
+        - Callback возвращает INITIALIZING или NOT_INITIALIZED
+        
+        Это означает что компонент ещё не готов и нужно использовать
+        синхронный вывод для гарантии порядка логов.
+        """
+        if self._get_init_state_callback:
+            state = self._get_init_state_callback()
+            return state in (
+                LoggerInitializationState.NOT_INITIALIZED,
+                LoggerInitializationState.INITIALIZING
+            )
+        return self._init_state in (
+            LoggerInitializationState.NOT_INITIALIZED,
+            LoggerInitializationState.INITIALIZING
+        )
+
+    def _set_initializing(self):
+        """Установить состояние INITIALIZING."""
+        self._init_state = LoggerInitializationState.INITIALIZING
+
+    def _set_ready(self):
+        """Установить состояние READY (асинхронный режим)."""
+        self._init_state = LoggerInitializationState.READY
+
+    def _write_sync(self, message: str, level: str, stream=None):
+        """
+        Синхронная запись в stdout/stderr с обработкой ошибок.
+        
+        Если запись не удалась, пытается опубликовать событие через EventBus.
+        
+        ARGS:
+        - message: Сообщение для записи
+        - level: Уровень логирования (INFO, DEBUG, WARNING, ERROR)
+        - stream: Поток для записи (sys.stdout или sys.stderr)
+        """
+        if stream is None:
+            stream = sys.stderr if level in ("ERROR", "CRITICAL") else sys.stdout
+        
+        try:
+            # Форматируем сообщение с префиксом
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            formatted = f"[{timestamp}] [{level}] [{self.component}] {message}"
+            
+            # Запись в поток с поддержкой UTF-8 в Windows
+            try:
+                stream.buffer.write((formatted + '\n').encode('utf-8'))
+                stream.buffer.flush()
+            except (AttributeError, UnicodeEncodeError):
+                # Fallback для старых терминалов
+                print(formatted, file=stream, flush=True)
+                
+        except Exception as e:
+            # Fallback: попытка опубликовать через EventBus
+            # Это предотвращает потерю логов при проблемах с stdout
+            try:
+                event_type = {
+                    "INFO": EventType.LOG_INFO,
+                    "DEBUG": EventType.LOG_DEBUG,
+                    "WARNING": EventType.LOG_WARNING,
+                    "ERROR": EventType.LOG_ERROR,
+                }.get(level, EventType.LOG_INFO)
+                
+                data = {
+                    "message": f"[FALLBACK] {message}",
+                    "level": level,
+                    "session_id": self.session_id,
+                    "agent_id": self.agent_id,
+                    "component": self.component,
+                    "timestamp": datetime.now().isoformat() + 'Z',
+                    "fallback_reason": f"stdout write failed: {e}"
+                }
+                
+                # Синхронная публикация как последний шанс
+                self.event_bus.publish_sync(
+                    event_type=event_type,
+                    data=data,
+                    source=self.component,
+                    session_id=self.session_id,
+                    agent_id=self.agent_id
+                )
+            except Exception:
+                # Полная неудача — ничего не можем сделать
+                pass
 
     async def info(self, message: str, *args, **extra_data):
-        """INFO сообщение."""
+        """INFO сообщение (автоматический выбор режима)."""
         if args:
             message = message % args
-        await self._publish(EventType.LOG_INFO, message, "INFO", **extra_data)
+        
+        if self._is_initializing():
+            # Синхронный вывод во время инициализации
+            self._write_sync(message, "INFO")
+        else:
+            # Асинхронная публикация после инициализации
+            await self._publish(EventType.LOG_INFO, message, "INFO", **extra_data)
 
     def info_sync(self, message: str, *args, **extra_data):
-        """INFO сообщение (синхронная версия)."""
+        """INFO сообщение (принудительно синхронная версия)."""
         if args:
             message = message % args
-        self._publish_sync(EventType.LOG_INFO, message, "INFO", **extra_data)
+        self._write_sync(message, "INFO")
 
     async def debug(self, message: str, *args, **extra_data):
-        """DEBUG сообщение."""
+        """DEBUG сообщение (автоматический выбор режима)."""
         if args:
             message = message % args
-        await self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
+        
+        if self._is_initializing():
+            self._write_sync(message, "DEBUG")
+        else:
+            await self._publish(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
 
     def debug_sync(self, message: str, *args, **extra_data):
-        """DEBUG сообщение (синхронная версия)."""
+        """DEBUG сообщение (принудительно синхронная версия)."""
         if args:
             message = message % args
-        self._publish_sync(EventType.LOG_DEBUG, message, "DEBUG", **extra_data)
+        self._write_sync(message, "DEBUG")
 
     async def warning(self, message: str, *args, **extra_data):
-        """WARNING сообщение."""
+        """WARNING сообщение (автоматический выбор режима)."""
         if args:
             message = message % args
-        await self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data)
+        
+        if self._is_initializing():
+            self._write_sync(message, "WARNING")
+        else:
+            await self._publish(EventType.LOG_WARNING, message, "WARNING", **extra_data)
 
     def warning_sync(self, message: str, *args, **extra_data):
-        """WARNING сообщение (синхронная версия)."""
+        """WARNING сообщение (принудительно синхронная версия)."""
         if args:
             message = message % args
-        self._publish_sync(EventType.LOG_WARNING, message, "WARNING", **extra_data)
+        self._write_sync(message, "WARNING")
 
     async def error(self, message: str, *args, **extra_data):
-        """ERROR сообщение."""
+        """ERROR сообщение (автоматический выбор режима)."""
         if args:
             message = message % args
-        await self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data)
+        
+        if self._is_initializing():
+            self._write_sync(message, "ERROR")
+        else:
+            await self._publish(EventType.LOG_ERROR, message, "ERROR", **extra_data)
 
     def error_sync(self, message: str, *args, **extra_data):
-        """ERROR сообщение (синхронная версия)."""
+        """ERROR сообщение (принудительно синхронная версия)."""
         if args:
             message = message % args
-        self._publish_sync(EventType.LOG_ERROR, message, "ERROR", **extra_data)
+        self._write_sync(message, "ERROR")
 
     async def exception(self, message: str, exc: Exception, **extra_data):
         """ERROR сообщение с исключением."""
-        await self._publish(
-            EventType.LOG_ERROR,
-            f"{message}: {exc}",
-            "ERROR",
-            exception_type=type(exc).__name__,
-            **extra_data
-        )
+        full_message = f"{message}: {exc}"
+        
+        if self._is_initializing():
+            self._write_sync(full_message, "ERROR")
+        else:
+            await self._publish(
+                EventType.LOG_ERROR,
+                full_message,
+                "ERROR",
+                exception_type=type(exc).__name__,
+                **extra_data
+            )
 
     async def log_llm_prompt(
         self,
