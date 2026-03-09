@@ -1104,13 +1104,6 @@ class ReActPattern(BaseBehaviorPattern):
             stop_condition = reasoning_dict.get("stop_condition", False)
             await self._log("info", f"_make_decision_from_reasoning: stop_condition={stop_condition}")
             await self._log("info", f"_make_decision_from_reasoning: reasoning_dict keys={list(reasoning_dict.keys()) if isinstance(reasoning_dict, dict) else 'not dict'}")
-            
-            if stop_condition:
-                await self._log("warning", f"STOP condition detected: {reasoning_dict.get('stop_reason', 'goal_achieved')}")
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.STOP,
-                    reason=reasoning_dict.get("stop_reason", "goal_achieved")
-                )
 
             # 2. Извлечение capability_name из decision.next_action
             decision_dict = reasoning_dict.get("decision", {})
@@ -1122,8 +1115,32 @@ class ReActPattern(BaseBehaviorPattern):
                                actual_type=type(decision_dict).__name__,
                                decision_value=str(decision_dict)[:200] if decision_dict else None)
                 decision_dict = {}
-            
+
             capability_name = decision_dict.get("next_action")
+
+            # ОСОБЫЙ СЛУЧАЙ: stop_condition=True но next_action='final_answer.generate'
+            # Это значит LLM хочет вызвать final_answer перед остановкой
+            if stop_condition and capability_name == "final_answer.generate":
+                await self._log("info", "STOP + final_answer.generate — вызываем final_answer")
+                # Возвращаем ACT для вызова final_answer
+                parameters = decision_dict.get("parameters", {})
+                validated_params = self._validate_parameters(
+                    type('Capability', (), {'name': 'final_answer.generate', 'input_schema': {}})(),
+                    parameters
+                )
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.ACT,
+                    capability_name="final_answer.generate",
+                    parameters=validated_params,
+                    reason="final_answer_before_stop"
+                )
+
+            if stop_condition:
+                await self._log("warning", f"STOP condition detected: {reasoning_dict.get('stop_reason', 'goal_achieved')}")
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.STOP,
+                    reason=reasoning_dict.get("stop_reason", "goal_achieved")
+                )
             
             # Fallback: проверяем recommended_action (для упрощённой логики без LLM)
             if not capability_name:
