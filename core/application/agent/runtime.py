@@ -481,15 +481,6 @@ class AgentRuntime:
                 # Если ошибка — просто завершаем
                 self.state.finished = True
                 return decision
-            
-            self.state.finished = True
-            # Регистрируем финальное решение
-            self.application_context.session_context.record_decision(
-                decision_data="STOP",
-                reasoning="goal_achieved"
-            )
-            print(f"🔴 [_execute_single_step_internal] Возврат STOP decision", flush=True)
-            return decision
 
         if decision.action == BehaviorDecisionType.ACT:
             print(f"🔵 [_execute_single_step_internal] decision.action=ACT", flush=True)
