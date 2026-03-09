@@ -313,10 +313,15 @@ class ActionExecutor:
                 steps_data = []
                 for step in steps:
                     if hasattr(step, '__dict__'):
+                        # AgentStep: capability_name, summary, status, observation_item_ids
                         steps_data.append({
-                            "action": getattr(step, 'action', 'unknown'),
-                            "result": getattr(step, 'result', ''),
-                            "step_number": getattr(step, 'step_number', 0)
+                            "step_number": getattr(step, 'step_number', 0),
+                            "capability_name": getattr(step, 'capability_name', getattr(step, 'action', 'unknown')),
+                            "skill_name": getattr(step, 'skill_name', ''),
+                            "summary": getattr(step, 'summary', ''),
+                            "status": getattr(step, 'status', ''),
+                            "observation": getattr(step, 'observation', ''),
+                            "result": getattr(step, 'result', '')
                         })
                     else:
                         steps_data.append(step)

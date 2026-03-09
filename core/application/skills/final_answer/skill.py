@@ -306,13 +306,13 @@ class FinalAnswerSkill(BaseSkill):
                 steps_list = steps_result.result.get("steps", [])
                 for step in steps_list[-10:]:  # Последние 10 шагов
                     if isinstance(step, dict):
-                        # Извлекаем capability_name и summary из AgentStep dict
-                        capability = step.get("capability_name", step.get("action", "неизвестно"))
+                        # Извлекаем данные из AgentStep dict (новый формат)
+                        capability = step.get("capability_name", "неизвестно")
                         summary = step.get("summary", "")
                         status = step.get("status", "")
                         
-                        # Если есть observation_item_ids, пытаемся получить данные
-                        result_data = step.get("result", "") or step.get("observation", "")
+                        # Получаем данные наблюдения
+                        result_data = step.get("observation", "") or step.get("result", "")
                         
                         steps_taken.append({
                             "action": capability,
@@ -322,10 +322,10 @@ class FinalAnswerSkill(BaseSkill):
                         })
                     else:
                         # Объект AgentStep
-                        capability = getattr(step, 'capability_name', getattr(step, 'action', 'неизвестно'))
+                        capability = getattr(step, 'capability_name', 'неизвестно')
                         summary = getattr(step, 'summary', '')
                         status = getattr(step, 'status', '')
-                        result_data = getattr(step, 'result', '') or getattr(step, 'observation', '')
+                        result_data = getattr(step, 'observation', '') or getattr(step, 'result', '')
                         
                         steps_taken.append({
                             "action": capability,
@@ -375,10 +375,13 @@ class FinalAnswerSkill(BaseSkill):
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
-        # Увеличенный timeout для сложных запросов (180 секунд)
+        # Увеличенный timeout для сложных запросов (300 секунд = 5 минут)
         try:
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("final_answer.generate")
+
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
             llm_result = await self.executor.execute_action(
@@ -393,8 +396,8 @@ class FinalAnswerSkill(BaseSkill):
                     },
                     "temperature": 0.3,
                     "max_tokens": 2000,
-                    "total_timeout": 180.0,  # Общий timeout на все попытки
-                    "attempt_timeout": 90.0  # Timeout на одну попытку
+                    "total_timeout": 300.0,  # Общий timeout на все попытки (5 минут)
+                    "attempt_timeout": 120.0  # Timeout на одну попытку (2 минуты)
                 },
                 context=execution_context
             )
@@ -490,21 +493,27 @@ class FinalAnswerSkill(BaseSkill):
             f"\n## Исходная цель\n{goal}",
             f"\n## Собранная информация (наблюдения)\n"
         ]
-        
+
         if observations:
             for i, obs in enumerate(observations[-max_sources:], 1):
                 prompt_parts.append(f"{i}. {obs[:300]}")
         else:
             prompt_parts.append("Наблюдения отсутствуют.")
-        
+
         prompt_parts.append(f"\n## Выполненные шаги\n")
         if steps_taken:
             for i, step in enumerate(steps_taken[-10:], 1):
-                result_part = f" → {step['result'][:100]}" if step.get('result') else ""
-                prompt_parts.append(f"{i}. {step['action']}{result_part}")
+                # Используем summary если есть
+                summary = step.get('summary', '')
+                if summary:
+                    prompt_parts.append(f"{i}. {summary}")
+                else:
+                    action = step.get('action', 'неизвестно')
+                    result_part = f" → {step.get('result', '')[:100]}" if step.get('result') else ""
+                    prompt_parts.append(f"{i}. {action}{result_part}")
         else:
             prompt_parts.append("Шаги выполнения не зафиксированы.")
-        
+
         prompt_parts.extend([
             f"\n## Требования к ответу",
             f"- **Формат вывода**: {format_type}",
@@ -512,27 +521,33 @@ class FinalAnswerSkill(BaseSkill):
             f"- **Включать источники (доказательства)**: {include_evidence}",
             f"\nСгенерируй финальный ответ согласно требованиям."
         ])
-        
+
         return "\n".join(prompt_parts)
 
     def _build_steps_summary(self, steps_taken: List[Dict]) -> str:
         """
         Построение краткого резюме выполненных шагов.
-        
+
         ПАРАМЕТРЫ:
         - steps_taken: список выполненных шагов
-        
+
         ВОЗВРАЩАЕТ:
         - str: резюме шагов
         """
         if not steps_taken:
             return "Шаги выполнения не зафиксированы."
-        
+
         summary_parts = []
         for i, step in enumerate(steps_taken[-10:], 1):
-            result_part = f" → {step['result'][:100]}" if step.get('result') else ""
-            summary_parts.append(f"{i}. {step['action']}{result_part}")
-        
+            # Используем summary если есть, иначе формируем из action + result
+            summary = step.get('summary', '')
+            if summary:
+                summary_parts.append(f"{i}. {summary}")
+            else:
+                action = step.get('action', 'неизвестно')
+                result_part = f" → {step.get('result', '')[:100]}" if step.get('result') else ""
+                summary_parts.append(f"{i}. {action}{result_part}")
+
         return "\n".join(summary_parts)
 
     def _build_fallback_response(
