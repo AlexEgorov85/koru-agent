@@ -97,11 +97,19 @@ class TestBehaviorPatternStructure:
         """Тест наличия обязательных атрибутов у EvaluationPattern."""
         from core.application.behaviors.evaluation.pattern import EvaluationPattern
         from core.config.component_config import ComponentConfig
+        from unittest.mock import Mock
 
         # Создаём минимальный ComponentConfig для теста
         config = ComponentConfig(variant_id="test_evaluation")
         
-        pattern = EvaluationPattern(component_name="test_evaluation_pattern", component_config=config)
+        # Создаём mock executor (требуется архитектурой)
+        mock_executor = Mock()
+
+        pattern = EvaluationPattern(
+            component_name="test_evaluation_pattern", 
+            component_config=config,
+            executor=mock_executor
+        )
         assert pattern.pattern_id == "test_evaluation_pattern"
         assert hasattr(pattern, 'analyze_context')
         assert hasattr(pattern, 'generate_decision')
@@ -110,11 +118,19 @@ class TestBehaviorPatternStructure:
         """Тест наличия обязательных атрибутов у FallbackPattern."""
         from core.application.behaviors.fallback.pattern import FallbackPattern
         from core.config.component_config import ComponentConfig
+        from unittest.mock import Mock
 
         # Создаём минимальный ComponentConfig для теста
         config = ComponentConfig(variant_id="test_fallback")
         
-        pattern = FallbackPattern(component_name="test_fallback_pattern", component_config=config)
+        # Создаём mock executor (требуется архитектурой)
+        mock_executor = Mock()
+
+        pattern = FallbackPattern(
+            component_name="test_fallback_pattern", 
+            component_config=config,
+            executor=mock_executor
+        )
         assert pattern.pattern_id == "test_fallback_pattern"
         assert hasattr(pattern, 'analyze_context')
         assert hasattr(pattern, 'generate_decision')

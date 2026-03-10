@@ -387,7 +387,12 @@ class ReActPattern(BaseBehaviorPattern):
             self.event_bus_logger.error_sync(f"Ошибка загрузки reasoning ресурсов: {e}")
             return False
 
-    def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
+    def _render_reasoning_prompt(
+        self,
+        context_analysis: Dict[str, Any],
+        available_capabilities: List[Capability],
+        session_context=None
+    ) -> str:
         """
         Рендерит шаблон промпта с подстановкой переменных через PromptBuilderService.
         """
@@ -396,15 +401,21 @@ class ReActPattern(BaseBehaviorPattern):
                 "reasoning_prompt_template не загружен! "
                 "Промпт должен быть загружен при инициализации из PromptService."
             )
-            self.event_bus_logger.error_sync(error_msg)
+            # Используем безопасный доступ к event_bus_logger
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(error_msg)
+            else:
+                # Fallback: print если logger ещё не инициализирован
+                print(f"❌ [ReAct] {error_msg}", flush=True)
             raise RuntimeError(error_msg)
-        
-        # Делегируем сервису
+
+        # Делегируем сервису с передачей session_context
         return self.prompt_builder.build_reasoning_prompt(
             context_analysis=context_analysis,
             available_capabilities=available_capabilities,
             templates={"system": self.system_prompt_template, "user": self.reasoning_prompt_template},
-            schema_validator=self.schema_validator
+            schema_validator=self.schema_validator,
+            session_context=session_context
         )
 
     # === МЕТОДЫ ДЕЛЕГИРОВАНЫ PromptBuilderService ===
@@ -566,7 +577,8 @@ class ReActPattern(BaseBehaviorPattern):
         # === 2. ПОДГОТОВКА ЗАПРОСА ===
         reasoning_prompt = self._render_reasoning_prompt(
             context_analysis=context_analysis,
-            available_capabilities=available_capabilities
+            available_capabilities=available_capabilities,
+            session_context=session_context
         )
 
         # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
@@ -741,15 +753,44 @@ class ReActPattern(BaseBehaviorPattern):
                 recommended_action = reasoning_dict.get("recommended_action", {})
                 capability_name = recommended_action.get("capability_name")
 
+            # === КРИТИЧНО: ПРОВЕРКА НА Зацикливание через RetryPolicy ===
+            # Если LLM предлагает то же действие повторно после успешного выполнения —
+            # принудительно вызываем final_answer.generate
+            if session_context and hasattr(session_context, 'step_context'):
+                last_steps = session_context.step_context.get_last_steps() if hasattr(session_context.step_context, 'get_last_steps') else []
+                if last_steps:
+                    last_step = last_steps[-1] if len(last_steps) > 0 else None
+                    if last_step and hasattr(last_step, 'capability_name'):
+                        last_capability = last_step.capability_name
+                        last_status = last_step.status.value if hasattr(last_step.status, 'value') else str(last_step.status)
+                        
+                        # Используем RetryPolicy для детекции зацикливания
+                        if hasattr(self, 'retry_policy') and self.retry_policy:
+                            is_loop = self.retry_policy.detect_loop(
+                                current_capability=capability_name,
+                                last_capability=last_capability,
+                                last_status=last_status
+                            )
+                            if is_loop:
+                                await self._log("warning", f"LOOP DETECTED by RetryPolicy: {capability_name} повторяется после {last_status}, переключаемся на final_answer.generate")
+                                capability_name = "final_answer.generate"
+                                decision_dict["next_action"] = "final_answer.generate"
+                                decision_dict["reasoning"] = "Данные уже получены, формируем финальный ответ (защита от зацикливания через RetryPolicy)"
+                                stop_condition = True
+
             # ОСОБЫЙ СЛУЧАЙ: stop_condition=True но next_action='final_answer.generate'
             # Это значит LLM хочет вызвать final_answer перед остановкой
             if stop_condition and capability_name == "final_answer.generate":
                 await self._log("info", "STOP + final_answer.generate — вызываем final_answer")
                 # Возвращаем ACT для вызова final_answer
                 parameters = decision_dict.get("parameters", {})
-                validated_params = self._validate_parameters(
-                    type('Capability', (), {'name': 'final_answer.generate', 'input_schema': {}})(),
-                    parameters
+                # Создаём фейковый capability для валидации
+                final_answer_cap = type('Capability', (), {'name': 'final_answer.generate', 'input_schema': {}})()
+                validated_params = self.capability_resolver.validate_parameters(
+                    final_answer_cap,
+                    parameters,
+                    self.schema_validator,
+                    reasoning_dict
                 )
                 # КРИТИЧНО: Помечаем как финальное решение
                 return BehaviorDecision(

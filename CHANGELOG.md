@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## [5.35.0] - 2026-03-10
+
+### Added
+- **ReAct Pattern: Отображение реальных данных наблюдений вместо observation_item_ids**
+  - LLM теперь видит реальные данные из ContextItem вместо ID ссылок
+  - Умная обработка данных по размеру с автоматической суммаризацией
+  - Поддержка 4 уровней обработки данных:
+    - Малые данные (<50 строк): полное отображение
+    - Средние данные (50-500 строк): статистика + первые 5 примеров
+    - Большие данные (500-1000 строк): статистика + 3 примера + рекомендация data_analysis
+    - Очень большие данные (>1000 строк): только мета + рекомендация data_analysis
+
+### Changed
+- **PromptBuilderService (core/application/behaviors/base_behavior_pattern.py)**
+  - Добавлен параметр `session_context` в `build_reasoning_prompt()`
+  - Обновлён `_build_step_history()` для извлечения реальных данных из observation_item_ids
+  - Обновлён `_extract_last_observation()` для работы с session_context
+  - Добавлен метод `_extract_observations_from_step()` для умной обработки наблюдений
+  - Добавлен метод `_format_small_data()` для форматирования небольших данных
+  - Добавлены настраиваемые лимиты DATA_SIZE_LIMITS и DISPLAY_LIMITS
+
+- **ReActPattern (core/application/behaviors/react/pattern.py)**
+  - Обновлён `_render_reasoning_prompt()` для передачи session_context в PromptBuilderService
+  - Обновлён `_perform_structured_reasoning()` для передачи session_context
+
+### Fixed
+- **LLM не видела результаты выполнения capability**
+  - Исправлено отображение observation_item_ids на реальные данные
+  - LLM теперь получает структурированные данные наблюдений
+
 ## [5.34.0] - 2026-03-06
 
 ### Added

@@ -1,7 +1,7 @@
 # koru-agent — Модульная платформа автономных AI-агентов
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-5.32.0-orange.svg)]()
+[![Version](https://img.shields.io/badge/version-5.35.0-orange.svg)]()
 [![Tests](https://img.shields.io/badge/tests-992%20passed-green.svg)]()
 [![Coverage](https://img.shields.io/badge/coverage-≥98%25-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/stability-100%25%20stabilized-brightgreen.svg)]()
@@ -23,6 +23,83 @@
 - 🎯 **Автоматическая оценка качества** — бенчмарки и сравнение версий
 - 🚀 **Самооптимизация** — автоматическое улучшение промптов и контрактов
 - 🛡️ **Стабилизация** — детекция зацикливания, гарантия вызова LLM, валидация decision
+
+---
+
+## 📊 Последние изменения (v5.35.0)
+
+**Версия 5.35.0** (10 марта 2026) — **ReAct Pattern: Отображение реальных данных наблюдений**
+
+### Умная обработка данных наблюдений
+- ✅ **LLM видит реальные данные** вместо observation_item_ids
+- ✅ **4 уровня обработки** по размеру данных:
+  - Малые данные (<50 строк): полное отображение
+  - Средние данные (50-500 строк): статистика + первые 5 примеров
+  - Большие данные (500-1000 строк): статистика + 3 примера + рекомендация data_analysis
+  - Очень большие данные (>1000 строк): только мета + рекомендация data_analysis
+- ✅ **Автоматическая суммаризация** при превышении лимитов
+
+### PromptBuilderService обновления
+- Добавлен параметр `session_context` в `build_reasoning_prompt()`
+- Метод `_build_step_history()` извлекает реальные данные из observation_item_ids
+- Метод `_extract_observations_from_step()` для умной обработки наблюдений
+- Настраиваемые лимиты DATA_SIZE_LIMITS и DISPLAY_LIMITS
+
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5350---2026-03-10)
+
+---
+
+## 📊 Последние изменения (v5.34.0)
+
+**Версия 5.34.0** (6 марта 2026) — **Миграция на интерфейсы и внедрение зависимостей (DI)**
+
+### Интерфейсы и DI
+- ✅ **9 интерфейсов** в `core/interfaces/`: DatabaseInterface, LLMInterface, VectorInterface, CacheInterface, PromptStorageInterface, ContractStorageInterface, EventBusInterface, MetricsStorageInterface, LogStorageInterface
+- ✅ **Провайдеры реализуют интерфейсы** явно (PostgreSQLProvider, LlamaCppProvider, FAISSProvider, MemoryCacheProvider)
+- ✅ **DI через конструкторы** компонентов
+- ✅ **ComponentFactory** с автоматическим разрешением зависимостей
+
+### BaseComponent с внедрёнными зависимостями
+- 9 параметров конструктора для интерфейсов
+- Свойства: `db`, `llm`, `cache`, `vector`, `event_bus`, `prompt_storage`, `contract_storage`, `metrics_storage`, `log_storage`
+- `application_context` помечен как **DEPRECATED**
+
+### Сервисы используют интерфейсы
+- `PromptService`: `self.prompt_storage` вместо `infrastructure_context.get_prompt_storage()`
+- `ContractService`: `self.contract_storage` вместо `infrastructure_context.get_contract_storage()`
+- `TableDescriptionService`: `self.db` вместо `get_provider("default_db")`
+- `SQLGenerationService`, `SQLQueryService`: `self.llm`, `self.event_bus`
+
+### Behavior Patterns используют llm_orchestrator
+- `ReActPattern`: llm_orchestrator для retry/валидации
+- `EvaluationPattern`: llm_orchestrator для структурированного вывода
+- `PlanningPattern`: через BaseService
+
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5340---2026-03-06)
+
+---
+
+## 📊 Последние изменения (v5.33.0)
+
+**Версия 5.33.0** (6 марта 2026) — **Система управления жизненным циклом компонентов**
+
+### ComponentState и LifecycleMixin
+- ✅ **ComponentState enum**: CREATED → INITIALIZING → READY → SHUTDOWN/FAILED
+- ✅ **LifecycleMixin** для управления состояниями
+- ✅ **Методы**: `ensure_ready()`, `is_ready`, `is_initialized`, `is_failed`, `state`
+- ✅ **Автоматические переходы** состояний при инициализации
+
+### Проверки готовности контекстов
+- `AgentRuntime` проверяет `application_context.is_ready`
+- `AgentRuntime` проверяет `infrastructure_context.is_ready`
+- `BehaviorManager` проверяет инициализацию перед генерацией decision
+- `RuntimeError` при попытке использования до инициализации
+
+### Исправления
+- Удалена поддержка синхронных функций в `handle_errors` декораторе
+- Синхронные файловые операции в `FileTool` используют `aiofiles`
+
+📄 **Подробности:** См. [CHANGELOG.md](CHANGELOG.md#5330---2026-03-06)
 
 ---
 

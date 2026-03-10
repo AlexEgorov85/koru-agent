@@ -1,7 +1,7 @@
 # 🏗️ Обзор архитектуры koru-agent
 
-> **Версия:** 5.29.0
-> **Дата обновления:** 2026-03-04
+> **Версия:** 5.35.0
+> **Дата обновления:** 2026-03-10
 > **Статус:** approved
 > **Владелец:** @system
 
@@ -39,6 +39,8 @@ koru-agent — модульная платформа для автономных
 - ✅ **Версионирование**: Промпты, контракты и паттерны поведения
 - ✅ **Структурированный вывод**: Нативная валидация провайдеров
 - ✅ **Предзагрузка ресурсов**: 0 обращений к хранилищу во время выполнения
+- ✅ **Внедрение зависимостей (DI)**: 9 интерфейсов, DI через конструкторы
+- ✅ **Жизненный цикл компонентов**: ComponentState enum, автоматические переходы
 
 ---
 
@@ -80,6 +82,7 @@ Session Layer (данные сессии)
 - `ResourceRegistry` — реестр ресурсов
 - `LifecycleManager` — управление жизненным циклом
 - `EventBus` — шина событий системы
+- **Интерфейсы**: 9 интерфейсов в `core/interfaces/` (DatabaseInterface, LLMInterface, VectorInterface, etc.)
 
 ### Прикладной слой
 
@@ -90,6 +93,7 @@ Session Layer (данные сессии)
 - `ComponentRegistry` — реестр компонентов агента
 - `ComponentConfig` — конфигурация компонента
 - `BaseService`, `BaseSkill`, `BaseTool` — базовые классы
+- `ComponentFactory` — фабрика компонентов с DI
 
 ### Слой сессии
 
@@ -218,14 +222,16 @@ class SessionContext:
 ## 🔗 Ссылки
 
 ### Документы
-- [Слои системы](./architecture/layers.md)
-- [Поток данных](./architecture/data-flow.md)
-- [Модель безопасности](./architecture/security-model.md)
+- [Идеальная архитектура](./architecture/ideal.md)
+- [Чек-лист архитектуры](./architecture/checklist.md)
+- [Жизненный цикл компонентов](./architecture/lifecycle.md)
+- [Архитектурные решения (ADR)](./adr/)
 
 ### Код
 - [InfrastructureContext](../core/infrastructure/context/infrastructure_context.py)
 - [ApplicationContext](../core/application/context/application_context.py)
 - [BaseComponent](../core/components/base_component.py)
+- [Интерфейсы](../core/interfaces/)
 
 ---
 

@@ -28,20 +28,39 @@ if typing.TYPE_CHECKING:
 
 class PromptBuilderService:
     """Сервис для построения структурированных промптов."""
+
+    # НАСТРАИВАЕМЫЕ ЛИМИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
+    DATA_SIZE_LIMITS = {
+        'small': 50,       # Показываем полностью
+        'medium': 500,     # Суммаризация + примеры
+        'large': 1000,     # Только статистика
+        'huge': 5000,      # Требуется data_analysis skill
+    }
     
+    DISPLAY_LIMITS = {
+        'max_rows_display': 10,      # Сколько строк показывать
+        'max_chars_display': 500,    # Макс символов в промпте
+        'max_observations': 3,       # Макс наблюдений в истории
+    }
+
     def build_reasoning_prompt(
         self,
         context_analysis: Dict[str, Any],
         available_capabilities: List[Capability],
         templates: Dict[str, str],
-        schema_validator: Optional[Any] = None
+        schema_validator: Optional[Any] = None,
+        session_context=None
     ) -> str:
         """Строит полный промпт для рассуждения."""
         variables = {
             "input": self._build_input_context(context_analysis, available_capabilities),
             "goal": context_analysis.get("goal", "Неизвестная цель"),
-            "step_history": self._build_step_history(context_analysis.get("last_steps", [])),
-            "observation": self._extract_last_observation(context_analysis.get("last_steps", [])),
+            "step_history": self._build_step_history(
+                context_analysis.get("last_steps", []),
+                session_context=session_context
+            ),
+            # ❌ УБРАНО: "observation" — чтобы избежать дублирования
+            # Данные уже включены в step_history через _extract_observations_from_step
             "available_tools": self._format_available_tools(available_capabilities, schema_validator),
             "no_progress_steps": context_analysis.get("no_progress_steps", 0),
             "consecutive_errors": context_analysis.get("consecutive_errors", 0)
@@ -49,7 +68,7 @@ class PromptBuilderService:
         return self._render_prompt(templates.get("user", ""), variables)
     
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
-        """Формирует секцию {input} для промпта."""
+        """Формирует секцию {input} для промпта — только мета-информация, без деталей шагов."""
         goal = context_analysis.get("goal", "Неизвестная цель")
         last_steps = context_analysis.get("last_steps", [])
         parts = [
@@ -58,41 +77,184 @@ class PromptBuilderService:
             f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
             f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
         ]
-        if last_steps:
-            parts.append("\nПОСЛЕДНИЕ ШАГИ:")
-            for i, step in enumerate(last_steps[-3:], 1):
-                parts.append(f"  {i}. {step}")
+        # ❌ УБРАНО: Детали шагов — они теперь только в step_history
+        # if last_steps:
+        #     parts.append("\nПОСЛЕДНИЕ ШАГИ:")
+        #     for i, step in enumerate(last_steps[-3:], 1):
+        #         parts.append(f"  {i}. {step}")
         return "\n".join(parts)
     
-    def _build_step_history(self, last_steps: list) -> str:
-        """Формирует читаемую историю шагов."""
+    def _build_step_history(
+        self, 
+        last_steps: list, 
+        session_context=None
+    ) -> str:
+        """Формирует читаемую историю шагов с реальными данными."""
         if not last_steps:
             return "Шаги не выполнены"
+        
         step_lines = []
-        for i, step in enumerate(last_steps[-3:], 1):
-            if isinstance(step, dict):
-                capability = step.get('capability', 'unknown')
+        for i, step in enumerate(last_steps[-5:], 1):  # Последние 5 шагов
+            if hasattr(step, 'capability_name'):
+                # Это объект AgentStep
+                capability = step.capability_name
+                summary = step.summary or "Без описания"
+                status = step.status.value if hasattr(step.status, 'value') else str(step.status)
+                
+                # КРИТИЧНО: Получаем реальные данные из observation_item_ids
+                observation_text = self._extract_observations_from_step(
+                    session_context, 
+                    step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
+                )
+                
+                # Формируем читаемую строку
+                step_text = f"{i}. {capability}\n"
+                step_text += f"   Результат: {observation_text}\n"
+                step_text += f"   Статус: {status}"
+                
+            elif isinstance(step, dict):
+                # Это словарь (новый формат)
+                capability = step.get('capability_name', step.get('capability', 'unknown'))
                 summary = step.get('summary', '')
-                obs = step.get('observation', '')
-                step_text = f"{capability}: {summary}"
-                if obs:
-                    step_text += f" → {obs[:100]}"
-                step_lines.append(f"{i}. {step_text}")
+                
+                # Пробуем получить observation из dict
+                if 'observation' in step and step['observation']:
+                    observation = step['observation']
+                elif hasattr(session_context, 'data_context') and step.get('observation_item_ids'):
+                    observation = self._extract_observations_from_step(
+                        session_context,
+                        step['observation_item_ids']
+                    )
+                else:
+                    observation = summary
+                
+                status = step.get('status', 'unknown')
+                
+                step_text = f"{i}. {capability}\n"
+                step_text += f"   Результат: {observation[:500] if observation else 'Нет данных'}\n"
+                step_text += f"   Статус: {status}"
             else:
-                step_lines.append(f"{i}. {step}")
-        return "\n".join(step_lines)
+                # Fallback для строки
+                step_text = f"{i}. {str(step)[:200]}"
+            
+            step_lines.append(step_text)
+        
+        return "\n\n".join(step_lines)
     
-    def _extract_last_observation(self, last_steps: list) -> str:
-        """Извлекает последнее наблюдение."""
-        if not last_steps:
+    def _extract_last_observation(
+        self,
+        last_steps: list,
+        session_context=None
+    ) -> str:
+        """
+        ⚠️ ДЕПРЕКЕЙТЕД — не используется чтобы избежать дублирования.
+        Оставлен для обратной совместимости но возвращает пустую строку.
+        
+        Данные наблюдений теперь извлекаются только в _build_step_history через
+        _extract_observations_from_step и включаются напрямую в историю шагов.
+        """
+        return ""  # ← ПУСТАЯ СТРОКА чтобы не дублировать в промпте
+
+    def _extract_observations_from_step(
+        self, 
+        session_context, 
+        observation_item_ids: list
+    ) -> str:
+        """
+        Извлекает реальные данные наблюдений из контекста сессии.
+        
+        Поддерживает умную обработку по размеру данных:
+        - < 50 строк: показываем полностью
+        - 50-500 строк: статистика + первые 5 примеров
+        - 500-1000 строк: только статистика + 3 примера
+        - > 1000 строк: только мета + рекомендация использовать data_analysis
+        """
+        if not observation_item_ids:
             return "Нет наблюдений"
-        last_step = last_steps[-1]
-        if isinstance(last_step, dict):
-            obs = last_step.get('observation', '')
-            if obs:
-                return obs
-        summary = last_step.get('summary', '') if isinstance(last_step, dict) else str(last_step)
-        return summary if summary else "Нет наблюдений"
+        
+        if not session_context or not hasattr(session_context, 'data_context'):
+            return f"ID наблюдений: {observation_item_ids[:2]}..."
+        
+        observations = []
+        total_rows = 0
+        
+        for obs_id in observation_item_ids[:self.DISPLAY_LIMITS['max_observations']]:
+            try:
+                item = session_context.data_context.get_item(
+                    obs_id, 
+                    raise_on_missing=False
+                )
+                
+                if item and hasattr(item, 'content'):
+                    content = item.content
+                    
+                    # Извлекаем полезную информацию
+                    if isinstance(content, dict):
+                        # Для book_library и подобных: извлекаем rows
+                        if 'rows' in content:
+                            rows = content['rows']
+                            total_rows += len(rows)
+                            
+                            # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
+                            if len(rows) <= self.DATA_SIZE_LIMITS['small']:
+                                # Маленькие данные → показываем всё
+                                observations.extend(self._format_small_data(rows))
+                            elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
+                                # Средние данные → статистика + первые N
+                                observations.append(f"📊 Найдено {len(rows)} записей")
+                                observations.append("📋 Первые 5:")
+                                observations.extend(self._format_small_data(rows[:5]))
+                                observations.append(f"... и ещё {len(rows) - 5} записей")
+                            elif len(rows) <= self.DATA_SIZE_LIMITS['large']:
+                                # Большие данные → только статистика
+                                observations.append(f"📊 Найдено {len(rows)} записей (большие данные)")
+                                observations.append("⚠️ Для полного анализа используйте data_analysis.analyze_step_data")
+                                observations.append("📋 Пример (3 записи):")
+                                observations.extend(self._format_small_data(rows[:3]))
+                            else:
+                                # Очень большие данные → только мета
+                                observations.append(f"📊 Найдено {len(rows)} записей (очень большие данные)")
+                                observations.append("💡 Вызовите data_analysis.analyze_step_data для суммаризации")
+                        
+                        elif 'result' in content:
+                            result_str = str(content['result'])[:self.DISPLAY_LIMITS['max_chars_display']]
+                            observations.append(f"- {result_str}")
+                        elif 'data' in content:
+                            data_str = str(content['data'])[:self.DISPLAY_LIMITS['max_chars_display']]
+                            observations.append(f"- {data_str}")
+                        else:
+                            content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
+                            observations.append(f"- {content_str}")
+                    else:
+                        content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
+                        observations.append(f"- {content_str}")
+                        
+            except Exception as e:
+                observations.append(f"- [Ошибка чтения {obs_id}: {e}]")
+        
+        # Добавляем итоговую статистику если данных много
+        if total_rows > self.DATA_SIZE_LIMITS['medium']:
+            observations.append(f"\n⚠️ ОБЩИЙ ОБЪЁМ: {total_rows} строк")
+            observations.append("💡 Рекомендация: Используйте data_analysis.analyze_step_data")
+        
+        if observations:
+            return "\n".join(observations)
+        return "Нет доступных данных"
+
+    def _format_small_data(self, rows: list) -> list:
+        """Форматирование небольших данных для отображения."""
+        formatted = []
+        for row in rows[:self.DISPLAY_LIMITS['max_rows_display']]:
+            if isinstance(row, dict):
+                # Форматируем как читаемую строку
+                row_parts = []
+                for k, v in list(row.items())[:5]:  # Макс 5 полей
+                    row_parts.append(f"{k}: {v}")
+                row_str = ", ".join(row_parts)
+                formatted.append(f"   - {row_str}")
+            else:
+                formatted.append(f"   - {str(row)[:150]}")
+        return formatted
     
     def _format_available_tools(self, available_capabilities: List[Capability], schema_validator: Optional[Any] = None) -> str:
         """Форматирует список инструментов с параметрами."""

@@ -1,7 +1,7 @@
 # 🧩 Руководство по компонентам koru-agent
 
-> **Версия:** 5.29.0
-> **Дата обновления:** 2026-03-04
+> **Версия:** 5.35.0
+> **Дата обновления:** 2026-03-10
 > **Статус:** approved
 > **Владелец:** @system
 
@@ -96,12 +96,36 @@ class ReActPattern(BehaviorPattern):
 
 ### Шаг 1: Наследование
 
+**До версии 5.34.0 (устаревший подход):**
 ```python
 from core.components.base_component import BaseComponent
 
 class MyComponent(BaseComponent):
     def __init__(self, config: ComponentConfig, application_context: ApplicationContext):
         super().__init__(config, application_context)
+```
+
+**Версия 5.34.0+ (DI через конструктор):**
+```python
+from core.components.base_component import BaseComponent
+from core.interfaces import LLMInterface, EventBusInterface, PromptStorageInterface
+
+class MyComponent(BaseComponent):
+    def __init__(
+        self,
+        config: ComponentConfig,
+        llm: LLMInterface,
+        event_bus: EventBusInterface,
+        prompt_storage: PromptStorageInterface,
+        application_context: ApplicationContext = None  # DEPRECATED
+    ):
+        super().__init__(
+            config=config,
+            llm=llm,
+            event_bus=event_bus,
+            prompt_storage=prompt_storage,
+            application_context=application_context
+        )
 ```
 
 ### Шаг 2: Инициализация
@@ -114,10 +138,15 @@ async def initialize(self) -> None:
 
 ### Шаг 3: Логика
 
+**Использование внедрённых зависимостей:**
 ```python
 async def execute(self, params: Dict) -> Dict:
+    # Использование внедрённых интерфейсов
+    self.llm.generate(...)  # вместо self.application_context.infrastructure_context.get_provider("llm")
+    self.event_bus.publish(...)  # вместо self.infrastructure_context.event_bus
+    prompt = self.prompt_storage.get("my_component.execute")  # вместо self.infrastructure_context.get_prompt_storage()
+    
     self.validate_input(params)
-    prompt = self.get_prompt("my_component.execute")
     result = await self._process(prompt, params)
     self.validate_output(result)
     return result
@@ -166,15 +195,33 @@ prompt_version = self.config.prompt_versions["my_component.execute"]
 
 ### Промпты
 
+**Устаревший способ (до 5.34.0):**
 ```python
 prompt_text = self.get_prompt("my_component.execute")
 ```
 
+**Текущий способ (5.34.0+):**
+```python
+prompt_text = self.prompt_storage.get("my_component.execute")
+```
+
 ### Контракты
 
+**Устаревший способ (до 5.34.0):**
 ```python
 input_schema = self.get_input_contract("my_component.execute")
 output_schema = self.get_output_contract("my_component.execute")
+```
+
+**Текущий способ (5.34.0+):**
+```python
+input_schema = self.contract_storage.get_input("my_component.execute")
+output_schema = self.contract_storage.get_output("my_component.execute")
+```
+
+### Валидация
+
+```python
 self.validate_input(params)
 self.validate_output(result)
 ```
@@ -185,6 +232,7 @@ self.validate_output(result)
 
 ### Юнит-тесты
 
+**Устаревший способ (до 5.34.0):**
 ```python
 import pytest
 
@@ -195,7 +243,34 @@ async def test_my_service():
     )
     service = MyService(config, application_context)
     await service.initialize()
+
+    result = await service.execute({"param": "value"})
+    assert result is not None
+```
+
+**Текущий способ (5.34.0+ с DI):**
+```python
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+@pytest.mark.asyncio
+async def test_my_service():
+    # Создание моков интерфейсов
+    llm_mock = AsyncMock(spec=LLMInterface)
+    event_bus_mock = MagicMock(spec=EventBusInterface)
+    prompt_storage_mock = MagicMock(spec=PromptStorageInterface)
     
+    config = ComponentConfig(
+        prompt_versions={"my_service.execute": "v1.0.0"}
+    )
+    service = MyService(
+        config=config,
+        llm=llm_mock,
+        event_bus=event_bus_mock,
+        prompt_storage=prompt_storage_mock
+    )
+    await service.initialize()
+
     result = await service.execute({"param": "value"})
     assert result is not None
 ```
@@ -280,7 +355,11 @@ async def test_component_isolation():
 - [Конфигурация](./CONFIGURATION_MANUAL.md)
 - [API Reference](./API_REFERENCE.md)
 - [BaseComponent](../core/components/base_component.py)
+- [Интерфейсы](../core/interfaces/)
+- [Жизненный цикл компонентов](./architecture/lifecycle.md)
 
 ---
+
+*Документ обновлён: 2026-03-10*
 
 *Документ автоматически сгенерирован. Не редактируйте вручную.*

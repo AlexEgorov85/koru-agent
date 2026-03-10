@@ -229,3 +229,55 @@ class RetryPolicy:
             decision=RetryDecision.FAIL,
             reason="Unhandled error category",
         )
+
+    def detect_loop(
+        self,
+        current_capability: str,
+        last_capability: str,
+        last_status: str
+    ) -> bool:
+        """
+        Детекция зацикливания на основе повторяющихся действий.
+
+        АРХИТЕКТУРА:
+        - Если то же самое действие повторяется после успешного выполнения — это зацикливание
+        - LLM не понимает, что данные уже получены и нужно вызывать final_answer.generate
+
+        ПАРАМЕТРЫ:
+        - current_capability: текущее предлагаемое действие
+        - last_capability: последнее выполненное действие
+        - last_status: статус последнего выполнения ('completed', 'failed', etc.)
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если обнаружено зацикливание
+
+        ПРИМЕР:
+        # Зацикливание: то же действие после успешного выполнения
+        policy.detect_loop(
+            current_capability='book_library.execute_script',
+            last_capability='book_library.execute_script',
+            last_status='completed'
+        )  # → True
+
+        # Нормальная ситуация: разные действия
+        policy.detect_loop(
+            current_capability='final_answer.generate',
+            last_capability='book_library.execute_script',
+            last_status='completed'
+        )  # → False
+
+        # Нормальная ситуация: retry после ошибки
+        policy.detect_loop(
+            current_capability='book_library.execute_script',
+            last_capability='book_library.execute_script',
+            last_status='failed'
+        )  # → False (это не зацикливание, это retry)
+        """
+        # Зацикливание только если:
+        # 1. То же самое действие
+        # 2. Предыдущее выполнение было успешным (completed)
+        # 3. Это не final_answer.generate (он может вызываться повторно)
+        if current_capability == last_capability and last_status == 'completed':
+            if current_capability != 'final_answer.generate':
+                return True
+        return False

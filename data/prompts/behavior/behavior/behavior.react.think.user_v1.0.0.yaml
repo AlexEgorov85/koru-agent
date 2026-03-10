@@ -13,7 +13,7 @@ content: |
   === ИНСТРУМЕНТЫ ===
   {available_tools}
 
-  === ПРИМЕР ПРАВИЛЬНОГО ОТВЕТА ===
+  === ПРИМЕР 1: НАЧАЛО ВЫПОЛНЕНИЯ (данных ещё нет) ===
   {
     "thought": "Анализирую ситуацию. Нужно найти книги Пушкина.",
     "analysis": {
@@ -34,9 +34,32 @@ content: |
     "stop_condition": false
   }
 
+  === ПРИМЕР 2: ДАННЫЕ ПОЛУЧЕНЫ — формируем ответ ===
+  {
+    "thought": "Данные получены: найдено 5 книг Пушкина. Задача выполнена.",
+    "analysis": {
+      "progress": "Данные собраны, задача решена",
+      "current_state": "Требуется сформировать финальный ответ",
+      "issues": []
+    },
+    "decision": {
+      "next_action": "final_answer.generate",
+      "reasoning": "Данные получены, нужно сформировать финальный ответ пользователю",
+      "parameters": {
+        "include_steps": true,
+        "include_evidence": true,
+        "format_type": "list"
+      },
+      "expected_outcome": "Финальный ответ в виде списка книг Пушкина"
+    },
+    "confidence": 0.95,
+    "stop_condition": true
+  }
+
   === ЗАДАНИЕ ===
   Верни ТОЛЬКО один JSON объект в формате из примера выше.
   Начни с { и закончи }.
+  ВАЖНО: Если данные уже получены в истории — используй ПРИМЕР 2 (final_answer.generate + stop_condition=true).
 variables:
   - name: input
     description: Текущий контекст задачи и состояние
@@ -56,5 +79,5 @@ variables:
 metadata:
   author: system
   created: '2026-02-19'
-  description: User prompt для behavior.react.think с примером формата
-  version_notes: 'Добавлен явный пример правильного JSON ответа'
+  description: User prompt для behavior.react.think с примерами форматов
+  version_notes: 'Добавлен пример правильного поведения после получения данных'
