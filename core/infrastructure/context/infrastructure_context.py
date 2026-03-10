@@ -331,10 +331,10 @@ class InfrastructureContext:
         from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
         from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
         from pathlib import Path
-        
+
         vs_config = self.config.vector_search
-        self.event_bus_logger.info("Инициализация Vector Search...")
-        
+        await self.event_bus_logger.info("Инициализация Vector Search...")
+
         # Инициализация FAISS провайдеров для каждого источника
         for source, index_file in vs_config.indexes.items():
             try:
@@ -343,26 +343,26 @@ class InfrastructureContext:
                     config=vs_config.faiss
                 )
                 await provider.initialize()
-                
+
                 # Загрузка индекса если существует
                 index_path = Path(vs_config.storage.base_path) / index_file
                 if index_path.exists():
                     await provider.load(str(index_path))
-                    self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path}")
-                
-                
+                    await self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path}")
+
+
                 self._faiss_providers[source] = provider
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
-        
+                await self.event_bus_logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
+
         # Инициализация Embedding провайдера
         try:
             self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
             await self._embedding_provider.initialize()
-            self.event_bus_logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
+            await self.event_bus_logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
-        
+            await self.event_bus_logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
+
         # Инициализация Chunking стратегии
         try:
             self._chunking_strategy = TextChunkingStrategy(
@@ -370,9 +370,9 @@ class InfrastructureContext:
                 chunk_overlap=vs_config.chunking.chunk_overlap,
                 min_chunk_size=vs_config.chunking.min_chunk_size
             )
-            self.event_bus_logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
+            await self.event_bus_logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
+            await self.event_bus_logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
 
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""

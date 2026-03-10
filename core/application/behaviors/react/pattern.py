@@ -25,6 +25,69 @@ from core.models.errors import InfrastructureError
 from core.application.agent.components.action_executor import ExecutionContext
 
 
+# ============================================================================
+# СПЕЦИФИЧНЫЕ СЕРВИСЫ ДЛЯ REACTPATTERN
+# ============================================================================
+
+class FallbackStrategyService:
+    """Стратегии fallback для ReActPattern."""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {"max_retries": 3, "default_pattern": "fallback.v1.0.0", "emergency_stop": True}
+    
+    def create_retry(self, reason: str, max_retries: Optional[int] = None) -> BehaviorDecision:
+        """Создаёт решение для повторной попытки."""
+        return BehaviorDecision(action=BehaviorDecisionType.RETRY, reason=reason, confidence=0.5)
+    
+    def create_switch(self, next_pattern: str, reason: str) -> BehaviorDecision:
+        """Создаёт решение для переключения паттерна."""
+        return BehaviorDecision(action=BehaviorDecisionType.SWITCH, next_pattern=next_pattern, reason=reason, confidence=0.7)
+    
+    def create_stop(self, reason: str, final_answer: Optional[str] = None) -> BehaviorDecision:
+        """Создаёт решение для остановки."""
+        return BehaviorDecision(action=BehaviorDecisionType.STOP, reason=reason, confidence=0.9)
+    
+    def create_error(self, reason: str, available_capabilities: List[Capability]) -> BehaviorDecision:
+        """Создаёт решение при ошибке."""
+        if available_capabilities:
+            cap = available_capabilities[0]
+            return BehaviorDecision(
+                action=BehaviorDecisionType.ACT,
+                capability_name=cap.name,
+                parameters={"input": "Продолжить выполнение задачи", "context": reason},
+                reason=f"fallback_{reason}",
+                confidence=0.3
+            )
+        return BehaviorDecision(action=BehaviorDecisionType.STOP, reason=f"emergency_stop_no_capabilities_{reason}", confidence=0.1)
+    
+    def create_reasoning_fallback(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability], reason: str) -> Dict[str, Any]:
+        """Создаёт fallback-результат рассуждения."""
+        fallback_capability = available_capabilities[0].name if available_capabilities else "final_answer.generate"
+        return {
+            "analysis": {
+                "current_situation": f"Fallback: {reason}",
+                "progress_assessment": "Неизвестно",
+                "confidence": 0.3,
+                "errors_detected": True,
+                "consecutive_errors": context_analysis.get("consecutive_errors", 0) + 1,
+                "execution_time": context_analysis.get("execution_time_seconds", 0),
+                "no_progress_steps": context_analysis.get("no_progress_steps", 0)
+            },
+            "decision": {
+                "next_action": fallback_capability,
+                "reasoning": f"fallback после ошибки: {reason}",
+                "parameters": {"query": context_analysis.get("goal", "Продолжить")},
+                "expected_outcome": "Неизвестно"
+            },
+            "available_capabilities": available_capabilities,
+            "confidence": 0.1,
+            "stop_condition": False,
+            "stop_reason": "fallback",
+            "alternative_actions": [],
+            "thought": f"Fallback из-за: {reason}"
+        }
+
+
 class ReActPattern(BaseBehaviorPattern):
     """ReAct паттерн поведения без логики планирования.
 
@@ -47,31 +110,24 @@ class ReActPattern(BaseBehaviorPattern):
     DEPENDENCIES = ["prompt_service", "contract_service"]
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
-        """Инициализация паттерна.
-
-        ПАРАМЕТРЫ:
-        - component_name: Имя компонента (ОБЯЗАТЕЛЬНО, например "react_pattern")
-        - component_config: ComponentConfig с resolved_prompts/contracts (из AppConfig)
-        - application_context: Прикладной контекст для доступа к компонентам
-        - executor: ActionExecutor для взаимодействия (требуется BaseComponent)
-        """
+        """Инициализация паттерна."""
         super().__init__(component_name, component_config, application_context, executor)
 
         # Специфичные для ReAct атрибуты
-        self.reasoning_schema = None  # Будет загружено из self.output_contracts
-        self.reasoning_prompt_template = None  # Будет загружено из self.prompts
-        self.system_prompt_template = None  # Системный промпт из self.prompts
+        self.reasoning_schema = None
+        self.reasoning_prompt_template = None
+        self.system_prompt_template = None
         self.last_reasoning_time = 0.0
         self.error_count = 0
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
         self.retry_policy = RetryPolicy()
 
-        # EventBusLogger для логирования через шину событий
-        self.event_bus_logger = None  # Будет инициализирован когда будет доступен event_bus
+        # === СПЕЦИФИЧНЫЕ СЕРВИСЫ ReAct ===
+        self.fallback_strategy = FallbackStrategyService()
 
-        # Примечание: Промпты и контракты загружаются через BaseComponent.initialize()
-        # и доступны в self.prompts / self.output_contracts
+        # EventBusLogger
+        self.event_bus_logger = None
 
     @property
     def llm_orchestrator(self):
@@ -326,236 +382,34 @@ class ReActPattern(BaseBehaviorPattern):
                 )
                 return False
 
-            # === ДОБАВЛЕНИЕ JSON СХЕМЫ В СИСТЕМНЫЙ ПРОМПТ ===
-            # Если схема загружена, добавляем её в системный промпт
-            if self.reasoning_schema and self.system_prompt_template:
-                self.system_prompt_template = self._inject_schema_into_system_prompt(
-                    self.system_prompt_template,
-                    self.reasoning_schema
-                )
-
             return True
         except Exception as e:
             self.event_bus_logger.error_sync(f"Ошибка загрузки reasoning ресурсов: {e}")
             return False
 
-    def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
+    def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
         """
-        Добавляет JSON схему в системный промпт.
-
-        ПАРАМЕТРЫ:
-        - system_prompt: исходный системный промпт
-        - schema: JSON схема из контракта
-
-        ВОЗВРАЩАЕТ:
-        - str: системный промпт с добавленной схемой
+        Рендерит шаблон промпта с подстановкой переменных через PromptBuilderService.
         """
-        import json
-
-        # Проверяем есть ли уже схема в промпте (ищем маркер "JSON СХЕМА ОТВЕТА")
-        if 'JSON СХЕМА ОТВЕТА' in system_prompt or 'JSON SCHEMA' in system_prompt.upper():
-            # Схема уже есть, не добавляем
-            return system_prompt
-
-        # Генерируем JSON схему для промпта
-        schema_json = json.dumps(schema, indent=2, ensure_ascii=False)
-
-        # Получаем обязательные поля
-        required = schema.get('required', [])
-        if not required:
-            # Если required пустой, берем ключевые поля
-            required = ['thought', 'decision', 'confidence', 'stop_condition']
-
-        # Добавляем схему в конец системного промпта
-        return f"""{system_prompt}
-
-=== JSON СХЕМА ОТВЕТА ===
-Ты ДОЛЖЕН вернуть JSON следующей структуры:
-
-```json
-{schema_json}
-```
-
-ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: {', '.join(required)}
-
-ВАЖНО: Верни ТОЛЬКО JSON без дополнительных пояснений. НЕ повторяй шаблон {{\"next_action\": \"string\", \"parameters\": \"object\"}} — это только пример формата."""
-
-    def _render_reasoning_prompt(self, context_analysis: Dict[str, Any], available_capabilities: List[Dict[str, Any]]) -> str:
-        """
-        Рендерит шаблон промпта с подстановкой переменных.
-
-        Использует промпт из PromptService (загружен в component_config.resolved_prompts).
-        Fallback на дефолтный шаблон только если промпт не загружен.
-
-        ПАРАМЕТРЫ:
-        - context_analysis: анализ контекста
-        - available_capabilities: доступные capability
-
-        ВОЗВРАЩАЕТ:
-        - str: отрендеренный промпт
-        """
-        goal = context_analysis.get("goal", "Неизвестная цель")
-        last_steps = context_analysis.get("last_steps", [])
-        no_progress_steps = context_analysis.get("no_progress_steps", 0)
-        consecutive_errors = context_analysis.get("consecutive_errors", 0)
-
-        # Формируем контекст для подстановки в шаблон
-        prompt_context = {
-            "input": self._build_input_context(context_analysis, available_capabilities),
-            "goal": goal,
-            "step_history": self._build_step_history(last_steps),
-            "observation": self._extract_last_observation(last_steps),
-            "available_tools": self._format_available_tools(available_capabilities),
-            "no_progress_steps": no_progress_steps,
-            "consecutive_errors": consecutive_errors
-        }
-
-        if self.reasoning_prompt_template:
-            # Рендерим шаблон из PromptService
-            rendered = self.reasoning_prompt_template
-            for key, value in prompt_context.items():
-                rendered = rendered.replace(f"{{{key}}}", str(value))
-            return rendered
-        else:
-            # КРИТИЧЕСКАЯ ОШИБКА: промпт не загружен
+        if not self.reasoning_prompt_template:
             error_msg = (
                 "reasoning_prompt_template не загружен! "
-                "Промпт должен быть загружен при инициализации из PromptService. "
-                "Проверьте наличие промпта behavior.react.think в реестре."
+                "Промпт должен быть загружен при инициализации из PromptService."
             )
             self.event_bus_logger.error_sync(error_msg)
             raise RuntimeError(error_msg)
-
-    def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
-        """
-        Формирует {input} секцию для промпта.
-
-        ПАРАМЕТРЫ:
-        - context_analysis: анализ контекста
-        - available_capabilities: доступные capability (объекты Capability)
-
-        ВОЗВРАЩАЕТ:
-        - str: контекст для {input}
-        """
-        goal = context_analysis.get("goal", "Неизвестная цель")
-        last_steps = context_analysis.get("last_steps", [])
-
-        parts = [
-            f"ЦЕЛЬ: {goal}",
-            f"Шагов выполнено: {len(last_steps)}",
-            f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
-            f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
-        ]
-
-        if last_steps:
-            parts.append("\nПОСЛЕДНИЕ ШАГИ:")
-            for i, step in enumerate(last_steps[-3:], 1):
-                parts.append(f"  {i}. {step}")
-
-        # Примечание: Список инструментов добавляется отдельно через {available_tools}
-        return "\n".join(parts)
-
-    def _build_step_history(self, last_steps: list) -> str:
-        """
-        Формирует читаемую историю шагов для промпта.
         
-        ПАРАМЕТРЫ:
-        - last_steps: список шагов из context_analysis
-        
-        ВОЗВРАЩАЕТ:
-        - str: отформатированная история шагов
-        """
-        if not last_steps:
-            return "Шаги не выполнены"
-        
-        step_lines = []
-        for i, step in enumerate(last_steps[-3:], 1):
-            if isinstance(step, dict):
-                capability = step.get('capability', 'unknown')
-                summary = step.get('summary', '')
-                obs = step.get('observation', '')
-                
-                step_text = f"{capability}: {summary}"
-                if obs:
-                    step_text += f" → {obs[:100]}"
-                step_lines.append(f"{i}. {step_text}")
-            else:
-                step_lines.append(f"{i}. {step}")
-        
-        return "\n".join(step_lines)
+        # Делегируем сервису
+        return self.prompt_builder.build_reasoning_prompt(
+            context_analysis=context_analysis,
+            available_capabilities=available_capabilities,
+            templates={"system": self.system_prompt_template, "user": self.reasoning_prompt_template},
+            schema_validator=self.schema_validator
+        )
 
-    def _extract_last_observation(self, last_steps: list) -> str:
-        """
-        Извлекает последнее наблюдение из истории шагов.
-        
-        ПАРАМЕТРЫ:
-        - last_steps: список шагов из context_analysis
-        
-        ВОЗВРАЩАЕТ:
-        - str: последнее наблюдение или "Нет наблюдений"
-        """
-        if not last_steps:
-            return "Нет наблюдений"
-        
-        # Ищем observation в последнем шаге
-        last_step = last_steps[-1]
-        if isinstance(last_step, dict):
-            obs = last_step.get('observation', '')
-            if obs:
-                return obs
-        
-        # Если observation нет в явном виде, пробуем извлечь из summary
-        summary = last_step.get('summary', '') if isinstance(last_step, dict) else str(last_step)
-        return summary if summary else "Нет наблюдений"
-
-    def _format_available_tools(self, available_capabilities: List[Capability]) -> str:
-        """
-        Форматирует список доступных инструментов с параметрами.
-
-        ПАРАМЕТРЫ:
-        - available_capabilities: список capability (объекты Capability)
-
-        ВОЗВРАЩАЕТ:
-        - str: отформатированный список инструментов с параметрами
-        """
-        lines = []
-        for cap in available_capabilities:
-            # Поддержка как объектов Capability, так и словарей
-            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
-            description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
-
-            # Получаем схему параметров из schema_validator
-            params_schema = None
-            if hasattr(self, 'schema_validator') and self.schema_validator:
-                schema_obj = self.schema_validator.get_capability_schema(name)
-                # Конвертируем CapabilitySchema в dict если нужно
-                if schema_obj and hasattr(schema_obj, 'to_dict'):
-                    params_schema = schema_obj.to_dict()
-                else:
-                    params_schema = schema_obj
-
-            # Формируем строку инструмента
-            line = f"- {name}: {description}"
-
-            # Добавляем параметры если есть схема
-            if params_schema:
-                params_list = []
-                # Проверяем что params_schema это dict перед вызовом .items()
-                if isinstance(params_schema, dict):
-                    for param_name, param_info in params_schema.items():
-                        param_type = param_info.get('type', 'string') if isinstance(param_info, dict) else 'string'
-                        required = param_info.get('required', False) if isinstance(param_info, dict) else False
-                        req_mark = "(required)" if required else "(optional)"
-                        params_list.append(f"{param_name}: {param_type} {req_mark}")
-
-                if params_list:
-                    line += "\n    Параметры:"
-                    for p in params_list:
-                        line += f"\n      - {p}"
-
-            lines.append(line)
-
-        return "\n".join(lines)
+    # === МЕТОДЫ ДЕЛЕГИРОВАНЫ PromptBuilderService ===
+    # _build_input_context, _build_step_history, _extract_last_observation, _format_available_tools
+    # теперь находятся в PromptBuilderService и вызываются через self.prompt_builder
 
     async def analyze_context(
         self,
@@ -572,14 +426,18 @@ class ReActPattern(BaseBehaviorPattern):
             available_capabilities = await self.application_context.get_all_capabilities()
             await self._log("debug", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability")
 
-        # Регистрируем схемы для всех capability в SchemaValidator
-        self._register_capability_schemas(available_capabilities)
+        # Регистрируем схемы через CapabilityResolverService
+        self.capability_resolver.register_capability_schemas(
+            available_capabilities=available_capabilities,
+            schema_validator=self.schema_validator,
+            input_contracts=getattr(self, 'input_contracts', {}),
+            data_repository=getattr(self.application_context, 'data_repository', None) if self.application_context else None
+        )
 
-        # Выполняем анализ контекста сессии (возвращает ContextAnalysis объект)
+        # Выполняем анализ контекста сессии
         analysis_obj = analyze_context(session_context)
 
         # Преобразуем в dict для обратной совместимости
-        # В будущем можно вернуть ContextAnalysis напрямую
         analysis = {
             "goal": analysis_obj.goal,
             "last_steps": analysis_obj.last_steps,
@@ -592,15 +450,9 @@ class ReActPattern(BaseBehaviorPattern):
             "summary": analysis_obj.summary,
         }
 
-        # Добавляем информацию о доступных capability
-        # Фильтрация только по supported_strategies (без хардкода навыков)
-        filtered_caps = self._filter_capabilities(
-            available_capabilities
-        )
-        
-        # Убираем final_answer.generate из списка доступных инструментов
-        # Он вызывается автоматически при STOP
-        filtered_caps = [cap for cap in filtered_caps if cap.name != "final_answer.generate"]
+        # Фильтрация capability через CapabilityResolverService
+        filtered_caps = self.capability_resolver.filter_capabilities(available_capabilities, self.pattern_id)
+        filtered_caps = self.capability_resolver.exclude_capability(filtered_caps, "final_answer.generate")
 
         analysis["available_capabilities"] = filtered_caps
 
@@ -608,96 +460,8 @@ class ReActPattern(BaseBehaviorPattern):
 
         return analysis
 
-    def _register_capability_schemas(self, available_capabilities: List[Capability]):
-        """
-        Регистрирует схемы входных параметров для всех capability в SchemaValidator.
-
-        Схемы берутся из input_contracts кэша компонента.
-
-        ARGS:
-        - available_capabilities: список capability для регистрации
-        """
-        if not self.application_context:
-            self.event_bus_logger.warning_sync("[ReAct] _register_capability_schemas: application_context не доступен")
-            return
-
-        self.event_bus_logger.info_sync(f"[ReAct] === РЕГИСТРАЦИЯ СХЕМ ===")
-        self.event_bus_logger.info_sync(f"[ReAct] Всего capability: {len(available_capabilities)}")
-
-        # Получаем все input схемы из контекста
-        for cap in available_capabilities:
-            # Пытаемся получить схему из input_contracts кэша
-            # Формат ключа: capability_name (например, "book_library.execute_script")
-            schema = None
-
-            # Проверяем, есть ли схема в кэше input_contracts
-            if hasattr(self, 'input_contracts') and cap.name in self.input_contracts:
-                schema = self.input_contracts[cap.name]
-                self.event_bus_logger.info_sync(f"Найдена схема в input_contracts для {cap.name}")
-            elif self.application_context.use_data_repository and self.application_context.data_repository:
-                # Пытаемся получить схему из DataRepository
-                try:
-                    # Получаем версию контракта из meta capability
-                    contract_version = cap.meta.get('contract_version', 'v1.0.0')
-                    schema = self.application_context.data_repository.get_contract_schema(
-                        cap.name,
-                        contract_version,
-                        "input"
-                    )
-                except Exception as e:
-                    self.event_bus_logger.debug_sync(f"Не удалось получить схему для {cap.name}: {e}")
-
-            # Если схема найдена, регистрируем её в SchemaValidator
-            if schema:
-                # Преобразуем схему в словарь параметров
-                # Ожидаем формат: {"input": {"type": "string", "required": True}}
-                params_schema = {}
-
-                # Проверяем тип схемы
-                if hasattr(schema, 'to_dict'):
-                    # CapabilitySchema объект (из schema_validator.py)
-                    to_dict_result = schema.to_dict()
-                    # Проверяем что результат это dict
-                    if isinstance(to_dict_result, dict):
-                        params_schema = to_dict_result
-                    else:
-                        self.event_bus_logger.debug_sync(f"⚠️ to_dict() вернул не dict для {cap.name}: {type(to_dict_result)}")
-                        params_schema = {}
-                elif hasattr(schema, 'model_json_schema'):
-                    # Pydantic модель
-                    schema_dict = schema.model_json_schema()
-                    properties = schema_dict.get('properties', {})
-                    required = schema_dict.get('required', [])
-                    for prop_name, prop_info in properties.items():
-                        params_schema[prop_name] = {
-                            'type': prop_info.get('type', 'string'),
-                            'required': prop_name in required
-                        }
-                elif isinstance(schema, dict):
-                    # Словарь schema_data из YAML контракта
-                    properties = schema.get('properties', {})
-                    required = schema.get('required', [])
-                    # Проверяем что properties это dict, а не CapabilitySchema
-                    if isinstance(properties, dict):
-                        for prop_name, prop_info in properties.items():
-                            params_schema[prop_name] = {
-                                'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string',
-                                'required': prop_name in required
-                            }
-                    else:
-                        self.event_bus_logger.debug_sync(f"⚠️ properties не dict для {cap.name}: {type(properties)}")
-                else:
-                    # Неизвестный тип схемы
-                    self.event_bus_logger.debug_sync(f"⚠️ Неизвестный тип схемы для {cap.name}: {type(schema)}")
-                    self.event_bus_logger.debug_sync(f"  schema attributes: {dir(schema)}")
-
-                if params_schema:
-                    self.schema_validator.register_capability_schema(cap.name, params_schema)
-                    self.event_bus_logger.debug_sync(f"✅ Зарегистрирована схема для {cap.name}: {params_schema}")
-                else:
-                    self.event_bus_logger.debug_sync(f"ℹ️ Схема для {cap.name} не имеет параметров")
-            else:
-                self.event_bus_logger.debug_sync(f"Схема не найдена для {cap.name}")
+    # === МЕТОД ДЕЛЕГИРОВАН CapabilityResolverService ===
+    # _register_capability_schemas теперь в self.capability_resolver.register_capability_schemas
 
     async def generate_decision(
         self,
@@ -771,7 +535,8 @@ class ReActPattern(BaseBehaviorPattern):
             # Базовый fallback
             return await self._create_fallback_decision(
                 session_context=session_context,
-                reason=f"critical_error:{str(e)}"
+                reason=f"critical_error:{str(e)}",
+                available_capabilities=available_capabilities
             )
 
     async def _perform_structured_reasoning(
@@ -792,7 +557,7 @@ class ReActPattern(BaseBehaviorPattern):
         # === 1. ПРОВЕРКА ЗАГРУЗКИ РЕСУРСОВ ===
         if not self._load_reasoning_resources():
             await self._log("warning", "Промпт не загружен, используем fallback")
-            return self._create_fallback_reasoning(
+            return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
                 reason="prompt_not_loaded"
@@ -805,19 +570,17 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
         # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
-        # ✅ ИСПРАВЛЕНО: Используем llm_orchestrator вместо прямого доступа к infrastructure_context
         llm_provider = None
         orchestrator = self.llm_orchestrator
         if orchestrator and hasattr(orchestrator, 'provider'):
             llm_provider = orchestrator.provider
-        
-        # Fallback: получаем из application_context если orchestrator недоступен
+
         if not llm_provider and self.application_context and hasattr(self.application_context, 'infrastructure_context'):
             llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
 
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
-            return self._create_fallback_reasoning(
+            return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
                 reason="llm_provider_not_available"
@@ -874,229 +637,52 @@ class ReActPattern(BaseBehaviorPattern):
         # === 5. ОБРАБОТКА ОТВЕТА ===
         if not success:
             await self._log("error", f"LLM вызов не удался: {error}")
-            return self._create_fallback_reasoning(
+            return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
                 reason=f"llm_call_failed:{error}"
             )
 
         # === 6. ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===
-        # response — это StructuredLLMResponse объект
-        await self._log("info", f"=== ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===")
-        await self._log("info", f"Тип response: {type(response).__name__}")
-        await self._log("info", f"response.parsed_content: {response.parsed_content is not None}")
-        await self._log("info", f"response.raw_response: {response.raw_response is not None}")
-
-        if response.raw_response and hasattr(response.raw_response, 'content'):
-            await self._log("info", f"response.raw_response.content[:200]: {str(response.raw_response.content)[:200]}")
-
         result = None
 
         # Проверяем что это StructuredLLMResponse
         if hasattr(response, 'parsed_content') and hasattr(response, 'raw_response'):
-            # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict
-            # validate_reasoning_result примет модель и сконвертирует при необходимости
             if response.parsed_content:
-                result = response.parsed_content  # ← Pydantic модель, не dict!
-                await self._log("info", f"✅ Извлечено из parsed_content (Pydantic модель типа {type(result).__name__})")
+                result = response.parsed_content  # Pydantic модель
             elif response.raw_response:
-                # Fallback: пробуем распарсить raw_response.content
-                await self._log("warning", "parsed_content пуст, пробуем распарсить raw_response")
+                # Fallback: парсим raw_response.content
                 content_val = response.raw_response.content
                 if isinstance(content_val, str):
-                    try:
-                        result = json.loads(content_val)
-                        await self._log("info", f"✅ Распарсено из raw_response.content")
-                    except (json.JSONDecodeError, ValueError) as e:
-                        await self._log("error", f"LLM вернул невалидный JSON: {content_val[:200]}...")
+                    result = JsonParserUtil.extract_json_from_response(content_val)
                 else:
                     result = content_val
             else:
-                await self._log("error", "StructuredLLMResponse пуст (нет parsed_content или raw_response)")
+                await self._log("error", "StructuredLLMResponse пуст")
         elif hasattr(response, 'content'):
             # Fallback для простого LLMResponse
-            await self._log("warning", "response — простой LLMResponse, пробуем распарсить content")
             content_val = response.content
-            if isinstance(content_val, str):
-                try:
-                    result = json.loads(content_val)
-                except (json.JSONDecodeError, ValueError):
-                    await self._log("warning", f"LLM вернул невалидный JSON: {content_val[:200]}...")
-            else:
-                result = content_val
+            result = JsonParserUtil.extract_json_from_response(content_val) if isinstance(content_val, str) else content_val
         else:
             await self._log("error", f"Неизвестный тип response: {type(response).__name__}")
             result = response
 
         if result is None:
             await self._log("error", "LLM вернул пустой результат")
-            return self._create_fallback_reasoning(
+            return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
                 reason="empty_response"
             )
 
         # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
-        await self._log("info", f"=== ВАЛИДАЦИЯ РЕЗУЛЬТАТА LLM ===")
-        await self._log("info", f"Перед валидацией: тип result={type(result).__name__}")
-
-        # validate_reasoning_result теперь возвращает ReasoningResult объект
         reasoning_result = validate_reasoning_result(result)
-        
-        await self._log("info", f"После валидации: тип reasoning_result={type(reasoning_result).__name__}")
-        if hasattr(reasoning_result, 'to_dict'):
-            reasoning_dict = reasoning_result.to_dict()
-            await self._log("info", f"reasoning_result.to_dict(): {reasoning_dict}")
-        elif isinstance(reasoning_result, dict):
-            await self._log("info", f"reasoning_result (dict): {reasoning_result}")
-        
-        # Добавляем available_capabilities в объект
         reasoning_result.available_capabilities = available_capabilities
-        
-        # Логируем через атрибуты объекта
-        await self._log("info", f"thought={reasoning_result.thought[:50]}...")
-        if reasoning_result.decision:
-            await self._log("info", f"decision.next_action={reasoning_result.decision.next_action}")
-            await self._log("info", f"decision.reasoning={reasoning_result.decision.reasoning}")
-        
-        print(f"🔵 [_perform_structured_reasoning] Возвращаем: type={type(reasoning_result).__name__}", flush=True)
-        if hasattr(reasoning_result, 'decision'):
-            print(f"🔵 [_perform_structured_reasoning] reasoning_result.decision={reasoning_result.decision}", flush=True)
-            if hasattr(reasoning_result.decision, 'next_action'):
-                print(f"🔵 [_perform_structured_reasoning] decision.next_action={reasoning_result.decision.next_action}", flush=True)
-        print(f"🔵 [_perform_structured_reasoning] reasoning_result.stop_condition={reasoning_result.stop_condition}", flush=True)
 
         return reasoning_result
 
-    def _create_fallback_reasoning(
-        self,
-        context_analysis: Dict[str, Any],
-        available_capabilities: List[Capability],
-        reason: str
-    ) -> Dict[str, Any]:
-        """Создает fallback результат рассуждения."""
-        fallback_capability = "final_answer.generate"
-        if available_capabilities:
-            fallback_capability = (
-                available_capabilities[0].name if hasattr(available_capabilities[0], 'name')
-                else "final_answer.generate"
-            )
-
-        return {
-            "analysis": {
-                "current_situation": f"Fallback: {reason}",
-                "progress_assessment": "Неизвестно",
-                "confidence": 0.3,
-                "errors_detected": True,
-                "consecutive_errors": getattr(self, 'error_count', 0) + 1,
-                "execution_time": context_analysis.get("execution_time_seconds", 0),
-                "no_progress_steps": context_analysis.get("no_progress_steps", 0)
-            },
-            "decision": {
-                "next_action": fallback_capability,
-                "reasoning": f"fallback после ошибки: {reason}",
-                "parameters": {"query": context_analysis.get("goal", "Продолжить")},
-                "expected_outcome": "Неизвестно"
-            },
-            "available_capabilities": available_capabilities,
-            "confidence": 0.1,
-            "stop_condition": False,
-            "stop_reason": "fallback",
-            "alternative_actions": [],
-            "thought": f"Fallback из-за: {reason}"
-        }
-
-    def _find_capability(
-        self,
-        available_capabilities: List[Capability],
-        capability_name: str
-    ) -> Optional[Capability]:
-        """Поиск capability по имени в списке доступных.
-
-        Поддерживает поиск по префиксу: если LLM возвращает 'book_library.execute_script',
-        а capability записано как 'book_library', будет найдено по префиксу.
-        """
-        # Логирование начала поиска
-        print(f"🔍 [_find_capability] поиск '{capability_name}' среди {len(available_capabilities)} доступных", flush=True)
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: поиск '{capability_name}' среди {len(available_capabilities)} доступных")
-        else:
-            print(f"⚠️ [_find_capability] event_bus_logger не инициализирован", flush=True)
-
-        # 1. Прямое совпадение по имени
-        for cap in available_capabilities:
-            if cap.name == capability_name:
-                print(f"✅ [_find_capability] найдено по прямому совпадению '{cap.name}'", flush=True)
-                self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по прямому совпадению '{cap.name}'")
-                return cap
-
-        # 2. Если capability_name содержит '.', извлекаем префикс и ищем по нему
-        if '.' in capability_name:
-            prefix = capability_name.split('.')[0]
-            print(f"🔍 [_find_capability] извлечён префикс '{prefix}' из '{capability_name}'", flush=True)
-            self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: извлечён префикс '{prefix}' из '{capability_name}'")
-
-            # Поиск по префиксу (точное совпадение с именем capability)
-            for cap in available_capabilities:
-                if cap.name == prefix:
-                    print(f"✅ [_find_capability] найдено по префиксу (имя) '{cap.name}'", flush=True)
-                    self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу (имя) '{cap.name}'")
-                    return cap
-
-                # Проверка атрибута skill_name если он есть
-                if hasattr(cap, 'skill_name') and cap.skill_name:
-                    if cap.skill_name == prefix:
-                        print(f"✅ [_find_capability] найдено по префиксу (skill_name) '{cap.skill_name}'", flush=True)
-                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу (skill_name) '{cap.skill_name}'")
-                        return cap
-                    # Также проверяем префикс skill_name
-                    if '.' in cap.skill_name and cap.skill_name.split('.')[0] == prefix:
-                        print(f"✅ [_find_capability] найдено по префиксу skill_name '{cap.skill_name}'", flush=True)
-                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по префиксу skill_name '{cap.skill_name}'")
-                        return cap
-
-        # 3. Частичное совпадение (для совместимости)
-        for cap in available_capabilities:
-            if capability_name.lower() in cap.name.lower():
-                print(f"✅ [_find_capability] найдено по частичному совпадению '{cap.name}'", flush=True)
-                self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по частичному совпадению '{cap.name}'")
-                return cap
-
-        # 4. Поиск по supported_strategies
-        for cap in available_capabilities:
-            if any(s.lower() == "react" for s in (cap.supported_strategies or [])):
-                if hasattr(cap, 'skill_name') and cap.skill_name:
-                    if capability_name.lower() in cap.skill_name.lower():
-                        self.event_bus_logger.debug_sync(f"[ReAct] _find_capability: найдено по supported_strategies и skill_name '{cap.skill_name}'")
-                        return cap
-
-        # Не найдено
-        self.event_bus_logger.warning_sync(f"[ReAct] _find_capability: НЕ найдено '{capability_name}' среди доступных capability")
-        return None
-    def _validate_parameters(
-        self,
-        capability: Capability,
-        parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Валидация параметров capability через SchemaValidator."""
-        
-        if not self.schema_validator:
-            return parameters
-        
-        try:
-            validated = self.schema_validator.validate_parameters(
-                capability=capability,
-                raw_params=parameters,
-                context=json.dumps({
-                    "goal": parameters.get("goal", ""),
-                    "progress": parameters.get("progress", "")
-                })
-            )
-            return validated if validated else parameters
-        except Exception as e:
-            # Fallback: возвращаем минимальные параметры
-            self.event_bus_logger.warning_sync(f"Валидация параметров не удалась: {e}")
-            return {"input": parameters.get("input", "Продолжить выполнение задачи")}
+    # === МЕТОДЫ ДЕЛЕГИРОВАНЫ CapabilityResolverService ===
+    # _find_capability и _validate_parameters теперь в self.capability_resolver
 
     async def _make_decision_from_reasoning(
         self,
@@ -1202,8 +788,8 @@ class ReActPattern(BaseBehaviorPattern):
                     reason="LLM не вернул корре��т��ое действие"
                 )
             
-            # 3. Поиск capability в available_capabilities
-            capability = self._find_capability(available_capabilities, capability_name)
+            # 3. Поиск capability через сервис
+            capability = self.capability_resolver.find_capability(available_capabilities, capability_name)
             
             if not capability:
                 await self._log("warning", f"Capability '{capability_name}' не найдена, используем fallback",
@@ -1224,7 +810,7 @@ class ReActPattern(BaseBehaviorPattern):
             
             # 4. Вали��ация и корректировка параметров через SchemaValidator
             parameters = decision_dict.get("parameters", {})
-            validated_params = self._validate_parameters(capability, parameters)
+            validated_params = self.capability_resolver.validate_parameters(capability, parameters, self.schema_validator, reasoning_dict)
 
             # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
             print(f"✅ [_make_decision] Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}", flush=True)
@@ -1247,134 +833,11 @@ class ReActPattern(BaseBehaviorPattern):
                            exc_info=True)
             raise
 
-    def _build_rollback_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
-        """Создает решение для отката."""
-        # В ��овой схеме нет rollback_steps, используем stop_condition
-        reason = reasoning_result.get("stop_reason", "rollback_requested")
-
-        # Используем generic.execute как fallback для отката
-        available_caps = reasoning_result.get("available_capabilities", [])
-
-        capability = None
-        for cap in available_caps:
-            if cap.name == "generic.execute":
-                capability = cap
-                break
-
-        if not capability:
-            for cap in available_caps:
-                if any(s.lower() == "react" for s in cap.supported_strategies or []):
-                    capability = cap
-                    break
-
-        if not capability:
-            return BehaviorDecision(
-                action=BehaviorDecisionType.STOP,
-                reason="no_capability_for_rollback"
-            )
-
-        return BehaviorDecision(
-            action=BehaviorDecisionType.ACT,
-            capability_name="generic.execute",
-            parameters={
-                "input": reasoning_result.get("analysis", {}).get("current_state", "Продолжить выполнение задачи"),
-                "context": f"Откат из-за: {reason}"
-            },
-            reason=f"rollback_{reason}"
-        )
-
-    def _build_capability_decision(self, session_context, reasoning_result: Dict[str, Any]) -> BehaviorDecision:
-        """Создает ре��ение для выполнения capability."""
-        # Согласно контракту: decision.next_action = capability_name
-        decision = reasoning_result.get("decision", {})
-        capability_name = decision.get("next_action") or "generic.execute"
-        parameters = decision.get("parameters", {})
-        reasoning = decision.get("reasoning", "capability_execution")
-
-        # Вместо прямого доступа к runtime.system, используем переданные capability
-        available_caps = reasoning_result.get("available_capabilities", [])
-
-        self.event_bus_logger.info_sync(f"_build_capability_decision: available_capabilities count={len(available_caps)}, names={[c.name for c in available_caps]}, requested capability_name={capability_name}")
-
-        capability = None
-        for cap in available_caps:
-            if cap.name == capability_name and any(s.lower() == "react" for s in cap.supported_strategies or []):
-                capability = cap
-                break
-
-        if not capability:
-            # Если указанная capability недоступна, ищем первую доступную
-            for cap in available_caps:
-                if any(s.lower() == "react" for s in cap.supported_strategies or []):
-                    capability = cap
-                    capability_name = cap.name
-                    self.event_bus_logger.warning_sync(f"Capability '{decision.get('capability_name')}' не найдена или недоступна, используем альтернативу: {cap.name}")
-                    break
-
-        if not capability:
-            self.event_bus_logger.error_sync(f"_build_capability_decision: НЕТ ДОСТУПНЫХ CAPABILITY. available_caps={[c.name for c in available_caps]}")
-            raise ValueError(f"Нет доступных capability для выполнения действия")
-
-        # Валидация и корректировка параметро��
-        self.event_bus_logger.info_sync(f"=== ВАЛИДАЦИЯ ПАРАМЕТРОВ ===")
-        self.event_bus_logger.info_sync(f"capability: {capability.name}")
-        self.event_bus_logger.info_sync(f"raw_params: {parameters}")
-
-        validated_params = self.schema_validator.validate_parameters(
-            capability=capability,
-            raw_params=parameters,
-            context=json.dumps({
-                "goal": reasoning_result.get("analysis", {}).get("current_situation", ""),
-                "progress": reasoning_result.get("analysis", {}).get("progress_assessment", "")
-            })
-            # system_context больше не передается, так как мы изолированы
-        )
-
-        self.event_bus_logger.info_sync(f"validated_params: {validated_params}")
-
-        if not validated_params:
-            # Попытка создать минимально необходимые параметры
-            # ✅ ИСПРАВЛЕНО: Используем значение по умолчанию вместо session_context.get_goal()
-            validated_params = {"input": "Продолжить выполнение задачи"}
-            self.event_bus_logger.warning_sync(f"Параметры не прошли валидацию, используем минимальный набор: {validated_params}")
-        else:
-            self.event_bus_logger.info_sync(f"✅ Параметры успешно валидированы")
-
-        self.event_bus_logger.info_sync(f"=== РЕШЕНИЕ ===")
-        self.event_bus_logger.info_sync(f"action: {BehaviorDecisionType.ACT}")
-        self.event_bus_logger.info_sync(f"capability_name: {capability_name}")
-        self.event_bus_logger.info_sync(f"parameters: {validated_params}")
-        self.event_bus_logger.info_sync(f"reason: {reasoning}")
-
-        return BehaviorDecision(
-            action=BehaviorDecisionType.ACT,
-            capability_name=capability_name,
-            parameters=validated_params,
-            reason=reasoning
-        )
-
-    async def _create_fallback_decision(self, session_context, reason: str) -> BehaviorDecision:
-        """Создает fallback-решение при ошибках."""
-        # Вместо прямого доступа к runtime.system, полагаемся на переданные capability
-        # В новой архитектуре получаем capability из другого источника
-        available_caps = []  # Во�������вращаем п��стой список, так как в session_context нет такого метода
-
-        for cap in available_caps:
-            if any(s.lower() == "react" for s in cap.supported_strategies or []):
-                # ✅ ИСПРАВЛЕНО: Используем значение по умолчанию вместо session_context.get_goal()
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.ACT,
-                    capability_name=cap.name,
-                    parameters={
-                        "input": "Продолжить выполнение задачи",
-                        "context": reason
-                    },
-                    reason=f"fallback_{reason}"
-                )
-
-        # Критический fallback - остановка
-        await self._log("error", "Нет доступных capability для реактивной стратегии. Принудительная остановка.")
-        return BehaviorDecision(
-            action=BehaviorDecisionType.STOP,
-            reason=f"emergency_stop_no_capabilities_{reason}"
-        )
+    async def _create_fallback_decision(
+        self,
+        session_context,
+        reason: str,
+        available_capabilities: List[Capability]
+    ) -> BehaviorDecision:
+        """Создает fallback-решение при ошибках через FallbackStrategyService."""
+        return self.fallback_strategy.create_error(reason, available_capabilities)

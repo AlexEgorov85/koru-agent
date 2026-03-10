@@ -792,33 +792,46 @@ class AgentRuntime:
     def _is_final_result(self, step_result: Any) -> bool:
         """
         Проверка, является ли результат финальным.
-        
+
         ФИНАЛЬНЫЙ РЕЗУЛЬТАТ — это выполнение final_answer.generate,
         которое содержит итоговый ответ агента.
+        
+        КРИТИЧНО: Метод должен корректно распознавать ExecutionResult от final_answer.generate
+        ДО того, как будет установлен metadata['is_final_answer'].
         """
+        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        
         # Проверка 1: ExecutionResult от final_answer.generate
         if isinstance(step_result, ExecutionResult):
-            # Проверяем metadata или данные на наличие признака final_answer
+            # Проверяем metadata на наличие признака is_final_answer
             if step_result.metadata and step_result.metadata.get('is_final_answer'):
                 return True
-            # Проверяем данные на наличие final_answer ключа
+            # Проверяем metadata на наличие capability_name или capability
+            if step_result.metadata:
+                cap_name = step_result.metadata.get('capability_name') or step_result.metadata.get('capability')
+                if cap_name == "final_answer.generate":
+                    return True
+            # Проверяем данные на наличие final_answer ключа (результат генерации)
             if step_result.data and isinstance(step_result.data, dict):
                 if 'final_answer' in step_result.data:
                     return True
-        
+            # Проверяем result на наличие final_answer ключа
+            if step_result.result and isinstance(step_result.result, dict):
+                if 'final_answer' in step_result.result:
+                    return True
+
         # Проверка 2: BehaviorDecision с флагом is_final
-        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
         if isinstance(step_result, BehaviorDecision):
             if getattr(step_result, 'is_final', False):
                 return True
             # STOP decision тоже считается финальным
             if step_result.action == BehaviorDecisionType.STOP:
                 return True
-                
+
         # Проверка 3: dict с action_type (для обратной совместимости)
         if isinstance(step_result, dict) and step_result.get("action_type") == "final_answer":
             return True
-            
+
         return False
 
     def _extract_final_result(self) -> Any:

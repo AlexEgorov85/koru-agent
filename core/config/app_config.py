@@ -414,6 +414,34 @@ class AppConfig(BaseModel):
                 dependencies=[]
             )
 
+        # Регистрируем vector_books_tool для семантического поиска книг
+        if 'vector_books_tool' not in tool_configs:
+            tool_configs['vector_books_tool'] = ComponentConfig(
+                variant_id=f"vector_books_tool_{profile}",
+                side_effects_enabled=(profile == "prod"),
+                detailed_metrics=False,
+                parameters={},
+                dependencies=[],
+                prompt_versions={
+                    "vector_books.search": "v1.0.0",
+                    "vector_books.get_document": "v1.0.0",
+                    "vector_books.analyze": "v1.0.0",
+                    "vector_books.query": "v1.0.0"
+                },
+                input_contract_versions={
+                    "vector_books.search": "v1.0.0",
+                    "vector_books.get_document": "v1.0.0",
+                    "vector_books.analyze": "v1.0.0",
+                    "vector_books.query": "v1.0.0"
+                },
+                output_contract_versions={
+                    "vector_books.search": "v1.0.0",
+                    "vector_books.get_document": "v1.0.0",
+                    "vector_books.analyze": "v1.0.0",
+                    "vector_books.query": "v1.0.0"
+                }
+            )
+
         # Загружаем параметры агента из manifests если есть
         # Или используем значения по умолчанию
         agent_config = {}

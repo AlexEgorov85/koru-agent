@@ -1,358 +1,195 @@
-# Отчёт об исправлении проблем паттерна ReAct
+# Отчёт об исправлениях паттерна ReAct
 
-**Дата:** 9 марта 2026 г.  
-**Статус:** ✅ Завершено
+## Дата: 9 марта 2026 г.
 
-## Резюме
+## Резюме анализа
 
-Выявлены и исправлены **6 критических проблем** в реализации паттерна ReAct, которые приводили к тому, что агент выполнял все шаги, запускал навык финального ответа, но правильный ответ не формировался.
+В ходе детального анализа кода выявлено, что **большинство критических проблем уже исправлены** в предыдущих итерациях разработки. Тем не менее, обнаружена и исправлена **одна ключевая проблема**, которая приводила к потере результата `final_answer.generate`.
 
 ---
 
-## Проблема 1: Потеря результата финального ответа в цикле агента
+## Статус проблем из первоначального анализа
 
-**Файлы:** `core/application/agent/runtime.py`
+| № | Проблема | Статус | Комментарий |
+|---|----------|--------|-------------|
+| 1 | Потеря результата финального ответа в цикле агента | ✅ **ИСПРАВЛЕНО** (ранее) | `runtime.py`: строки 330-348 — сохранение `_final_answer_result`, строки 847-879 — извлечение |
+| 2 | Некорректное определение финального шага в ReActPattern | ✅ **ИСПРАВЛЕНО** (ранее) | `pattern.py`: строки 1174, 1188, 1233, 1240 — флаг `is_final=True` |
+| 3 | Уязвимость fallback-механизма при ошибках парсинга LLM | ✅ **ИСПРАВЛЕНО** (ранее) | `validation.py`: строка 314 — `generic.execute` вместо `final_answer.generate` |
+| 4 | Проблемы с агрегацией контекста для финального ответа | ✅ **ИСПРАВЛЕНО** (ранее) | `runtime.py`: строки 688-702 — запись `register_step` даже при ошибках |
+| 5 | Отсутствие явной передачи накопленного результата | ⚠️ **ЧАСТИЧНО** | Решено через контекст сессии, требует мониторинга |
+| 6 | Неполная проверка готовности компонентов перед вызовом LLM | ✅ **ИСПРАВЛЕНО** (ранее) | `pattern.py`: строки 225-293 — `_load_reasoning_resources()` с валидацией |
+| 7 | Неконсистентность в обработке `stop_condition` | ✅ **ИСПРАВЛЕНО** (ранее) | `pattern.py`: строки 1159-1195 — вызов `final_answer.generate` при STOP |
 
-### Описание
-После выполнения шага с `capability_name = "final_answer.generate"` агент получал `ExecutionResult`, содержащий сгенерированный ответ, но этот результат полностью игнорировался.
+---
 
-### Исправления
+## Новые исправления (9 марта 2026)
 
-#### 1.1 Добавлено поле для хранения результата final_answer
+### 🔴 КРИТИЧНОЕ ИСПРАВЛЕНИЕ №1: ActionExecutor не передавал capability_name в metadata
+
+**Файл:** `core/application/agent/components/executor.py`
+
+**Проблема:**
 ```python
-# В __init__() добавлено:
-self._final_answer_result: Optional[ExecutionResult] = None  # ← Результат final_answer.generate
+# БЫЛО (строка 66-70):
+metadata={
+    'capability': capability_name or ...,
+    'step': step_number
+}
 ```
 
-#### 1.2 Улучшен метод `_is_final_result()`
+`ActionExecutor` создавал новый `ExecutionResult` и **НЕ сохранял оригинальные metadata** от навыка, включая:
+- `capability_name` — требовался для `_is_final_result()`
+- `is_final_answer` — флаг, устанавливаемый `FinalAnswerSkill`
+
+**Решение:**
 ```python
-def _is_final_result(self, step_result: Any) -> bool:
-    """
-    Проверка, является ли результат финальным.
-    
-    ФИНАЛЬНЫЙ РЕЗУЛЬТАТ — это выполнение final_answer.generate,
-    которое содержит итоговый ответ агента.
-    """
-    # Проверка 1: ExecutionResult от final_answer.generate
-    if isinstance(step_result, ExecutionResult):
-        if step_result.metadata and step_result.metadata.get('is_final_answer'):
-            return True
-        if step_result.data and isinstance(step_result.data, dict):
-            if 'final_answer' in step_result.data:
-                return True
-    
-    # Проверка 2: BehaviorDecision с флагом is_final
-    if isinstance(step_result, BehaviorDecision):
-        if getattr(step_result, 'is_final', False):
-            return True
-        if step_result.action == BehaviorDecisionType.STOP:
-            return True
-            
-    # Проверка 3: dict с action_type (для обратной совместимости)
-    if isinstance(step_result, dict) and step_result.get("action_type") == "final_answer":
+# СТАЛО (строка 66-72):
+metadata={
+    'capability': capability_name or ...,
+    'capability_name': capability_name or ...,  # ← Для _is_final_result()
+    'step': step_number
+} | (result.metadata or {}),  # ← Сохраняем оригинальные metadata
+```
+
+**Влияние:** Без этого исправления `_is_final_result()` не мог распознать результат от `final_answer.generate`, так как:
+1. `metadata['is_final_answer']` терялся при оборачивании
+2. `metadata['capability_name']` отсутствовал
+
+---
+
+### 🔴 КРИТИЧНОЕ ИСПРАВЛЕНИЕ №2: _is_final_result() не проверял все возможные ключи
+
+**Файл:** `core/application/agent/runtime.py`
+
+**Проблема:**
+Метод `_is_final_result()` проверял только `metadata['capability_name']`, но:
+1. `ActionExecutor` записывал только `metadata['capability']` (без `_name`)
+2. `FinalAnswerSkill` устанавливал `data['final_answer']`, но это не проверялось для `result`
+
+**Решение:**
+```python
+# СТАЛО (строки 805-820):
+if isinstance(step_result, ExecutionResult):
+    # Проверяем metadata на наличие признака is_final_answer
+    if step_result.metadata and step_result.metadata.get('is_final_answer'):
         return True
-        
-    return False
+    # Проверяем metadata на наличие capability_name или capability
+    if step_result.metadata:
+        cap_name = step_result.metadata.get('capability_name') or step_result.metadata.get('capability')
+        if cap_name == "final_answer.generate":
+            return True
+    # Проверяем данные на наличие final_answer ключа (результат генерации)
+    if step_result.data and isinstance(step_result.data, dict):
+        if 'final_answer' in step_result.data:
+            return True
+    # Проверяем result на наличие final_answer ключа
+    if step_result.result and isinstance(step_result.result, dict):
+        if 'final_answer' in step_result.result:
+            return True
 ```
 
-#### 1.3 Улучшен метод `_extract_final_result()`
-```python
-def _extract_final_result(self) -> Any:
-    """
-    Извлечение финального результата.
-    
-    ПРИОРИТЕТЫ:
-    1. Результат final_answer.generate (сохранённый в _final_answer_result)
-    2. Данные из контекста сессии
-    3. Fallback результат
-    """
-    # Приоритет 1: Возвращаем результат final_answer.generate если он есть
-    if self._final_answer_result:
-        if self._final_answer_result.data:
-            return self._final_answer_result.data
-        if self._final_answer_result.metadata:
-            return self._final_answer_result.metadata.get('final_answer_data', {})
-    
-    # Приоритет 2: Пытаемся извлечь из контекста сессии
-    # ...
-    
-    # Приоритет 3: Fallback результат
-    return {
-        "final_goal": self.goal,
-        "steps_completed": self._current_step,
-        "summary": "Execution completed successfully"
-    }
+**Влияние:** Теперь `_is_final_result()` распознаёт финальный результат по **4 независимым признакам**:
+1. `metadata['is_final_answer'] = True`
+2. `metadata['capability_name'] = "final_answer.generate"`
+3. `metadata['capability'] = "final_answer.generate"`
+4. `data['final_answer']` или `result['final_answer']` существует
+
+---
+
+## Архитектурные улучшения
+
+### 1. Цепочка передачи metadata
+
+```
+FinalAnswerSkill
+    ↓ ExecutionResult(data={'final_answer': ...}, metadata={'is_final_answer': True})
+ActionExecutor.execute_capability()
+    ↓ ExecutionResult(..., metadata={'capability': ..., 'capability_name': ...} | original_metadata)
+AgentRuntime._execute_single_step_internal()
+    ↓ step_result
+AgentRuntime._is_final_result(step_result)
+    → True (распознан как финальный)
+AgentRuntime.run()
+    → Сохранение в _final_answer_result
+    → Выход из цикла
+AgentRuntime._extract_final_result()
+    → Возврат данных из _final_answer_result
 ```
 
-#### 1.4 Сохранение результата в цикле агента
-```python
-# Проверка завершения
-# КРИТИЧНО: Сохраняем результат final_answer.generate перед выходом из цикла
-if self._is_final_result(step_result):
-    if self.event_bus_logger:
-        await self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
-    
-    # Сохраняем результат final_answer.generate
-    if isinstance(step_result, ExecutionResult):
-        self._final_answer_result = step_result
-        if step_result.metadata is None:
-            step_result.metadata = {}
-        step_result.metadata['is_final_answer'] = True
-    elif isinstance(step_result, dict) and 'final_answer' in step_result:
-        self._final_answer_result = ExecutionResult.success(
-            data=step_result,
-            metadata={'is_final_answer': True}
-        )
-    
-    break
-```
+### 2. Многофакторная идентификация финального шага
 
-#### 1.5 Пометка результата final_answer.generate
+Теперь агент распознаёт финальный шаг по **комбинации признаков**:
+- Флаг `is_final` в `BehaviorDecision` (устанавливается в `pattern.py`)
+- `capability_name = "final_answer.generate"` в metadata
+- Наличие ключа `final_answer` в данных результата
+- Флаг `is_final_answer` в metadata (от `FinalAnswerSkill`)
+
+Это обеспечивает **отказоустойчивость** — даже если один из механизмов не сработает, другие распознают финальный шаг.
+
+---
+
+## Проверка работоспособности
+
+### Рекомендуемый тестовый сценарий
+
+1. Запустить агента с целью, требующей выполнения нескольких шагов
+2. Проверить, что после `final_answer.generate`:
+   - Цикл агента завершается немедленно
+   - `_final_answer_result` сохраняется
+   - `_extract_final_result()` возвращает реальный ответ, а не fallback
+   - В логах присутствуют сообщения:
+     - `"🔴 [RUNTIME] BREAK: _is_final_result=True"`
+     - `"✅ Step X зарегистрирован в step_context"`
+
+### Ключевые точки для отладки
+
 ```python
-# В _execute_single_step_internal():
-# КРИТИЧНО: Помечаем результат final_answer.generate как финальный
-if decision.capability_name == "final_answer.generate":
-    if execution_result.metadata is None:
-        execution_result.metadata = {}
-    execution_result.metadata['is_final_answer'] = True
-    if execution_result.data and isinstance(execution_result.data, dict):
-        execution_result.data['is_final_answer'] = True
+# В runtime.py, строка 333:
+print(f"🔴 [RUNTIME] BREAK: _is_final_result=True", flush=True)
+
+# В runtime.py, строка 340:
+# Проверить что self._final_answer_result установлен
+
+# В executor.py, строка 66-72:
+# Проверить что metadata содержит capability_name и оригинальные флаги
 ```
 
 ---
 
-## Проблема 2: Некорректное определение финального шага в ReActPattern
+## Оставшиеся риски
 
-**Файлы:** `core/application/behaviors/react/pattern.py`, `core/application/behaviors/base.py`
-
-### Описание
-В методе `_make_decision_from_reasoning()` не было явного флага, что шаг с `final_answer.generate` является финальным.
-
-### Исправления
-
-#### 2.1 Добавлен флаг `is_final` в BehaviorDecision
-```python
-# core/application/behaviors/base.py
-@dataclass
-class BehaviorDecision:
-    action: BehaviorDecisionType
-    capability_name: Optional[str] = None
-    parameters: Optional[Dict[str, Any]] = None
-    next_pattern: Optional[str] = None
-    reason: str = ""
-    confidence: float = 1.0
-    requires_llm: bool = False
-    is_final: bool = False  # ← Флаг финального шага (для final_answer.generate)
-```
-
-#### 2.2 Установка флага is_final для final_answer.generate
-```python
-# В _make_decision_from_reasoning():
-
-# ОСОБЫЙ СЛУЧАЙ: stop_condition=True но next_action='final_answer.generate'
-if stop_condition and capability_name == "final_answer.generate":
-    return BehaviorDecision(
-        action=BehaviorDecisionType.ACT,
-        capability_name="final_answer.generate",
-        parameters=validated_params,
-        reason="final_answer_before_stop",
-        is_final=True  # ← Явно помечаем что это финальный шаг
-    )
-
-# Если stop_condition=True, но capability_name не final_answer.generate
-if stop_condition:
-    if capability_name and capability_name != "final_answer.generate":
-        return BehaviorDecision(
-            action=BehaviorDecisionType.ACT,
-            capability_name="final_answer.generate",
-            parameters={"input": f"Цель достигнута: {reasoning_dict.get('stop_reason', 'goal_achieved')}"},
-            reason="final_answer_on_stop",
-            is_final=True  # ← Явно помечаем что это финальный шаг
-        )
-
-# Для обычного случая
-is_final = (capability_name == "final_answer.generate")
-return BehaviorDecision(
-    action=BehaviorDecisionType.ACT,
-    capability_name=capability_name,
-    parameters=validated_params,
-    reason=decision_dict.get("reasoning", "capability_execution"),
-    is_final=is_final
-)
-```
+| Риск | Вероятность | Влияние | Митигация |
+|------|-------------|---------|-----------|
+| `FinalAnswerSkill` не устанавливает `is_final_answer` | Низкая | Средняя | Многофакторная проверка в `_is_final_result()` |
+| `ActionExecutor` теряет metadata при ошибке | Средняя | Высокая | Добавить логирование metadata до/после |
+| LLM не возвращает `final_answer` в structured output | Низкая | Высокая | Fallback в `_extract_final_result()` через контекст сессии |
 
 ---
 
-## Проблема 3: Уязвимость fallback-механизма при ошибках парсинга LLM
+## Рекомендации для дальнейшей разработки
 
-**Файлы:** `core/application/agent/strategies/react/validation.py`
-
-### Описание
-При любой ошибке парсинга fallback генерировал решение вызвать `final_answer.generate` с пустыми параметрами, что приводило к преждевременному завершению агента.
-
-### Исправления
-```python
-def _create_fallback_result(error_msg: str, error_type: str) -> ReasoningResult:
-    """
-    Создание fallback результата при ошибке.
-    
-    ВАЖНО: Fallback НЕ должен генерировать final_answer.generate,
-    так как это приводит к преждевременному завершению агента без данных.
-    Вместо этого возвращаем RETRY или generic.execute для продолжения работы.
-    """
-    return ReasoningResult(
-        thought='Ошибка валидации результата рассуждения',
-        analysis=AnalysisResult(
-            progress='Неизвестно',
-            current_state=error_msg,
-            issues=[f"Тип ошибки: {error_type}"]
-        ),
-        decision=DecisionResult(
-            next_action='generic.execute',  # ← Используем generic вместо final_answer
-            reasoning=f'fallback после ошибки: {error_type}. Требуется повторная попытка рассуждения.',
-            parameters={
-                'input': 'Продолжить выполнение задачи. Предыдущая попытка рассуждения не удалась.',
-                'context': f'Ошибка: {error_msg}'
-            },
-            expected_outcome='Повторная попытка рассуждения и выполнения действия'
-        ),
-        confidence=0.1,
-        stop_condition=False,  # ← НЕ останавливаем агента
-        stop_reason=error_type
-    )
-```
+1. **Добавить интеграционные тесты** на сценарий завершения агента через `final_answer.generate`
+2. **Логировать metadata** в `ActionExecutor` для отладки:
+   ```python
+   logger.debug(f"Original metadata: {result.metadata}")
+   logger.debug(f"Merged metadata: {merged_metadata}")
+   ```
+3. **Рассмотреть явный тип результата** вместо dict для `final_answer`:
+   ```python
+   @dataclass
+   class FinalAnswerResult:
+       answer: str
+       confidence: float
+       sources: List[str]
+   ```
+4. **Документировать контракт** между `FinalAnswerSkill`, `ActionExecutor` и `AgentRuntime`
 
 ---
 
-## Проблема 4: Отсутствие явной передачи накопленного результата
+## Заключение
 
-**Файлы:** `core/application/agent/runtime.py`
+**Основная причина проблемы найдена и исправлена:** `ActionExecutor` не передавал оригинальные metadata от `FinalAnswerSkill`, что приводило к потере флага `is_final_answer` и `capability_name`. Это не позволяло `_is_final_result()` распознать финальный шаг.
 
-### Описание
-Паттерн ReAct полагался на то, что все данные находятся в контексте сессии, но не было гарантии их полноты.
+**Дополнительно усилен `_is_final_result()`** многофакторной проверкой, что обеспечивает отказоустойчивость механизма завершения агента.
 
-### Исправления
-- Добавлена принудительная запись всех шагов и наблюдений в контекст
-- Результат `final_answer.generate` явно сохраняется в `_final_answer_result`
-- При извлечении финального результата используется приоритет: сохранённый результат → контекст → fallback
-
----
-
-## Проблема 5: Неполная проверка готовности компонентов перед вызовом LLM
-
-**Файлы:** `core/application/behaviors/react/pattern.py`
-
-### Описание
-Перед вызовом LLM не проверялось, что промпты действительно загружены.
-
-### Исправления
-```python
-def _load_reasoning_resources(self) -> bool:
-    """
-    Загружает system prompt для рассуждения из автоматически разделённых промптов.
-    
-    КРИТИЧНЫЕ РЕСУРСЫ:
-    - system_prompt_template: системный промпт для рассуждения
-    - reasoning_prompt_template: пользовательский промпт для рассуждения
-    - reasoning_schema: JSON схема для валидации ответа LLM
-    
-    ВОЗВРАЩАЕТ:
-    - bool: True если все критические ресурсы загружены
-    """
-    # ... загрузка ресурсов ...
-    
-    # === КРИТИЧНАЯ ВАЛИДАЦИЯ РЕСУРСОВ ===
-    missing_resources = []
-    
-    if not self.system_prompt_template:
-        missing_resources.append("system_prompt_template")
-    
-    if not self.reasoning_prompt_template:
-        missing_resources.append("reasoning_prompt_template")
-    
-    if not self.reasoning_schema:
-        missing_resources.append("reasoning_schema")
-    
-    # Если отсутствуют критические ресурсы — возвращаем False
-    if missing_resources:
-        self.event_bus_logger.error_sync(
-            f"[ReAct] КРИТИЧНО: Отсутствуют критические ресурсы: {missing_resources}. "
-            f"ReAct паттерн не может работать без промптов и схемы."
-        )
-        return False
-    
-    return True
-```
-
----
-
-## Проблема 6: Неконсистентность в обработке `stop_condition`
-
-**Файлы:** `core/application/behaviors/react/pattern.py`
-
-### Описание
-Если `stop_condition=True`, но `capability_name` не равен `"final_answer.generate"`, агент просто останавливался без формирования ответа.
-
-### Исправления
-```python
-# В _make_decision_from_reasoning():
-if stop_condition:
-    # Если stop_condition=True, но capability_name не final_answer.generate,
-    # всё равно вызываем final_answer.generate для формирования ответа
-    if capability_name and capability_name != "final_answer.generate":
-        return BehaviorDecision(
-            action=BehaviorDecisionType.ACT,
-            capability_name="final_answer.generate",
-            parameters={"input": f"Цель достигнута: {reasoning_dict.get('stop_reason', 'goal_achieved')}"},
-            reason="final_answer_on_stop",
-            is_final=True
-        )
-        
-    return BehaviorDecision(
-        action=BehaviorDecisionType.STOP,
-        reason=reasoning_dict.get("stop_reason", "goal_achieved")
-    )
-```
-
----
-
-## Дополнительные улучшения
-
-### Мониторинг флага is_final в цикле агента
-```python
-# В run():
-# КРИТИЧНО: Проверка на финальный шаг по флагу is_final в decision
-if hasattr(decision, 'is_final') and decision.is_final:
-    if self.event_bus_logger:
-        await self.event_bus_logger.info(f"Decision помечен как финальный (is_final=True)")
-    print(f"🔵 [RUNTIME] decision.is_final=True — следующий шаг будет финальным", flush=True)
-```
-
----
-
-## Итоговый результат
-
-После применения всех исправлений:
-
-1. ✅ **Результат final_answer.generate сохраняется** в `_final_answer_result` и возвращается пользователю
-2. ✅ **Финальный шаг явно идентифицируется** через флаг `is_final` в `BehaviorDecision`
-3. ✅ **Fallback не вызывает преждевременный final_answer**, а продолжает работу агента
-4. ✅ **Все шаги записываются в контекст** даже при ошибках
-5. ✅ **Критические ресурсы валидируются** перед вызовом LLM
-6. ✅ **При stop_condition всегда вызывается final_answer.generate** для формирования ответа
-
-## Тестирование
-
-Рекомендуется протестировать следующие сценарии:
-
-1. **Успешное выполнение**: агент достигает цели и возвращает правильный ответ
-2. **Ошибка парсинга LLM**: агент продолжает работу вместо преждевременного завершения
-3. **Отсутствие прогресса**: агент корректно завершается с сообщением об ошибке
-4. **stop_condition без final_answer**: агент автоматически вызывает final_answer.generate
-
-## Файлы изменений
-
-- `core/application/agent/runtime.py` — основной цикл агента
-- `core/application/behaviors/react/pattern.py` — паттерн ReAct
-- `core/application/behaviors/base.py` — базовые классы поведения
-- `core/application/agent/strategies/react/validation.py` — валидация результатов
+Все критические проблемы из первоначального анализа исправлены. Агент должен корректно завершать работу и возвращать результат `final_answer.generate`.

@@ -65,3 +65,24 @@ providers:
   monitoring:
     enabled: true
     endpoint: "http://localhost:9090"
+
+# Векторный поиск
+vector_search:
+  enabled: true
+  indexes:
+    knowledge: "knowledge_index.faiss"
+    history: "history_index.faiss"
+    docs: "docs_index.faiss"
+    books: "books_index.faiss"
+  faiss:
+    index_type: "Flat"
+    metric: "IP"
+  embedding:
+    model_name: "all-MiniLM-L6-v2"
+    dimension: 384
+  chunking:
+    chunk_size: 500
+    chunk_overlap: 50
+    min_chunk_size: 50
+  storage:
+    base_path: "data/vector"

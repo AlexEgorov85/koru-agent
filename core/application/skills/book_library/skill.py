@@ -73,7 +73,8 @@ class BookLibrarySkill(BaseComponent):
         self.supported_capabilities = {
             "book_library.search_books": self._search_books_dynamic,
             "book_library.execute_script": self._execute_script_static,
-            "book_library.list_scripts": self._list_scripts
+            "book_library.list_scripts": self._list_scripts,
+            "book_library.semantic_search": self._semantic_search  # новая capability для векторного поиска
         }
 
         # Кэш реестра скриптов
@@ -137,6 +138,19 @@ class BookLibrarySkill(BaseComponent):
                     "prompt_version": None,
                     "requires_llm": False,
                     "execution_type": "informational"
+                }
+            ),
+            Capability(
+                name="book_library.semantic_search",
+                description="Семантический поиск по текстам книг с использованием векторной БД (быстрый поиск по смыслу, а не ключевым словам)",
+                skill_name=self.name,
+                supported_strategies=["react", "planning"],
+                visiable=True,
+                meta={
+                    "contract_version": "v1.0.0",
+                    "prompt_version": "v1.0.0",
+                    "requires_llm": False,
+                    "execution_type": "vector"
                 }
             )
         ]
@@ -638,6 +652,119 @@ class BookLibrarySkill(BaseComponent):
             metadata={"scripts_count": len(scripts_list)},
             side_effect=False
         )
+
+    async def _semantic_search(self, params: Dict[str, Any]) -> Any:
+        """
+        Семантический поиск через векторную БД.
+
+        ПРЕИМУЩЕСТВА:
+        - Быстрый поиск по смыслу (не ключевым словам)
+        - Находит релевантные фрагменты текста книг
+        - Не требует LLM вызова (~100-500мс)
+
+        НЕДОСТАТКИ:
+        - Требует предварительно созданный FAISS индекс
+        - Возвращает чанки текста, а не метаданные книг
+
+        ВОЗВРАЩАЕТ:
+        - Pydantic модель (выходной контракт) или Dict (fallback)
+        """
+        import time
+        from core.application.agent.components.action_executor import ExecutionContext
+        from core.models.data.execution import ExecutionStatus
+        from core.models.data.capability import Capability
+
+        start_time = time.time()
+        await self.event_bus_logger.info(f"Запуск семантического поиска книг: {params}")
+
+        # 1. Валидация входных параметров
+        query = params.get('query') if isinstance(params, dict) else getattr(params, 'query', None)
+        top_k = params.get('top_k', 10) if isinstance(params, dict) else getattr(params, 'top_k', 10)
+        min_score = params.get('min_score', 0.5) if isinstance(params, dict) else getattr(params, 'min_score', 0.5)
+
+        if not query:
+            raise ValueError("Параметр 'query' обязателен для семантического поиска")
+
+        # 2. Получение инструмента vector_books_tool через компоненты
+        from core.models.enums.common_enums import ComponentType
+        
+        vector_tool = self.application_context.components.get(
+            ComponentType.TOOL,
+            "vector_books_tool"
+        )
+        if not vector_tool:
+            raise RuntimeError("Инструмент vector_books_tool не зарегистрирован")
+
+        # 3. Создание контекста выполнения
+        exec_context = ExecutionContext(
+            session_context=self.application_context.session_context,
+            user_context=None
+        )
+
+        # 4. Выполнение capability "search" инструмента vector_books
+        result = await vector_tool.execute(
+            capability=Capability(
+                name="vector_books.search",
+                description="Семантический поиск по книгам",
+                skill_name="vector_books_tool"
+            ),
+            parameters={
+                "query": query,
+                "top_k": top_k,
+                "min_score": min_score
+            },
+            execution_context=exec_context
+        )
+
+        # 5. Обработка результата
+        if result.status != ExecutionStatus.COMPLETED:
+            raise RuntimeError(f"Ошибка векторного поиска: {result.error}")
+
+        # Извлекаем данные из результата
+        search_data = result.data if hasattr(result, 'data') else result
+        if hasattr(search_data, 'model_dump'):
+            search_data = search_data.model_dump()
+
+        # 6. Формируем результат с добавлением execution_type
+        total_time = time.time() - start_time
+        result_data = {
+            "results": search_data.get("results", []),
+            "total_found": search_data.get("total_found", 0),
+            "execution_type": "vector"
+        }
+
+        await self.event_bus_logger.info(
+            f"Семантический поиск завершён: найдено {result_data['total_found']} результатов "
+            f"за {total_time*1000:.2f}мс"
+        )
+
+        # 7. Публикация метрик через EventBus
+        try:
+            from core.infrastructure.event_bus.unified_event_bus import EventType
+            await self._publish_metrics(
+                event_type=EventType.ACTION_COMPLETED,
+                capability_name="book_library.semantic_search",
+                success=True,
+                execution_time_ms=total_time * 1000,
+                tokens_used=0,
+                execution_type="vector",
+                rows_returned=result_data["total_found"],
+                script_name=None
+            )
+        except Exception as e:
+            await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
+
+        # 8. Валидация через выходной контракт
+        output_schema = self.get_cached_output_contract_safe("book_library.semantic_search")
+        if output_schema:
+            try:
+                validated_result = output_schema.model_validate(result_data)
+                return validated_result  # ← Pydantic модель
+            except Exception as e:
+                await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
+
+        # Fallback: возвращаем dict если схема не загружена
+        return result_data
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """
