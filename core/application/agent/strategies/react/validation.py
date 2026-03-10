@@ -162,10 +162,24 @@ def _parse_json_from_string(result: str, logger: logging.Logger) -> Optional[Dic
     """Парсинг JSON из строки результата."""
     import re
 
-    # Очищаем строку от markdown-разметки ```json ... ```
+    # === 1. УДАЛЕНИЕ MARKDOWN-РАЗМЕТКИ ===
     cleaned = result
-    cleaned = re.sub(r'```json', '', cleaned)
-    cleaned = re.sub(r'```', '', cleaned)
+    
+    # Удаляем ```json ... ``` блоки
+    markdown_json_pattern = r'```json\s*(.*?)\s*```'
+    markdown_matches = re.findall(markdown_json_pattern, cleaned, re.DOTALL)
+    
+    if markdown_matches:
+        # БЕРЁМ ПОСЛЕДНИЙ JSON блок (он обычно наиболее полный)
+        cleaned = markdown_matches[-1]
+        logger.info(f"Найдено {len(markdown_matches)} markdown JSON блоков, берём последний: {len(cleaned)} символов")
+    else:
+        # Удаляем любые ``` блоки
+        cleaned = re.sub(r'```.*?```', '', cleaned, flags=re.DOTALL)
+        # Очищаем от markdown-разметки
+        cleaned = re.sub(r'```json', '', cleaned)
+        cleaned = re.sub(r'```', '', cleaned)
+    
     cleaned = cleaned.strip()
 
     # Ищем первый {", который начинает настоящий JSON ответ LLM

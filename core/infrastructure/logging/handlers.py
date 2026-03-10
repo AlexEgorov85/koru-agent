@@ -290,10 +290,11 @@ class LoggingToEventBusHandler(logging.Handler):
 
     Это позволяет использовать новую систему логирования для ВСЕХ логов,
     включая те, что идут через logging.getLogger().info() и т.д.
-    
+
     ИГНОРИРУЕТ:
     - Сообщения от EventBus internal logger (чтобы избежать цикла)
     - Сообщения от SessionWorker (чтобы избежать цикла)
+    - Сообщения от модуля логирования (чтобы избежать цикла)
     """
 
     # Логгеры которые игнорируются (чтобы избежать бесконечного цикла)
@@ -301,6 +302,10 @@ class LoggingToEventBusHandler(logging.Handler):
         "core.infrastructure.event_bus.unified_event_bus.UnifiedEventBus",
         "core.infrastructure.event_bus.unified_event_bus.SessionWorker",
         "EventBusLog",
+        "core.infrastructure.logging",  # Игнорируем весь модуль логирования
+        "core.infrastructure.logging.handlers",
+        "core.infrastructure.logging.config",
+        "core.infrastructure.logging.session_log_handler",
     }
 
     def __init__(self, event_bus):
@@ -319,10 +324,12 @@ class LoggingToEventBusHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         """Публикация записи логирования в EventBus."""
         try:
-            # Игнорируем сообщения от EventBus (чтобы избежать цикла)
+            # Игнорируем сообщения от EventBus и логирования (чтобы избежать цикла)
             if record.name in self.IGNORED_LOGGERS or record.name.startswith("core.infrastructure.event_bus"):
                 return
-            
+            if record.name.startswith("core.infrastructure.logging"):
+                return
+
             from core.infrastructure.event_bus.unified_event_bus import EventType
 
             # Маппинг уровней logging на уровни EventBus
@@ -572,10 +579,12 @@ def setup_logging(event_bus: UnifiedEventBus, config: Optional[LoggingConfig] = 
     terminal_handler = TerminalLogHandler(event_bus)
     file_handler = None
 
+    # FileLogHandler ОТКЛЮЧЁН - дублирует SessionLogHandler
+    # SessionLogHandler пишет в logs/sessions/{date}_{time}/session.log
     # FileLogHandler создаётся только если включён
-    if config and config.file and config.file.enabled:
-        file_handler = FileLogHandler(event_bus)
-        file_handler.subscribe()
+    # if config and config.file and config.file.enabled:
+    #     file_handler = FileLogHandler(event_bus)
+    #     file_handler.subscribe()
 
     terminal_handler.subscribe()
 
