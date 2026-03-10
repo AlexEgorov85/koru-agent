@@ -555,7 +555,7 @@ class ReActPattern(BaseBehaviorPattern):
         session_context,
         context_analysis: Dict[str, Any],
         available_capabilities: List[Capability]
-    ) -> Dict[str, Any]:
+    ) -> ReasoningResult:
         """
         Выполняет структурированное рассуждение через LLM.
 
@@ -563,7 +563,7 @@ class ReActPattern(BaseBehaviorPattern):
         1. Проверка загрузки ресурсов
         2. Рендеринг промпта
         3. Вызов LLM через LLMOrchestrator (structured output)
-        4. Возврат распарсенного результата
+        4. Валидация и возврат ReasoningResult
         """
         # === 1. ПРОВЕРКА ЗАГРУЗКИ РЕСУРСОВ ===
         if not self._load_reasoning_resources():
@@ -582,14 +582,16 @@ class ReActPattern(BaseBehaviorPattern):
         )
 
         # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
-        llm_provider = None
         orchestrator = self.llm_orchestrator
-        if orchestrator and hasattr(orchestrator, 'provider'):
-            llm_provider = orchestrator.provider
+        if not orchestrator:
+            await self._log("warning", "LLMOrchestrator недоступен, используем fallback")
+            return self.fallback_strategy.create_reasoning_fallback(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason="orchestrator_not_available"
+            )
 
-        if not llm_provider and self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-
+        llm_provider = orchestrator.provider
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
             return self.fallback_strategy.create_reasoning_fallback(
@@ -615,13 +617,8 @@ class ReActPattern(BaseBehaviorPattern):
         # Устанавливаем контекст для логирования
         if hasattr(llm_provider, 'set_call_context'):
             current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
-            # ✅ ИСПРАВЛЕНО: Используем event_bus из infrastructure_context через orchestrator
-            event_bus = None
-            if orchestrator and hasattr(orchestrator, 'event_bus'):
-                event_bus = orchestrator.event_bus
-            elif self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-                event_bus = self.application_context.infrastructure_context.event_bus
-            
+            event_bus = orchestrator.event_bus if hasattr(orchestrator, 'event_bus') else None
+
             llm_provider.set_call_context(
                 event_bus=event_bus,
                 session_id=getattr(session_context, 'session_id', 'unknown'),
@@ -632,13 +629,13 @@ class ReActPattern(BaseBehaviorPattern):
 
         # Получаем цель из session_context
         goal_value = session_context.get_goal() if session_context else "unknown"
-        
+
         await self._log("info", f"Запуск рассуждения ReAct | Цель: {goal_value}")
         await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
-        # === 4. ВЫПОЛНЕНИЕ ЧЕРЕЗ ORCHESTRATOR ===
+        # === 5. ВЫПОЛНЕНИЕ ЧЕРЕЗ ORCHESTRATOR ===
         llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-        
+
         success, response, error = await self._execute_llm_with_orchestrator(
             llm_request=llm_request,
             llm_provider=llm_provider,
@@ -646,7 +643,7 @@ class ReActPattern(BaseBehaviorPattern):
             session_context=session_context
         )
 
-        # === 5. ОБРАБОТКА ОТВЕТА ===
+        # === 6. ОБРАБОТКА ОТВЕТА ===
         if not success:
             await self._log("error", f"LLM вызов не удался: {error}")
             return self.fallback_strategy.create_reasoning_fallback(
@@ -655,40 +652,9 @@ class ReActPattern(BaseBehaviorPattern):
                 reason=f"llm_call_failed:{error}"
             )
 
-        # === 6. ИЗВЛЕЧЕНИЕ РЕЗУЛЬТАТА ===
-        result = None
-
-        # Проверяем что это StructuredLLMResponse
-        if hasattr(response, 'parsed_content') and hasattr(response, 'raw_response'):
-            if response.parsed_content:
-                result = response.parsed_content  # Pydantic модель
-            elif response.raw_response:
-                # Fallback: парсим raw_response.content
-                content_val = response.raw_response.content
-                if isinstance(content_val, str):
-                    result = JsonParserUtil.extract_json_from_response(content_val)
-                else:
-                    result = content_val
-            else:
-                await self._log("error", "StructuredLLMResponse пуст")
-        elif hasattr(response, 'content'):
-            # Fallback для простого LLMResponse
-            content_val = response.content
-            result = JsonParserUtil.extract_json_from_response(content_val) if isinstance(content_val, str) else content_val
-        else:
-            await self._log("error", f"Неизвестный тип response: {type(response).__name__}")
-            result = response
-
-        if result is None:
-            await self._log("error", "LLM вернул пустой результат")
-            return self.fallback_strategy.create_reasoning_fallback(
-                context_analysis=context_analysis,
-                available_capabilities=available_capabilities,
-                reason="empty_response"
-            )
-
-        # === 7. ВАЛИДАЦИЯ РЕЗУЛЬТАТА ===
-        reasoning_result = validate_reasoning_result(result)
+        # === 7. ВАЛИДАЦИЯ И ВОЗВРАТ РЕЗУЛЬТАТА ===
+        # validate_reasoning_result принимает StructuredLLMResponse напрямую
+        reasoning_result = validate_reasoning_result(response)
         reasoning_result.available_capabilities = available_capabilities
 
         return reasoning_result
@@ -757,9 +723,10 @@ class ReActPattern(BaseBehaviorPattern):
             # Если LLM предлагает то же действие повторно после успешного выполнения —
             # принудительно вызываем final_answer.generate
             if session_context and hasattr(session_context, 'step_context'):
-                last_steps = session_context.step_context.get_last_steps() if hasattr(session_context.step_context, 'get_last_steps') else []
+                # Получаем последний шаг (n=1)
+                last_steps = session_context.step_context.get_last_steps(1) if hasattr(session_context.step_context, 'get_last_steps') else []
                 if last_steps:
-                    last_step = last_steps[-1] if len(last_steps) > 0 else None
+                    last_step = last_steps[0]  # get_last_steps(1) возвращает список из 1 элемента
                     if last_step and hasattr(last_step, 'capability_name'):
                         last_capability = last_step.capability_name
                         last_status = last_step.status.value if hasattr(last_step.status, 'value') else str(last_step.status)
