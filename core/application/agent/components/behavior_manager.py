@@ -114,10 +114,10 @@ class BehaviorManager:
                         f"ACT decision без capability_name! "
                         f"Decision: {decision.action.value}, reason: {decision.reason[:100] if decision.reason else 'N/A'}"
                     )
-                # Валидация не прошла — возвращаем SWITCH на fallback
+                # Валидация не прошла — переключение на react_pattern
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
-                    next_pattern="fallback_pattern",
+                    next_pattern="react_pattern",
                     reason="invalid_act_decision_no_capability"
                 )
 
@@ -148,10 +148,10 @@ class BehaviorManager:
                         f"Capability '{decision.capability_name}' не найдена в доступных! "
                         f"Available: {[c.name for c in available_capabilities]}"
                     )
-                # Валидация не прошла — возвращаем SWITCH на fallback
+                # Валидация не прошла — переключение на react_pattern
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
-                    next_pattern="fallback_pattern",
+                    next_pattern="react_pattern",
                     reason="capability_not_found"
                 )
 

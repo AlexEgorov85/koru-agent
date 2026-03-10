@@ -194,6 +194,117 @@ class AgentPolicy:
         return state.no_progress_steps >= self.max_no_progress_steps
 
     # ==========================================================
+    # FALLBACK LOGIC — логика восстановления после ошибок
+    # ==========================================================
+
+    def should_switch_pattern(self, recent_errors: list) -> tuple[bool, str]:
+        """
+        Проверка необходимости переключения паттерна.
+
+        АРХИТЕКТУРА:
+        - Временные ошибки → переключение на react_pattern
+        - Ошибки планирования → переключение на react_pattern
+        - Ошибки capability → попытка найти альтернативу
+
+        ПАРАМЕТРЫ:
+        - recent_errors: список последних ошибок
+
+        ВОЗВРАЩАЕТ:
+        - tuple[bool, str]: (нужно_переключить, целевой_паттерн)
+        """
+        if not recent_errors:
+            return False, ""
+
+        last_error = str(recent_errors[0]).lower()
+
+        # Временные ошибки → react_pattern
+        transient_keywords = ["timeout", "network", "connection", "temporarily unavailable"]
+        if any(keyword in last_error for keyword in transient_keywords):
+            return True, "react_pattern"
+
+        # Ошибки планирования → react_pattern
+        planning_keywords = ["planning", "plan", "step", "dependency", "sequence"]
+        if any(keyword in last_error for keyword in planning_keywords):
+            return True, "react_pattern"
+
+        return False, ""
+
+    def should_fallback(self, state, recent_errors: list = None) -> tuple[bool, str]:
+        """
+        Проверка необходимости fallback (переключения на react_pattern).
+
+        ПАРАМЕТРЫ:
+        - state: текущее состояние агента
+        - recent_errors: последние ошибки (опционально)
+
+        ВОЗВРАЩАЕТ:
+        - tuple[bool, str]: (нужно_fallback, причина)
+        """
+        # Проверка лимита ошибок
+        if state.error_count >= self.max_errors:
+            return True, "max_errors_exceeded"
+
+        # Проверка ошибок через should_switch_pattern
+        if recent_errors:
+            should_switch, _ = self.should_switch_pattern(recent_errors)
+            if should_switch:
+                return True, "transient_or_planning_error"
+
+        return False, ""
+
+    def get_alternative_capability(self, recent_errors: list, available_capabilities: list) -> str:
+        """
+        Поиск альтернативной capability при ошибке.
+
+        АРХИТЕКТУРА:
+        - Ищет capability с похожей функциональностью
+        - Приоритет: search, query, find операции
+
+        ПАРАМЕТРЫ:
+        - recent_errors: последние ошибки
+        - available_capabilities: доступные capability
+
+        ВОЗВРАЩАЕТ:
+        - str: имя альтернативной capability или None
+        """
+        if not recent_errors or not available_capabilities:
+            return None
+
+        # Ищем capability с поисковыми операциями
+        for cap in available_capabilities:
+            cap_name = cap.name if hasattr(cap, 'name') else cap
+            if any(kw in cap_name.lower() for kw in ["search", "query", "find"]):
+                return cap_name
+
+        return None
+
+    def generate_failure_report(self, session_context) -> dict:
+        """
+        Генерация отчёта о сбое.
+
+        ПАРАМЕТРЫ:
+        - session_context: контекст сессии
+
+        ВОЗВРАЩАЕТ:
+        - dict: отчёт о сбое
+        """
+        try:
+            summary = session_context.get_summary() if session_context and hasattr(session_context, 'get_summary') else {}
+            return {
+                "status": "failed",
+                "failure_type": "critical",
+                "session_summary": summary,
+                "recommendation": "Manual intervention required"
+            }
+        except Exception:
+            return {
+                "status": "failed",
+                "failure_type": "critical",
+                "session_summary": "Unable to generate summary",
+                "recommendation": "Manual intervention required"
+            }
+
+    # ==========================================================
     # detect_loop() — защита от зацикливания
     # ==========================================================
 
