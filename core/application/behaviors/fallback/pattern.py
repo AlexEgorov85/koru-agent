@@ -15,10 +15,11 @@ class FallbackPattern(BaseBehaviorPattern):
     АРХИТЕКТУРА:
     - component_name используется для получения config из AppConfig
     - pattern_id генерируется из component_name для совместимости
+    - НЕ использует LLM и промпты (только детерминированная логика)
     """
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = ["prompt_service"]
+    # Зависимости ОТСУТСТВУЮТ — паттерн не использует сервисы
+    # DEPENDENCIES = []  # ← Явно не указываем, т.к. BaseBehaviorPattern уже имеет prompt_builder
 
     def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
         """Инициализация паттерна.
@@ -50,14 +51,24 @@ class FallbackPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any]
     ) -> BehaviorDecision:
+        """
+        Генерация решения для восстановления после ошибок.
+        
+        АРХИТЕКТУРА:
+        - component_config может быть None (если у паттерна нет промптов)
+        - Использует значения по умолчанию если конфигурация недоступна
+        """
         # Анализ последних ошибок
         recent_errors = context_analysis["recent_errors"]
 
-        # Версии паттернов из конфигурации (ПРАВИЛЬНО)
-        default_fallback_pattern = self.component_config.parameters.get(
-            "default_fallback_pattern",
-            "react_pattern"
-        ) if self.component_config else "react_pattern"
+        # Версии паттернов из конфигурации или значения по умолчанию
+        # component_config может быть None для паттернов без промптов
+        default_fallback_pattern = "react_pattern"  # Значение по умолчанию
+        if self.component_config and hasattr(self.component_config, 'parameters'):
+            default_fallback_pattern = self.component_config.parameters.get(
+                "default_fallback_pattern",
+                "react_pattern"
+            )
 
         if self._is_transient_error(recent_errors):
             return BehaviorDecision(

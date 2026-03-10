@@ -18,7 +18,6 @@ from core.application.agent.strategies.react.schema_validator import SchemaValid
 from core.application.agent.strategies.react.utils import analyze_context
 from core.models.schemas.react_models import ReasoningResult
 from core.application.agent.strategies.react.validation import validate_reasoning_result
-from core.retry_policy.retry_and_error_policy import RetryPolicy
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest, StructuredOutputConfig, LLMResponse
 from core.models.errors import InfrastructureError
@@ -121,7 +120,6 @@ class ReActPattern(BaseBehaviorPattern):
         self.error_count = 0
         self.max_consecutive_errors = 3
         self.schema_validator = SchemaValidator()
-        self.retry_policy = RetryPolicy()
 
         # === СПЕЦИФИЧНЫЕ СЕРВИСЫ ReAct ===
         self.fallback_strategy = FallbackStrategyService()
@@ -591,7 +589,11 @@ class ReActPattern(BaseBehaviorPattern):
                 reason="orchestrator_not_available"
             )
 
-        llm_provider = orchestrator.provider
+        # Получаем LLM провайдер из infrastructure_context
+        llm_provider = None
+        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+        
         if not llm_provider:
             await self._log("warning", "LLM провайдер недоступен, используем fallback")
             return self.fallback_strategy.create_reasoning_fallback(
@@ -718,32 +720,6 @@ class ReActPattern(BaseBehaviorPattern):
             if not capability_name:
                 recommended_action = reasoning_dict.get("recommended_action", {})
                 capability_name = recommended_action.get("capability_name")
-
-            # === КРИТИЧНО: ПРОВЕРКА НА Зацикливание через RetryPolicy ===
-            # Если LLM предлагает то же действие повторно после успешного выполнения —
-            # принудительно вызываем final_answer.generate
-            if session_context and hasattr(session_context, 'step_context'):
-                # Получаем последний шаг (n=1)
-                last_steps = session_context.step_context.get_last_steps(1) if hasattr(session_context.step_context, 'get_last_steps') else []
-                if last_steps:
-                    last_step = last_steps[0]  # get_last_steps(1) возвращает список из 1 элемента
-                    if last_step and hasattr(last_step, 'capability_name'):
-                        last_capability = last_step.capability_name
-                        last_status = last_step.status.value if hasattr(last_step.status, 'value') else str(last_step.status)
-                        
-                        # Используем RetryPolicy для детекции зацикливания
-                        if hasattr(self, 'retry_policy') and self.retry_policy:
-                            is_loop = self.retry_policy.detect_loop(
-                                current_capability=capability_name,
-                                last_capability=last_capability,
-                                last_status=last_status
-                            )
-                            if is_loop:
-                                await self._log("warning", f"LOOP DETECTED by RetryPolicy: {capability_name} повторяется после {last_status}, переключаемся на final_answer.generate")
-                                capability_name = "final_answer.generate"
-                                decision_dict["next_action"] = "final_answer.generate"
-                                decision_dict["reasoning"] = "Данные уже получены, формируем финальный ответ (защита от зацикливания через RetryPolicy)"
-                                stop_condition = True
 
             # ОСОБЫЙ СЛУЧАЙ: stop_condition=True но next_action='final_answer.generate'
             # Это значит LLM хочет вызвать final_answer перед остановкой

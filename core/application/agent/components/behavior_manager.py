@@ -172,19 +172,24 @@ class BehaviorManager:
 
         return decision
 
-    async def _switch_pattern(self, new_pattern_id: str, reason: str):
-        """Переключение на новый паттерн"""
+    async def _switch_pattern(self, new_component_name: str, reason: str):
+        """Переключение на новый паттерн
+        
+        ПАРАМЕТРЫ:
+        - new_component_name: Имя компонента (например "fallback_pattern", "react_pattern")
+        - reason: Причина переключения
+        """
         if not self._behavior_storage:
             raise ValueError("BehaviorStorage не инициализирован")
 
-        # Загрузка нового паттерна
-        new_pattern = await self._behavior_storage.load_pattern(new_pattern_id)
+        # Загрузка нового паттерна по component_name
+        new_pattern = await self._behavior_storage.load_pattern_by_component(new_component_name)
 
         # Сохранение истории переключений
         switch_record = {
             "timestamp": "TODO",  # В реальной реализации будет время
             "from_pattern": self._current_pattern.pattern_id if self._current_pattern else None,
-            "to_pattern": new_pattern_id,
+            "to_pattern": new_component_name,
             "reason": reason
         }
         self._pattern_history.append(switch_record)

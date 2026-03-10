@@ -63,33 +63,34 @@ class BehaviorStorage:
     async def _load_from_component_name(self, component_name: str, pattern_type: str) -> 'BehaviorPattern':
         """
         Загружает паттерн из FS по component_name.
-        
+
         ПАРАМЕТРЫ:
         - component_name: Имя компонента (например "react_pattern")
         - pattern_type: Тип паттерна (например "react")
-        
+
         ВОЗВРАЩАЕТ:
         - BehaviorPattern: Экземпляр паттерна
         """
         # Находим активную версию из registry.yaml через application_context
         if not self._application_context:
             raise RuntimeError("ApplicationContext не доступен для загрузки паттерна")
-        
+
         # Получаем behavior_configs из AppConfig
         behavior_configs = getattr(self._application_context.config, 'behavior_configs', {})
         component_config = behavior_configs.get(component_name)
-        
-        if not component_config:
-            raise ValueError(f"Component config для {component_name} не найден в AppConfig")
-        
+
+        # Если component_config не найден (например, для fallback_pattern без промптов),
+        # передаём None — паттерн должен работать без конфигурации
+        # component_config = None означает что у паттерна нет промптов/контрактов
+
         # Получаем класс паттерна
         pattern_class = self._get_pattern_class(pattern_type, "v1.0.0")  # Версия не важна для новой архитектуры
 
-        # Создание экземпляра паттерна с component_name и component_config
+        # Создание экземпляра паттерна с component_name и component_config (может быть None)
         # Передаём executor для совместимости с BaseComponent
         pattern_instance = pattern_class(
             component_name=component_name,
-            component_config=component_config,
+            component_config=component_config,  # ← Может быть None!
             application_context=self._application_context,
             executor=self._executor  # ← Передаём executor из behavior_manager
         )

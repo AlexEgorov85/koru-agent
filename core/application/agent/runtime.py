@@ -15,8 +15,9 @@ import uuid
 from core.application.context.application_context import ApplicationContext
 from core.execution.gateway import ExecutionGateway
 from core.models.data.execution import ExecutionResult
-from core.models.enums.common_enums import ExecutionStatus
+from core.models.enums.common_enums import ExecutionStatus, ErrorCategory, RetryDecision
 from core.infrastructure.logging import EventBusLogger
+from core.models.types.retry_policy import ExecutionErrorInfo
 
 # Импорт компонентов из новой архитектуры
 from .components import (
@@ -122,7 +123,7 @@ class AgentRuntime:
         # ===================================
 
         # Инициализация компонентов
-        self.policy = policy or AgentPolicy()
+        self.policy = policy or AgentPolicy()  # ← Единая политика агента
         self.state = AgentState()
         self.progress = ProgressScorer()
 
@@ -213,10 +214,11 @@ class AgentRuntime:
             previous_snapshot = None
             previous_decision = None
             no_progress_counter = 0
-            
+
             # Переменные для отслеживания ошибок выполнения
             last_step_failed = False
             last_error_message = None
+            consecutive_error_count = 0  # ← Счётчик последовательных ошибок
 
             # Цикл рассуждений
             print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
@@ -272,18 +274,54 @@ class AgentRuntime:
                 step_result = await self._execute_single_step_internal(decision, available_caps)
                 print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
 
-                # ПРОВЕРКА: Если шаг вернул ExecutionResult с ошибкой — прерываем цикл
+                # === ОБРАБОТКА ОШИБОК ЧЕРЕЗ AgentPolicy.evaluate() ===
                 if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.FAILED:
+                    # Классифицируем ошибку
+                    error_info = ExecutionErrorInfo(
+                        category=step_result.error_category,
+                        message=step_result.error or "Неизвестная ошибка",
+                        raw_error=step_result.error
+                    )
+                    
+                    # Оцениваем через AgentPolicy.evaluate()
+                    retry_decision = self.policy.evaluate(
+                        error=error_info,
+                        attempt=consecutive_error_count
+                    )
+                    
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(
-                            f"Агент завершил выполнение с ошибкой на шаге {self._current_step}: {step_result.error}"
+                            f"Ошибка на шаге {self._current_step}: {step_result.error} | "
+                            f"Категория: {step_result.error_category.value} | "
+                            f"AgentPolicy: {retry_decision.decision.value}"
                         )
-                    # Устанавливаем флаги для корректного финального статуса
-                    last_step_failed = True
-                    last_error_message = step_result.error
-                    self._result = step_result
-                    self._running = False
-                    break
+                    
+                    # Обрабатываем решение AgentPolicy
+                    if retry_decision.decision == RetryDecision.RETRY:
+                        # Повторная попытка с задержкой
+                        consecutive_error_count += 1
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.info(
+                                f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
+                                f"через {retry_decision.delay_seconds:.2f} сек"
+                            )
+                        await asyncio.sleep(retry_decision.delay_seconds)
+                        continue  # Повторяем шаг с тем же decision
+                    elif retry_decision.decision == RetryDecision.ABORT:
+                        # Прерываем текущее действие, но не агента
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.warning(
+                                f"Abort: {retry_decision.reason}. Пропускаем действие."
+                            )
+                        consecutive_error_count = 0
+                        # Переходим к следующему шагу (не прерываем цикл)
+                    else:
+                        # FAIL или ABORT — прерываем агента
+                        last_step_failed = True
+                        last_error_message = f"{retry_decision.reason}: {step_result.error}"
+                        self._result = step_result
+                        self._running = False
+                        break
 
                 # ПРОВЕРКА 2: Изменился ли state
                 current_snapshot = self.state.snapshot()
@@ -296,6 +334,36 @@ class AgentRuntime:
                 else:
                     # Сброс счетчика если state изменился
                     no_progress_counter = 0
+
+                # Сброс счётчика ошибок при успешном выполнении
+                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.COMPLETED:
+                    consecutive_error_count = 0
+                    
+                    # === DETECT LOOP: Проверка на зацикливание capability ===
+                    # Если то же capability выполняется повторно после успешного выполнения — зацикливание
+                    if hasattr(decision, 'capability_name') and decision.capability_name:
+                        current_cap = decision.capability_name
+                        # Получаем последний выполненный шаг
+                        session_ctx = self.application_context.session_context
+                        if session_ctx and hasattr(session_ctx, 'step_context'):
+                            last_steps = session_ctx.step_context.get_last_steps(1) if hasattr(session_ctx.step_context, 'get_last_steps') else []
+                            if last_steps:
+                                last_step = last_steps[0]
+                                if hasattr(last_step, 'capability_name') and hasattr(last_step, 'status'):
+                                    last_cap = last_step.capability_name
+                                    last_status = last_step.status.value if hasattr(last_step.status, 'value') else str(last_step.status)
+                                    
+                                    # Проверка: то же capability после успешного выполнения
+                                    if (current_cap == last_cap and 
+                                        last_status == 'completed' and 
+                                        current_cap != 'final_answer.generate'):
+                                        if self.event_bus_logger:
+                                            await self.event_bus_logger.warning(
+                                                f"LOOP DETECTED: {current_cap} повторяется после успешного выполнения. "
+                                                f"Принудительно вызываем final_answer.generate"
+                                            )
+                                        # Помечаем что нужно вызывать final_answer
+                                        # (будет обработано на следующем шаге через behavior_manager)
 
                 previous_snapshot = current_snapshot
                 previous_decision = decision
