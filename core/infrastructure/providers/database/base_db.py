@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, Union
 
 
-from core.retry_policy.retry_and_error_policy import RetryPolicy
+from core.application.agent.components.policy import AgentPolicy
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 from core.infrastructure.providers.base_provider import BaseProvider
 
