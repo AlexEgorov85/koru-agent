@@ -118,6 +118,7 @@ class ErrorCategory(str, Enum):
     - INVALID_INPUT: ошибки валидации входных данных (ошибки агента)
     - TOOL_FAILURE: ошибки внешних инструментов или баги
     - FATAL: критические ошибки, при которых продолжение бессмысленно
+    - UNKNOWN: неизвестная категория ошибки (по умолчанию)
 
     ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ:
     # Сетевая ошибка
@@ -141,6 +142,7 @@ class ErrorCategory(str, Enum):
     INVALID_INPUT = "invalid_input"  # ошибка агента
     TOOL_FAILURE = "tool_failure"    # баг или внешняя система
     FATAL = "fatal"                  # продолжать бессмысленно
+    UNKNOWN = "unknown"              # неизвестная категория
 
 
 class RetryDecision(str, Enum):

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from core.models.enums.common_enums import ExecutionStatus
+from core.models.enums.common_enums import ExecutionStatus, ErrorCategory
 
 
 @dataclass
@@ -25,6 +25,7 @@ class ExecutionResult:
     - status: статус выполнения (ExecutionStatus)
     - data: полезные данные результата (может быть Pydantic моделью!)
     - error: описание ошибки (если была)
+    - error_category: категория ошибки (ErrorCategory)
     - metadata: дополнительные метаданные (время, токены, версии)
     - side_effect: был ли side-effect (файл, сеть, БД, изменение контекста)
 
@@ -36,6 +37,7 @@ class ExecutionResult:
     status: ExecutionStatus
     data: Optional[Any] = None  # ← Может быть Pydantic моделью!
     error: Optional[str] = None
+    error_category: ErrorCategory = ErrorCategory.UNKNOWN  # ← Категория ошибки
     metadata: Dict[str, Any] = field(default_factory=dict)
     side_effect: bool = False
 
@@ -58,6 +60,7 @@ class ExecutionResult:
             "status": self.status.value if hasattr(self.status, 'value') else str(self.status),
             "data": self.data.model_dump() if isinstance(self.data, BaseModel) else self.data,
             "error": self.error,
+            "error_category": self.error_category.value if hasattr(self.error_category, 'value') else str(self.error_category),
             "metadata": self.metadata,
             "side_effect": self.side_effect
         }
@@ -74,12 +77,13 @@ class ExecutionResult:
         )
 
     @classmethod
-    def failure(cls, error: str, metadata: Optional[Dict[str, Any]] = None) -> 'ExecutionResult':
+    def failure(cls, error: str, metadata: Optional[Dict[str, Any]] = None, error_category: ErrorCategory = ErrorCategory.UNKNOWN) -> 'ExecutionResult':
         """Factory метод для неудачного результата."""
         return cls(
             status=ExecutionStatus.FAILED,
             data=None,
             error=error,
+            error_category=error_category,
             metadata=metadata or {},
             side_effect=False
         )
