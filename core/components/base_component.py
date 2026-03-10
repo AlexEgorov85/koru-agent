@@ -256,6 +256,23 @@ class BaseComponent(LifecycleMixin, ABC):
                         component=self.__class__.__name__,
                         get_init_state_callback=self._get_logger_init_state
                     )
+        # Fallback на dummy-логгер если ничего не доступно
+        else:
+            self.event_bus_logger = self._create_dummy_logger()
+
+    def _create_dummy_logger(self):
+        """Создаёт dummy-логгер для компонентов без event_bus."""
+        class DummyLogger:
+            async def info(self, msg, *a, **k): pass
+            async def debug(self, msg, *a, **k): pass
+            async def warning(self, msg, *a, **k): pass
+            async def error(self, msg, *a, **k): pass
+            async def exception(self, msg, *a, **k): pass
+            def info_sync(self, msg, *a, **k): pass
+            def debug_sync(self, msg, *a, **k): pass
+            def warning_sync(self, msg, *a, **k): pass
+            def error_sync(self, msg, *a, **k): pass
+        return DummyLogger()
 
     def _safe_log_sync(self, level: str, message: str, **kwargs):
         """
@@ -283,22 +300,18 @@ class BaseComponent(LifecycleMixin, ABC):
         - Переводит компонент в состояние INITIALIZING
         - При успехе: READY
         - При ошибке: FAILED
-        
+
         ЛОГИРОВАНИЕ:
         - Во время инициализации (INITIALIZING) логи выводятся синхронно
         - После перехода в READY логи публикуются асинхронно через EventBus
         """
-        import logging
         import time
-        logger = logging.getLogger(__name__)
         current_time = time.time()
 
         # Проверка: нельзя инициализировать повторно
         if self._state == ComponentState.READY:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Компонент '{self.name}' уже инициализирован")
-            else:
-                logger.warning(f"Компонент '{self.name}' уже инициализирован")
             return True
 
         # Переход в состояние INITIALIZING
@@ -881,9 +894,7 @@ class BaseComponent(LifecycleMixin, ABC):
 ### {title} ###
 {description}
 
-```json
 {schema_json}
-```
 """
 
     def _render_prompt_with_contract(

@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Iterator, AsyncIterator
 
-from core.infrastructure.logging.log_config import LoggingConfig, get_logging_config
+from core.infrastructure.logging.config import LoggingConfig, get_logging_config
 from core.infrastructure.logging.log_indexer import LogIndexer, SessionIndexEntry, get_log_indexer
 
 

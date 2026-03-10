@@ -28,8 +28,14 @@ class DataRepository:
             self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="DataRepository")
             self._use_event_logging = True
         else:
-            import logging
-            self.logger = logging.getLogger(__name__)
+            # Dummy-логгер для обратной совместимости
+            class DummyLogger:
+                def info(self, msg, *a, **k): pass
+                def debug(self, msg, *a, **k): pass
+                def warning(self, msg, *a, **k): pass
+                def error(self, msg, *a, **k): pass
+                def exception(self, msg, *a, **k): pass
+            self.logger = DummyLogger()
             self._use_event_logging = False
 
         # ТИПИЗИРОВАННЫЕ индексы (объекты классов, не словари!)

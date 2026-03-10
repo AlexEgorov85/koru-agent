@@ -19,10 +19,8 @@ class PlanningSkill(BaseComponent):
 
     def __init__(self, name: str, application_context: Any, component_config=None, executor=None):
         super().__init__(name, application_context, component_config=component_config, executor=executor)
-        # Инициализация логгера
-        import logging
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        # event_bus_logger будет инициализирован в BaseComponent.__init__()
+        # event_bus_logger инициализируется в BaseComponent.__init__()
+        # logging.getLogger() больше не используется
 
     async def execute(
         self,

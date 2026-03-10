@@ -74,8 +74,7 @@ class BaseSkill(BaseComponent):
                     f"output-контракты={len(self.output_contracts)}"
                 )
             else:
-                import logging
-                logging.getLogger(__name__).info(
+                self._safe_log_sync("info",
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
                     f"Загружено: промпты={len(self.prompts)}, "
                     f"input-контракты={len(self.input_contracts)}, "
@@ -338,8 +337,7 @@ class BaseSkill(BaseComponent):
             if hasattr(self.application_context, 'logger'):
                 self.application_context.logger.error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
             else:
-                import logging
-                logging.getLogger(__name__).error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
+                self._safe_log_sync("error", f"Ошибка перезапуска навыка {self.name}: {str(e)}")
             return False
 
     def restart_with_module_reload(self):
@@ -354,8 +352,7 @@ class BaseSkill(BaseComponent):
         if hasattr(self.application_context, 'logger'):
             self.application_context.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         else:
-            import logging
-            logging.getLogger(__name__).warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
+            self._safe_log_sync("warning", f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
         return safe_reload_component_with_module_reload(self)
 
     async def shutdown(self):
