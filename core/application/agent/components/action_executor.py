@@ -45,9 +45,18 @@ class ActionExecutor:
 
     def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
-        # Ленивое получение logger чтобы избежать циклического импорта
-        import logging
-        self.logger = logging.getLogger(__name__)
+        # Используем event_bus_logger из infrastructure_context если доступен
+        self._event_bus_logger = None
+        try:
+            if hasattr(application_context, 'infrastructure_context'):
+                self._event_bus_logger = getattr(application_context.infrastructure_context, 'event_bus_logger', None)
+        except Exception:
+            pass
+
+    def _log_debug(self, msg: str, *args, **kwargs):
+        """Отладочное логирование."""
+        if self._event_bus_logger:
+            asyncio.create_task(self._event_bus_logger.debug(msg, *args, **kwargs))
     
     async def execute_action(
         self,
@@ -66,8 +75,7 @@ class ActionExecutor:
         RETURNS:
         - ActionResult: результат выполнения
         """
-        if self.logger:
-            self.logger.debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
+        self._log_debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
 
         try:
             # 1. Обработка действий контекста (context.*)
@@ -110,8 +118,8 @@ class ActionExecutor:
                 return await self._execute_skill_or_behavior_action(target_component, action_name, parameters, context)
 
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
+            if self._event_bus_logger:
+                asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True))
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -173,8 +181,8 @@ class ActionExecutor:
                     error=f"Неизвестное действие контекста: {action_name}"
                 )
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True)
+            if self._event_bus_logger:
+                asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True))
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка действия контекста: {str(e)}"
@@ -589,8 +597,8 @@ class ActionExecutor:
                     error=f"Неизвестное действие валидации: {action_name}"
                 )
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка валидации '{action_name}': {e}", exc_info=True)
+            if self._event_bus_logger:
+                asyncio.create_task(self._event_bus_logger.error(f"Ошибка валидации '{action_name}': {e}", exc_info=True))
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка валидации: {str(e)}"
