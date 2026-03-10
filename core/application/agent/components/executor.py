@@ -64,8 +64,9 @@ class ActionExecutor:
                     error=result.error,  # ✅ ИСПРАВЛЕНО: Передаём ошибку
                     metadata={
                         'capability': capability_name or getattr(capability, 'name', 'unknown'),
+                        'capability_name': capability_name or getattr(capability, 'name', 'unknown'),  # ← Для _is_final_result()
                         'step': step_number
-                    },
+                    } | (result.metadata or {}),  # ← Сохраняем оригинальные metadata (включая is_final_answer)
                     side_effect=result.side_effect if hasattr(result, 'side_effect') else False
                 )
             else:
