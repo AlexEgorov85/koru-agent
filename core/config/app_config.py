@@ -415,6 +415,7 @@ class AppConfig(BaseModel):
             )
 
         # Регистрируем vector_books_tool для семантического поиска книг
+        # Примечание: промпты не требуются — VectorBooksTool использует инфраструктуру напрямую
         if 'vector_books_tool' not in tool_configs:
             tool_configs['vector_books_tool'] = ComponentConfig(
                 variant_id=f"vector_books_tool_{profile}",
@@ -422,12 +423,7 @@ class AppConfig(BaseModel):
                 detailed_metrics=False,
                 parameters={},
                 dependencies=[],
-                prompt_versions={
-                    "vector_books.search": "v1.0.0",
-                    "vector_books.get_document": "v1.0.0",
-                    "vector_books.analyze": "v1.0.0",
-                    "vector_books.query": "v1.0.0"
-                },
+                prompt_versions={},  # Пусто — промпты не требуются
                 input_contract_versions={
                     "vector_books.search": "v1.0.0",
                     "vector_books.get_document": "v1.0.0",
