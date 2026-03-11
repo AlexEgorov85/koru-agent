@@ -52,52 +52,6 @@ class AgentFactory:
                     component="AgentFactory"
                 )
 
-    def create_agent_sync(
-        self,
-        goal: str,
-        config: Optional[AgentConfig] = None,
-        correlation_id: Optional[str] = None
-    ) -> AgentRuntime:
-        """
-        СИНХРОННОЕ создание изолированного агента с валидацией версий.
-
-        ИСПОЛЬЗУЕТ asyncio.run() для async операций.
-        Может вызываться из sync контекста.
-
-        ПАРАМЕТРЫ:
-        - goal: Цель агента
-        - config: Конфигурация агента с версиями компонентов
-        - correlation_id: ID для отслеживания сессии
-
-        ВОЗВРАЩАЕТ:
-        - AgentRuntime: Созданный агент
-        """
-        import asyncio
-        
-        # 1. Валидация версий (async → sync)
-        if config:
-            errors = asyncio.run(self._validate_version_consistency(config))
-            if errors:
-                raise VersionValidationError("\n".join(errors))
-
-        # 2. ИСПОЛЬЗУЕМ существующий application_context
-        app_context = self.application_context
-
-        # 3. Создание агента с существующим контекстом
-        agent = AgentRuntime(
-            application_context=app_context,
-            goal=goal,
-            correlation_id=correlation_id
-        )
-
-        if self.event_bus_logger:
-            self.event_bus_logger.info_sync(
-                f"Создан агент с ID {app_context.id}. "
-                f"Версии: из конфигурации"
-            )
-
-        return agent
-
     async def create_agent(
         self,
         goal: str,
@@ -122,8 +76,6 @@ class AgentFactory:
                 raise VersionValidationError("\n".join(errors))
 
         # 2. ИСПОЛЬЗУЕМ существующий application_context
-        # НЕТ НУЖДЫ создавать новый контекст - это архитектурная ошибка
-        # Все компоненты уже инициализированы в существующем контексте
         app_context = self.application_context
 
         # 3. Создание агента с существующим контекстом

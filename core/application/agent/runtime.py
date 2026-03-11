@@ -171,14 +171,16 @@ class AgentRuntime:
 
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
         """
-        Запуск выполнения агента через синхронный цикл (_run_sync).
+        Запуск выполнения агента через async цикл (_run_async).
 
-        ИСПОЛЬЗУЕТ asyncio.to_thread() для выполнения в отдельном thread,
-        что позволяет использовать asyncio.run() внутри _run_sync().
+        ПАРАМЕТРЫ:
+        - goal: Цель агента (опционально)
+        - max_steps: Максимальное количество шагов (опционально)
+
+        ВОЗВРАЩАЕТ:
+        - ExecutionResult: Результат выполнения
         """
-        import asyncio
-        result = await asyncio.to_thread(self._run_sync, goal, max_steps)
-        return result
+        return await self._run_async(goal, max_steps)
 
     async def _execute_single_step_internal(self, decision, available_caps) -> Any:
         """
@@ -603,27 +605,37 @@ class AgentRuntime:
 
         return False
 
-    def _extract_final_result(self) -> Any:
+    async def _extract_final_result(self) -> Any:
         """
         Извлечение финального результата.
-        
+
         ПРИОРИТЕТЫ:
         1. Результат final_answer.generate (сохранённый в _final_answer_result)
         2. Данные из контекста сессии
-        3. Fallback результат
+        3. Fallback результат с явным предупреждением
+
+        ВАЖНО: Не возвращаем пустые dict — только явные данные или fallback с warning
         """
         # Приоритет 1: Возвращаем результат final_answer.generate если он есть
         if self._final_answer_result:
             if self._final_answer_result.data:
                 return self._final_answer_result.data
-            # Если data пуст, но есть metadata с ответом
+            # Если data пустой — проверяем metadata
             if self._final_answer_result.metadata:
-                return self._final_answer_result.metadata.get('final_answer_data', {})
-        
+                final_answer_data = self._final_answer_result.metadata.get('final_answer_data')
+                if final_answer_data is not None:
+                    return final_answer_data
+                # ❌ Не возвращаем {} — это маскирует проблему!
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(
+                        "❌ _final_answer_result.metadata существует, но 'final_answer_data' отсутствует. "
+                        "Это указывает на ошибку в final_answer.generate."
+                    )
+
         # Приоритет 2: Пытаемся извлечь из контекста сессии
         if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
             session_ctx = self.application_context.session_context
-            
+
             # Пытаемся получить последний final_answer из контекста
             try:
                 all_items_result = self.executor.execute_action_sync(
@@ -640,22 +652,31 @@ class AgentRuntime:
                             content = item_data.get('content', {})
                             if isinstance(content, dict) and 'final_answer' in content:
                                 return content
-            except Exception:
-                pass  # Игнорируем ошибки, используем fallback
-        
-        # Приоритет 3: Fallback результат
+            except Exception as e:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(f"⚠️ Не удалось получить final_answer из контекста: {e}")
+
+        # Приоритет 3: Fallback результат — НО с явным предупреждением!
+        if self.event_bus_logger:
+            await self.event_bus_logger.warning(
+                "⚠️ FINAL ANSWER НЕ НАЙДЕН! Возвращаем fallback результат. "
+                "Возможные причины: "
+                "1) final_answer.generate не был выполнен, "
+                "2) Ошибка при генерации ответа, "
+                "3) Данные не сохранились в контексте"
+            )
         return {
             "final_goal": self.goal,
             "steps_completed": self._current_step,
-            "summary": "Execution completed successfully"
+            "summary": "Execution completed successfully",
+            "warning": "FINAL_ANSWER_NOT_FOUND — агент не сгенерировал финальный ответ"
         }
 
-    def _run_sync(self, goal: str = None, max_steps: int = None) -> ExecutionResult:
+    async def _run_async(self, goal: str = None, max_steps: int = None) -> ExecutionResult:
         """
-        ПОЛНОСТЬЮ СИНХРОННЫЙ цикл выполнения агента.
+        ПОЛНОСТЬЮ ASYNC цикл выполнения агента.
 
-        ВСЕ async вызовы выполняются через asyncio.run() внутри метода.
-        Этот метод может вызываться из async контекста через asyncio.to_thread().
+        ВСЕ вызовы используют await — никаких _safe_async_call и asyncio.run().
 
         ПАРАМЕТРЫ:
         - goal: Цель агента (опционально)
@@ -664,8 +685,6 @@ class AgentRuntime:
         ВОЗВРАЩАЕТ:
         - ExecutionResult: Результат выполнения
         """
-        import asyncio as asyncio_module
-
         if self._running:
             raise RuntimeError("Агент уже выполняется")
 
@@ -677,9 +696,9 @@ class AgentRuntime:
         self._current_step = 0
         self._max_steps = max_steps or self._max_steps
 
-        # Логирование (синхронное)
+        # Логирование
         if self.event_bus_logger:
-            self.event_bus_logger.info_sync(f"Запуск агента с целью: {self.goal[:100]}...")
+            await self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}...")
 
         try:
             # Инициализация начального контекста выполнения
@@ -692,8 +711,8 @@ class AgentRuntime:
                     "goal": self.goal
                 }, step_number=0)
 
-            # Инициализация менеджера поведения (async → sync)
-            self._safe_async_call(self.behavior_manager.initialize(component_name="react_pattern"))
+            # Инициализация менеджера поведения
+            await self.behavior_manager.initialize(component_name="react_pattern")
 
             # Переменные для детекции зацикливания
             previous_snapshot = None
@@ -701,8 +720,6 @@ class AgentRuntime:
             no_progress_counter = 0
 
             # Переменные для отслеживания ошибок выполнения
-            last_step_failed = False
-            last_error_message = None
             consecutive_error_count = 0
 
             # Цикл рассуждений
@@ -720,7 +737,7 @@ class AgentRuntime:
                 if hasattr(self.application_context, 'get_all_skills'):
                     available_caps = self.application_context.get_all_skills()
                 elif hasattr(self.application_context, 'get_all_capabilities'):
-                    all_caps = self._safe_async_call(self.application_context.get_all_capabilities())
+                    all_caps = await self.application_context.get_all_capabilities()
                     available_caps = [
                         cap for cap in all_caps
                         if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
@@ -730,13 +747,11 @@ class AgentRuntime:
 
                 print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
 
-                # Получаем decision (async → sync)
+                # Получаем decision
                 print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
-                decision = self._safe_async_call(
-                    self.behavior_manager.generate_next_decision(
-                        session_context=self.application_context.session_context,
-                        available_capabilities=available_caps
-                    )
+                decision = await self.behavior_manager.generate_next_decision(
+                    session_context=self.application_context.session_context,
+                    available_capabilities=available_caps
                 )
 
                 print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
@@ -755,20 +770,18 @@ class AgentRuntime:
                                     f"Action: {decision.action.value}, Capability: {decision.capability_name}"
                                 )
 
-                # Выполняем шаг (async → sync)
+                # Выполняем шаг
                 print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
-                step_result = self._safe_async_call(
-                    self._execute_single_step_internal(decision, available_caps)
-                )
+                step_result = await self._execute_single_step_internal(decision, available_caps)
                 print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
 
-                # ✅ SYNC: Обновление состояния
+                # Обновление состояния
                 self._update_state(step_result)
 
-                # ✅ SYNC: Проверка на завершение
+                # Проверка на завершение
                 if self._should_stop(step_result):
                     if self.event_bus_logger:
-                        self.event_bus_logger.info_sync(f"Остановка агента: _should_stop=True")
+                        await self.event_bus_logger.info(f"Остановка агента: _should_stop=True")
                     self._result = step_result
                     self._running = False
                     break
@@ -788,7 +801,7 @@ class AgentRuntime:
                     )
 
                     if self.event_bus_logger:
-                        self.event_bus_logger.error_sync(
+                        await self.event_bus_logger.error(
                             f"Ошибка на шаге {self._current_step}: {step_result.error} | "
                             f"Категория: {step_result.error_category.value} | "
                             f"AgentPolicy: {retry_decision.decision.value}"
@@ -797,16 +810,15 @@ class AgentRuntime:
                     if retry_decision.decision == RetryDecision.RETRY:
                         consecutive_error_count += 1
                         if self.event_bus_logger:
-                            self.event_bus_logger.info_sync(
+                            await self.event_bus_logger.info(
                                 f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
                                 f"через {retry_decision.delay_seconds:.2f} сек"
                             )
-                        import time
-                        time.sleep(retry_decision.delay_seconds)
+                        await asyncio.sleep(retry_decision.delay_seconds)
                         continue
                     elif retry_decision.decision == RetryDecision.ABORT:
                         if self.event_bus_logger:
-                            self.event_bus_logger.warning_sync(
+                            await self.event_bus_logger.warning(
                                 f"Abort: {retry_decision.reason}. Пропускаем действие."
                             )
                         consecutive_error_count = 0
@@ -844,7 +856,7 @@ class AgentRuntime:
 
                         if self._consecutive_same_capability >= 2:
                             if self.event_bus_logger:
-                                self.event_bus_logger.warning_sync(
+                                await self.event_bus_logger.warning(
                                     f"⚠️ Зацикливание на capability: {current_cap} "
                                     f"({self._consecutive_same_capability} раз подряд)"
                                 )
@@ -872,7 +884,7 @@ class AgentRuntime:
                 return self._result
 
             print(f"🔵 [RUNTIME] Возвращаем _extract_final_result()", flush=True)
-            final_data = self._extract_final_result()
+            final_data = await self._extract_final_result()
             return ExecutionResult.success(
                 data=final_data,
                 metadata={
@@ -884,50 +896,10 @@ class AgentRuntime:
         except Exception as e:
             print(f"\n🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}", flush=True)
             if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"Ошибка выполнения агента: {e}")
+                await self.event_bus_logger.error(f"Ошибка выполнения агента: {e}")
             return ExecutionResult.failure(str(e))
         finally:
             self._running = False
-
-    def _safe_async_call(self, coro, timeout=120.0):
-        """
-        Безопасный вызов async coroutine из sync контекста.
-
-        АВТОМАТИЧЕСКИ ОПРЕДЕЛЯЕТ контекст:
-        - Если нет running loop → использует asyncio.run()
-        - Если есть running loop → использует await через временный task
-
-        ПАРАМЕТРЫ:
-        - coro: coroutine для выполнения
-        - timeout: таймаут в секундах
-
-        ВОЗВРАЩАЕТ:
-        - Результат выполнения coroutine
-        """
-        import asyncio
-        
-        try:
-            # Проверяем есть ли running loop
-            loop = asyncio.get_running_loop()
-            
-            # Loop существует → мы внутри async контекста
-            # Создаём task и ждём его завершения
-            async def wait_for_result():
-                task = asyncio.create_task(coro)
-                try:
-                    return await asyncio.wait_for(task, timeout=timeout)
-                except asyncio.TimeoutError:
-                    task.cancel()
-                    raise TimeoutError(f"Coroutine timeout after {timeout}s")
-            
-            # Возвращаем coroutine для внешнего await
-            # Это работает только если _safe_async_call вызывается из async метода
-            # Для sync контекста используем fallback
-            raise RuntimeError("_safe_async_call вызван внутри async контекста - используйте await напрямую")
-            
-        except RuntimeError:
-            # Нет running loop → используем asyncio.run()
-            return asyncio.run(coro)
 
     async def stop(self):
         """Остановка выполнения агента."""
@@ -939,17 +911,8 @@ class AgentRuntime:
         """Проверка, выполняется ли агент."""
         return self._running
 
-    # ========================================================================
-    # СИНХРОННЫЕ МЕТОДЫ ВНУТРЕННЕЙ ЛОГИКИ (Фаза 3 миграции)
-    # ========================================================================
-
     def _update_state(self, result: ExecutionResult):
-        """
-        Синхронное обновление состояния агента.
-
-        ПАРАМЕТРЫ:
-        - result: результат выполнения шага
-        """
+        """Обновление состояния агента."""
         if result.status == ExecutionStatus.COMPLETED:
             self.progress_metrics.error_count = 0
             self.progress_metrics.consecutive_errors = 0
@@ -959,48 +922,23 @@ class AgentRuntime:
             self.progress_metrics.consecutive_errors += 1
             self.progress_metrics.no_progress_steps += 1
 
-    def _is_final_result(self, result: ExecutionResult) -> bool:
-        """
-        Синхронная проверка завершения выполнения.
-
-        ПАРАМЕТРЫ:
-        - result: результат выполнения шага
-
-        ВОЗВРАЩАЕТ:
-        - bool: True если это финальный результат
-        """
-        if isinstance(result, ExecutionResult):
-            # Проверка флага is_final_answer в metadata
-            if result.metadata and isinstance(result.metadata, dict):
-                return result.metadata.get('is_final_answer', False)
-            
-            # Проверка что это результат final_answer.generate
-            if hasattr(result, 'data') and result.data:
-                if isinstance(result.data, dict):
-                    return 'final_answer' in result.data
-        
-        return False
-
     def _should_stop(self, result: ExecutionResult) -> bool:
-        """
-        Синхронная проверка необходимости остановки.
+        """Проверка необходимости остановки."""
+        # Проверка на финальный результат
+        if isinstance(result, ExecutionResult):
+            if result.metadata and isinstance(result.metadata, dict):
+                if result.metadata.get('is_final_answer', False):
+                    return True
+            if hasattr(result, 'data') and result.data:
+                if isinstance(result.data, dict) and 'final_answer' in result.data:
+                    return True
 
-        ПАРАМЕТРЫ:
-        - result: результат выполнения шага
+        # Проверка на превышение лимитов ошибок
+        if self.progress_metrics.consecutive_errors >= self.policy.max_errors:
+            return True
 
-        ВОЗВРАЩАЕТ:
-        - bool: True если нужно остановиться
-        """
-        # 1. Проверка на финальный результат
-        if self._is_final_result(result):
-            return True
-        
-        # 2. Проверка на превышение лимитов ошибок
-        if self.progress_metrics.consecutive_errors >= self.policy.max_consecutive_errors:
-            return True
-        
-        # 3. Проверка на отсутствие прогресса
+        # Проверка на отсутствие прогресса
         if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
             return True
-        
+
         return False

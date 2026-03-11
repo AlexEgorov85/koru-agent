@@ -106,15 +106,16 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         # Создание прикладного контекста
         # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из infrastructure_context
+        # ✅ ПРОФИЛЬ ДОЛЖЕН СОВПАДАТЬ С infrastructure_context!
         app_config = AppConfig.from_discovery(
-            profile="prod",
+            profile="dev",  # ← Должен совпадать с профилем infrastructure_context
             data_dir=str(getattr(infrastructure_context.config, 'data_dir', 'data')),
             discovery=infrastructure_context.resource_discovery  # ← Используем напрямую (не deprecated)
         )
         application_context = ApplicationContext(
             infrastructure_context=infrastructure_context,
             config=app_config,
-            profile="prod"
+            profile="dev"  # ← Должен совпадать с infrastructure_context
         )
 
         # ✅ АСИНХРОННАЯ ИНИЦИАЛИЗАЦИЯ (мы внутри async функции)
@@ -143,23 +144,19 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
 
-        # Создание и запуск агента
-        agent = agent_factory.create_agent_sync(goal=goal, config=agent_config)
+        # Создание и запуск агента (ASYNC)
+        agent = await agent_factory.create_agent(goal=goal, config=agent_config)
 
-        session_logger.info_sync("🚀 Запуск выполнения агента...")
+        await session_logger.info("🚀 Запуск выполнения агента...")
 
-        # === ДИАГНОСТИКА: Проверяем result перед использованием ===
-        import sys
-        import traceback
-        
-        # Синхронный вывод для критических сообщений
+        # === ЗАПУСК АГЕНТА (ЧИСТЫЙ ASYNC) ===
         try:
-            # Принудительная синхронная печать для последовательности
+            # Принудительная async печать для последовательности
             print("🔄 Запуск выполнения агента...", flush=True)
-            session_logger.info_sync("🔄 Запуск выполнения агента...")
-            result = agent._run_sync(goal)
+            await session_logger.info("🔄 Запуск выполнения агента...")
+            result = await agent.run(goal)
             print("✅ Выполнение агента завершено", flush=True)
-            session_logger.info_sync("✅ Выполнение агента завершено")
+            await session_logger.info("✅ Выполнение агента завершено")
         except Exception as run_error:
             # Ошибка во время выполнения agent.run()
             print("❌ КРИТИЧЕСКАЯ ОШИБКА при выполнении agent.run()", flush=True)
@@ -310,14 +307,14 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await shutdown_logging_system()
 
 
-def main() -> int:
-    """Точка входа."""
+async def main_async() -> int:
+    """Точка входа (async версия)."""
     try:
-        result = asyncio.run(run_agent(
+        result = await run_agent(
             goal=GOAL,
             max_steps=MAX_STEPS,
             temperature=TEMPERATURE
-        ))
+        )
 
         # Вывод результата
         print("\n" + "=" * 60)
@@ -365,14 +362,20 @@ def main() -> int:
             operation="main",
             metadata={"goal": GOAL}
         )
-        asyncio.run(error_handler.handle(
+        # Мы внутри async контекста → используем await
+        await error_handler.handle(
             e,
             context=error_context,
             severity=ErrorSeverity.CRITICAL
-        ))
+        )
 
         print(f"\n❌ Произошла ошибка: {str(e)[:200]}")
         return 1
+
+
+def main() -> int:
+    """Точка входа (синхронная обёртка)."""
+    return asyncio.run(main_async())
 
 
 if __name__ == "__main__":

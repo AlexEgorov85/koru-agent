@@ -127,14 +127,14 @@ class FinalAnswerSkill(BaseSkill):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: str,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики навыка финального ответа (СИНХРОННАЯ).
+        Реализация бизнес-логики навыка финального ответа (ASYNC).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -148,24 +148,37 @@ class FinalAnswerSkill(BaseSkill):
         # Извлечение контекста сессии
         session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
 
-        # Генерация финального ответа (синхронный вызов)
-        result = self._generate_final_answer(session_context, parameters, execution_context)
+        # Генерация финального ответа (async вызов)
+        result = await self._generate_final_answer(session_context, parameters, execution_context)
 
         # Извлекаем данные из ExecutionResult если нужно
         if isinstance(result, dict):
             return result
         elif hasattr(result, 'data') and result.data:
             return result.data
-        return {}
+        
+        # ❌ Не возвращаем {} — это маскирует ошибку!
+        if self.event_bus_logger:
+            await self.event_bus_logger.error(
+                "❌ _generate_final_answer вернул ExecutionResult с пустым data. "
+                "Это указывает на ошибку генерации финального ответа."
+            )
+        
+        # Возвращаем явный fallback с предупреждением
+        return {
+            "final_answer": "Не удалось сгенерировать финальный ответ",
+            "error": "Пустой результат от _generate_final_answer",
+            "warning": "FINAL_ANSWER_GENERATION_FAILED"
+        }
 
-    def _generate_final_answer(
+    async def _generate_final_answer(
         self,
         context: BaseSessionContext,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> ExecutionResult:
         """
-        Генерация финального ответа на основе контекста сессии (СИНХРОННАЯ).
+        Генерация финального ответа на основе контекста сессии (ASYNC).
 
         ПАРАМЕТРЫ:
         - context: контекст сессии (только для get_goal())
@@ -202,7 +215,7 @@ class FinalAnswerSkill(BaseSkill):
             confidence_threshold = 0.7
             max_sources = 10
 
-        # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR (не напрямую!)
+        # Сбор всей информации из контекста ЧЕРЕЗ EXECUTOR
         observations = []
         thoughts = []
         actions = []
@@ -241,11 +254,11 @@ class FinalAnswerSkill(BaseSkill):
                     return f"'{title}' ({author}, {year})" if year else f"'{title}' ({author})"
                 return str(row)
 
-            all_items_result = self.executor.execute_sync(
+            all_items_result = await self.executor.execute_action(
                 action_name="context.get_all_items",
                 parameters={},
                 context=execution_context
-            ).result(timeout=30)
+            )
 
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
                 all_items = all_items_result.result.get("items", {})
@@ -318,11 +331,11 @@ class FinalAnswerSkill(BaseSkill):
                 else:
                     return obj
 
-            steps_result = self.executor.execute_sync(
+            steps_result = await self.executor.execute_action(
                 action_name="context.get_step_history",
                 parameters={},
                 context=execution_context
-            ).result(timeout=30)
+            )
 
             if steps_result.status == ExecutionStatus.COMPLETED and steps_result.result:
                 steps_list = steps_result.result.get("steps", [])
@@ -406,7 +419,7 @@ class FinalAnswerSkill(BaseSkill):
                 self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
-            llm_result = self.executor.execute_sync(
+            llm_result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
@@ -422,14 +435,14 @@ class FinalAnswerSkill(BaseSkill):
                     "attempt_timeout": 300.0  # Timeout на одну попытку (5 минут)
                 },
                 context=execution_context
-            ).result(timeout=120)  # Увеличенный timeout для LLM вызова
+            )
 
             # Проверка на ошибку
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
                 if self.event_bus_logger:
-                    self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
+                    self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg}")
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные

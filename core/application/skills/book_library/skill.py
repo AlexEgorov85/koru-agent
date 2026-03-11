@@ -79,10 +79,9 @@ class BookLibrarySkill(BaseComponent):
 
         # Кэш реестра скриптов
         self._scripts_registry = None
-        
-        # [BOOK_DEBUG] 5. Проверка инициализации event_bus_logger
+
+        # Проверка инициализации event_bus_logger
         if self.event_bus_logger is None:
-            print("[WARN] [BOOK_DEBUG] event_bus_logger не инициализирован, использую print", flush=True)
             self._print_fallback = True
         else:
             self._print_fallback = False
@@ -179,14 +178,14 @@ class BookLibrarySkill(BaseComponent):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Any:
         """
-        Реализация бизнес-логики навыка библиотеки (СИНХРОННАЯ).
+        Реализация бизнес-логики навыка библиотеки (ASYNC).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -205,21 +204,11 @@ class BookLibrarySkill(BaseComponent):
         else:
             params_dict = {}
 
-        # Выполняем действие — возвращает Pydantic модель или Dict (синхронное ожидание)
-        result = self._safe_async_call(self.supported_capabilities[capability.name](params_dict))
+        # Выполняем действие — возвращает Pydantic модель или Dict
+        result = await self.supported_capabilities[capability.name](params_dict)
 
         # Возвращаем результат напрямую (Pydantic модель или Dict)
         return result
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)
 
     async def _search_books_dynamic(self, params: Dict[str, Any]) -> Any:
         """
@@ -244,14 +233,19 @@ class BookLibrarySkill(BaseComponent):
         # params уже может быть Pydantic моделью BookLibrarySearchInput
         from pydantic import BaseModel
         if isinstance(params, BaseModel):
+            # params уже валидированная Pydantic модель — используем атрибуты
             await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
+            query_val = getattr(params, 'query', '')
+            max_results_val = getattr(params, 'max_results', 10)
         else:
-            # Fallback для обратной совместимости
+            # Fallback для обратной совместимости (dict)
             input_schema = self.get_cached_input_contract_safe("book_library.search_books")
             if input_schema:
                 try:
                     validated_params = input_schema.model_validate(params)
                     params = validated_params
+                    query_val = getattr(params, 'query', '')
+                    max_results_val = getattr(params, 'max_results', 10)
                 except Exception as e:
                     await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
                     raise ValueError(f"Неверные параметры: {str(e)}")
@@ -278,12 +272,7 @@ class BookLibrarySkill(BaseComponent):
             await self.event_bus_logger.warning("LLM недоступен, используем SQL fallback")
         else:
             try:
-                from core.application.agent.components.action_executor import ExecutionContext
                 exec_context = ExecutionContext()
-
-                # Получаем значения из params (поддержка dict и Pydantic модели)
-                query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
-                max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
 
                 # Генерируем SQL запрос через сервис генерации
                 gen_result = await self.executor.execute_action(
@@ -328,11 +317,9 @@ class BookLibrarySkill(BaseComponent):
 
         # Fallback: простой SQL запрос если генерация не удалась
         if not sql_query:
-            query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
-            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
             # Нормализованная схема с JOIN между books и authors
             sql_query = f"""
-                SELECT 
+                SELECT
                     b.id as book_id,
                     b.title as book_title,
                     b.isbn,
@@ -354,8 +341,6 @@ class BookLibrarySkill(BaseComponent):
         try:
             exec_context = ExecutionContext()
 
-            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
-
             query_result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
@@ -374,27 +359,28 @@ class BookLibrarySkill(BaseComponent):
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
+            raise RuntimeError(f"Ошибка выполнения SQL запроса: {e}")
 
-        # Если результаты пустые, возвращаем демонстрационные данные
+        # ПРОВЕРКА: Если результаты пустые — это не ошибка, но нужно сообщить
         if not rows:
-            fake_results = [
-                {"title": "Искусственный интеллект", "author": "Стюарт Рассел", "year": 2020},
-                {"title": "Глубокое обучение", "author": "Ян Гудфеллоу", "year": 2016},
-                {"title": "Машинное обучение", "author": "Том Митчелл", "year": 1997}
-            ]
-            rows = fake_results
-            await self.event_bus_logger.info("Возвращаем демонстрационные данные")
+            await self.event_bus_logger.warning(
+                f"⚠️ SQL запрос не вернул результатов. "
+                f"Возможные причины: "
+                f"1) В базе нет данных по запросу '{params.get('query', 'N/A')[:100]}', "
+                f"2) Ошибка в сгенерированном SQL, "
+                f"3) База данных пуста"
+            )
 
         # Формируем результат
         total_time = time.time() - start_time
-        is_success = len(rows) > 0 or True  # Считаем успешным если нет ошибки
 
         result = {
             "rows": rows,
             "rowcount": len(rows),
             "execution_time": total_time,
             "execution_type": "dynamic",
-            "sql_query": sql_query
+            "sql_query": sql_query,
+            "warning": "Результатов не найдено" if not rows else None
         }
 
         # 5. Публикация метрик через EventBus
@@ -527,7 +513,6 @@ class BookLibrarySkill(BaseComponent):
         rows = []
         execution_time = 0.0
         try:
-            from core.application.agent.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
 
             query_result = await self.executor.execute_action(
@@ -691,7 +676,6 @@ class BookLibrarySkill(BaseComponent):
         - Pydantic модель (выходной контракт) или Dict (fallback)
         """
         import time
-        from core.application.agent.components.action_executor import ExecutionContext
         from core.models.data.execution import ExecutionStatus
         from core.models.data.capability import Capability
 
@@ -807,8 +791,6 @@ class BookLibrarySkill(BaseComponent):
         SQL fallback для семантического поиска.
         Используется когда векторный индекс недоступен.
         """
-        from core.application.agent.components.action_executor import ExecutionContext
-        
         await self.event_bus_logger.info(f"Выполнение SQL fallback для семантического поиска: {query}")
         
         # Используем executor для SQL запроса

@@ -86,14 +86,14 @@ class PlanningSkill(BaseComponent):
             )
         ]
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики навыка планирования (СИНХРОННАЯ).
+        Реализация бизнес-логики навыка планирования (ASYNC).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -101,36 +101,26 @@ class PlanningSkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
-        # Делегирование конкретным методам (синхронное ожидание async методов)
+        # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
-            result = self._safe_async_call(self._create_plan(parameters, execution_context))
+            result = await self._create_plan(parameters, execution_context)
         elif capability.name == "planning.update_plan":
-            result = self._safe_async_call(self._update_plan(parameters, execution_context))
+            result = await self._update_plan(parameters, execution_context)
         elif capability.name == "planning.get_next_step":
-            result = self._safe_async_call(self._get_next_step(parameters, execution_context))
+            result = await self._get_next_step(parameters, execution_context)
         elif capability.name == "planning.update_step_status":
-            result = self._safe_async_call(self._update_step_status(parameters, execution_context))
+            result = await self._update_step_status(parameters, execution_context)
         elif capability.name == "planning.decompose_task":
-            result = self._safe_async_call(self._decompose_task(parameters, execution_context))
+            result = await self._decompose_task(parameters, execution_context)
         elif capability.name == "planning.mark_task_completed":
-            result = self._safe_async_call(self._mark_task_completed(parameters, execution_context))
+            result = await self._mark_task_completed(parameters, execution_context)
         else:
             raise ValueError(f"Неизвестная capability: {capability.name}")
 
-        # Извлекаем данные из ActionResult
+        # Извлекаем данные из ExecutionResult
         if isinstance(result, ExecutionResult):
             return result.data if result.data else {}
         return result if result else {}
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)
 
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""

@@ -1162,8 +1162,8 @@ class BaseComponent(LifecycleMixin, ABC):
                 )
 
             # === ЭТАП 2: Выполнение бизнес-логики ===
-            # Вызываем синхронный _execute_impl() в executor thread
-            result = self._execute_impl(capability, validated_input, execution_context)
+            # Вызываем async _execute_impl()
+            result = await self._execute_impl(capability, validated_input, execution_context)
 
             # === ЭТАП 3: Валидация выходных данных ===
             validated_output = self.validate_output_typed(capability.name, result)
@@ -1240,14 +1240,14 @@ class BaseComponent(LifecycleMixin, ABC):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED  # По умолчанию
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Any:
         """
-        Реализация бизнес-логики компонента (СИНХРОННАЯ).
+        Реализация бизнес-логики компонента (ASYNC).
 
         Этот метод должен быть переопределен в наследниках.
         Реализация по умолчанию вызывает NotImplementedError.
@@ -1262,10 +1262,10 @@ class BaseComponent(LifecycleMixin, ABC):
 
         ИСКЛЮЧЕНИЯ:
         - NotImplementedError: если метод не переопределен в наследнике
-        
+
         ПРИМЕЧАНИЕ:
         - Этот метод вызывается из async execute()
-        - Для вызова async действий используйте executor.execute_sync().result()
+        - Используйте await для вызова async действий через executor
         """
         raise NotImplementedError(
             f"Метод _execute_impl() должен быть реализован в классе {self.__class__.__name__}"
