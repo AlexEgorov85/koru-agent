@@ -10,10 +10,14 @@
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 
-from core.config.models import SystemConfig
+# Используем TYPE_CHECKING для избежания циклических зависимостей
+if TYPE_CHECKING:
+    from core.config.app_config import AppConfig
+
+from core.config.app_config import AppConfig
 from core.infrastructure.providers.llm.factory import LLMProviderFactory
 from core.infrastructure.providers.database.factory import DBProviderFactory
 from core.infrastructure.storage.prompt_storage import PromptStorage
@@ -38,12 +42,12 @@ from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorag
 class InfrastructureContext:
     """Главный класс инфраструктурного контекста. Создаётся 1 раз за жизненный цикл приложения."""
 
-    def __init__(self, config: SystemConfig):
+    def __init__(self, config: AppConfig):
         """
         Инициализация инфраструктурного контекста.
 
         ПАРАМЕТРЫ:
-        - config: Системная конфигурация
+        - config: Конфигурация приложения (AppConfig)
         """
         self.id = str(uuid.uuid4())
         self.config = config
@@ -721,29 +725,29 @@ class InfrastructureContext:
 
         # Сохранение Vector Search индексов
         if self._faiss_providers and self.config.vector_search:
-            self.event_bus_logger.info("Сохранение Vector Search индексов...")
+            await self.event_bus_logger.info("Сохранение Vector Search индексов...")
             from pathlib import Path
             for source, provider in self._faiss_providers.items():
                 try:
                     index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
                     index_path.parent.mkdir(parents=True, exist_ok=True)
                     await provider.save(str(index_path))
-                    self.event_bus_logger.info(f"💾 Сохранён индекс {source}: {index_path}")
+                    await self.event_bus_logger.info(f"💾 Сохранён индекс {source}: {index_path}")
                 except Exception as e:
-                    self.event_bus_logger.error(f"Ошибка сохранения индекса {source}: {e}")
+                    await self.event_bus_logger.error(f"Ошибка сохранения индекса {source}: {e}")
         
         # Завершение Vector Search провайдеров
         for source, provider in self._faiss_providers.items():
             try:
                 await provider.shutdown()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
-        
+                await self.event_bus_logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
+
         if self._embedding_provider:
             try:
                 await self._embedding_provider.shutdown()
             except Exception as e:
-                self.event_bus_logger.error(f"Ошибка завершения Embedding провайдера: {e}")
+                await self.event_bus_logger.error(f"Ошибка завершения Embedding провайдера: {e}")
 
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:

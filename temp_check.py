@@ -1,6 +1,6 @@
-from core.config.models import SystemConfig
+from core.config.app_config import AppConfig
 
-c = SystemConfig(data_dir='data')
+c = AppConfig(data_dir='data')
 print('vector_search:', c.vector_search)
 if c.vector_search:
     print('storage:', c.vector_search.storage)

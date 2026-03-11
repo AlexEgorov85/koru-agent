@@ -99,14 +99,14 @@ class DataAnalysisSkill(BaseSkill):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики анализа данных (СИНХРОННАЯ).
+        Реализация бизнес-логики анализа данных (АСИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.

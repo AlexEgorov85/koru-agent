@@ -45,12 +45,11 @@ class StderrFilter:
 # Устанавливаем фильтр stderr
 sys.stderr = StderrFilter(sys.stderr)
 
-from core.config import get_config
+from core.config import get_config, AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 from core.application.context.application_context import ApplicationContext
 from core.application.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
-from core.config.app_config import AppConfig
 from core.errors import get_error_handler, ErrorContext, ErrorSeverity
 from core.infrastructure.logging import (
     shutdown_logging_system,
@@ -73,8 +72,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
     Логирование инициализируется внутри InfrastructureContext.initialize().
     """
-    # Загрузка конфигурации приложения
-    config = get_config(profile='dev')
+    # Загрузка конфигурации приложения через авто-обнаружение
+    config = get_config(profile='dev', data_dir='data')
 
     # Создание и инициализация инфраструктурного контекста
     # (логирование инициализируется внутри)
@@ -101,9 +100,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
     try:
         # Начало сессии
-        session_logger.start_session(goal=goal)
-        session_logger.info(f"🚀 Сессия начата: {session_id}")
-        session_logger.info(f"📝 Цель: {goal}")
+        await session_logger.start_session(goal=goal)
+        await session_logger.info(f"🚀 Сессия начата: {session_id}")
+        await session_logger.info(f"📝 Цель: {goal}")
 
         # Создание прикладного контекста
         # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из infrastructure_context
@@ -118,11 +117,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             profile="prod"
         )
 
-        # ✅ СИНХРОННАЯ ИНИЦИАЛИЗАЦИЯ
-        success = application_context.initialize_sync()
-        
+        # ✅ АСИНХРОННАЯ ИНИЦИАЛИЗАЦИЯ (мы внутри async функции)
+        success = await application_context.initialize()
+
         if not success:
-            print(f"❌ ApplicationContext.initialize_sync() вернул False")
+            print(f"❌ ApplicationContext.initialize() вернул False")
             print(f"   _state = {application_context._state}")
             print(f"   _initialized = {application_context._initialized}")
             raise RuntimeError("ApplicationContext не удалось инициализировать")
@@ -171,19 +170,19 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         
         # Добавим синхронный вывод для завершения
         print("🚀 Агент успешно завершён", flush=True)
-        
+
         # Проверяем что result это не строка
         if isinstance(result, str):
-            session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: agent.run() вернул строку вместо объекта!")
-            session_logger.error(f"📋 Значение: {result[:500] if len(result) > 500 else result}")
+            await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: agent.run() вернул строку вместо объекта!")
+            await session_logger.error(f"📋 Значение: {result[:500] if len(result) > 500 else result}")
             raise RuntimeError(f"agent.run() вернул строку вместо ExecutionResult: {result}")
-        
+
         # Проверка на ошибку в result.error (для ExecutionResult)
         if hasattr(result, 'error') and result.error:
             # Проверяем что error это не строка (должна быть None или Exception)
             if isinstance(result.error, str):
-                session_logger.error(f"⚠️ result.error это строка (не Exception): {result.error}")
-                session_logger.error(f"📋 Это может быть причиной проблемы 'str object has no attribute get'")
+                await session_logger.error(f"⚠️ result.error это строка (не Exception): {result.error}")
+                await session_logger.error(f"📋 Это может быть причиной проблемы 'str object has no attribute get'")
             
             # Детальная информация об ошибке
             error_details = {
@@ -196,8 +195,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             if hasattr(result, 'metadata'):
                 metadata = getattr(result, 'metadata', None)
                 if metadata is not None and not isinstance(metadata, dict):
-                    session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: result.metadata это не dict (тип: {type(metadata).__name__})")
-                    session_logger.error(f"📋 Значение: {metadata}")
+                    await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: result.metadata это не dict (тип: {type(metadata).__name__})")
+                    await session_logger.error(f"📋 Значение: {metadata}")
                     error_details["metadata_type"] = type(metadata).__name__
                     error_details["metadata_value"] = str(metadata)
                 elif isinstance(metadata, dict):
@@ -206,7 +205,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                     if 'error' in metadata:
                         meta_error = metadata.get('error')
                         if isinstance(meta_error, str):
-                            session_logger.error(f"⚠️ metadata['error'] это строка: {meta_error}")
+                            await session_logger.error(f"⚠️ metadata['error'] это строка: {meta_error}")
             
             # Если error это dict, добавим детали
             if isinstance(result.error, dict):
@@ -226,13 +225,13 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                     "error_details": error_details,
                 }
             )
-            error_handler.handle(
+            await error_handler.handle(
                 RuntimeError(f"{result.error} (type: {type(result.error).__name__})"),
                 context=error_context,
                 severity=ErrorSeverity.HIGH
             )
-            session_logger.error(f"❌ Ошибка агента: {result.error}")
-            session_logger.error(f"📋 Детали ошибки: {error_details}")
+            await session_logger.error(f"❌ Ошибка агента: {result.error}")
+            await session_logger.error(f"📋 Детали ошибки: {error_details}")
             raise RuntimeError(f"Ошибка агента: {result.error} (тип: {type(result.error).__name__}, файл: main.py, строка: 176)")
 
         # Проверка на ошибку в metadata
@@ -260,20 +259,20 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                             "error_details": error_details,
                         }
                     )
-                    error_handler.handle(
+                    await error_handler.handle(
                         RuntimeError(f"{error_msg} (из metadata)"),
                         context=error_context,
                         severity=ErrorSeverity.HIGH
                     )
-                    session_logger.error(f"❌ Ошибка в metadata: {error_msg}")
-                    session_logger.error(f"📋 Детали metadata: {metadata}")
+                    await session_logger.error(f"❌ Ошибка в metadata: {error_msg}")
+                    await session_logger.error(f"📋 Детали metadata: {metadata}")
                     raise RuntimeError(f"Ошибка агента: {error_msg} (из metadata, файл: main.py, строка: 200)")
 
         # Завершение сессии успешно
         result_preview = str(result)[:500] if len(str(result)) > 500 else str(result)
-        session_logger.end_session(success=True, result=result_preview)
-        session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
-        session_logger.info(f"📊 Результат: {result_preview}")
+        await session_logger.end_session(success=True, result=result_preview)
+        await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
+        await session_logger.info(f"📊 Результат: {result_preview}")
 
         return result
 
@@ -285,30 +284,30 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
             session_id=session_id,
             metadata={"goal": goal}
         )
-        error_handler.handle(
+        await error_handler.handle(
             e,
             context=error_context,
             severity=ErrorSeverity.CRITICAL
         )
-        
-        session_logger.exception(f"❌ Ошибка сессии: {e}", e)
-        session_logger.end_session(success=False, result=str(e))
+
+        await session_logger.exception(f"❌ Ошибка сессии: {e}", e)
+        await session_logger.end_session(success=False, result=str(e))
         raise
 
     finally:
         # Завершение обработчика логов сессии
         if session_log_handler:
-            session_log_handler.shutdown()
+            await session_log_handler.shutdown()
 
         # Завершение прикладного контекста (включая LLMOrchestrator)
         if 'application_context' in locals():
-            application_context.shutdown()
+            await application_context.shutdown()
 
         # Остановка инфраструктуры
-        infrastructure_context.shutdown()
+        await infrastructure_context.shutdown()
 
         # Завершение системы логирования
-        shutdown_logging_system()
+        await shutdown_logging_system()
 
 
 def main() -> int:

@@ -413,19 +413,28 @@ class ApplicationContext(BaseSystemContext):
             # Сначала создаем и регистрируем все компоненты
             self.logger.info("Начало создания компонентов...")
             component_configs = self._resolve_component_configs()
+            self.logger.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}")
             components_created = 0
             for comp_type, configs in component_configs.items():
+                if not configs:
+                    continue
+                self.logger.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}")
                 for name, enriched_config in configs.items():
+                    self.logger.info(f"Создание компонента {comp_type.value}.{name}...")
                     try:
                         # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                         component = await self._create_component(comp_type, name, enriched_config, executor)
 
                         # Регистрация компонента ДО инициализации
+                        self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
                         self.components.register(comp_type, name, component)
                         components_created += 1
+                        self.logger.info(f"✅ Компонент {comp_type.value}.{name} создан и зарегистрирован")
 
                     except Exception as e:
                         self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
+                        import traceback
+                        self.logger.error(f"Traceback: {traceback.format_exc()}")
                         return False
 
             self.logger.info(f"✅ Создано {components_created} компонентов")

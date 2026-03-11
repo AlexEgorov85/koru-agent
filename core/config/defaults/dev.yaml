@@ -84,7 +84,7 @@ vector_search:
     index_type: "Flat"
     metric: "IP"
   embedding:
-    model_name: "all-MiniLM-L6-v2"
+    model_name: "C:/Users/Алексей/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
     dimension: 384
   chunking:
     chunk_size: 500
