@@ -266,54 +266,65 @@ class BookLibrarySkill(BaseComponent):
 
         # 3. Генерация SQL через sql_generation
         sql_query = ""
-        try:
-            from core.application.agent.components.action_executor import ExecutionContext
-            exec_context = ExecutionContext()
+        
+        # Проверяем доступность LLM перед вызовом (чтобы избежать 30-секундного timeout)
+        llm_available = False
+        if hasattr(self.application_context, 'infrastructure_context'):
+            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+            llm_available = llm_provider is not None
+        
+        if not llm_available:
+            # LLM недоступен — сразу используем fallback
+            await self.event_bus_logger.warning("LLM недоступен, используем SQL fallback")
+        else:
+            try:
+                from core.application.agent.components.action_executor import ExecutionContext
+                exec_context = ExecutionContext()
 
-            # Получаем значения из params (поддержка dict и Pydantic модели)
-            query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
-            max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
+                # Получаем значения из params (поддержка dict и Pydantic модели)
+                query_val = params.get('query', '') if isinstance(params, dict) else getattr(params, 'query', '')
+                max_results_val = params.get('max_results', 10) if isinstance(params, dict) else getattr(params, 'max_results', 10)
 
-            # Генерируем SQL запрос через сервис генерации
-            gen_result = await self.executor.execute_action(
-                action_name="sql_generation.generate_query",
-                parameters={
-                    "natural_language_request": query_val,
-                    "table_schema": """
-                        "Lib".books (
-                            id INTEGER PRIMARY KEY,
-                            title TEXT NOT NULL,
-                            author_id INTEGER REFERENCES "Lib".authors(id),
-                            isbn TEXT,
-                            publication_date DATE,
-                            genre TEXT
-                        ),
-                        "Lib".authors (
-                            id INTEGER PRIMARY KEY,
-                            first_name TEXT,
-                            last_name TEXT,
-                            birth_date DATE
-                        )
-                    """.strip(),
-                    "prompt": prompt_with_contract  # Передаём промпт с контрактами
-                },
-                context=exec_context
-            )
+                # Генерируем SQL запрос через сервис генерации
+                gen_result = await self.executor.execute_action(
+                    action_name="sql_generation.generate_query",
+                    parameters={
+                        "natural_language_request": query_val,
+                        "table_schema": """
+                            "Lib".books (
+                                id INTEGER PRIMARY KEY,
+                                title TEXT NOT NULL,
+                                author_id INTEGER REFERENCES "Lib".authors(id),
+                                isbn TEXT,
+                                publication_date DATE,
+                                genre TEXT
+                            ),
+                            "Lib".authors (
+                                id INTEGER PRIMARY KEY,
+                                first_name TEXT,
+                                last_name TEXT,
+                                birth_date DATE
+                            )
+                        """.strip(),
+                        "prompt": prompt_with_contract  # Передаём промпт с контрактами
+                    },
+                    context=exec_context
+                )
 
-            from core.models.data.execution import ExecutionStatus
-            if gen_result.status == ExecutionStatus.COMPLETED and gen_result.data:
-                # gen_result.data может быть dict или Pydantic моделью
-                if hasattr(gen_result.data, 'model_dump'):
-                    data_dict = gen_result.data.model_dump()
+                from core.models.data.execution import ExecutionStatus
+                if gen_result.status == ExecutionStatus.COMPLETED and gen_result.data:
+                    # gen_result.data может быть dict или Pydantic моделью
+                    if hasattr(gen_result.data, 'model_dump'):
+                        data_dict = gen_result.data.model_dump()
+                    else:
+                        data_dict = gen_result.data
+                    sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
+                    await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
                 else:
-                    data_dict = gen_result.data
-                sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
-                await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
-            else:
-                await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
+                    await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
 
-        except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
+            except Exception as e:
+                await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
 
         # Fallback: простой SQL запрос если генерация не удалась
         if not sql_query:

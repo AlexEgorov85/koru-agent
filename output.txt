@@ -1,0 +1,523 @@
+🚀 Создание инфраструктурного контекста...
+🚀 Инициализация инфраструктурного контекста...
+✅ InfrastructureContext инициализирован
+[15:32:39] [INFO] [InfrastructureContext] Обработчики логирования инициализированы
+EventBusLogger инициализирован
+[15:32:39] [INFO] [PromptStorage] PromptStorage инициализировано: C:\Users\Алексей\Documents\WORK\Agent_v5\data\prompts
+[15:32:39] [INFO] [ContractStorage] ContractStorage инициализировано: C:\Users\Алексей\Documents\WORK\Agent_v5\data\contracts
+[15:32:39] [INFO] [ResourceDiscovery] ResourceDiscovery инициализирован: base_dir=data, profile=prod
+[15:32:39] [INFO] [ResourceDiscovery] ✅ Загружено 40 промптов (просканировано: 40, пропущено: 0)
+[15:32:39] [INFO] [ResourceDiscovery] ✅ Загружено 70 контрактов (просканировано: 70, пропущено: 0)
+[15:32:39] [INFO] [MetricsCollector] MetricsCollector инициализирован: подписан на 4 событий
+[15:32:39] [INFO] [LogCollector] LogCollector инициализирован: подписан на 11 событий
+[15:32:39] [INFO] [InfrastructureContext] Инициализация Vector Search...
+[15:32:39] [INFO] [InfrastructureContext] ✅ Загружен индекс knowledge: data\vector\knowledge_index.faiss (0 векторов)
+[15:32:39] [INFO] [InfrastructureContext] ✅ Загружен индекс history: data\vector\history_index.faiss (0 векторов)
+[15:32:39] [INFO] [InfrastructureContext] ✅ Загружен индекс docs: data\vector\docs_index.faiss (0 векторов)
+[15:32:39] [INFO] [InfrastructureContext] ✅ Загружен индекс books: data\vector\books_index.faiss (8716 векторов)
+[15:32:39] [INFO] [InfrastructureContext] Vector Search статус: 4 загружено, 0 отсутствует, всего векторов: 8716
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 14173.20it/s]
+[1mBertModel LOAD REPORT[0m from: sentence-transformers/all-MiniLM-L6-v2
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+[3mNotes:
+- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
+[15:32:49] [INFO] [InfrastructureContext] ✅ Инициализирован Embedding: all-MiniLM-L6-v2
+[15:32:49] [INFO] [InfrastructureContext] === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
+[15:32:49] [INFO] [InfrastructureContext] Вызов lifecycle_manager.initialize_all()...
+[15:32:49] [INFO] [LifecycleManager] Начало инициализации 0 инфраструктурных ресурсов
+[15:32:49] [INFO] [LifecycleManager] Все инфраструктурные ресурсы инициализированы: 0/0 успешно
+[15:32:49] [INFO] [InfrastructureContext] ✅ LifecycleManager инициализирован
+🤖 LLM → _register_providers_from_config: начало
+🤖 LLM → llm_providers: []
+🤖 LLM → _register_providers_from_config: завершено
+✅ Инфраструктурный контекст инициализирован
+[15:32:49] [INFO] [session] 🚀 Сессия начата: c5ec880a-f140-4e65-919a-cbd82c34607c
+[15:32:49] [INFO] [session] 📝 Цель: Где проходит действие в произведении Капитанская дочка?
+[15:32:49] [DEBUG] [ResourceDiscovery] discover_prompts: возвращаем из кэша 37 промптов
+[15:32:49] [DEBUG] [ResourceDiscovery] discover_contracts: возвращаем из кэша 70 контрактов
+[15:32:49] [INFO] [ApplicationContext] Начало инициализации ApplicationContext 0552e1eb-1a8e-4043-b47e-182b37b0fefd
+[15:32:49] [DEBUG] [ResourceDiscovery] discover_prompts: возвращаем из кэша 37 промптов
+[15:32:49] [DEBUG] [ResourceDiscovery] discover_contracts: возвращаем из кэша 70 контрактов
+[15:32:49] [INFO] [ApplicationContext] ✅ DataRepository инициализирован успешно:
+============================================================
+ОТЧЁТ ВАЛИДАЦИИ DATA REPOSITORY
+============================================================
+
+✅ Все проверки пройдены успешно
+
+📊 Статистика репозитория:
+   Промптов загружено: 37
+   Контрактов загружено: 70
+   Профиль: prod
+============================================================
+[15:32:49] [INFO] [ApplicationContext] ✅ Ресурсы загружены: промптов=36, входных контрактов=35, выходных контрактов=35
+[15:32:49] [INFO] [LLMOrchestrator] LLMOrchestrator инициализирован: max_workers=4, cleanup_interval=600.0с
+[15:32:49] [INFO] [ApplicationContext] ✅ LLMOrchestrator инициализирован
+[15:32:49] [INFO] [ApplicationContext] Начало создания компонентов...
+[15:32:49] [INFO] [ApplicationContext] Конфигурации компонентов: [('service', ['contract_service', 'sql_generation', 'contract', 'prompt_service', 'sql_query_service', 'sql_validator_service', 'table_description_service']), ('skill', ['book_library', 'data_analysis', 'final_answer', 'planning']), ('tool', ['file_tool', 'sql_tool', 'vector_books', 'vector_books_tool']), ('behavior', ['evaluation_pattern', 'planning_pattern', 'react_pattern'])]
+[15:32:49] [INFO] [ApplicationContext] Обработка типа компонента service: ['contract_service', 'sql_generation', 'contract', 'prompt_service', 'sql_query_service', 'sql_validator_service', 'table_description_service']
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.contract_service...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента contract_service типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=contract_service
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: contract_service
+[15:32:49] [INFO] [ComponentFactory] Найден ContractService
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс ContractService для contract_service
+[15:32:49] [INFO] [ComponentFactory] Создание компонента contract_service типа ContractService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для contract_service: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание ContractService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, contract_storage=ContractStorage
+[15:32:49] [DEBUG] [ContractService] Инициализирован сервис: contract_service
+[15:32:49] [INFO] [ComponentFactory] Компонент contract_service создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент contract_service успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.contract_service...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.contract_service создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.sql_generation...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента sql_generation типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=sql_generation
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: sql_generation
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс SQLGenerationService для sql_generation
+[15:32:49] [INFO] [ComponentFactory] Создание компонента sql_generation типа SQLGenerationService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для sql_generation: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание SQLGenerationService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [DEBUG] [SQLGenerationService] Инициализирован сервис: sql_generation
+[15:32:49] [INFO] [ComponentFactory] Компонент sql_generation создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент sql_generation успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.sql_generation...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.sql_generation создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.contract...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента contract типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=contract
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: contract
+[15:32:49] [INFO] [ComponentFactory] Динамически найден сервис: <class 'core.application.services.contract_service.ContractService'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс ContractService для contract
+[15:32:49] [INFO] [ComponentFactory] Создание компонента contract типа ContractService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для contract: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание ContractService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, contract_storage=ContractStorage
+[15:32:49] [DEBUG] [ContractService] Инициализирован сервис: contract
+[15:32:49] [INFO] [ComponentFactory] Компонент contract создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент contract успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.contract...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.contract создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.prompt_service...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента prompt_service типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=prompt_service
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: prompt_service
+[15:32:49] [INFO] [ComponentFactory] Найден PromptService
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс PromptService для prompt_service
+[15:32:49] [INFO] [ComponentFactory] Создание компонента prompt_service типа PromptService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для prompt_service: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание PromptService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [DEBUG] [PromptService] Инициализирован сервис: prompt_service
+[15:32:49] [INFO] [ComponentFactory] Компонент prompt_service создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент prompt_service успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.prompt_service...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.prompt_service создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.sql_query_service...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента sql_query_service типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=sql_query_service
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: sql_query_service
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс SQLQueryService для sql_query_service
+[15:32:49] [INFO] [ComponentFactory] Создание компонента sql_query_service типа SQLQueryService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для sql_query_service: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание SQLQueryService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [DEBUG] [SQLQueryService] Инициализирован сервис: sql_query_service
+[15:32:49] [INFO] [ComponentFactory] Компонент sql_query_service создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент sql_query_service успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.sql_query_service...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.sql_query_service создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.sql_validator_service...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента sql_validator_service типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=sql_validator_service
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: sql_validator_service
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс SQLValidatorService для sql_validator_service
+[15:32:49] [INFO] [ComponentFactory] Создание компонента sql_validator_service типа SQLValidatorService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для sql_validator_service: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание SQLValidatorService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [DEBUG] [SQLValidatorService] Инициализирован сервис: sql_validator_service
+[15:32:49] [INFO] [ComponentFactory] Компонент sql_validator_service создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент sql_validator_service успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.sql_validator_service...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.sql_validator_service создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента service.table_description_service...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента table_description_service типа service
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=service, имя=table_description_service
+[15:32:49] [INFO] [ComponentFactory] Поиск сервиса: table_description_service
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс TableDescriptionService для table_description_service
+[15:32:49] [INFO] [ComponentFactory] Создание компонента table_description_service типа TableDescriptionService
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для table_description_service: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание TableDescriptionService с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [DEBUG] [TableDescriptionService] Инициализирован сервис: table_description_service
+[15:32:49] [INFO] [ComponentFactory] Компонент table_description_service создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент table_description_service успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента service.table_description_service...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент service.table_description_service создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Обработка типа компонента skill: ['book_library', 'data_analysis', 'final_answer', 'planning']
+[15:32:49] [INFO] [ApplicationContext] Создание компонента skill.book_library...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента book_library типа skill
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=skill, имя=book_library
+[15:32:49] [INFO] [ComponentFactory] Найден навык: <class 'core.application.skills.book_library.skill.BookLibrarySkill'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс BookLibrarySkill для book_library
+[15:32:49] [INFO] [ComponentFactory] Создание компонента book_library типа BookLibrarySkill
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для book_library: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание BookLibrarySkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент book_library создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент book_library успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента skill.book_library...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент skill.book_library создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента skill.data_analysis...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента data_analysis типа skill
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=skill, имя=data_analysis
+[15:32:49] [INFO] [ComponentFactory] Найден навык: <class 'core.application.skills.data_analysis.skill.DataAnalysisSkill'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс DataAnalysisSkill для data_analysis
+[15:32:49] [INFO] [ComponentFactory] Создание компонента data_analysis типа DataAnalysisSkill
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для data_analysis: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание DataAnalysisSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент data_analysis создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент data_analysis успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента skill.data_analysis...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент skill.data_analysis создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента skill.final_answer...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента final_answer типа skill
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=skill, имя=final_answer
+[15:32:49] [INFO] [ComponentFactory] Найден навык: <class 'core.application.skills.final_answer.skill.FinalAnswerSkill'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс FinalAnswerSkill для final_answer
+[15:32:49] [INFO] [ComponentFactory] Создание компонента final_answer типа FinalAnswerSkill
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для final_answer: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание FinalAnswerSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент final_answer создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент final_answer успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента skill.final_answer...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент skill.final_answer создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента skill.planning...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента planning типа skill
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=skill, имя=planning
+[15:32:49] [INFO] [ComponentFactory] Найден навык: <class 'core.application.skills.planning.skill.PlanningSkill'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс PlanningSkill для planning
+[15:32:49] [INFO] [ComponentFactory] Создание компонента planning типа PlanningSkill
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для planning: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание PlanningSkill с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент planning создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент planning успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента skill.planning...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент skill.planning создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Обработка типа компонента tool: ['file_tool', 'sql_tool', 'vector_books', 'vector_books_tool']
+[15:32:49] [INFO] [ApplicationContext] Создание компонента tool.file_tool...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента file_tool типа tool
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=tool, имя=file_tool
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс FileTool для file_tool
+[15:32:49] [INFO] [ComponentFactory] Создание компонента file_tool типа FileTool
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для file_tool: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание FileTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент file_tool создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент file_tool успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента tool.file_tool...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент tool.file_tool создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента tool.sql_tool...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента sql_tool типа tool
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=tool, имя=sql_tool
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс SQLTool для sql_tool
+[15:32:49] [INFO] [ComponentFactory] Создание компонента sql_tool типа SQLTool
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для sql_tool: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание SQLTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент sql_tool создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент sql_tool успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента tool.sql_tool...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент tool.sql_tool создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента tool.vector_books...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента vector_books типа tool
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=tool, имя=vector_books
+[15:32:49] [INFO] [ComponentFactory] Найден инструмент: <class 'core.application.tools.vector_books_tool.VectorBooksTool'>
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс VectorBooksTool для vector_books
+[15:32:49] [INFO] [ComponentFactory] Создание компонента vector_books типа VectorBooksTool
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для vector_books: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание VectorBooksTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент vector_books создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент vector_books успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента tool.vector_books...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент tool.vector_books создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента tool.vector_books_tool...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента vector_books_tool типа tool
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=tool, имя=vector_books_tool
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс VectorBooksTool для vector_books_tool
+[15:32:49] [INFO] [ComponentFactory] Создание компонента vector_books_tool типа VectorBooksTool
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для vector_books_tool: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание VectorBooksTool с параметрами: name=str, component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext
+[15:32:49] [INFO] [ComponentFactory] Компонент vector_books_tool создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент vector_books_tool успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента tool.vector_books_tool...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент tool.vector_books_tool создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Обработка типа компонента behavior: ['evaluation_pattern', 'planning_pattern', 'react_pattern']
+[15:32:49] [INFO] [ApplicationContext] Создание компонента behavior.evaluation_pattern...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента evaluation_pattern типа behavior
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=behavior, имя=evaluation_pattern
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс EvaluationPattern для evaluation_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание компонента evaluation_pattern типа EvaluationPattern
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для evaluation_pattern: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание behavior pattern EvaluationPattern с component_name=evaluation_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание EvaluationPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+[15:32:49] [INFO] [ComponentFactory] Компонент evaluation_pattern создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент evaluation_pattern успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента behavior.evaluation_pattern...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент behavior.evaluation_pattern создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента behavior.planning_pattern...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента planning_pattern типа behavior
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=behavior, имя=planning_pattern
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс PlanningPattern для planning_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание компонента planning_pattern типа PlanningPattern
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для planning_pattern: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание behavior pattern PlanningPattern с component_name=planning_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание PlanningPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+[15:32:49] [INFO] [ComponentFactory] Компонент planning_pattern создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент planning_pattern успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента behavior.planning_pattern...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент behavior.planning_pattern создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] Создание компонента behavior.react_pattern...
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: создание компонента react_pattern типа behavior
+[15:32:49] [INFO] [ComponentFactory] Разрешение класса компонента: тип=behavior, имя=react_pattern
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: найден класс ReActPattern для react_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание компонента react_pattern типа ReActPattern
+[15:32:49] [INFO] [ComponentFactory] Получены провайдеры для react_pattern: prompt_storage, contract_storage, event_bus, metrics_storage, log_storage
+[15:32:49] [INFO] [ComponentFactory] Создание behavior pattern ReActPattern с component_name=react_pattern
+[15:32:49] [INFO] [ComponentFactory] Создание ReActPattern с параметрами: component_config=ComponentConfig, executor=ActionExecutor, application_context=ApplicationContext, component_name=str
+[15:32:49] [INFO] [ComponentFactory] Компонент react_pattern создан (инициализация будет выполнена позже)
+[15:32:49] [INFO] [ComponentFactory] ComponentFactory: компонент react_pattern успешно создан
+[15:32:49] [INFO] [ApplicationContext] Регистрация компонента behavior.react_pattern...
+[15:32:49] [INFO] [ApplicationContext] ✅ Компонент behavior.react_pattern создан и зарегистрирован
+[15:32:49] [INFO] [ApplicationContext] ✅ Создано 18 компонентов
+[15:32:49] [INFO] [ApplicationContext] === НАЧАЛО _initialize_components_with_dependencies ===
+[15:32:49] [INFO] [DataAnalysisSkill] BaseComponent.initialize: начало инициализации для data_analysis
+[15:32:49] [INFO] [DataAnalysisSkill] _preload_resources: data_analysis - prompt_versions=['data_analysis.analyze_step_data.system', 'data_analysis.analyze_step_data'], input_contract_versions=['data_analysis.analyze_step_data'], output_contract_versions=['data_analysis.analyze_step_data']
+[15:32:49] [DEBUG] [DataAnalysisSkill] Загружен промпт 'data_analysis.analyze_step_data.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [DataAnalysisSkill] Загружен промпт 'data_analysis.analyze_step_data' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [DataAnalysisSkill] Загружен system промпт: data_analysis.analyze_step_data
+[15:32:49] [DEBUG] [DataAnalysisSkill] data_analysis: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [DataAnalysisSkill] Компонент 'data_analysis' полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [ApplicationContext] Навык 'data_analysis' инициализирован с вариантом 'data_analysis_prod'. Загружено: промпты=2, input-контракты=1, output-контракты=1
+[15:32:49] [INFO] [FileTool] BaseComponent.initialize: начало инициализации для file_tool
+[15:32:49] [INFO] [FileTool] _preload_resources: file_tool - prompt_versions=[], input_contract_versions=['file_tool.read_write'], output_contract_versions=['file_tool.read_write']
+[15:32:49] [DEBUG] [FileTool] file_tool: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [FileTool] Компонент 'file_tool' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [SQLTool] BaseComponent.initialize: начало инициализации для sql_tool
+[15:32:49] [INFO] [SQLTool] _preload_resources: sql_tool - prompt_versions=[], input_contract_versions=['sql_tool.execute_query'], output_contract_versions=['sql_tool.execute_query']
+[15:32:49] [DEBUG] [SQLTool] sql_tool: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [SQLTool] Компонент 'sql_tool' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [VectorBooksTool] BaseComponent.initialize: начало инициализации для vector_books
+[15:32:49] [INFO] [VectorBooksTool] _preload_resources: vector_books - prompt_versions=[], input_contract_versions=['vector_books.analyze', 'vector_books.get_document', 'vector_books.query', 'vector_books.search'], output_contract_versions=['vector_books.analyze', 'vector_books.get_document', 'vector_books.query', 'vector_books.search']
+[15:32:49] [DEBUG] [VectorBooksTool] vector_books: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [VectorBooksTool] Компонент 'vector_books' полностью инициализирован. Ресурсы: промпты=0, input_contracts=4, output_contracts=4
+[15:32:49] [INFO] [VectorBooksTool] BaseComponent.initialize: начало инициализации для vector_books_tool
+[15:32:49] [INFO] [VectorBooksTool] _preload_resources: vector_books_tool - prompt_versions=[], input_contract_versions=['vector_books.search', 'vector_books.get_document', 'vector_books.analyze', 'vector_books.query'], output_contract_versions=['vector_books.search', 'vector_books.get_document', 'vector_books.analyze', 'vector_books.query']
+[15:32:49] [DEBUG] [VectorBooksTool] vector_books_tool: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [VectorBooksTool] Компонент 'vector_books_tool' полностью инициализирован. Ресурсы: промпты=0, input_contracts=4, output_contracts=4
+[15:32:49] [INFO] [ContractService] ContractService инициализирован: загружено 0 контрактов
+[15:32:49] [INFO] [ContractService] ContractService инициализирован: загружено 2 контрактов
+[15:32:49] [INFO] [PromptService] PromptService инициализирован: загружено 0 промптов
+[15:32:49] [INFO] [TableDescriptionService] BaseService.initialize: начало инициализации для table_description_service
+[15:32:49] [INFO] [TableDescriptionService] _resolve_dependencies: начата обработка зависимостей для сервиса 'table_description_service': []
+[15:32:49] [INFO] [TableDescriptionService] Все зависимости для сервиса 'table_description_service' успешно разрешены
+[15:32:49] [INFO] [TableDescriptionService] BaseService.initialize: вызов super().initialize() для table_description_service
+[15:32:49] [INFO] [TableDescriptionService] BaseComponent.initialize: начало инициализации для table_description_service
+[15:32:49] [INFO] [TableDescriptionService] _preload_resources: table_description_service - prompt_versions=[], input_contract_versions=['table_description_service.get_table'], output_contract_versions=['table_description_service.get_table']
+[15:32:49] [DEBUG] [TableDescriptionService] table_description_service: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [TableDescriptionService] Компонент 'table_description_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [FinalAnswerSkill] BaseComponent.initialize: начало инициализации для final_answer
+[15:32:49] [INFO] [FinalAnswerSkill] _preload_resources: final_answer - prompt_versions=['final_answer.generate.system', 'final_answer.generate'], input_contract_versions=['final_answer.generate'], output_contract_versions=['final_answer.generate']
+[15:32:49] [DEBUG] [FinalAnswerSkill] Загружен промпт 'final_answer.generate.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [FinalAnswerSkill] Загружен промпт 'final_answer.generate' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [FinalAnswerSkill] Загружен system промпт: final_answer.generate
+[15:32:49] [DEBUG] [FinalAnswerSkill] final_answer: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [FinalAnswerSkill] Компонент 'final_answer' полностью инициализирован. Ресурсы: промпты=2, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [ApplicationContext] Навык 'final_answer' инициализирован с вариантом 'final_answer_prod'. Загружено: промпты=2, input-контракты=1, output-контракты=1
+[15:32:49] [INFO] [PlanningSkill] BaseComponent.initialize: начало инициализации для planning
+[15:32:49] [INFO] [PlanningSkill] _preload_resources: planning - prompt_versions=['planning.create_plan.system', 'planning.create_plan', 'planning.decompose_task.system', 'planning.decompose_task', 'planning.mark_task_completed.system', 'planning.mark_task_completed', 'planning.update_plan.system', 'planning.update_plan'], input_contract_versions=['planning.create_plan', 'planning.decompose_task', 'planning.get_next_step', 'planning.mark_task_completed', 'planning.update_plan', 'planning.update_step_status', 'planning'], output_contract_versions=['planning.create_plan', 'planning.decompose_task', 'planning.get_next_step', 'planning.mark_task_completed', 'planning.update_plan', 'planning.update_step_status', 'planning']
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.create_plan.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.create_plan' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.decompose_task.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.decompose_task' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.mark_task_completed.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.mark_task_completed' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.update_plan.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен промпт 'planning.update_plan' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [PlanningSkill] Загружен system промпт: planning.create_plan
+[15:32:49] [DEBUG] [PlanningSkill] Загружен system промпт: planning.decompose_task
+[15:32:49] [DEBUG] [PlanningSkill] Загружен system промпт: planning.mark_task_completed
+[15:32:49] [DEBUG] [PlanningSkill] Загружен system промпт: planning.update_plan
+[15:32:49] [DEBUG] [PlanningSkill] planning: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [PlanningSkill] Компонент 'planning' полностью инициализирован. Ресурсы: промпты=8, input_contracts=7, output_contracts=7
+[15:32:49] [INFO] [PlanningPattern] BaseComponent.initialize: начало инициализации для planning_pattern
+[15:32:49] [INFO] [PlanningPattern] _preload_resources: planning_pattern - prompt_versions=['behavior.planning.decompose.system', 'behavior.planning.decompose', 'behavior.planning.sequence.system', 'behavior.planning.sequence', 'behavior.planning.system', 'behavior.planning'], input_contract_versions=['behavior.planning.decompose', 'behavior.planning.sequence', 'behavior.planning'], output_contract_versions=['behavior.planning.decompose', 'behavior.planning.sequence', 'behavior.planning']
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning.decompose.system' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning.decompose' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning.sequence.system' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning.sequence' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning.system' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен промпт 'behavior.planning' vv1.0.0 (тип: behavior, статус: active)
+[15:32:49] [DEBUG] [PlanningPattern] Загружен system промпт: behavior.planning.decompose
+[15:32:49] [DEBUG] [PlanningPattern] Загружен system промпт: behavior.planning.sequence
+[15:32:49] [DEBUG] [PlanningPattern] Загружен system промпт: behavior.planning
+[15:32:49] [DEBUG] [PlanningPattern] planning_pattern: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [PlanningPattern] Компонент 'planning_pattern' полностью инициализирован. Ресурсы: промпты=6, input_contracts=3, output_contracts=3
+[15:32:49] [INFO] [SQLGenerationService] BaseService.initialize: начало инициализации для sql_generation
+[15:32:49] [INFO] [SQLGenerationService] _resolve_dependencies: начата обработка зависимостей для сервиса 'sql_generation': ['table_description_service', 'prompt_service', 'contract_service']
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: ищем зависимость 'table_description_service' для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: ищем зависимость 'table_description_service' для компонента 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: сервис 'table_description_service' найден в registry компонентов
+[15:32:49] [INFO] [SQLGenerationService] _resolve_dependencies: зависимость 'table_description_service' найдена для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: зависимость 'table_description_service' для 'sql_generation' уже инициализирована
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: ищем зависимость 'prompt_service' для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: ищем зависимость 'prompt_service' для компонента 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: сервис 'prompt_service' найден в registry компонентов
+[15:32:49] [INFO] [SQLGenerationService] _resolve_dependencies: зависимость 'prompt_service' найдена для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: зависимость 'prompt_service' для 'sql_generation' уже инициализирована
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: ищем зависимость 'contract_service' для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: ищем зависимость 'contract_service' для компонента 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] get_dependency: сервис 'contract_service' найден в registry компонентов
+[15:32:49] [INFO] [SQLGenerationService] _resolve_dependencies: зависимость 'contract_service' найдена для сервиса 'sql_generation'
+[15:32:49] [DEBUG] [SQLGenerationService] _resolve_dependencies: зависимость 'contract_service' для 'sql_generation' уже инициализирована
+[15:32:49] [INFO] [SQLGenerationService] Все зависимости для сервиса 'sql_generation' успешно разрешены
+[15:32:49] [INFO] [SQLGenerationService] BaseService.initialize: вызов super().initialize() для sql_generation
+[15:32:49] [INFO] [SQLGenerationService] BaseComponent.initialize: начало инициализации для sql_generation
+[15:32:49] [INFO] [SQLGenerationService] _preload_resources: sql_generation - prompt_versions=['sql_generation.generate_query.system', 'sql_generation.generate_query'], input_contract_versions=['sql_generation.generate_query', 'sql_generation'], output_contract_versions=['sql_generation.generate_query', 'sql_generation']
+[15:32:49] [DEBUG] [SQLGenerationService] Загружен промпт 'sql_generation.generate_query.system' vv1.0.0 (тип: service, статус: active)
+[15:32:49] [DEBUG] [SQLGenerationService] Загружен промпт 'sql_generation.generate_query' vv1.0.0 (тип: service, статус: active)
+[15:32:49] [DEBUG] [SQLGenerationService] Загружен system промпт: sql_generation.generate_query
+[15:32:49] [DEBUG] [SQLGenerationService] sql_generation: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [SQLGenerationService] Компонент 'sql_generation' полностью инициализирован. Ресурсы: промпты=2, input_contracts=2, output_contracts=2
+[15:32:49] [DEBUG] [SQLErrorAnalyzer] Инициализирован сервис: sql_error_analyzer
+[15:32:49] [INFO] [SQLErrorAnalyzer] SQLErrorAnalyzer успешно инициализирован
+[15:32:49] [DEBUG] [SQLCorrectionEngine] Инициализирован сервис: sql_correction_engine
+[15:32:49] [DEBUG] [SQLErrorAnalyzer] Инициализирован сервис: sql_error_analyzer
+[15:32:49] [INFO] [SQLValidatorService] BaseService.initialize: начало инициализации для sql_validator_service
+[15:32:49] [INFO] [SQLValidatorService] _resolve_dependencies: начата обработка зависимостей для сервиса 'sql_validator_service': ['table_description_service']
+[15:32:49] [DEBUG] [SQLValidatorService] _resolve_dependencies: ищем зависимость 'table_description_service' для сервиса 'sql_validator_service'
+[15:32:49] [DEBUG] [SQLValidatorService] get_dependency: ищем зависимость 'table_description_service' для компонента 'sql_validator_service'
+[15:32:49] [DEBUG] [SQLValidatorService] get_dependency: сервис 'table_description_service' найден в registry компонентов
+[15:32:49] [INFO] [SQLValidatorService] _resolve_dependencies: зависимость 'table_description_service' найдена для сервиса 'sql_validator_service'
+[15:32:49] [DEBUG] [SQLValidatorService] _resolve_dependencies: зависимость 'table_description_service' для 'sql_validator_service' уже инициализирована
+[15:32:49] [INFO] [SQLValidatorService] Все зависимости для сервиса 'sql_validator_service' успешно разрешены
+[15:32:49] [INFO] [SQLValidatorService] BaseService.initialize: вызов super().initialize() для sql_validator_service
+[15:32:49] [INFO] [SQLValidatorService] BaseComponent.initialize: начало инициализации для sql_validator_service
+[15:32:49] [INFO] [SQLValidatorService] _preload_resources: sql_validator_service - prompt_versions=[], input_contract_versions=['sql_validator_service.validate'], output_contract_versions=['sql_validator_service.validate']
+[15:32:49] [DEBUG] [SQLValidatorService] sql_validator_service: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [SQLValidatorService] Компонент 'sql_validator_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+[15:32:49] [INFO] [SQLQueryService] BaseService.initialize: начало инициализации для sql_query_service
+[15:32:49] [INFO] [SQLQueryService] _resolve_dependencies: начата обработка зависимостей для сервиса 'sql_query_service': ['sql_validator_service', 'sql_generation']
+[15:32:49] [DEBUG] [SQLQueryService] _resolve_dependencies: ищем зависимость 'sql_validator_service' для сервиса 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] get_dependency: ищем зависимость 'sql_validator_service' для компонента 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] get_dependency: сервис 'sql_validator_service' найден в registry компонентов
+[15:32:49] [INFO] [SQLQueryService] _resolve_dependencies: зависимость 'sql_validator_service' найдена для сервиса 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] _resolve_dependencies: зависимость 'sql_validator_service' для 'sql_query_service' уже инициализирована
+[15:32:49] [DEBUG] [SQLQueryService] _resolve_dependencies: ищем зависимость 'sql_generation' для сервиса 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] get_dependency: ищем зависимость 'sql_generation' для компонента 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] get_dependency: сервис 'sql_generation' найден в registry компонентов
+[15:32:49] [INFO] [SQLQueryService] _resolve_dependencies: зависимость 'sql_generation' найдена для сервиса 'sql_query_service'
+[15:32:49] [DEBUG] [SQLQueryService] _resolve_dependencies: зависимость 'sql_generation' для 'sql_query_service' уже инициализирована
+[15:32:49] [INFO] [SQLQueryService] Все зависимости для сервиса 'sql_query_service' успешно разрешены
+[15:32:49] [INFO] [SQLQueryService] BaseService.initialize: вызов super().initialize() для sql_query_service
+[15:32:49] [INFO] [SQLQueryService] BaseComponent.initialize: начало инициализации для sql_query_service
+[15:32:49] [INFO] [SQLQueryService] _preload_resources: sql_query_service - prompt_versions=[], input_contract_versions=['sql_query_service.execute'], output_contract_versions=['sql_query_service.execute']
+[15:32:49] [DEBUG] [SQLQueryService] sql_query_service: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [SQLQueryService] Компонент 'sql_query_service' полностью инициализирован. Ресурсы: промпты=0, input_contracts=1, output_contracts=1
+[15:32:49] [DEBUG] [SQLErrorAnalyzer] Инициализирован сервис: sql_error_analyzer
+[15:32:49] [INFO] [SQLErrorAnalyzer] SQLErrorAnalyzer успешно инициализирован
+[15:32:49] [INFO] [BookLibrarySkill] BaseComponent.initialize: начало инициализации для book_library
+[15:32:49] [INFO] [BookLibrarySkill] _preload_resources: book_library - prompt_versions=['book_library.execute_script', 'book_library.search_books.system', 'book_library.search_books', 'book_library.semantic_search'], input_contract_versions=['book_library.execute_script', 'book_library.list_scripts', 'book_library.search_books', 'book_library.semantic_search'], output_contract_versions=['book_library.execute_script', 'book_library.list_scripts', 'book_library.search_books', 'book_library.semantic_search']
+[15:32:49] [DEBUG] [BookLibrarySkill] Загружен промпт 'book_library.execute_script' vv1.1.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [BookLibrarySkill] Загружен промпт 'book_library.search_books.system' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [BookLibrarySkill] Загружен промпт 'book_library.search_books' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [BookLibrarySkill] Загружен промпт 'book_library.semantic_search' vv1.0.0 (тип: skill, статус: active)
+[15:32:49] [DEBUG] [BookLibrarySkill] Загружен system промпт: book_library.search_books
+[15:32:49] [DEBUG] [BookLibrarySkill] book_library: Все ресурсы валидированы успешно
+[15:32:49] [INFO] [BookLibrarySkill] Компонент 'book_library' полностью инициализирован. Ресурсы: промпты=4, input_contracts=4, output_contracts=4
+[15:32:49] [INFO] [ApplicationContext] ApplicationContext 0552e1eb-1a8e-4043-b47e-182b37b0fefd успешно инициализирован
+[15:32:49] [INFO] [AgentFactory] Создан агент с ID 0552e1eb-1a8e-4043-b47e-182b37b0fefd. Версии: из конфигурации
+c:\Users\Алексей\Documents\WORK\Agent_v5\main.py:149: RuntimeWarning: coroutine 'EventBusLogger.info' was never awaited
+  session_logger.info("🚀 Запуск выполнения агента...")
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+✅ InfrastructureContext инициализирован
+✅ ApplicationContext инициализирован
+🚀 Запуск агента...
+🔄 Запуск выполнения агента...
+[15:32:49] [INFO] [session] 🔄 Запуск выполнения агента...
+[15:32:49] [INFO] [AgentRuntime] Запуск агента с целью: Где проходит действие в произведении Капитанская дочка?...
+
+🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: RuntimeError: asyncio.run() cannot be called from a running event loop
+c:\Users\Алексей\Documents\WORK\Agent_v5\core\application\agent\runtime.py:888: RuntimeWarning: coroutine 'BehaviorManager.initialize' was never awaited
+  return ExecutionResult.failure(str(e))
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+✅ Выполнение агента завершено
+[15:32:49] [INFO] [session] ✅ Выполнение агента завершено
+🚀 Агент успешно завершён
+[15:32:49] [INFO] [ApplicationContext] Завершение работы ApplicationContext...
+🔧 TOOL → DataAnalysisSkill инициализирован с capability: ['data_analysis.analyze_step_data']
+BaseService.initialize: super().initialize() вернул True для table_description_service
+Инициализация сервиса описания таблицы
+Сервис описания таблицы успешно инициализирован
+Сервис 'table_description_service' инициализирован. Зависимости: отсутствуют, _initialized flag set to: True
+🔧 TOOL → Промпт для final_answer.generate загружен: v1.0.0
+🔧 TOOL → Входная схема для final_answer.generate загружена
+🔧 TOOL → Выходная схема для final_answer.generate загружена
+🔧 TOOL → FinalAnswerSkill инициализирован с capability: ['final_answer.generate']
+BaseService.initialize: super().initialize() вернул True для sql_generation
+Сервис 'sql_generation' инициализирован. Зависимости: ['table_description_service', 'prompt_service', 'contract_service'], _initialized flag set to: True
+BaseService.initialize: super().initialize() вернул True для sql_validator_service
+SQLValidatorService инициализирован с разрешенными операциями: {'SELECT'}
+Сервис 'sql_validator_service' инициализирован. Зависимости: ['table_description_service'], _initialized flag set to: True
+BaseService.initialize: super().initialize() вернул True для sql_query_service
+SQLQueryService успешно инициализирован
+Сервис 'sql_query_service' инициализирован. Зависимости: ['sql_validator_service', 'sql_generation'], _initialized flag set to: True
+🔧 TOOL → Загружено 10 скриптов в реестр
+🔧 TOOL → BookLibrarySkill инициализирован с capability: ['book_library.search_books', 'book_library.execute_script', 'book_library.list_scripts', 'book_library.semantic_search']
+[15:32:49] [INFO] [LLMOrchestrator] LLMOrchestrator завершён. Метрики: {'total_calls': 0, 'completed_calls': 0, 'timed_out_calls': 0, 'failed_calls': 0, 'orphaned_calls': 0, 'avg_generation_time': 0.0, 'timeout_rate': 0.0, 'orphan_rate': 0.0, 'structured_calls': 0, 'structured_success': 0, 'structured_success_rate': 0.0, 'total_retry_attempts': 0, 'avg_retries_per_call': 0.0}
+[15:32:49] [INFO] [LLMOrchestrator] LLMOrchestrator остановлен
+[15:32:49] [INFO] [ApplicationContext] LLMOrchestrator завершён
+[15:32:49] [INFO] [ApplicationContext] ApplicationContext завершён
+[15:32:49] [INFO] [InfrastructureContext] Начало завершения работы InfrastructureContext
+[15:32:49] [INFO] [InfrastructureContext] Сохранение Vector Search индексов...
+[15:32:49] [INFO] [InfrastructureContext] 💾 Сохранён индекс knowledge: data\vector\knowledge_index.faiss
+[15:32:49] [INFO] [InfrastructureContext] 💾 Сохранён индекс history: data\vector\history_index.faiss
+[15:32:49] [INFO] [InfrastructureContext] 💾 Сохранён индекс docs: data\vector\docs_index.faiss
+[15:32:49] [INFO] [InfrastructureContext] 💾 Сохранён индекс books: data\vector\books_index.faiss
+[15:32:49] [INFO] [LifecycleManager] Завершение работы инфраструктурных ресурсов
+[15:32:49] [INFO] [LifecycleManager] Все инфраструктурные ресурсы завершены: 0/0 успешно
+[15:32:49] [INFO] [InfrastructureContext] InfrastructureContext завершен
+Loading faiss with AVX2 support.
+Successfully loaded faiss with AVX2 support.
+Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/README.md "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/sentence_bert_config.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling%2Fconfig.json "HTTP/1.1 200 OK"
+HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+ErrorHandler инициализирован
+
+❌ ERROR → Error in AgentRuntime.run: RuntimeError: asyncio.run() cannot be called from a running event loop (type: str)
+NoneType: None
+Error in AgentRuntime.run: asyncio.run() cannot be called from a running event loop (type: str)
+
+❌ ERROR → Error in main.run_agent.run_agent: Ошибка агента: asyncio.run() cannot be called from a running event loop (тип: str, файл: main.py, строка: 176)
+
+❌ Произошла ошибка: Ошибка агента: asyncio.run() cannot be called from a running event loop (тип: str, файл: main.py, строка: 176)

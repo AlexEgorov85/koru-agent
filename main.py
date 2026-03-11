@@ -146,8 +146,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         # Создание и запуск агента
         agent = agent_factory.create_agent_sync(goal=goal, config=agent_config)
 
-        session_logger.info("🚀 Запуск выполнения агента...")
-        
+        session_logger.info_sync("🚀 Запуск выполнения агента...")
+
         # === ДИАГНОСТИКА: Проверяем result перед использованием ===
         import sys
         import traceback
