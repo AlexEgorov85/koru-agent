@@ -326,7 +326,7 @@ class InfrastructureContext:
         print(f"🤖 LLM → _register_providers_from_config: завершено")
 
     async def _init_vector_search(self):
-        """Инициализация векторного поиска."""
+        """Инициализация векторного поиска с проверкой наличия индексов."""
         from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
         from core.infrastructure.providers.embedding.sentence_transformers_provider import SentenceTransformersProvider
         from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
@@ -336,6 +336,7 @@ class InfrastructureContext:
         await self.event_bus_logger.info("Инициализация Vector Search...")
 
         # Инициализация FAISS провайдеров для каждого источника
+        indexes_status = {}
         for source, index_file in vs_config.indexes.items():
             try:
                 provider = FAISSProvider(
@@ -346,14 +347,42 @@ class InfrastructureContext:
 
                 # Загрузка индекса если существует
                 index_path = Path(vs_config.storage.base_path) / index_file
-                if index_path.exists():
+                index_exists = index_path.exists()
+                
+                if index_exists:
                     await provider.load(str(index_path))
-                    await self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path}")
-
+                    count = await provider.count()
+                    indexes_status[source] = {
+                        "status": "loaded",
+                        "path": str(index_path),
+                        "vectors": count
+                    }
+                    await self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path} ({count} векторов)")
+                else:
+                    indexes_status[source] = {
+                        "status": "missing",
+                        "path": str(index_path),
+                        "vectors": 0
+                    }
+                    await self.event_bus_logger.warning(f"⚠️ Индекс {source} не найден: {index_path}. Требуется индексация.")
 
                 self._faiss_providers[source] = provider
             except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка инициализации FAISS провайдера {source}: {e}")
+                indexes_status[source] = {
+                    "status": "error",
+                    "error": str(e)
+                }
+                await self.event_bus_logger.error(f"❌ Ошибка инициализации FAISS провайдера {source}: {e}")
+
+        # Логирование общего статуса
+        total_vectors = sum(s.get("vectors", 0) for s in indexes_status.values())
+        loaded_count = sum(1 for s in indexes_status.values() if s.get("status") == "loaded")
+        missing_count = sum(1 for s in indexes_status.values() if s.get("status") == "missing")
+        
+        await self.event_bus_logger.info(
+            f"Vector Search статус: {loaded_count} загружено, {missing_count} отсутствует, "
+            f"всего векторов: {total_vectors}"
+        )
 
         # Инициализация Embedding провайдера
         try:
@@ -373,6 +402,9 @@ class InfrastructureContext:
             await self.event_bus_logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
+
+        # Сохранение статуса в контекст для последующей проверки
+        self._vector_search_status = indexes_status
 
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""
@@ -627,6 +659,32 @@ class InfrastructureContext:
     def get_chunking_strategy(self) -> Optional[Any]:
         """Получение Chunking стратегии."""
         return self._chunking_strategy
+
+    def get_vector_search_status(self) -> Dict[str, Any]:
+        """
+        Получение статуса инициализации Vector Search.
+        
+        ВОЗВРАЩАЕТ:
+        - Dict с информацией о каждом индексе:
+          {
+            "books": {"status": "loaded"|"missing"|"error", "vectors": int, ...},
+            ...
+          }
+        """
+        return getattr(self, '_vector_search_status', {})
+
+    def is_vector_search_ready(self, source: str) -> bool:
+        """
+        Проверка готовности Vector Search для источника.
+        
+        ПАРАМЕТРЫ:
+        - source: Источник (books/knowledge/history/docs)
+        
+        ВОЗВРАЩАЕТ:
+        - True если индекс загружен и содержит векторы
+        """
+        status = self._vector_search_status.get(source, {})
+        return status.get("status") == "loaded" and status.get("vectors", 0) > 0
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""

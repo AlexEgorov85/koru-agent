@@ -112,7 +112,7 @@ class AnalysisCacheConfig(BaseModel):
 class VectorSearchConfig(BaseModel):
     """
     Общая конфигурация векторного поиска.
-    
+
     Attributes:
         enabled: Включён ли векторный поиск
         indexes: Пути к индексам по источникам
@@ -127,7 +127,7 @@ class VectorSearchConfig(BaseModel):
         max_workers: Количество воркеров
         timeout_seconds: Таймаут операций
     """
-    enabled: bool = True
+    enabled: bool = True  # ✅ Включено по умолчанию для production использования
     
     indexes: Dict[str, str] = {
         "knowledge": "knowledge_index.faiss",

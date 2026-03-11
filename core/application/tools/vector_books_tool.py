@@ -135,7 +135,7 @@ class VectorBooksTool(BaseTool):
         filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Семантический поиск по книгам.
+        Семантический поиск по книгам с fallback на SQL.
 
         Args:
             query: Текстовый запрос
@@ -144,45 +144,152 @@ class VectorBooksTool(BaseTool):
             filters: Фильтры по метаданным
 
         Returns:
-            {"results": [...], "total_found": int}
+            {"results": [...], "total_found": int, "search_type": "vector"|"sql"}
+        """
+        import time
+        start_time = time.time()
+
+        try:
+            # Получаем инфраструктуру
+            self._get_infrastructure()
+
+            # Валидация параметров
+            if not query or not isinstance(query, str):
+                raise ValueError("Query must be a non-empty string")
+            if top_k < 1 or top_k > 100:
+                raise ValueError("top_k must be between 1 and 100")
+            if min_score < 0.0 or min_score > 1.0:
+                raise ValueError("min_score must be between 0.0 and 1.0")
+
+            # 1. Генерируем вектор запроса
+            if not self._embedding_provider:
+                raise RuntimeError("Embedding provider not initialized")
+            
+            query_vector = await self._embedding_provider.generate([query])
+            
+            if not query_vector or len(query_vector) == 0:
+                raise RuntimeError("Failed to generate query vector")
+
+            # 2. Ищем в FAISS (используем books источник)
+            faiss_provider = self._faiss_providers.get('books')
+            if not faiss_provider:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("FAISS provider for books not initialized, using SQL fallback")
+                return await self._sql_fallback_search(query, top_k)
+
+            # Проверка наличия индекса
+            if await faiss_provider.count() == 0:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("FAISS index is empty, using SQL fallback")
+                return await self._sql_fallback_search(query, top_k)
+
+            faiss_results = await faiss_provider.search(
+                query_vector[0],
+                top_k=top_k,
+                filters=filters
+            )
+
+            # 3. Преобразуем результаты
+            results = []
+            for result in faiss_results:
+                if result["score"] < min_score:
+                    continue
+
+                results.append({
+                    "chunk_id": result["metadata"].get("chunk_id"),
+                    "document_id": result["metadata"].get("document_id"),
+                    "book_id": result["metadata"].get("book_id"),
+                    "chapter": result["metadata"].get("chapter"),
+                    "score": result["score"],
+                    "content": result["metadata"].get("content", ""),
+                    "metadata": result["metadata"]
+                })
+
+            elapsed_ms = (time.time() - start_time) * 1000
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(
+                    f"Vector search completed: {len(results)} results in {elapsed_ms:.2f}ms"
+                )
+
+            return {
+                "results": results,
+                "total_found": len(results),
+                "search_type": "vector"
+            }
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Vector search failed: {e}, using SQL fallback ({elapsed_ms:.2f}ms)")
+            
+            # Fallback на SQL поиск при любой ошибке
+            try:
+                return await self._sql_fallback_search(query, top_k)
+            except Exception as sql_error:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"SQL fallback also failed: {sql_error}")
+                return {
+                    "results": [],
+                    "total_found": 0,
+                    "search_type": "none",
+                    "error": str(e)
+                }
+
+    async def _sql_fallback_search(self, query: str, top_k: int = 10) -> Dict[str, Any]:
+        """
+        SQL fallback для векторного поиска.
+        Ищет по названию книги и фамилии автора.
+        """
+        if not self._sql_provider:
+            raise RuntimeError("SQL provider not initialized")
+
+        # Экранирование запроса для LIKE
+        safe_query = query.replace("'", "''")
+        
+        sql = f"""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.first_name,
+                a.last_name,
+                0.5 as score
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE b.title ILIKE '%{safe_query}%' 
+               OR a.last_name ILIKE '%{safe_query}%' 
+               OR a.first_name ILIKE '%{safe_query}%'
+            ORDER BY score DESC
+            LIMIT {top_k}
         """
         
-        # Получаем инфраструктуру
-        self._get_infrastructure()
+        rows = await self._sql_provider.fetch(sql, ())
         
-        # 1. Генерируем вектор запроса
-        query_vector = await self._embedding_provider.generate([query])
-        
-        # 2. Ищем в FAISS (используем books источник)
-        faiss_provider = self._faiss_providers.get('books')
-        if not faiss_provider:
-            return {"error": "FAISS provider for books not initialized"}
-        
-        faiss_results = await faiss_provider.search(
-            query_vector[0],
-            top_k=top_k,
-            filters=filters
-        )
-        
-        # 3. Преобразуем результаты
         results = []
-        for result in faiss_results:
-            if result["score"] < min_score:
-                continue
-            
+        for row in rows:
             results.append({
-                "chunk_id": result["metadata"].get("chunk_id"),
-                "document_id": result["metadata"].get("document_id"),
-                "book_id": result["metadata"].get("book_id"),
-                "chapter": result["metadata"].get("chapter"),
-                "score": result["score"],
-                "content": result["metadata"].get("content", ""),
-                "metadata": result["metadata"]
+                "book_id": row.get("book_id"),
+                "document_id": f"book_{row.get('book_id')}",
+                "chapter": None,
+                "chunk_id": None,
+                "score": 0.5,
+                "content": f"{row.get('book_title')} by {row.get('last_name')} {row.get('first_name')}",
+                "metadata": {
+                    "title": row.get("book_title"),
+                    "author": f"{row.get('last_name')} {row.get('first_name')}",
+                    "isbn": row.get("isbn"),
+                    "publication_date": row.get("publication_date")
+                }
             })
+        
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"SQL fallback search: {len(results)} results")
         
         return {
             "results": results,
-            "total_found": len(results)
+            "total_found": len(results),
+            "search_type": "sql"
         }
     
     async def _get_document(

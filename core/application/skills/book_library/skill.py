@@ -179,14 +179,14 @@ class BookLibrarySkill(BaseComponent):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Any:
         """
-        Реализация бизнес-логики навыка библиотеки.
+        Реализация бизнес-логики навыка библиотеки (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -205,11 +205,21 @@ class BookLibrarySkill(BaseComponent):
         else:
             params_dict = {}
 
-        # Выполняем действие — возвращает Pydantic модель или Dict
-        result = await self.supported_capabilities[capability.name](params_dict)
+        # Выполняем действие — возвращает Pydantic модель или Dict (синхронное ожидание)
+        result = self._safe_async_call(self.supported_capabilities[capability.name](params_dict))
 
         # Возвращаем результат напрямую (Pydantic модель или Dict)
         return result
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
 
     async def _search_books_dynamic(self, params: Dict[str, Any]) -> Any:
         """
@@ -685,60 +695,75 @@ class BookLibrarySkill(BaseComponent):
         if not query:
             raise ValueError("Параметр 'query' обязателен для семантического поиска")
 
-        # 2. Получение инструмента vector_books_tool через компоненты
+        # 2. Проверка доступности векторного поиска
+        infra = self.application_context.infrastructure_context
+        if not infra.is_vector_search_ready('books'):
+            await self.event_bus_logger.warning("Vector Search для книг не готов, используем SQL fallback")
+            # Используем SQL fallback напрямую
+            return await self._semantic_search_sql_fallback(query, top_k, start_time)
+
+        # 3. Получение инструмента vector_books_tool через компоненты
         from core.models.enums.common_enums import ComponentType
-        
+
         vector_tool = self.application_context.components.get(
             ComponentType.TOOL,
             "vector_books_tool"
         )
         if not vector_tool:
-            raise RuntimeError("Инструмент vector_books_tool не зарегистрирован")
+            await self.event_bus_logger.error("Инструмент vector_books_tool не зарегистрирован, используем SQL fallback")
+            return await self._semantic_search_sql_fallback(query, top_k, start_time)
 
-        # 3. Создание контекста выполнения
+        # 4. Создание контекста выполнения
         exec_context = ExecutionContext(
             session_context=self.application_context.session_context,
             user_context=None
         )
 
-        # 4. Выполнение capability "search" инструмента vector_books
-        result = await vector_tool.execute(
-            capability=Capability(
-                name="vector_books.search",
-                description="Семантический поиск по книгам",
-                skill_name="vector_books_tool"
-            ),
-            parameters={
-                "query": query,
-                "top_k": top_k,
-                "min_score": min_score
-            },
-            execution_context=exec_context
-        )
+        # 5. Выполнение capability "search" инструмента vector_books
+        try:
+            result = await vector_tool.execute(
+                capability=Capability(
+                    name="vector_books.search",
+                    description="Семантический поиск по книгам",
+                    skill_name="vector_books_tool"
+                ),
+                parameters={
+                    "query": query,
+                    "top_k": top_k,
+                    "min_score": min_score
+                },
+                execution_context=exec_context
+            )
+        except Exception as e:
+            await self.event_bus_logger.error(f"Ошибка выполнения vector_books.search: {e}, используем SQL fallback")
+            return await self._semantic_search_sql_fallback(query, top_k, start_time)
 
-        # 5. Обработка результата
+        # 6. Обработка результата
         if result.status != ExecutionStatus.COMPLETED:
-            raise RuntimeError(f"Ошибка векторного поиска: {result.error}")
+            await self.event_bus_logger.warning(f"Векторный поиск не завершён: {result.error}, используем SQL fallback")
+            return await self._semantic_search_sql_fallback(query, top_k, start_time)
 
         # Извлекаем данные из результата
         search_data = result.data if hasattr(result, 'data') else result
         if hasattr(search_data, 'model_dump'):
             search_data = search_data.model_dump()
 
-        # 6. Формируем результат с добавлением execution_type
+        # 7. Формируем результат с добавлением execution_type
         total_time = time.time() - start_time
+        search_type = search_data.get("search_type", "vector")
         result_data = {
             "results": search_data.get("results", []),
             "total_found": search_data.get("total_found", 0),
-            "execution_type": "vector"
+            "execution_type": "vector",
+            "search_type": search_type  # vector | sql | none
         }
 
         await self.event_bus_logger.info(
             f"Семантический поиск завершён: найдено {result_data['total_found']} результатов "
-            f"за {total_time*1000:.2f}мс"
+            f"за {total_time*1000:.2f}мс (тип: {search_type})"
         )
 
-        # 7. Публикация метрик через EventBus
+        # 8. Публикация метрик через EventBus
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
@@ -754,7 +779,7 @@ class BookLibrarySkill(BaseComponent):
         except Exception as e:
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
-        # 8. Валидация через выходной контракт
+        # 9. Валидация через выходной контракт
         output_schema = self.get_cached_output_contract_safe("book_library.semantic_search")
         if output_schema:
             try:
@@ -765,6 +790,105 @@ class BookLibrarySkill(BaseComponent):
 
         # Fallback: возвращаем dict если схема не загружена
         return result_data
+
+    async def _semantic_search_sql_fallback(self, query: str, top_k: int, start_time: float) -> Any:
+        """
+        SQL fallback для семантического поиска.
+        Используется когда векторный индекс недоступен.
+        """
+        from core.application.agent.components.action_executor import ExecutionContext
+        
+        await self.event_bus_logger.info(f"Выполнение SQL fallback для семантического поиска: {query}")
+        
+        # Используем executor для SQL запроса
+        exec_context = ExecutionContext()
+        
+        safe_query = query.replace("'", "''")
+        sql = f"""
+            SELECT 
+                b.id as book_id,
+                b.title as book_title,
+                b.isbn,
+                b.publication_date,
+                a.first_name,
+                a.last_name,
+                0.5 as score
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE b.title ILIKE '%{safe_query}%' 
+               OR a.last_name ILIKE '%{safe_query}%' 
+               OR a.first_name ILIKE '%{safe_query}%'
+            ORDER BY score DESC
+            LIMIT {top_k}
+        """
+        
+        try:
+            query_result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": sql,
+                    "parameters": {},
+                    "max_rows": top_k
+                },
+                context=exec_context
+            )
+            
+            rows = []
+            if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
+                rows = query_result.data.get('rows', [])
+            
+            # Преобразуем результаты в формат семантического поиска
+            results = []
+            for row in rows:
+                results.append({
+                    "book_id": row.get("book_id"),
+                    "document_id": f"book_{row.get('book_id')}",
+                    "chapter": None,
+                    "chunk_id": None,
+                    "score": 0.5,
+                    "content": f"{row.get('book_title')} by {row.get('last_name')} {row.get('first_name')}",
+                    "metadata": {
+                        "title": row.get("book_title"),
+                        "author": f"{row.get('last_name')} {row.get('first_name')}",
+                        "isbn": row.get("isbn"),
+                        "publication_date": row.get("publication_date")
+                    }
+                })
+            
+            total_time = time.time() - start_time
+            result_data = {
+                "results": results,
+                "total_found": len(results),
+                "execution_type": "vector",
+                "search_type": "sql"
+            }
+            
+            await self.event_bus_logger.info(
+                f"SQL fallback завершён: найдено {len(results)} результатов "
+                f"за {total_time*1000:.2f}мс"
+            )
+            
+            # Валидация через выходной контракт
+            output_schema = self.get_cached_output_contract_safe("book_library.semantic_search")
+            if output_schema:
+                try:
+                    validated_result = output_schema.model_validate(result_data)
+                    return validated_result
+                except Exception as e:
+                    await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
+            
+            return result_data
+            
+        except Exception as e:
+            await self.event_bus_logger.error(f"SQL fallback failed: {e}")
+            total_time = time.time() - start_time
+            return {
+                "results": [],
+                "total_found": 0,
+                "execution_type": "vector",
+                "search_type": "none",
+                "error": str(e)
+            }
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """
