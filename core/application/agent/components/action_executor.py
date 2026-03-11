@@ -75,7 +75,7 @@ class ActionExecutor:
         - context: контекст выполнения
 
         RETURNS:
-        - ActionResult: результат выполнения
+        - ExecutionResult: результат выполнения
         """
         self._log_debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
 
@@ -773,7 +773,7 @@ class ActionExecutor:
         - context: контекст выполнения
 
         RETURNS:
-        - ActionResult: результат выполнения
+        - ExecutionResult: результат выполнения
         """
         try:
             # Получаем LLM провайдер напрямую из инфраструктуры
@@ -936,7 +936,7 @@ class ActionExecutor:
         if response.success:
             # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict
             # Сериализация будет вызвана только на границе через result.to_dict()
-            return ActionResult.success_result(
+            return ExecutionResult.success(
                 data=response.parsed_content,  # ← Pydantic модель типа T
                 metadata={
                     "model": response.raw_response.model,
@@ -949,7 +949,7 @@ class ActionExecutor:
             )
         else:
             # Ошибка валидации
-            return ActionResult.failure_result(
+            return ExecutionResult.failure(
                 error=f"Structured output failed after {response.parsing_attempts} attempts",
                 metadata={
                     "validation_errors": response.validation_errors,
@@ -1039,34 +1039,23 @@ class ActionExecutor:
         - ExecutionResult: результат выполнения
         """
         try:
-            # Извлекаем имя метода из имени действия
-            # file_tool.read -> read
-            if '.' in action_name:
-                _, method_name = action_name.split('.', 1)
-            else:
-                method_name = action_name
+            # Создаём Capability объект из action_name
+            from core.models.data.capability import Capability
+            capability_obj = Capability(
+                name=action_name,
+                description=f"Capability {action_name}",
+                skill_name=tool.name,
+                visiable=True,
+                supported_strategies=["react", "planning"]
+            )
 
-            # Для инструментов используем execute с параметрами
-            # Если метод не найден, пробуем execute
-            if not hasattr(tool, method_name):
-                method_name = "execute"
-
-            # Вызываем метод инструмента
-            method = getattr(tool, method_name)
-            
-            # Проверяем signature метода
-            import inspect
-            sig = inspect.signature(method)
-            
-            # Если метод принимает Pydantic модель, создаём её из parameters
-            if len(sig.parameters) > 0:
-                param_type = list(sig.parameters.values())[0].annotation
-                if hasattr(param_type, '__fields__'):  # Pydantic модель
-                    result = await method(param_type(**parameters))
-                else:
-                    result = await method(parameters)
-            else:
-                result = await method()
+            # Вызываем execute() который вызовет _execute_impl() для FileTool/SQLTool
+            # или async execute() для VectorBooksTool
+            result = await tool.execute(
+                capability=capability_obj,
+                parameters=parameters,
+                execution_context=context
+            )
 
             # Возвращаем результат
             return ExecutionResult(

@@ -81,14 +81,38 @@ class VectorBooksTool(BaseTool):
 
     def _get_infrastructure(self):
         """Получение провайдеров из инфраструктуры."""
-        if self._faiss_provider is None:
+        if self._embedding_provider is None:
             infra = self.application_context.infrastructure_context
             self._faiss_providers = infra._faiss_providers
             self._embedding_provider = infra.get_embedding_provider()
             self._chunking_strategy = infra.get_chunking_strategy()
-            self._sql_provider = infra.get_sql_provider('books_db')
-            self._llm_provider = infra.llm_provider_factory.get_default_llm()
-            
+            # Используем resource_registry для SQL провайдера
+            self._sql_provider = infra.resource_registry.get_resource('default_db').instance if infra.resource_registry else None
+
+            # Если embedding провайдер не инициализирован, загружаем модель онлайн
+            if not self._embedding_provider:
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    import numpy as np
+                    
+                    class SimpleEmbeddingProvider:
+                        def __init__(self, model):
+                            self.model = model
+                        async def generate(self, texts):
+                            embeddings = self.model.encode(texts, convert_to_numpy=True)
+                            if isinstance(embeddings, np.ndarray):
+                                embeddings = embeddings.tolist()
+                            return embeddings
+                    
+                    self._embedding_provider = SimpleEmbeddingProvider(
+                        SentenceTransformer('all-MiniLM-L6-v2')
+                    )
+                    if self.event_bus_logger:
+                        self.event_bus_logger.debug_sync("✅ Embedding загружен онлайн")
+                except Exception as e:
+                    if self.event_bus_logger:
+                        self.event_bus_logger.error_sync(f"❌ Ошибка загрузки embedding: {e}")
+
             # Получаем кэш из application context
             from core.infrastructure.cache.analysis_cache import AnalysisCache
             self._cache_service = AnalysisCache()
@@ -97,35 +121,114 @@ class VectorBooksTool(BaseTool):
         """Закрытие инструмента."""
         pass
     
-    async def execute(
+    def _execute_impl(
         self,
-        capability: str,
-        **kwargs
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Выполнение операции.
-        
+        Выполнение операции (как FileTool и SQLTool).
+
         Capabilities:
-        - search: Семантический поиск
-        - get_document: Полный текст книги
-        - analyze: LLM анализ
-        - query: SQL запрос
+        - vector_books.search: Семантический поиск (с fallback на SQL)
+        - vector_books.get_document: Полный текст книги (SQL)
+        - vector_books.analyze: LLM анализ
+        - vector_books.query: SQL запрос
         """
-        
-        if capability == "search":
-            return await self._search(**kwargs)
-        
-        elif capability == "get_document":
-            return await self._get_document(**kwargs)
-        
-        elif capability == "analyze":
-            return await self._analyze(**kwargs)
-        
-        elif capability == "query":
-            return await self._query(**kwargs)
-        
+        # Извлекаем operation из capability.name
+        if hasattr(capability, 'name'):
+            cap_name = capability.name
+            if '.' in cap_name:
+                _, operation = cap_name.split('.', 1)
+            else:
+                operation = cap_name
         else:
-            return {"error": f"Unknown capability: {capability}"}
+            operation = str(capability)
+
+        # Поддержка Pydantic модели и dict
+        from pydantic import BaseModel
+        if isinstance(parameters, BaseModel):
+            params_dict = parameters.model_dump() if hasattr(parameters, 'model_dump') else parameters.dict()
+        else:
+            params_dict = parameters
+
+        # Получаем инфраструктуру (загружаем embedding если нужно)
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"VectorBooksTool: getting infrastructure...")
+        self._get_infrastructure()
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}")
+
+        # Запускаем async операцию в event loop
+        # TIMEOUT: 5 минут (300 секунд) для всех операций
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"VectorBooksTool: event loop={loop}, operation={operation}")
+
+        if operation == "search":
+            query = params_dict.get('query', '')
+            top_k = params_dict.get('top_k', 10)
+            min_score = params_dict.get('min_score', 0.5)
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}")
+            
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self._search(query=query, top_k=top_k, min_score=min_score),
+                    loop
+                )
+                if self.event_bus_logger:
+                    self.event_bus_logger.debug_sync(f"VectorBooksTool: waiting for result (timeout=300s)...")
+                result = future.result(timeout=300.0)
+                if self.event_bus_logger:
+                    self.event_bus_logger.debug_sync(f"VectorBooksTool: search completed, results={len(result) if result else 0}")
+                return result
+            except Exception as e:
+                if self.event_bus_logger:
+                    self.event_bus_logger.error_sync(f"VectorBooksTool: search error: {e}")
+                import traceback
+                if self.event_bus_logger:
+                    self.event_bus_logger.error_sync(f"Traceback: {traceback.format_exc()}")
+                return {"error": str(e)}
+
+        elif operation == "get_document":
+            book_id = params_dict.get('book_id')
+            future = asyncio.run_coroutine_threadsafe(
+                self._get_document(book_id=book_id),
+                loop
+            )
+            return future.result(timeout=300.0)
+
+        elif operation == "analyze":
+            text = params_dict.get('text', '')
+            analysis_type = params_dict.get('analysis_type', 'summary')
+            future = asyncio.run_coroutine_threadsafe(
+                self._analyze(text=text, analysis_type=analysis_type),
+                loop
+            )
+            return future.result(timeout=300.0)
+
+        elif operation == "query":
+            sql = params_dict.get('sql', '')
+            params = params_dict.get('parameters', {})
+            future = asyncio.run_coroutine_threadsafe(
+                self._query(sql=sql, parameters=params),
+                loop
+            )
+            return future.result(timeout=300.0)
+
+        else:
+            error_msg = f"Unknown operation: {operation}"
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(error_msg)
+            return {"error": error_msg}
     
     async def _search(
         self,
@@ -135,92 +238,92 @@ class VectorBooksTool(BaseTool):
         filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Семантический поиск по книгам с fallback на SQL.
-
-        Args:
-            query: Текстовый запрос
-            top_k: Количество результатов
-            min_score: Минимальный порог
-            filters: Фильтры по метаданным
-
-        Returns:
-            {"results": [...], "total_found": int, "search_type": "vector"|"sql"}
+        Семантический поиск по книгам.
+        РАБОТАЕТ КАК test_vector_db.py — напрямую, без сложной инфраструктуры.
         """
         import time
+        import numpy as np
         start_time = time.time()
+        
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"⏱️ [_search] START | query='{query[:50]}...'")
 
         try:
-            # Получаем инфраструктуру
-            self._get_infrastructure()
-
-            # Валидация параметров
-            if not query or not isinstance(query, str):
-                raise ValueError("Query must be a non-empty string")
-            if top_k < 1 or top_k > 100:
-                raise ValueError("top_k must be between 1 and 100")
-            if min_score < 0.0 or min_score > 1.0:
-                raise ValueError("min_score must be between 0.0 and 1.0")
-
-            # 1. Генерируем вектор запроса
-            if not self._embedding_provider:
-                raise RuntimeError("Embedding provider not initialized")
+            # 1. Загружаем модель и генерируем вектор (как в тесте)
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Loading model...")
             
-            query_vector = await self._embedding_provider.generate([query])
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
             
-            if not query_vector or len(query_vector) == 0:
-                raise RuntimeError("Failed to generate query vector")
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Generating embedding...")
+            embedding_start = time.time()
+            query_vector = model.encode([query], convert_to_numpy=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Embedding done: {time.time() - embedding_start:.2f}s")
 
-            # 2. Ищем в FAISS (используем books источник)
-            faiss_provider = self._faiss_providers.get('books')
-            if not faiss_provider:
+            # 2. Получаем FAISS индекс напрямую из инфраструктуры
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Getting FAISS...")
+            
+            infra = self.application_context.infrastructure_context
+            faiss = infra._faiss_providers.get('books')
+            
+            if not faiss:
+                return {"error": "FAISS books provider not found", "search_type": "error"}
+            
+            count = await faiss.count()
+            if count == 0:
                 if self.event_bus_logger:
-                    await self.event_bus_logger.warning("FAISS provider for books not initialized, using SQL fallback")
+                    self.event_bus_logger.debug_sync("⏱️ [_search] FAISS empty, using SQL fallback")
                 return await self._sql_fallback_search(query, top_k)
 
-            # Проверка наличия индекса
-            if await faiss_provider.count() == 0:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("FAISS index is empty, using SQL fallback")
-                return await self._sql_fallback_search(query, top_k)
+            # 3. Поиск в FAISS (напрямую как в тесте)
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Searching FAISS ({count} vectors)...")
+            
+            faiss_search_start = time.time()
+            faiss_results = await faiss.search(query_vector[0].tolist(), top_k=top_k)
+            if self.event_bus_logger:
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] FAISS done: {time.time() - faiss_search_start:.2f}s | results={len(faiss_results)}")
 
-            faiss_results = await faiss_provider.search(
-                query_vector[0],
-                top_k=top_k,
-                filters=filters
-            )
-
-            # 3. Преобразуем результаты
+            # 4. Преобразуем результаты
             results = []
             for result in faiss_results:
-                if result["score"] < min_score:
+                if result.get("score", 0) < min_score:
                     continue
-
                 results.append({
-                    "chunk_id": result["metadata"].get("chunk_id"),
-                    "document_id": result["metadata"].get("document_id"),
-                    "book_id": result["metadata"].get("book_id"),
-                    "chapter": result["metadata"].get("chapter"),
-                    "score": result["score"],
-                    "content": result["metadata"].get("content", ""),
-                    "metadata": result["metadata"]
+                    "chunk_id": result.get("metadata", {}).get("chunk_id"),
+                    "document_id": result.get("metadata", {}).get("document_id"),
+                    "book_id": result.get("metadata", {}).get("book_id"),
+                    "chapter": result.get("metadata", {}).get("chapter"),
+                    "score": result.get("score"),
+                    "content": result.get("metadata", {}).get("content", ""),
+                    "metadata": result.get("metadata")
                 })
 
-            elapsed_ms = (time.time() - start_time) * 1000
+            total_time = time.time() - start_time
             if self.event_bus_logger:
-                await self.event_bus_logger.info(
-                    f"Vector search completed: {len(results)} results in {elapsed_ms:.2f}ms"
-                )
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] COMPLETE: {total_time:.2f}s, found={len(results)}")
 
             return {
                 "results": results,
                 "total_found": len(results),
-                "search_type": "vector"
+                "search_type": "vector",
+                "query": query,
+                "execution_time": total_time
             }
 
         except Exception as e:
-            elapsed_ms = (time.time() - start_time) * 1000
             if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Vector search failed: {e}, using SQL fallback ({elapsed_ms:.2f}ms)")
+                self.event_bus_logger.error_sync(f"⏱️ [_search] ERROR: {e}")
+            import traceback
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(f"Traceback: {traceback.format_exc()}")
+            
+            # Fallback на SQL
+            return await self._sql_fallback_search(query, top_k)
             
             # Fallback на SQL поиск при любой ошибке
             try:

@@ -205,9 +205,10 @@ class InfrastructureContext:
 
         # === ЭТАП 3.5: ResourceDiscovery (ЕДИНЫЙ экземпляр) ===
         data_dir = Path(self.config.data_dir)
+        # ✅ ИСПОЛЬЗУЕМ профиль из конфигурации, а не жёстко 'prod'
         self.resource_discovery = ResourceDiscovery(
             base_dir=data_dir,
-            profile='prod',
+            profile=self.config.profile,  # ← Было: 'prod'
             event_bus=self.event_bus
         )
         # Предзагрузка ресурсов в кэш
@@ -256,7 +257,12 @@ class InfrastructureContext:
         """Регистрация провайдеров из конфигурации."""
         # Вывод в консоль для отладки (event_bus_logger ещё не работает)
         print(f"🤖 LLM → _register_providers_from_config: начало")
-        print(f"🤖 LLM → llm_providers: {list(self.config.llm_providers.keys())}")
+        print(f"🤖 LLM → self.config type: {type(self.config).__name__}")
+        has_llm = hasattr(self.config, 'llm_providers')
+        print(f"🤖 LLM → llm_providers: {self.config.llm_providers if has_llm else 'NO ATTRIBUTE'}")
+        if has_llm and self.config.llm_providers:
+            for name, prov in self.config.llm_providers.items():
+                print(f"  - {name}: enabled={prov.enabled}, type={prov.provider_type}")
 
         # Регистрация LLM провайдеров
         first_llm_registered = False

@@ -43,6 +43,9 @@ schema_data:
       description: Тип выполнения (dynamic)
       enum:
         - dynamic
+    warning:
+      type: string
+      description: Предупреждение (если результатов не найдено)
   required:
     - rows
     - rowcount

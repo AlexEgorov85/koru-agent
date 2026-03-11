@@ -1,94 +1,81 @@
-# config/dev.yaml
-# Конфигурация для разработки
-# Версия 5.15.0 - масштабный рефакторинг: устранение дублирования кода
-version: "5.15.0"
-profile: dev
-debug: true
-log_level: DEBUG
-log_dir: logs/dev
+agent:
+  default_strategy: react
+  enable_context_window_management: true
+  enable_self_reflection: true
+  llm_timeout_seconds: 1200.0
+  max_retries: 3
+  max_steps: 10
+  temperature: 0.2
 data_dir: data
-
-# Конфигурация LLM провайдеров
+db_providers:
+  books_db:
+    enabled: false
+    parameters:
+      db_path: data/books.db
+      timeout: 30.0
+    provider_type: sqlite
+  default_db:
+    enabled: true
+    parameters:
+      database: postgres
+      host: localhost
+      password: '1'
+      pool_size: 5
+      port: 5432
+      sslmode: disable
+      timeout: 30.0
+      username: postgres
+    provider_type: postgres
+debug: true
 llm_providers:
   default_llm:
-    provider_type: llama_cpp
-    model_name: qwen-4b
     enabled: true
     fallback_providers: []
-    timeout_seconds: 300.0  # 5 минут для LLM вызовов
+    model_name: qwen-4b
     parameters:
-      model_path: "C:\\Users\\Алексей\\Documents\\WORK\\llm_models\\Qwen3\\Qwen3-4B-Instruct-2507-F16.gguf"
+      max_tokens: 512
+      model_path: C:\Users\Алексей\Documents\WORK\llm_models\Qwen3\Qwen3-4B-Instruct-2507-F16.gguf
+      n_batch: 512
       n_ctx: 20048
       n_gpu_layers: 0
-      n_batch: 512
+      stop:
+      - '"'
+      - </s>
       temperature: 0.2
-      max_tokens: 512
       verbose: false
-      stop: ["\"", "</s>"]
-
-# Конфигурация баз данных
-db_providers:
-  default_db:
-    provider_type: postgres
-    enabled: true
-    parameters:
-      host: "localhost"
-      port: 5432
-      database: "postgres"
-      username: "postgres"
-      password: "1"
-      sslmode: "disable"
-      timeout: 30.0
-      pool_size: 5
-  books_db:
-    provider_type: sqlite
-    enabled: false  # Отключено пока нет данных книг
-    parameters:
-      db_path: "data/books.db"
-      timeout: 30.0
-
-# Параметры агента
-agent:
-  max_steps: 10
-  max_retries: 3
-  llm_timeout_seconds: 1200.0
-  temperature: 0.2
-  default_strategy: "react"
-  enable_self_reflection: true
-  enable_context_window_management: true
-
-# Безопасность
-security:
-  secrets_path: "core/config/defaults/secrets_dev.yaml"
-  token_expiry_minutes: 60
-
-# Дополнительные провайдеры
+    provider_type: llama_cpp
+    timeout_seconds: 300.0
+log_dir: logs/dev
+log_level: DEBUG
+profile: dev
 providers:
   cache:
     enabled: true
-    type: "memory"
     ttl: 300
+    type: memory
   monitoring:
     enabled: true
-    endpoint: "http://localhost:9090"
-
-# Векторный поиск
+    endpoint: http://localhost:9090
+security:
+  secrets_path: core/config/defaults/secrets_dev.yaml
+  token_expiry_minutes: 60
 vector_search:
-  enabled: true
-  indexes:
-    knowledge: "knowledge_index.faiss"
-    history: "history_index.faiss"
-    docs: "docs_index.faiss"
-    books: "books_index.faiss"
-  faiss:
-    index_type: "Flat"
-    metric: "IP"
-  embedding:
-    model_name: "C:/Users/Алексей/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
-    dimension: 384
   chunking:
-    chunk_size: 500
     chunk_overlap: 50
+    chunk_size: 500
     min_chunk_size: 50
+  embedding:
+    dimension: 384
+    model_name: c:/Users/Алексей/Documents/WORK/Agent_v5/models/embedding/all-MiniLM-L6-v2
+  enabled: true
+  faiss:
+    index_type: Flat
+    metric: IP
+  indexes:
+    books: books_index.faiss
+    docs: docs_index.faiss
+    history: history_index.faiss
+    knowledge: knowledge_index.faiss
   storage:
-    base_path: "data/vector"
+    base_path: data/vector
+version: 5.15.0

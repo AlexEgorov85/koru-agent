@@ -363,10 +363,12 @@ class BookLibrarySkill(BaseComponent):
 
         # ПРОВЕРКА: Если результаты пустые — это не ошибка, но нужно сообщить
         if not rows:
+            # Получаем query для логирования (поддержка Pydantic модели и dict)
+            query_for_log = getattr(params, 'query', params.get('query', 'N/A') if isinstance(params, dict) else 'N/A')
             await self.event_bus_logger.warning(
                 f"⚠️ SQL запрос не вернул результатов. "
                 f"Возможные причины: "
-                f"1) В базе нет данных по запросу '{params.get('query', 'N/A')[:100]}', "
+                f"1) В базе нет данных по запросу '{query_for_log[:100]}', "
                 f"2) Ошибка в сгенерированном SQL, "
                 f"3) База данных пуста"
             )

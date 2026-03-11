@@ -208,13 +208,13 @@ class AppConfig(BaseModel):
     def from_discovery(cls, profile: str = "prod", data_dir: str = "data", discovery=None):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
-        
+
         ЗАМЕНЯЕТ:
         - registry.yaml
         - ConfigLoader
         - DynamicConfigManager
         - RegistryLoader
-        
+
         ARGS:
         - profile: профиль (prod/sandbox/dev)
         - data_dir: директория данных
@@ -225,6 +225,52 @@ class AppConfig(BaseModel):
         """
         from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
         from core.config.component_config import ComponentConfig
+        import yaml
+
+        # === ЗАГРУЗКА LLM/DB ПРОВАЙДЕРОВ ИЗ YAML ФАЙЛА ===
+        llm_providers = {}
+        db_providers = {}
+        
+        # ✅ ПРАВИЛЬНЫЙ ПУТЬ: от корня проекта
+        config_file = Path(__file__).parent / "defaults" / f"{profile}.yaml"
+        
+        print(f"🔧 AppConfig.from_discovery: поиск конфигурации {config_file} (существует: {config_file.exists()})")
+        
+        if config_file.exists():
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    yaml_config = yaml.safe_load(f)
+                
+                print(f"🔧 AppConfig.from_discovery: загружено {len(yaml_config)} секций из {config_file}")
+                
+                # Загружаем LLM провайдеры
+                if yaml_config and 'llm_providers' in yaml_config:
+                    print(f"🔧 AppConfig.from_discovery: найдено {len(yaml_config['llm_providers'])} LLM провайдеров")
+                    for name, provider_data in yaml_config['llm_providers'].items():
+                        llm_providers[name] = LLMProviderConfig(
+                            provider_type=provider_data.get('provider_type', 'llama_cpp'),
+                            model_name=provider_data.get('model_name', 'unknown'),
+                            enabled=provider_data.get('enabled', False),
+                            parameters=provider_data.get('parameters', {}),
+                            timeout_seconds=provider_data.get('timeout_seconds', 300.0)
+                        )
+                    print(f"🔧 AppConfig.from_discovery: загружено LLM провайдеров: {list(llm_providers.keys())}")
+                
+                # Загружаем DB провайдеры
+                if yaml_config and 'db_providers' in yaml_config:
+                    print(f"🔧 AppConfig.from_discovery: найдено {len(yaml_config['db_providers'])} DB провайдеров")
+                    for name, provider_data in yaml_config['db_providers'].items():
+                        db_providers[name] = DBProviderConfig(
+                            provider_type=provider_data.get('provider_type', 'postgres'),
+                            enabled=provider_data.get('enabled', False),
+                            parameters=provider_data.get('parameters', {})
+                        )
+            except Exception as e:
+                print(f"⚠️ Не удалось загрузить конфигурацию из {config_file}: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"⚠️ Конфигурационный файл не найден: {config_file}")
 
         # Используем переданный ResourceDiscovery или создаём новый
         if discovery is None:
@@ -414,4 +460,6 @@ class AppConfig(BaseModel):
             temperature=0.7,
             enable_self_reflection=True,
             enable_context_window_management=True,
+            llm_providers=llm_providers,  # ← Загружено из YAML
+            db_providers=db_providers,    # ← Загружено из YAML
         )
