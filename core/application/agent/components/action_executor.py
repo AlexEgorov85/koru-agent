@@ -12,6 +12,7 @@
 - Сериализация (model_dump) только на границах (EventBus/Storage/API)
 - Generic тип T для data позволяет сохранять тип модели
 """
+import asyncio
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from pydantic import BaseModel
 

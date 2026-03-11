@@ -104,7 +104,7 @@ class BaseTool(BaseComponent):
         """
         input_data = self._convert_params_to_input(parameters)
         result = await self.execute_specific(input_data)
-        
+
         # Преобразуем результат в словарь
         if hasattr(result, '__dict__'):
             return result.__dict__

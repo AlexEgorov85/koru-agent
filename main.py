@@ -57,13 +57,13 @@ from core.infrastructure.logging import (
     get_session_logger,
     create_session_log_handler,
 )
-from core.infrastructure.event_bus.llm_event_subscriber import LLMEventSubscriber
 
 
 # === ВОПРОС ДЛЯ ТЕСТИРОВАНИЯ ===
-GOAL = "Какие книги написал Пушкин?"
+# GOAL = "Какие книги написал Пушкин?"
+GOAL = "Где проходит действие в произведении Капитанская дочка?"
 MAX_STEPS = 10
-TEMPERATURE = 0.7
+TEMPERATURE = 0.2
 
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
