@@ -6,7 +6,7 @@
 - Регистрация обработчиков по типам ошибок
 - Публикация событий об ошибках в Event Bus
 - Контекст ошибки для отладки
-- Стратегии восстановления (retry, fallback, ignore)
+- RetryPolicy для повторных попыток
 
 ПРЕИМУЩЕСТВА:
 - ✅ Единая точка обработки ошибок
@@ -18,6 +18,7 @@
 import asyncio
 import inspect
 import logging
+import random
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,33 +35,71 @@ from core.infrastructure.event_bus import (
 logger = logging.getLogger(__name__)
 
 
+# ============================================================
+# Error Category & Severity
+# ============================================================
+
 class ErrorSeverity(Enum):
-    """Уровень серьезности ошибки."""
-    LOW = "low"           # Не влияет на работу
-    MEDIUM = "medium"     # Влияет на часть функциональности
-    HIGH = "high"         # Критическая ошибка компонента
-    CRITICAL = "critical" # Критическая ошибка системы
+    """
+    Уровень серьезности ошибки.
+
+    УРОВНИ:
+    - LOW: Не влияет на работу
+    - MEDIUM: Влияет на часть функциональности
+    - HIGH: Критическая ошибка компонента
+    - CRITICAL: Критическая ошибка системы
+    """
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
 class ErrorCategory(Enum):
-    """Категория ошибки."""
-    VALIDATION = "validation"       # Ошибка валидации
-    AUTHENTICATION = "authentication"  # Ошибка аутентификации
-    AUTHORIZATION = "authorization"    # Ошибка авторизации
-    NOT_FOUND = "not_found"           # Ресурс не найден
-    CONFLICT = "conflict"             # Конфликт ресурсов
-    INTERNAL = "internal"             # Внутренняя ошибка
-    TIMEOUT = "timeout"               # Превышено время ожидания
-    RATE_LIMIT = "rate_limit"         # Превышен лимит запросов
-    CONFIGURATION = "configuration"   # Ошибка конфигурации
-    DEPENDENCY = "dependency"         # Ошибка зависимости
+    """
+    Категория ошибки — определяет стратегию обработки.
 
+    КАТЕГОРИИ:
+    - VALIDATION: Ошибка валидации → abort
+    - AUTHENTICATION: Ошибка аутентификации → abort
+    - AUTHORIZATION: Ошибка авторизации → abort
+    - NOT_FOUND: Ресурс не найден → handle gracefully
+    - CONFLICT: Конфликт → retry с backoff
+    - INTERNAL: Внутренняя ошибка → зависит от контекста
+    - TIMEOUT: Превышено время ожидания → retry
+    - RATE_LIMIT: Превышен лимит запросов → retry с backoff
+    - CONFIGURATION: Ошибка конфигурации → abort
+    - DEPENDENCY: Ошибка зависимости → retry
+    - TRANSIENT: Временная ошибка → retry
+    - INVALID_INPUT: Ошибка ввода → abort
+    - FATAL: Критическая ошибка → fail immediately
+    - UNKNOWN: Неизвестная ошибка
+    """
+    VALIDATION = "validation"
+    AUTHENTICATION = "authentication"
+    AUTHORIZATION = "authorization"
+    NOT_FOUND = "not_found"
+    CONFLICT = "conflict"
+    INTERNAL = "internal"
+    TIMEOUT = "timeout"
+    RATE_LIMIT = "rate_limit"
+    CONFIGURATION = "configuration"
+    DEPENDENCY = "dependency"
+    TRANSIENT = "transient"
+    INVALID_INPUT = "invalid_input"
+    FATAL = "fatal"
+    UNKNOWN = "unknown"
+
+
+# ============================================================
+# Error Context & Info
+# ============================================================
 
 @dataclass
 class ErrorContext:
     """
     Контекст ошибки для отладки.
-    
+
     ATTRIBUTES:
     - component: компонент где произошла ошибка
     - operation: операция которая выполнялась
@@ -78,11 +117,11 @@ class ErrorContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     stack_trace: Optional[str] = None
-    
+
     def __post_init__(self):
         if self.stack_trace is None:
             self.stack_trace = traceback.format_exc()
-    
+
     def to_dict(self) -> Dict:
         """Конвертация в словарь."""
         return {
@@ -101,7 +140,7 @@ class ErrorContext:
 class ErrorInfo:
     """
     Информация об ошибке.
-    
+
     ATTRIBUTES:
     - error: объект ошибки
     - context: контекст ошибки
@@ -117,12 +156,22 @@ class ErrorInfo:
     handled: bool = False
     handled_at: Optional[datetime] = None
     recovery_action: Optional[str] = None
-    
+
+    @property
+    def error_message(self) -> str:
+        """Текст ошибки."""
+        return str(self.error)
+
+    @property
+    def error_type(self) -> str:
+        """Тип исключения."""
+        return type(self.error).__name__
+
     def to_dict(self) -> Dict:
         """Конвертация в словарь."""
         return {
-            "error_type": type(self.error).__name__,
-            "error_message": str(self.error),
+            "error_type": self.error_type,
+            "error_message": self.error_message,
             "severity": self.severity.value,
             "category": self.category.value,
             "handled": self.handled,
@@ -131,73 +180,215 @@ class ErrorInfo:
         }
 
 
+# ============================================================
+# Retry Policy
+# ============================================================
+
+@dataclass
+class RetryPolicy:
+    """
+    Политика повторных попыток.
+
+    СТРАТЕГИЯ:
+    - Экспоненциальная задержка: delay = base_delay * (2 ^ attempt)
+    - Джиттер: случайная добавка для предотвращения thundering herd
+    - Максимальная задержка: cap для предотвращения слишком долгих ожиданий
+
+    USAGE:
+    ```python
+    policy = RetryPolicy(
+        max_retries=3,
+        base_delay=1.0,
+        max_delay=30.0,
+        jitter=0.5
+    )
+
+    for attempt in range(policy.max_retries):
+        try:
+            return await operation()
+        except Exception as e:
+            if not policy.should_retry(e, attempt):
+                raise
+            await asyncio.sleep(policy.get_delay(attempt))
+    ```
+    """
+
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
+    jitter: float = 0.5
+    exponential_base: float = 2.0
+
+    # Категории которые можно retry
+    retryable_categories: List[ErrorCategory] = field(
+        default_factory=lambda: [
+            ErrorCategory.TRANSIENT,
+            ErrorCategory.CONFLICT,
+            ErrorCategory.TIMEOUT,
+            ErrorCategory.DEPENDENCY,
+        ]
+    )
+
+    def should_retry(
+        self,
+        error: Exception,
+        attempt: int,
+        category: Optional[ErrorCategory] = None,
+        severity: Optional[ErrorSeverity] = None
+    ) -> bool:
+        """
+        Проверить нужно ли retry.
+
+        ARGS:
+        - error: Исключение
+        - attempt: Номер попытки (0-based)
+        - category: Категория ошибки (опционально)
+        - severity: Серьезность (опционально)
+
+        RETURNS:
+        - True если можно retry
+        """
+        # Проверка количества попыток
+        if attempt >= self.max_retries:
+            return False
+
+        # Проверка категории
+        if category and category not in self.retryable_categories:
+            return False
+
+        # Проверка серьезности
+        if severity == ErrorSeverity.CRITICAL:
+            return False
+
+        # Проверка на fatal ошибки
+        if isinstance(error, (SystemError, MemoryError, RecursionError)):
+            return False
+
+        return True
+
+    def get_delay(self, attempt: int) -> float:
+        """
+        Вычислить задержку перед retry.
+
+        ФОРМУЛА:
+        delay = min(base_delay * (exponential_base ^ attempt), max_delay) + jitter
+
+        ARGS:
+        - attempt: Номер попытки (0-based)
+
+        RETURNS:
+        - Задержка в секундах
+        """
+        # Экспоненциальная задержка
+        exponential_delay = self.base_delay * (self.exponential_base ** attempt)
+
+        # Cap на максимальную задержку
+        capped_delay = min(exponential_delay, self.max_delay)
+
+        # Добавляем джиттер
+        jitter_value = random.uniform(0, self.jitter)
+
+        return capped_delay + jitter_value
+
+    def get_total_max_delay(self) -> float:
+        """
+        Максимальная общая задержка всех retry.
+
+        RETURNS:
+        - Суммарная задержка в секундах
+        """
+        total = 0.0
+        for attempt in range(self.max_retries):
+            total += self.get_delay(attempt)
+        return total
+
+    def __repr__(self) -> str:
+        return (
+            f"RetryPolicy(max_retries={self.max_retries}, "
+            f"base_delay={self.base_delay}s, "
+            f"max_delay={self.max_delay}s)"
+        )
+
+
+# ============================================================
+# Error Handler
+# ============================================================
+
 class ErrorHandler:
     """
     Централизованная система обработки ошибок.
-    
+
     FEATURES:
     - Регистрация обработчиков по типам ошибок
-    - Стратегии восстановления (retry, fallback, ignore)
+    - RetryPolicy для повторных попыток
     - Публикация событий об ошибках
     - Статистика ошибок
     - Декораторы для автоматической обработки
-    
+
     USAGE:
     ```python
     # Создание обработчика
     error_handler = ErrorHandler()
-    
+
     # Регистрация обработчика для типа ошибки
     async def handle_validation_error(error, context):
         logger.warning(f"Validation failed: {error}")
         return True  # Ошибка обработана
-    
+
     error_handler.register_handler(
         ValidationError,
         handle_validation_error,
         severity=ErrorSeverity.LOW
     )
-    
+
     # Обработка ошибки
     try:
         # ... код ...
     except Exception as e:
         context = ErrorContext(component="my_component", operation="my_operation")
         await error_handler.handle(e, context)
-    
+
     # Использование декоратора
     @error_handler.handle_errors(component="my_component")
     async def my_function():
         # ... код ...
     ```
     """
-    
-    def __init__(self, event_bus=None):
+
+    def __init__(
+        self,
+        event_bus=None,
+        retry_policy: Optional[RetryPolicy] = None
+    ):
         """
         Инициализация обработчика ошибок.
 
         ARGS:
         - event_bus: шина событий (опционально)
+        - retry_policy: политика retry (опционально)
         """
+        self._event_bus = event_bus
+        self._retry_policy = retry_policy or RetryPolicy()
+
         self._handlers: Dict[Type[Exception], Callable] = {}
+        self._error_handlers: Dict[Type[Exception], Callable] = {}  # Алиас для совместимости
         self._handler_severity: Dict[Type[Exception], ErrorSeverity] = {}
         self._handler_category: Dict[Type[Exception], ErrorCategory] = {}
-        self._event_bus = event_bus
-        
+
         self._error_count = 0
         self._handled_count = 0
         self._errors_by_type: Dict[str, int] = {}
-        
+
         self._logger = logging.getLogger(f"{__name__}.ErrorHandler")
-        
+
         # Регистрация обработчиков по умолчанию
         self._register_default_handlers()
-        
+
         self._logger.info("ErrorHandler инициализирован")
-    
+
     def _register_default_handlers(self):
         """Регистрация обработчиков по умолчанию."""
-        
+
         # Exception - базовый обработчик для всех ошибок
         self.register_handler(
             Exception,
@@ -205,7 +396,7 @@ class ErrorHandler:
             severity=ErrorSeverity.MEDIUM,
             category=ErrorCategory.INTERNAL
         )
-        
+
         # ValidationError - LOW severity
         from pydantic import ValidationError as PydanticValidationError
         self.register_handler(
@@ -214,7 +405,7 @@ class ErrorHandler:
             severity=ErrorSeverity.LOW,
             category=ErrorCategory.VALIDATION
         )
-        
+
         # FileNotFoundError - MEDIUM severity
         self.register_handler(
             FileNotFoundError,
@@ -222,7 +413,7 @@ class ErrorHandler:
             severity=ErrorSeverity.MEDIUM,
             category=ErrorCategory.NOT_FOUND
         )
-        
+
         # TimeoutError - HIGH severity
         self.register_handler(
             TimeoutError,
@@ -230,7 +421,7 @@ class ErrorHandler:
             severity=ErrorSeverity.HIGH,
             category=ErrorCategory.TIMEOUT
         )
-        
+
         # ConnectionError - HIGH severity
         self.register_handler(
             ConnectionError,
@@ -238,32 +429,32 @@ class ErrorHandler:
             severity=ErrorSeverity.HIGH,
             category=ErrorCategory.DEPENDENCY
         )
-    
+
     async def _handle_generic_error(self, error: Exception, context: ErrorContext) -> bool:
         """Базовый обработчик для всех ошибок."""
         self._logger.info(f"Error in {context.component}.{context.operation}: {error}")
         return True  # Считаем обработанным
-    
+
     async def _handle_validation_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок валидации по умолчанию."""
         self._logger.warning(f"Validation error in {context.component}.{context.operation}: {error}")
         return True
-    
+
     async def _handle_file_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок файла по умолчанию."""
         self._logger.warning(f"File error in {context.component}.{context.operation}: {error}")
         return True
-    
+
     async def _handle_timeout_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок таймаута по умолчанию."""
         self._logger.error(f"Timeout error in {context.component}.{context.operation}: {error}")
         return True
-    
+
     async def _handle_connection_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок соединения по умолчанию."""
         self._logger.error(f"Connection error in {context.component}.{context.operation}: {error}")
         return True
-    
+
     def register_handler(
         self,
         error_type: Type[Exception],
@@ -273,19 +464,19 @@ class ErrorHandler:
     ):
         """
         Регистрация обработчика для типа ошибки.
-        
+
         ARGS:
         - error_type: тип ошибки для обработки
         - handler: функция-обработчик (async или sync)
         - severity: уровень серьезности ошибки
         - category: категория ошибки
-        
+
         EXAMPLE:
         ```python
         async def my_handler(error, context):
             logger.error(f"Error: {error}")
             return True
-        
+
         error_handler.register_handler(
             MyCustomError,
             my_handler,
@@ -294,41 +485,89 @@ class ErrorHandler:
         ```
         """
         self._handlers[error_type] = handler
+        self._error_handlers[error_type] = handler  # Алиас для совместимости
         self._handler_severity[error_type] = severity
         self._handler_category[error_type] = category
-        
+
         self._logger.debug(f"Зарегистрирован обработчик для {error_type.__name__}")
-    
+
+    async def classify(
+        self,
+        error: Exception,
+        component: str = "unknown",
+        operation: str = "unknown"
+    ) -> ErrorInfo:
+        """
+        Классифицировать ошибку.
+
+        ARGS:
+        - error: Исключение для классификации
+        - component: Компонент где произошла ошибка
+        - operation: Операция которая выполнялась
+
+        RETURNS:
+        - ErrorInfo с категорией и серьезностью
+        """
+        category = self._classify_category(error)
+        severity = self._classify_severity(error, category)
+
+        context = ErrorContext(component=component, operation=operation)
+
+        return ErrorInfo(
+            error=error,
+            context=context,
+            category=category,
+            severity=severity,
+        )
+
     async def handle(
         self,
         error: Exception,
-        context: ErrorContext,
+        context: ErrorContext = None,
         severity: Optional[ErrorSeverity] = None,
-        category: Optional[ErrorCategory] = None
+        category: Optional[ErrorCategory] = None,
+        component: str = None,
+        operation: str = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> ErrorInfo:
         """
         Обработка ошибки.
-        
+
         ARGS:
         - error: объект ошибки
-        - context: контекст ошибки
+        - context: контекст ошибки (опционально)
         - severity: уровень серьезности (переопределение)
         - category: категория (переопределение)
-        
+        - component: компонент (если context не указан)
+        - operation: операция (если context не указан)
+        - metadata: метаданные (если context не указан)
+
         RETURNS:
         - ErrorInfo: информация об обработанной ошибке
+
+        NOTE: Поддерживает два стиля вызова:
+        - handle(error, context, severity, category) - полный стиль
+        - handle(error, component="x", operation="y", metadata={}) - упрощенный стиль
         """
         self._error_count += 1
         error_type = type(error).__name__
         self._errors_by_type[error_type] = self._errors_by_type.get(error_type, 0) + 1
-        
-        # Определение обработчика
-        handler = self._get_handler(error)
-        
-        # Определение severity и category
-        error_severity = severity or self._handler_severity.get(type(error), ErrorSeverity.MEDIUM)
-        error_category = category or self._handler_category.get(type(error), ErrorCategory.INTERNAL)
-        
+
+        # Создание context если не указан
+        if context is None:
+            context = ErrorContext(
+                component=component or "unknown",
+                operation=operation or "unknown",
+                metadata=metadata or {}
+            )
+
+        # Классификация ошибки
+        error_category = category or self._classify_category(error)
+        error_severity = severity or self._handler_severity.get(
+            type(error),
+            self._classify_severity(error, error_category)
+        )
+
         # Создание ErrorInfo
         error_info = ErrorInfo(
             error=error,
@@ -336,48 +575,172 @@ class ErrorHandler:
             severity=error_severity,
             category=error_category,
         )
-        
+
+        # Проверка retry
+        if self._retry_policy.should_retry(error, 0, error_category, error_severity):
+            result = await self._retry(error, context, error_info)
+            if result:
+                return result
+
+        # Логирование и публикация
+        return await self._log_and_publish(error, context, error_info)
+
+    async def _retry(
+        self,
+        error: Exception,
+        context: ErrorContext,
+        error_info: ErrorInfo
+    ) -> Optional[ErrorInfo]:
+        """
+        Попытка повторного выполнения (если возможно).
+
+        NOTE: Этот метод вызывается когда retry возможен,
+        но фактическое повторное выполнение должно быть
+        реализовано в вызывающем коде.
+
+        RETURNS:
+        - ErrorInfo если retry не удался
+        - None если retry успешен (вызывающий код должен handle)
+        """
+        self._logger.warning(
+            f"Retry возможен для {type(error).__name__} в {context.component}.{context.operation}"
+        )
+        error_info.recovery_action = "retry_recommended"
+        return None
+
+    async def _log_and_publish(
+        self,
+        error: Exception,
+        context: ErrorContext,
+        error_info: ErrorInfo
+    ) -> ErrorInfo:
+        """Логирование и публикация события об ошибке."""
         # Логирование ошибки
         await self._log_error(error_info)
-        
+
         # Вызов обработчика
+        handler = self._get_handler(error)
         handled = False
         if handler:
             try:
-                if inspect.iscoroutinefunction(handler):
-                    handled = await handler(error, context)
+                # Проверка сигнатуры обработчика
+                sig = inspect.signature(handler)
+                params = list(sig.parameters.keys())
+                
+                if len(params) == 1:
+                    # Обработчик принимает error_info
+                    if inspect.iscoroutinefunction(handler):
+                        handled = await handler(error_info)
+                    else:
+                        handled = handler(error_info)
                 else:
-                    handled = handler(error, context)
+                    # Обработчик принимает (error, context)
+                    if inspect.iscoroutinefunction(handler):
+                        handled = await handler(error, context)
+                    else:
+                        handled = handler(error, context)
             except Exception as handler_error:
                 self._logger.error(f"Ошибка в обработчике ошибки: {handler_error}", exc_info=True)
-        
+
         error_info.handled = handled
         error_info.handled_at = datetime.now()
-        
+
         if handled:
             self._handled_count += 1
-        
+
         # Публикация события об ошибке
         await self._publish_error_event(error_info)
-        
+
         return error_info
-    
+
+    def _classify_category(self, error: Exception) -> ErrorCategory:
+        """
+        Классифицировать категорию ошибки.
+
+        ЛОГИКА:
+        - TimeoutError, ConnectionError → TRANSIENT
+        - ValueError, TypeError → INVALID_INPUT
+        - FileNotFoundError, KeyError → NOT_FOUND
+        - RuntimeError с "conflict" → CONFLICT
+        - Остальное → UNKNOWN
+        """
+        error_str = str(error).lower()
+
+        # TRANSIENT: временные ошибки
+        transient_types = (TimeoutError, ConnectionError, ConnectionRefusedError, ConnectionAbortedError)
+        if isinstance(error, transient_types):
+            return ErrorCategory.TRANSIENT
+
+        transient_keywords = ['timeout', 'connection', 'temporary', 'busy', 'unavailable', 'transient', 'network']
+        if any(kw in error_str for kw in transient_keywords):
+            return ErrorCategory.TRANSIENT
+
+        # INVALID_INPUT: ошибки валидации
+        invalid_types = (ValueError, TypeError, AttributeError)
+        if isinstance(error, invalid_types):
+            return ErrorCategory.INVALID_INPUT
+
+        # NOT_FOUND: ресурс не найден
+        not_found_types = (FileNotFoundError, KeyError, IndexError)
+        if isinstance(error, not_found_types):
+            return ErrorCategory.NOT_FOUND
+
+        not_found_keywords = ['not found', 'missing', 'does not exist']
+        if any(kw in error_str for kw in not_found_keywords):
+            return ErrorCategory.NOT_FOUND
+
+        # CONFLICT: конфликт
+        if any(kw in error_str for kw in ['conflict', 'duplicate', 'already exists']):
+            return ErrorCategory.CONFLICT
+
+        # FATAL: критические ошибки
+        fatal_types = (SystemError, MemoryError, RecursionError)
+        if isinstance(error, fatal_types):
+            return ErrorCategory.FATAL
+
+        return ErrorCategory.UNKNOWN
+
+    def _classify_severity(
+        self,
+        error: Exception,
+        category: ErrorCategory
+    ) -> ErrorSeverity:
+        """Определить серьезность ошибки по категории."""
+        if category == ErrorCategory.FATAL:
+            return ErrorSeverity.CRITICAL
+
+        if category == ErrorCategory.INVALID_INPUT:
+            return ErrorSeverity.LOW
+
+        if category == ErrorCategory.NOT_FOUND:
+            return ErrorSeverity.MEDIUM
+
+        if category == ErrorCategory.TRANSIENT:
+            if isinstance(error, (ConnectionError, TimeoutError)):
+                return ErrorSeverity.HIGH
+            return ErrorSeverity.MEDIUM
+
+        if category == ErrorCategory.CONFLICT:
+            return ErrorSeverity.MEDIUM
+
+        return ErrorSeverity.MEDIUM
+
     def _get_handler(self, error: Exception) -> Optional[Callable]:
         """Получение обработчика для типа ошибки."""
         error_type = type(error)
-        
+
         # Прямой поиск
         if error_type in self._handlers:
             return self._handlers[error_type]
-        
+
         # Поиск по наследству
         for registered_type, handler in self._handlers.items():
             if isinstance(error, registered_type):
                 return handler
-        
+
         # Обработчик по умолчанию для всех Exception
         return self._handlers.get(Exception)
-    
+
     async def _log_error(self, error_info: ErrorInfo):
         """Логирование ошибки."""
         log_level = {
@@ -386,21 +749,20 @@ class ErrorHandler:
             ErrorSeverity.HIGH: logging.WARNING,
             ErrorSeverity.CRITICAL: logging.ERROR,
         }.get(error_info.severity, logging.INFO)
-        
+
         message = (
             f"Error in {error_info.context.component}.{error_info.context.operation}: "
             f"{type(error_info.error).__name__}: {error_info.error}"
         )
-        
+
         self._logger.log(log_level, message, exc_info=True)
-    
+
     async def _publish_error_event(self, error_info: ErrorInfo):
         """Публикация события об ошибке в Event Bus."""
         if not self._event_bus:
-            # Event bus не инициализирован - пропускаем публикацию
             self._logger.debug("Event bus не доступен, пропускаем публикацию события об ошибке")
             return
-            
+
         event_data = error_info.to_dict()
 
         await self._event_bus.publish(
@@ -408,7 +770,7 @@ class ErrorHandler:
             data=event_data,
             domain=EventDomain.COMMON,
         )
-    
+
     def handle_errors(
         self,
         component: str,
@@ -431,12 +793,12 @@ class ErrorHandler:
         async def run_agent(goal: str):
             # ... код ...
         ```
-        
+
         NOTE: Поддерживаются ТОЛЬКО асинхронные функции.
         """
         def decorator(func: Callable):
             op_name = operation or func.__name__
-            
+
             # ПРОВЕРКА: функция должна быть асинхронной
             if not inspect.iscoroutinefunction(func):
                 raise TypeError(
@@ -462,7 +824,12 @@ class ErrorHandler:
             return async_wrapper
 
         return decorator
-    
+
+    @property
+    def retry_policy(self) -> RetryPolicy:
+        """Получить политику retry."""
+        return self._retry_policy
+
     def get_stats(self) -> Dict[str, Any]:
         """Получение статистики ошибок."""
         return {
@@ -475,32 +842,55 @@ class ErrorHandler:
             ),
             "errors_by_type": self._errors_by_type.copy(),
         }
-    
+
     def reset_stats(self):
         """Сброс статистики."""
         self._error_count = 0
         self._handled_count = 0
         self._errors_by_type.clear()
 
+    def __repr__(self) -> str:
+        return f"ErrorHandler(handlers={len(self._handlers)}, retry_policy={self._retry_policy})"
 
-# Глобальный обработчик ошибок (singleton)
+
+# ============================================================
+# Factory Functions
+# ============================================================
+
 _global_error_handler: Optional[ErrorHandler] = None
 
 
-def get_error_handler() -> ErrorHandler:
+def get_error_handler(event_bus=None) -> ErrorHandler:
     """
-    Получение глобального обработчика ошибок.
-    
+    Получить глобальный обработчик ошибок (синглтон).
+
+    ARGS:
+    - event_bus: EventBus для публикации событий
+
     RETURNS:
-    - ErrorHandler: глобальный экземпляр
+    - ErrorHandler экземпляр
     """
     global _global_error_handler
     if _global_error_handler is None:
-        _global_error_handler = ErrorHandler()
+        _global_error_handler = ErrorHandler(event_bus)
     return _global_error_handler
 
 
-def reset_error_handler():
-    """Сброс глобального обработчика (для тестов)."""
+def reset_error_handler() -> None:
+    """Сбросить глобальный обработчик (для тестов)."""
     global _global_error_handler
     _global_error_handler = None
+
+
+def create_error_handler(event_bus=None, retry_policy: Optional[RetryPolicy] = None) -> ErrorHandler:
+    """
+    Создать новый обработчик ошибок.
+
+    ARGS:
+    - event_bus: EventBus для публикации событий
+    - retry_policy: Политика retry
+
+    RETURNS:
+    - Новый ErrorHandler экземпляр
+    """
+    return ErrorHandler(event_bus, retry_policy)

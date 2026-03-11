@@ -8,7 +8,7 @@ pytest tests/unit/errors/test_error_handling.py -v
 """
 import pytest
 import asyncio
-from core.errors.error_handling import (
+from core.errors.error_handler import (
     ErrorHandler,
     RetryPolicy,
     ErrorCategory,
@@ -54,34 +54,38 @@ class TestErrorSeverity:
 
 class TestErrorInfo:
     """Тесты ErrorInfo dataclass."""
-    
+
     def test_create_error_info(self):
         """Тест: создание ErrorInfo."""
+        from core.errors.error_handler import ErrorContext
         error = ValueError("test error")
+        context = ErrorContext(component="test_component", operation="test_operation")
         info = ErrorInfo(
             error=error,
+            context=context,
             category=ErrorCategory.INVALID_INPUT,
             severity=ErrorSeverity.LOW,
-            component="test_component",
-            operation="test_operation"
         )
-        
+
         assert info.error_message == "test error"
         assert info.error_type == "ValueError"
-        assert info.component == "test_component"
-        assert info.operation == "test_operation"
-    
+        assert info.context.component == "test_component"
+        assert info.context.operation == "test_operation"
+
     def test_to_dict(self):
         """Тест: конвертация в dict."""
+        from core.errors.error_handler import ErrorContext
         error = ValueError("test")
+        context = ErrorContext(component="unknown", operation="unknown")
         info = ErrorInfo(
             error=error,
+            context=context,
             category=ErrorCategory.INVALID_INPUT,
             severity=ErrorSeverity.LOW
         )
-        
+
         result = info.to_dict()
-        
+
         assert "error_type" in result
         assert "error_message" in result
         assert "category" in result
@@ -108,53 +112,65 @@ class TestRetryPolicy:
     
     def test_should_retry_transient(self):
         """Тест: retry для TRANSIENT ошибок."""
+        from core.errors.error_handler import ErrorContext
         policy = RetryPolicy()
+        context = ErrorContext(component="test", operation="test")
         error_info = ErrorInfo(
             error=TimeoutError("timeout"),
+            context=context,
             category=ErrorCategory.TRANSIENT,
             severity=ErrorSeverity.MEDIUM
         )
-        
+
         # Первые 3 попытки - retry
-        assert policy.should_retry(error_info, 0) is True
-        assert policy.should_retry(error_info, 1) is True
-        assert policy.should_retry(error_info, 2) is True
-        
+        assert policy.should_retry(error_info.error, 0, error_info.category, error_info.severity) is True
+        assert policy.should_retry(error_info.error, 1, error_info.category, error_info.severity) is True
+        assert policy.should_retry(error_info.error, 2, error_info.category, error_info.severity) is True
+
         # После max_retries - нет
-        assert policy.should_retry(error_info, 3) is False
-    
+        assert policy.should_retry(error_info.error, 3, error_info.category, error_info.severity) is False
+
     def test_should_retry_invalid_input(self):
         """Тест: нет retry для INVALID_INPUT."""
+        from core.errors.error_handler import ErrorContext
         policy = RetryPolicy()
+        context = ErrorContext(component="test", operation="test")
         error_info = ErrorInfo(
             error=ValueError("invalid"),
+            context=context,
             category=ErrorCategory.INVALID_INPUT,
             severity=ErrorSeverity.LOW
         )
-        
-        assert policy.should_retry(error_info, 0) is False
-    
+
+        assert policy.should_retry(error_info.error, 0, error_info.category, error_info.severity) is False
+
     def test_should_retry_fatal(self):
         """Тест: нет retry для FATAL."""
+        from core.errors.error_handler import ErrorContext
         policy = RetryPolicy()
+        context = ErrorContext(component="test", operation="test")
         error_info = ErrorInfo(
             error=SystemError("fatal"),
+            context=context,
             category=ErrorCategory.FATAL,
             severity=ErrorSeverity.CRITICAL
         )
-        
-        assert policy.should_retry(error_info, 0) is False
-    
+
+        assert policy.should_retry(error_info.error, 0, error_info.category, error_info.severity) is False
+
     def test_should_retry_critical_severity(self):
         """Тест: нет retry для CRITICAL severity."""
+        from core.errors.error_handler import ErrorContext
         policy = RetryPolicy()
+        context = ErrorContext(component="test", operation="test")
         error_info = ErrorInfo(
             error=ConnectionError("error"),
+            context=context,
             category=ErrorCategory.TRANSIENT,
             severity=ErrorSeverity.CRITICAL
         )
-        
-        assert policy.should_retry(error_info, 0) is False
+
+        assert policy.should_retry(error_info.error, 0, error_info.category, error_info.severity) is False
     
     def test_get_delay_exponential(self):
         """Тест: экспоненциальная задержка."""
@@ -305,40 +321,40 @@ class TestErrorHandler:
     async def test_handle_error(self, handler):
         """Тест: обработка ошибки."""
         error = ValueError("test error")
-        
+
         info = await handler.handle(
             error,
             component="test_component",
             operation="test_operation"
         )
-        
+
         assert info.error_message == "test error"
-        assert info.component == "test_component"
-        assert info.operation == "test_operation"
-    
+        assert info.context.component == "test_component"
+        assert info.context.operation == "test_operation"
+
     @pytest.mark.asyncio
     async def test_handle_with_custom_severity(self, handler):
         """Тест: обработка с кастомной серьезностью."""
         error = ValueError("test")
-        
+
         info = await handler.handle(
             error,
             severity=ErrorSeverity.HIGH
         )
-        
+
         assert info.severity == ErrorSeverity.HIGH
-    
+
     @pytest.mark.asyncio
     async def test_handle_with_metadata(self, handler):
         """Тест: обработка с метаданными."""
         error = ValueError("test")
-        
+
         info = await handler.handle(
             error,
             metadata={"key": "value"}
         )
-        
-        assert info.metadata == {"key": "value"}
+
+        assert info.context.metadata == {"key": "value"}
     
     def test_register_handler(self, handler):
         """Тест: регистрация обработчика."""
@@ -487,16 +503,16 @@ class TestRetryPolicyIntegration:
         """Тест: нет retry для INVALID_INPUT."""
         policy = RetryPolicy(max_retries=3)
         handler = ErrorHandler()
-        
+
         attempts = 0
-        
+
         try:
             raise ValueError("invalid input")
         except Exception as e:
             error_info = await handler.classify(e)
-            
-            if policy.should_retry(error_info, 0):
+
+            if policy.should_retry(error_info.error, 0, error_info.category, error_info.severity):
                 attempts += 1
-        
+
         # Нет retry
         assert attempts == 0
