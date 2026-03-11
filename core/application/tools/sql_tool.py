@@ -89,16 +89,16 @@ class SQLTool(BaseTool):
                 return True
         return False
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
-        """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима."""
+        """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима (СИНХРОННОЕ)."""
         # Преобразуем параметры во входные данные
         input_data = self._convert_params_to_input(parameters)
-        
+
         # === ЭТАП 1: Валидация входных данных через схему ===
         input_schema = self.get_cached_input_contract_safe("sql_tool.execute_query")
         if input_schema:
@@ -110,7 +110,7 @@ class SQLTool(BaseTool):
                 })
             except Exception as e:
                 if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
+                    self.event_bus_logger.error_sync(f"Валидация входных данных не пройдена: {e}")
                 else:
                     self.logger.error(f"Валидация входных данных не пройдена: {e}")
                 return {
@@ -127,7 +127,7 @@ class SQLTool(BaseTool):
 
         if not db_provider:
             if self.event_bus_logger:
-                await self.event_bus_logger.error("DB провайдер не найден")
+                self.event_bus_logger.error_sync("DB провайдер не найден")
             else:
                 self.logger.error("DB провайдер не найден")
             return {
@@ -146,23 +146,23 @@ class SQLTool(BaseTool):
                 "execution_time": time.time() - start_time
             }
 
-        # Выполнение через провайдера
+        # Выполнение через провайдера (синхронное ожидание async метода)
         # Проверяем, поддерживает ли провайдер параметр max_rows
         import inspect
         sig = inspect.signature(db_provider.execute)
-        
+
         if 'max_rows' in sig.parameters:
-            result = await db_provider.execute(
+            result = self._safe_async_call(db_provider.execute(
                 query=input_data.sql,
                 params=input_data.parameters,
                 max_rows=input_data.max_rows
-            )
+            ))
         else:
             # Для совместимости с mock-провайдерами
-            result = await db_provider.execute(
+            result = self._safe_async_call(db_provider.execute(
                 query=input_data.sql,
                 params=input_data.parameters
-            )
+            ))
 
         execution_time = time.time() - start_time
 
@@ -181,11 +181,36 @@ class SQLTool(BaseTool):
                 output_schema.model_validate(output)
             except Exception as e:
                 if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"Валидация выходных данных не пройдена: {e}")
+                    self.event_bus_logger.error_sync(f"Валидация выходных данных не пройдена: {e}")
                 else:
                     self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+                return {
+                    "rows": [],
+                    "columns": [],
+                    "rowcount": 0,
+                    "execution_time": 0
+                }
 
         return output
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
+
+    def _is_write_operation(self, sql: str) -> bool:
+        """Проверка является ли SQL операцией записи."""
+        sql_upper = sql.strip().upper()
+        write_operations = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE', 'MERGE']
+        for op in write_operations:
+            if sql_upper.startswith(op):
+                return True
+        return False
 
     def _convert_params_to_input(self, parameters: Dict[str, Any]) -> SQLToolInput:
         """

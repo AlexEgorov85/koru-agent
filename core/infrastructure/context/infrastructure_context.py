@@ -88,6 +88,26 @@ class InfrastructureContext:
         if self.event_bus_logger:
             await self.event_bus_logger.info("Используется шина событий: %s", bus_type)
 
+    def initialize_sync(self) -> bool:
+        """
+        СИНХРОННАЯ инициализация инфраструктурных ресурсов.
+
+        ИСПОЛЬЗУЕТ asyncio.run() для выполнения async операций.
+        Может вызываться из sync контекста.
+        """
+        import asyncio
+        
+        # Создаём новый event loop для инициализации
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Запускаем async инициализацию в новом loop
+            result = loop.run_until_complete(self.initialize())
+            return result
+        finally:
+            loop.close()
+
     async def initialize(self) -> bool:
         """
         Инициализация инфраструктурных ресурсов.

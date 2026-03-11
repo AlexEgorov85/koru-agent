@@ -17,6 +17,8 @@ from typing import Any, Dict, Optional, ClassVar, List
 
 from core.config.app_config import AppConfig
 from core.components.base_component import BaseComponent
+from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.data.capability import Capability
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
 from core.infrastructure.logging import EventBusLogger
@@ -329,13 +331,13 @@ class BaseService(BaseComponent):
         """
         raise NotImplementedError("_convert_params_to_input должен быть реализован в подклассе")
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения сервиса."""
         # Для сервисов нет специального события, используем общее
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
-    async def execute(self, capability: 'Capability' = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):
+    async def execute(self, capability: Capability = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):
         """
         Универсальный метод выполнения, поддерживающий оба интерфейса.
         """
@@ -375,28 +377,28 @@ class BaseService(BaseComponent):
             # Это вызов с явным input_data (старый интерфейс)
             raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики сервиса.
+        Реализация бизнес-логики сервиса (СИНХРОННАЯ).
 
         Преобразует параметры в ServiceInput и вызывает execute_specific.
         """
         input_data = self._convert_params_to_input(parameters)
-        result = await self.execute_specific(input_data)
+        result = self.execute_specific(input_data)
 
         # Преобразуем результат в словарь
         if hasattr(result, '__dict__'):
             return result.__dict__
         return {'result': result}
 
-    async def execute_specific(self, input_data: ServiceInput) -> ServiceOutput:
+    def execute_specific(self, input_data: ServiceInput) -> ServiceOutput:
         """
-        Специфичный метод выполнения для конкретных сервисов.
+        Специфичный метод выполнения для конкретных сервисов (СИНХРОННЫЙ).
         """
         raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
 

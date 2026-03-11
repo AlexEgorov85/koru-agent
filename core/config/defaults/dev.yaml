@@ -40,6 +40,12 @@ db_providers:
       sslmode: "disable"
       timeout: 30.0
       pool_size: 5
+  books_db:
+    provider_type: sqlite
+    enabled: false  # Отключено пока нет данных книг
+    parameters:
+      db_path: "data/books.db"
+      timeout: 30.0
 
 # Параметры агента
 agent:

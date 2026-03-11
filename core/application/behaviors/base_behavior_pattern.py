@@ -506,14 +506,14 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.AGENT_STARTED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики паттерна поведения.
+        Реализация бизнес-логики паттерна поведения (СИНХРОННАЯ).
 
         ПАТТЕРНЫ НЕ ВЫПОЛНЯЮТ ДЕЙСТВИЯ напрямую — они генерируют решения через generate_decision().
         Этот метод предоставляет интерфейс для BaseComponent.execute().
@@ -523,18 +523,18 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         """
         # Паттерны поведения работают через generate_decision()
         # Этот метод предоставляет совместимость с интерфейсом BaseComponent
-        
+
         # Извлекаем session_context из execution_context
         session_context = None
         if hasattr(execution_context, 'session_context'):
             session_context = execution_context.session_context
-        
+
         available_capabilities = execution_context.available_capabilities if hasattr(execution_context, 'available_capabilities') else []
-        
-        # Анализируем контекст и генерируем решение
-        context_analysis = await self.analyze_context(session_context, available_capabilities)
-        decision = await self.generate_decision(session_context, available_capabilities, context_analysis)
-        
+
+        # Анализируем контекст и генерируем решение (синхронное ожидание async методов)
+        context_analysis = self._safe_async_call(self.analyze_context(session_context, available_capabilities))
+        decision = self._safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis))
+
         # Возвращаем решение в виде словаря
         return {
             "decision_type": decision.decision_type.value if hasattr(decision.decision_type, 'value') else str(decision.decision_type),
@@ -542,3 +542,13 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
             "parameters": decision.parameters,
             "reasoning": decision.reasoning
         }
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)

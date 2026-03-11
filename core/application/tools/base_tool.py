@@ -91,28 +91,28 @@ class BaseTool(BaseComponent):
             # Это вызов с явным input_data (старый интерфейс)
             raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики инструмента.
+        Реализация бизнес-логики инструмента (СИНХРОННАЯ).
 
         Преобразует параметры в ToolInput и вызывает execute_specific.
         """
         input_data = self._convert_params_to_input(parameters)
-        result = await self.execute_specific(input_data)
+        result = self.execute_specific(input_data)
 
         # Преобразуем результат в словарь
         if hasattr(result, '__dict__'):
             return result.__dict__
         return {'result': result}
 
-    async def execute_specific(self, input_data: ToolInput) -> ToolOutput:
+    def execute_specific(self, input_data: ToolInput) -> ToolOutput:
         """
-        Специфичный метод выполнения для конкретных инструментов.
+        Специфичный метод выполнения для конкретных инструментов (СИНХРОННЫЙ).
         """
         raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
 

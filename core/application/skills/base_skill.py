@@ -14,6 +14,7 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.session_context.base_session_context import BaseSessionContext
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
@@ -219,7 +220,7 @@ class BaseSkill(BaseComponent):
     # Execution API
     # --------------------------------------------------
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения навыка."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
@@ -266,14 +267,14 @@ class BaseSkill(BaseComponent):
         # Используем универсальный шаблон выполнения из BaseComponent
         return await super().execute(capability, parameters, execution_context)
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики навыка.
+        Реализация бизнес-логики навыка (СИНХРОННАЯ).
 
         Переопределяется в наследниках для конкретной реализации.
         По умолчанию вызывает run() для обратной совместимости.
@@ -285,10 +286,15 @@ class BaseSkill(BaseComponent):
 
         ВОЗВРАЩАЕТ:
         - Результат выполнения в виде словаря
+        
+        ПРИМЕЧАНИЕ:
+        - Этот метод вызывается из async execute()
+        - Для вызова async действий используйте executor.execute_sync().result()
         """
         # Для обратной совместимости вызываем run()
+        # run() теперь должен быть sync в наследниках
         session_context = execution_context.session_context if execution_context else None
-        return await self.run(parameters, session_context)
+        return self.run(parameters, session_context)
 
     def get_metadata(self):
         """

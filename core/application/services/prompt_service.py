@@ -216,14 +216,14 @@ class PromptService(BaseService):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики сервиса промптов.
+        Реализация бизнес-логики сервиса промптов (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.

@@ -99,18 +99,18 @@ class DataAnalysisSkill(BaseSkill):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики анализа данных.
+        Реализация бизнес-логики анализа данных (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
-        
+
         ВОЗВРАЩАЕТ:
             - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
@@ -119,18 +119,18 @@ class DataAnalysisSkill(BaseSkill):
         data_source = parameters.get("data_source", {})
         analysis_config = parameters.get("analysis_config", {})
 
-        # 1. Загрузка данных из источника
-        raw_data, data_metadata = await self._load_data(
+        # 1. Загрузка данных из источника (синхронное ожидание async методов)
+        raw_data, data_metadata = self._safe_async_call(self._load_data(
             data_source=data_source,
             config=analysis_config
-        )
+        ))
 
         # 2. Обработка больших данных через чанкинг при необходимости
-        chunks = await self._chunk_data_if_needed(
+        chunks = self._safe_async_call(self._chunk_data_if_needed(
             data=raw_data,
             config=analysis_config,
             metadata=data_metadata
-        )
+        ))
 
         # 3. Подготовка переменных для промпта
         prompt_vars = {
@@ -220,6 +220,16 @@ class DataAnalysisSkill(BaseSkill):
 
         # Возвращаем данные напрямую (BaseComponent.execute() обернёт в ExecutionResult)
         return validated_answer
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
 
     async def _analyze_step_data(self, params: Dict[str, Any]) -> ExecutionResult:
         """

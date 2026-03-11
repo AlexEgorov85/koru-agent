@@ -87,25 +87,35 @@ class SQLQueryService(BaseService):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики сервиса SQL-запросов.
+        Реализация бизнес-логики сервиса SQL-запросов (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
-        # Выполнение безопасного SQL-запроса
-        result = await self.execute_query_from_user_request(
+        # Выполнение безопасного SQL-запроса (синхронное ожидание async метода)
+        result = self._safe_async_call(self.execute_query_from_user_request(
             user_question=parameters.get("user_question", ""),
             tables=parameters.get("tables", []),
             max_rows=parameters.get("max_rows", 50)
-        )
+        ))
         return {"query_result": result, "capability": capability.name}
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
 
     async def execute_query(
         self,

@@ -232,6 +232,26 @@ class ApplicationContext(BaseSystemContext):
 
         return component
 
+    def initialize_sync(self) -> bool:
+        """
+        СИНХРОННАЯ инициализация прикладного контекста.
+
+        ИСПОЛЬЗУЕТ asyncio.run() для выполнения async операций.
+        Может вызываться из sync контекста.
+        """
+        import asyncio
+        
+        # Создаём новый event loop для инициализации
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Запускаем async инициализацию в новом loop
+            result = loop.run_until_complete(self.initialize())
+            return result
+        finally:
+            loop.close()
+
     async def initialize(self) -> bool:
         """
         ЕДИНЫЙ жизненный цикл инициализации для ВСЕХ компонентов:

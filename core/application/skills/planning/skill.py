@@ -5,6 +5,7 @@ import asyncio
 import time
 from typing import Any, Dict, List
 from core.components.base_component import BaseComponent
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.application.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
@@ -35,9 +36,8 @@ class PlanningSkill(BaseComponent):
         """
         return await self._execute_impl(capability, parameters, execution_context)
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения навыка планирования."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
     def get_capabilities(self) -> List[Capability]:
@@ -86,14 +86,14 @@ class PlanningSkill(BaseComponent):
             )
         ]
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: ExecutionContext
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики навыка планирования.
+        Реализация бизнес-логики навыка планирования (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -101,19 +101,19 @@ class PlanningSkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
-        # Делегирование конкретным методам
+        # Делегирование конкретным методам (синхронное ожидание async методов)
         if capability.name == "planning.create_plan":
-            result = await self._create_plan(parameters, execution_context)
+            result = self._safe_async_call(self._create_plan(parameters, execution_context))
         elif capability.name == "planning.update_plan":
-            result = await self._update_plan(parameters, execution_context)
+            result = self._safe_async_call(self._update_plan(parameters, execution_context))
         elif capability.name == "planning.get_next_step":
-            result = await self._get_next_step(parameters, execution_context)
+            result = self._safe_async_call(self._get_next_step(parameters, execution_context))
         elif capability.name == "planning.update_step_status":
-            result = await self._update_step_status(parameters, execution_context)
+            result = self._safe_async_call(self._update_step_status(parameters, execution_context))
         elif capability.name == "planning.decompose_task":
-            result = await self._decompose_task(parameters, execution_context)
+            result = self._safe_async_call(self._decompose_task(parameters, execution_context))
         elif capability.name == "planning.mark_task_completed":
-            result = await self._mark_task_completed(parameters, execution_context)
+            result = self._safe_async_call(self._mark_task_completed(parameters, execution_context))
         else:
             raise ValueError(f"Неизвестная capability: {capability.name}")
 
@@ -121,7 +121,17 @@ class PlanningSkill(BaseComponent):
         if isinstance(result, ExecutionResult):
             return result.data if result.data else {}
         return result if result else {}
-    
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
+
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""
         return "\n".join([f"- {cap.name}: {cap.description}" for cap in capabilities])

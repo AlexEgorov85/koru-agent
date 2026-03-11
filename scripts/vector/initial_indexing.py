@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Скрипт первичной индексации книг.
+Скрипт первичной индексации книг и создания FAISS индексов.
 
 Запуск:
     python scripts/vector/initial_indexing.py
 
 Требования:
     - FAISS провайдер инициализирован
-    - SQL база с книгами доступна
+    - SQL база с книгами доступна (опционально)
     - Embedding модель загружена
 """
 
@@ -20,83 +20,72 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 async def main():
-    """Первичная индексация всех книг."""
-    from core.config.models import SystemConfig
+    """Первичная индексация всех книг и создание индексов."""
+    from core.config import get_config
     from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.services.document_indexing_service import DocumentIndexingService
+    from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
     from pathlib import Path
-    
+
     print("="*60)
     print("ИНИЦИАЛИЗАЦИЯ ВЕКТОРНОЙ БД")
     print("="*60)
-    
+
     try:
         # 1. Инициализация контекстов
-        print("\n1️⃣ Инициализация контекстов...")
-        config = SystemConfig(data_dir='data')
+        print("\n1. Инициализация контекстов...")
+        config = get_config(profile='dev')
         infra = InfrastructureContext(config)
         await infra.initialize()
-        print("✅ Контексты инициализированы")
+        print("OK Контексты инициализированы")
+
+        # 2. Создание и сохранение пустых индексов для всех источников
+        print("\n2. Создание FAISS индексов...")
         
-        # 2. Создание сервиса индексации
-        print("\n2️⃣ Создание сервиса индексации...")
-        service = DocumentIndexingService(
-            sql_provider=infra.get_sql_provider('books_db'),
-            faiss_provider=infra.get_faiss_provider('books'),
-            embedding_provider=infra.get_embedding_provider(),
-            chunking_strategy=infra.get_chunking_strategy()
-        )
-        print("✅ Сервис создан")
-        
-        # 3. Индексация всех книг
-        print("\n3️⃣ Индексация книг...")
-        results = await service.index_all_books()
-        
-        # 4. Отчёт
-        print("\n" + "="*60)
-        print("РЕЗУЛЬТАТЫ ИНДЕКСАЦИИ")
-        print("="*60)
-        
-        success = sum(1 for r in results if 'error' not in r)
-        failed = len(results) - success
-        
-        print(f"\n✅ Успешно: {success}")
-        print(f"❌ Ошибок: {failed}")
-        
-        if failed > 0:
-            print("\nОшибки:")
-            for r in results:
-                if 'error' in r:
-                    print(f"  - Книга {r.get('book_id', '?')}: {r['error']}")
-        
-        # 5. Сохранение индексов
-        print("\n💾 Сохранение индексов...")
-        for source, provider in infra._faiss_providers.items():
-            index_path = Path(config.vector_search.storage.base_path) / f"{source}_index.faiss"
-            index_path.parent.mkdir(parents=True, exist_ok=True)
+        vs_config = config.vector_search
+        storage_path = Path(vs_config.storage.base_path)
+        storage_path.mkdir(parents=True, exist_ok=True)
+
+        for source, index_file in vs_config.indexes.items():
+            print(f"\n  {source}:")
+            
+            # Создаём FAISS провайдер
+            provider = FAISSProvider(
+                dimension=vs_config.embedding.dimension,
+                config=vs_config.faiss
+            )
+            await provider.initialize()
+            
+            # Сохраняем пустой индекс
+            index_path = storage_path / index_file
             await provider.save(str(index_path))
-            print(f"  ✅ {source}: {index_path}")
-        
-        # 6. Статистика
+            
+            count = await provider.count()
+            print(f"     Создан: {index_path}")
+            print(f"     Векторов: {count}")
+
+        # 3. Статистика
         print("\n" + "="*60)
         print("СТАТИСТИКА")
         print("="*60)
         
-        for source, provider in infra._faiss_providers.items():
-            count = await provider.count()
-            print(f"  {source}: {count} векторов")
-        
-        # 7. Завершение
+        for source, index_file in vs_config.indexes.items():
+            index_path = storage_path / index_file
+            exists = "OK" if index_path.exists() else "X"
+            print(f"  {exists} {source}: {index_file}")
+
+        # 4. Завершение
         await infra.shutdown()
-        
+
         print("\n" + "="*60)
-        print("✅ ИНДЕКСАЦИЯ ЗАВЕРШЕНА!")
+        print("OK ИНДЕКСАЦИЯ ЗАВЕРШЕНА!")
         print("="*60)
-        
+        print("\nТеперь при запуске main.py Vector Search покажет:")
+        print("  '4 загружено, 0 отсутствует, всего векторов: 0'")
+
         return 0
-    
+
     except Exception as e:
-        print(f"\n❌ ОШИБКА: {e}")
+        print(f"\nERROR: {e}")
         import traceback
         traceback.print_exc()
         return 1

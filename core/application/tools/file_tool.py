@@ -98,14 +98,14 @@ class FileTool(BaseTool):
         content = parameters.get('content')
         return FileToolInput(operation=operation, path=path, content=content, **parameters)
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Выполнение файловой операции.
+        Выполнение файловой операции (СИНХРОННОЕ).
 
         ARGS:
         - capability: capability для выполнения
@@ -117,7 +117,7 @@ class FileTool(BaseTool):
         """
         # Преобразуем параметры во входные данные
         input_data = self._convert_params_to_input(parameters)
-        
+
         operation = input_data.operation
         file_path = input_data.path
 
@@ -151,15 +151,16 @@ class FileTool(BaseTool):
                 "dry_run": True
             }
 
+        # Выполняем файловые операции (синхронное ожидание async методов)
         if operation == "read":
-            result = await self._read_file(requested_path)
+            result = self._safe_async_call(self._read_file(requested_path))
         elif operation == "write":
             content = input_data.content or ""
-            result = await self._write_file(requested_path, content)
+            result = self._safe_async_call(self._write_file(requested_path, content))
         elif operation == "delete":
-            result = await self._delete_file(requested_path)
+            result = self._safe_async_call(self._delete_file(requested_path))
         elif operation == "list":
-            result = await self._list_directory(requested_path.parent if requested_path.is_file() else requested_path)
+            result = self._safe_async_call(self._list_directory(requested_path.parent if requested_path.is_file() else requested_path))
         else:
             result = {
                 "success": False,
@@ -167,6 +168,16 @@ class FileTool(BaseTool):
             }
 
         return result
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
 
     async def _read_file(self, path: Path) -> Dict[str, Any]:
         """Чтение содержимого файла (асинхронно)."""

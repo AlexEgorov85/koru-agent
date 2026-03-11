@@ -127,14 +127,14 @@ class FinalAnswerSkill(BaseSkill):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: str,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики навыка финального ответа.
+        Реализация бизнес-логики навыка финального ответа (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
@@ -148,8 +148,8 @@ class FinalAnswerSkill(BaseSkill):
         # Извлечение контекста сессии
         session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
 
-        # Генерация финального ответа
-        result = await self._generate_final_answer(session_context, parameters, execution_context)
+        # Генерация финального ответа (синхронный вызов)
+        result = self._generate_final_answer(session_context, parameters, execution_context)
 
         # Извлекаем данные из ExecutionResult если нужно
         if isinstance(result, dict):
@@ -158,14 +158,14 @@ class FinalAnswerSkill(BaseSkill):
             return result.data
         return {}
 
-    async def _generate_final_answer(
+    def _generate_final_answer(
         self,
         context: BaseSessionContext,
         parameters: Dict[str, Any],
         execution_context: Any
     ) -> ExecutionResult:
         """
-        Генерация финального ответа на основе контекста сессии.
+        Генерация финального ответа на основе контекста сессии (СИНХРОННАЯ).
 
         ПАРАМЕТРЫ:
         - context: контекст сессии (только для get_goal())
@@ -173,11 +173,11 @@ class FinalAnswerSkill(BaseSkill):
         - execution_context: контекст выполнения для доступа к данным
 
         ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: результат генерации
+        - ExecutionResult: результат генерации
         """
         # Извлечение цели
         goal = context.get_goal() or "Не указана цель"
-        
+
         # Обработка параметров (могут быть Pydantic моделью или dict)
         from pydantic import BaseModel
         if isinstance(parameters, BaseModel):
@@ -241,11 +241,11 @@ class FinalAnswerSkill(BaseSkill):
                     return f"'{title}' ({author}, {year})" if year else f"'{title}' ({author})"
                 return str(row)
 
-            all_items_result = await self.executor.execute_action(
+            all_items_result = self.executor.execute_sync(
                 action_name="context.get_all_items",
                 parameters={},
                 context=execution_context
-            )
+            ).result(timeout=30)
 
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
                 all_items = all_items_result.result.get("items", {})
@@ -291,7 +291,7 @@ class FinalAnswerSkill(BaseSkill):
                             })
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Не удалось получить items из контекста: {e}")
+                self.event_bus_logger.warning(f"Не удалось получить items из контекста: {e}")
             # Продолжаем с пустыми списками
 
         # Получаем шаги выполнения через executor
@@ -317,12 +317,12 @@ class FinalAnswerSkill(BaseSkill):
                     return serialize_for_prompt(obj.__dict__)
                 else:
                     return obj
-            
-            steps_result = await self.executor.execute_action(
+
+            steps_result = self.executor.execute_sync(
                 action_name="context.get_step_history",
                 parameters={},
                 context=execution_context
-            )
+            ).result(timeout=30)
 
             if steps_result.status == ExecutionStatus.COMPLETED and steps_result.result:
                 steps_list = steps_result.result.get("steps", [])
@@ -357,7 +357,7 @@ class FinalAnswerSkill(BaseSkill):
                         })
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
+                self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
             # Продолжаем с пустыми шагами
 
         # Получение промпта С КОНТРАКТАМИ из кэша (через BaseComponent.get_prompt_with_contract)
@@ -366,7 +366,7 @@ class FinalAnswerSkill(BaseSkill):
 
         if not prompt_with_contract:
             if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
+                self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
@@ -384,7 +384,7 @@ class FinalAnswerSkill(BaseSkill):
             )
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
+                self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
             rendered_prompt = self._render_prompt_fallback(
                 goal=goal,
                 observations=observations,
@@ -403,10 +403,10 @@ class FinalAnswerSkill(BaseSkill):
             output_schema = self.get_output_contract("final_answer.generate")
 
             if self.event_bus_logger:
-                await self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
+                self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
-            llm_result = await self.executor.execute_action(
+            llm_result = self.executor.execute_sync(
                 action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
@@ -422,14 +422,14 @@ class FinalAnswerSkill(BaseSkill):
                     "attempt_timeout": 300.0  # Timeout на одну попытку (5 минут)
                 },
                 context=execution_context
-            )
+            ).result(timeout=120)  # Увеличенный timeout для LLM вызова
 
             # Проверка на ошибку
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
                 if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
+                    self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg} (тип: {error_type})")
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные
@@ -445,7 +445,7 @@ class FinalAnswerSkill(BaseSkill):
 
             # Логирование успешного structured output
             if self.event_bus_logger:
-                await self.event_bus_logger.info(
+                self.event_bus_logger.info(
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
@@ -491,7 +491,7 @@ class FinalAnswerSkill(BaseSkill):
 
         except Exception as e:
             if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
+                self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
             fallback_result = self._build_fallback_response(goal, observations, steps_taken, format_type)
             return ExecutionResult.failure(
                 error=str(e),

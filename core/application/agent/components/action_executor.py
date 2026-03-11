@@ -16,6 +16,7 @@ import asyncio
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from pydantic import BaseModel
 
+from core.application.services.validation_service import ValidationService
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
 
@@ -125,6 +126,46 @@ class ActionExecutor:
                 status=ExecutionStatus.FAILED,
                 error=str(e)
             )
+
+    def execute_sync(
+        self,
+        action_name: str,
+        parameters: Dict[str, Any],
+        context: ExecutionContext
+    ) -> asyncio.Future:
+        """
+        Синхронное выполнение действия (возвращает Future для блокирующего ожидания).
+
+        ИСПОЛЬЗОВАНИЕ:
+        ```python
+        # В синхронном _execute_impl():
+        future = self.executor.execute_sync("llm.generate", {...}, context)
+        result = future.result(timeout=30)  # Блокирующее ожидание
+        ```
+
+        ARGS:
+        - action_name: имя действия для выполнения
+        - parameters: параметры выполнения
+        - context: контекст выполнения
+
+        RETURNS:
+        - asyncio.Future: Future с результатом ExecutionResult
+        """
+        # Получаем текущий event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Если нет running loop, создаём новый
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Создаём coroutine
+        coro = self.execute_action(action_name, parameters, context)
+
+        # Запускаем в event loop и возвращаем Future
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+
+        return future
 
     async def _execute_context_action(
         self,

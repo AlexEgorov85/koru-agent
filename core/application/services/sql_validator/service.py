@@ -97,20 +97,20 @@ class SQLValidatorService(BaseService):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики сервиса валидации SQL.
+        Реализация бизнес-логики сервиса валидации SQL (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
-        # Валидация SQL-запроса
-        result = await self.validate_query(parameters.get("sql", ""), parameters.get("parameters"))
+        # Валидация SQL-запроса (синхронный вызов)
+        result = self.validate_query(parameters.get("sql", ""), parameters.get("parameters"))
         return {
             "is_valid": result.is_valid,
             "validation_errors": result.validation_errors,
@@ -118,20 +118,20 @@ class SQLValidatorService(BaseService):
             "capability": capability.name
         }
 
-    async def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> ValidatedSQL:
+    def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> ValidatedSQL:
         """
-        Валидация SQL-запроса на безопасность и корректность.
-        
+        Валидация SQL-запроса на безопасность и корректность (СИНХРОННАЯ).
+
         ARGS:
         - sql_query: строка SQL-запроса для валидации
         - parameters: параметры запроса
-        
+
         RETURNS:
         - ValidatedSQL: результат валидации с оценкой безопасности
         """
         validation_errors = []
         parameters = parameters or {}
-        
+
         # 1. Проверка синтаксиса
         try:
             parsed = sqlparse.parse(sql_query)
@@ -139,13 +139,13 @@ class SQLValidatorService(BaseService):
                 validation_errors.append("Невозможно распарсить SQL-запрос")
         except Exception as e:
             validation_errors.append(f"Ошибка парсинга SQL: {str(e)}")
-        
+
         # 2. Проверка разрешенных операций
         try:
             self._validate_operations(sql_query)
         except ValueError as e:
             validation_errors.append(str(e))
-        
+
         # 3. Проверка параметризации (запрет конкатенации)
         try:
             if self._contains_concatenation(sql_query):

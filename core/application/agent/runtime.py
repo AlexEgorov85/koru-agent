@@ -171,313 +171,14 @@ class AgentRuntime:
 
     async def run(self, goal: str = None, max_steps: Optional[int] = None) -> ExecutionResult:
         """
-        Запуск выполнения агента.
+        Запуск выполнения агента через синхронный цикл (_run_sync).
 
-        ПАРАМЕТРЫ:
-        - max_steps: Максимальное количество шагов (опционально)
-
-        ВОЗВРАЩАЕТ:
-        - ExecutionResult: Результат выполнения
+        ИСПОЛЬЗУЕТ asyncio.to_thread() для выполнения в отдельном thread,
+        что позволяет использовать asyncio.run() внутри _run_sync().
         """
-        if self._running:
-            raise RuntimeError("Агент уже выполняется")
-
-        # Обновляем goal если передан
-        if goal:
-            self.goal = goal
-
-        self._running = True
-        self._current_step = 0
-        self._max_steps = max_steps or self._max_steps
-
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}...")
-
-        try:
-            # Инициализация начального контекста выполнения
-            # В новой архитектуре контексты могут быть недоступны напрямую
-            # Проверяем наличие атрибутов перед использованием
-            if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
-                initial_context = self.application_context.session_context
-                # Используем правильный метод для добавления шага в SessionContext
-                initial_context.record_action({
-                    "step": 0,
-                    "action": "initialization",
-                    "timestamp": datetime.now().isoformat(),
-                    "goal": self.goal
-                }, step_number=0)
-
-            # Инициализация менеджера поведения
-            await self.behavior_manager.initialize(component_name="react_pattern")
-
-            # Переменные для детекции зацикливания
-            previous_snapshot = None
-            previous_decision = None
-            no_progress_counter = 0
-
-            # Переменные для отслеживания ошибок выполнения
-            last_step_failed = False
-            last_error_message = None
-            consecutive_error_count = 0  # ← Счётчик последовательных ошибок
-
-            # Цикл рассуждений
-            print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
-            print(f"🔵 [RUNTIME] state.finished={self.state.finished}", flush=True)
-            
-            while self._running and self._current_step < self._max_steps:
-                print(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===", flush=True)
-                
-                if self.state.finished:
-                    print(f"🔴 [RUNTIME] BREAK: state.finished=True", flush=True)
-                    break
-
-                # Получаем доступные capability для использования в паттернах поведения
-                # Агент использует ТОЛЬКО навыки (SKILL), не инструменты (TOOL)
-                if hasattr(self.application_context, 'get_all_skills'):
-                    available_caps = self.application_context.get_all_skills()
-                elif hasattr(self.application_context, 'get_all_capabilities'):
-                    all_caps = await self.application_context.get_all_capabilities()
-                    # Фильтр: только SKILL capability (не TOOL, не planning)
-                    available_caps = [
-                        cap for cap in all_caps
-                        if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
-                    ]
-                else:
-                    available_caps = []
-
-                print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
-                
-                # Получаем decision
-                print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
-                decision = await self.behavior_manager.generate_next_decision(
-                    session_context=self.application_context.session_context,
-                    available_capabilities=available_caps
-                )
-                
-                print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
-
-                # ПРОВЕРКА 1: Повторение decision без изменения state
-                if previous_decision and decision:
-                    if (decision.action == previous_decision.action and
-                        getattr(decision, 'capability_name', None) == getattr(previous_decision, 'capability_name', None)):
-                        current_snapshot = self.state.snapshot()
-                        if previous_snapshot == current_snapshot:
-                            no_progress_counter += 1
-                            if no_progress_counter >= 2:
-                                raise AgentStuckError(
-                                    f"Decision repeated {no_progress_counter} times without state change. "
-                                    f"Action: {decision.action.value}, Capability: {decision.capability_name}"
-                                )
-
-                # Выполняем шаг (без повторного вызова generate_next_decision)
-                print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
-                step_result = await self._execute_single_step_internal(decision, available_caps)
-                print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
-
-                # === ОБРАБОТКА ОШИБОК ЧЕРЕЗ AgentPolicy.evaluate() ===
-                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.FAILED:
-                    # Классифицируем ошибку
-                    error_info = ExecutionErrorInfo(
-                        category=step_result.error_category,
-                        message=step_result.error or "Неизвестная ошибка",
-                        raw_error=step_result.error
-                    )
-                    
-                    # Оцениваем через AgentPolicy.evaluate()
-                    retry_decision = self.policy.evaluate(
-                        error=error_info,
-                        attempt=consecutive_error_count
-                    )
-                    
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                            f"Ошибка на шаге {self._current_step}: {step_result.error} | "
-                            f"Категория: {step_result.error_category.value} | "
-                            f"AgentPolicy: {retry_decision.decision.value}"
-                        )
-                    
-                    # Обрабатываем решение AgentPolicy
-                    if retry_decision.decision == RetryDecision.RETRY:
-                        # Повторная попытка с задержкой
-                        consecutive_error_count += 1
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.info(
-                                f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
-                                f"через {retry_decision.delay_seconds:.2f} сек"
-                            )
-                        await asyncio.sleep(retry_decision.delay_seconds)
-                        continue  # Повторяем шаг с тем же decision
-                    elif retry_decision.decision == RetryDecision.ABORT:
-                        # Прерываем текущее действие, но не агента
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.warning(
-                                f"Abort: {retry_decision.reason}. Пропускаем действие."
-                            )
-                        consecutive_error_count = 0
-                        # Переходим к следующему шагу (не прерываем цикл)
-                    else:
-                        # FAIL или ABORT — прерываем агента
-                        last_step_failed = True
-                        last_error_message = f"{retry_decision.reason}: {step_result.error}"
-                        self._result = step_result
-                        self._running = False
-                        break
-
-                # ПРОВЕРКА 2: Изменился ли state
-                current_snapshot = self.state.snapshot()
-                if previous_snapshot and current_snapshot == previous_snapshot:
-                    no_progress_counter += 1
-                    if no_progress_counter >= 2:
-                        raise AgentStuckError(
-                            "State did not mutate after observe() for 2 consecutive steps"
-                        )
-                else:
-                    # Сброс счетчика если state изменился
-                    no_progress_counter = 0
-
-                # Сброс счётчика ошибок при успешном выполнении
-                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.COMPLETED:
-                    consecutive_error_count = 0
-                    
-                    # === DETECT LOOP: Проверка на зацикливание capability ===
-                    # Если то же capability выполняется повторно после успешного выполнения — зацикливание
-                    if hasattr(decision, 'capability_name') and decision.capability_name:
-                        current_cap = decision.capability_name
-                        # Получаем последний выполненный шаг
-                        session_ctx = self.application_context.session_context
-                        if session_ctx and hasattr(session_ctx, 'step_context'):
-                            last_steps = session_ctx.step_context.get_last_steps(1) if hasattr(session_ctx.step_context, 'get_last_steps') else []
-                            if last_steps:
-                                last_step = last_steps[0]
-                                if hasattr(last_step, 'capability_name') and hasattr(last_step, 'status'):
-                                    last_cap = last_step.capability_name
-                                    last_status = last_step.status.value if hasattr(last_step.status, 'value') else str(last_step.status)
-                                    
-                                    # Проверка: то же capability после успешного выполнения
-                                    if (current_cap == last_cap and 
-                                        last_status == 'completed' and 
-                                        current_cap != 'final_answer.generate'):
-                                        if self.event_bus_logger:
-                                            await self.event_bus_logger.warning(
-                                                f"LOOP DETECTED: {current_cap} повторяется после успешного выполнения. "
-                                                f"Принудительно вызываем final_answer.generate"
-                                            )
-                                        # Помечаем что нужно вызывать final_answer
-                                        # (будет обработано на следующем шаге через behavior_manager)
-
-                previous_snapshot = current_snapshot
-                previous_decision = decision
-
-                # КРИТИЧНО: Проверка на финальный шаг по флагу is_final в decision
-                if hasattr(decision, 'is_final') and decision.is_final:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"Decision помечен как финальный (is_final=True)")
-                    print(f"🔵 [RUNTIME] decision.is_final=True — следующий шаг будет финальным", flush=True)
-
-                # ПРОВЕРКА: Превышен ли лимит отсутствия прогресса
-                if self.policy.should_stop_no_progress(self.state):
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                            f"Нет прогресса в течение {self.state.no_progress_steps} шагов (лимит: {self.policy.max_no_progress_steps}). "
-                            f"Агент завершает выполнение."
-                        )
-                    self._result = ExecutionResult(
-                        status=ExecutionStatus.FAILED,
-                        data=None,
-                        error=f"Нет прогресса: {self.state.no_progress_steps} шагов без изменений",
-                        metadata={
-                            "no_progress_steps": self.state.no_progress_steps,
-                            "max_no_progress_steps": self.policy.max_no_progress_steps,
-                            "steps_executed": self._current_step
-                        }
-                    )
-                    self._running = False
-                    break
-
-                # Проверка завершения
-                # КРИТИЧНО: Сохраняем результат final_answer.generate перед выходом из цикла
-                if self._is_final_result(step_result):
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"Агент завершил выполнение на шаге {self._current_step}")
-                    print(f"🔴 [RUNTIME] BREAK: _is_final_result=True", flush=True)
-                    
-                    # Сохраняем результат final_answer.generate
-                    if isinstance(step_result, ExecutionResult):
-                        self._final_answer_result = step_result
-                        # Помечаем что это финальный ответ для последующего извлечения
-                        if step_result.metadata is None:
-                            step_result.metadata = {}
-                        step_result.metadata['is_final_answer'] = True
-                    elif isinstance(step_result, dict) and 'final_answer' in step_result:
-                        # Для обратной совместимости создаём ExecutionResult
-                        self._final_answer_result = ExecutionResult.success(
-                            data=step_result,
-                            metadata={'is_final_answer': True}
-                        )
-                    
-                    break
-
-                self._current_step += 1
-                print(f"🔵 [RUNTIME] _current_step увеличен до {self._current_step}", flush=True)
-
-            # Формирование результата
-            # ПРОВЕРКА: Определяем статус с учётом ошибок и отсутствия прогресса
-            error_message = None
-            if self.state.error_count >= self.policy.max_errors:
-                final_status = ExecutionStatus.FAILED
-                error_message = f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}"
-            elif self.state.no_progress_steps >= self.policy.max_no_progress_steps:
-                final_status = ExecutionStatus.FAILED
-                error_message = f"Нет прогресса в течение {self.state.no_progress_steps} шагов"
-            elif self._current_step >= self._max_steps:
-                final_status = ExecutionStatus.FAILED
-                error_message = "Превышено максимальное количество шагов"
-            elif last_step_failed:
-                # КРИТИЧНО: Если последний шаг завершился ошибкой, агент не может считаться успешным
-                final_status = ExecutionStatus.FAILED
-                error_message = last_error_message or "Последний шаг выполнения завершился ошибкой"
-            else:
-                final_status = ExecutionStatus.COMPLETED
-
-            self._result = ExecutionResult(
-                status=final_status,
-                data=self._extract_final_result(),
-                error=error_message,
-                metadata={
-                    "goal": self.goal,
-                    "max_steps": self._max_steps,
-                    "steps_executed": self._current_step,
-                    "error_count": self.state.error_count,
-                    "no_progress_steps": self.state.no_progress_steps,
-                    "execution_time": datetime.now().timestamp()
-                }
-            )
-
-        except Exception as e:
-            import traceback
-            tb_str = traceback.format_exc()
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка выполнения агента: {str(e)}")
-                await self.event_bus_logger.error(f"Traceback: {tb_str}")
-
-            self._result = ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                data=None,
-                error=str(e),
-                metadata={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "traceback": tb_str,
-                    "goal": self.goal,
-                    "steps_executed": self._current_step,
-                    "execution_time": datetime.now().timestamp()
-                }
-            )
-        finally:
-            self._running = False
-
-        return self._result
+        import asyncio
+        result = await asyncio.to_thread(self._run_sync, goal, max_steps)
+        return result
 
     async def _execute_single_step_internal(self, decision, available_caps) -> Any:
         """
@@ -949,6 +650,285 @@ class AgentRuntime:
             "summary": "Execution completed successfully"
         }
 
+    def _run_sync(self, goal: str = None, max_steps: int = None) -> ExecutionResult:
+        """
+        ПОЛНОСТЬЮ СИНХРОННЫЙ цикл выполнения агента.
+
+        ВСЕ async вызовы выполняются через asyncio.run() внутри метода.
+        Этот метод может вызываться из async контекста через asyncio.to_thread().
+
+        ПАРАМЕТРЫ:
+        - goal: Цель агента (опционально)
+        - max_steps: Максимальное количество шагов (опционально)
+
+        ВОЗВРАЩАЕТ:
+        - ExecutionResult: Результат выполнения
+        """
+        import asyncio as asyncio_module
+
+        if self._running:
+            raise RuntimeError("Агент уже выполняется")
+
+        # Обновляем goal если передан
+        if goal:
+            self.goal = goal
+
+        self._running = True
+        self._current_step = 0
+        self._max_steps = max_steps or self._max_steps
+
+        # Логирование (синхронное)
+        if self.event_bus_logger:
+            self.event_bus_logger.info_sync(f"Запуск агента с целью: {self.goal[:100]}...")
+
+        try:
+            # Инициализация начального контекста выполнения
+            if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
+                initial_context = self.application_context.session_context
+                initial_context.record_action({
+                    "step": 0,
+                    "action": "initialization",
+                    "timestamp": datetime.now().isoformat(),
+                    "goal": self.goal
+                }, step_number=0)
+
+            # Инициализация менеджера поведения (async → sync)
+            self._safe_async_call(self.behavior_manager.initialize(component_name="react_pattern"))
+
+            # Переменные для детекции зацикливания
+            previous_snapshot = None
+            previous_decision = None
+            no_progress_counter = 0
+
+            # Переменные для отслеживания ошибок выполнения
+            last_step_failed = False
+            last_error_message = None
+            consecutive_error_count = 0
+
+            # Цикл рассуждений
+            print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
+            print(f"🔵 [RUNTIME] state.finished={self.state.finished}", flush=True)
+
+            while self._running and self._current_step < self._max_steps:
+                print(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===", flush=True)
+
+                if self.state.finished:
+                    print(f"🔴 [RUNTIME] BREAK: state.finished=True", flush=True)
+                    break
+
+                # Получаем доступные capability
+                if hasattr(self.application_context, 'get_all_skills'):
+                    available_caps = self.application_context.get_all_skills()
+                elif hasattr(self.application_context, 'get_all_capabilities'):
+                    all_caps = self._safe_async_call(self.application_context.get_all_capabilities())
+                    available_caps = [
+                        cap for cap in all_caps
+                        if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
+                    ]
+                else:
+                    available_caps = []
+
+                print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
+
+                # Получаем decision (async → sync)
+                print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
+                decision = self._safe_async_call(
+                    self.behavior_manager.generate_next_decision(
+                        session_context=self.application_context.session_context,
+                        available_capabilities=available_caps
+                    )
+                )
+
+                print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
+
+                # ПРОВЕРКА 1: Повторение decision без изменения state
+                if previous_decision and decision:
+                    if (decision.action == previous_decision.action and
+                        getattr(decision, 'capability_name', None) == getattr(previous_decision, 'capability_name', None)):
+                        current_snapshot = self.state.snapshot()
+                        if previous_snapshot == current_snapshot:
+                            no_progress_counter += 1
+                            if no_progress_counter >= 2:
+                                from core.models.errors import AgentStuckError
+                                raise AgentStuckError(
+                                    f"Decision repeated {no_progress_counter} times without state change. "
+                                    f"Action: {decision.action.value}, Capability: {decision.capability_name}"
+                                )
+
+                # Выполняем шаг (async → sync)
+                print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
+                step_result = self._safe_async_call(
+                    self._execute_single_step_internal(decision, available_caps)
+                )
+                print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
+
+                # ✅ SYNC: Обновление состояния
+                self._update_state(step_result)
+
+                # ✅ SYNC: Проверка на завершение
+                if self._should_stop(step_result):
+                    if self.event_bus_logger:
+                        self.event_bus_logger.info_sync(f"Остановка агента: _should_stop=True")
+                    self._result = step_result
+                    self._running = False
+                    break
+
+                # ОБРАБОТКА ОШИБОК
+                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.FAILED:
+                    from core.models.types.retry_policy import ExecutionErrorInfo
+                    error_info = ExecutionErrorInfo(
+                        category=step_result.error_category,
+                        message=step_result.error or "Неизвестная ошибка",
+                        raw_error=step_result.error
+                    )
+
+                    retry_decision = self.policy.evaluate(
+                        error=error_info,
+                        attempt=consecutive_error_count
+                    )
+
+                    if self.event_bus_logger:
+                        self.event_bus_logger.error_sync(
+                            f"Ошибка на шаге {self._current_step}: {step_result.error} | "
+                            f"Категория: {step_result.error_category.value} | "
+                            f"AgentPolicy: {retry_decision.decision.value}"
+                        )
+
+                    if retry_decision.decision == RetryDecision.RETRY:
+                        consecutive_error_count += 1
+                        if self.event_bus_logger:
+                            self.event_bus_logger.info_sync(
+                                f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
+                                f"через {retry_decision.delay_seconds:.2f} сек"
+                            )
+                        import time
+                        time.sleep(retry_decision.delay_seconds)
+                        continue
+                    elif retry_decision.decision == RetryDecision.ABORT:
+                        if self.event_bus_logger:
+                            self.event_bus_logger.warning_sync(
+                                f"Abort: {retry_decision.reason}. Пропускаем действие."
+                            )
+                        consecutive_error_count = 0
+                    else:
+                        last_step_failed = True
+                        last_error_message = f"{retry_decision.reason}: {step_result.error}"
+                        self._result = step_result
+                        self._running = False
+                        break
+
+                # ПРОВЕРКА 2: Изменился ли state
+                current_snapshot = self.state.snapshot()
+                if previous_snapshot and current_snapshot == previous_snapshot:
+                    no_progress_counter += 1
+                    if no_progress_counter >= 2:
+                        from core.models.errors import AgentStuckError
+                        raise AgentStuckError(
+                            "State did not mutate after observe() for 2 consecutive steps"
+                        )
+                else:
+                    no_progress_counter = 0
+
+                # Сброс счётчика ошибок при успешном выполнении
+                if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.COMPLETED:
+                    consecutive_error_count = 0
+
+                # DETECT LOOP: Проверка на зацикливание capability
+                if hasattr(decision, 'capability_name') and decision.capability_name:
+                    current_cap = decision.capability_name
+                    if hasattr(self, '_last_capability') and self._last_capability == current_cap:
+                        if hasattr(self, '_consecutive_same_capability'):
+                            self._consecutive_same_capability += 1
+                        else:
+                            self._consecutive_same_capability = 1
+
+                        if self._consecutive_same_capability >= 2:
+                            if self.event_bus_logger:
+                                self.event_bus_logger.warning_sync(
+                                    f"⚠️ Зацикливание на capability: {current_cap} "
+                                    f"({self._consecutive_same_capability} раз подряд)"
+                                )
+                    else:
+                        self._last_capability = current_cap
+                        self._consecutive_same_capability = 0
+
+                # Обновляем snapshot для следующей итерации
+                previous_snapshot = current_snapshot
+                previous_decision = decision
+
+                self._current_step += 1
+                print(f"🔵 [RUNTIME] === КОНЕЦ ИТЕРАЦИИ {self._current_step} ===", flush=True)
+
+            # Формируем результат
+            print(f"\n🔵 [RUNTIME] Цикл завершен: step={self._current_step}, running={self._running}", flush=True)
+            print(f"🔵 [RUNTIME] state.finished={self.state.finished}, result={self._result}", flush=True)
+
+            if self._final_answer_result:
+                print(f"🔵 [RUNTIME] Возвращаем final_answer_result", flush=True)
+                return self._final_answer_result
+
+            if self._result:
+                print(f"🔵 [RUNTIME] Возвращаем _result", flush=True)
+                return self._result
+
+            print(f"🔵 [RUNTIME] Возвращаем _extract_final_result()", flush=True)
+            final_data = self._extract_final_result()
+            return ExecutionResult.success(
+                data=final_data,
+                metadata={
+                    "steps_completed": self._current_step,
+                    "final_goal": self.goal
+                }
+            )
+
+        except Exception as e:
+            print(f"\n🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(f"Ошибка выполнения агента: {e}")
+            return ExecutionResult.failure(str(e))
+        finally:
+            self._running = False
+
+    def _safe_async_call(self, coro, timeout=120.0):
+        """
+        Безопасный вызов async coroutine из sync контекста.
+
+        АВТОМАТИЧЕСКИ ОПРЕДЕЛЯЕТ контекст:
+        - Если нет running loop → использует asyncio.run()
+        - Если есть running loop → использует await через временный task
+
+        ПАРАМЕТРЫ:
+        - coro: coroutine для выполнения
+        - timeout: таймаут в секундах
+
+        ВОЗВРАЩАЕТ:
+        - Результат выполнения coroutine
+        """
+        import asyncio
+        
+        try:
+            # Проверяем есть ли running loop
+            loop = asyncio.get_running_loop()
+            
+            # Loop существует → мы внутри async контекста
+            # Создаём task и ждём его завершения
+            async def wait_for_result():
+                task = asyncio.create_task(coro)
+                try:
+                    return await asyncio.wait_for(task, timeout=timeout)
+                except asyncio.TimeoutError:
+                    task.cancel()
+                    raise TimeoutError(f"Coroutine timeout after {timeout}s")
+            
+            # Возвращаем coroutine для внешнего await
+            # Это работает только если _safe_async_call вызывается из async метода
+            # Для sync контекста используем fallback
+            raise RuntimeError("_safe_async_call вызван внутри async контекста - используйте await напрямую")
+            
+        except RuntimeError:
+            # Нет running loop → используем asyncio.run()
+            return asyncio.run(coro)
+
     async def stop(self):
         """Остановка выполнения агента."""
         self._running = False
@@ -958,3 +938,69 @@ class AgentRuntime:
     def is_running(self) -> bool:
         """Проверка, выполняется ли агент."""
         return self._running
+
+    # ========================================================================
+    # СИНХРОННЫЕ МЕТОДЫ ВНУТРЕННЕЙ ЛОГИКИ (Фаза 3 миграции)
+    # ========================================================================
+
+    def _update_state(self, result: ExecutionResult):
+        """
+        Синхронное обновление состояния агента.
+
+        ПАРАМЕТРЫ:
+        - result: результат выполнения шага
+        """
+        if result.status == ExecutionStatus.COMPLETED:
+            self.progress_metrics.error_count = 0
+            self.progress_metrics.consecutive_errors = 0
+            self.progress_metrics.no_progress_steps = 0
+        else:
+            self.progress_metrics.error_count += 1
+            self.progress_metrics.consecutive_errors += 1
+            self.progress_metrics.no_progress_steps += 1
+
+    def _is_final_result(self, result: ExecutionResult) -> bool:
+        """
+        Синхронная проверка завершения выполнения.
+
+        ПАРАМЕТРЫ:
+        - result: результат выполнения шага
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если это финальный результат
+        """
+        if isinstance(result, ExecutionResult):
+            # Проверка флага is_final_answer в metadata
+            if result.metadata and isinstance(result.metadata, dict):
+                return result.metadata.get('is_final_answer', False)
+            
+            # Проверка что это результат final_answer.generate
+            if hasattr(result, 'data') and result.data:
+                if isinstance(result.data, dict):
+                    return 'final_answer' in result.data
+        
+        return False
+
+    def _should_stop(self, result: ExecutionResult) -> bool:
+        """
+        Синхронная проверка необходимости остановки.
+
+        ПАРАМЕТРЫ:
+        - result: результат выполнения шага
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если нужно остановиться
+        """
+        # 1. Проверка на финальный результат
+        if self._is_final_result(result):
+            return True
+        
+        # 2. Проверка на превышение лимитов ошибок
+        if self.progress_metrics.consecutive_errors >= self.policy.max_consecutive_errors:
+            return True
+        
+        # 3. Проверка на отсутствие прогресса
+        if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
+            return True
+        
+        return False

@@ -4,6 +4,8 @@
 from typing import Dict, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.application.context.application_context import ApplicationContext
+from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.data.capability import Capability
 
 
 class TableDescriptionServiceInput(ServiceInput):
@@ -85,31 +87,40 @@ class TableDescriptionService(BaseService):
                 await self.event_bus_logger.error(f"Ошибка инициализации сервиса описания таблицы: {str(e)}")
             return False
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения сервиса описания таблиц."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
-    async def _execute_impl(
+    def _execute_impl(
         self,
-        capability: 'Capability',
+        capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Реализация бизнес-логики сервиса описания таблиц.
+        Реализация бизнес-логики сервиса описания таблиц (СИНХРОННАЯ).
 
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
-        # Получение метаданных таблицы
-        metadata = await self.get_table_metadata(
+        # Получение метаданных таблицы (синхронное ожидание async метода)
+        metadata = self._safe_async_call(self.get_table_metadata(
             schema_name=parameters.get("schema_name", ""),
             table_name=parameters.get("table_name", ""),
             context=parameters.get("context"),
             step_number=parameters.get("step_number")
-        )
+        ))
         return {"metadata": metadata, "capability": capability.name}
+
+    def _safe_async_call(self, coro, timeout=30.0):
+        """Безопасный вызов async из sync контекста."""
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=timeout)
+        except RuntimeError:
+            return asyncio.run(coro)
 
     async def shutdown(self) -> None:
         """
