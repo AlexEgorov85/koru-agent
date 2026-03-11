@@ -629,14 +629,23 @@ class ApplicationContext(BaseSystemContext):
                                     version = comp_config.prompt_versions[capability]
                                     break
                     if version is None:
-                        return ""  # Возвращаем пустую строку, если версия не найдена
-            
+                        # ❌ Не возвращаем молча "" — логируем warning
+                        self.logger.warning(
+                            f"⚠️ Промпт '{capability}' не найден в конфигурации (версия не указана). "
+                            f"Возвращаем пустую строку."
+                        )
+                        return ""
+
             if version:  # Только если версия найдена
                 try:
                     prompt_obj = self.data_repository.get_prompt(capability, version)
                     return prompt_obj.content
-                except Exception:
-                    # Если не удалось получить из репозитория, возвращаем пустую строку
+                except Exception as e:
+                    # ❌ Не возвращаем молча "" — логируем ошибку
+                    self.logger.error(
+                        f"❌ Ошибка получения промпта '{capability}@{version}': {e}. "
+                        f"Возвращаем пустую строку."
+                    )
                     return ""
         
         # Старый путь через хранилище
@@ -779,10 +788,13 @@ class ApplicationContext(BaseSystemContext):
             if key in all_prompts:
                 enriched.resolved_prompts[cap] = all_prompts[key]
             else:
-                # Если промпт не найден, всё равно добавляем его с пустой строкой
+                # ❌ Не добавляем молча пустую строку — логируем ERROR
                 enriched.resolved_prompts[cap] = ""
-                self.logger.warning(f"Промпт {key} не найден в предзагруженных ресурсах")
-        
+                self.logger.error(
+                    f"❌ Промпт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
+                    f"Компонент может работать некорректно."
+                )
+
         # Заполняем контракты
         enriched.resolved_input_contracts = {}
         for cap, ver in base_config.input_contract_versions.items():
@@ -790,19 +802,25 @@ class ApplicationContext(BaseSystemContext):
             if key in all_contracts:
                 enriched.resolved_input_contracts[cap] = all_contracts[key]
             else:
-                # Если контракт не найден, всё равно добавляем его с пустым словарем
+                # ❌ Не добавляем молча пустой dict — логируем ERROR
                 enriched.resolved_input_contracts[cap] = {}
-                self.logger.warning(f"Входной контракт {key} не найден в предзагруженных ресурсах")
-        
+                self.logger.error(
+                    f"❌ Входной контракт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
+                    f"Валидация входа может не работать."
+                )
+
         enriched.resolved_output_contracts = {}
         for cap, ver in base_config.output_contract_versions.items():
             key = (cap, ver, "output")
             if key in all_contracts:
                 enriched.resolved_output_contracts[cap] = all_contracts[key]
             else:
-                # Если контракт не найден, всё равно добавляем его с пустым словарем
+                # ❌ Не добавляем молча пустой dict — логируем ERROR
                 enriched.resolved_output_contracts[cap] = {}
-                self.logger.warning(f"Выходной контракт {key} не найден в предзагруженных ресурсах")
+                self.logger.error(
+                    f"❌ Выходной контракт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
+                    f"Валидация выхода может не работать."
+                )
         
         return enriched
 
