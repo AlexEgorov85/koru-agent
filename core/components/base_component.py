@@ -29,7 +29,6 @@ from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.components.lifecycle import LifecycleMixin, ComponentState
-from core.components.logging_mixin import LoggingMixin
 
 # Интерфейсы для DI (используются только необходимые)
 from core.interfaces.event_bus import EventBusInterface
@@ -41,7 +40,7 @@ if TYPE_CHECKING:
     from core.application.agent.components.action_executor import ActionExecutor
 
 
-class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
+class BaseComponent(LifecycleMixin, ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
@@ -199,7 +198,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self._application_context = value
 
     # ========================================================================
-    # ЛОГИРОВАНИЕ (переопределение методов LoggingMixin)
+    # ЛОГИРОВАНИЕ
     # ========================================================================
 
     def _get_logger_init_state(self):
@@ -217,6 +216,56 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         else:
             # CREATED, FAILED, SHUTDOWN → считаем как NOT_INITIALIZED
             return LoggerInitializationState.NOT_INITIALIZED
+
+    def _init_event_bus_logger(self):
+        """Инициализация EventBusLogger для асинхронного логирования."""
+        from core.infrastructure.logging import EventBusLogger
+
+        # Сначала пробуем внедрённый event_bus
+        if self._event_bus is not None:
+            self.event_bus_logger = EventBusLogger(
+                self._event_bus,
+                session_id="system",
+                agent_id="system",
+                component=self.name,
+                get_init_state_callback=self._get_logger_init_state
+            )
+        # Fallback на application_context для обратной совместимости
+        elif self._application_context is not None:
+            if hasattr(self._application_context, 'infrastructure_context'):
+                event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
+                if event_bus:
+                    self.event_bus_logger = EventBusLogger(
+                        event_bus,
+                        session_id="system",
+                        agent_id="system",
+                        component=self.name,
+                        get_init_state_callback=self._get_logger_init_state
+                    )
+        # Fallback на dummy-логгер если ничего не доступно
+        else:
+            self.event_bus_logger = self._create_dummy_logger()
+
+    def _create_dummy_logger(self):
+        """Создаёт dummy-логгер для компонентов без event_bus."""
+        class DummyLogger:
+            info = debug = warning = error = exception = lambda s, *a, **k: None
+            info_sync = debug_sync = warning_sync = error_sync = lambda s, *a, **k: None
+        return DummyLogger()
+
+    def _safe_log_sync(self, level: str, message: str, **kwargs):
+        """
+        Безопасный синхронный логгер — проверяет event_bus_logger на None.
+
+        ПАРАМЕТРЫ:
+        - level: уровень логирования ('info', 'debug', 'warning', 'error')
+        - message: сообщение
+        - **kwargs: дополнительные аргументы для логгера
+        """
+        if hasattr(self, 'event_bus_logger') and self.event_bus_logger is not None:
+            log_method = getattr(self.event_bus_logger, f'{level}_sync', None)
+            if log_method:
+                log_method(message, **kwargs)
 
     async def initialize(self) -> bool:
         """
