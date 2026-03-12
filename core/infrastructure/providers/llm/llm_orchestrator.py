@@ -472,6 +472,7 @@ class LLMOrchestrator:
         max_retries: int = 3,
         attempt_timeout: Optional[float] = None,
         total_timeout: Optional[float] = None,
+        use_native_structured_output: bool = True,  # ← НОВОЕ: Флаг нативной поддержки
         # Контекст для трассировки
         session_id: Optional[str] = None,
         agent_id: Optional[str] = None,
@@ -489,12 +490,17 @@ class LLMOrchestrator:
         4. Повтор до max_retries или успеха
         5. Возврат StructuredLLMResponse с историей попыток
 
+        НОВОЕ: use_native_structured_output
+        - True: Схема передаётся провайдеру отдельно (нативная поддержка OpenAI/Antropic)
+        - False: Схема встраивается в промпт (для провайдеров без нативной поддержки)
+
         ПАРАМЕТРЫ:
         - request: Запрос к LLM (должен иметь structured_output)
         - provider: LLM провайдер
         - max_retries: Максимальное количество попыток (по умолчанию 3)
         - attempt_timeout: Таймаут на одну попытку (секунды)
         - total_timeout: Общий таймаут на все попытки (секунды)
+        - use_native_structured_output: Использовать нативную поддержку схемы (по умолчанию True)
         - session_id, agent_id, step_number, phase, goal: Контекст трассировки
 
         ВОЗВРАЩАЕТ:
@@ -503,7 +509,7 @@ class LLMOrchestrator:
           - raw_response: Сырой ответ для отладки
           - parsing_attempts: Количество попыток
           - validation_errors: Ошибки валидации
-        
+
         ARCHITECTURE:
         - Сохраняет Generic тип T для parsed_content
         - Вызывающий код получает типизированный доступ к полям
@@ -556,6 +562,7 @@ class LLMOrchestrator:
                     provider=provider,
                     attempt_num=attempt_num,
                     attempt_timeout=attempt_timeout,
+                    use_native_structured_output=use_native_structured_output,
                     session_id=session_id,
                     agent_id=agent_id,
                     step_number=step_number,
@@ -649,13 +656,18 @@ class LLMOrchestrator:
         provider: Any,
         attempt_num: int,
         attempt_timeout: Optional[float],
-        session_id: Optional[str],
-        agent_id: Optional[str],
-        step_number: Optional[int],
-        phase: Optional[str]
+        use_native_structured_output: bool = True,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        step_number: Optional[int] = None,
+        phase: Optional[str] = None
     ) -> RetryAttempt:
         """
         Выполнение одной попытки структурированного вывода.
+
+        НОВОЕ: use_native_structured_output
+        - True: Схема передаётся провайдеру отдельно (нативная поддержка)
+        - False: Схема уже встроена в промпт (fallback режим)
 
         ВОЗВРАЩАЕТ:
         - RetryAttempt: Результат попытки

@@ -26,6 +26,8 @@ import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 
@@ -257,20 +259,24 @@ class BookLibrarySkill(BaseSkill):
                 await self.event_bus_logger.error("Контракт book_library.search_books.input не загружен в кэш")
                 raise ValueError("Внутренняя ошибка: контракт не загружен")
 
-        # 2. Получение промпта С КОНТРАКТАМИ для генерации SQL
-        prompt_with_contract = self.get_prompt_with_contract("book_library.search_books")
-        if not prompt_with_contract:
+        # 2. Получение промпта для генерации SQL
+        # === REFACTOR: Используем новый API с разделением промпта и схемы ===
+        prompt_text = self.get_prompt("book_library.search_books")
+        if not prompt_text:
             raise ValueError("Промпт для поиска книг не найден")
+
+        # Получаем выходную схему для structured output
+        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
 
         # 3. Генерация SQL через sql_generation
         sql_query = ""
-        
+
         # Проверяем доступность LLM перед вызовом (чтобы избежать 30-секундного timeout)
         llm_available = False
         if hasattr(self.application_context, 'infrastructure_context'):
             llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
             llm_available = llm_provider is not None
-        
+
         if not llm_available:
             # LLM недоступен — сразу используем fallback
             await self.event_bus_logger.warning("LLM недоступен, используем SQL fallback")
@@ -279,6 +285,7 @@ class BookLibrarySkill(BaseSkill):
                 exec_context = ExecutionContext()
 
                 # Генерируем SQL запрос через сервис генерации
+                # === REFACTOR: Передаём схему отдельно для structured output ===
                 gen_result = await self.executor.execute_action(
                     action_name="sql_generation.generate_query",
                     parameters={
@@ -299,7 +306,8 @@ class BookLibrarySkill(BaseSkill):
                                 birth_date DATE
                             )
                         """.strip(),
-                        "prompt": prompt_with_contract  # Передаём промпт с контрактами
+                        "prompt": prompt_text,  # Промпт БЕЗ контрактов
+                        "schema": output_schema if output_schema is not BaseModel else None  # Схема отдельно
                     },
                     context=exec_context
                 )

@@ -22,7 +22,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 
 from core.config.component_config import ComponentConfig
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
+from core.models.data.execution import ExecutionResult
 from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
@@ -856,6 +858,10 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         - Если есть system prompt → используем его + user prompt
         - Если нет system prompt → используем только user prompt (старый режим)
 
+        HOTFIX: Проверка флага schema_in_prompt из component_config.llm_settings
+        - Если schema_in_prompt=False → схема НЕ встраивается (будет передана через structured_output)
+        - Если schema_in_prompt=True или не указан → встраиваем схему в промпт (старый режим)
+
         ARGS:
         - capability_name: имя capability для получения контрактов
         - include_input_contract: добавить ли входную схему
@@ -869,14 +875,20 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         - Если контракты не найдены, они пропускаются с предупреждением в лог
         - Выходной контракт всегда добавляется в конце с инструкцией для LLM
         """
+        # === HOTFIX: Проверка флага schema_in_prompt ===
+        if hasattr(self.component_config, 'llm_settings'):
+            if not self.component_config.llm_settings.get('schema_in_prompt', True):
+                # Схема будет передана через structured_output — не встраиваем в промпт
+                return self.get_prompt(capability_name)
+
         parts = []
-        
+
         # ← НОВОЕ: Добавляем system prompt если есть
         if capability_name in self.system_prompts:
             system_prompt = self.system_prompts[capability_name].content
             parts.append(system_prompt)
             parts.append("\n\n---\n\n")
-        
+
         # Получаем базовый user промпт
         user_prompt = self.get_prompt(capability_name)
         parts.append(user_prompt)
@@ -1021,7 +1033,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
 
     async def _publish_metrics(
         self,
-        event_type: 'EventType',
+        event_type: EventType,
         capability_name: str,
         success: bool,
         execution_time_ms: float,
@@ -1070,7 +1082,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
-    ) -> 'ExecutionResult':
+    ) -> ExecutionResult:
         """
         УНИВЕРСАЛЬНЫЙ ШАБЛОН ВЫПОЛНЕНИЯ КОМПОНЕНТА С ЛОГИРОВАНИЕМ.
 
@@ -1240,6 +1252,129 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         raise NotImplementedError(
             f"Метод _execute_impl() должен быть реализован в классе {self.__class__.__name__}"
         )
+
+    # === НОВОЕ: Выполнение с нативным structured output ===
+
+    async def execute_with_structured_output(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext',
+        llm_action_name: str = "llm.generate_structured"
+    ) -> 'ExecutionResult':
+        """
+        Выполнение компонента с использованием нативного structured output.
+
+        АРХИТЕКТУРА:
+        - Контракты НЕ встраиваются в промпт
+        - Схема передаётся через structured_output параметр
+        - LLMOrchestrator решает как использовать схему (нативно или в промпт)
+
+        ARGS:
+        - capability: capability для выполнения
+        - parameters: параметры выполнения
+        - execution_context: контекст выполнения
+        - llm_action_name: имя действия для генерации (по умолчанию "llm.generate_structured")
+
+        RETURNS:
+        - ExecutionResult: результат выполнения
+
+        EXAMPLE:
+        ```python
+        result = await self.execute_with_structured_output(
+            capability=cap,
+            parameters=params,
+            execution_context=context,
+            llm_action_name="llm.generate_structured"
+        )
+        ```
+        """
+        import time
+        from core.models.data.execution import ExecutionResult, ExecutionStatus
+        from core.infrastructure.event_bus.unified_event_bus import EventType
+
+        start_time = time.time()
+
+        try:
+            # === ЭТАП 1: Валидация входных данных ===
+            validated_input = self.validate_input_typed(capability.name, parameters)
+            if validated_input is None:
+                return ExecutionResult.failure(
+                    error="Input validation failed",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 2: Получение промпта БЕЗ контрактов ===
+            # Контракты будут переданы отдельно через structured_output
+            prompt_text = self.get_prompt(capability.name)
+            if not prompt_text:
+                return ExecutionResult.failure(
+                    error=f"Промпт для {capability.name} не найден",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 3: Получение выходной схемы ===
+            output_schema = self.get_cached_output_contract_safe(capability.name)
+            if output_schema is BaseModel:
+                return ExecutionResult.failure(
+                    error=f"Выходная схема для {capability.name} не загружена",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 4: Выполнение через executor с structured_output ===
+            result = await self.executor.execute_action(
+                action_name=llm_action_name,
+                parameters={
+                    "prompt": prompt_text,
+                    "schema": output_schema,
+                    "parameters": validated_input,
+                    "use_native_structured_output": self.component_config.llm_settings.get(
+                        'use_native_structured_output', True
+                    )
+                },
+                context=execution_context
+            )
+
+            # === ЭТАП 5: Валидация выходных данных ===
+            validated_output = self.validate_output_typed(capability.name, result.data if hasattr(result, 'data') else result)
+            if validated_output is None:
+                return ExecutionResult.failure(
+                    error="Output validation failed",
+                    metadata={"capability": capability.name}
+                )
+
+            # === ЭТАП 6: Публикация метрик ===
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._publish_metrics(
+                self._get_event_type_for_success(),
+                capability.name,
+                True,
+                execution_time_ms
+            )
+
+            return ExecutionResult.success(
+                data=validated_output,
+                metadata={
+                    "capability": capability.name,
+                    "execution_time_ms": execution_time_ms,
+                    "structured_output": True
+                }
+            )
+
+        except Exception as e:
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._publish_metrics(
+                EventType.ERROR_OCCURRED,
+                capability.name,
+                False,
+                execution_time_ms,
+                error=str(e),
+                error_type=type(e).__name__
+            )
+            return ExecutionResult.failure(
+                error=str(e),
+                metadata={"capability": capability.name, "error_type": type(e).__name__}
+            )
 
     async def shutdown(self) -> None:
         """Корректное завершение работы компонента."""

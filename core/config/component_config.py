@@ -50,6 +50,15 @@ class ComponentConfig(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_by: Optional[str] = None
 
+    # ← НОВОЕ: Настройки LLM для управления structured output
+    llm_settings: Dict[str, Any] = Field(default_factory=dict, description={
+        "description": "Настройки LLM для управления structured output",
+        "use_native_structured_output": "Использовать нативную поддержку схемы провайдером (True) или вшивать в промпт (False)",
+        "schema_in_prompt": "Встраивать ли JSON схему в текст промпта (устаревший режим)",
+        "max_retries": "Максимальное количество попыток генерации валидного ответа",
+        "provider_specific": "Специфичные настройки для конкретного провайдера"
+    })
+
     @property
     def variant_key(self) -> str:
         """Уникальный ключ варианта: 'planning@beta'"""

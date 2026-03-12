@@ -9,24 +9,25 @@ LIFECYCLE:
     from core.components.lifecycle import LifecycleMixin, ComponentState
 """
 
-from .error_handling import (
-    handle_errors,
-    log_errors,
-    safe_execute,
-    safe_execute_async,
-    ErrorContext,
-    ErrorCollector
-)
+# TODO: Восстановить импорты error_handling после рефакторинга core.errors
+# from core.errors.error_handling import (
+#     handle_errors,
+#     log_errors,
+#     safe_execute,
+#     safe_execute_async,
+#     ErrorContext,
+#     ErrorCollector
+# )
 from .module_reloader import safe_reload_component_with_module_reload
 
 __all__ = [
-    # Error handling
-    "handle_errors",
-    "log_errors",
-    "safe_execute",
-    "safe_execute_async",
-    "ErrorContext",
-    "ErrorCollector",
+    # # Error handling
+    # "handle_errors",
+    # "log_errors",
+    # "safe_execute",
+    # "safe_execute_async",
+    # "ErrorContext",
+    # "ErrorCollector",
 
     # Module reloader
     "safe_reload_component_with_module_reload",
