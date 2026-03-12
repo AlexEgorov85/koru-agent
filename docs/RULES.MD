@@ -1,10 +1,12 @@
 # Требования к Разработке Агента — Agent v5
 
-> **Версия:** 5.2.0
+> **Версия:** 5.3.0
 > **Статус:** Active
 > **Дата обновления:** 2026-03-12
 > **Владелец:** @system
-> **Последние изменения:** Удалён избыточный LoggingMixin, логирование напрямую в BaseComponent
+> **Последние изменения:**
+> - v5.3.0: Исправлены ошибки в документации, добавлены новые секции
+> - v5.2.0: Удалён избыточный LoggingMixin, логирование напрямую в BaseComponent
 
 ---
 
@@ -516,6 +518,7 @@ await self.executor.execute_action(
 - [ ] Пройден `scripts/validation/check_skill_architecture.py`
 - [ ] Пройден `scripts/validation/check_yaml_syntax.py`
 - [ ] Промпты валидны (нет placeholder `{{input}}` без переменной)
+- [ ] BOM-символы удалены (`python scripts/maintenance/remove_bom.py`)
 
 ### Тесты
 
@@ -578,7 +581,7 @@ project_root/
 │       └── check_yaml_syntax.py
 │
 └── docs/
-    └── ARCHITECTURE_REQUIREMENTS.md  # ← Этот файл
+    └── RULES.MD  # ← Этот файл (требования к разработке)
 ```
 
 ---
@@ -622,11 +625,15 @@ python scripts/maintenance/check_consistency.py
 
 | Документ | Описание |
 |----------|----------|
-| `docs/ARCHITECTURE.md` | Общая архитектура системы |
-| `docs/COMPONENT_GUIDE.md` | Руководство по созданию компонентов |
-| `docs/CONTRACTS.md` | Руководство по контрактам |
-| `docs/PROMPTS.md` | Руководство по промптам |
+| `docs/RULES.MD` | Требования к разработке (этот файл) |
+| `docs/ARCHITECTURE_OVERVIEW.md` | Общая архитектура системы |
+| `docs/COMPONENTS_GUIDE.md` | Руководство по созданию компонентов |
+| `docs/CONFIGURATION_MANUAL.md` | Руководство по конфигурации |
+| `docs/LOGGING_GUIDE.md` | Руководство по логированию |
 | `docs/TESTING.md` | Руководство по тестированию |
+| `docs/DEPLOYMENT_GUIDE.md` | Руководство по развёртыванию |
+| `docs/COMPLIANCE_REPORT.md` | Отчёт о соответствии требованиям |
+| `docs/API_REFERENCE.md` | Справочник API |
 
 ---
 
@@ -677,6 +684,15 @@ if self._state == ComponentState.READY:
 self.ensure_ready()  # Бросит RuntimeError если не готов
 ```
 
+### Q: Можно ли создать миксин для логирования?
+
+**A:** Нет, это избыточно. `BaseComponent` уже содержит всю необходимую логику:
+- `_init_event_bus_logger()` — инициализация логгера
+- `_create_dummy_logger()` — fallback для тестов
+- `_safe_log_sync()` — безопасное синхронное логирование
+
+`LoggingMixin` был удалён в v5.2.0 как избыточная абстракция.
+
 ---
 
 ## 📈 Метрики Качества Кода
@@ -689,6 +705,7 @@ self.ensure_ready()  # Бросит RuntimeError если не готов
 | Возврат ExecutionResult из `_execute_impl` | 0 | AST-анализ |
 | Прямые вызовы LLM API | 0 | Pattern search |
 | Retry логика в навыках | 0 | Pattern search |
+| BOM-символы в файлах | 0 | `scripts/maintenance/remove_bom.py` |
 
 ---
 
