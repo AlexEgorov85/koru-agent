@@ -207,8 +207,9 @@ class SQLGenerationService(BaseService):
         
         # Используем кэшированный промпт из компонента
         prompt_key = "sql_generation.generate_safe_query"
-        prompt = self.get_cached_prompt_safe(prompt_key)
-        
+        prompt_obj = self.get_prompt(prompt_key)
+        prompt = prompt_obj.content if prompt_obj else ""
+
         # Заменяем переменные в кэшированном промпте
         for var_name, var_value in prompt_vars.items():
             placeholder = f"{{{var_name}}}"  # Формат {variable_name}
@@ -332,8 +333,9 @@ class SQLGenerationService(BaseService):
         
         # Используем кэшированный промпт из компонента
         prompt_key = "sql_generation.correct_query"
-        prompt = self.get_cached_prompt_safe(prompt_key)
-        
+        prompt_obj = self.get_prompt(prompt_key)
+        prompt = prompt_obj.content if prompt_obj else ""
+
         # Заменяем переменные в кэшированном промпте
         for var_name, var_value in prompt_vars.items():
             placeholder = f"{{{var_name}}}"  # Формат {variable_name}

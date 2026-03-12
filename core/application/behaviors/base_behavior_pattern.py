@@ -536,7 +536,7 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
 
         # Анализируем контекст и генерируем решение (синхронное ожидание async методов)
         context_analysis = self._safe_async_call(self.analyze_context(session_context, available_capabilities))
-        decision = self._safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis))
+        decision = self._safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis, execution_context))
 
         # Возвращаем решение в виде словаря
         return {

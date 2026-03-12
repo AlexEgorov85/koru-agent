@@ -476,7 +476,8 @@ class ReActPattern(BaseBehaviorPattern):
         self,
         session_context: 'SessionContext',
         available_capabilities: List[Capability],
-        context_analysis: Dict[str, Any]
+        context_analysis: Dict[str, Any],
+        execution_context=None
     ) -> BehaviorDecision:
         """Генерация решения на основе анализа."""
         # Логирование начала через EventBusLogger
@@ -490,7 +491,8 @@ class ReActPattern(BaseBehaviorPattern):
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
-                available_capabilities=available_capabilities
+                available_capabilities=available_capabilities,
+                execution_context=execution_context
             )
             # Логирование результата рассуждения
             print(f"🔵 [generate_decision] reasoning_result тип={type(reasoning_result).__name__}", flush=True)
@@ -552,7 +554,8 @@ class ReActPattern(BaseBehaviorPattern):
         self,
         session_context,
         context_analysis: Dict[str, Any],
-        available_capabilities: List[Capability]
+        available_capabilities: List[Capability],
+        execution_context=None
     ) -> ReasoningResult:
         """
         Выполняет структурированное рассуждение через LLM.
@@ -579,55 +582,41 @@ class ReActPattern(BaseBehaviorPattern):
             session_context=session_context
         )
 
-        # === 3. ПОЛУЧЕНИЕ LLM ПРОВАЙДЕРА ===
-        orchestrator = self.llm_orchestrator
-        if not orchestrator:
-            await self._log("warning", "LLMOrchestrator недоступен, используем fallback")
-            return self.fallback_strategy.create_reasoning_fallback(
-                context_analysis=context_analysis,
-                available_capabilities=available_capabilities,
-                reason="orchestrator_not_available"
-            )
-
-        # Получаем LLM провайдер из infrastructure_context
-        llm_provider = None
-        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-        
-        if not llm_provider:
-            await self._log("warning", "LLM провайдер недоступен, используем fallback")
-            return self.fallback_strategy.create_reasoning_fallback(
-                context_analysis=context_analysis,
-                available_capabilities=available_capabilities,
-                reason="llm_provider_not_available"
-            )
-
-        # === 4. ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
-        llm_request = LLMRequest(
-            prompt=reasoning_prompt,
-            system_prompt=self.system_prompt_template,
-            temperature=0.3,
-            max_tokens=1000,
-            structured_output=StructuredOutputConfig(
-                output_model="ReasoningResult",
-                schema_def=self.reasoning_schema,
-                max_retries=3,
-                strict_mode=False
-            )
+        # === 3. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR ===
+        # Получаем LLM результат через executor
+        llm_result = await self.executor.execute_action(
+            action_name="llm.generate_structured",
+            parameters={
+                "prompt": reasoning_prompt,
+                "system_prompt": self.system_prompt_template,
+                "temperature": 0.3,
+                "max_tokens": 1000,
+                "structured_output": {
+                    "output_model": "ReasoningResult",
+                    "schema_def": self.reasoning_schema,
+                    "max_retries": 3,
+                    "strict_mode": False
+                }
+            },
+            context=execution_context
         )
 
-        # Устанавливаем контекст для логирования
-        if hasattr(llm_provider, 'set_call_context'):
-            current_agent_id = getattr(session_context, 'agent_id', 'system') if session_context else 'system'
-            event_bus = orchestrator.event_bus if hasattr(orchestrator, 'event_bus') else None
-
-            llm_provider.set_call_context(
-                event_bus=event_bus,
-                session_id=getattr(session_context, 'session_id', 'unknown'),
-                agent_id=current_agent_id,
-                component="react_pattern",
-                phase="think"
+        if not llm_result.status.name == "COMPLETED":
+            await self._log("warning", f"LLM вызов не удался: {llm_result.error}, используем fallback")
+            return self.fallback_strategy.create_reasoning_fallback(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason="llm_call_failed"
             )
+
+        # Извлекаем результат
+        result = llm_result.result
+        if hasattr(result, 'parsed_content'):
+            reasoning_result = result.parsed_content
+        elif isinstance(result, dict):
+            reasoning_result = result.get('parsed_content', result)
+        else:
+            reasoning_result = result
 
         # Получаем цель из session_context
         goal_value = session_context.get_goal() if session_context else "unknown"
@@ -635,28 +624,8 @@ class ReActPattern(BaseBehaviorPattern):
         await self._log("info", f"Запуск рассуждения ReAct | Цель: {goal_value}")
         await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
-        # === 5. ВЫПОЛНЕНИЕ ЧЕРЕЗ ORCHESTRATOR ===
-        llm_timeout = getattr(llm_provider, 'timeout_seconds', 120.0)
-
-        success, response, error = await self._execute_llm_with_orchestrator(
-            llm_request=llm_request,
-            llm_provider=llm_provider,
-            timeout=llm_timeout,
-            session_context=session_context
-        )
-
-        # === 6. ОБРАБОТКА ОТВЕТА ===
-        if not success:
-            await self._log("error", f"LLM вызов не удался: {error}")
-            return self.fallback_strategy.create_reasoning_fallback(
-                context_analysis=context_analysis,
-                available_capabilities=available_capabilities,
-                reason=f"llm_call_failed:{error}"
-            )
-
-        # === 7. ВАЛИДАЦИЯ И ВОЗВРАТ РЕЗУЛЬТАТА ===
+        # === 4. ВАЛИДАЦИЯ И ВОЗВРАТ РЕЗУЛЬТАТА ===
         # validate_reasoning_result принимает StructuredLLMResponse напрямую
-        reasoning_result = validate_reasoning_result(response)
         reasoning_result.available_capabilities = available_capabilities
 
         return reasoning_result

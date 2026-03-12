@@ -142,7 +142,7 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.debug(f"Получены типизированные параметры: {type(params).__name__}")
         else:
             # Fallback для обратной совместимости
-            input_schema = self.get_cached_input_contract_safe("data_analysis.analyze_step_data")
+            input_schema = self.get_input_contract("data_analysis.analyze_step_data")
             if input_schema:
                 try:
                     validated_params = input_schema.model_validate(params)
@@ -209,7 +209,7 @@ class DataAnalysisSkill(BaseSkill):
         rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
 
         # 6. Получаем схему выхода для structured output
-        output_schema = self.get_cached_output_contract_safe("data_analysis.analyze_step_data")
+        output_schema = self.get_output_contract("data_analysis.analyze_step_data")
 
         # 7. Вызов LLM С STRUCTURED OUTPUT через executor
         try:

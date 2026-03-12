@@ -142,7 +142,7 @@ class SQLQueryService(BaseService):
             await self.event_bus_logger.info(f"[SQL_DEBUG] execute_query вызван с sql={sql_query}, parameters={parameters}, max_rows={max_rows}")
             
             # === ЭТАП 1: Валидация входных данных через схему ===
-            input_schema = self.get_cached_input_contract_safe("sql_query_service.execute")
+            input_schema = self.get_input_contract("sql_query_service.execute")
             if input_schema:
                 try:
                     input_schema.model_validate({

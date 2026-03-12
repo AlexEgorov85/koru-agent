@@ -100,7 +100,7 @@ class SQLTool(BaseTool):
         input_data = self._convert_params_to_input(parameters)
 
         # === ЭТАП 1: Валидация входных данных через схему ===
-        input_schema = self.get_cached_input_contract_safe("sql_tool.execute_query")
+        input_schema = self.get_input_contract("sql_tool.execute_query")
         if input_schema:
             try:
                 input_schema.model_validate({
@@ -184,7 +184,7 @@ class SQLTool(BaseTool):
         }
 
         # === ЭТАП 2: Валидация выходных данных через схему ===
-        output_schema = self.get_cached_output_contract_safe("sql_tool.execute_query")
+        output_schema = self.get_output_contract("sql_tool.execute_query")
         if output_schema:
             try:
                 from dataclasses import asdict

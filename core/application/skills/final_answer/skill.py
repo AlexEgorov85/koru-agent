@@ -625,39 +625,3 @@ class FinalAnswerSkill(BaseSkill):
                 "format_type": format_type
             }
         }
-
-    def get_cached_input_contract_safe(self, capability: str) -> Optional[Any]:
-        """
-        Безопасное получение кэшированного входного контракта.
-
-        ПАРАМЕТРЫ:
-        - capability: имя capability
-
-        ВОЗВРАЩАЕТ:
-        - Схема валидации или None
-        """
-        return self.input_contracts.get(capability)
-
-    def get_cached_output_contract_safe(self, capability: str) -> Optional[Any]:
-        """
-        Безопасное получение кэшированного выходного контракта.
-
-        ПАРАМЕТРЫ:
-        - capability: имя capability
-
-        ВОЗВРАЩАЕТ:
-        - Схема валидации или None
-        """
-        return self.output_contracts.get(capability)
-
-    def get_cached_prompt_safe(self, capability: str) -> Optional[Prompt]:
-        """
-        Безопасное получение кэшированного промпта.
-        
-        ПАРАМЕТРЫ:
-        - capability: имя capability
-        
-        ВОЗВРАЩАЕТ:
-        - Prompt объект или None
-        """
-        return self.prompts.get(capability)
