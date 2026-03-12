@@ -1,4 +1,4 @@
-﻿from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 
 from core.infrastructure.event_bus.unified_event_bus import EventType

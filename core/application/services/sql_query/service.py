@@ -1,4 +1,4 @@
-﻿import time
+import time
 from typing import Dict, Any, List, Optional
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.models.types.db_types import DBQueryResult

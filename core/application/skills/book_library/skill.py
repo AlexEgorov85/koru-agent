@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Навык работы с библиотекой книг.
 
@@ -261,21 +261,29 @@ class BookLibrarySkill(BaseSkill):
 
         # 2. Получение промпта для генерации SQL
         # === REFACTOR: Используем новый API с разделением промпта и схемы ===
-        prompt_text = self.get_prompt("book_library.search_books")
+        prompt_obj = self.get_prompt("book_library.search_books")
+        prompt_text = prompt_obj.content if prompt_obj else ""
         if not prompt_text:
             raise ValueError("Промпт для поиска книг не найден")
 
         # Получаем выходную схему для structured output
-        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
+        output_schema = self.get_output_contract("book_library.search_books")
 
         # 3. Генерация SQL через sql_generation
         sql_query = ""
 
-        # Проверяем доступность LLM перед вызовом (чтобы избежать 30-секундного timeout)
+        # Проверяем доступность LLM через executor
         llm_available = False
-        if hasattr(self.application_context, 'infrastructure_context'):
-            llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-            llm_available = llm_provider is not None
+        try:
+            # Пытаемся выполнить простой LLM вызов для проверки доступности
+            test_result = await self.executor.execute_action(
+                action_name="llm.ping",
+                parameters={},
+                context=ExecutionContext()
+            )
+            llm_available = test_result.status.name == "COMPLETED"
+        except Exception:
+            llm_available = False
 
         if not llm_available:
             # LLM недоступен — сразу используем fallback

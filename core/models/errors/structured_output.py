@@ -1,4 +1,4 @@
-﻿"""
+"""
 Custom exceptions for structured output functionality.
 """
 

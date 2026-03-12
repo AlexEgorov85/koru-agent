@@ -1,4 +1,4 @@
-﻿"""
+"""
 Единый базовый класс для всех компонентов (навыков, инструментов, сервисов).
 
 АРХИТЕКТУРНЫЕ ГАРАНТИИ:
@@ -62,7 +62,8 @@ class BaseComponent(LifecycleMixin, ABC):
     class MySkill(BaseSkill):
         async def _execute_impl(self, capability, parameters, context):
             # Ваша бизнес-логика здесь
-            prompt = self.get_prompt(capability.name)
+            prompt_obj = self.get_prompt(capability.name)
+            prompt_text = prompt_obj.content if prompt_obj else ""
             return {"result": "done"}
     ```
 
@@ -611,32 +612,30 @@ class BaseComponent(LifecycleMixin, ABC):
     # invalidate_cache() и _is_cache_expired() больше не используются
     # ========================================================================
 
-    def get_cached_prompt_safe(self, capability_name: str) -> str:
+    # === ОСНОВНЫЕ МЕТОДЫ ДОСТУПА К РЕСУРСАМ ===
+
+    def get_prompt(self, capability_name: str) -> Prompt:
         """
-        Безопасное получение промта из кэша.
+        Получение промпта из кэша.
 
         [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
         ARGS:
-        - capability_name: имя capability для получения промта
+        - capability_name: имя capability для получения промпта
 
         RETURNS:
-        - str: текст промта или пустая строка если не найден
+        - Prompt: объект промпта или None если не найден
         """
         self._ensure_initialized()
 
         if capability_name not in self.prompts:
-            return ""
+            return None
 
-        # Безопасное извлечение через атрибут объекта
-        prompt_obj = self.prompts[capability_name]
-        if hasattr(prompt_obj, 'content'):
-            return prompt_obj.content
-        return str(prompt_obj)
+        return self.prompts[capability_name]
 
-    def get_cached_input_contract_safe(self, capability_name: str) -> Type[BaseModel]:
+    def get_input_contract(self, capability_name: str) -> Type[BaseModel]:
         """
-        Безопасное получение входной схемы из кэша.
+        Получение входной схемы из кэша.
 
         [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
@@ -653,9 +652,9 @@ class BaseComponent(LifecycleMixin, ABC):
 
         return self.input_contracts[capability_name]
 
-    def get_cached_output_contract_safe(self, capability_name: str) -> Type[BaseModel]:
+    def get_output_contract(self, capability_name: str) -> Type[BaseModel]:
         """
-        Безопасное получение выходной схемы из кэша.
+        Получение выходной схемы из кэша.
 
         [REFACTOR Этап 2.2] TTL-проверки удалены — ресурсы не истекают.
 
@@ -672,59 +671,104 @@ class BaseComponent(LifecycleMixin, ABC):
 
         return self.output_contracts[capability_name]
 
-    # === БЕЗОПАСНЫЙ ДОСТУП К РЕСУРСАМ (ТОЛЬКО ИЗ КЭША) ===
+    # === МЕТОДЫ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ (DEPRECATED) ===
 
-    def get_prompt(self, capability_name: str) -> str:
+    def get_prompt_text(self, capability_name: str) -> str:
         """
-        Для обратной совместимости возвращаем текст,
-        но храним и используем полноценный объект.
+        Получение текста промпта для обратной совместимости.
+
+        DEPRECATED: Используйте get_prompt() для получения объекта Prompt.
+        Этот метод будет удалён в следующей мажорной версии.
+
+        ARGS:
+        - capability_name: имя capability для получения промпта
+
+        RETURNS:
+        - str: текст промпта или пустая строка если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_prompt_text() deprecated. Используйте get_prompt() для получения объекта Prompt.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self._ensure_initialized()
+
         if capability_name not in self.prompts:
             self._safe_log_sync(
                 "warning",
                 f"Промпт для capability '{capability_name}' не загружен в компонент '{self.name}'. "
                 f"Доступные: {list(self.prompts.keys())}. Возвращаем пустую строку."
             )
-            return ""  # Возвращаем пустую строку вместо ошибки
+            return ""
 
-        # Безопасное извлечение через атрибут объекта
-        return self.prompts[capability_name].content
+        prompt_obj = self.prompts[capability_name]
+        if hasattr(prompt_obj, 'content'):
+            return prompt_obj.content
+        return str(prompt_obj)
 
-    def get_input_contract(self, capability_name: str) -> Dict:
+    def get_input_contract_dict(self, capability_name: str) -> Dict:
         """
-        Возвращаем схему как словарь для обратной совместимости,
-        но используем типизированный объект.
+        Получение входной схемы как словаря для обратной совместимости.
+
+        DEPRECATED: Используйте get_input_contract() для получения класса Pydantic модели.
+        Этот метод будет удалён в следующей мажорной версии.
+
+        ARGS:
+        - capability_name: имя capability для получения входной схемы
+
+        RETURNS:
+        - Dict: JSON схема словаря или пустой словарь если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_input_contract_dict() deprecated. Используйте get_input_contract() для получения класса модели.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self._ensure_initialized()
+
         if capability_name not in self.input_contracts:
             self._safe_log_sync(
                 "warning",
                 f"Входная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
                 f"Доступные: {list(self.input_contracts.keys())}. Возвращаем пустой словарь."
             )
-            return {}  # Возвращаем пустой словарь вместо ошибки
+            return {}
 
         schema_cls = self.input_contracts[capability_name]
-        # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
-    def get_output_contract(self, capability_name: str) -> Dict:
+    def get_output_contract_dict(self, capability_name: str) -> Dict:
         """
-        Возвращаем схему как словарь для обратной совместимости,
-        но используем типизированный объект.
+        Получение выходной схемы как словаря для обратной совместимости.
+
+        DEPRECATED: Используйте get_output_contract() для получения класса Pydantic модели.
+        Этот метод будет удалён в следующей мажорной версии.
+
+        ARGS:
+        - capability_name: имя capability для получения выходной схемы
+
+        RETURNS:
+        - Dict: JSON схема словаря или пустой словарь если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_output_contract_dict() deprecated. Используйте get_output_contract() для получения класса модели.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self._ensure_initialized()
+
         if capability_name not in self.output_contracts:
             self._safe_log_sync(
                 "warning",
                 f"Выходная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
                 f"Доступные: {list(self.output_contracts.keys())}. Возвращаем пустой словарь."
             )
-            return {}  # Возвращаем пустой словарь вместо ошибки
+            return {}
 
         schema_cls = self.output_contracts[capability_name]
-        # Возвращаем словарь схемы для обратной совместимости
         return schema_cls.model_json_schema()
 
     def validate_input(self, capability_name: str, data: Dict) -> bool:
@@ -928,7 +972,8 @@ class BaseComponent(LifecycleMixin, ABC):
         if hasattr(self.component_config, 'llm_settings'):
             if not self.component_config.llm_settings.get('schema_in_prompt', True):
                 # Схема будет передана через structured_output — не встраиваем в промпт
-                return self.get_prompt(capability_name)
+                prompt_obj = self.get_prompt(capability_name)
+                return prompt_obj.content if prompt_obj else ""
 
         parts = []
 
@@ -939,7 +984,8 @@ class BaseComponent(LifecycleMixin, ABC):
             parts.append("\n\n---\n\n")
 
         # Получаем базовый user промпт
-        user_prompt = self.get_prompt(capability_name)
+        prompt_obj = self.get_prompt(capability_name)
+        user_prompt = prompt_obj.content if prompt_obj else ""
         parts.append(user_prompt)
 
         # Добавляем входной контракт
@@ -1355,7 +1401,8 @@ class BaseComponent(LifecycleMixin, ABC):
 
             # === ЭТАП 2: Получение промпта БЕЗ контрактов ===
             # Контракты будут переданы отдельно через structured_output
-            prompt_text = self.get_prompt(capability.name)
+            prompt_obj = self.get_prompt(capability.name)
+            prompt_text = prompt_obj.content if prompt_obj else ""
             if not prompt_text:
                 return ExecutionResult.failure(
                     error=f"Промпт для {capability.name} не найден",
@@ -1363,7 +1410,7 @@ class BaseComponent(LifecycleMixin, ABC):
                 )
 
             # === ЭТАП 3: Получение выходной схемы ===
-            output_schema = self.get_cached_output_contract_safe(capability.name)
+            output_schema = self.get_output_contract(capability.name)
             if output_schema is BaseModel:
                 return ExecutionResult.failure(
                     error=f"Выходная схема для {capability.name} не загружена",

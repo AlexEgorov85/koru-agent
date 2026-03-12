@@ -1,4 +1,4 @@
-﻿from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
 from abc import ABC

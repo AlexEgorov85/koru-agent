@@ -1,4 +1,4 @@
-﻿"""
+"""
 Реестр ресурсов инфраструктуры.
 """
 from typing import Dict, Optional, Any

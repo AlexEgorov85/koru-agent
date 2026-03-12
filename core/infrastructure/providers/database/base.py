@@ -1,4 +1,4 @@
-﻿"""
+"""
 Базовый класс для DB провайдеров.
 """
 from abc import ABC, abstractmethod

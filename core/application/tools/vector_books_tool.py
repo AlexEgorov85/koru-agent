@@ -1,4 +1,4 @@
-﻿"""
+"""
 VectorBooksTool — универсальный инструмент для работы с книгами.
 
 Capabilities:
@@ -469,8 +469,9 @@ class VectorBooksTool(BaseTool):
         # 3. LLM анализ — используем промпт из component_config
         # Получаем шаблон промпта из кэша (загружен при инициализации)
         capability_name = "vector_books.analyze"
-        prompt_template = self.get_prompt(capability_name)
-        
+        prompt_obj = self.get_prompt(capability_name)
+        prompt_template = prompt_obj.content if prompt_obj else ""
+
         if not prompt_template:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
@@ -478,7 +479,7 @@ class VectorBooksTool(BaseTool):
                 self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
             # Fallback шаблон
             prompt_template = "{prompt}\n\nКонтекст:\n{context}\n\nОтветь в формате JSON:\n{{\n    \"result\": {{...}},\n    \"confidence\": 0.0-1.0,\n    \"reasoning\": \"обоснование\"\n}}"
-        
+
         # Рендерим промпт
         llm_prompt = prompt_template.format(prompt=prompt, context=context)
 

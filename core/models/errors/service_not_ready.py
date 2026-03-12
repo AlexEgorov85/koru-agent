@@ -1,4 +1,4 @@
-﻿"""
+"""
 Custom exception for when a service is not ready to be accessed.
 """
 class ServiceNotReadyError(Exception):

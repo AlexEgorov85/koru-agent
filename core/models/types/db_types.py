@@ -1,4 +1,4 @@
-﻿"""
+"""
 Типы данных для работы с базами данных.
 """
 from dataclasses import dataclass

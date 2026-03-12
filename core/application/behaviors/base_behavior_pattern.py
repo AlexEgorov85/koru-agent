@@ -1,4 +1,4 @@
-﻿"""
+"""
 Базовый класс для всех паттернов поведения (Behavior Patterns).
 
 АРХИТЕКТУРА:
@@ -8,10 +8,13 @@
 - Предоставляет общие сервисы: PromptBuilderService, CapabilityResolverService
 """
 import typing
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Type
+
+from pydantic import BaseModel
 
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
+from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
 from core.components.base_component import BaseComponent
 from core.config.component_config import ComponentConfig
@@ -433,26 +436,26 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         self.prompt_builder = PromptBuilderService()
         self.capability_resolver = CapabilityResolverService()
     
-    def get_prompt(self, key: str) -> str:
+    def get_prompt(self, key: str) -> Prompt:
         """
         Получает промпт из кэша BaseComponent.
-        
+
         ДЕЛЕГИРУЕТ: BaseComponent.get_prompt()
         """
         return super().get_prompt(key)
-    
-    def get_input_contract(self, key: str) -> Dict:
+
+    def get_input_contract(self, key: str) -> Type[BaseModel]:
         """
         Получает input контракт из кэша BaseComponent.
-        
+
         ДЕЛЕГИРУЕТ: BaseComponent.get_input_contract()
         """
         return super().get_input_contract(key)
-    
-    def get_output_contract(self, key: str) -> Dict:
+
+    def get_output_contract(self, key: str) -> Type[BaseModel]:
         """
         Получает output контракт из кэша BaseComponent.
-        
+
         ДЕЛЕГИРУЕТ: BaseComponent.get_output_contract()
         """
         return super().get_output_contract(key)

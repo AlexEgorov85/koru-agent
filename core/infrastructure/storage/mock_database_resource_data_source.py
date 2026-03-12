@@ -1,4 +1,4 @@
-﻿"""
+"""
 Mock-реализация ResourceDataSource с использованием базы данных для проверки замещаемости.
 """
 from typing import List, Optional

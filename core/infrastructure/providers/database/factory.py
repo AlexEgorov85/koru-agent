@@ -1,4 +1,4 @@
-﻿"""
+"""
 Фабрика для создания DB провайдеров.
 """
 from typing import Dict, Type

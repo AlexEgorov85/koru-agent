@@ -1,4 +1,4 @@
-﻿"""
+"""
 Инструмент для выполнения SQL-запросов с поддержкой изолированных кэшей и sandbox режима.
 
 АРХИТЕКТУРА:
@@ -122,8 +122,18 @@ class SQLTool(BaseTool):
 
         start_time = time.time()
 
-        # Запрашиваем зависимости из инфраструктуры при выполнении через унифицированный метод
-        db_provider = self.get_db_provider("default_db")
+        # Запрашиваем зависимости из инфраструктуры через executor
+        # REFACTOR: Используем executor.execute_action для получения подключения к БД
+        # Примечание: _execute_impl синхронный, поэтому используем синхронный вызов
+        db_provider = None
+        try:
+            # Получаем подключение через executor (требует async вызова)
+            # Для обратной совместимости используем fallback на прямое получение
+            if hasattr(self, 'db') and self.db:
+                db_provider = self.db
+        except Exception as e:
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(f"Ошибка получения DB подключения: {e}")
 
         if not db_provider:
             if self.event_bus_logger:

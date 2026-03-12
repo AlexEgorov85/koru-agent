@@ -1,16 +1,10 @@
-﻿from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
-from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult
-from core.models.enums.common_enums import ExecutionStatus
-from core.session_context.session_context import SessionContext
-from typing import List, Dict, Any, Optional
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
 from core.session_context.session_context import SessionContext
+from typing import List, Dict, Any, Optional
 
 
 class EvaluationPattern(BaseBehaviorPattern):
@@ -189,7 +183,8 @@ class EvaluationPattern(BaseBehaviorPattern):
         context_summary = context_analysis["context_summary"]
 
         # Получение промпта из кэша BaseComponent
-        assessment_prompt = self.get_prompt("behavior.evaluation")
+        prompt_obj = self.get_prompt("behavior.evaluation")
+        assessment_prompt = prompt_obj.content if prompt_obj else ""
 
         if not assessment_prompt:
             self.logger.warning("Промпт для оценки не загружен, используем fallback")
@@ -205,69 +200,36 @@ class EvaluationPattern(BaseBehaviorPattern):
             # Логирование начала оценки
             await self._log("info", f"🔍 Оценка достижения цели: {goal[:100]}...")
 
-            # Получаем LLM провайдер напрямую из инфраструктуры
-            llm_provider = None
-            if hasattr(self, 'application_context') and self.application_context:
-                if hasattr(self.application_context, 'infrastructure_context'):
-                    llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-            
-            if not llm_provider:
-                raise RuntimeError("LLM провайдер 'default_llm' не найден")
-
-            # Получаем схему из контракта (уже загружена в _load_evaluation_resources)
-            output_schema = self.reasoning_schema
-            if not output_schema:
-                # Fallback если схема не загружена
-                from pydantic import BaseModel, Field
-                from typing import Optional
-
-                class EvaluationResult(BaseModel):
-                    achieved: bool = Field(description="Достигнута ли цель")
-                    partial_progress: bool = Field(description="Есть ли частичный прогресс")
-                    confidence: float = Field(ge=0.0, le=1.0, description="Уверенность в оценке")
-                    summary: str = Field(description="Краткое резюме")
-                    reasoning: str = Field(description="Обоснование оценки")
-
-                output_schema = EvaluationResult.model_json_schema()
-
-            from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-
-            # Создаём LLMRequest для структурированного вывода
-            llm_request = LLMRequest(
-                prompt=evaluation_prompt,
-                system_prompt=self.system_prompt_template,
-                temperature=0.3,
-                max_tokens=1000,
-                structured_output=StructuredOutputConfig(
-                    output_model="EvaluationResult",
-                    schema_def=output_schema,
-                    max_retries=3,
-                    strict_mode=False
-                )
+            # Получаем LLM провайдер через executor (REFACTOR: требуется миграция на executor.execute_action)
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": evaluation_prompt,
+                    "system_prompt": self.system_prompt_template,
+                    "temperature": 0.3,
+                    "max_tokens": 1000,
+                    "structured_output": {
+                        "output_model": "EvaluationResult",
+                        "schema_def": output_schema,
+                        "max_retries": 3,
+                        "strict_mode": False
+                    }
+                },
+                context=self.execution_context
             )
-
-            # === ВЫЗОВ LLM ЧЕРЕЗ ORCHESTRATOR ===
-            orchestrator = self.llm_orchestrator
-            if not orchestrator:
-                raise RuntimeError("LLMOrchestrator недоступен")
-
-            await self._log("info", f"🧠 Запуск оценки через LLMOrchestrator")
-            
-            response = await orchestrator.execute_structured(
-                request=llm_request,
-                provider=llm_provider,
-                max_retries=3
-            )
-
-            # Проверка успеха
-            if not response.success:
-                error_msg = f"Structured output failed after {response.parsing_attempts} attempts"
+            # Используем результат от executor.execute_action()
+            if not llm_result.status.name == "COMPLETED":
+                error_msg = f"LLM evaluation failed: {llm_result.error}"
                 await self._log("error", error_msg)
                 raise RuntimeError(error_msg)
 
             # Извлекаем результат
             # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель для типизированного доступа
-            result = response.parsed_content  # ← Pydantic модель, не dict!
+            result = llm_result.result
+            if hasattr(result, 'parsed_content'):
+                result = result.parsed_content  # ← Pydantic модель, не dict!
+            elif isinstance(result, dict):
+                result = result.get('parsed_content', result)
 
             # Логирование успешной оценки
             confidence_val = result.confidence if hasattr(result, 'confidence') else result.get('confidence', 0)

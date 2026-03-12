@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+from dataclasses import dataclass
 from typing import Optional
 
 from core.models.enums.common_enums import ErrorCategory, RetryDecision

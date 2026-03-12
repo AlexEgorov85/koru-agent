@@ -1,4 +1,4 @@
-﻿"""
+"""
 Простой контекст сессии агента.
 """
 from .session_context import SessionContext

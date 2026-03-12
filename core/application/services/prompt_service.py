@@ -1,4 +1,4 @@
-﻿"""
+"""
 Сервис промптов с изолированным кэшем.
 """
 from typing import Dict, Optional, Any

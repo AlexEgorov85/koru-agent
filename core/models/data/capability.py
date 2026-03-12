@@ -1,4 +1,4 @@
-﻿from typing import Dict, Any, Optional, Type, List
+from typing import Dict, Any, Optional, Type, List
 from pydantic import BaseModel, Field
 
 class Capability(BaseModel):

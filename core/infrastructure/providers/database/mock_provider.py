@@ -1,4 +1,4 @@
-﻿"""
+"""
 Mock DB Provider для тестирования без реального подключения к БД.
 """
 from typing import Dict, Any, List, Optional
