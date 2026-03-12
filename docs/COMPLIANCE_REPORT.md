@@ -1,7 +1,7 @@
 # Отчёт о Соответствии Проекта Требованиям RULES.MD
 
 **Дата:** 2026-03-12  
-**Статус:** ⚠️ Частичное соответствие  
+**Статус:** ✅ Полное соответствие  
 **Версия правил:** 5.1.0
 
 ---
@@ -10,32 +10,28 @@
 
 | Категория | Статус | Нарушений | Критичность |
 |-----------|--------|-----------|-------------|
-| Архитектура компонентов | ⚠️ | 10 | 🔴 Высокая |
-| BOM-символы в файлах | ⚠️ | 7 файлов | 🟡 Средняя |
-| Взаимодействие через ActionExecutor | ⚠️ | 4 нарушения | 🔴 Высокая |
-| Прямой доступ к инфраструктуре | ⚠️ | 4 нарушения | 🔴 Высокая |
-| Импорт ComponentType для доступа | ⚠️ | 2 нарушения | 🟡 Средняя |
+| Архитектура компонентов | ✅ | 0 | — |
+| BOM-символы в файлах | ✅ | 0 | — |
+| Взаимодействие через ActionExecutor | ✅ | 0 | — |
+| Прямой доступ к инфраструктуре | ✅ | 0 | — |
+| Импорт ComponentType для доступа | ✅ | 0 | — |
 
 ---
 
-## 🔴 Критические Нарушения
+## ✅ Исправленные Нарушения
 
-### 1. Прямой Доступ к Компонентам (4 нарушения)
+### 1. Прямой Доступ к Компонентам (4 нарушения) — ИСПРАВЛЕНО
 
 **Файл:** `core/application/skills/book_library/skill.py`
 
-**Нарушения:**
+**Было:**
 ```python
-# Строка 545 - ЗАПРЕЩЕНО
+# ❌ ЗАПРЕЩЕНО
 sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
-
-# Строка 729 - ЗАПРЕЩЕНО
 vector_tool = self.application_context.components.get(ComponentType.TOOL, "vector_books_tool")
 ```
 
-**Правило:** [Раздел 4.1](docs/RULES.MD#1-вызов-других-компонентов) — Взаимодействие ТОЛЬКО через `ActionExecutor`
-
-**Как Исправить:**
+**Стало:**
 ```python
 # ✅ ПРАВИЛЬНО
 result = await self.executor.execute_action(
@@ -43,84 +39,82 @@ result = await self.executor.execute_action(
     parameters={"sql_query": sql_query, "parameters": sql_params_list},
     context=execution_context
 )
-```
 
-**Статус:** ⏳ Требуется рефакторинг
-
----
-
-### 2. Прямой Доступ к Инфраструктуре (4 нарушения)
-
-**Файл:** `core/application/skills/book_library/skill.py`
-
-**Нарушения:**
-```python
-# Строка 277 - ЗАПРЕЩЕНО
-llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
-
-# Строка 720 - ЗАПРЕЩЕНО
-infra = self.application_context.infrastructure_context
-```
-
-**Правило:** [Раздел 4.2](docs/RULES.MD#2-вызов-llm) — Вызов LLM ТОЛЬКО через `LLMOrchestrator`
-
-**Как Исправить:**
-```python
-# ✅ ПРАВИЛЬНО
 result = await self.executor.execute_action(
-    action_name="llm.generate_structured",
-    parameters={
-        "prompt": prompt_text,
-        "schema": output_schema
-    },
+    action_name="vector_books_tool.search",
+    parameters={"query": query, "top_k": top_k, "min_score": min_score},
     context=execution_context
 )
 ```
 
-**Статус:** ⏳ Требуется рефакторинг
+**Коммит:** `0e54df9` — fix: исправить 10 нарушений архитектуры в book_library/skill.py
 
 ---
 
-### 3. Импорт ComponentType для Доступа (2 нарушения)
+### 2. Прямой Доступ к Инфраструктуре (4 нарушения) — ИСПРАВЛЕНО
 
 **Файл:** `core/application/skills/book_library/skill.py`
 
-**Нарушения:**
+**Было:**
 ```python
-# Строки 544, 727
+# ❌ ЗАПРЕЩЕНО
+llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+infra = self.application_context.infrastructure_context
+if not infra.is_vector_search_ready('books'):
+```
+
+**Стало:**
+```python
+# ✅ ПРАВИЛЬНО
+llm_available = False
+try:
+    test_result = await self.executor.execute_action(
+        action_name="llm.ping",
+        parameters={},
+        context=ExecutionContext()
+    )
+    llm_available = test_result.status.name == "COMPLETED"
+except Exception:
+    llm_available = False
+
+vector_search_ready = False
+try:
+    test_result = await self.executor.execute_action(
+        action_name="vector_books_tool.ping",
+        parameters={},
+        context=ExecutionContext()
+    )
+    vector_search_ready = test_result.status == ExecutionStatus.COMPLETED
+except Exception:
+    vector_search_ready = False
+```
+
+---
+
+### 3. Импорт ComponentType для Доступа (2 нарушения) — ИСПРАВЛЕНО
+
+**Файл:** `core/application/skills/book_library/skill.py`
+
+**Было:**
+```python
+# ❌ ЗАПРЕЩЕНО
 from core.models.enums.common_enums import ComponentType
 ```
 
-**Правило:** [Раздел 7.1](docs/RULES.MD#1-прямой-доступ-к-компонентам) — Не импортировать ComponentType для прямого доступа
-
-**Статус:** ⏳ Будет исправлено вместе с нарушениями 1 и 2
+**Стало:**
+```python
+# ✅ Импорт удалён
+```
 
 ---
 
 ## 🟡 Проблемы Кодировки
 
-### BOM-Символы в Файлах (7 файлов)
+### BOM-Символы в Файлах — ИСПРАВЛЕНО
 
-**Файлы:**
-- `core/application/skills/base_skill.py`
-- `core/application/skills/book_library/scripts_registry.py`
-- `core/application/skills/book_library/skill.py`
-- `core/application/skills/data_analysis/skill.py`
-- `core/application/skills/final_answer/skill.py`
-- `core/application/skills/planning/skill.py`
-- `core/application/skills/data_analysis/skill.py`
+**Статус:** ✅ Удалены из 140 файлов
 
-**Ошибка:** `invalid non-printable character U+FEFF`
-
-**Причина:** Файлы сохранены с BOM (Byte Order Mark)
-
-**Как Исправить:**
-```bash
-# Конвертировать файлы в UTF-8 без BOM
-python scripts/maintenance/remove_bom.py
-```
-
-**Статус:** ⏳ Требуется конвертация
+**Коммит:** `6878a67` — refactor: удалить BOM-символы из всех файлов проекта
 
 ---
 
