@@ -245,7 +245,7 @@ class BookLibrarySkill(BaseSkill):
             max_results_val = getattr(params, 'max_results', 10)
         else:
             # Fallback для обратной совместимости (dict)
-            input_schema = self.get_cached_input_contract_safe("book_library.search_books")
+            input_schema = self.get_input_contract("book_library.search_books")
             if input_schema:
                 try:
                     validated_params = input_schema.model_validate(params)
@@ -422,7 +422,7 @@ class BookLibrarySkill(BaseSkill):
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # ✅ Возвращаем Pydantic модель напрямую
-        output_schema = self.get_cached_output_contract_safe("book_library.search_books")
+        output_schema = self.get_output_contract("book_library.search_books")
         if output_schema:
             validated_result = output_schema.model_validate(result)
             return validated_result  # ← Pydantic модель
@@ -544,27 +544,25 @@ class BookLibrarySkill(BaseSkill):
 
         print(f"[SKILL_DEBUG] sql_params_list={sql_params_list}", flush=True)
 
-        # 6. Выполнение SQL через sql_query_service (прямой вызов сервиса)
+        # 6. Выполнение SQL через executor (архитектурно правильно)
         rows = []
         execution_time = 0.0
         try:
-            # Получаем сервис напрямую из application_context
-            from core.models.enums.common_enums import ComponentType
-            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
-
-            if not sql_query_svc:
-                raise RuntimeError("Сервис sql_query_service не найден")
-
-            # Вызываем метод execute_query напрямую
-            # Передаём параметры как список (psycopg2 формат)
-            result = await sql_query_svc.execute_query(
-                sql_query=sql_query,
-                parameters=sql_params_list
+            # Вызываем sql_query_service через executor
+            exec_context = ExecutionContext()
+            
+            result = await self.executor.execute_action(
+                action_name="sql_query_service.execute_query",
+                parameters={
+                    "sql_query": sql_query,
+                    "parameters": sql_params_list
+                },
+                context=exec_context
             )
 
-            if hasattr(result, 'success') and result.success:
-                rows = result.rows if hasattr(result, 'rows') else []
-                execution_time = result.execution_time if hasattr(result, 'execution_time') else 0.0
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.get('rows', [])
+                execution_time = result.data.get('execution_time', 0.0)
             else:
                 error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
@@ -601,7 +599,7 @@ class BookLibrarySkill(BaseSkill):
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # ✅ Возвращаем Pydantic модель напрямую
-        output_schema = self.get_cached_output_contract_safe("book_library.execute_script")
+        output_schema = self.get_output_contract("book_library.execute_script")
         if output_schema:
             validated_result = output_schema.model_validate(result_data)
             return validated_result  # ← Pydantic модель
@@ -673,7 +671,7 @@ class BookLibrarySkill(BaseSkill):
 
         # Валидация через схему из сервиса контрактов
         # ✅ ИСПРАВЛЕНО: Сохраняем Pydantic модель вместо dict!
-        output_schema = self.get_cached_output_contract_safe("book_library.list_scripts")
+        output_schema = self.get_output_contract("book_library.list_scripts")
         if output_schema:
             try:
                 # Создаём валидированную модель через схему контракта
@@ -724,44 +722,39 @@ class BookLibrarySkill(BaseSkill):
         if not query:
             raise ValueError("Параметр 'query' обязателен для семантического поиска")
 
-        # 2. Проверка доступности векторного поиска
-        infra = self.application_context.infrastructure_context
-        if not infra.is_vector_search_ready('books'):
+        # 2. Проверка доступности векторного поиска через executor
+        vector_search_ready = False
+        try:
+            # Пытаемся выполнить ping для проверки доступности vector_books_tool
+            test_result = await self.executor.execute_action(
+                action_name="vector_books_tool.ping",
+                parameters={},
+                context=ExecutionContext()
+            )
+            vector_search_ready = test_result.status == ExecutionStatus.COMPLETED
+        except Exception:
+            vector_search_ready = False
+        
+        if not vector_search_ready:
             await self.event_bus_logger.warning("Vector Search для книг не готов, используем SQL fallback")
             # Используем SQL fallback напрямую
             return await self._semantic_search_sql_fallback(query, top_k, start_time)
 
-        # 3. Получение инструмента vector_books_tool через компоненты
-        from core.models.enums.common_enums import ComponentType
-
-        vector_tool = self.application_context.components.get(
-            ComponentType.TOOL,
-            "vector_books_tool"
-        )
-        if not vector_tool:
-            await self.event_bus_logger.error("Инструмент vector_books_tool не зарегистрирован, используем SQL fallback")
-            return await self._semantic_search_sql_fallback(query, top_k, start_time)
-
-        # 4. Создание контекста выполнения
+        # 3. Выполнение capability "search" инструмента vector_books через executor
         exec_context = ExecutionContext(
             session_context=self.application_context.session_context,
             user_context=None
         )
 
-        # 5. Выполнение capability "search" инструмента vector_books
         try:
-            result = await vector_tool.execute(
-                capability=Capability(
-                    name="vector_books.search",
-                    description="Семантический поиск по книгам",
-                    skill_name="vector_books_tool"
-                ),
+            result = await self.executor.execute_action(
+                action_name="vector_books_tool.search",
                 parameters={
                     "query": query,
                     "top_k": top_k,
                     "min_score": min_score
                 },
-                execution_context=exec_context
+                context=exec_context
             )
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка выполнения vector_books.search: {e}, используем SQL fallback")
@@ -809,7 +802,7 @@ class BookLibrarySkill(BaseSkill):
             await self.event_bus_logger.debug(f"Ошибка публикации метрик: {e}")
 
         # 9. Валидация через выходной контракт
-        output_schema = self.get_cached_output_contract_safe("book_library.semantic_search")
+        output_schema = self.get_output_contract("book_library.semantic_search")
         if output_schema:
             try:
                 validated_result = output_schema.model_validate(result_data)
@@ -896,7 +889,7 @@ class BookLibrarySkill(BaseSkill):
             )
             
             # Валидация через выходной контракт
-            output_schema = self.get_cached_output_contract_safe("book_library.semantic_search")
+            output_schema = self.get_output_contract("book_library.semantic_search")
             if output_schema:
                 try:
                     validated_result = output_schema.model_validate(result_data)
