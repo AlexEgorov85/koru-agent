@@ -5,7 +5,7 @@ from pathlib import Path
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
-    from core.application.agent.components.executor import ActionExecutor
+    from core.application.agent.components.action_executor import ActionExecutor
 
 class BehaviorStorage:
     def __init__(

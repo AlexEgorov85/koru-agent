@@ -18,7 +18,7 @@ from core.config.component_config import ComponentConfig
 
 if typing.TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
-    from core.application.agent.components.executor import ActionExecutor
+    from core.application.agent.components.action_executor import ActionExecutor
     from core.models.data.capability import Capability
 
 
