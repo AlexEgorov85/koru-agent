@@ -4,7 +4,8 @@
 import yaml
 from pathlib import Path
 from typing import Dict, Any
-from core.config.models import RegistryConfig, ComponentType
+from core.config.models import RegistryConfig
+from core.models.enums.common_enums import ComponentType
 
 
 class RegistryLoader:

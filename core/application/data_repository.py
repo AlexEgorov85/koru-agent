@@ -7,7 +7,7 @@ from core.infrastructure.storage.resource_data_source import ResourceDataSource
 from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
 from core.config.app_config import AppConfig
-from core.config.models import ComponentType
+from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.infrastructure.logging import EventBusLogger
 

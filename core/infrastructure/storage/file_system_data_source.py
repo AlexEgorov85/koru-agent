@@ -7,8 +7,8 @@ from typing import List, Dict, Optional, Tuple
 from core.infrastructure.storage.resource_data_source import ResourceDataSource
 from core.models.data.prompt import Prompt, PromptStatus, ComponentType as PromptComponentType
 from core.models.data.contract import Contract, ContractDirection
-from core.models.enums.common_enums import ComponentType as ManifestComponentType
-from core.config.models import ComponentType, RegistryConfig
+from core.models.enums.common_enums import ComponentType
+from core.config.models import RegistryConfig
 import yaml
 import re
 import json
@@ -28,13 +28,13 @@ class FileSystemDataSource(ResourceDataSource):
         PromptComponentType.SERVICE: "service",
         PromptComponentType.BEHAVIOR: "behavior"
     }
-    
+
     # Маппинг типа компонента → имя каталога (для манифестов)
     MANIFEST_TYPE_TO_DIR = {
-        ManifestComponentType.SKILL: "skills",
-        ManifestComponentType.TOOL: "tools",
-        ManifestComponentType.SERVICE: "services",
-        ManifestComponentType.BEHAVIOR: "behaviors"
+        ComponentType.SKILL: "skills",
+        ComponentType.TOOL: "tools",
+        ComponentType.SERVICE: "services",
+        ComponentType.BEHAVIOR: "behaviors"
     }
 
     def __init__(self, base_dir: Path, registry_config: RegistryConfig):
@@ -120,7 +120,7 @@ class FileSystemDataSource(ResourceDataSource):
                 # Нет активного event loop - пропускаем
                 pass
 
-    def _get_component_type(self, capability: str) -> ManifestComponentType:
+    def _get_component_type(self, capability: str) -> ComponentType:
         """
         Получает тип компонента ИЗ КОНФИГУРАЦИИ.
         Никакого инференса по префиксу!
