@@ -335,6 +335,11 @@ await self.executor.execute_action(
 
 ### 1. Логирование
 
+**АРХИТЕКТУРА:**
+- `BaseComponent` использует `EventBusLogger` напрямую (без посредников)
+- `LoggingMixin` **НЕ используется** (удалён как избыточная абстракция)
+- Логирование реализовано методами в `BaseComponent`: `_init_event_bus_logger()`, `_safe_log_sync()`
+
 **НЕ ДЕЛАЙ:**
 ```python
 # ❌ ЗАПРЕЩЕНО: Стандартный logging
@@ -344,6 +349,9 @@ logger.info("Message")
 
 # ❌ ЗАПРЕЩЕНО: Print
 print("Debug message")
+
+# ❌ ЗАПРЕЩЕНО: Создавать свои миксины для логирования
+class MyLoggingMixin: ...  # Уже есть в BaseComponent
 ```
 
 **ДЕЛАЙ:**
@@ -356,6 +364,9 @@ await self.event_bus_logger.error("Ошибка", exc_info=True)
 
 # ✅ ПРАВИЛЬНО: Синхронная версия (во время инициализации)
 self.event_bus_logger.info_sync("Сообщение")
+
+# ✅ ПРАВИЛЬНО: Использовать методы BaseComponent
+self._safe_log_sync("info", "Сообщение")  # Безопасный синхронный лог
 ```
 
 ### 2. Метрики
