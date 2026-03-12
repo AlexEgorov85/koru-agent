@@ -13,7 +13,6 @@ from datetime import datetime
 import uuid
 
 from core.application.context.application_context import ApplicationContext
-from core.execution.gateway import ExecutionGateway
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus, ErrorCategory, RetryDecision
 from core.infrastructure.logging import EventBusLogger
@@ -137,9 +136,6 @@ class AgentRuntime:
             executor=self.executor  # ← Передаём executor
         )
         self.progress_metrics = ProgressMetrics()
-
-        # Шлюз выполнения для координации действий
-        self.execution_gateway = ExecutionGateway(application_context)
 
         # Создаем session_context, если он не существует в application_context
         if not hasattr(application_context, 'session_context') or application_context.session_context is None:

@@ -7,7 +7,7 @@ Structured Actions
 - классифицировать ошибки как INVALID_INPUT
 
 Этот слой:
-AgentRuntime -> ActionBuilder -> SchemaValidator -> ExecutionGateway
+AgentRuntime -> ActionBuilder -> SchemaValidator -> ActionExecutor
 """
 
 from dataclasses import dataclass

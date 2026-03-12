@@ -13,18 +13,18 @@
 9. Наследование LifecycleMixin для управления состояниями (CREATED → INITIALIZING → READY → SHUTDOWN)
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.session_context.base_session_context import BaseSessionContext
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
-from core.config.app_config import AppConfig
 from core.config.component_config import ComponentConfig
 from core.components.base_component import BaseComponent
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.application.context.application_context import ApplicationContext
+    from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
 
 class BaseSkill(BaseComponent):
     """
@@ -40,15 +40,23 @@ class BaseSkill(BaseComponent):
     #: Человекочитаемое имя навыка
     name: str = "base_skill"
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', app_config: Optional['AppConfig'] = None, component_config: Optional['ComponentConfig'] = None, executor=None, **kwargs):
-        # Проверяем, какой тип конфигурации передан
-        # Если передан component_config, используем его
-        # Если нет, используем app_config для обратной совместимости
-        config_to_use = component_config if component_config is not None else app_config
-        # Вызов конструктора родительского класса
-        super().__init__(name, application_context, component_config=config_to_use, executor=executor)
-        self.config = kwargs
-        self.executor = executor  # Сохраняем executor как атрибут
+    def __init__(
+        self,
+        name: str,
+        application_context: 'ApplicationContext',
+        component_config: ComponentConfig,
+        executor: 'ActionExecutor'
+    ):
+        """
+        Инициализация навыка с внедрением зависимостей.
+
+        ПАРАМЕТРЫ:
+        - name: имя навыка
+        - application_context: контекст приложения (DEPRECATED, используется для совместимости)
+        - component_config: конфигурация компонента с версиями ресурсов
+        - executor: ActionExecutor для взаимодействия с другими компонентами
+        """
+        super().__init__(name, application_context, component_config=component_config, executor=executor)
     
     # --------------------------------------------------
     # Initialization API
@@ -195,18 +203,16 @@ class BaseSkill(BaseComponent):
     def get_capability_by_name(self, capability_name: str) -> Capability:
         """
         Поиск capability по имени.
-        
-        Используется ExecutionGateway для маршрутизации запросов.
-        
+
         ПАРАМЕТРЫ:
         - capability_name: Имя capability для поиска
-        
+
         ВОЗВРАЩАЕТ:
         - Capability объект если найден
-        
+
         ИСКЛЮЧЕНИЯ:
         - ValueError если capability не найдена
-        
+
         ОСОБЕННОСТИ:
         - Регистронезависимый поиск
         - Быстрый поиск через итерацию списка
@@ -245,7 +251,7 @@ class BaseSkill(BaseComponent):
         - Результат выполнения capability
 
         ИСПОЛЬЗОВАНИЕ:
-        - Вызывается ExecutionGateway после валидации параметров
+        - Вызывается ActionExecutor через executor.execute_capability()
         - Результат будет сохранен в контексте как observation_item
 
         ПРИМЕР:
@@ -267,99 +273,43 @@ class BaseSkill(BaseComponent):
         # Используем универсальный шаблон выполнения из BaseComponent
         return await super().execute(capability, parameters, execution_context)
 
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
-        Реализация бизнес-логики навыка (СИНХРОННАЯ).
+        Реализация бизнес-логики навыка (ASYNC).
 
         Переопределяется в наследниках для конкретной реализации.
-        По умолчанию вызывает run() для обратной совместимости.
+        Возвращает Dict или Pydantic модель (выходной контракт).
 
         ПАРАМЕТРЫ:
         - capability: capability для выполнения
-        - parameters: параметры выполнения
+        - parameters: параметры выполнения (после валидации)
         - execution_context: контекст выполнения
 
         ВОЗВРАЩАЕТ:
-        - Результат выполнения в виде словаря
-        
+        - Результат выполнения (Dict или Pydantic модель)
+
         ПРИМЕЧАНИЕ:
-        - Этот метод вызывается из async execute()
-        - Для вызова async действий используйте executor.execute_sync().result()
+        - Этот метод вызывается из BaseComponent.execute()
+        - Для вызова других компонентов используйте executor.execute_action()
         """
-        # Для обратной совместимости вызываем run()
-        # run() теперь должен быть sync в наследниках
-        session_context = execution_context.session_context if execution_context else None
-        return self.run(parameters, session_context)
-
-    def get_metadata(self):
-        """
-        Возвращает метаданные навыка.
-
-        ВОЗВРАЩАЕТ:
-        - Объект с метаданными навыка
-        """
-        # Возвращаем объект с базовыми метаданными
-        class Metadata:
-            def __init__(self, schema):
-                self.input_schema = schema
-
-        # Получаем схему параметров из первой capability или используем схему по умолчанию
-        capabilities = self.get_capabilities()
-        if capabilities:
-            # В новой архитектуре схема параметров берется из контрактов
-            try:
-                schema = self.get_input_contract(capabilities[0].name)
-            except (RuntimeError, KeyError):
-                # Если контракт не загружен в кэш, используем пустую схему
-                schema = {"type": "object", "properties": {}}
-        else:
-            schema = {"type": "object", "properties": {}}
-
-        return Metadata(schema)
+        # Базовая реализация возвращает пустой результат
+        # Наследники должны переопределять этот метод
+        return {}
 
     async def restart(self) -> bool:
         """
         Перезапуск навыка без полной перезагрузки системного контекста.
+        Делегирует реализацию в BaseComponent.
 
         ВОЗВРАЩАЕТ:
         - bool: True если перезапуск прошел успешно, иначе False
         """
-        try:
-            # Сначала выполним остановку текущего состояния
-            await self.shutdown()
-
-            # Затем заново инициализируем навык
-            if hasattr(self, 'initialize') and callable(getattr(self, 'initialize')):
-                return await self.initialize()
-            else:
-                # Если метод initialize не определен, просто возвращаем True
-                return True
-        except Exception as e:
-            if hasattr(self.application_context, 'logger'):
-                self.application_context.logger.error(f"Ошибка перезапуска навыка {self.name}: {str(e)}")
-            else:
-                self._safe_log_sync("error", f"Ошибка перезапуска навыка {self.name}: {str(e)}")
-            return False
-
-    def restart_with_module_reload(self):
-        """
-        Перезапуск навыка с перезагрузкой модуля Python.
-        ВНИМАНИЕ: Использовать с осторожностью!
-
-        ВОЗВРАЩАЕТ:
-        - Новый экземпляр навыка из перезагруженного модуля
-        """
-        from core.utils.module_reloader import safe_reload_component_with_module_reload
-        if hasattr(self.application_context, 'logger'):
-            self.application_context.logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
-        else:
-            self._safe_log_sync("warning", f"Выполняется перезапуск с перезагрузкой модуля для навыка {self.name}")
-        return safe_reload_component_with_module_reload(self)
+        return await super().restart()
 
     async def shutdown(self):
         """
