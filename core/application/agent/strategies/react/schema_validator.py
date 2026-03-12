@@ -155,6 +155,11 @@ class SchemaValidator:
         """
         Валидирует параметры для данной capability.
 
+        УНИВЕРСАЛЬНЫЙ ПОДХОД:
+        - Используем схему из контракта capability
+        - Проверяем наличие обязательных параметров
+        - Возвращаем все параметры как есть (плоская структура)
+
         ARGS:
         - capability: объект capability для валидации
         - raw_params: необработанные параметры
@@ -165,7 +170,12 @@ class SchemaValidator:
         """
         logger = logging.getLogger(__name__)
 
+        # [PARAM_DEBUG] 1. Входные параметры
+        print(f"[PARAM_DEBUG] validate_parameters: capability={capability.name}", flush=True)
+        print(f"[PARAM_DEBUG] raw_params={raw_params}", flush=True)
+
         if not capability or not raw_params:
+            print(f"[PARAM_DEBUG] capability или raw_params пустые", flush=True)
             return None
 
         # Получаем схему из кэша по имени capability
@@ -178,32 +188,47 @@ class SchemaValidator:
         elif capability.meta.get('contract_schema'):
             params_schema_dict = capability.meta.get('contract_schema', {})
             logger.debug(f"Схема не найдена в кэше, используем из meta: {params_schema_dict}")
-        
-        # Если схема всё ещё пуста, создаём минимальную схему с "input"
+
+        # Если схема всё ещё пуста — пропускаем валидацию и возвращаем как есть
         if not params_schema_dict:
-            params_schema_dict = {
-                "input": {"type": "string", "required": True}
-            }
-            logger.debug(f"Используем дефолтную схему: {params_schema_dict}")
+            logger.debug(f"Схема не найдена для {capability.name}, возвращаем параметры как есть")
+            return raw_params
 
-        # СПЕЦИАЛЬНАЯ ЛОГИКА для book_library.execute_script
-        if capability.name == "book_library.execute_script":
-            validated_params = self._try_fix_book_library_params(raw_params, params_schema_dict)
-            if validated_params:
-                logger.info(f"✅ Параметры для book_library.execute_script исправлены: {validated_params}")
-                return validated_params
+        # УНИВЕРСАЛЬНАЯ ВАЛИДАЦИЯ:
+        # 1. Проверяем обязательные параметры
+        # 2. Возвращаем все параметры (включая опциональные)
+        validated_params = {}
+        has_error = False
 
-        # Валидация через схему
-        result = self._validate_with_schema(params_schema_dict, raw_params, logger)
-        
-        if result.success:
-            return result.validated_params
-        else:
-            for warning in result.warnings:
-                logger.warning(warning)
-            for error in result.errors:
-                logger.error(error)
+        for param_name, param_info in params_schema_dict.items():
+            if param_name in raw_params:
+                param_value = raw_params[param_name]
+                
+                # Простая валидация типов
+                expected_type = param_info.get('type') if isinstance(param_info, dict) else param_info
+                if expected_type:
+                    converted_value = self._convert_type(param_name, param_value, expected_type, logger, None)
+                    if converted_value is not None:
+                        validated_params[param_name] = converted_value
+                    elif isinstance(param_info, dict) and param_info.get('required', False):
+                        logger.error(f"Обязательный параметр {param_name} имеет неверный тип")
+                        has_error = True
+                    else:
+                        validated_params[param_name] = param_value
+                else:
+                    validated_params[param_name] = param_value
+                    
+            elif isinstance(param_info, dict) and param_info.get('required', False):
+                logger.error(f"Обязательный параметр {param_name} отсутствует")
+                has_error = True
+
+        print(f"[PARAM_DEBUG] validated_params={validated_params}", flush=True)
+
+        if has_error:
             return None
+            
+        logger.info(f"✅ Параметры валидированы для {capability.name}: {validated_params}")
+        return validated_params
     
     def _validate_with_schema(
         self,
@@ -254,70 +279,6 @@ class SchemaValidator:
                 return bool(value)
             return value
         except Exception as e:
-            result.add_warning(f"Не удалось преобразовать параметр {param_name} к {expected_type}: {e}")
+            if result:
+                result.add_warning(f"Не удалось преобразовать параметр {param_name} к {expected_type}: {e}")
             return None
-
-    def _try_fix_book_library_params(
-        self,
-        raw_params: Dict[str, Any],
-        params_schema: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Пытается исправить параметры для book_library.execute_script.
-        """
-        logger = logging.getLogger(__name__)
-
-        # Если уже есть script_name, ничего не делаем
-        if 'script_name' in raw_params:
-            return None
-
-        # Если есть только input, пытаемся извлечь информацию
-        input_text = raw_params.get('input', '')
-        if not input_text:
-            return None
-
-        logger.info(f"_try_fix_book_library_params: Пытаемся исправить параметры для input='{input_text}'")
-
-        # Паттерны для извлечения авторов
-        author = self._extract_author_from_text(input_text, logger)
-        
-        # Если автор найден, создаём правильные параметры
-        if author and len(author) > 2:
-            return {
-                "script_name": "get_books_by_author",
-                "parameters": {
-                    "author": author,
-                    "max_rows": 20
-                }
-            }
-
-        # Если автора нет, пробуем определить тип запроса
-        input_lower = input_text.lower()
-        if "все книги" in input_lower or "полный список" in input_lower:
-            return {
-                "script_name": "get_all_books",
-                "parameters": {
-                    "max_rows": 50
-                }
-            }
-
-        logger.warning(f"❌ Не удалось определить параметры для input='{input_text}'")
-        return None
-    
-    def _extract_author_from_text(self, text: str, logger: logging.Logger) -> Optional[str]:
-        """Извлечение имени автора из текста."""
-        author_patterns = [
-            r'(?:написал|написали|автор|авторы)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?\s+[А-Я][а-яё]+)',
-            r'(?:книги|произведения|творения)\s+([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?[а-яё]+)',
-            r'([А-Я][а-яё]+(?:-[А-Я][а-яё]+)?(?:ов|ев|ин|ский|ц[а-яё]+)?\s+[А-Я][а-яё]+(?:-[А-Я][а-яё]+)?)',
-        ]
-
-        for i, pattern in enumerate(author_patterns):
-            match = re.search(pattern, text)
-            if match:
-                author = match.group(1).strip()
-                author = re.sub(r'(?:ова|ева|ина|ская|цкого|ого|ему|ым|ою|е)$', '', author)
-                logger.info(f"Найден автор по паттерну #{i}: {author}")
-                return author
-        
-        return None

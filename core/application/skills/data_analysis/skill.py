@@ -38,11 +38,6 @@ class DataAnalysisSkill(BaseSkill):
         executor: Any
     ):
         super().__init__(name, application_context, component_config=component_config, executor=executor)
-
-        # Регистрируем поддерживаемые capability
-        self.supported_capabilities = {
-            "data_analysis.analyze_step_data": self._analyze_step_data
-        }
         # EventBusLogger будет инициализирован в BaseComponent.__init__()
 
     def get_capabilities(self) -> List[Capability]:
@@ -114,112 +109,16 @@ class DataAnalysisSkill(BaseSkill):
         ВОЗВРАЩАЕТ:
             - Dict[str, Any]: Данные результата (не ExecutionResult!)
         """
-        step_id = parameters.get("step_id")
-        question = parameters.get("question")
-        data_source = parameters.get("data_source", {})
-        analysis_config = parameters.get("analysis_config", {})
-
-        # 1. Загрузка данных из источника (прямой await)
-        raw_data, data_metadata = await self._load_data(
-            data_source=data_source,
-            config=analysis_config
-        )
-
-        # 2. Обработка больших данных через чанкинг при необходимости
-        chunks = await self._chunk_data_if_needed(
-            data=raw_data,
-            config=analysis_config,
-            metadata=data_metadata
-        )
-
-        # 3. Подготовка переменных для промпта
-        prompt_vars = {
-            "step_id": step_id,
-            "question": question,
-            "data_source": data_source,
-            "aggregation_method": analysis_config.get("aggregation_method", "summary")
+        # Маппинг capability на методы реализации
+        capability_handlers = {
+            "data_analysis.analyze_step_data": self._analyze_step_data
         }
-
-        if chunks:
-            prompt_vars["chunks"] = chunks
-        else:
-            prompt_vars["raw_data"] = raw_data[:10000]  # Ограничение для безопасности
-
-        # 4. Получение и рендеринг промпта С КОНТРАКТАМИ (из изолированного кэша)
-        prompt_with_contract = self.get_prompt_with_contract(capability.name)
-        if not prompt_with_contract:
-            raise ValueError(f"Промпт для {capability.name} не загружен")
-
-        rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
-
-        # 5. Получаем схему выхода для structured output
-        output_schema = self.get_output_contract(capability.name)
-
-        # 6. Вызов LLM для анализа С STRUCTURED OUTPUT через executor
-        llm_result = await self.executor.execute_action(
-            action_name="llm.generate_structured",
-            parameters={
-                "prompt": rendered_prompt,
-                "structured_output": {
-                    "output_model": f"{capability.name}.output",
-                    "schema_def": output_schema,
-                    "max_retries": 3,
-                    "strict_mode": True
-                },
-                "temperature": 0.1,  # Низкая температура для аналитических задач
-                "max_tokens": analysis_config.get("max_response_tokens", 2000)
-            },
-            context=execution_context
-        )
-
-        # === ПРОВЕРКА НА ОШИБКУ ===
-        from core.models.data.execution import ExecutionStatus
-        if llm_result.status != ExecutionStatus.COMPLETED:
-            error_msg = llm_result.error
-            error_type = llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
-            else:
-                self.logger.error(f"LLM structured output ошибка при анализе данных: {error_msg} (тип: {error_type})")
-            return {
-                "error": f"Ошибка LLM: {error_msg}",
-                "metadata": {
-                    "chunks_processed": len(chunks) if chunks else 1,
-                    "total_tokens": 0,
-                    "data_size_mb": data_metadata.get("size_mb", 0),
-                    "error_type": error_type,
-                    "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0
-                }
-            }
-
-        # 7. Получаем структурированные данные (Pydantic model_dump())
-        answer_data = llm_result.result.get("parsed_content", {}) if llm_result.result else {}
-
-        # Логирование успешного structured output
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(
-                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
-            )
-        else:
-            self.logger.info(
-                f"Анализ данных выполнен с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
-            )
-
-        # Добавляем метаданные в ответ
-        if "metadata" not in answer_data:
-            answer_data["metadata"] = {}
-
-        answer_data["metadata"]["chunks_processed"] = len(chunks) if chunks else 1
-        answer_data["metadata"]["total_tokens"] = llm_result.metadata.get("tokens_used", 0) if isinstance(llm_result.metadata, dict) else 0
-        answer_data["metadata"]["data_size_mb"] = data_metadata.get("size_mb", 0)
-        answer_data["metadata"]["parsing_attempts"] = llm_result.metadata.get("parsing_attempts", 1) if isinstance(llm_result.metadata, dict) else 1
-        answer_data["metadata"]["structured_output"] = True
-
-        # 8. Валидация выхода (уже валидно через structured output, но проверяем для безопасности)
-        validated_answer = self._validate_output(answer_data, capability.name)
-
-        # Возвращаем данные напрямую (BaseComponent.execute() обернёт в ExecutionResult)
-        return validated_answer
+        
+        if capability.name not in capability_handlers:
+            raise ValueError(f"Навык не поддерживает capability: {capability.name}")
+        
+        # Вызываем обработчик capability
+        return await capability_handlers[capability.name](parameters)
 
     async def _analyze_step_data(self, params: Dict[str, Any]) -> ExecutionResult:
         """

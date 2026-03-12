@@ -218,8 +218,11 @@ class PostgreSQLProvider(BaseDBProvider):
         try:
             async with self.pool.acquire() as conn:
                 # [DB_DEBUG] 3.2. Выполнение запроса
-                await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
+                print(f"[DB_DEBUG] Выполнение SQL: {query[:300]}", flush=True)
+                print(f"[DB_DEBUG] Params: {params}, type: {type(params)}", flush=True)
                 
+                await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
+
                 # Логируем запрос при необходимости
                 await self.event_bus_logger.debug(f"Executing query: {query}")
                 if params:

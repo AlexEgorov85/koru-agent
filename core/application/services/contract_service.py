@@ -2,15 +2,14 @@
 Сервис контрактов с изолированным кэшем.
 
 АРХИТЕКТУРА:
-- Зависит только от ContractStorageInterface (интерфейс)
-- Не зависит от ApplicationContext напрямую
+- Не зависит от хранилищ напрямую
+- Использует предзагруженные ресурсы из ComponentConfig
 - Кэш контрактов изолирован в рамках экземпляра сервиса
 """
 from typing import Dict, Tuple, Optional, Any
 from core.application.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.config.component_config import ComponentConfig
 from core.models.errors.version_not_found import VersionNotFoundError
-from core.interfaces.contract_storage import ContractStorageInterface
 
 
 class ContractService(BaseService):
@@ -31,17 +30,14 @@ class ContractService(BaseService):
         name: str = "contract_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None,
-        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        contract_storage: Optional[ContractStorageInterface] = None  # ← Интерфейс хранилища
+        executor = None
     ):
         # Call the parent constructor with proper parameters - передаём component_config явно
         super().__init__(
             name=name,
             application_context=application_context,
             component_config=component_config,  # ← Передаём напрямую!
-            executor=executor,
-            contract_storage=contract_storage  # ← Передаём интерфейс
+            executor=executor
         )
         # Кэш: {(capability, direction): schema}
         self.contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
@@ -113,48 +109,7 @@ class ContractService(BaseService):
             )
         return self.contracts.copy()
 
-    async def preload_contracts(self, component_config) -> bool:
-        """
-        Предзагрузка всех контрактов, указанных в конфигурации компонента.
-        Совместимость с BaseComponent.
-        """
-        try:
-            # Используем внедрённый contract_storage из BaseComponent
-            storage = self.contract_storage
-            
-            if storage is None:
-                self.event_bus_logger.error_sync("contract_storage не внедрён")
-                return False
-
-            # Предзагружаем входные контракты
-            input_versions = getattr(component_config, 'input_contract_versions', {})
-            for capability, version in input_versions.items():
-                if not await storage.exists(capability, version, "input"):
-                    raise VersionNotFoundError(
-                        f"Input-контракт {capability}@{version} отсутствует в хранилище"
-                    )
-                contract = await storage.load(capability, version, "input")
-                self.contracts[(capability, "input")] = contract.schema_data
-
-            # Предзагружаем выходные контракты
-            output_versions = getattr(component_config, 'output_contract_versions', {})
-            for capability, version in output_versions.items():
-                if not await storage.exists(capability, version, "output"):
-                    raise VersionNotFoundError(
-                        f"Output-контракт {capability}@{version} отсутствует в хранилище"
-                    )
-                contract = await storage.load(capability, version, "output")
-                self.contracts[(capability, "output")] = contract.schema_data
-
-            self.event_bus_logger.info_sync(
-                f"Контракты предзагружены: "
-                f"загружено {len(self.contracts)} контрактов"
-            )
-            return True
-
-        except Exception as e:
-            self.event_bus_logger.error_sync(f"Ошибка предзагрузки контрактов: {e}")
-            return False
+    # DEPRECATED: preload_contracts удалён — используйте предзагруженные ресурсы из ComponentConfig
 
     def get_contract_schema_from_cache(self, capability_name: str, direction: str) -> Dict:
         """

@@ -11,9 +11,9 @@ schema_data:
       type: string
       description: SQL query to execute
     parameters:
-      type: object
-      description: Query parameters
-      additionalProperties: true
+      type: array
+      description: Query parameters as list for psycopg2 (e.g., ['value1', 100])
+      items: {}
     max_rows:
       type: integer
       description: Maximum number of rows to return

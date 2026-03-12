@@ -28,7 +28,6 @@ from core.application.services.prompt_service import PromptService
 from core.application.services.contract_service import ContractService
 from core.application.context.base_system_context import BaseSystemContext
 from core.application.data_repository import DataRepository
-from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 from core.infrastructure.logging import EventBusLogger
 from core.components.lifecycle import ComponentState
 
@@ -44,8 +43,7 @@ class ApplicationContext(BaseSystemContext):
         self,
         infrastructure_context: InfrastructureContext,
         config: Optional['AppConfig'] = None,  # Единая конфигурация приложения (может быть None для авто-создания)
-        profile: Literal["prod", "sandbox"] = "prod",  # Профиль работы
-        use_data_repository: bool = True  # По умолчанию ВКЛЮЧЁН (после тестирования)
+        profile: Literal["prod", "sandbox"] = "prod"  # Профиль работы
     ):
         """
         Инициализация прикладного контекста.
@@ -54,7 +52,6 @@ class ApplicationContext(BaseSystemContext):
         - infrastructure_context: Инфраструктурный контекст (только для чтения!)
         - config: Единая конфигурация приложения (AppConfig). Если None, будет создана автоматически.
         - profile: Профиль работы ('prod' или 'sandbox')
-        - use_data_repository: использовать новый DataRepository (по умолчанию True)
         """
         from core.config.app_config import AppConfig
 
@@ -63,7 +60,6 @@ class ApplicationContext(BaseSystemContext):
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
         self._state = ComponentState.CREATED  # ← НОВОЕ: enum состояний
-        self.use_data_repository = use_data_repository  # Новый флаг
 
         # Если конфигурация не передана, создаем пустую для последующего авто-заполнения
         if config is None:
@@ -84,19 +80,15 @@ class ApplicationContext(BaseSystemContext):
 
         # Создаём репозиторий с явным источником данных
         # ВАЖНО: ResourceDiscovery создаётся в initialize() для предотвращения дублирования логов
-        if use_data_repository:
-            # Получаем data_dir из infrastructure_context.config (SystemConfig)
-            # Используем getattr для безопасности с fallback на "data"
-            data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
-            self._data_dir = Path(data_dir)
-            self.data_repository = None  # Будет создан в initialize()
-        else:
-            self._data_dir = None
-            self.data_repository = None  # ← Старый путь (для отката)
-        
+        # Получаем data_dir из infrastructure_context.config (SystemConfig)
+        # Используем getattr для безопасности с fallback на "data"
+        data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
+        self._data_dir = Path(data_dir)
+        self.data_repository = None  # Будет создан в initialize()
+
         # LLMOrchestrator для централизованного управления LLM вызовами
         self.llm_orchestrator = None  # Будет создан в initialize()
-        
+
         # Флаг инициализации
         self._initialized = False
 
@@ -274,240 +266,179 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
 
-        # === НОВЫЙ ПУТЬ: Создание и инициализация репозитория с валидацией ===
-        if self.use_data_repository:
-            # Создаём DataRepository только при инициализации (не в __init__)
-            if not self.data_repository:
-                from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+        # === Создание и инициализация репозитория с валидацией ===
+        # Создаём DataRepository только при инициализации (не в __init__)
+        if not self.data_repository:
+            from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
 
-                # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из InfrastructureContext
-                discovery = self.infrastructure_context.get_resource_discovery()
+            # ✅ ИСПОЛЬЗУЕМ ОБЩИЙ ResourceDiscovery из InfrastructureContext
+            discovery = self.infrastructure_context.get_resource_discovery()
 
-                # Собираем registry_config из discovery
-                registry_config = {
-                    'capability_types': {},
-                    'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
-                    'active_contracts': {}
-                }
+            # Собираем registry_config из discovery
+            registry_config = {
+                'capability_types': {},
+                'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
+                'active_contracts': {}
+            }
 
-                # Собираем контракты
-                for contract in discovery.discover_contracts():
-                    cap = contract.capability
-                    if cap not in registry_config['active_contracts']:
-                        registry_config['active_contracts'][cap] = {}
-                    registry_config['active_contracts'][cap][contract.direction.value] = contract.version
+            # Собираем контракты
+            for contract in discovery.discover_contracts():
+                cap = contract.capability
+                if cap not in registry_config['active_contracts']:
+                    registry_config['active_contracts'][cap] = {}
+                registry_config['active_contracts'][cap][contract.direction.value] = contract.version
 
-                # Создаём источник данных
-                fs_data_source = FileSystemDataSource(self._data_dir, registry_config)
-                fs_data_source.initialize()
+            # Создаём источник данных
+            fs_data_source = FileSystemDataSource(self._data_dir, registry_config)
+            fs_data_source.initialize()
 
-                # Создаём репозиторий
-                self.data_repository = DataRepository(
-                    fs_data_source,
-                    profile=self.profile,
-                    event_bus=self.infrastructure_context.event_bus
-                )
-
-            # Инициализация репозитория с валидацией
-            if not await self.data_repository.initialize(self.config):
-                self.logger.critical(
-                    f"❌ КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ:\n"
-                    f"{self.data_repository.get_validation_report()}\n"
-                    f"Система НЕ БУДЕТ запущена с неконсистентной конфигурацией."
-                )
-                return False
-
-            self.logger.info(
-                f"✅ DataRepository инициализирован успешно:\n"
-                f"{self.data_repository.get_validation_report()}"
+            # Создаём репозиторий
+            self.data_repository = DataRepository(
+                fs_data_source,
+                profile=self.profile,
+                event_bus=self.infrastructure_context.event_bus
             )
 
-            # === ЭТАП: Загрузка и валидация манифестов ===
-            # TODO: Реализовать load_manifests() в DataRepository
-            # if self.data_repository:
-            #     await self.data_repository.load_manifests()
-            #
-            #     validation_report = await self._validate_manifests_by_profile()
-            #
-            #     if validation_report['critical_errors'] and self.profile == "prod":
-            #         self.logger.critical(
-            #             f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
-            #             f"{chr(10).join(validation_report['error_details'])}\n"
-            #             f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
-            #         )
-            #         return False
-            #
-            #     if validation_report['warnings']:
-            #         self.logger.warning(
-            #             f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
-            #             f"{chr(10).join(validation_report['warning_details'])}"
-            #         )
-            #
-            #     self.logger.info(
-            #         f"✅ Валидация манифестов завершена:\n"
-            #         f"  - Проверено: {validation_report['total_manifests']}\n"
-            #         f"  - Критических ошибок: {validation_report['critical_errors']}\n"
-            #         f"  - Предупреждений: {validation_report['warnings']}"
-            #     )
-
-            # === ЭТАП: Валидация дублирования и целостности схем ===
-            # TODO: Временно отключено до реализации _manifest_cache в DataRepository
-            # from core.application.services.manifest_validation_service import ManifestValidationService
-            #
-            # validation_service = ManifestValidationService(self.data_repository)
-            #
-            # # Валидация дублирования
-            # duplicate_report = await validation_service.validate_no_duplicates()
-            # if not duplicate_report['is_valid']:
-            #     self.logger.error(
-            #         f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
-            #         f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
-            #         f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
-            #         f"- Конфликты версий: {len(duplicate_report['version_conflicts'])}"
-            #     )
-            #     if self.profile == "prod":
-            #         return False
-            #
-            # # Валидация целостности схем
-            # schema_report = await validation_service.validate_schema_integrity()
-            # if not schema_report['is_valid']:
-            #     self.logger.error(
-            #         f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
-            #         f"- Missing input: {len(schema_report['missing_input'])}\n"
-            #         f"- Missing output: {len(schema_report['missing_output'])}"
-            #     )
-            #     if self.profile == "prod":
-            #         return False
-            
-            # self.logger.info(
-            #     f"✅ Валидация целостности завершена:\n"
-            #     f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
-            #     f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
-            # )
-
-            # Предзагрузка ресурсов в кэши компонентов через репозиторий
-            if self.use_data_repository and self.data_repository:
-                await self._preload_resources_via_repository()
-
-            # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
-            # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
-            from core.application.agent.components.action_executor import ActionExecutor
-            executor = ActionExecutor(self)
-
-            # === ИНИЦИАЛИЗАЦИЯ LLM ORCHESTRATOR ===
-            # Централизованное управление LLM вызовами с таймаутами и метриками
-            try:
-                from core.infrastructure.providers.llm.llm_orchestrator import LLMOrchestrator
-                self.llm_orchestrator = LLMOrchestrator(
-                    event_bus=self.infrastructure_context.event_bus,
-                    max_workers=4,
-                    cleanup_interval=600.0,
-                    max_pending_calls=100
-                )
-                await self.llm_orchestrator.initialize()
-                self.logger.info("✅ LLMOrchestrator инициализирован")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Не удалось инициализировать LLMOrchestrator: {e}. Будет использоваться прямой вызов LLM.")
-                self.llm_orchestrator = None
-
-            # Сначала создаем и регистрируем все компоненты
-            self.logger.info("Начало создания компонентов...")
-            component_configs = self._resolve_component_configs()
-            self.logger.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}")
-            components_created = 0
-            for comp_type, configs in component_configs.items():
-                if not configs:
-                    continue
-                self.logger.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}")
-                for name, enriched_config in configs.items():
-                    self.logger.info(f"Создание компонента {comp_type.value}.{name}...")
-                    try:
-                        # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
-                        component = await self._create_component(comp_type, name, enriched_config, executor)
-
-                        # Регистрация компонента ДО инициализации
-                        self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
-                        self.components.register(comp_type, name, component)
-                        components_created += 1
-                        self.logger.info(f"✅ Компонент {comp_type.value}.{name} создан и зарегистрирован")
-
-                    except Exception as e:
-                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
-                        import traceback
-                        self.logger.error(f"Traceback: {traceback.format_exc()}")
-                        return False
-
-            self.logger.info(f"✅ Создано {components_created} компонентов")
-
-            # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
-            # Инициализируем компоненты в правильном порядке
-            success = await self._initialize_components_with_dependencies()
-            if not success:
-                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
-                return False
-
-            # === ЭТАП 5: Валидация готовности системы ===
-            if not await self._verify_readiness():
-                return False
-
-        # === СТАРЫЙ ПУТЬ: Для обратной совместимости ===
-        else:
-            # === ЭТАП 1: Централизованная загрузка ресурсов ===
-            all_prompts = await self._preload_all_prompts()
-            all_contracts = await self._preload_all_contracts()
-
-            # === ЭТАП 2: Создание расширенных конфигураций с ресурсами ===
-            component_configs = self._resolve_component_configs()
-
-            for comp_type, configs in component_configs.items():
-                for name, base_config in configs.items():
-                    # Создаем расширенную конфигурацию с предзагруженными ресурсами
-                    enriched_config = self._enrich_config_with_resources(
-                        base_config,
-                        all_prompts,
-                        all_contracts
-                    )
-                    component_configs[comp_type][name] = enriched_config
-
-            # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами ===
-            # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
-            from core.application.agent.components.action_executor import ActionExecutor
-            executor = ActionExecutor(self)
-
-            # Сначала создаем и регистрируем все компоненты
-            for comp_type, configs in component_configs.items():
-                for name, enriched_config in configs.items():
-                    self.logger.info(f"Создание компонента {comp_type.value}.{name}")
-                    try:
-                        # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
-                        component = await self._create_component(comp_type, name, enriched_config, executor)
-
-                        # Регистрация компонента ДО инициализации
-                        self.components.register(comp_type, name, component)
-
-                        self.logger.info(f"Компонент {comp_type.value}.{name} успешно создан и зарегистрирован")
-
-                    except Exception as e:
-                        self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
-                        return False
-
-            # Логируем все зарегистрированные компоненты
-            self.logger.info(f"Все зарегистрированные компоненты после создания: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}, SERVICE={list(self.components._components[ComponentType.SERVICE].keys())}")
-
-            # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
-            # Инициализируем компоненты в правильном порядке
-            success = await self._initialize_components_with_dependencies()
-            if not success:
-                self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
-                return False
-
-            # === ЭТАП 5: Валидация готовности системы ===
-            if not await self._verify_readiness():
-                return False
-
-        # === ЭТАП 5: Валидация готовности системы ===
-        if not await self._verify_readiness():
+        # Инициализация репозитория с валидацией
+        if not await self.data_repository.initialize(self.config):
+            self.logger.critical(
+                f"❌ КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ:\n"
+                f"{self.data_repository.get_validation_report()}\n"
+                f"Система НЕ БУДЕТ запущена с неконсистентной конфигурацией."
+            )
             return False
+
+        self.logger.info(
+            f"✅ DataRepository инициализирован успешно:\n"
+            f"{self.data_repository.get_validation_report()}"
+        )
+
+        # === ЭТАП: Загрузка и валидация манифестов ===
+        # TODO: Реализовать load_manifests() в DataRepository
+        # if self.data_repository:
+        #     await self.data_repository.load_manifests()
+        #
+        #     validation_report = await self._validate_manifests_by_profile()
+        #
+        #     if validation_report['critical_errors'] and self.profile == "prod":
+        #         self.logger.critical(
+        #             f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
+        #             f"{chr(10).join(validation_report['error_details'])}\n"
+        #             f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
+        #         )
+        #         return False
+        #
+        #     if validation_report['warnings']:
+        #         self.logger.warning(
+        #             f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
+        #             f"{chr(10).join(validation_report['warning_details'])}"
+        #         )
+        #
+        #     self.logger.info(
+        #         f"✅ Валидация манифестов завершена:\n"
+        #         f"  - Проверено: {validation_report['total_manifests']}\n"
+        #         f"  - Критических ошибок: {validation_report['critical_errors']}\n"
+        #         f"  - Предупреждений: {validation_report['warnings']}"
+        #     )
+
+        # === ЭТАП: Валидация дублирования и целостности схем ===
+        # TODO: Временно отключено до реализации _manifest_cache в DataRepository
+        # from core.application.services.manifest_validation_service import ManifestValidationService
+        #
+        # validation_service = ManifestValidationService(self.data_repository)
+        #
+        # # Валидация дублирования
+        # duplicate_report = await validation_service.validate_no_duplicates()
+        # if not duplicate_report['is_valid']:
+        #     self.logger.error(
+        #         f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
+        #         f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
+        #         f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
+        #         f"- Конфликты версий: {len(duplicate_report['version_conflicts'])}"
+        #     )
+        #     if self.profile == "prod":
+        #         return False
+        #
+        # # Валидация целостности схем
+        # schema_report = await validation_service.validate_schema_integrity()
+        # if not schema_report['is_valid']:
+        #     self.logger.error(
+        #         f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
+        #         f"- Missing input: {len(schema_report['missing_input'])}\n"
+        #         f"- Missing output: {len(schema_report['missing_output'])}"
+        #     )
+        #     if self.profile == "prod":
+        #         return False
+
+        # self.logger.info(
+        #     f"✅ Валидация целостности завершена:\n"
+        #     f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
+        #     f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
+        # )
+
+        # Предзагрузка ресурсов в кэши компонентов через репозиторий
+        if self.data_repository:
+            await self._preload_resources_via_repository()
+
+        # === ЭТАП 3: Создание компонентов с предзагруженными ресурсами (НОВЫЙ ПУТЬ) ===
+        # Создаем ЕДИНСТВЕННЫЙ экземпляр ActionExecutor для всех компонентов
+        from core.application.agent.components.action_executor import ActionExecutor
+        executor = ActionExecutor(self)
+
+        # === ИНИЦИАЛИЗАЦИЯ LLM ORCHESTRATOR ===
+        # Централизованное управление LLM вызовами с таймаутами и метриками
+        try:
+            from core.infrastructure.providers.llm.llm_orchestrator import LLMOrchestrator
+            self.llm_orchestrator = LLMOrchestrator(
+                event_bus=self.infrastructure_context.event_bus,
+                max_workers=4,
+                cleanup_interval=600.0,
+                max_pending_calls=100
+            )
+            await self.llm_orchestrator.initialize()
+            self.logger.info("✅ LLMOrchestrator инициализирован")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Не удалось инициализировать LLMOrchestrator: {e}. Будет использоваться прямой вызов LLM.")
+            self.llm_orchestrator = None
+
+        # Сначала создаем и регистрируем все компоненты
+        self.logger.info("Начало создания компонентов...")
+        component_configs = self._resolve_component_configs()
+        self.logger.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}")
+        components_created = 0
+        for comp_type, configs in component_configs.items():
+            if not configs:
+                continue
+            self.logger.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}")
+            for name, enriched_config in configs.items():
+                self.logger.info(f"Создание компонента {comp_type.value}.{name}...")
+                try:
+                    # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
+                    component = await self._create_component(comp_type, name, enriched_config, executor)
+
+                    # Регистрация компонента ДО инициализации
+                    self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
+                    self.components.register(comp_type, name, component)
+                    components_created += 1
+                    self.logger.info(f"✅ Компонент {comp_type.value}.{name} создан и зарегистрирован")
+
+                except Exception as e:
+                    self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+        self.logger.info(f"✅ Создано {components_created} компонентов")
+
+        # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
+        # Инициализируем компоненты в правильном порядке
+        success = await self._initialize_components_with_dependencies()
+        if not success:
+            self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+            return False
+
+            # === ЭТАП 5: Валидация готовности системы ===
+            if not await self._verify_readiness():
+                return False
 
         self._initialized = True
         self._state = ComponentState.READY  # ← Переход в состояние READY
@@ -615,7 +546,7 @@ class ApplicationContext(BaseSystemContext):
         Совместимый интерфейс: возвращает текст промпта (как раньше).
         Внутри использует типизированный объект.
         """
-        if self.use_data_repository and self.data_repository:
+        if self.data_repository:
             # Если указана версия, используем её, иначе ищем в конфиге
             if version is None:
                 version = self.config.prompt_versions.get(capability)
@@ -654,7 +585,7 @@ class ApplicationContext(BaseSystemContext):
 
     def get_input_contract_schema(self, capability: str, version: Optional[str] = None) -> Type[BaseModel]:
         """Возвращает скомпилированную схему для валидации входных данных"""
-        if self.use_data_repository and self.data_repository:
+        if self.data_repository:
             # Если указана версия, используем её, иначе ищем в конфиге
             if version is None:
                 # Сначала пробуем найти без суффикса (предпочтительный формат)

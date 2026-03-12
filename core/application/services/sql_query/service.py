@@ -171,11 +171,15 @@ class SQLQueryService(BaseService):
                     error="SQLValidatorService не доступен"
                 )
 
-            # Валидируем запрос
-            validation_result = await self.sql_validator_service_instance.validate_query(
+            # Валидируем запрос (синхронный вызов, не await!)
+            print(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}", flush=True)
+            validation_result = self.sql_validator_service_instance.validate_query(
                 sql_query,
                 parameters or {}
             )
+            
+            print(f"[SQL_DEBUG] validation_result: is_valid={validation_result.is_valid}, sql={validation_result.sql[:200] if validation_result.sql else 'None'}", flush=True)
+            print(f"[SQL_DEBUG] validation_result.errors={validation_result.validation_errors if hasattr(validation_result, 'validation_errors') else 'N/A'}", flush=True)
 
             if not validation_result.is_valid:
                 return DBQueryResult(

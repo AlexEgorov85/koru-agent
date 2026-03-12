@@ -20,9 +20,6 @@ if TYPE_CHECKING:
 from core.config.app_config import AppConfig
 from core.infrastructure.providers.llm.factory import LLMProviderFactory
 from core.infrastructure.providers.database.factory import DBProviderFactory
-from core.infrastructure.storage.prompt_storage import PromptStorage
-from core.infrastructure.storage.contract_storage import ContractStorage
-from core.infrastructure.interfaces.storage_interfaces import IPromptStorage, IContractStorage
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.context.resource_registry import ResourceRegistry
 from core.infrastructure.context.lifecycle_manager import LifecycleManager, ResourceType as LifecycleResourceType
@@ -65,8 +62,6 @@ class InfrastructureContext:
         self.db_provider_factory: Optional[DBProviderFactory] = None
 
         # Инфраструктурные хранилища (только загрузка, без кэширования)
-        self.prompt_storage: Optional[IPromptStorage] = None
-        self.contract_storage: Optional[IContractStorage] = None
         self.resource_discovery: Optional[ResourceDiscovery] = None  # ЕДИНЫЙ экземпляр на всё приложение
 
         # Хранилища метрик и логов
@@ -194,14 +189,6 @@ class InfrastructureContext:
 
         # === ЭТАП 3: Инфраструктурные хранилища ===
         from pathlib import Path
-
-        # Используем директории из конфигурации
-        prompts_dir = Path(self.config.data_dir) / "prompts"
-        self.prompt_storage = PromptStorage(prompts_dir, self.event_bus)
-
-        # Для ContractStorage используем директорию из конфигурации
-        contracts_dir = Path(self.config.data_dir) / "contracts"
-        self.contract_storage = ContractStorage(contracts_dir, self.event_bus)
 
         # === ЭТАП 3.5: ResourceDiscovery (ЕДИНЫЙ экземпляр) ===
         data_dir = Path(self.config.data_dir)
@@ -501,31 +488,18 @@ class InfrastructureContext:
         resource_info = self.resource_registry.get_resource(name)
         if resource_info:
             return resource_info.instance
-        # Также проверим специальные хранилища
-        if name == "prompt_storage":
-            return self.prompt_storage
-        elif name == "contract_storage":
-            return self.contract_storage
         return None
 
     # Методы для доступа из прикладного слоя
     # DEPRECATED: Используйте свойства напрямую
 
-    def get_prompt_storage(self) -> IPromptStorage:
-        """DEPRECATED: Используйте свойство prompt_storage напрямую"""
-        import warnings
-        warnings.warn("get_prompt_storage deprecated. Используйте self.prompt_storage напрямую", DeprecationWarning, stacklevel=2)
-        if not hasattr(self, 'prompt_storage'):
-            raise RuntimeError("PromptStorage не инициализирован")
-        return self.prompt_storage
+    def get_prompt_storage(self):
+        """DEPRECATED: PromptStorage удалён. Используйте DataRepository."""
+        raise RuntimeError("PromptStorage удалён. Используйте DataRepository для доступа к промптам.")
 
-    def get_contract_storage(self) -> IContractStorage:
-        """DEPRECATED: Используйте свойство contract_storage напрямую"""
-        import warnings
-        warnings.warn("get_contract_storage deprecated. Используйте self.contract_storage напрямую", DeprecationWarning, stacklevel=2)
-        if not hasattr(self, 'contract_storage'):
-            raise RuntimeError("ContractStorage не инициализирован")
-        return self.contract_storage
+    def get_contract_storage(self):
+        """DEPRECATED: ContractStorage удалён. Используйте DataRepository."""
+        raise RuntimeError("ContractStorage удалён. Используйте DataRepository для доступа к контрактам.")
 
     def get_resource_discovery(self) -> ResourceDiscovery:
         """DEPRECATED: Используйте свойство resource_discovery напрямую"""

@@ -121,7 +121,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_all_books": ScriptConfig(
         name="get_all_books",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -133,7 +133,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
             ORDER BY b.id
-            LIMIT $1
+            LIMIT %s
         """,
         description="Получить все книги с лимитом (с данными авторов)",
         parameters=["max_rows"],
@@ -148,7 +148,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_books_by_author": ScriptConfig(
         name="get_books_by_author",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -159,9 +159,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
                 a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE a.last_name ILIKE $1
+            WHERE a.last_name ILIKE %s
             ORDER BY b.title
-            LIMIT $2
+            LIMIT %s
         """,
         description="Получить книги по фамилии автора (ILIKE поиск)",
         parameters=["author", "max_rows"],
@@ -176,7 +176,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_books_by_genre": ScriptConfig(
         name="get_books_by_genre",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -187,9 +187,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
                 a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.genre = $1
+            WHERE b.genre = %s
             ORDER BY b.title
-            LIMIT $2
+            LIMIT %s
         """,
         description="Получить книги по жанру",
         parameters=["genre", "max_rows"],
@@ -204,7 +204,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_books_by_year_range": ScriptConfig(
         name="get_books_by_year_range",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -215,9 +215,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
                 a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE EXTRACT(YEAR FROM b.publication_date) BETWEEN $1 AND $2
+            WHERE EXTRACT(YEAR FROM b.publication_date) BETWEEN %s AND %s
             ORDER BY b.publication_date
-            LIMIT $3
+            LIMIT %s
         """,
         description="Получить книги по диапазону лет публикации",
         parameters=["year_from", "year_to", "max_rows"],
@@ -232,7 +232,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_book_by_id": ScriptConfig(
         name="get_book_by_id",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -243,7 +243,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
                 a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.id = $1
+            WHERE b.id = %s
         """,
         description="Получить книгу по ID (с данными автора)",
         parameters=["book_id"],
@@ -258,13 +258,13 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "count_books_by_author": ScriptConfig(
         name="count_books_by_author",
         sql="""
-            SELECT 
+            SELECT
                 COUNT(*) as count,
                 a.last_name as author_last_name,
                 a.first_name as author_first_name
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE a.last_name ILIKE $1
+            WHERE a.last_name ILIKE %s
             GROUP BY a.id, a.first_name, a.last_name
         """,
         description="Посчитать количество книг по фамилии автора",
@@ -280,7 +280,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_books_by_title_pattern": ScriptConfig(
         name="get_books_by_title_pattern",
         sql="""
-            SELECT 
+            SELECT
                 b.id as book_id,
                 b.title as book_title,
                 b.isbn,
@@ -291,9 +291,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
                 a.birth_date
             FROM "Lib".books b
             JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.title ILIKE $1
+            WHERE b.title ILIKE %s
             ORDER BY b.title
-            LIMIT $2
+            LIMIT %s
         """,
         description="Получить книги по шаблону названия (ILIKE)",
         parameters=["title_pattern", "max_rows"],
@@ -317,7 +317,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             JOIN "Lib".books b ON a.id = b.author_id
             WHERE a.last_name IS NOT NULL
             ORDER BY a.last_name
-            LIMIT $1
+            LIMIT %s
         """,
         description="Получить список уникальных авторов у которых есть книги",
         parameters=["max_rows"],
@@ -336,7 +336,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             FROM "Lib".books
             WHERE genre IS NOT NULL
             ORDER BY genre
-            LIMIT $1
+            LIMIT %s
         """,
         description="Получить список уникальных жанров",
         parameters=["max_rows"],
@@ -351,7 +351,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_genre_statistics": ScriptConfig(
         name="get_genre_statistics",
         sql="""
-            SELECT 
+            SELECT
                 genre,
                 COUNT(*) as book_count,
                 AVG(EXTRACT(YEAR FROM publication_date)) as avg_year
@@ -359,7 +359,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             WHERE genre IS NOT NULL
             GROUP BY genre
             ORDER BY book_count DESC
-            LIMIT $1
+            LIMIT %s
         """,
         description="Получить статистику по жанрам (количество книг, средний год)",
         parameters=["max_rows"],

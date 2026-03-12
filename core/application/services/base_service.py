@@ -25,8 +25,6 @@ from core.infrastructure.logging import EventBusLogger
 
 # Интерфейсы для внедрения зависимостей
 from core.interfaces.event_bus import EventBusInterface
-from core.interfaces.prompt_storage import PromptStorageInterface
-from core.interfaces.contract_storage import ContractStorageInterface
 from core.interfaces.metrics_storage import MetricsStorageInterface
 from core.interfaces.log_storage import LogStorageInterface
 
@@ -75,8 +73,6 @@ class BaseService(BaseComponent):
         # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
         # [REFACTOR Этап 7] db, llm, cache, vector удалены — используйте executor
         event_bus: Optional[EventBusInterface] = None,
-        prompt_storage: Optional[PromptStorageInterface] = None,
-        contract_storage: Optional[ContractStorageInterface] = None,
         metrics_storage: Optional[MetricsStorageInterface] = None,
         log_storage: Optional[LogStorageInterface] = None
     ):

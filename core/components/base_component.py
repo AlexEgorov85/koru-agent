@@ -10,16 +10,15 @@
 - Поддержка внедрения зависимостей (DI) через интерфейсы
 
 ИНТЕГРИРОВАННОЕ ЛОГИРОВАНИЕ:
-- BaseComponent наследует LogComponentMixin для универсального логирования
-- Используйте self.log_start(), self.log_success(), self.log_error() для ручного логирования
-- Или используйте декоратор @log_execution для автоматического логирования
+- BaseComponent использует LoggingMixin для универсального логирования
+- Используйте self._safe_log_sync() для синхронного логирования
 
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin для управления состояниями
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import asyncio
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 
 from core.config.component_config import ComponentConfig
@@ -27,13 +26,11 @@ from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
-from core.infrastructure.logging import EventBusLogger
 from core.components.lifecycle import LifecycleMixin, ComponentState
+from core.components.logging_mixin import LoggingMixin
 
 # Интерфейсы для DI (используются только необходимые)
 from core.interfaces.event_bus import EventBusInterface
-from core.interfaces.prompt_storage import PromptStorageInterface
-from core.interfaces.contract_storage import ContractStorageInterface
 from core.interfaces.metrics_storage import MetricsStorageInterface
 from core.interfaces.log_storage import LogStorageInterface
 
@@ -42,7 +39,7 @@ if TYPE_CHECKING:
     from core.application.agent.components.action_executor import ActionExecutor
 
 
-class BaseComponent(LifecycleMixin, ABC):
+class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
@@ -83,8 +80,8 @@ class BaseComponent(LifecycleMixin, ABC):
     - cache: CacheInterface
     - vector: VectorInterface
     - event_bus: EventBusInterface
-    - prompt_storage: PromptStorageInterface
-    - contract_storage: ContractStorageInterface
+    - metrics_storage: MetricsStorageInterface
+    - log_storage: LogStorageInterface
     """
 
     def __init__(
@@ -95,8 +92,6 @@ class BaseComponent(LifecycleMixin, ABC):
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
         # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
         event_bus: Optional[EventBusInterface] = None,
-        prompt_storage: Optional[PromptStorageInterface] = None,
-        contract_storage: Optional[ContractStorageInterface] = None,
         metrics_storage: Optional[MetricsStorageInterface] = None,
         log_storage: Optional[LogStorageInterface] = None
     ):
@@ -124,8 +119,6 @@ class BaseComponent(LifecycleMixin, ABC):
         # === ВНЕДРЁННЫЕ ЗАВИСИМОСТИ ===
         # [REFACTOR Этап 5] db, llm, cache, vector удалены — используйте executor
         self._event_bus = event_bus
-        self._prompt_storage = prompt_storage
-        self._contract_storage = contract_storage
         self._metrics_storage = metrics_storage
         self._log_storage = log_storage
 
@@ -155,16 +148,6 @@ class BaseComponent(LifecycleMixin, ABC):
     def event_bus(self) -> Optional[EventBusInterface]:
         """Получить EventBusInterface."""
         return self._event_bus
-
-    @property
-    def prompt_storage(self) -> Optional[PromptStorageInterface]:
-        """Получить PromptStorageInterface."""
-        return self._prompt_storage
-
-    @property
-    def contract_storage(self) -> Optional[ContractStorageInterface]:
-        """Получить ContractStorageInterface."""
-        return self._contract_storage
 
     @property
     def metrics_storage(self) -> Optional[MetricsStorageInterface]:
@@ -214,17 +197,17 @@ class BaseComponent(LifecycleMixin, ABC):
         self._application_context = value
 
     # ========================================================================
-    # ЛОГИРОВАНИЕ
+    # ЛОГИРОВАНИЕ (переопределение методов LoggingMixin)
     # ========================================================================
 
     def _get_logger_init_state(self):
         """
         Callback для EventBusLogger: получение текущего состояния инициализации.
-        
+
         Возвращает LoggerInitializationState на основе _state компонента.
         """
         from core.infrastructure.logging.logger import LoggerInitializationState
-        
+
         if self._state == ComponentState.READY:
             return LoggerInitializationState.READY
         elif self._state == ComponentState.INITIALIZING:
@@ -232,61 +215,6 @@ class BaseComponent(LifecycleMixin, ABC):
         else:
             # CREATED, FAILED, SHUTDOWN → считаем как NOT_INITIALIZED
             return LoggerInitializationState.NOT_INITIALIZED
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # Сначала пробуем внедрённый event_bus
-        if self._event_bus is not None:
-            self.event_bus_logger = EventBusLogger(
-                self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component=self.__class__.__name__,
-                get_init_state_callback=self._get_logger_init_state
-            )
-        # Fallback на application_context для обратной совместимости
-        elif self._application_context is not None:
-            if hasattr(self._application_context, 'infrastructure_context'):
-                event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-                if event_bus:
-                    self.event_bus_logger = EventBusLogger(
-                        event_bus,
-                        session_id="system",
-                        agent_id="system",
-                        component=self.__class__.__name__,
-                        get_init_state_callback=self._get_logger_init_state
-                    )
-        # Fallback на dummy-логгер если ничего не доступно
-        else:
-            self.event_bus_logger = self._create_dummy_logger()
-
-    def _create_dummy_logger(self):
-        """Создаёт dummy-логгер для компонентов без event_bus."""
-        class DummyLogger:
-            async def info(self, msg, *a, **k): pass
-            async def debug(self, msg, *a, **k): pass
-            async def warning(self, msg, *a, **k): pass
-            async def error(self, msg, *a, **k): pass
-            async def exception(self, msg, *a, **k): pass
-            def info_sync(self, msg, *a, **k): pass
-            def debug_sync(self, msg, *a, **k): pass
-            def warning_sync(self, msg, *a, **k): pass
-            def error_sync(self, msg, *a, **k): pass
-        return DummyLogger()
-
-    def _safe_log_sync(self, level: str, message: str, **kwargs):
-        """
-        Безопасный синхронный логгер — проверяет event_bus_logger на None.
-        
-        ПАРАМЕТРЫ:
-        - level: уровень логирования ('info', 'debug', 'warning', 'error')
-        - message: сообщение
-        - **kwargs: дополнительные аргументы для логгера
-        """
-        if hasattr(self, 'event_bus_logger') and self.event_bus_logger is not None:
-            log_method = getattr(self.event_bus_logger, f'{level}_sync', None)
-            if log_method:
-                log_method(message, **kwargs)
 
     async def initialize(self) -> bool:
         """
@@ -399,32 +327,6 @@ class BaseComponent(LifecycleMixin, ABC):
                 if not dep:
                     self._safe_log_sync("warning", f"{self.name}: Зависимость '{dep_name}' не найдена в registry (будет внедрена через DI)")
                     # Не блокируем - зависимость может быть внедрена через DI
-
-        return True
-
-    async def _validate_dependencies(self, dependencies: Dict[str, list]) -> bool:
-        """Валидация зависимостей компонента."""
-        errors = []
-
-        # Проверка зависимостей-компонентов
-        for dep_name in dependencies.get("components", []):
-            if not self.application_context.components.get(dep_name):
-                errors.append(f"Зависимость компонента '{dep_name}' не найдена")
-
-        # Проверка зависимостей-инструментов
-        for dep_name in dependencies.get("tools", []):
-            if not self.application_context.components.get(dep_name):
-                errors.append(f"Зависимость инструмента '{dep_name}' не найдена")
-
-        # Проверка зависимостей-сервисов
-        for dep_name in dependencies.get("services", []):
-            if not self.application_context.get_service(dep_name):
-                errors.append(f"Зависимость сервиса '{dep_name}' не найдена")
-
-        if errors:
-            for error in errors:
-                self._safe_log_sync("error", f"{self.name}: {error}")
-            return False
 
         return True
 
@@ -560,6 +462,7 @@ class BaseComponent(LifecycleMixin, ABC):
         2. Все контракты из component_config загружены
         3. Нет дублирования версий
         4. Input/output контракты согласованы
+        5. Критичные ресурсы (critical_resources) загружены
         """
         errors = []
 
@@ -599,6 +502,28 @@ class BaseComponent(LifecycleMixin, ABC):
             errors.append(f"Отсутствуют input контракты для: {missing_input}")
         if missing_output:
             errors.append(f"Отсутствуют output контракты для: {missing_output}")
+
+        # === НОВОЕ: Проверка critical_resources ===
+        if hasattr(self.component_config, 'critical_resources'):
+            critical = self.component_config.critical_resources
+            
+            # Проверка критичных промптов
+            if critical.get('prompts', False):
+                for capability in self.component_config.prompt_versions.keys():
+                    if capability not in self.prompts:
+                        errors.append(f"Критичный промпт '{capability}' не загружен")
+            
+            # Проверка критичных input контрактов
+            if critical.get('input_contracts', False):
+                for capability in self.component_config.input_contract_versions.keys():
+                    if capability not in self.input_contracts:
+                        errors.append(f"Критичный input контракт '{capability}' не загружен")
+            
+            # Проверка критичных output контрактов
+            if critical.get('output_contracts', False):
+                for capability in self.component_config.output_contract_versions.keys():
+                    if capability not in self.output_contracts:
+                        errors.append(f"Критичный output контракт '{capability}' не загружен")
 
         if errors:
             for error in errors:
@@ -754,11 +679,21 @@ class BaseComponent(LifecycleMixin, ABC):
     def validate_input(self, capability_name: str, data: Dict) -> bool:
         """
         Типобезопасная валидация через скомпилированную схему.
-        
+
+        DEPRECATED: Используйте validate_input_typed() для получения типизированной модели.
+        Этот метод будет удалён в следующей мажорной версии.
+
         ARCHITECTURE:
         - Валидирует входные данные через Pydantic модель
         - Для типизированной валидации используйте validate_input_typed()
         """
+        import warnings
+        warnings.warn(
+            "validate_input() deprecated. Используйте validate_input_typed() для получения типизированной модели.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if capability_name not in self.input_contracts:
             self._safe_log_sync("warning", f"Схема для {capability_name} не загружена, пропускаем валидацию")
             return True
@@ -805,6 +740,9 @@ class BaseComponent(LifecycleMixin, ABC):
         """
         Валидация выходных данных через скомпилированную схему.
 
+        DEPRECATED: Используйте validate_output_typed() для получения типизированной модели.
+        Этот метод будет удалён в следующей мажорной версии.
+
         ПАРАМЕТРЫ:
         - capability_name: имя capability
         - data: данные для валидации
@@ -812,6 +750,13 @@ class BaseComponent(LifecycleMixin, ABC):
         ВОЗВРАЩАЕТ:
         - bool: True если валидация пройдена
         """
+        import warnings
+        warnings.warn(
+            "validate_output() deprecated. Используйте validate_output_typed() для получения типизированной модели.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if capability_name not in self.output_contracts:
             self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
             return True
@@ -1009,12 +954,22 @@ class BaseComponent(LifecycleMixin, ABC):
         """
         Универсальный метод получения провайдера из инфраструктуры.
 
+        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
+        Этот метод будет удалён в следующей мажорной версии.
+
         ARGS:
         - name: имя провайдера
 
         RETURNS:
         - Провайдер или None если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if not hasattr(self.application_context, 'infrastructure_context'):
             self._safe_log_sync("warning", f"infrastructure_context не доступен для получения провайдера '{name}'")
             return None
@@ -1024,17 +979,29 @@ class BaseComponent(LifecycleMixin, ABC):
         """
         Получение LLM провайдера.
 
+        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
+        Этот метод будет удалён в следующей мажорной версии.
+
         ARGS:
         - name: имя LLM провайдера (по умолчанию "default_llm")
 
         RETURNS:
         - LLM провайдер или None если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_llm_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.get_provider(name)
 
     def get_db_provider(self, name: str = "default_db"):
         """
         Получение DB провайдера.
+
+        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
+        Этот метод будет удалён в следующей мажорной версии.
 
         ARGS:
         - name: имя DB провайдера (по умолчанию "default_db")
@@ -1042,6 +1009,12 @@ class BaseComponent(LifecycleMixin, ABC):
         RETURNS:
         - DB провайдер или None если не найден
         """
+        import warnings
+        warnings.warn(
+            "get_db_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.get_provider(name)
 
     # === ПУБЛИКАЦИЯ МЕТОРИК И СОБЫТИЙ ===
@@ -1240,6 +1213,7 @@ class BaseComponent(LifecycleMixin, ABC):
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED  # По умолчанию
 
+    @abstractmethod
     async def _execute_impl(
         self,
         capability: 'Capability',
@@ -1250,7 +1224,6 @@ class BaseComponent(LifecycleMixin, ABC):
         Реализация бизнес-логики компонента (ASYNC).
 
         Этот метод должен быть переопределен в наследниках.
-        Реализация по умолчанию вызывает NotImplementedError.
 
         ПАРАМЕТРЫ:
         - capability: capability для выполнения
@@ -1259,9 +1232,6 @@ class BaseComponent(LifecycleMixin, ABC):
 
         ВОЗВРАЩАЕТ:
         - Результат выполнения (тип зависит от компонента)
-
-        ИСКЛЮЧЕНИЯ:
-        - NotImplementedError: если метод не переопределен в наследнике
 
         ПРИМЕЧАНИЕ:
         - Этот метод вызывается из async execute()

@@ -26,12 +26,13 @@ import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 
 # Добавим путь к корню проекта
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.components.base_component import BaseComponent
+from core.application.skills.base_skill import BaseSkill
 from core.config.component_config import ComponentConfig
 from core.application.context.application_context import ApplicationContext
 from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
@@ -42,7 +43,7 @@ from core.models.data.execution import ExecutionResult, ExecutionStatus
 # НАВЫК BOOK_LIBRARY
 # ============================================================================
 
-class BookLibrarySkill(BaseComponent):
+class BookLibrarySkill(BaseSkill):
     """
     Навык для работы с библиотекой книг.
 
@@ -69,22 +70,23 @@ class BookLibrarySkill(BaseComponent):
     ):
         super().__init__(name, application_context, component_config=component_config, executor=executor)
 
-        # Регистрируем capability, которые использует этот навык
-        self.supported_capabilities = {
-            "book_library.search_books": self._search_books_dynamic,
-            "book_library.execute_script": self._execute_script_static,
-            "book_library.list_scripts": self._list_scripts,
-            "book_library.semantic_search": self._semantic_search  # новая capability для векторного поиска
-        }
-
-        # Кэш реестра скриптов
-        self._scripts_registry = None
+        # Кэш реестра скриптов (загружается в _preload_resources())
+        self._scripts_registry: Optional[Dict[str, Any]] = None
 
         # Проверка инициализации event_bus_logger
         if self.event_bus_logger is None:
             self._print_fallback = True
         else:
             self._print_fallback = False
+
+    def _preload_resources(self):
+        """Загрузка реестра скриптов (вызывается после __init__)."""
+        try:
+            from .scripts_registry import get_all_scripts
+            self._scripts_registry = get_all_scripts()
+        except Exception as e:
+            self._safe_log_sync("error", f"Ошибка загрузки реестра скриптов: {e}")
+            self._scripts_registry = {}
 
     def get_capabilities(self) -> List[Capability]:
         """
@@ -161,19 +163,13 @@ class BookLibrarySkill(BaseComponent):
         if not success:
             return False
 
-        # Загружаем реестр скриптов
-        try:
-            from .scripts_registry import get_all_scripts
-            self._scripts_registry = get_all_scripts()
-            await self.event_bus_logger.info(f"Загружено {len(self._scripts_registry)} скриптов в реестр")
-        except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
-            self._scripts_registry = {}
-
-        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        # Загружаем реестр скриптов (бизнес-логика, не инфраструктура)
+        self._preload_resources()
+        
+        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {[cap.name for cap in self.get_capabilities()]}")
         return True
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения навыка библиотеки."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
@@ -193,7 +189,15 @@ class BookLibrarySkill(BaseComponent):
         ВОЗВРАЩАЕТ:
         - Pydantic модель (выходной контракт) или Dict (fallback)
         """
-        if capability.name not in self.supported_capabilities:
+        # Маппинг capability на методы реализации
+        capability_handlers = {
+            "book_library.search_books": self._search_books_dynamic,
+            "book_library.execute_script": self._execute_script_static,
+            "book_library.list_scripts": self._list_scripts,
+            "book_library.semantic_search": self._semantic_search
+        }
+        
+        if capability.name not in capability_handlers:
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
         # Конвертируем Pydantic модель в dict если нужно
@@ -205,7 +209,7 @@ class BookLibrarySkill(BaseComponent):
             params_dict = {}
 
         # Выполняем действие — возвращает Pydantic модель или Dict
-        result = await self.supported_capabilities[capability.name](params_dict)
+        result = await capability_handlers[capability.name](params_dict)
 
         # Возвращаем результат напрямую (Pydantic модель или Dict)
         return result
@@ -426,19 +430,27 @@ class BookLibrarySkill(BaseComponent):
         - Pydantic модель (выходной контракт) или Dict (fallback)
         """
         start_time = time.time()
-        
+
+        # [SKILL_DEBUG] 1. Входные параметры
+        print(f"[SKILL_DEBUG] _execute_script_static: params={params}, type={type(params)}", flush=True)
+
         # [BOOK_DEBUG] 1.1. Входные параметры
         await self.event_bus_logger.info(f"[BOOK_DEBUG] _execute_script_static: входные params = {params}")
-        
+        await self.event_bus_logger.info(f"[BOOK_DEBUG] params type = {type(params)}")
+
         await self.event_bus_logger.info(f"Запуск статического скрипта: {params}")
 
         # 1. Валидация входных параметров
         # Поддержка dict и Pydantic модели
-        script_name = params.get('script_name') if isinstance(params, dict) else getattr(params, 'script_name', None)
-        
-        # [BOOK_DEBUG] 1.2. Проверка наличия script_name
-        await self.event_bus_logger.info(f"[BOOK_DEBUG] script_name = {script_name}")
-        
+        if isinstance(params, dict):
+            script_name = params.get('script_name')
+            author = params.get('author')
+        else:
+            script_name = getattr(params, 'script_name', None)
+            author = getattr(params, 'author', None)
+
+        print(f"[SKILL_DEBUG] script_name={script_name}, author={author}", flush=True)
+
         if not script_name:
             raise ValueError("Требуется параметр 'script_name'")
 
@@ -450,31 +462,41 @@ class BookLibrarySkill(BaseComponent):
 
         # 3. Получение SQL-скрипта из реестра
         script_config = allowed_scripts[script_name]
-        
+
         # [BOOK_DEBUG] 1.3. Получение конфигурации скрипта
         await self.event_bus_logger.info(f"[BOOK_DEBUG] script_config для '{script_name}': {script_config}")
-        
+
         sql_query = script_config['sql']
         max_rows = params.get('max_rows', script_config.get('max_rows', 100)) if isinstance(params, dict) else getattr(params, 'max_rows', script_config.get('max_rows', 100))
 
         # 4. Валидация параметров для скрипта
-        # [BOOK_DEBUG] 1.4. Извлечение script_params
-        # Поддержка как вложенной (parameters: {}), так и плоской структуры
-        script_params = params.get('parameters', {}) if isinstance(params, dict) else getattr(params, 'parameters', {})
-        await self.event_bus_logger.info(f"[BOOK_DEBUG] script_params (из parameters) = {script_params}")
+        # Контракт использует ПЛОСКУЮ структуру: все параметры на верхнем уровне
+        script_params = {}
 
-        # Если script_params пуст, возможно, параметры переданы на верхнем уровне (плоская структура)
-        if not script_params:
-            flat_params = {k: v for k, v in params.items() if k not in ['script_name', 'max_rows']}
-            await self.event_bus_logger.info(f"[BOOK_DEBUG] попытка использовать плоские параметры: {flat_params}")
-            script_params = flat_params
+        if isinstance(params, dict):
+            # Плоская структура - все параметры на верхнем уровне
+            script_params = params.copy()
+            script_params.pop('script_name', None)  # Удаляем script_name так как он не нужен для SQL
+        elif hasattr(params, 'model_dump'):
+            # Pydantic модель - конвертируем в dict
+            script_params = params.model_dump()
+            script_params.pop('script_name', None)
+        elif hasattr(params, 'parameters'):
+            # Старый формат с вложенным parameters (для обратной совместимости)
+            script_params = getattr(params, 'parameters', {})
+            if hasattr(script_params, 'model_dump'):
+                script_params = script_params.model_dump()
+
+        print(f"[SKILL_DEBUG] script_params={script_params}", flush=True)
         
-        # Также добавляем max_rows из верхнего уровня если есть
+        # Добавляем max_rows из верхнего уровня если есть
         if isinstance(params, dict) and 'max_rows' in params:
             script_params['max_rows'] = params['max_rows']
         elif hasattr(params, 'max_rows'):
-            script_params['max_rows'] = getattr(params, 'max_rows')
-            
+            max_rows_val = getattr(params, 'max_rows')
+            if max_rows_val is not None:
+                script_params['max_rows'] = max_rows_val
+
         if script_config.get('required_parameters'):
             missing_params = set(script_config['required_parameters']) - set(script_params.keys())
             if missing_params:
@@ -482,8 +504,7 @@ class BookLibrarySkill(BaseComponent):
 
         # 5. Подготовка параметров для SQL-запроса
         # Преобразуем именованные параметры в позиционные для PostgreSQL
-        sql_params = {}
-        param_values = []
+        sql_params_list = []  # Используем список для psycopg2
 
         # Определяем порядок параметров из SQL-запроса
         required_params = script_config.get('required_parameters', [])
@@ -491,7 +512,6 @@ class BookLibrarySkill(BaseComponent):
         all_params = required_params + [p for p in optional_params if p not in required_params]
 
         # Собираем значения параметров в правильном порядке
-        param_index = 1
         for param_name in all_params:
             if param_name == 'max_rows':
                 continue  # max_rows обрабатывается отдельно
@@ -501,40 +521,36 @@ class BookLibrarySkill(BaseComponent):
                 if param_name in ['author', 'title_pattern']:
                     if '%' not in param_value:
                         param_value = f'%{param_value}%'
-                sql_params[str(param_index)] = param_value
-                param_index += 1
+                sql_params_list.append(param_value)
 
-        # Добавляем max_rows как последний параметр если он есть в SQL
-        if '$' + str(param_index) in sql_query or 'LIMIT $' + str(param_index) in sql_query:
-            sql_params[str(param_index)] = max_rows
+        # Добавляем max_rows как последний параметр
+        sql_params_list.append(max_rows)
 
-        # [BOOK_DEBUG] 1.5. Формирование sql_params
-        await self.event_bus_logger.info(f"[BOOK_DEBUG] сформированные sql_params (для БД): {sql_params}")
+        print(f"[SKILL_DEBUG] sql_params_list={sql_params_list}", flush=True)
 
-        # 6. Выполнение SQL через sql_query_service ЧЕРЕЗ EXECUTOR
+        # 6. Выполнение SQL через sql_query_service (прямой вызов сервиса)
         rows = []
         execution_time = 0.0
         try:
-            exec_context = ExecutionContext()
+            # Получаем сервис напрямую из application_context
+            from core.models.enums.common_enums import ComponentType
+            sql_query_svc = self.application_context.components.get(ComponentType.SERVICE, "sql_query_service")
 
-            query_result = await self.executor.execute_action(
-                action_name="sql_query_service.execute",
-                parameters={
-                    "sql_query": sql_query,
-                    "parameters": sql_params
-                },
-                context=exec_context
+            if not sql_query_svc:
+                raise RuntimeError("Сервис sql_query_service не найден")
+
+            # Вызываем метод execute_query напрямую
+            # Передаём параметры как список (psycopg2 формат)
+            result = await sql_query_svc.execute_query(
+                sql_query=sql_query,
+                parameters=sql_params_list
             )
 
-            from core.models.data.execution import ExecutionStatus
-            if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
-                result_data = query_result.data
-                rows = result_data.rows if hasattr(result_data, 'rows') else result_data.get('rows', [])
-                execution_time = result_data.execution_time if hasattr(result_data, 'execution_time') else result_data.get('execution_time', 0.0)
-                await self.event_bus_logger.info(f"[BOOK_DEBUG] Успешное выполнение, rows={len(rows)}")
+            if hasattr(result, 'success') and result.success:
+                rows = result.rows if hasattr(result, 'rows') else []
+                execution_time = result.execution_time if hasattr(result, 'execution_time') else 0.0
             else:
-                error_msg = query_result.error or "Неизвестная ошибка"
-                await self.event_bus_logger.error(f"[BOOK_DEBUG] Ошибка выполнения SQL: {error_msg}")
+                error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
 
         except Exception as e:
