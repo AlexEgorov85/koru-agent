@@ -159,7 +159,7 @@ class LLMProviderConfig(BaseModel):
     parameters: Dict[str, Any] = Field(default={}, description="Параметры")
     enabled: bool = Field(default=True, description="Включен")
     fallback_providers: List[str] = Field(default_factory=list, description="Резервные")
-    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут (сек)")
+    timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут (сек)")
     type_provider: Optional[str] = Field(default=None, description="Устаревшее")
 
     def __init__(self, **data):
