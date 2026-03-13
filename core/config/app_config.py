@@ -1,21 +1,31 @@
 """
-Единая конфигурация приложения (AppConfig) - унифицированный класс конфигурации.
+Единая конфигурация приложения (AppConfig).
 
-ЗАМЕНЯЕТ:
-- SystemConfig (из models.py)
-- ComponentConfig
-- AgentConfig
-- LoggingConfig
-- registry.yaml зависимость
+ЦЕНТРАЛИЗУЕТ:
+- DatabaseSettings, LLMSettings, AgentSettings (env vars)
+- LLMProviderConfig, DBProviderConfig (discovery)
+- LoggingConfig (логирование)
+- Component configs (skills, services, tools, behaviors)
 
-ЦЕЛЬ:
-- Устранить дублирование конфигураций (5+ систем → 1)
-- Обеспечить единый интерфейс для всех компонентов
-- Авто-обнаружение ресурсов через файловую систему
-- Экономия ~3000 строк кода
+ИСПОЛЬЗОВАНИЕ:
+```python
+# Режим 1: Env vars (автоматическая загрузка из .env)
+from core.config.app_config import AppConfig
+config = AppConfig()
+
+# Режим 2: Discovery (авто-обнаружение ресурсов)
+config = AppConfig.from_discovery(profile="dev")
+
+# Доступ к настройкам
+config.database.host       # из DatabaseSettings
+config.llm.provider        # из LLMSettings
+config.agent.max_steps     # из AgentSettings
+config.llm_providers       # из discovery
+config.logging.level       # из LoggingConfig
+```
 """
 from pathlib import Path
-from typing import Dict, Optional, List, Any, Literal
+from typing import Dict, Optional, List, Any, Literal, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,18 +35,11 @@ from core.config.logging_config import LoggingConfig
 
 
 # ============================================================
-# Settings классы для поддержки env vars (из settings.py)
+# РАЗДЕЛ 1: Settings классы для поддержки env vars
 # ============================================================
 
 class DatabaseSettings(BaseSettings):
-    """
-    Настройки подключения к базе данных.
-
-    ENV VARS:
-    - AGENT_DB_HOST, AGENT_DB_PORT, AGENT_DB_NAME
-    - AGENT_DB_USER, AGENT_DB_PASSWORD
-    - AGENT_DB_POOL_SIZE, AGENT_DB_TIMEOUT
-    """
+    """Настройки подключения к базе данных (env vars: AGENT_DB_*)."""
 
     model_config = SettingsConfigDict(
         env_prefix='AGENT_DB_',
@@ -49,54 +52,33 @@ class DatabaseSettings(BaseSettings):
     database: str = Field(default="agent_db", description="Имя базы данных")
     username: str = Field(default="postgres", description="Пользователь БД")
     password: str = Field(default="", description="Пароль БД")
-
-    # Пул соединений
-    pool_size: int = Field(default=10, ge=1, le=100, description="Размер пула соединений")
-    timeout: float = Field(default=30.0, ge=0.0, description="Таймаут подключения в секундах")
-
-    # SSL
+    pool_size: int = Field(default=10, ge=1, le=100, description="Размер пула")
+    timeout: float = Field(default=30.0, ge=0.0, description="Таймаут (сек)")
     sslmode: Literal["disable", "require", "verify-ca", "verify-full"] = Field(
-        default="disable",
-        description="Режим SSL"
+        default="disable", description="Режим SSL"
     )
 
     @field_validator('port')
     @classmethod
     def validate_port(cls, v):
-        """Проверка порта."""
         if not 1024 <= v <= 65535:
             raise ValueError("Port must be between 1024 and 65535")
         return v
 
     @property
     def dsn(self) -> str:
-        """Data Source Name для подключения."""
-        return (
-            f"postgresql://{self.username}:{self.password}"
-            f"@{self.host}:{self.port}/{self.database}"
-        )
+        return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
 
     @property
     def is_postgres(self) -> bool:
-        """Проверка что это PostgreSQL."""
         return True
 
     def __repr__(self) -> str:
-        return (
-            f"DatabaseSettings(host={self.host!r}, port={self.port}, "
-            f"database={self.database!r}, user={self.username!r})"
-        )
+        return f"DatabaseSettings(host={self.host!r}, port={self.port}, database={self.database!r})"
 
 
 class LLMSettings(BaseSettings):
-    """
-    Настройки LLM провайдера.
-
-    ENV VARS:
-    - AGENT_LLM_PROVIDER, AGENT_LLM_MODEL
-    - AGENT_LLM_TEMPERATURE, AGENT_LLM_MAX_TOKENS
-    - AGENT_LLM_TIMEOUT, AGENT_LLM_API_KEY
-    """
+    """Настройки LLM провайдера (env vars: AGENT_LLM_*)."""
 
     model_config = SettingsConfigDict(
         env_prefix='AGENT_LLM_',
@@ -104,97 +86,40 @@ class LLMSettings(BaseSettings):
         extra='ignore'
     )
 
-    # Провайдер
     provider: Literal["vllm", "llama", "openai", "anthropic", "gemini"] = Field(
-        default="llama",
-        description="Тип LLM провайдера"
+        default="llama", description="Тип LLM провайдера"
     )
-
-    # Модель
-    model: str = Field(
-        default="mistral-7b-instruct",
-        description="Имя модели или путь к файлу"
-    )
-    model_path: Optional[str] = Field(
-        default=None,
-        description="Путь к файлу модели (для llama/vllm)"
-    )
-
-    # Параметры генерации
-    temperature: float = Field(
-        default=0.7,
-        ge=0.0,
-        le=2.0,
-        description="Температура генерации"
-    )
-    max_tokens: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="Максимальное количество токенов"
-    )
-    top_p: float = Field(
-        default=0.9,
-        ge=0.0,
-        le=1.0,
-        description="Top-p sampling"
-    )
-
-    # Таймауты
-    timeout_seconds: float = Field(
-        default=120.0,
-        ge=0.0,
-        description="Таймаут ожидания ответа"
-    )
-
-    # API ключи (для облачных провайдеров)
-    api_key: Optional[str] = Field(
-        default=None,
-        description="API ключ (для OpenAI/Anthropic/Gemini)"
-    )
-    api_base_url: Optional[str] = Field(
-        default=None,
-        description="Базовый URL API (для совместимых провайдеров)"
-    )
-
-    # Кэширование
-    enable_caching: bool = Field(
-        default=True,
-        description="Включить кэширование ответов"
-    )
+    model: str = Field(default="mistral-7b-instruct", description="Имя модели")
+    model_path: Optional[str] = Field(default=None, description="Путь к модели")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Температура")
+    max_tokens: Optional[int] = Field(default=None, ge=1, description="Макс. токенов")
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p sampling")
+    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут (сек)")
+    api_key: Optional[str] = Field(default=None, description="API ключ")
+    api_base_url: Optional[str] = Field(default=None, description="Базовый URL API")
+    enable_caching: bool = Field(default=True, description="Кэширование")
 
     @field_validator('temperature')
     @classmethod
     def validate_temperature(cls, v):
-        """Проверка температуры."""
         if v < 0 or v > 2:
             raise ValueError("Temperature must be between 0 and 2")
         return v
 
     @property
     def is_local(self) -> bool:
-        """Проверка что это локальная модель."""
         return self.provider in ("vllm", "llama")
 
     @property
     def is_cloud(self) -> bool:
-        """Проверка что это облачный провайдер."""
         return self.provider in ("openai", "anthropic", "gemini")
 
     def __repr__(self) -> str:
-        return (
-            f"LLMSettings(provider={self.provider!r}, model={self.model!r}, "
-            f"temperature={self.temperature})"
-        )
+        return f"LLMSettings(provider={self.provider!r}, model={self.model!r}, temperature={self.temperature})"
 
 
 class AgentSettings(BaseSettings):
-    """
-    Настройки агента.
-
-    ENV VARS:
-    - AGENT_MAX_STEPS, AGENT_MAX_RETRIES
-    - AGENT_TIMEOUT, AGENT_ENABLE_SELF_REFLECTION
-    """
+    """Настройки агента (env vars: AGENT_*)."""
 
     model_config = SettingsConfigDict(
         env_prefix='AGENT_',
@@ -202,75 +127,40 @@ class AgentSettings(BaseSettings):
         extra='ignore'
     )
 
-    # Ограничения
-    max_steps: int = Field(
-        default=10,
-        ge=1,
-        le=100,
-        description="Максимальное количество шагов"
-    )
-    max_retries: int = Field(
-        default=3,
-        ge=0,
-        le=10,
-        description="Максимальное количество попыток"
-    )
-    timeout_seconds: float = Field(
-        default=300.0,
-        ge=0.0,
-        description="Общий таймаут выполнения"
-    )
-
-    # Функции
-    enable_self_reflection: bool = Field(
-        default=True,
-        description="Включить саморефлексию"
-    )
-    enable_context_window_management: bool = Field(
-        default=True,
-        description="Включить управление окном контекста"
-    )
-    enable_benchmark: bool = Field(
-        default=False,
-        description="Включить бенчмарки"
-    )
-
-    # Профиль
-    profile: Literal["dev", "prod", "sandbox"] = Field(
-        default="dev",
-        description="Профиль работы"
-    )
+    max_steps: int = Field(default=10, ge=1, le=100, description="Макс. шагов")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток")
+    timeout_seconds: float = Field(default=300.0, ge=0.0, description="Таймаут (сек)")
+    enable_self_reflection: bool = Field(default=True, description="Саморефлексия")
+    enable_context_window_management: bool = Field(default=True, description="Управление контекстом")
+    enable_benchmark: bool = Field(default=False, description="Бенчмарки")
+    profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
 
     @field_validator('max_steps')
     @classmethod
     def validate_max_steps(cls, v):
-        """Проверка max_steps."""
         if v < 1 or v > 100:
             raise ValueError("max_steps must be between 1 and 100")
         return v
 
     def __repr__(self) -> str:
-        return (
-            f"AgentSettings(max_steps={self.max_steps}, "
-            f"profile={self.profile!r})"
-        )
+        return f"AgentSettings(max_steps={self.max_steps}, profile={self.profile!r})"
 
 
-# === ВСТРОЕННЫЕ КОНФИГУРАЦИИ (бывшие отдельные классы) ===
+# ============================================================
+# РАЗДЕЛ 2: Provider конфигурации для discovery
+# ============================================================
 
 class LLMProviderConfig(BaseModel):
-    """Конфигурация LLM провайдера (встроена из models.py)"""
+    """Конфигурация LLM провайдера (для discovery)."""
     model_config = ConfigDict(validate_assignment=True)
 
-    provider_type: str = Field(default="llama_cpp", description="Тип провайдера (vllm, llama_cpp, openai)")
+    provider_type: str = Field(default="llama_cpp", description="Тип провайдера")
     model_name: str = Field(default="qwen-4b", description="Название модели")
-    parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
-    enabled: bool = Field(default=True, description="Включен ли провайдер")
-    fallback_providers: List[str] = Field(default_factory=list, description="Резервные провайдеры")
-    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут ожидания ответа от LLM")
-    
-    # Обратная совместимость
-    type_provider: Optional[str] = Field(default=None, description="Устаревшее поле, используйте provider_type")
+    parameters: Dict[str, Any] = Field(default={}, description="Параметры")
+    enabled: bool = Field(default=True, description="Включен")
+    fallback_providers: List[str] = Field(default_factory=list, description="Резервные")
+    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут (сек)")
+    type_provider: Optional[str] = Field(default=None, description="Устаревшее")
 
     def __init__(self, **data):
         if 'type_provider' in data and 'provider_type' not in data:
@@ -282,20 +172,18 @@ class LLMProviderConfig(BaseModel):
     def validate_provider_type(cls, v):
         valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini']
         if v.lower() not in valid_types:
-            raise ValueError(f"Неподдерживаемый тип LLM провайдера: {v}. Допустимые: {valid_types}")
+            raise ValueError(f"Неподдерживаемый тип: {v}. Допустимые: {valid_types}")
         return v.lower()
 
 
 class DBProviderConfig(BaseModel):
-    """Конфигурация БД провайдера (встроена из models.py)"""
+    """Конфигурация БД провайдера (для discovery)."""
     model_config = ConfigDict(validate_assignment=True)
 
     provider_type: str = Field(default="postgres", description="Тип провайдера")
-    enabled: bool = Field(default=True, description="Включена ли БД")
-    parameters: Dict[str, Any] = Field(default={}, description="Параметры провайдера")
-    
-    # Обратная совместимость
-    type_provider: Optional[str] = Field(default=None, description="Устаревшее поле")
+    enabled: bool = Field(default=True, description="Включена")
+    parameters: Dict[str, Any] = Field(default={}, description="Параметры")
+    type_provider: Optional[str] = Field(default=None, description="Устаревшее")
 
     def __init__(self, **data):
         if 'type_provider' in data and 'provider_type' not in data:
@@ -303,78 +191,111 @@ class DBProviderConfig(BaseModel):
         super().__init__(**data)
 
 
-# === ОСНОВНАЯ КОНФИГУРАЦИЯ ===
+# ============================================================
+# РАЗДЕЛ 3: Основная конфигурация (AppConfig)
+# ============================================================
 
-class AppConfig(BaseModel):
+class AppConfig(BaseSettings):
     """
     ЕДИНАЯ КОНФИГУРАЦИЯ ПРИЛОЖЕНИЯ
     
-    Объединяет ВСЕ системы конфигурации:
-    - llm_providers: LLM провайдеры
-    - db_providers: БД провайдеры  
-    - logging: логирование
-    - skills/tools/services/behaviors: компоненты
-    - agent_parameters: параметры агента
+    Поддерживает два режима:
+    1. Env vars — загрузка из переменных окружения (.env)
+    2. Discovery — авто-обнаружение ресурсов через файловую систему
     
-    Авто-обнаружение через ResourceDiscovery заменяет registry.yaml
+    ОБЪЕДИНЯЕТ:
+    - database: DatabaseSettings (из env vars)
+    - llm: LLMSettings (из env vars)
+    - agent: AgentSettings (из env vars)
+    - llm_providers: Dict (из discovery)
+    - db_providers: Dict (из discovery)
+    - logging: LoggingConfig
+    - component configs (skills, services, tools, behaviors)
     """
 
+    model_config = SettingsConfigDict(
+        env_prefix='AGENT_',
+        env_file='.env',
+        env_nested_delimiter='__',
+        extra='allow',
+        validate_assignment=True,
+    )
+
     # === ИДЕНТИФИКАЦИЯ ===
-    config_id: str = Field(default="app_config", description="Уникальный ID конфигурации")
-    profile: str = Field(default="prod", description="Профиль (prod/sandbox/dev)")
-    
-    # === БАЗОВЫЕ ПАРАМЕТРЫ (из BaseModelConfig) ===
+    config_id: str = Field(default="app_config", description="ID конфигурации")
+    profile: Literal["dev", "prod", "sandbox"] = Field(default="dev", description="Профиль")
+
+    # === БАЗОВЫЕ ПАРАМЕТРЫ ===
     debug: bool = Field(default=False, description="Режим отладки")
     log_level: str = Field(default="INFO", description="Уровень логирования")
     log_dir: str = Field(default="logs", description="Директория логов")
     data_dir: str = Field(default="data", description="Директория данных")
 
-    # === LLM И БД ПРОВАЙДЕРЫ ===
+    # === ENV VARS SETTINGS ===
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings, description="БД")
+    llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM")
+    agent: AgentSettings = Field(default_factory=AgentSettings, description="Агент")
+
+    # === DISCOVERY PROVIDERS ===
     llm_providers: Dict[str, LLMProviderConfig] = Field(default_factory=dict, description="LLM провайдеры")
     db_providers: Dict[str, DBProviderConfig] = Field(default_factory=dict, description="БД провайдеры")
 
     # === ЛОГИРОВАНИЕ ===
-    logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Конфигурация логирования")
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Логирование")
 
     # === ВЕКТОРНЫЙ ПОИСК ===
-    vector_search: Optional[VectorSearchConfig] = Field(default_factory=VectorSearchConfig, description="Конфигурация векторного поиска")
+    vector_search: Optional[VectorSearchConfig] = Field(default_factory=VectorSearchConfig, description="Векторный поиск")
 
-    # === ВЕРСИИ РЕСУРСОВ (из промптов/контрактов) ===
-    prompt_versions: Dict[str, str] = Field(default_factory=dict, description="Версии промптов: {capability: version}")
-    input_contract_versions: Dict[str, str] = Field(default_factory=dict, description="Версии входных контрактов")
-    output_contract_versions: Dict[str, str] = Field(default_factory=dict, description="Версии выходных контрактов")
-    contract_versions: Dict[str, str] = Field(default_factory=dict, description="Объединенные версии контрактов")
+    # === ВЕРСИИ РЕСУРСОВ ===
+    prompt_versions: Dict[str, str] = Field(default_factory=dict, description="Версии промптов")
+    input_contract_versions: Dict[str, str] = Field(default_factory=dict, description="Входные контракты")
+    output_contract_versions: Dict[str, str] = Field(default_factory=dict, description="Выходные контракты")
+    contract_versions: Dict[str, str] = Field(default_factory=dict, description="Все контракты")
 
     # === КОМПОНЕНТЫ ===
-    service_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации сервисов")
-    skill_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации навыков")
-    tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации инструментов")
-    behavior_configs: Dict[str, Any] = Field(default_factory=dict, description="Конфигурации поведений")
+    service_configs: Dict[str, Any] = Field(default_factory=dict, description="Сервисы")
+    skill_configs: Dict[str, Any] = Field(default_factory=dict, description="Навыки")
+    tool_configs: Dict[str, Any] = Field(default_factory=dict, description="Инструменты")
+    behavior_configs: Dict[str, Any] = Field(default_factory=dict, description="Поведения")
 
     # === ПАРАМЕТРЫ АГЕНТА ===
-    max_steps: int = Field(default=10, ge=1, le=50, description="Макс. количество шагов")
-    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. количество попыток")
-    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура модели")
-    llm_timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут LLM (сек)")
-    side_effects_enabled: bool = Field(default=True, description="Разрешены ли побочные эффекты")
-    detailed_metrics: bool = Field(default=False, description="Подробная метрика")
-    enable_self_reflection: bool = Field(default=True, description="Включить саморефлексию")
-    enable_context_window_management: bool = Field(default=True, description="Управление окном контекста")
+    max_steps: int = Field(default=10, ge=1, le=50, description="Макс. шагов")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток")
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура")
+    llm_timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут LLM")
+    side_effects_enabled: bool = Field(default=True, description="Побочные эффекты")
+    detailed_metrics: bool = Field(default=False, description="Детальная метрика")
+    enable_self_reflection: bool = Field(default=True, description="Саморефлексия")
+    enable_context_window_management: bool = Field(default=True, description="Управление контекстом")
 
-    # Pydantic v2 config
-    model_config = ConfigDict(extra="allow", frozen=False)
+    # === VALIDATORS ===
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Авто-объединение контрактов для обратной совместимости
+    @model_validator(mode='after')
+    def sync_profile(self):
+        """Синхронизация профиля между уровнями."""
+        self.agent.profile = self.profile
+        return self
+
+    @model_validator(mode='after')
+    def sync_contracts(self):
+        """Синхронизация версий контрактов."""
         if not self.contract_versions:
             all_contracts = {}
             all_contracts.update(self.input_contract_versions)
             all_contracts.update(self.output_contract_versions)
             object.__setattr__(self, 'contract_versions', all_contracts)
+        return self
 
-    # === МЕТОДЫ ДОСТУПА К ВЕРСИЯМ ===
-    
+    @field_validator('data_dir', 'log_dir')
+    @classmethod
+    def validate_paths(cls, v):
+        """Проверка и создание директорий."""
+        path = Path(v)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    # === МЕТОДЫ ДОСТУПА ===
+
     def get_prompt_version(self, capability: str) -> Optional[str]:
         return self.prompt_versions.get(capability)
 
@@ -405,11 +326,9 @@ class AppConfig(BaseModel):
         updated[capability] = version
         object.__setattr__(self, 'output_contract_versions', updated)
 
-    # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
-    
     @property
     def primary_llm(self) -> Optional[LLMProviderConfig]:
-        """Получение основного LLM провайдера"""
+        """Получение основного LLM провайдера."""
         for provider in self.llm_providers.values():
             if provider.enabled:
                 return provider
@@ -417,56 +336,52 @@ class AppConfig(BaseModel):
 
     @property
     def default_db(self) -> Optional[DBProviderConfig]:
-        """Получение основной БД"""
+        """Получение основной БД."""
         for db in self.db_providers.values():
             if db.enabled:
                 return db
         return None
 
-    # === АВТО-ОБНАРУЖЕНИЕ (ЗАМЕНЯЕТ registry.yaml) ===
-    
+    def validate_all(self) -> List[str]:
+        """Валидация всей конфигурации."""
+        errors = []
+        if self.llm.is_cloud and not self.llm.api_key:
+            errors.append(f"LLM provider '{self.llm.provider}' requires api_key")
+        if not Path(self.data_dir).exists():
+            errors.append(f"Data directory does not exist: {self.data_dir}")
+        return errors
+
+    def __repr__(self) -> str:
+        return (
+            f"AppConfig(profile={self.profile!r}, "
+            f"database={self.database.database!r}, "
+            f"llm={self.llm.provider!r})"
+        )
+
+    # === АВТО-ОБНАРУЖЕНИЕ (discovery режим) ===
+
     @classmethod
     def from_discovery(cls, profile: str = "prod", data_dir: str = "data", discovery=None):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
-
-        ЗАМЕНЯЕТ:
-        - registry.yaml
-        - ConfigLoader
-        - DynamicConfigManager
-        - RegistryLoader
-
-        ARGS:
-        - profile: профиль (prod/sandbox/dev)
-        - data_dir: директория данных
-        - discovery: опционально, существующий ResourceDiscovery
-
-        RETURNS:
-        - AppConfig: сконфигурированный экземпляр
+        
+        ЗАМЕНЯЕТ: registry.yaml, ConfigLoader, DynamicConfigManager, RegistryLoader
         """
         from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
         from core.config.component_config import ComponentConfig
         import yaml
 
-        # === ЗАГРУЗКА LLM/DB ПРОВАЙДЕРОВ ИЗ YAML ФАЙЛА ===
+        # === ЗАГРУЗКА LLM/DB ПРОВАЙДЕРОВ ИЗ YAML ===
         llm_providers = {}
         db_providers = {}
-        
-        # ✅ ПРАВИЛЬНЫЙ ПУТЬ: от корня проекта
         config_file = Path(__file__).parent / "defaults" / f"{profile}.yaml"
-        
-        print(f"🔧 AppConfig.from_discovery: поиск конфигурации {config_file} (существует: {config_file.exists()})")
-        
+
         if config_file.exists():
             try:
                 with open(config_file, 'r', encoding='utf-8') as f:
                     yaml_config = yaml.safe_load(f)
-                
-                print(f"🔧 AppConfig.from_discovery: загружено {len(yaml_config)} секций из {config_file}")
-                
-                # Загружаем LLM провайдеры
+
                 if yaml_config and 'llm_providers' in yaml_config:
-                    print(f"🔧 AppConfig.from_discovery: найдено {len(yaml_config['llm_providers'])} LLM провайдеров")
                     for name, provider_data in yaml_config['llm_providers'].items():
                         llm_providers[name] = LLMProviderConfig(
                             provider_type=provider_data.get('provider_type', 'llama_cpp'),
@@ -475,11 +390,8 @@ class AppConfig(BaseModel):
                             parameters=provider_data.get('parameters', {}),
                             timeout_seconds=provider_data.get('timeout_seconds', 300.0)
                         )
-                    print(f"🔧 AppConfig.from_discovery: загружено LLM провайдеров: {list(llm_providers.keys())}")
-                
-                # Загружаем DB провайдеры
+
                 if yaml_config and 'db_providers' in yaml_config:
-                    print(f"🔧 AppConfig.from_discovery: найдено {len(yaml_config['db_providers'])} DB провайдеров")
                     for name, provider_data in yaml_config['db_providers'].items():
                         db_providers[name] = DBProviderConfig(
                             provider_type=provider_data.get('provider_type', 'postgres'),
@@ -488,28 +400,19 @@ class AppConfig(BaseModel):
                         )
             except Exception as e:
                 print(f"⚠️ Не удалось загрузить конфигурацию из {config_file}: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print(f"⚠️ Конфигурационный файл не найден: {config_file}")
 
-        # Используем переданный ResourceDiscovery или создаём новый
+        # === СКАНИРОВАНИЕ РЕСУРСОВ ===
         if discovery is None:
             discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
 
-        # Сканируем ресурсы (кэширование предотвращает повторную загрузку)
         prompts = discovery.discover_prompts()
         contracts = discovery.discover_contracts()
 
-        # Собираем active версии промптов
-        active_prompts = {}
-        for prompt in prompts:
-            if prompt.status.value == 'active':
-                active_prompts[prompt.capability] = prompt.version
-
-        # Собираем active версии контрактов
+        # Собираем active версии
+        active_prompts = {p.capability: p.version for p in prompts if p.status.value == 'active'}
         input_contract_versions = {}
         output_contract_versions = {}
+        
         for contract in contracts:
             if contract.status.value == 'active':
                 if contract.direction.value == 'input':
@@ -531,7 +434,6 @@ class AppConfig(BaseModel):
         }
 
         component_resources: Dict[str, Dict[str, Dict[str, str]]] = {}
-
         service_name_map = {
             'contract': 'contract_service',
             'sql_query': 'sql_query_service',
@@ -543,7 +445,6 @@ class AppConfig(BaseModel):
         for prompt in prompts:
             if prompt.status.value != 'active':
                 continue
-
             parts = prompt.capability.split('.')
             prefix = parts[0] if parts else prompt.capability
             comp_type = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
@@ -563,26 +464,18 @@ class AppConfig(BaseModel):
                         'input_contracts': {},
                         'output_contracts': {}
                     }
-
                 component_resources[component_name]['prompts'][prompt.capability] = prompt.version
 
         for contract in contracts:
             if contract.status.value != 'active' or contract.capability == 'behavior':
                 continue
-
             parts = contract.capability.split('.')
             prefix = parts[0] if parts else contract.capability
-
+            comp_type = 'skill'
             if hasattr(contract, 'component_type') and contract.component_type:
                 comp_type = contract.component_type.value
-            else:
-                comp_type = 'skill'
-                if prefix == 'behavior':
-                    comp_type = 'behavior'
-                elif prefix == 'service':
-                    comp_type = 'service'
-                elif prefix == 'tool':
-                    comp_type = 'tool'
+            elif prefix in ('behavior', 'service', 'tool'):
+                comp_type = prefix
 
             if comp_type == 'behavior':
                 component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
@@ -597,7 +490,6 @@ class AppConfig(BaseModel):
                         'input_contracts': {},
                         'output_contracts': {}
                     }
-
                 if contract.direction.value == 'input':
                     component_resources[component_name]['input_contracts'][contract.capability] = contract.version
                 else:
@@ -681,25 +573,17 @@ class AppConfig(BaseModel):
             temperature=0.7,
             enable_self_reflection=True,
             enable_context_window_management=True,
-            llm_providers=llm_providers,  # ← Загружено из YAML
-            db_providers=db_providers,    # ← Загружено из YAML
+            llm_providers=llm_providers,
+            db_providers=db_providers,
         )
 
 
 # ============================================================
-# Factory Functions (для обратной совместимости с settings.py)
+# РАЗДЕЛ 4: Factory функции
 # ============================================================
 
-def get_config(profile: Optional[str] = None) -> 'AppConfig':
-    """
-    Получить конфигурацию приложения.
-
-    ARGS:
-    - profile: Профиль (dev/prod/sandbox). Переопределяет env vars.
-
-    RETURNS:
-    - AppConfig с загруженными настройками
-    """
+def get_config(profile: Optional[str] = None) -> AppConfig:
+    """Получить конфигурацию приложения."""
     if profile:
         return AppConfig(profile=profile)
     return AppConfig()
@@ -718,3 +602,22 @@ def get_llm_config() -> LLMSettings:
 def get_agent_config() -> AgentSettings:
     """Получить настройки агента."""
     return AgentSettings()
+
+
+# ============================================================
+# Экспорт для обратной совместимости
+# ============================================================
+
+__all__ = [
+    'AppConfig',
+    'DatabaseSettings',
+    'LLMSettings',
+    'AgentSettings',
+    'LLMProviderConfig',
+    'DBProviderConfig',
+    'LoggingConfig',
+    'get_config',
+    'get_database_config',
+    'get_llm_config',
+    'get_agent_config',
+]

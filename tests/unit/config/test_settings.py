@@ -167,28 +167,76 @@ class TestLoggingConfig:
             assert log.level == level
 
 
-class TestAppConfigFromSettings:
-    """Тесты AppConfig с поддержкой env vars (из settings.py)."""
+class TestAppConfig:
+    """Тесты AppConfig (единая конфигурация)."""
 
     def test_default_values(self):
         """Тест: значения по умолчанию."""
-        from core.config.app_config import AppConfig as DiscoveryAppConfig
-        
-        # AppConfig из settings.py теперь импортирует DiscoveryAppConfig
-        # который использует profile="prod" по умолчанию
-        config = DiscoveryAppConfig()
+        from core.config.app_config import AppConfig
+
+        config = AppConfig()
 
         assert config.config_id == "app_config"
-        # profile по умолчанию "prod" в DiscoveryAppConfig
+        assert config.profile == "dev"
+        assert isinstance(config.database, DatabaseSettings)
+        assert isinstance(config.llm, LLMSettings)
+        assert isinstance(config.agent, AgentSettings)
+
+    def test_database_access(self):
+        """Тест: доступ к настройкам БД."""
+        from core.config.app_config import AppConfig
+
+        config = AppConfig()
+        
+        assert config.database.host == "localhost"
+        assert config.database.port == 5432
+        assert config.database.database == "agent_db"
+
+    def test_llm_access(self):
+        """Тест: доступ к настройкам LLM."""
+        from core.config.app_config import AppConfig
+
+        config = AppConfig()
+        
+        assert config.llm.provider == "llama"
+        assert config.llm.temperature == 0.7
+
+    def test_agent_access(self):
+        """Тест: доступ к настройкам агента."""
+        from core.config.app_config import AppConfig
+
+        config = AppConfig()
+        
+        assert config.agent.max_steps == 10
+        assert config.agent.profile == "dev"
+
+    def test_profile_sync(self):
+        """Тест: синхронизация профиля."""
+        from core.config.app_config import AppConfig
+
+        config = AppConfig(profile="prod")
+
+        assert config.profile == "prod"
+        assert config.agent.profile == "prod"
+
+    def test_validate_all(self):
+        """Тест: валидация конфигурации."""
+        from core.config.app_config import AppConfig
+
+        config = AppConfig(llm={"provider": "llama"})
+        errors = config.validate_all()
+
+        assert len(errors) == 0
 
     def test_repr(self):
         """Тест: строковое представление."""
-        from core.config.app_config import AppConfig as DiscoveryAppConfig
-        
-        config = DiscoveryAppConfig()
+        from core.config.app_config import AppConfig
+
+        config = AppConfig()
         repr_str = repr(config)
 
         assert "AppConfig" in repr_str
+        assert "dev" in repr_str
 
 
 class TestGetConfig:
