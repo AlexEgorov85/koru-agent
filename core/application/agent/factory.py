@@ -105,29 +105,32 @@ class AgentFactory:
         """
         errors = []
 
-        # Получаем инфраструктурный контекст из application_context
-        infra = self.application_context.infrastructure_context
+        # Получаем DataRepository из application_context
+        data_repo = self.application_context.data_repository
+        if not data_repo:
+            errors.append("DataRepository не инициализирован")
+            return errors
 
-        # Проверка промптов через prompt_storage напрямую
-        prompt_storage = infra.prompt_storage
-        if prompt_storage:
-            for capability, version in config.prompt_versions.items():
-                exists = await prompt_storage.exists(capability, version)
-                if not exists:
+        # Проверка промптов через DataRepository
+        for capability, version in config.prompt_versions.items():
+            try:
+                prompt = data_repo.get_prompt(capability, version)
+                if not prompt:
                     errors.append(f"Промпт {capability}@{version} не существует")
+            except KeyError:
+                errors.append(f"Промпт {capability}@{version} не существует")
 
-        # Проверка контрактов через contract_storage напрямую
-        contract_storage = infra.contract_storage
-        if contract_storage:
-            for contract_name, version in config.contract_versions.items():
-                # Проверяем как input, так и output контракты
-                input_exists = await contract_storage.exists(contract_name, version, "input")
-                output_exists = await contract_storage.exists(contract_name, version, "output")
-
-                if not input_exists:
-                    errors.append(f"Input-контракт {contract_name}@{version} не существует")
-                if not output_exists:
-                    errors.append(f"Output-контракт {contract_name}@{version} не существует")
+        # Проверка контрактов через DataRepository
+        for contract_name, version in config.contract_versions.items():
+            # Проверяем как input, так и output контракты
+            try:
+                data_repo.get_contract(contract_name, version, "input")
+            except KeyError:
+                errors.append(f"Input-контракт {contract_name}@{version} не существует")
+            try:
+                data_repo.get_contract(contract_name, version, "output")
+            except KeyError:
+                errors.append(f"Output-контракт {contract_name}@{version} не существует")
 
         return errors
 

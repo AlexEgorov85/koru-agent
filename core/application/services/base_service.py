@@ -125,8 +125,6 @@ class BaseService(BaseComponent):
             executor=executor,
             # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
             event_bus=event_bus,
-            prompt_storage=prompt_storage,
-            contract_storage=contract_storage,
             metrics_storage=metrics_storage,
             log_storage=log_storage
         )

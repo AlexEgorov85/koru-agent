@@ -170,16 +170,16 @@ class TestReActLLMGuarantee:
             "consecutive_errors": 0
         }
 
-        # Проверяем что InfrastructureError НЕ выбрасывается при fallback
-        # (так как LLM провайдер недоступен - это нормальный fallback)
-        decision = await pattern.generate_decision(
-            session_context=session_context,
-            available_capabilities=available_capabilities,
-            context_analysis=context_analysis
-        )
-
-        # В режиме fallback (LLM недоступен) ошибка не выбрасывается
-        assert decision is not None
+        # ТЕПЕРЬ: Проверяем что InfrastructureError выбрасывается
+        # (так как LLM провайдер недоступен - это ошибка)
+        from core.errors.exceptions import InfrastructureError, SkillExecutionError
+        
+        with pytest.raises((InfrastructureError, SkillExecutionError)):
+            await pattern.generate_decision(
+                session_context=session_context,
+                available_capabilities=available_capabilities,
+                context_analysis=context_analysis
+            )
 
 
 # ============================================================================
@@ -285,11 +285,12 @@ class TestErrorHandling:
     """Тесты обработки ошибок в ReActPattern"""
 
     @pytest.mark.asyncio
-    async def test_fallback_on_llm_unavailable(
+    async def test_raises_error_on_llm_unavailable(
         self, mock_application_context, mock_component_config, mock_executor
     ):
-        """Тест: Fallback когда LLM недоступен"""
+        """Тест: Выбрасывает InfrastructureError когда LLM недоступен"""
         from core.application.behaviors.react.pattern import ReActPattern
+        from core.errors.exceptions import InfrastructureError, SkillExecutionError
 
         # LLM провайдер недоступен (по умолчанию в mock_application_context)
         pattern = ReActPattern(
@@ -310,15 +311,13 @@ class TestErrorHandling:
             "consecutive_errors": 0
         }
 
-        # Не должно выбросить ошибку, должен быть fallback
-        decision = await pattern.generate_decision(
-            session_context=session_context,
-            available_capabilities=available_capabilities,
-            context_analysis=context_analysis
-        )
-
-        assert decision is not None
-        assert decision.action is not None
+        # ТЕПЕРЬ: Должно выбросить ошибку вместо fallback
+        with pytest.raises((InfrastructureError, SkillExecutionError)):
+            await pattern.generate_decision(
+                session_context=session_context,
+                available_capabilities=available_capabilities,
+                context_analysis=context_analysis
+            )
 
 
 # ============================================================================

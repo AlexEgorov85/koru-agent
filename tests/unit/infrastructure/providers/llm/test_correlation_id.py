@@ -56,7 +56,7 @@ async def test_correlation_id_generated_in_base_provider(mock_event_bus, mock_pr
     )
     
     # Mock Provider зарегистрирует ответ по умолчанию
-    mock_provider.set_default_response('{"status": "ok"}')
+    mock_provider.register_response('', '{"status": "ok"}')  # registered for all prompts
     
     response = await mock_provider.generate_structured(request)
     
@@ -103,7 +103,7 @@ async def test_correlation_id_is_valid_uuid(mock_event_bus, mock_provider):
         )
     )
     
-    mock_provider.set_default_response('{"status": "ok"}')
+    mock_provider.register_response('', '{"status": "ok"}')  # registered for all prompts
     response = await mock_provider.generate_structured(request)
     
     # Получаем correlation_id из первого события
@@ -137,7 +137,7 @@ async def test_correlation_id_unique_for_each_call(mock_event_bus, mock_provider
         )
     )
     
-    mock_provider.set_default_response('{"status": "ok"}')
+    mock_provider.register_response('', '{"status": "ok"}')  # registered for all prompts
     
     # Первый вызов
     await mock_provider.generate_structured(request)
@@ -177,7 +177,7 @@ async def test_prompt_and_response_share_same_correlation_id(mock_event_bus, moc
         )
     )
     
-    mock_provider.set_default_response('{"result": "success"}')
+    mock_provider.register_response('', '{"result": "success"}')  # registered for all prompts
     response = await mock_provider.generate_structured(request)
     
     # Собираем все correlation_id из событий
@@ -225,7 +225,7 @@ async def test_error_event_shares_correlation_id(mock_event_bus, mock_provider):
     )
     
     # Устанавливаем ответ который не валидируется
-    mock_provider.set_default_response('{"wrong_field": "value"}')
+    mock_provider.register_response('', '{"wrong_field": "value"}')  # registered for all prompts
     
     try:
         await mock_provider.generate_structured(request)

@@ -252,6 +252,9 @@ class LLMOrchestrator:
         self._cleanup_interval = cleanup_interval
         self._max_pending_calls = max_pending_calls
 
+        # ← НОВОЕ: model_name для обратной совместимости
+        self.model_name = "unknown"
+
         # Пул потоков для синхронных LLM вызовов
         self._executor: Optional[ThreadPoolExecutor] = None
 

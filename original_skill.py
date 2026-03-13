@@ -150,7 +150,9 @@ class BookLibrarySkill(BaseComponent):
             await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
             self._scripts_registry = {}
 
-        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
+        # Логирование инициализации с использованием get_capabilities()
+        capabilities_list = [cap.name for cap in self.get_capabilities()]
+        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {capabilities_list}")
         return True
 
     def _get_event_type_for_success(self) -> 'EventType':

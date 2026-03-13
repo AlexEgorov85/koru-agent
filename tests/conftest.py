@@ -45,9 +45,11 @@ def mock_llm_provider():
         "final_answer.generate",
         '{"final_answer": "Test answer", "confidence": 0.95}'
     )
-    
-    provider.set_default_response('{"status": "ok"}')
-    
+
+    # Регистрируем ответы для основных промптов вместо default_response
+    provider.register_response("status", '{"status": "ok"}')
+    provider.register_response("ping", '{"status": "ok"}')
+
     return provider
 
 

@@ -55,6 +55,11 @@ class ActionExecutor:
         except Exception:
             pass
 
+    @property
+    def logger(self):
+        """Обратная совместимость - возвращает event_bus_logger."""
+        return self._event_bus_logger
+
     def _log_debug(self, msg: str, *args, **kwargs):
         """Отладочное логирование."""
         if self._event_bus_logger:

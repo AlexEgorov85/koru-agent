@@ -352,15 +352,13 @@ class AgentRuntime:
         # Выполняем capability
         try:
             print(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...", flush=True)
-            
+
             # component уже найден (SKILL.book_library или TOOL.book_library)
             # capability — это компонент, а cap_obj — объект Capability для валидации
-            execution_result = await self.executor.execute_capability(
-                capability=capability,  # Передаём компонент (SKILL.book_library)
+            execution_result = await self.executor.execute_action(
+                action_name=decision.capability_name,
                 parameters=decision.parameters,
-                session_context=self.application_context.session_context,
-                user_context=self.user_context,
-                capability_name=decision.capability_name  # Передаём имя capability для валидации
+                context=self.application_context.session_context
             )
             print(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно", flush=True)
             print(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}", flush=True)

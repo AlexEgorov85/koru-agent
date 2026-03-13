@@ -56,18 +56,20 @@ class EmbeddingConfig(BaseModel):
 class ChunkingConfig(BaseModel):
     """
     Конфигурация chunking.
-    
+
     Attributes:
         enabled: Включён ли chunking
         strategy: Стратегия (text/semantic/hybrid)
         chunk_size: Размер чанка (символы)
         chunk_overlap: Перекрытие (символы)
+        min_chunk_size: Минимальный размер чанка (символы)
         separators: Разделители по приоритету
     """
     enabled: bool = True
     strategy: Literal["text", "semantic", "hybrid"] = "text"
     chunk_size: int = Field(default=500, ge=100, le=2000)
     chunk_overlap: int = Field(default=50, ge=0, le=200)
+    min_chunk_size: int = Field(default=100, ge=10, le=500)
     separators: List[str] = [
         "\n## ",
         "\n### ",

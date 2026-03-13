@@ -63,6 +63,9 @@ class BookLibrarySkill(BaseSkill):
     # Явная декларация зависимостей
     DEPENDENCIES = ["sql_tool", "sql_generation", "sql_query_service", "table_description_service"]
 
+    # Имя навыка для конфигурации
+    name: str = "book_library"
+
     def __init__(
         self,
         name: str,
@@ -80,15 +83,6 @@ class BookLibrarySkill(BaseSkill):
             self._print_fallback = True
         else:
             self._print_fallback = False
-
-    def _preload_resources(self):
-        """Загрузка реестра скриптов (вызывается после __init__)."""
-        try:
-            from .scripts_registry import get_all_scripts
-            self._scripts_registry = get_all_scripts()
-        except Exception as e:
-            self._safe_log_sync("error", f"Ошибка загрузки реестра скриптов: {e}")
-            self._scripts_registry = {}
 
     def get_capabilities(self) -> List[Capability]:
         """
@@ -123,7 +117,7 @@ class BookLibrarySkill(BaseSkill):
                 visiable=True,
                 meta={
                     "contract_version": "v1.0.0",
-                    "prompt_version": "v1.1.0",
+                    "prompt_version": None,  # ← LLM не используется, промпт не требуется
                     "requires_llm": False,
                     "execution_type": "static",
                     "scripts_count": 10,
@@ -151,7 +145,7 @@ class BookLibrarySkill(BaseSkill):
                 visiable=True,
                 meta={
                     "contract_version": "v1.0.0",
-                    "prompt_version": "v1.0.0",
+                    "prompt_version": None,  # ← LLM не используется, промпт не требуется
                     "requires_llm": False,
                     "execution_type": "vector"
                 }
@@ -165,9 +159,18 @@ class BookLibrarySkill(BaseSkill):
         if not success:
             return False
 
-        # Загружаем реестр скриптов (бизнес-логика, не инфраструктура)
-        self._preload_resources()
-        
+        # Ресурсы уже загружены через super().initialize() (BaseComponent._preload_resources())
+        # Загружаем только реестр скриптов (бизнес-логика)
+        try:
+            from .scripts_registry import get_all_scripts
+            self._scripts_registry = get_all_scripts()
+        except Exception as e:
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+            else:
+                self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+            self._scripts_registry = {}
+
         await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {[cap.name for cap in self.get_capabilities()]}")
         return True
 

@@ -60,7 +60,7 @@ class TableDescriptionService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name or "table_description_service", application_context, component_config, executor)
+        super().__init__(name=name or "table_description_service", application_context=application_context, component_config=component_config, executor=executor)
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
 
     async def _custom_initialize(self) -> bool:
