@@ -22,24 +22,27 @@ Unified Logging System.
         │                     │                     │
         ▼                     ▼                     ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ TerminalHandler │  │  FileHandler    │  │ SessionHandler  │
-│ (терминал)      │  │  (ОТКЛЮЧЁН!)    │  │ (сессия)        │
+│ TerminalHandler │  │  SessionHandler │  │  LogCollector   │
+│ (терминал)      │  │  (сессия)       │  │  (метрики)      │
 │                 │  │                 │  │                 │
-│ - онлайн вывод  │  │ - дублировал    │  │ - common.log    │
-│ - с иконками    │  │   SessionHandler│  │ - llm.jsonl     │
-│ - для разраба   │  │                 │  │ - metrics.jsonl │
+│ - онлайн вывод  │  │ - session.log   │  │ - для обучения  │
+│ - с иконками    │  │ - llm.jsonl     │  │                 │
+│ - для разраба   │  │ - metrics.jsonl │  │                 │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 
 ВАЖНО:
 - Terminal: онлайн вывод для разработчика (ВКЛЮЧЁН)
-- File: ОТКЛЮЧЁН (дублировал SessionHandler)
 - Session: структура по сессиям с LLM и метриками (ВКЛЮЧЁН)
+
+КОНФИГУРАЦИЯ:
+- core.config.logging_config.LoggingConfig — ЕДИНАЯ конфигурация
+- core.config.paths.log_paths — централизованные пути
 
 ЭКСПОРТ:
 - EventBusLogger: универсальный логгер
 - create_logger: фабрика логгеров
-- TerminalLogHandler, FileLogHandler: обработчики
-- LoggingConfig, FileOutputConfig: конфигурация
+- TerminalLogHandler, SessionLogHandler: обработчики
+- LoggingConfig: конфигурация (из core.config.logging_config)
 - setup_logging, shutdown_logging: управление
 """
 from core.infrastructure.logging.logger import (
@@ -53,21 +56,9 @@ from core.infrastructure.logging.logger import (
 
 from core.infrastructure.logging.handlers import (
     TerminalLogHandler,
-    FileLogHandler,
     TerminalLogFormatter,
-    FileLogFormatter,
     setup_logging,
     shutdown_logging,
-)
-
-from core.infrastructure.logging.config import (
-    LoggingConfig,
-    FileOutputConfig,
-    LogLevel,
-    LogFormat,
-    get_logging_config,
-    configure_logging,
-    set_file_level,
 )
 
 from core.infrastructure.logging.session_log_handler import (
@@ -75,10 +66,65 @@ from core.infrastructure.logging.session_log_handler import (
     create_session_log_handler,
 )
 
-# Для обратной совместимости
-LogConfig = LoggingConfig
-get_log_config = get_logging_config
-get_log_manager = lambda: None
+# ============================================================
+# ИМПОРТЫ ИЗ ЕДИНОЙ КОНФИГУРАЦИИ
+# ============================================================
+from core.config.logging_config import (
+    LoggingConfig,
+    LogConfig,  # Alias
+    ConsoleConfig,
+    FileConfig,
+    SessionConfig,
+    RetentionConfig,
+    IndexingConfig,
+    SymlinksConfig,
+    LogLevel,
+    LogFormat,
+    get_logging_config,
+    get_log_config,  # Alias
+    configure_logging,
+    set_log_level,
+    set_file_level,
+    disable_logging,
+    enable_logging,
+)
+
+from core.config.paths import (
+    log_paths,
+    get_log_paths,
+    init_paths,
+    create_all_directories,
+)
+
+# ============================================================
+# УСТАРЕВШИЕ ЭКСПОРТЫ (для обратной совместимости)
+# ============================================================
+
+# FileLogHandler ОТКЛЮЧЁН - дублировал SessionLogHandler
+# Для обратной совместимости экспортируем заглушку
+class FileLogHandler:
+    """Устаревший обработчик (удалён, дублировал SessionLogHandler)."""
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "FileLogHandler удалён. Используйте SessionLogHandler."
+        )
+
+
+class FileOutputConfig:
+    """Устаревший класс (удалён). Используйте FileConfig."""
+    def __new__(cls, *args, **kwargs):
+        raise NotImplementedError(
+            "FileOutputConfig удалён. Используйте FileConfig из core.config.logging_config."
+        )
+
+
+def get_log_manager():
+    """Устаревшая функция (удалена)."""
+    return None
+
+
+# Для полной обратной совместимости
+FileOutputConfig = FileConfig
 
 __all__ = [
     # Logger
@@ -91,27 +137,39 @@ __all__ = [
 
     # Handlers
     'TerminalLogHandler',
-    'FileLogHandler',
     'TerminalLogFormatter',
-    'FileLogFormatter',
+    'SessionLogHandler',
+    'create_session_log_handler',
     'setup_logging',
     'shutdown_logging',
 
-    # Config
+    # Config (из единой конфигурации)
     'LoggingConfig',
-    'FileOutputConfig',
+    'LogConfig',
+    'ConsoleConfig',
+    'FileConfig',
+    'SessionConfig',
+    'RetentionConfig',
+    'IndexingConfig',
+    'SymlinksConfig',
     'LogLevel',
     'LogFormat',
     'get_logging_config',
-    'configure_logging',
-    'set_file_level',
-
-    # Backward compatibility
-    'LogConfig',
     'get_log_config',
-    'get_log_manager',
+    'configure_logging',
+    'set_log_level',
+    'set_file_level',
+    'disable_logging',
+    'enable_logging',
 
-    # Session logging
-    'SessionLogHandler',
-    'create_session_log_handler',
+    # Paths
+    'log_paths',
+    'get_log_paths',
+    'init_paths',
+    'create_all_directories',
+
+    # Устаревшие (для обратной совместимости)
+    'FileLogHandler',      # Заглушка
+    'FileOutputConfig',    # Alias на FileConfig
+    'get_log_manager',     # Заглушка
 ]

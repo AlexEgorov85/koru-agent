@@ -16,7 +16,8 @@ import os
 from typing import Optional
 from pathlib import Path
 
-from core.config.app_config import AppConfig, LLMProviderConfig, DBProviderConfig, LoggingConfig
+from core.config.app_config import AppConfig, LLMProviderConfig, DBProviderConfig
+from core.config.logging_config import LoggingConfig
 from core.config.component_config import ComponentConfig
 from core.config.agent_config import AgentConfig
 

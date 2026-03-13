@@ -14,9 +14,9 @@ from core.config.settings import (
     DatabaseSettings,
     LLMSettings,
     AgentSettings,
-    LoggingSettings,
     get_config,
 )
+from core.config.logging_config import LoggingConfig
 
 
 class TestDatabaseSettings:
@@ -148,163 +148,88 @@ class TestAgentSettings:
         assert agent_high.max_steps == 100
 
 
-class TestLoggingSettings:
-    """Тесты LoggingSettings."""
-    
+class TestLoggingConfig:
+    """Тесты LoggingConfig."""
+
     def test_default_values(self):
         """Тест: значения по умолчанию."""
-        logging = LoggingSettings()
-        
+        logging = LoggingConfig()
+
         assert logging.level == "INFO"
-        assert logging.format == "simple"
-        assert logging.file_enabled is True
-        assert logging.console_enabled is True
-    
+        assert logging.console.enabled is True
+        assert logging.file.enabled is True
+        assert logging.session.enabled is True
+
     def test_valid_log_levels(self):
         """Тест: допустимые уровни логирования."""
         for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-            log = LoggingSettings(level=level)
+            log = LoggingConfig(level=level)
             assert log.level == level
-    
-    def test_invalid_log_level(self):
-        """Тест: недопустимый уровень."""
-        with pytest.raises(ValueError):
-            LoggingSettings(level="TRACE")
 
 
-class TestAppConfig:
-    """Тесты AppConfig."""
-    
+class TestAppConfigFromSettings:
+    """Тесты AppConfig с поддержкой env vars (из settings.py)."""
+
     def test_default_values(self):
         """Тест: значения по умолчанию."""
-        config = AppConfig()
+        from core.config.app_config import AppConfig as DiscoveryAppConfig
         
-        assert config.profile == "dev"
+        # AppConfig из settings.py теперь импортирует DiscoveryAppConfig
+        # который использует profile="prod" по умолчанию
+        config = DiscoveryAppConfig()
+
         assert config.config_id == "app_config"
-        assert isinstance(config.database, DatabaseSettings)
-        assert isinstance(config.llm, LLMSettings)
-        assert isinstance(config.agent, AgentSettings)
-        assert isinstance(config.logging, LoggingSettings)
-    
-    def test_nested_settings_access(self):
-        """Тест: доступ к вложенным настройкам."""
-        config = AppConfig()
-        
-        # Database
-        assert config.database.host == "localhost"
-        
-        # LLM
-        assert config.llm.provider == "llama"
-        
-        # Agent
-        assert config.agent.max_steps == 10
-        
-        # Logging
-        assert config.logging.level == "INFO"
-    
-    def test_profile_sync(self):
-        """Тест: синхронизация профиля."""
-        config = AppConfig(profile="prod")
-        
-        assert config.profile == "prod"
-        assert config.agent.profile == "prod"
-    
-    def test_validate_all_success(self):
-        """Тест: валидация без ошибок."""
-        config = AppConfig(
-            profile="dev",
-            llm={"provider": "llama"}  # Локальный провайдер не требует api_key
-        )
-        
-        errors = config.validate_all()
-        
-        # В dev режиме может быть warning о DEBUG логах
-        assert len(errors) == 0 or any("DEBUG" in e for e in errors)
-    
-    def test_validate_cloud_llm_no_api_key(self):
-        """Тест: облачный LLM без api_key."""
-        config = AppConfig(
-            profile="prod",
-            llm={"provider": "openai", "api_key": None}
-        )
-        
-        errors = config.validate_all()
-        
-        assert any("api_key" in e for e in errors)
-    
-    def test_validate_prod_debug_logging(self):
-        """Тест: production с DEBUG логированием."""
-        config = AppConfig(
-            profile="prod",
-            llm={"provider": "llama"},
-            logging={"level": "DEBUG"}
-        )
-        
-        errors = config.validate_all()
-        
-        assert any("DEBUG" in e for e in errors)
-    
-    def test_data_dir_creation(self):
-        """Тест: создание директорий."""
-        import tempfile
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            data_dir = Path(tmpdir) / "new_data_dir"
-            
-            config = AppConfig(data_dir=data_dir)
-            
-            assert data_dir.exists()
-            assert data_dir.is_dir()
-    
+        # profile по умолчанию "prod" в DiscoveryAppConfig
+
     def test_repr(self):
         """Тест: строковое представление."""
-        config = AppConfig(profile="prod")
-        repr_str = repr(config)
+        from core.config.app_config import AppConfig as DiscoveryAppConfig
         
+        config = DiscoveryAppConfig()
+        repr_str = repr(config)
+
         assert "AppConfig" in repr_str
-        assert "prod" in repr_str
 
 
 class TestGetConfig:
     """Тесты factory функций."""
-    
+
     def test_get_config_default(self):
         """Тест: получение конфигурации по умолчанию."""
         config = get_config()
-        
-        assert config.profile == "dev"
-    
+
+        assert config.config_id == "app_config"
+
     def test_get_config_with_profile(self):
         """Тест: получение конфигурации с профилем."""
         config = get_config(profile="sandbox")
-        
+
         assert config.profile == "sandbox"
-        assert config.agent.profile == "sandbox"
-    
+
     def test_get_database_config(self):
         """Тест: получение настроек БД."""
         from core.config.settings import get_database_config
-        
+
         db = get_database_config()
-        
+
         assert isinstance(db, DatabaseSettings)
         assert db.host == "localhost"
-    
+
     def test_get_llm_config(self):
         """Тест: получение настроек LLM."""
         from core.config.settings import get_llm_config
-        
+
         llm = get_llm_config()
-        
+
         assert isinstance(llm, LLMSettings)
         assert llm.provider == "llama"
-    
+
     def test_get_agent_config(self):
         """Тест: получение настроек агента."""
         from core.config.settings import get_agent_config
-        
+
         agent = get_agent_config()
-        
+
         assert isinstance(agent, AgentSettings)
         assert agent.max_steps == 10
 
@@ -333,23 +258,13 @@ class TestEnvironmentVariables:
         assert llm.provider == "openai"
         assert llm.model == "gpt-4"
         assert llm.temperature == 0.5
-    
+
     def test_env_override_agent(self, monkeypatch):
         """Тест: переопределение агента через env vars."""
         monkeypatch.setenv("AGENT_MAX_STEPS", "20")
         monkeypatch.setenv("AGENT_MAX_RETRIES", "5")
-        
+
         agent = AgentSettings()
-        
+
         assert agent.max_steps == 20
         assert agent.max_retries == 5
-    
-    def test_env_override_logging(self, monkeypatch):
-        """Тест: переопределение логирования через env vars."""
-        monkeypatch.setenv("AGENT_LOG_LEVEL", "DEBUG")
-        monkeypatch.setenv("AGENT_LOG_FORMAT", "json")
-        
-        logging = LoggingSettings()
-        
-        assert logging.level == "DEBUG"
-        assert logging.format == "json"

@@ -80,6 +80,7 @@ class TestFullOptimizationCycle:
             benchmark_service=benchmark_service,
             prompt_generator=prompt_generator,
             metrics_collector=metrics_collector,
+            log_collector=None,
             event_bus=event_bus,
             config=opt_config
         )

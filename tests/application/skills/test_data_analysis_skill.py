@@ -89,7 +89,7 @@ def data_analysis_skill(mock_application_context, mock_component_config, mock_ex
     skill._initialized = True
 
     # Устанавливаем _log_config вручную для тестов
-    from core.infrastructure.logging.log_config import LoggingConfig
+    from core.config.logging_config import LoggingConfig
     skill._log_config = LoggingConfig(
         level="ERROR"
     )

@@ -10,40 +10,23 @@
 import asyncio
 import sys
 import warnings
-import os
 import io
 
-# Устанавливаем UTF-8 кодировку для консоли Windows
-if sys.platform == 'win32':
-    os.system('chcp 65001 >nul')  # Устанавливаем UTF-8 кодировку
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+# ============================================================
+# НАСТРОЙКА КОДИРОВКИ (единая точка для всех ОС)
+# ============================================================
+from core.utils.encoding import setup_encoding
+
+# Вызываем ОДИН раз в начале программы
+setup_encoding()
 
 # Подавляем предупреждения Pydantic
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.json_schema")
 
-# Подавляем вывод llama.cpp (сообщения о контексте) через перенаправление stderr
-class StderrFilter:
-    """Фильтр stderr для подавления технических сообщений."""
-    def __init__(self, original_stderr):
-        self.original_stderr = original_stderr
-        self.buffer = io.StringIO()
-    
-    def write(self, text):
-        # Пропускаем сообщения llama.cpp о контексте
-        if "llama_context:" in text and "n_ctx_per_seq" in text:
-            return
-        self.original_stderr.write(text)
-        self.original_stderr.flush()
-    
-    def flush(self):
-        self.original_stderr.flush()
-    
-    def isatty(self):
-        return self.original_stderr.isatty()
+# Подавляем вывод llama.cpp через фильтр stderr
+from core.utils.encoding import StderrFilter
 
-# Устанавливаем фильтр stderr
-sys.stderr = StderrFilter(sys.stderr)
+sys.stderr = StderrFilter(sys.stderr, patterns=["llama_context:", "n_ctx_per_seq"])
 
 from core.config import get_config, AppConfig
 from core.infrastructure.context.infrastructure_context import InfrastructureContext

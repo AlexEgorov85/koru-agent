@@ -4,7 +4,7 @@
 ЗАМЕНЯЕТ:
 - SystemConfig (из models.py)
 - ComponentConfig
-- AgentConfig  
+- AgentConfig
 - LoggingConfig
 - registry.yaml зависимость
 
@@ -15,11 +15,245 @@
 - Экономия ~3000 строк кода
 """
 from pathlib import Path
-from typing import Dict, Optional, List, Any
-from pydantic import BaseModel, Field, field_validator
+from typing import Dict, Optional, List, Any, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from core.config.vector_config import VectorSearchConfig
+from core.config.logging_config import LoggingConfig
+
+
+# ============================================================
+# Settings классы для поддержки env vars (из settings.py)
+# ============================================================
+
+class DatabaseSettings(BaseSettings):
+    """
+    Настройки подключения к базе данных.
+
+    ENV VARS:
+    - AGENT_DB_HOST, AGENT_DB_PORT, AGENT_DB_NAME
+    - AGENT_DB_USER, AGENT_DB_PASSWORD
+    - AGENT_DB_POOL_SIZE, AGENT_DB_TIMEOUT
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix='AGENT_DB_',
+        env_file='.env',
+        extra='ignore'
+    )
+
+    host: str = Field(default="localhost", description="Хост БД")
+    port: int = Field(default=5432, description="Порт БД")
+    database: str = Field(default="agent_db", description="Имя базы данных")
+    username: str = Field(default="postgres", description="Пользователь БД")
+    password: str = Field(default="", description="Пароль БД")
+
+    # Пул соединений
+    pool_size: int = Field(default=10, ge=1, le=100, description="Размер пула соединений")
+    timeout: float = Field(default=30.0, ge=0.0, description="Таймаут подключения в секундах")
+
+    # SSL
+    sslmode: Literal["disable", "require", "verify-ca", "verify-full"] = Field(
+        default="disable",
+        description="Режим SSL"
+    )
+
+    @field_validator('port')
+    @classmethod
+    def validate_port(cls, v):
+        """Проверка порта."""
+        if not 1024 <= v <= 65535:
+            raise ValueError("Port must be between 1024 and 65535")
+        return v
+
+    @property
+    def dsn(self) -> str:
+        """Data Source Name для подключения."""
+        return (
+            f"postgresql://{self.username}:{self.password}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
+
+    @property
+    def is_postgres(self) -> bool:
+        """Проверка что это PostgreSQL."""
+        return True
+
+    def __repr__(self) -> str:
+        return (
+            f"DatabaseSettings(host={self.host!r}, port={self.port}, "
+            f"database={self.database!r}, user={self.username!r})"
+        )
+
+
+class LLMSettings(BaseSettings):
+    """
+    Настройки LLM провайдера.
+
+    ENV VARS:
+    - AGENT_LLM_PROVIDER, AGENT_LLM_MODEL
+    - AGENT_LLM_TEMPERATURE, AGENT_LLM_MAX_TOKENS
+    - AGENT_LLM_TIMEOUT, AGENT_LLM_API_KEY
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix='AGENT_LLM_',
+        env_file='.env',
+        extra='ignore'
+    )
+
+    # Провайдер
+    provider: Literal["vllm", "llama", "openai", "anthropic", "gemini"] = Field(
+        default="llama",
+        description="Тип LLM провайдера"
+    )
+
+    # Модель
+    model: str = Field(
+        default="mistral-7b-instruct",
+        description="Имя модели или путь к файлу"
+    )
+    model_path: Optional[str] = Field(
+        default=None,
+        description="Путь к файлу модели (для llama/vllm)"
+    )
+
+    # Параметры генерации
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=2.0,
+        description="Температура генерации"
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Максимальное количество токенов"
+    )
+    top_p: float = Field(
+        default=0.9,
+        ge=0.0,
+        le=1.0,
+        description="Top-p sampling"
+    )
+
+    # Таймауты
+    timeout_seconds: float = Field(
+        default=120.0,
+        ge=0.0,
+        description="Таймаут ожидания ответа"
+    )
+
+    # API ключи (для облачных провайдеров)
+    api_key: Optional[str] = Field(
+        default=None,
+        description="API ключ (для OpenAI/Anthropic/Gemini)"
+    )
+    api_base_url: Optional[str] = Field(
+        default=None,
+        description="Базовый URL API (для совместимых провайдеров)"
+    )
+
+    # Кэширование
+    enable_caching: bool = Field(
+        default=True,
+        description="Включить кэширование ответов"
+    )
+
+    @field_validator('temperature')
+    @classmethod
+    def validate_temperature(cls, v):
+        """Проверка температуры."""
+        if v < 0 or v > 2:
+            raise ValueError("Temperature must be between 0 and 2")
+        return v
+
+    @property
+    def is_local(self) -> bool:
+        """Проверка что это локальная модель."""
+        return self.provider in ("vllm", "llama")
+
+    @property
+    def is_cloud(self) -> bool:
+        """Проверка что это облачный провайдер."""
+        return self.provider in ("openai", "anthropic", "gemini")
+
+    def __repr__(self) -> str:
+        return (
+            f"LLMSettings(provider={self.provider!r}, model={self.model!r}, "
+            f"temperature={self.temperature})"
+        )
+
+
+class AgentSettings(BaseSettings):
+    """
+    Настройки агента.
+
+    ENV VARS:
+    - AGENT_MAX_STEPS, AGENT_MAX_RETRIES
+    - AGENT_TIMEOUT, AGENT_ENABLE_SELF_REFLECTION
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix='AGENT_',
+        env_file='.env',
+        extra='ignore'
+    )
+
+    # Ограничения
+    max_steps: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Максимальное количество шагов"
+    )
+    max_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Максимальное количество попыток"
+    )
+    timeout_seconds: float = Field(
+        default=300.0,
+        ge=0.0,
+        description="Общий таймаут выполнения"
+    )
+
+    # Функции
+    enable_self_reflection: bool = Field(
+        default=True,
+        description="Включить саморефлексию"
+    )
+    enable_context_window_management: bool = Field(
+        default=True,
+        description="Включить управление окном контекста"
+    )
+    enable_benchmark: bool = Field(
+        default=False,
+        description="Включить бенчмарки"
+    )
+
+    # Профиль
+    profile: Literal["dev", "prod", "sandbox"] = Field(
+        default="dev",
+        description="Профиль работы"
+    )
+
+    @field_validator('max_steps')
+    @classmethod
+    def validate_max_steps(cls, v):
+        """Проверка max_steps."""
+        if v < 1 or v > 100:
+            raise ValueError("max_steps must be between 1 and 100")
+        return v
+
+    def __repr__(self) -> str:
+        return (
+            f"AgentSettings(max_steps={self.max_steps}, "
+            f"profile={self.profile!r})"
+        )
 
 
 # === ВСТРОЕННЫЕ КОНФИГУРАЦИИ (бывшие отдельные классы) ===
@@ -67,19 +301,6 @@ class DBProviderConfig(BaseModel):
         if 'type_provider' in data and 'provider_type' not in data:
             data['provider_type'] = data['type_provider']
         super().__init__(**data)
-
-
-class LoggingConfig(BaseModel):
-    """Конфигурация логирования (встроена из infrastructure/logging/config.py)"""
-    model_config = ConfigDict(validate_assignment=True)
-
-    level: str = Field(default="INFO", description="Уровень логирования")
-    format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", description="Формат логов")
-    log_dir: str = Field(default="logs", description="Директория для логов")
-    file_output_enabled: bool = Field(default=True, description="Включен ли вывод в файл")
-    event_logging_enabled: bool = Field(default=True, description="Включено ли логирование событий")
-    max_log_size_mb: int = Field(default=10, description="Макс. размер файла логов (MB)")
-    backup_count: int = Field(default=5, description="Кол-во резервных файлов логов")
 
 
 # === ОСНОВНАЯ КОНФИГУРАЦИЯ ===
@@ -427,7 +648,7 @@ class AppConfig(BaseModel):
             }
         }
 
-        for comp_dict, defaults_dict in [(service_configs, defaults['service_configs']), 
+        for comp_dict, defaults_dict in [(service_configs, defaults['service_configs']),
                                           (tool_configs, defaults['tool_configs'])]:
             for name, override in defaults_dict.items():
                 if name not in comp_dict:
@@ -463,3 +684,37 @@ class AppConfig(BaseModel):
             llm_providers=llm_providers,  # ← Загружено из YAML
             db_providers=db_providers,    # ← Загружено из YAML
         )
+
+
+# ============================================================
+# Factory Functions (для обратной совместимости с settings.py)
+# ============================================================
+
+def get_config(profile: Optional[str] = None) -> 'AppConfig':
+    """
+    Получить конфигурацию приложения.
+
+    ARGS:
+    - profile: Профиль (dev/prod/sandbox). Переопределяет env vars.
+
+    RETURNS:
+    - AppConfig с загруженными настройками
+    """
+    if profile:
+        return AppConfig(profile=profile)
+    return AppConfig()
+
+
+def get_database_config() -> DatabaseSettings:
+    """Получить настройки базы данных."""
+    return DatabaseSettings()
+
+
+def get_llm_config() -> LLMSettings:
+    """Получить настройки LLM."""
+    return LLMSettings()
+
+
+def get_agent_config() -> AgentSettings:
+    """Получить настройки агента."""
+    return AgentSettings()

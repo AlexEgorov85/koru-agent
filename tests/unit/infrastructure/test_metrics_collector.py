@@ -11,7 +11,7 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
-from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus as EventBus, Event, EventType
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.metrics_collector import MetricsCollector
 

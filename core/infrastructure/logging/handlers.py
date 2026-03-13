@@ -21,13 +21,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from core.infrastructure.event_bus.unified_event_bus import Event, EventType, UnifiedEventBus
-from core.infrastructure.logging.config import (
+from core.config.logging_config import (
     LogFormat,
     LoggingConfig,
-    FileOutputConfig,
+    FileConfig,
     get_logging_config,
     configure_logging,
 )
+
+# Для обратной совместимости
+FileOutputConfig = FileConfig
 
 
 class TerminalLogFormatter:

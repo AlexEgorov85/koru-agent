@@ -21,7 +21,7 @@ from core.application.services.optimization_service import (
     OptimizationConfig,
     OptimizationLock,
 )
-from core.infrastructure.event_bus.event_bus import EventBus
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus as EventBus
 from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
 
 
@@ -101,6 +101,7 @@ class TestOptimizationLockMethods:
             benchmark_service=None,
             prompt_generator=None,
             metrics_collector=None,
+            log_collector=None,
             event_bus=event_bus,
             config=OptimizationConfig(max_iterations=3, target_accuracy=0.9)
         )
@@ -192,6 +193,7 @@ class TestImprovement:
             benchmark_service=None,
             prompt_generator=None,
             metrics_collector=None,
+            log_collector=None,
             event_bus=event_bus,
             config=OptimizationConfig()
         )
@@ -251,6 +253,7 @@ class TestTargetAchieved:
             benchmark_service=None,
             prompt_generator=None,
             metrics_collector=None,
+            log_collector=None,
             event_bus=event_bus,
             config=OptimizationConfig()
         )
@@ -300,6 +303,7 @@ class TestRecommendations:
             benchmark_service=None,
             prompt_generator=None,
             metrics_collector=None,
+            log_collector=None,
             event_bus=event_bus,
             config=OptimizationConfig()
         )

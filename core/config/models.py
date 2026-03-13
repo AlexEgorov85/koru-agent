@@ -3,7 +3,9 @@
 СООТВЕТСТВУЕТ Pydantic V2 и современным стандартам.
 
 ОБРАТНАЯ СОВМЕСТИМОСТЬ:
-- LLMProviderConfig, DBProviderConfig, LoggingConfig, AppConfig импортируются из app_config.py
+- LLMProviderConfig, DBProviderConfig импортируются из app_config.py
+- LoggingConfig импортируется из logging_config.py
+- AppConfig импортируется из app_config.py
 - SystemConfig сохранён для обратной совместимости (устарел, используйте AppConfig)
 """
 import os
@@ -15,7 +17,8 @@ from enum import Enum
 import yaml
 
 # Импортируем из новой единой конфигурации для обратной совместимости
-from core.config.app_config import LLMProviderConfig, DBProviderConfig, LoggingConfig, AppConfig
+from core.config.app_config import LLMProviderConfig, DBProviderConfig, AppConfig
+from core.config.logging_config import LoggingConfig
 
 
 class BaseModelConfig(BaseModel):
