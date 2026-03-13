@@ -290,6 +290,8 @@ class BookLibrarySkill(BaseSkill):
             # Проверяем статус через ExecutionStatus
             from core.models.data.execution import ExecutionStatus
             llm_available = test_result.status == ExecutionStatus.COMPLETED
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"LLM test result: status={test_result.status}, available={llm_available}, error={test_result.error}")
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"LLM test failed: {e}")
