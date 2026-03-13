@@ -287,8 +287,12 @@ class BookLibrarySkill(BaseSkill):
                 },
                 context=ExecutionContext()
             )
-            llm_available = test_result.status.name == "COMPLETED"
-        except Exception:
+            # Проверяем статус через ExecutionStatus
+            from core.models.data.execution import ExecutionStatus
+            llm_available = test_result.status == ExecutionStatus.COMPLETED
+        except Exception as e:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"LLM test failed: {e}")
             llm_available = False
 
         if not llm_available:
