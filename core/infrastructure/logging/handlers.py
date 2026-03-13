@@ -32,9 +32,6 @@ from core.config.logging_config import (
     configure_logging,
 )
 
-# Для обратной совместимости
-FileOutputConfig = FileConfig
-
 
 # ============================================================
 # TERMINAL LOG FORMATTER
@@ -360,9 +357,8 @@ __all__ = [
     # Setup
     'setup_logging',
     'shutdown_logging',
-    
-    # Backward compatibility
-    'FileOutputConfig',
+
+    # Stubs (backward compatibility)
     'FileLogFormatter',  # Заглушка
     'FileLogHandler',    # Заглушка
 ]

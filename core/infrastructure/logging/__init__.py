@@ -117,9 +117,6 @@ from core.infrastructure.logging.structured import (
 # Для обратной совместимости экспортируем заглушки из handlers.py
 from core.infrastructure.logging.handlers import FileLogHandler, FileLogFormatter
 
-# FileOutputConfig — алиас на FileConfig для обратной совместимости
-from core.config.logging_config import FileConfig as FileOutputConfig
-
 __all__ = [
     # Logger
     'EventBusLogger',
@@ -143,7 +140,6 @@ __all__ = [
     'LogConfig',
     'ConsoleConfig',
     'FileConfig',
-    'FileOutputConfig',  # Alias для обратной совместимости
     'SessionConfig',
     'RetentionConfig',
     'IndexingConfig',

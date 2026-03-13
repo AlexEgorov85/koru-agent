@@ -13,10 +13,8 @@ from core.infrastructure.logging import (
     setup_logging,
     shutdown_logging,
     LoggingConfig,
-    FileOutputConfig,
-    LogLevel,
-    LogFormat,
 )
+from core.config.logging_config import FileConfig, LogLevel, LogFormat
 
 
 async def test_logging():
@@ -31,9 +29,9 @@ async def test_logging():
 
     # Настройка конфигурации
     log_config = LoggingConfig(
-        file=FileOutputConfig(
+        file=FileConfig(
             enabled=True,
-            level=LogLevel.DEBUG,
+            level=LogLevel.DEBUG.value,
             format=LogFormat.JSONL,
             base_dir=Path("logs/test_sessions"),
             organize_by_session=True,

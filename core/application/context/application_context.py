@@ -1007,132 +1007,119 @@ class ApplicationContext(BaseSystemContext):
 
     async def _validate_versions_by_profile(self, prompt_versions: dict, input_contract_versions: dict = None, output_contract_versions: dict = None) -> bool:
         """Валидация статусов версий в зависимости от профиля"""
+        from core.errors.exceptions import ComponentInitializationError
+        
         # Валидация промптов
         if prompt_versions:
             try:
                 prompt_repository = self.infrastructure_context.get_prompt_storage()
-                
+
                 for capability, version in prompt_versions.items():
                     try:
                         # Проверяем существование файла версии через хранилище
                         exists = await prompt_repository.exists(capability, version)
                         if not exists:
-                            self.logger.error(
-                                f"[{self.profile.upper()}] Промпт версия {capability}@{version} н�� существует. Отклонено."
+                            raise ComponentInitializationError(
+                                f"[{self.profile.upper()}] Промпт версия {capability}@{version} не существует."
                             )
-                            return False
-                        
+
                         # Загружаем через хранилище, чтобы получить правильный объект Prompt
                         prompt_obj = await prompt_repository.load(capability, version)
-                        
+
                         # Получаем статус из метаданных объекта Prompt
                         if hasattr(prompt_obj, 'metadata') and hasattr(prompt_obj.metadata, 'status'):
-                            # Если status - это enum, получаем его значение
                             status_obj = prompt_obj.metadata.status
                             if hasattr(status_obj, 'value'):
                                 status = status_obj.value
                             else:
-                                # Если status уже строка
                                 status = str(status_obj)
                         else:
-                            self.logger.warning(
-                                f"Не удалось получить статус для промпта {capability}@{version}, используем 'draft'"
+                            raise ComponentInitializationError(
+                                f"Не удалось получить статус для промпта {capability}@{version}. "
+                                f"Метаданные не содержат статус."
                             )
-                            status = 'draft'
-                        
+
                         if self.profile == "prod":
                             # В продакшне ТОЛЬКО активные версии
                             if status != "active":
-                                self.logger.error(
+                                raise ComponentInitializationError(
                                     f"[PROD] Промпт версия {capability}@{version} имеет статус '{status}', "
-                                    f"но требуется 'active'. Отклонено."
+                                    f"но требуется 'active'."
                                 )
-                                return False
-                        
+
                         elif self.profile == "sandbox":
-                            # В песочнице р��зрешены draft + active (но не archived)
+                            # В песочнице разрешены draft + active (но не archived)
                             if status == "archived":
-                                self.logger.warning(
-                                    f"[SANDBOX] Промпт версия {capability}@{version} архивирована"
+                                raise ComponentInitializationError(
+                                    f"[SANDBOX] Промпт версия {capability}@{version} архивирована. "
+                                    f"Использование архивированных версий запрещено."
                                 )
+                    except ComponentInitializationError:
+                        raise
                     except Exception as e:
-                        self.logger.error(
-                            f"��е у��алось загрузить или получить статус для промпта {capability}@{version}: {e}. "
-                            f"Отклонено для профиля {self.profile}."
+                        raise ComponentInitializationError(
+                            f"Не удалось загрузить или получить статус для промпта {capability}@{version}: {e}"
                         )
-                        # Если не удалось прочитать стату��, в песочнице разрешаем, в проде - нет
-                        if self.profile == "prod":
-                            return False
+            except ComponentInitializationError:
+                raise
             except Exception as e:
-                self.logger.error(f"Ошибка при доступе к хранилищу промптов: {e}")
-                return False
+                raise ComponentInitializationError(f"Ошибка при доступе к хранилищу промптов: {e}")
 
         # Валидация входных контрактов
         if input_contract_versions:
             try:
                 contract_repository = self.infrastructure_context.get_contract_storage()
-                
+
                 for capability, version in input_contract_versions.items():
                     try:
-                        # Проверяем существование файла версии через хранилище
                         exists = await contract_repository.exists(capability, version, "input")
                         if not exists:
-                            self.logger.error(
-                                f"[{self.profile.upper()}] Входной контракт версия {capability}@{version} не существует. Отклонено."
+                            raise ComponentInitializationError(
+                                f"[{self.profile.upper()}] Входной контракт {capability}@{version} не существует."
                             )
-                            return False
-                        
-                        # Загружаем через хранилище, чтобы получить правильный объект Contract
-                        contract_obj = await contract_repository.load(capability, version, "input")
-                        
-                        # Для контрактов пока не про��еряем статус, но можно добавить в буду��ем
-                        # В пр��дакшне можно добавить проверки на соответствие определенным критер��ям
-                        
-                    except Exception as e:
-                        self.logger.error(
-                            f"Н�� удалось загрузить входной контрак�� {capability}@{version}: {e}. "
-                            f"Откло��ено для профиля {self.profile}."
-                        )
-                        # Если не удалось ��агрузить контракт, в п��оде - не разрешаем
-                        if self.profile == "prod":
-                            return False
-            except Exception:
-                # Если хранилище контрактов не существует или недос��упно, пропускаем валидацию
-                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию в��одных контракт����в")
-                pass
 
-        # Валидация выходных ко��тра��тов
+                        contract_obj = await contract_repository.load(capability, version, "input")
+
+                    except ComponentInitializationError:
+                        raise
+                    except Exception as e:
+                        raise ComponentInitializationError(
+                            f"Не удалось загрузить входной контракт {capability}@{version}: {e}"
+                        )
+            except ComponentInitializationError:
+                raise
+            except Exception as e:
+                raise ComponentInitializationError(
+                    f"Хранилище контрактов недоступно при валидации входных контрактов: {e}"
+                )
+
+        # Валидация выходных контрактов
         if output_contract_versions:
             try:
                 contract_repository = self.infrastructure_context.get_contract_storage()
-                
+
                 for capability, version in output_contract_versions.items():
                     try:
-                        # Проверяем существование файла версии через хранилище
                         exists = await contract_repository.exists(capability, version, "output")
                         if not exists:
-                            self.logger.error(
-                                f"[{self.profile.upper()}] Выходной контракт версия {capability}@{version} не существует. Отклонено."
+                            raise ComponentInitializationError(
+                                f"[{self.profile.upper()}] Выходной контракт {capability}@{version} не существует."
                             )
-                            return False
-                        
-                        # Загружаем через хранилище, чтобы по��учить правильный объект Contract
+
                         contract_obj = await contract_repository.load(capability, version, "output")
-                        
-                        # Для контрактов пока не проверяем статус, но можно добавить в будущем
-                        
+
+                    except ComponentInitializationError:
+                        raise
                     except Exception as e:
-                        self.logger.error(
-                            f"Не удалось загрузить выходной контракт {capability}@{version}: {e}. "
-                            f"Отклонено для профиля {self.profile}."
+                        raise ComponentInitializationError(
+                            f"Не удалось загрузить выходной контракт {capability}@{version}: {e}"
                         )
-                        # Если не удалось загрузить контракт, в проде - не разрешаем
-                        if self.profile == "prod":
-                            return False
-            except Exception:
-                # Если хранилище контрактов не сущест��ует или недоступно, пропускаем валидацию
-                self.logger.warning("Хранилище контрактов недоступно, пропускаем валидацию выходных контрактов")
-                pass
+            except ComponentInitializationError:
+                raise
+            except Exception as e:
+                raise ComponentInitializationError(
+                    f"Хранилище контрактов недоступно при валидации выходных контрактов: {e}"
+                )
 
         return True
 

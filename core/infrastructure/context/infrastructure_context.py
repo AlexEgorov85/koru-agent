@@ -157,17 +157,19 @@ class InfrastructureContext:
         # FileLogHandler: ОТКЛЮЧЁН - дублирует SessionLogHandler
         # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
         #
-        from core.infrastructure.logging import setup_logging, LoggingConfig, FileOutputConfig, LogLevel, LogFormat
+        from core.infrastructure.logging import setup_logging, LoggingConfig
+        from core.config.logging_config import FileConfig, LogLevel, LogFormat
+        
         log_config = LoggingConfig(
-            file=FileOutputConfig(
+            file=FileConfig(
                 enabled=False,  # ОТКЛЮЧЁН - используется SessionLogHandler
-                level=LogLevel.DEBUG,
+                level=LogLevel.DEBUG.value,
                 format=LogFormat.JSONL,
                 max_file_size_mb=100,
                 backup_count=10,
             )
         )
-        self.terminal_handler, self.file_handler = setup_logging(self.event_bus, log_config)
+        self.terminal_handler, _ = setup_logging(self.event_bus, log_config)
 
         # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
