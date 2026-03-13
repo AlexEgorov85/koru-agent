@@ -1,6 +1,12 @@
 """
 Фабрика компонентов - создание и инициализация компонентов с внедрением зависимостей.
 
+[REFACTOR v5.4.0] Архитектура загрузки ресурсов:
+1. ComponentFactory создаёт ResourcePreloader
+2. ResourcePreloader загружает ресурсы через DataRepository
+3. component_config.resolved_* заполняются объектами Prompt/Contract
+4. Компонент создаётся с готовыми ресурсами
+
 АРХИТЕКТУРА:
 - Получение провайдеров из InfrastructureContext
 - Передача интерфейсов напрямую в конструкторы компонентов
@@ -32,14 +38,15 @@ class ComponentFactory:
     def __init__(self, infrastructure_context: InfrastructureContext):
         """
         Инициализация фабрики.
-        
+
         ARGS:
         - infrastructure_context: Инфраструктурный контекст для получения провайдеров
         """
         self._infrastructure_context = infrastructure_context
         self.event_bus_logger = None
+        self._resource_preloader = None  # Будет создан при необходимости
         self._init_event_bus_logger()
-    
+
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger."""
         if self._infrastructure_context and self._infrastructure_context.event_bus:
@@ -49,6 +56,28 @@ class ComponentFactory:
                 agent_id="system",
                 component="ComponentFactory"
             )
+
+    def _get_resource_preloader(self, application_context: ApplicationContext):
+        """
+        Получить или создать ResourcePreloader.
+
+        [REFACTOR v5.4.0] ResourcePreloader создаётся лениво при первой необходимости.
+
+        ARGS:
+        - application_context: ApplicationContext с data_repository
+
+        RETURNS:
+        - ResourcePreloader
+        """
+        if self._resource_preloader is None:
+            from core.application.preloading.resource_preloader import ResourcePreloader
+
+            self._resource_preloader = ResourcePreloader(
+                data_repository=application_context.data_repository,
+                event_bus=self._infrastructure_context.event_bus
+            )
+
+        return self._resource_preloader
 
     async def _log_info(self, message: str, *args, **kwargs):
         """Информационное сообщение."""
@@ -103,49 +132,67 @@ class ComponentFactory:
     ) -> BaseComponent:
         """
         Создание и инициализация компонента с внедрением зависимостей.
-        
-        АРХИТЕКТУРА:
-        1. Получаем провайдеры из InfrastructureContext
-        2. Передаём их в конструктор компонента как интерфейсы
-        3. Компонент не зависит от контекстов напрямую
-        
+
+        [REFACTOR v5.4.0] АРХИТЕКТУРА:
+        1. ResourcePreloader загружает ресурсы через DataRepository
+        2. component_config.resolved_* заполняются объектами Prompt/Contract
+        3. Получаем провайдеры из InfrastructureContext
+        4. Передаём их в конструктор компонента как интерфейсы
+        5. Компонент не зависит от контекстов напрямую
+
         ARGS:
         - component_class: класс компонента для создания
         - name: имя компонента
         - application_context: контекст приложения
         - component_config: конфигурация компонента
         - executor: ActionExecutor для взаимодействия между компонентами
-        
+
         RETURNS:
         - BaseComponent: созданный и инициализированный компонент
         """
         await self._log_info(f"Создание компонента {name} типа {component_class.__name__}")
-        
-        # 1. Получаем провайдеры из инфраструктурного контекста
+
+        # [REFACTOR v5.4.0] 1. Загружаем ресурсы ДО создания компонента
+        preloader = self._get_resource_preloader(application_context)
+        resources = await preloader.preload_for_component(name, component_config)
+
+        # 2. Заполняем component_config.resolved_* загруженными ресурсами
+        component_config.resolved_prompts = resources["prompts"]
+        component_config.resolved_input_contracts = resources["input_contracts"]
+        component_config.resolved_output_contracts = resources["output_contracts"]
+
+        await self._log_info(
+            f"Ресурсы загружены для {name}: "
+            f"промптов={len(resources['prompts'])}, "
+            f"input_contracts={len(resources['input_contracts'])}, "
+            f"output_contracts={len(resources['output_contracts'])}"
+        )
+
+        # 3. Получаем провайдеры из инфраструктурного контекста
         providers = self._get_providers()
-        
+
         await self._log_info(
             f"Получены провайдеры для {name}: " +
             ", ".join([k for k, v in providers.items() if v is not None])
         )
-        
-        # 2. Анализируем сигнатуру конструктора компонента
+
+        # 4. Анализируем сигнатуру конструктора компонента
         import inspect
         sig = inspect.signature(component_class.__init__)
         params = sig.parameters
-        
-        # 3. Формируем аргументы для конструктора
+
+        # 5. Формируем аргументы для конструктора
         kwargs = {
             'name': name,
-            'component_config': component_config,
+            'component_config': component_config,  # ← С УЖЕ заполненными resolved_*
             'executor': executor
         }
-        
-        # 4. Передаем провайдеры как интерфейсы
+
+        # 6. Передаем провайдеры как интерфейсы
         # Если компонент принимает application_context - передаём (для обратной совместимости)
         if 'application_context' in params:
             kwargs['application_context'] = application_context
-        
+
         # Передаем провайдеры по именам параметров
         # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
         # Оставлены только интерфейсы для логирования и хранения

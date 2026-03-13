@@ -364,10 +364,16 @@ class AppConfig(BaseSettings):
     def from_discovery(cls, profile: str = "prod", data_dir: str = "data", discovery=None):
         """
         Загрузка AppConfig через авто-обнаружение ресурсов.
-        
+
+        [REFACTOR v5.4.0] Профиль определяет разрешённые статусы:
+        - prod → только status: active
+        - sandbox → status: active + draft
+        - dev → status: active + draft + inactive
+
         ЗАМЕНЯЕТ: registry.yaml, ConfigLoader, DynamicConfigManager, RegistryLoader
         """
         from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+        from core.models.data.prompt import PromptStatus
         from core.config.component_config import ComponentConfig
         import yaml
 
@@ -402,23 +408,24 @@ class AppConfig(BaseSettings):
                 print(f"⚠️ Не удалось загрузить конфигурацию из {config_file}: {e}")
 
         # === СКАНИРОВАНИЕ РЕСУРСОВ ===
+        # [REFACTOR v5.4.0] ResourceDiscovery фильтрует по статусу в зависимости от профиля
         if discovery is None:
             discovery = ResourceDiscovery(base_dir=Path(data_dir), profile=profile)
 
+        # discover_prompts() и discover_contracts() уже фильтруют по статусу профиля
         prompts = discovery.discover_prompts()
         contracts = discovery.discover_contracts()
 
-        # Собираем active версии
-        active_prompts = {p.capability: p.version for p in prompts if p.status.value == 'active'}
+        # Собираем версии (ResourceDiscovery уже отфильтровал по статусу)
+        active_prompts = {p.capability: p.version for p in prompts}
         input_contract_versions = {}
         output_contract_versions = {}
-        
+
         for contract in contracts:
-            if contract.status.value == 'active':
-                if contract.direction.value == 'input':
-                    input_contract_versions[contract.capability] = contract.version
-                else:
-                    output_contract_versions[contract.capability] = contract.version
+            if contract.direction.value == 'input':
+                input_contract_versions[contract.capability] = contract.version
+            else:
+                output_contract_versions[contract.capability] = contract.version
 
         # Создаем конфигурации компонентов
         service_configs = {}
@@ -442,9 +449,8 @@ class AppConfig(BaseSettings):
             'prompt': 'prompt_service',
         }
 
+        # Собираем промпты по компонентам
         for prompt in prompts:
-            if prompt.status.value != 'active':
-                continue
             parts = prompt.capability.split('.')
             prefix = parts[0] if parts else prompt.capability
             comp_type = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
@@ -464,8 +470,12 @@ class AppConfig(BaseSettings):
                         'input_contracts': {},
                         'output_contracts': {}
                     }
-                component_resources[component_name]['prompts'][prompt.capability] = prompt.version
+                # ← НОВОЕ: Если промпт уже есть, выбираем последнюю версию
+                existing_version = component_resources[component_name]['prompts'].get(prompt.capability)
+                if existing_version is None or prompt.version > existing_version:
+                    component_resources[component_name]['prompts'][prompt.capability] = prompt.version
 
+        # Собираем контракты по компонентам
         for contract in contracts:
             if contract.status.value != 'active' or contract.capability == 'behavior':
                 continue
@@ -490,14 +500,16 @@ class AppConfig(BaseSettings):
                         'input_contracts': {},
                         'output_contracts': {}
                     }
-                if contract.direction.value == 'input':
-                    component_resources[component_name]['input_contracts'][contract.capability] = contract.version
-                else:
-                    component_resources[component_name]['output_contracts'][contract.capability] = contract.version
+                # ← НОВОЕ: Выбираем последнюю версию контракта
+                contract_dict = component_resources[component_name]['input_contracts'] if contract.direction.value == 'input' else component_resources[component_name]['output_contracts']
+                existing_version = contract_dict.get(contract.capability)
+                if existing_version is None or contract.version > existing_version:
+                    contract_dict[contract.capability] = contract.version
 
         # Создаем ComponentConfig для каждого компонента
         for component_name, resources in component_resources.items():
             comp_type = resources['type']
+            print(f"[DEBUG] {comp_type}.{component_name}: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}")
             component_config = ComponentConfig(
                 variant_id=f"{component_name}_{profile}",
                 side_effects_enabled=(profile == "prod"),

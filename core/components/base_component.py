@@ -139,6 +139,9 @@ class BaseComponent(LifecycleMixin, ABC):
         self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
         self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
 
+        # ← НОВОЕ: Словарь поддерживаемых capability
+        self.supported_capabilities: Dict[str, Any] = {}  # {capability_name: handler}
+
         # [REFACTOR Этап 2.2] TTL-кэширование удалено — ресурсы не истекают
 
     # ========================================================================
@@ -162,6 +165,11 @@ class BaseComponent(LifecycleMixin, ABC):
     def log_storage(self) -> Optional[LogStorageInterface]:
         """Получить LogStorageInterface."""
         return self._log_storage
+
+    @property
+    def application_context(self) -> Optional['ApplicationContext']:
+        """Получить ApplicationContext (DEPRECATED)."""
+        return self._application_context
 
     # ========================================================================
     # ЛОГИРОВАНИЕ
@@ -351,24 +359,22 @@ class BaseComponent(LifecycleMixin, ABC):
         """
         Предзагрузка ресурсов компонента.
 
-        Вызывает методы загрузки промптов и контрактов.
+        [REFACTOR v5.4.0] Ресурсы УЖЕ загружены в component_config.resolved_*
+        через ResourcePreloader в ComponentFactory.
+        Этот метод только копирует ресурсы из config в кэш компонента.
         """
         try:
             self._safe_log_sync(
-                "info",
-                f"_preload_resources: {self.name} - "
-                f"prompt_versions={list(self.component_config.prompt_versions.keys())}, "
-                f"input_contract_versions={list(self.component_config.input_contract_versions.keys())}, "
-                f"output_contract_versions={list(self.component_config.output_contract_versions.keys())}"
+                "debug",
+                f"_preload_resources: {self.name} - ресурсы загружаются из component_config.resolved_*"
             )
 
-            if not await self._load_prompts():
-                return False
+            # ← НОВОЕ: Инициализация supported_capabilities из get_capabilities()
+            await self._init_supported_capabilities()
 
-            if not await self._load_input_contracts():
-                return False
-
-            if not await self._load_output_contracts():
+            # [REFACTOR v5.4.0] Копируем ресурсы из component_config.resolved_*
+            # Ресурсы уже загружены через ResourcePreloader в ComponentFactory
+            if not await self._copy_resources_from_config():
                 return False
 
             self._separate_system_user_prompts()
@@ -378,98 +384,80 @@ class BaseComponent(LifecycleMixin, ABC):
             self._safe_log_sync("error", f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
             return False
 
-    async def _load_prompts(self) -> bool:
+    async def _copy_resources_from_config(self) -> bool:
         """
-        Загрузка промптов из кэша.
+        [REFACTOR v5.4.0] Копирование ресурсов из component_config.resolved_*.
+
+        Ресурсы уже загружены через ResourcePreloader в ComponentFactory.
+        Этот метод только копирует их в кэш компонента.
 
         RETURNS:
-        - bool: True если все промпты загружены успешно
+        - bool: True если все ресурсы скопированы успешно
         """
-        for cap_name, version in self.component_config.prompt_versions.items():
-            try:
-                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
-                    prompt_obj: Prompt = self._application_context.data_repository.get_prompt(cap_name, version)
-                    self.prompts[cap_name] = prompt_obj
-                    self._safe_log_sync(
-                        "debug",
-                        f"Загружен промпт '{cap_name}' v{version} "
-                        f"(тип: {prompt_obj.component_type.value}, статус: {prompt_obj.status.value})"
-                    )
-                else:
-                    prompt_text = self._application_context.get_prompt(cap_name, version)
-                    from core.models.data.prompt import Prompt, PromptStatus, ComponentType
-                    prompt_obj = Prompt(
-                        capability=cap_name,
-                        version=version,
-                        status=PromptStatus.ACTIVE,
-                        component_type=ComponentType.SKILL,
-                        content=prompt_text,
-                        variables=[],
-                        metadata={}
-                    )
-                    self.prompts[cap_name] = prompt_obj
-                    self._safe_log_sync("warning", f"Используется совместимый режим для промпта {cap_name}")
+        # Копируем промпты из resolved_prompts
+        for cap_name, prompt_obj in self.component_config.resolved_prompts.items():
+            self.prompts[cap_name] = prompt_obj
+            self._safe_log_sync(
+                "debug",
+                f"Скопирован промпт '{cap_name}' из resolved_prompts "
+                f"(тип: {prompt_obj.component_type.value if hasattr(prompt_obj, 'component_type') else 'unknown'}, "
+                f"статус: {prompt_obj.status.value if hasattr(prompt_obj, 'status') else 'unknown'})"
+            )
 
-            except Exception as e:
-                self._safe_log_sync("error", f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
-                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('prompts', False):
-                    self._safe_log_sync("error", f"Критический промпт {cap_name} не загружен")
-                    return False
+        # Копируем input контракты из resolved_input_contracts
+        for cap_name, contract_obj in self.component_config.resolved_input_contracts.items():
+            # Если это объект Contract, получаем pydantic_schema
+            if hasattr(contract_obj, 'pydantic_schema'):
+                self.input_contracts[cap_name] = contract_obj.pydantic_schema
+            else:
+                # Если это уже схема (для обратной совместимости)
+                self.input_contracts[cap_name] = contract_obj
+            self._safe_log_sync("debug", f"Скопирован input контракт '{cap_name}' из resolved_input_contracts")
+
+        # Копируем output контракты из resolved_output_contracts
+        for cap_name, contract_obj in self.component_config.resolved_output_contracts.items():
+            # Если это объект Contract, получаем pydantic_schema
+            if hasattr(contract_obj, 'pydantic_schema'):
+                self.output_contracts[cap_name] = contract_obj.pydantic_schema
+            else:
+                # Если это уже схема (для обратной совместимости)
+                self.output_contracts[cap_name] = contract_obj
+            self._safe_log_sync("debug", f"Скопирован output контракт '{cap_name}' из resolved_output_contracts")
+
+        # Валидация что критические ресурсы загружены
+        if hasattr(self.component_config, 'critical_resources'):
+            if self.component_config.critical_resources.get('prompts', False) and not self.prompts:
+                self._safe_log_sync("error", f"Критические промпты не загружены для {self.name}")
+                return False
+
+            if self.component_config.critical_resources.get('input_contracts', False) and not self.input_contracts:
+                self._safe_log_sync("error", f"Критические input контракты не загружены для {self.name}")
+                return False
+
+            if self.component_config.critical_resources.get('output_contracts', False) and not self.output_contracts:
+                self._safe_log_sync("error", f"Критические output контракты не загружены для {self.name}")
+                return False
 
         return True
 
-    async def _load_input_contracts(self) -> bool:
+    async def _init_supported_capabilities(self):
         """
-        Загрузка входных контрактов из кэша.
+        Инициализация словаря supported_capabilities из get_capabilities().
 
-        RETURNS:
-        - bool: True если все контракты загружены успешно
+        Заполняет supported_capabilities методами-обработчиками из _execute_impl.
         """
-        for cap_name, version in self.component_config.input_contract_versions.items():
+        if hasattr(self, 'get_capabilities') and callable(self.get_capabilities):
             try:
-                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
-                    schema_cls: Type[BaseModel] = (
-                        self._application_context.data_repository
-                        .get_contract_schema(cap_name, version, "input")
-                    )
-                    self.input_contracts[cap_name] = schema_cls
-                else:
-                    schema_cls = self._application_context.get_input_contract_schema(cap_name, version)
-                    self.input_contracts[cap_name] = schema_cls
-                    self._safe_log_sync("warning", f"Используется совместимый режим для входной схемы {cap_name}")
-
+                capabilities = self.get_capabilities()
+                # supported_capabilities остаётся пустым, так как _execute_impl
+                # использует маппинг capability.name на методы внутри навыка
+                # Это ожидаемое поведение для новой архитектуры
+                self._safe_log_sync("debug", f"{self.name}: инициализировано {len(capabilities)} capability")
             except Exception as e:
-                self._safe_log_sync("error", f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
-                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('input_contracts', False):
-                    return False
+                self._safe_log_sync("warning", f"{self.name}: ошибка инициализации capability: {e}")
 
-        return True
-
-    async def _load_output_contracts(self) -> bool:
-        """
-        Загрузка выходных контрактов из кэша.
-
-        RETURNS:
-        - bool: True если все контракты загружены успешно
-        """
-        for cap_name, version in self.component_config.output_contract_versions.items():
-            try:
-                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
-                    schema_cls: Type[BaseModel] = (
-                        self._application_context.data_repository
-                        .get_contract_schema(cap_name, version, "output")
-                    )
-                    self.output_contracts[cap_name] = schema_cls
-                else:
-                    self.output_contracts[cap_name] = BaseModel
-                    self._safe_log_sync("warning", f"Используется совместимый режим для выходной схемы {cap_name}")
-
-            except Exception as e:
-                self._safe_log_sync("error", f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
-                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
-                    return False
-
-        return True
+    # [REFACTOR v5.4.0] Методы _load_prompts, _load_input_contracts, _load_output_contracts удалены
+    # Ресурсы загружаются через ResourcePreloader в ComponentFactory и копируются через _copy_resources_from_config()
 
     def _separate_system_user_prompts(self):
         """

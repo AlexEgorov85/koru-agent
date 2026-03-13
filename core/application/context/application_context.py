@@ -454,13 +454,24 @@ class ApplicationContext(BaseSystemContext):
 
     async def _preload_resources_via_repository(self):
         """
-        Предзагрузка ресурсов через новый репозиторий.
-        Компоненты будут получать готовые объекты при инициализации.
+        [REFACTOR v5.4.0] Предзагрузка ресурсов в глобальный кэш контекста.
+
+        ResourcePreloader в ComponentFactory заполняет component_config.resolved_*
+        при создании каждого компонента. Этот метод только загружает глобальный кэш
+        для быстрого доступа.
+
+        ЧТО ДЕЛАЕТ:
+        - Загружает промпты в self.prompt_cache
+        - Загружает контракты в self.input_contract_cache, self.output_contract_cache
+
+        ЧТО НЕ ДЕЛАЕТ:
+        - НЕ заполняет component_config.resolved_* (это делает ResourcePreloader)
         """
-        # Промпты — загружаем в кэш контекста для быстрого доступа компонентами
+        # Промпты — загружаем в кэш контекста для быстрого доступа
         self.prompt_cache = {}  # Dict[(capability, version), Prompt]
         prompts_loaded = 0
 
+        # Загружаем промпты из AppConfig
         for cap, ver in self.config.prompt_versions.items():
             try:
                 prompt_obj = self.data_repository.get_prompt(cap, ver)
@@ -469,7 +480,7 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
 
-        # Также загружаем промпты из компонентных конфигураций
+        # Также загружаем промпты из компонентных конфигураций в глобальный кэш
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
@@ -484,7 +495,7 @@ class ApplicationContext(BaseSystemContext):
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
 
-        # Контракты — загружаем схемы для валидации
+        # Контракты — загружаем схемы в глобальный кэш для валидации
         self.input_contract_cache = {}  # Dict[(capability, version), Type[BaseModel]]
         self.output_contract_cache = {}
         input_contracts_loaded = 0
@@ -507,7 +518,8 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
 
-        # Загружаем контракты из компонентных конфигураций
+        # Загружаем контракты из компонентных конфигураций в глобальный кэш
+        # [REFACTOR v5.4.0] НЕ заполняем comp_config.resolved_* — это делает ResourcePreloader
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
             if hasattr(self.config, comp_type_attr):
                 comp_configs = getattr(self.config, comp_type_attr)
@@ -522,12 +534,6 @@ class ApplicationContext(BaseSystemContext):
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver}: {e}")
 
-                            try:
-                                contract = self.data_repository.get_contract(cap, ver, "input")
-                                comp_config.resolved_input_contracts[cap] = contract.schema_data
-                            except Exception as e:
-                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (input): {e}")
-
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap, ver in comp_config.output_contract_versions.items():
                             if (cap, ver) not in self.output_contract_cache:
@@ -538,13 +544,8 @@ class ApplicationContext(BaseSystemContext):
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver}: {e}")
 
-                            try:
-                                contract = self.data_repository.get_contract(cap, ver, "output")
-                                comp_config.resolved_output_contracts[cap] = contract.schema_data
-                            except Exception as e:
-                                self.logger.error(f"Не удалось загрузить контракт {cap}@{ver} (output): {e}")
-
-        self.logger.info(f"✅ Ресурсы загружены: промптов={prompts_loaded}, входных контрактов={input_contracts_loaded}, выходных контрактов={output_contracts_loaded}")
+        self.logger.info(f"✅ Глобальный кэш ресурсов загружен: промптов={prompts_loaded}, входных контрактов={input_contracts_loaded}, выходных контрактов={output_contracts_loaded}")
+        self.logger.info("ℹ️ component_config.resolved_* заполняются через ResourcePreloader в ComponentFactory")
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:

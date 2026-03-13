@@ -1,10 +1,11 @@
 # Требования к Разработке Агента — Agent v5
 
-> **Версия:** 5.3.0
+> **Версия:** 5.4.0
 > **Статус:** Active
-> **Дата обновления:** 2026-03-12
+> **Дата обновления:** 2026-03-13
 > **Владелец:** @system
 > **Последние изменения:**
+> - v5.4.0: Обновлена архитектура загрузки промптов и контрактов (ResourcePreloader)
 > - v5.3.0: Исправлены ошибки в документации, добавлены новые секции
 > - v5.2.0: Удалён избыточный LoggingMixin, логирование напрямую в BaseComponent
 
@@ -67,6 +68,109 @@ CREATED → INITIALIZING → READY → SHUTDOWN
 - ✅ Вызови `await super().initialize()` в начале инициализации
 - ✅ Проверяй состояние через `self._state` или `self.is_ready`
 - ✅ Реализуй `shutdown()` для очистки ресурсов
+
+### 4. Архитектура Загрузки Ресурсов
+
+**Принципы:**
+
+| Принцип | Описание |
+|---------|----------|
+| **Компоненты не знают о версиях** | Версии определяются в `AppConfig` через `from_discovery(profile)` |
+| **Профиль управляет загрузкой** | `prod` = active, `sandbox` = active + draft, `dev` = все статусы |
+| **Единая точка загрузки** | `DataRepository` загружает всё один раз при старте |
+| **ResourcePreloader заполняет resolved_*** | `ComponentFactory` вызывает preloader перед созданием компонента |
+| **Компонент получает готовые ресурсы** | `self.prompts`, `self.input_contracts` уже загружены |
+
+**Поток загрузки:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  AppConfig.from_discovery(profile='prod')                    │
+│  → Сканирует ФС, фильтрует по статусу (active для prod)      │
+│  → Возвращает {prompt_versions, input_contract_versions...} │
+└──────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  ApplicationContext.initialize()                             │
+│  → Создаёт DataRepository                                    │
+│  → DataRepository загружает ВСЕ активные ресурсы в кэш       │
+└──────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  ComponentFactory.create_component()                         │
+│  → Берёт component_config из AppConfig                       │
+│  → Вызывает ResourcePreloader.preload_for_component()        │
+│  → Заполняет component_config.resolved_*                     │
+│  → Создаёт компонент с готовыми ресурсами                    │
+└──────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Component (BookLibrarySkill, PlanningSkill, etc.)           │
+│  → НЕ загружает ничего сам                                   │
+│  → Использует self.prompts, self.input_contracts...          │
+│  → Только валидирует что ресурсы загружены                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Требования к компонентам:**
+
+```python
+# ✅ ПРАВИЛЬНО: Компонент НЕ загружает ресурсы сам
+class MySkill(BaseSkill):
+    async def initialize(self) -> bool:
+        # Вызови родительский initialize()
+        success = await super().initialize()
+        if not success:
+            return False
+        
+        # Ресурсы УЖЕ загружены в component_config.resolved_*
+        # Только проверь что они есть (если требуются)
+        if self._requires_prompts() and not self.prompts:
+            raise ComponentInitializationError("Промпты не загружены")
+        
+        return True
+
+# ❌ НЕПРАВИЛЬНО: Компонент загружает ресурсы сам
+async def _load_prompts(self):  # ← Удалить!
+    for cap, ver in self.component_config.prompt_versions.items():
+        prompt = await self.application_context.get_prompt(cap, ver)
+        self.prompts[cap] = prompt
+```
+
+**Требования к ComponentFactory:**
+
+```python
+# ✅ ПРАВИЛЬНО: Factory загружает ресурсы перед созданием
+class ComponentFactory:
+    async def create_and_initialize(
+        self,
+        component_class: Type[BaseComponent],
+        name: str,
+        component_config: ComponentConfig
+    ) -> BaseComponent:
+        # 1. Загружаем ресурсы ДО создания компонента
+        resources = await self.preloader.preload_for_component(
+            name, component_config
+        )
+        
+        # 2. Заполняем component_config.resolved_*
+        component_config.resolved_prompts = resources["prompts"]
+        component_config.resolved_input_contracts = resources["input_contracts"]
+        component_config.resolved_output_contracts = resources["output_contracts"]
+        
+        # 3. Создаём компонент с готовыми ресурсами
+        component = component_class(
+            name=name,
+            component_config=component_config,  # ← С ресурсами!
+            ...
+        )
+        
+        await component.initialize()
+        return component
+```
 
 ---
 

@@ -445,3 +445,25 @@ class DataRepository:
         self._contracts_index[key] = contract
         self._log_info(f"Добавлен контракт {contract.capability}@{contract.version} ({contract.direction.value})")
         return True
+
+    async def shutdown(self):
+        """
+        Завершение работы DataRepository.
+        Очищает кэши и индексы.
+        """
+        self._log_info_sync("Завершение работы DataRepository...")
+        self._prompts_index.clear()
+        self._contracts_index.clear()
+        self.prompt_cache.clear()
+        self.contract_schema_cache.clear()
+        self._validation_errors.clear()
+        self._validation_warnings.clear()
+        self._initialized = False
+        self._log_info_sync("DataRepository завершён")
+
+    def _log_info_sync(self, message: str, *args, **kwargs):
+        """Синхронное информационное сообщение."""
+        if self._use_event_logging:
+            self.logger.info_sync(message, *args, **kwargs)
+        else:
+            self.logger.info(message, *args, **kwargs)
