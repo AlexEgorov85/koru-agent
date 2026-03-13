@@ -929,12 +929,35 @@ class ActionExecutor:
                 error="LLMOrchestrator недоступен — требуется для структурированной генерации"
             )
 
+        # Получаем таймауты из централизованной конфигурации
+        from core.config.timeout_config import get_timeout_config
+        timeout_config = get_timeout_config()
+        
+        # Определяем таймаут для действия
+        if action_name.startswith("llm."):
+            # Для LLM действий используем специфичный таймаут
+            attempt_timeout = parameters.get(
+                "attempt_timeout",
+                timeout_config.get_llm_timeout_for_action(action_name)
+            )
+            total_timeout = parameters.get(
+                "total_timeout",
+                timeout_config.llm_total_timeout
+            )
+        else:
+            # Для остальных действий используем дефолтный таймаут
+            attempt_timeout = parameters.get(
+                "attempt_timeout",
+                timeout_config.action_default_timeout
+            )
+            total_timeout = parameters.get("total_timeout", attempt_timeout)
+
         response = await orchestrator.execute_structured(
             request=request,
             provider=llm_provider,
             max_retries=parameters.get("max_retries", 3),
-            attempt_timeout=parameters.get("attempt_timeout", 600.0),  # Timeout на одну попытку (10 минут для локальных моделей)
-            total_timeout=parameters.get("total_timeout", parameters.get("timeout", 120.0)),  # Общий timeout
+            attempt_timeout=attempt_timeout,
+            total_timeout=total_timeout,
             session_id=parameters.get('session_id'),
             agent_id=parameters.get('agent_id'),
             step_number=parameters.get('step_number'),
