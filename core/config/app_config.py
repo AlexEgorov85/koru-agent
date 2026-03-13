@@ -94,7 +94,7 @@ class LLMSettings(BaseSettings):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Температура")
     max_tokens: Optional[int] = Field(default=None, ge=1, description="Макс. токенов")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Top-p sampling")
-    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут (сек)")
+    timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут (сек)")
     api_key: Optional[str] = Field(default=None, description="API ключ")
     api_base_url: Optional[str] = Field(default=None, description="Базовый URL API")
     enable_caching: bool = Field(default=True, description="Кэширование")
@@ -262,7 +262,7 @@ class AppConfig(BaseSettings):
     max_steps: int = Field(default=10, ge=1, le=50, description="Макс. шагов")
     max_retries: int = Field(default=3, ge=0, le=10, description="Макс. попыток")
     temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Температура")
-    llm_timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут LLM")
+    llm_timeout_seconds: float = Field(default=600.0, ge=0.0, description="Таймаут LLM (сек)")
     side_effects_enabled: bool = Field(default=True, description="Побочные эффекты")
     detailed_metrics: bool = Field(default=False, description="Детальная метрика")
     enable_self_reflection: bool = Field(default=True, description="Саморефлексия")
@@ -581,7 +581,7 @@ class AppConfig(BaseSettings):
             detailed_metrics=False,
             max_steps=10,
             max_retries=3,
-            llm_timeout_seconds=120.0,
+            llm_timeout_seconds=600.0,
             temperature=0.7,
             enable_self_reflection=True,
             enable_context_window_management=True,
