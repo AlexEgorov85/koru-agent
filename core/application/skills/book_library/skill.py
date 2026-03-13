@@ -274,92 +274,55 @@ class BookLibrarySkill(BaseSkill):
 
         # 3. Генерация SQL через sql_generation
         sql_query = ""
+        
+        # Пытаемся сгенерировать SQL через LLM
+        exec_context = ExecutionContext()
 
-        # Проверяем доступность LLM через executor
-        llm_available = False
-        # Проверяем доступность LLM через простую генерацию
-        try:
-            test_result = await self.executor.execute_action(
-                action_name="llm.generate",
-                parameters={
-                    "prompt": "OK",
-                    "max_tokens": 5
-                },
-                context=ExecutionContext()
-            )
-            # Проверяем статус через ExecutionStatus
-            from core.models.data.execution import ExecutionStatus
-            llm_available = test_result.status == ExecutionStatus.COMPLETED
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"LLM test result: status={test_result.status}, available={llm_available}, error={test_result.error}")
-        except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"LLM test failed: {e}")
-            llm_available = False
+        # Генерируем SQL запрос через сервис генерации
+        # === REFACTOR: Передаём схему отдельно для structured output ===
+        gen_result = await self.executor.execute_action(
+            action_name="sql_generation.generate_query",
+            parameters={
+                "natural_language_request": query_val,
+                "table_schema": """
+                    "Lib".books (
+                        id INTEGER PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        author_id INTEGER REFERENCES "Lib".authors(id),
+                        isbn TEXT,
+                        publication_date DATE,
+                        genre TEXT
+                    ),
+                    "Lib".authors (
+                        id INTEGER PRIMARY KEY,
+                        first_name TEXT,
+                        last_name TEXT,
+                        birth_date DATE
+                    )
+                """.strip(),
+                "prompt": prompt_text,  # Промпт БЕЗ контрактов
+                "schema": output_schema if output_schema is not BaseModel else None  # Схема отдельно
+            },
+            context=exec_context
+        )
 
-        if not llm_available:
-            # ❌ УДАЛЕНО: LLM fallback
+        from core.models.data.execution import ExecutionStatus
+        if gen_result.status == ExecutionStatus.COMPLETED and gen_result.data:
+            # gen_result.data может быть dict или Pydantic моделью
+            if hasattr(gen_result.data, 'model_dump'):
+                data_dict = gen_result.data.model_dump()
+            else:
+                data_dict = gen_result.data
+            sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
+            await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
+        else:
+            # ❌ УДАЛЕНО: Warning вместо ошибки
             # ✅ ТЕПЕРЬ: Выбрасываем SQLGenerationError
             from core.errors.exceptions import SQLGenerationError
             raise SQLGenerationError(
-                "LLM недоступен для генерации SQL запроса. "
-                "Проверьте что LLM провайдер инициализирован и доступен.",
+                f"Генерация SQL не удалась: {gen_result.error}",
                 request=query_val
             )
-        else:
-            try:
-                exec_context = ExecutionContext()
-
-                # Генерируем SQL запрос через сервис генерации
-                # === REFACTOR: Передаём схему отдельно для structured output ===
-                gen_result = await self.executor.execute_action(
-                    action_name="sql_generation.generate_query",
-                    parameters={
-                        "natural_language_request": query_val,
-                        "table_schema": """
-                            "Lib".books (
-                                id INTEGER PRIMARY KEY,
-                                title TEXT NOT NULL,
-                                author_id INTEGER REFERENCES "Lib".authors(id),
-                                isbn TEXT,
-                                publication_date DATE,
-                                genre TEXT
-                            ),
-                            "Lib".authors (
-                                id INTEGER PRIMARY KEY,
-                                first_name TEXT,
-                                last_name TEXT,
-                                birth_date DATE
-                            )
-                        """.strip(),
-                        "prompt": prompt_text,  # Промпт БЕЗ контрактов
-                        "schema": output_schema if output_schema is not BaseModel else None  # Схема отдельно
-                    },
-                    context=exec_context
-                )
-
-                from core.models.data.execution import ExecutionStatus
-                if gen_result.status == ExecutionStatus.COMPLETED and gen_result.data:
-                    # gen_result.data может быть dict или Pydantic моделью
-                    if hasattr(gen_result.data, 'model_dump'):
-                        data_dict = gen_result.data.model_dump()
-                    else:
-                        data_dict = gen_result.data
-                    sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
-                    await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
-                else:
-                    # ❌ УДАЛЕНО: Warning вместо ошибки
-                    # ✅ ТЕПЕРЬ: Выбрасываем SQLGenerationError
-                    from core.errors.exceptions import SQLGenerationError
-                    raise SQLGenerationError(
-                        f"Генерация SQL не удалась: {gen_result.error}",
-                        request=query_val
-                    )
-
-            except Exception as e:
-                await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
-                # Пробрасываем ошибку выше
-                raise
 
         # ❌ УДАЛЕНО: Fallback SQL когда генерация не удалась
         # ✅ ТЕПЕРЬ: SQL запрос должен быть сгенерирован, иначе SQLGenerationError
