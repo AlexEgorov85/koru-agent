@@ -277,11 +277,14 @@ class BookLibrarySkill(BaseSkill):
 
         # Проверяем доступность LLM через executor
         llm_available = False
+        # Проверяем доступность LLM через простую генерацию
         try:
-            # Пытаемся выполнить простой LLM вызов для проверки доступности
             test_result = await self.executor.execute_action(
-                action_name="llm.ping",
-                parameters={},
+                action_name="llm.generate",
+                parameters={
+                    "prompt": "OK",
+                    "max_tokens": 5
+                },
                 context=ExecutionContext()
             )
             llm_available = test_result.status.name == "COMPLETED"

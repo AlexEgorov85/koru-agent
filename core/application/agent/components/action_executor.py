@@ -813,8 +813,8 @@ class ActionExecutor:
                 )
 
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
+            if self._event_bus_logger:
+                await self._event_bus_logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
