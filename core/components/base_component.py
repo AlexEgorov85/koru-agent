@@ -304,10 +304,13 @@ class BaseComponent(LifecycleMixin, ABC):
             # Переход в состояние READY
             await self._transition_to(ComponentState.READY)
             
+            # ← НОВОЕ: Устанавливаем флаг инициализации для обратной совместимости
+            self._initialized = True
+
             # Переключаем логгер в асинхронный режим после успешной инициализации
             if self.event_bus_logger:
                 self.event_bus_logger._set_ready()
-            
+
             return True
 
         except Exception as e:
