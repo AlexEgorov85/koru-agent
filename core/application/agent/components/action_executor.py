@@ -600,9 +600,13 @@ class ActionExecutor:
 
         # Для простоты создаем capability с именем действия
         from core.models.data.capability import Capability
+        # Извлекаем skill_name из action_name (например, book_library.search_books → book_library)
+        parts = action_name.split('.')
+        skill_name = parts[0] if len(parts) >= 2 else action_name
         return Capability(
             name=action_name,
             description=f"Capability для действия {action_name}",
+            skill_name=skill_name,
             input_schema={},
             output_schema={}
         )
@@ -929,7 +933,7 @@ class ActionExecutor:
             request=request,
             provider=llm_provider,
             max_retries=parameters.get("max_retries", 3),
-            attempt_timeout=parameters.get("attempt_timeout", 60.0),  # Timeout на одну попытку
+            attempt_timeout=parameters.get("attempt_timeout", 600.0),  # Timeout на одну попытку (10 минут для локальных моделей)
             total_timeout=parameters.get("total_timeout", parameters.get("timeout", 120.0)),  # Общий timeout
             session_id=parameters.get('session_id'),
             agent_id=parameters.get('agent_id'),
