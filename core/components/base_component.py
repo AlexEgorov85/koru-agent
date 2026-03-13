@@ -22,6 +22,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING, Type
 
+from core.application.agent.components.action_executor import ExecutionContext
 from core.config.component_config import ComponentConfig
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
@@ -161,43 +162,6 @@ class BaseComponent(LifecycleMixin, ABC):
     def log_storage(self) -> Optional[LogStorageInterface]:
         """Получить LogStorageInterface."""
         return self._log_storage
-
-    # ========================================================================
-    # DEPRECATED: application_context (будет удалён после полной миграции)
-    # ========================================================================
-
-    @property
-    def application_context(self) -> Optional['ApplicationContext']:
-        """
-        Получить контекст приложения.
-        
-        DEPRECATED: Используйте внедрение зависимостей через интерфейсы.
-        Это свойство будет удалено в следующей мажорной версии.
-        
-        RETURNS:
-        - ApplicationContext или None
-        
-        RAISES:
-        - RuntimeError: Если application_context не был передан
-        """
-        import warnings
-        warnings.warn(
-            "application_context deprecated. Используйте внедрение зависимостей через интерфейсы.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        
-        if self._application_context is None:
-            raise RuntimeError(
-                f"Компонент '{self.name}': application_context не был передан. "
-                "Используйте внедрение зависимостей через интерфейсы."
-            )
-        return self._application_context
-
-    @application_context.setter
-    def application_context(self, value: 'ApplicationContext'):
-        """Установить контекст приложения (для обратной совместимости)."""
-        self._application_context = value
 
     # ========================================================================
     # ЛОГИРОВАНИЕ
@@ -384,9 +348,12 @@ class BaseComponent(LifecycleMixin, ABC):
         return True
 
     async def _preload_resources(self, current_time: float) -> bool:
-        """Предзагрузка ресурсов компонента."""
+        """
+        Предзагрузка ресурсов компонента.
+
+        Вызывает методы загрузки промптов и контрактов.
+        """
         try:
-            # Отладочный вывод
             self._safe_log_sync(
                 "info",
                 f"_preload_resources: {self.name} - "
@@ -395,94 +362,114 @@ class BaseComponent(LifecycleMixin, ABC):
                 f"output_contract_versions={list(self.component_config.output_contract_versions.keys())}"
             )
 
-            # Загрузка промптов как объектов
-            for cap_name, version in self.component_config.prompt_versions.items():
-                try:
-                    # Получаем ПОЛНОЦЕННЫЙ объект из репозитория
-                    if hasattr(self.application_context, 'data_repository') and self.application_context.data_repository:
-                        prompt_obj: Prompt = self.application_context.data_repository.get_prompt(cap_name, version)
-                        self.prompts[cap_name] = prompt_obj
+            if not await self._load_prompts():
+                return False
 
-                        self._safe_log_sync(
-                            "debug",
-                            f"Загружен промпт '{cap_name}' v{version} "
-                            f"(тип: {prompt_obj.component_type.value}, статус: {prompt_obj.status.value})"
-                        )
-                    else:
-                        # Старый путь: получаем из кэша контекста
-                        prompt_text = self.application_context.get_prompt(cap_name, version)
-                        # Создаем минимальный объект Prompt для совместимости
-                        from core.models.data.prompt import Prompt, PromptStatus, ComponentType
-                        prompt_obj = Prompt(
-                            capability=cap_name,
-                            version=version,
-                            status=PromptStatus.ACTIVE,
-                            component_type=ComponentType.SKILL,  # Значение по умолчанию
-                            content=prompt_text,
-                            variables=[],
-                            metadata={}
-                        )
-                        self.prompts[cap_name] = prompt_obj
-                        self._safe_log_sync("warning", f"Используется совместимый режим для промпта {cap_name}")
+            if not await self._load_input_contracts():
+                return False
 
-                except Exception as e:
-                    self._safe_log_sync("error", f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
-                    # Используем безопасный способ проверки критических ресурсов
-                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('prompts', False):
-                        self._safe_log_sync("error", f"Критический промпт {cap_name} не загружен")
-                        return False
+            if not await self._load_output_contracts():
+                return False
 
-            # Загрузка схем контрактов
-            for cap_name, version in self.component_config.input_contract_versions.items():
-                try:
-                    if hasattr(self.application_context, 'data_repository') and self.application_context.data_repository:
-                        schema_cls: Type[BaseModel] = (
-                            self.application_context.data_repository
-                            .get_contract_schema(cap_name, version, "input")
-                        )
-                        self.input_contracts[cap_name] = schema_cls
-                    else:
-                        # Старый путь: получаем из контекста
-                        schema_cls = self.application_context.get_input_contract_schema(cap_name, version)
-                        self.input_contracts[cap_name] = schema_cls
-                        self._safe_log_sync("warning", f"Используется совместимый режим для входной схемы {cap_name}")
-
-                except Exception as e:
-                    self._safe_log_sync("error", f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
-                    # Используем безопасный способ проверки критических ресурсов
-                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('input_contracts', False):
-                        return False
-
-            # Загрузка выходных схем
-            for cap_name, version in self.component_config.output_contract_versions.items():
-                try:
-                    if hasattr(self.application_context, 'data_repository') and self.application_context.data_repository:
-                        schema_cls: Type[BaseModel] = (
-                            self.application_context.data_repository
-                            .get_contract_schema(cap_name, version, "output")
-                        )
-                        self.output_contracts[cap_name] = schema_cls
-                    else:
-                        # Старый путь: используем базовый класс
-                        self.output_contracts[cap_name] = BaseModel
-                        self._safe_log_sync("warning", f"Используется совместимый режим для выходной схемы {cap_name}")
-
-                except Exception as e:
-                    self._safe_log_sync("error", f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
-                    # Используем безопасный способ проверки критических ресурсов
-                    if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
-                        return False
-
-            # [REFACTOR Этап 2.2] Временные метки больше не устанавливаются (TTL удалён)
-
-            # ← НОВОЕ: Автоматическое разделение system/user промптов
             self._separate_system_user_prompts()
-
             return True
 
         except Exception as e:
             self._safe_log_sync("error", f"Ошибка предзагрузки ресурсов для '{self.name}': {e}", exc_info=True)
             return False
+
+    async def _load_prompts(self) -> bool:
+        """
+        Загрузка промптов из кэша.
+
+        RETURNS:
+        - bool: True если все промпты загружены успешно
+        """
+        for cap_name, version in self.component_config.prompt_versions.items():
+            try:
+                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
+                    prompt_obj: Prompt = self._application_context.data_repository.get_prompt(cap_name, version)
+                    self.prompts[cap_name] = prompt_obj
+                    self._safe_log_sync(
+                        "debug",
+                        f"Загружен промпт '{cap_name}' v{version} "
+                        f"(тип: {prompt_obj.component_type.value}, статус: {prompt_obj.status.value})"
+                    )
+                else:
+                    prompt_text = self._application_context.get_prompt(cap_name, version)
+                    from core.models.data.prompt import Prompt, PromptStatus, ComponentType
+                    prompt_obj = Prompt(
+                        capability=cap_name,
+                        version=version,
+                        status=PromptStatus.ACTIVE,
+                        component_type=ComponentType.SKILL,
+                        content=prompt_text,
+                        variables=[],
+                        metadata={}
+                    )
+                    self.prompts[cap_name] = prompt_obj
+                    self._safe_log_sync("warning", f"Используется совместимый режим для промпта {cap_name}")
+
+            except Exception as e:
+                self._safe_log_sync("error", f"Ошибка загрузки промпта {cap_name}@{version}: {e}")
+                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('prompts', False):
+                    self._safe_log_sync("error", f"Критический промпт {cap_name} не загружен")
+                    return False
+
+        return True
+
+    async def _load_input_contracts(self) -> bool:
+        """
+        Загрузка входных контрактов из кэша.
+
+        RETURNS:
+        - bool: True если все контракты загружены успешно
+        """
+        for cap_name, version in self.component_config.input_contract_versions.items():
+            try:
+                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
+                    schema_cls: Type[BaseModel] = (
+                        self._application_context.data_repository
+                        .get_contract_schema(cap_name, version, "input")
+                    )
+                    self.input_contracts[cap_name] = schema_cls
+                else:
+                    schema_cls = self._application_context.get_input_contract_schema(cap_name, version)
+                    self.input_contracts[cap_name] = schema_cls
+                    self._safe_log_sync("warning", f"Используется совместимый режим для входной схемы {cap_name}")
+
+            except Exception as e:
+                self._safe_log_sync("error", f"Ошибка загрузки входной схемы {cap_name}@{version}: {e}")
+                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('input_contracts', False):
+                    return False
+
+        return True
+
+    async def _load_output_contracts(self) -> bool:
+        """
+        Загрузка выходных контрактов из кэша.
+
+        RETURNS:
+        - bool: True если все контракты загружены успешно
+        """
+        for cap_name, version in self.component_config.output_contract_versions.items():
+            try:
+                if hasattr(self._application_context, 'data_repository') and self._application_context.data_repository:
+                    schema_cls: Type[BaseModel] = (
+                        self._application_context.data_repository
+                        .get_contract_schema(cap_name, version, "output")
+                    )
+                    self.output_contracts[cap_name] = schema_cls
+                else:
+                    self.output_contracts[cap_name] = BaseModel
+                    self._safe_log_sync("warning", f"Используется совместимый режим для выходной схемы {cap_name}")
+
+            except Exception as e:
+                self._safe_log_sync("error", f"Ошибка загрузки выходной схемы {cap_name}@{version}: {e}")
+                if hasattr(self.component_config, 'critical_resources') and self.component_config.critical_resources.get('output_contracts', False):
+                    return False
+
+        return True
 
     def _separate_system_user_prompts(self):
         """
@@ -1177,7 +1164,7 @@ class BaseComponent(LifecycleMixin, ABC):
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
-        execution_context: 'ExecutionContext'
+        execution_context: ExecutionContext
     ) -> ExecutionResult:
         """
         УНИВЕРСАЛЬНЫЙ ШАБЛОН ВЫПОЛНЕНИЯ КОМПОНЕНТА С ЛОГИРОВАНИЕМ.
@@ -1200,117 +1187,220 @@ class BaseComponent(LifecycleMixin, ABC):
         - Использовать предзагруженные ресурсы из кэшей
         - Вызывать другие действия через self.executor.execute_action()
         - Валидировать входные/выходные данные через контракты из кэша
-        
+
         ARCHITECTURE:
         - Сохраняет типизацию Pydantic моделей до границ приложения
         - validate_input_typed возвращает Pydantic модель вместо dict
         - result может быть Pydantic моделью (сохраняется типизация)
         """
         import time
+        start_time = time.time()
+
+        try:
+            validated_input = await self._validate_and_prepare_input(capability, parameters)
+            if validated_input is None:
+                return await self._create_validation_error_result(capability, "Input", start_time)
+
+            result = await self._execute_business_logic(capability, validated_input, execution_context)
+
+            validated_output = await self._validate_output(capability, result)
+            if validated_output is None:
+                return await self._create_validation_error_result(capability, "Output", start_time)
+
+            await self._publish_execution_metrics(capability, True, start_time)
+            return self._create_execution_result(capability, validated_output, start_time)
+
+        except Exception as e:
+            return await self._create_error_result(capability, e, start_time)
+
+    async def _validate_and_prepare_input(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any]
+    ) -> Optional[BaseModel]:
+        """
+        Валидация и подготовка входных данных.
+
+        ARGS:
+        - capability: capability для выполнения
+        - parameters: параметры выполнения
+
+        RETURNS:
+        - Pydantic модель валидированных данных или None при ошибке
+        """
+        return self.validate_input_typed(capability.name, parameters)
+
+    async def _execute_business_logic(
+        self,
+        capability: 'Capability',
+        parameters: BaseModel,
+        execution_context: ExecutionContext
+    ) -> Any:
+        """
+        Выполнение бизнес-логики компонента.
+
+        ARGS:
+        - capability: capability для выполнения
+        - parameters: валидированные параметры
+        - execution_context: контекст выполнения
+
+        RETURNS:
+        - Результат выполнения бизнес-логики
+        """
+        return await self._execute_impl(capability, parameters, execution_context)
+
+    async def _validate_output(
+        self,
+        capability: 'Capability',
+        result: Any
+    ) -> Optional[BaseModel]:
+        """
+        Валидация выходных данных.
+
+        ARGS:
+        - capability: capability для выполнения
+        - result: результат выполнения бизнес-логики
+
+        RETURNS:
+        - Pydantic модель валидированных данных или None при ошибке
+        """
+        return self.validate_output_typed(capability.name, result)
+
+    async def _publish_execution_metrics(
+        self,
+        capability: 'Capability',
+        success: bool,
+        start_time: float
+    ) -> None:
+        """
+        Публикация метрик выполнения.
+
+        ARGS:
+        - capability: capability для выполнения
+        - success: успешность выполнения
+        - start_time: время начала выполнения
+        """
+        import time
+        from core.infrastructure.event_bus.unified_event_bus import EventType
+
+        execution_time_ms = (time.time() - start_time) * 1000
+        event_type = self._get_event_type_for_success() if success else EventType.ERROR_OCCURRED
+
+        await self._publish_metrics(
+            event_type=event_type,
+            capability_name=capability.name,
+            success=success,
+            execution_time_ms=execution_time_ms
+        )
+
+    def _create_execution_result(
+        self,
+        capability: 'Capability',
+        data: Any,
+        start_time: float
+    ) -> ExecutionResult:
+        """
+        Создание успешного результата выполнения.
+
+        ARGS:
+        - capability: capability для выполнения
+        - data: валидированные данные результата
+        - start_time: время начала выполнения
+
+        RETURNS:
+        - ExecutionResult с успешным статусом
+        """
+        import time
+        from core.models.data.execution import ExecutionResult, ExecutionStatus
+
+        execution_time_ms = (time.time() - start_time) * 1000
+        return ExecutionResult(
+            status=ExecutionStatus.COMPLETED,
+            data=data,
+            metadata={
+                "capability": capability.name,
+                "execution_time_ms": execution_time_ms
+            }
+        )
+
+    async def _create_validation_error_result(
+        self,
+        capability: 'Capability',
+        validation_type: str,
+        start_time: float
+    ) -> ExecutionResult:
+        """
+        Создание результата ошибки валидации.
+
+        ARGS:
+        - capability: capability для выполнения
+        - validation_type: тип валидации ("Input" или "Output")
+        - start_time: время начала выполнения
+
+        RETURNS:
+        - ExecutionResult с ошибкой валидации
+        """
+        import time
         from core.models.data.execution import ExecutionResult, ExecutionStatus
         from core.infrastructure.event_bus.unified_event_bus import EventType
 
-        start_time = time.time()
+        execution_time_ms = (time.time() - start_time) * 1000
 
-        # Логирование начала выполнения
-        # TODO: Добавить LogComponentMixin или реализовать логирование
-        # self.log_start("execute", {
-        #     'capability': capability.name,
-        #     'parameters_count': len(parameters)
-        # })
+        await self._publish_metrics(
+            event_type=EventType.ERROR_OCCURRED,
+            capability_name=capability.name,
+            success=False,
+            execution_time_ms=execution_time_ms,
+            error=f"{validation_type} validation failed",
+            error_category="validation"
+        )
 
-        try:
-            # === ЭТАП 1: Валидация входных данных ===
-            validated_input = self.validate_input_typed(capability.name, parameters)
+        return ExecutionResult(
+            status=ExecutionStatus.FAILED,
+            error=f"{validation_type} validation failed",
+            metadata={"capability": capability.name}
+        )
 
-            if validated_input is None:
-                execution_time_ms = (time.time() - start_time) * 1000
+    async def _create_error_result(
+        self,
+        capability: 'Capability',
+        error: Exception,
+        start_time: float
+    ) -> ExecutionResult:
+        """
+        Создание результата ошибки выполнения.
 
-                # Публикация метрики ошибки валидации
-                await self._publish_metrics(
-                    EventType.ERROR_OCCURRED,
-                    capability_name=capability.name,
-                    success=False,
-                    execution_time_ms=execution_time_ms,
-                    error="Input validation failed",
-                    error_category="validation"
-                )
+        ARGS:
+        - capability: capability для выполнения
+        - error: исключение
+        - start_time: время начала выполнения
 
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    error="Input validation failed",
-                    metadata={"capability": capability.name}
-                )
+        RETURNS:
+        - ExecutionResult с ошибкой выполнения
+        """
+        import time
+        from core.models.data.execution import ExecutionResult, ExecutionStatus
+        from core.infrastructure.event_bus.unified_event_bus import EventType
 
-            # === ЭТАП 2: Выполнение бизнес-логики ===
-            # Вызываем async _execute_impl()
-            result = await self._execute_impl(capability, validated_input, execution_context)
+        execution_time_ms = (time.time() - start_time) * 1000
 
-            # === ЭТАП 3: Валидация выходных данных ===
-            validated_output = self.validate_output_typed(capability.name, result)
+        await self._publish_metrics(
+            event_type=EventType.ERROR_OCCURRED,
+            capability_name=capability.name,
+            success=False,
+            execution_time_ms=execution_time_ms,
+            error=str(error),
+            error_type=type(error).__name__
+        )
 
-            if validated_output is None:
-                execution_time_ms = (time.time() - start_time) * 1000
-
-                await self._publish_metrics(
-                    EventType.ERROR_OCCURRED,
-                    capability_name=capability.name,
-                    success=False,
-                    execution_time_ms=execution_time_ms,
-                    error="Output validation failed",
-                    error_category="validation"
-                )
-
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    error="Output validation failed",
-                    metadata={"capability": capability.name}
-                )
-
-            # === ЭТАП 4: Публикация метрик успеха ===
-            execution_time_ms = (time.time() - start_time) * 1000
-
-            # Определяем тип события в зависимости от типа компонента
-            event_type = self._get_event_type_for_success()
-
-            await self._publish_metrics(
-                event_type,
-                capability_name=capability.name,
-                success=True,
-                execution_time_ms=execution_time_ms
-            )
-
-            return ExecutionResult(
-                status=ExecutionStatus.COMPLETED,
-                data=validated_output,
-                metadata={
-                    "capability": capability.name,
-                    "execution_time_ms": execution_time_ms
-                }
-            )
-
-        except Exception as e:
-            execution_time_ms = (time.time() - start_time) * 1000
-
-            # Публикация метрик ошибки
-            await self._publish_metrics(
-                EventType.ERROR_OCCURRED,
-                capability.name,
-                False,
-                execution_time_ms,
-                tokens_used=0,
-                error=str(e),
-                error_type=type(e).__name__
-            )
-
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                error=str(e),
-                metadata={
-                    "capability": capability.name,
-                    "error_type": type(e).__name__
-                }
-            )
+        return ExecutionResult(
+            status=ExecutionStatus.FAILED,
+            error=str(error),
+            metadata={
+                "capability": capability.name,
+                "error_type": type(error).__name__
+            }
+        )
 
     def _get_event_type_for_success(self) -> 'EventType':
         """
@@ -1326,7 +1416,7 @@ class BaseComponent(LifecycleMixin, ABC):
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
-        execution_context: 'ExecutionContext'
+        execution_context: ExecutionContext
     ) -> Any:
         """
         Реализация бизнес-логики компонента (ASYNC).
@@ -1355,7 +1445,7 @@ class BaseComponent(LifecycleMixin, ABC):
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
-        execution_context: 'ExecutionContext',
+        execution_context: ExecutionContext,
         llm_action_name: str = "llm.generate_structured"
     ) -> 'ExecutionResult':
         """
