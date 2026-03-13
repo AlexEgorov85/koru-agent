@@ -544,109 +544,111 @@ class LLMOrchestrator:
         await self._log_structured_start(call_id, request, max_retries, session_id)
 
         try:
-            for attempt_num in range(1, max_retries + 1):
-                # Проверка общего таймаута
-                if total_timeout:
-                    elapsed = time.time() - start_time
-                    if elapsed >= total_timeout:
-                        await self._log_structured_failure(
-                            call_id, attempt_num, "total_timeout",
-                            f"Превышен общий таймаут {total_timeout}s"
-                        )
-                        break
+            # ✅ ИЗМЕНЕНО: Максимум 1 попытка (max_retries=1 для строгой валидации)
+            # Если max_retries > 1, используем 1 но логируем предупреждение
+            if max_retries > 1:
+                await self._logger.warning(
+                    f"⚠️ max_retries={max_retries} проигнорировано. "
+                    f"Используется 1 попытка для строгой валидации структурированного вывода."
+                )
+            
+            attempt_num = 1
+            
+            # Проверка общего таймаута
+            if total_timeout:
+                elapsed = time.time() - start_time
+                if elapsed >= total_timeout:
+                    await self._log_structured_failure(
+                        call_id, attempt_num, "total_timeout",
+                        f"Превышен общий таймаут {total_timeout}s"
+                    )
+                    # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
+                    # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError
+                    from core.errors.exceptions import StructuredOutputError
+                    raise StructuredOutputError(
+                        message=f"Превышен общий таймаут структурированного вывода ({total_timeout}s)",
+                        model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
+                        attempts=attempt_num,
+                        validation_errors=[{"error": "timeout", "message": f"Total timeout {total_timeout}s exceeded"}]
+                    )
 
-                # Выполнение попытки
-                attempt = await self._execute_structured_attempt(
-                    call_id=call_id,
-                    request=current_request,
-                    provider=provider,
-                    attempt_num=attempt_num,
-                    attempt_timeout=attempt_timeout,
-                    use_native_structured_output=use_native_structured_output,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    step_number=step_number,
-                    phase=phase
+            # Выполнение единственной попытки
+            attempt = await self._execute_structured_attempt(
+                call_id=call_id,
+                request=request,
+                provider=provider,
+                attempt_num=attempt_num,
+                attempt_timeout=attempt_timeout,
+                use_native_structured_output=use_native_structured_output,
+                session_id=session_id,
+                agent_id=agent_id,
+                step_number=step_number,
+                phase=phase
+            )
+
+            attempts.append(attempt)
+            self._metrics.total_retry_attempts += 1
+
+            if attempt.success:
+                # Успех!
+                self._metrics.structured_success += 1
+                await self._log_structured_success(
+                    call_id, attempt_num, attempt.duration, session_id
                 )
 
-                attempts.append(attempt)
-                self._metrics.total_retry_attempts += 1
+                # Возвращаем успешный ответ
+                return StructuredLLMResponse(
+                    parsed_content=attempt.raw_response,  # type: ignore
+                    raw_response=RawLLMResponse(
+                        content=attempt.raw_response or "",
+                        model="structured",
+                        tokens_used=attempt.tokens_used,
+                        generation_time=attempt.duration
+                    ),
+                    parsing_attempts=attempt_num,
+                    validation_errors=[],
+                    provider_native_validation=False
+                )
+            else:
+                # ❌ УДАЛЕНО: Multiple retry attempts
+                # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError после 1 попытки
+                last_error = attempt.error_message
+                self._metrics.structured_retries += 1
 
-                if attempt.success:
-                    # Успех!
-                    self._metrics.structured_success += 1
-                    await self._log_structured_success(
-                        call_id, attempt_num, attempt.duration, session_id
-                    )
+                await self._log_structured_retry(
+                    call_id, attempt_num, attempt.error_type,
+                    attempt.error_message, False  # Больше не будет попыток
+                )
 
-                    # Возвращаем успешный ответ
-                    return StructuredLLMResponse(
-                        parsed_content=attempt.raw_response,  # type: ignore
-                        raw_response=RawLLMResponse(
-                            content=attempt.raw_response or "",
-                            model="structured",
-                            tokens_used=attempt.tokens_used,
-                            generation_time=attempt.duration
-                        ),
-                        parsing_attempts=attempt_num,
-                        validation_errors=[],
-                        provider_native_validation=False
-                    )
-                else:
-                    # Неудача - логируем и готовим следующую попытку
-                    last_error = attempt.error_message
-                    self._metrics.structured_retries += 1
+                # Все попытки исчерпаны (всего 1)
+                await self._log_structured_exhausted(
+                    call_id, len(attempts), last_error, session_id
+                )
 
-                    await self._log_structured_retry(
-                        call_id, attempt_num, attempt.error_type,
-                        attempt.error_message, len(attempts) < max_retries
-                    )
-
-                    # Формируем corrective prompt для следующей попытки
-                    if attempt_num < max_retries:
-                        current_request = self._build_corrective_prompt(
-                            original_request=request,
-                            current_request=current_request,
-                            failed_response=attempt.raw_response,
-                            error_type=attempt.error_type,
-                            error_message=attempt.error_message
-                        )
-
-            # Все попытки исчерпаны
-            await self._log_structured_exhausted(
-                call_id, len(attempts), last_error, session_id
-            )
-
-            return StructuredLLMResponse(
-                parsed_content=None,  # type: ignore
-                raw_response=RawLLMResponse(
-                    content="",
-                    model="structured_error",
-                    tokens_used=0,
-                    generation_time=time.time() - start_time
-                ),
-                parsing_attempts=len(attempts),
-                validation_errors=[
-                    {"attempt": i + 1, "error": a.error_type, "message": a.error_message}
-                    for i, a in enumerate(attempts)
-                ],
-                provider_native_validation=False
-            )
+                # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
+                # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError
+                from core.errors.exceptions import StructuredOutputError
+                raise StructuredOutputError(
+                    message="Не удалось получить валидный структурированный ответ после 1 попытки",
+                    model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
+                    attempts=len(attempts),
+                    validation_errors=[
+                        {"attempt": i + 1, "error": a.error_type, "message": a.error_message}
+                        for i, a in enumerate(attempts)
+                    ]
+                )
 
         except Exception as e:
             # Критическая ошибка
             await self._log_structured_error(call_id, str(e), session_id)
-            return StructuredLLMResponse(
-                parsed_content=None,  # type: ignore
-                raw_response=RawLLMResponse(
-                    content="",
-                    model="structured_exception",
-                    tokens_used=0,
-                    generation_time=time.time() - start_time
-                ),
-                parsing_attempts=len(attempts),
-                validation_errors=[{"error": "exception", "message": str(e)}],
-                provider_native_validation=False
+            # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
+            # ✅ ТЕПЕРЬ: Пробрасываем StructuredOutputError
+            from core.errors.exceptions import StructuredOutputError
+            raise StructuredOutputError(
+                message=f"Критическая ошибка структурированного вывода: {str(e)}",
+                model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
+                attempts=len(attempts),
+                validation_errors=[{"error": "exception", "message": str(e)}]
             )
 
     async def _execute_structured_attempt(

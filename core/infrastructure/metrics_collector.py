@@ -16,6 +16,7 @@ from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Eve
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
+from core.application.services.metrics_publisher import MetricsPublisher
 
 
 class MetricsCollector(BaseEventCollector):
@@ -25,28 +26,33 @@ class MetricsCollector(BaseEventCollector):
     RESPONSIBILITIES:
     - Подписка на события выполнения (SKILL_EXECUTED, CAPABILITY_SELECTED, ERROR_OCCURRED)
     - Извлечение метрик из event.data
-    - Сохранение метрик в хранилище
+    - Сохранение метрик в хранилище через MetricsPublisher
     - Агрегация метрик для бенчмарков
 
     INTEGRATION:
     - Использует EventBus для подписки на события
-    - Использует IMetricsStorage для сохранения метрик
+    - Использует MetricsPublisher для публикации метрик
+    - Совместим со старым IMetricsStorage через publisher
     """
 
     def __init__(
         self,
         event_bus: UnifiedEventBus,
-        storage: IMetricsStorage
+        storage: IMetricsStorage,
+        metrics_publisher: Optional[MetricsPublisher] = None
     ):
         """
         Инициализация сборщика метрик.
 
         ARGS:
         - event_bus: шина событий для подписки
-        - storage: хранилище для сохранения метрик
+        - storage: хранилище для сохранения метрик (для обратной совместимости)
+        - metrics_publisher: публикатор метрик (опционально, создаётся автоматически)
         """
         super().__init__(event_bus, component_name="MetricsCollector")
         self.storage = storage
+        # Создаём MetricsPublisher если не предоставлен
+        self.publisher = metrics_publisher or MetricsPublisher(storage, event_bus)
 
     async def initialize(self) -> None:
         """
@@ -99,20 +105,34 @@ class MetricsCollector(BaseEventCollector):
 
             # Метрика успешности
             success_value = 1.0 if data.get('success', False) else 0.0
-            success_metric = MetricRecord(
-                agent_id=agent_id,
-                capability=capability,
-                metric_type=MetricType.GAUGE,
+            
+            # НОВЫЙ API: MetricsPublisher
+            await self.publisher.gauge(
                 name='success',
                 value=success_value,
-                timestamp=event.timestamp,
+                agent_id=agent_id,
+                capability=capability,
                 session_id=session_id,
                 correlation_id=correlation_id,
-                version=version
+                version=version,
+                timestamp=event.timestamp,
+                publish_event=False  # Не публиковать событие, т.к. это уже обработчик события
             )
-            await self.storage.record(success_metric)
 
-            # Публикуем событие для SessionLogHandler
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.storage.record(MetricRecord(
+            #     agent_id=agent_id,
+            #     capability=capability,
+            #     metric_type=MetricType.GAUGE,
+            #     name='success',
+            #     value=success_value,
+            #     timestamp=event.timestamp,
+            #     session_id=session_id,
+            #     correlation_id=correlation_id,
+            #     version=version
+            # ))
+
+            # Публикуем событие для SessionLogHandler (сохраняем обратную совместимость)
             await self.event_bus.publish(
                 event=EventType.METRIC_COLLECTED,
                 data={
@@ -130,18 +150,31 @@ class MetricsCollector(BaseEventCollector):
             # Метрика времени выполнения
             execution_time = data.get('execution_time_ms')
             if execution_time is not None:
-                time_metric = MetricRecord(
-                    agent_id=agent_id,
-                    capability=capability,
-                    metric_type=MetricType.HISTOGRAM,
+                # НОВЫЙ API: MetricsPublisher
+                await self.publisher.histogram(
                     name='execution_time_ms',
                     value=float(execution_time),
-                    timestamp=event.timestamp,
+                    agent_id=agent_id,
+                    capability=capability,
                     session_id=session_id,
                     correlation_id=correlation_id,
-                    version=version
+                    version=version,
+                    timestamp=event.timestamp,
+                    publish_event=False
                 )
-                await self.storage.record(time_metric)
+
+                # СТАРЫЙ API (закомментирован для обратной совместимости):
+                # await self.storage.record(MetricRecord(
+                #     agent_id=agent_id,
+                #     capability=capability,
+                #     metric_type=MetricType.HISTOGRAM,
+                #     name='execution_time_ms',
+                #     value=float(execution_time),
+                #     timestamp=event.timestamp,
+                #     session_id=session_id,
+                #     correlation_id=correlation_id,
+                #     version=version
+                # ))
 
                 # Публикуем событие для SessionLogHandler
                 await self.event_bus.publish(
@@ -161,18 +194,31 @@ class MetricsCollector(BaseEventCollector):
             # Метрика токенов
             tokens_used = data.get('tokens_used')
             if tokens_used is not None:
-                tokens_metric = MetricRecord(
-                    agent_id=agent_id,
-                    capability=capability,
-                    metric_type=MetricType.COUNTER,
+                # НОВЫЙ API: MetricsPublisher
+                await self.publisher.counter(
                     name='tokens_used',
                     value=float(tokens_used),
-                    timestamp=event.timestamp,
+                    agent_id=agent_id,
+                    capability=capability,
                     session_id=session_id,
                     correlation_id=correlation_id,
-                    version=version
+                    version=version,
+                    timestamp=event.timestamp,
+                    publish_event=False
                 )
-                await self.storage.record(tokens_metric)
+
+                # СТАРЫЙ API (закомментирован для обратной совместимости):
+                # await self.storage.record(MetricRecord(
+                #     agent_id=agent_id,
+                #     capability=capability,
+                #     metric_type=MetricType.COUNTER,
+                #     name='tokens_used',
+                #     value=float(tokens_used),
+                #     timestamp=event.timestamp,
+                #     session_id=session_id,
+                #     correlation_id=correlation_id,
+                #     version=version
+                # ))
 
                 # Публикуем событие для SessionLogHandler
                 await self.event_bus.publish(
@@ -214,18 +260,31 @@ class MetricsCollector(BaseEventCollector):
                 return
 
             # Счётчик выбора способности
-            selection_metric = MetricRecord(
-                agent_id=agent_id,
-                capability=capability,
-                metric_type=MetricType.COUNTER,
+            # НОВЫЙ API: MetricsPublisher
+            await self.publisher.counter(
                 name='selection_count',
                 value=1.0,
-                timestamp=event.timestamp,
+                agent_id=agent_id,
+                capability=capability,
                 session_id=session_id,
                 correlation_id=correlation_id,
-                version=version
+                version=version,
+                timestamp=event.timestamp,
+                publish_event=False
             )
-            await self.storage.record(selection_metric)
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.storage.record(MetricRecord(
+            #     agent_id=agent_id,
+            #     capability=capability,
+            #     metric_type=MetricType.COUNTER,
+            #     name='selection_count',
+            #     value=1.0,
+            #     timestamp=event.timestamp,
+            #     session_id=session_id,
+            #     correlation_id=correlation_id,
+            #     version=version
+            # ))
 
         except Exception as e:
             self.event_bus_logger.error("Ошибка обработки CAPABILITY_SELECTED: %s", e)
@@ -247,39 +306,68 @@ class MetricsCollector(BaseEventCollector):
             session_id = data.get('session_id')
             correlation_id = event.correlation_id
             version = data.get('version')
+            error_type = data.get('error_type', 'unknown')
 
             if not capability:
                 return
 
             # Метрика ошибки (0 = неудача)
-            error_metric = MetricRecord(
-                agent_id=agent_id,
-                capability=capability,
-                metric_type=MetricType.GAUGE,
+            # НОВЫЙ API: MetricsPublisher
+            await self.publisher.gauge(
                 name='success',
                 value=0.0,
-                timestamp=event.timestamp,
-                session_id=session_id,
-                correlation_id=correlation_id,
-                version=version,
-                tags={'error': data.get('error_type', 'unknown')}
-            )
-            await self.storage.record(error_metric)
-
-            # Счётчик ошибок
-            error_count_metric = MetricRecord(
                 agent_id=agent_id,
                 capability=capability,
-                metric_type=MetricType.COUNTER,
-                name='error_count',
-                value=1.0,
-                timestamp=event.timestamp,
                 session_id=session_id,
                 correlation_id=correlation_id,
                 version=version,
-                tags={'error': data.get('error_type', 'unknown')}
+                timestamp=event.timestamp,
+                tags={'error': error_type},
+                publish_event=False
             )
-            await self.storage.record(error_count_metric)
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.storage.record(MetricRecord(
+            #     agent_id=agent_id,
+            #     capability=capability,
+            #     metric_type=MetricType.GAUGE,
+            #     name='success',
+            #     value=0.0,
+            #     timestamp=event.timestamp,
+            #     session_id=session_id,
+            #     correlation_id=correlation_id,
+            #     version=version,
+            #     tags={'error': error_type}
+            # ))
+
+            # Счётчик ошибок
+            # НОВЫЙ API: MetricsPublisher
+            await self.publisher.counter(
+                name='error_count',
+                value=1.0,
+                agent_id=agent_id,
+                capability=capability,
+                session_id=session_id,
+                correlation_id=correlation_id,
+                version=version,
+                timestamp=event.timestamp,
+                tags={'error': error_type},
+                publish_event=False
+            )
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.storage.record(MetricRecord(
+            #     agent_id=agent_id,
+            #     capability=capability,
+            #     metric_type=MetricType.COUNTER,
+            #     name='error_count',
+            #     value=1.0,
+            #     timestamp=event.timestamp,
+            #     session_id=session_id,
+            #     correlation_id=correlation_id,
+            #     version=version,
+            #     tags={'error': error_type}
+            # ))
 
         except Exception as e:
             self.event_bus_logger.error("Ошибка обработки ERROR_OCCURRED: %s", e)
@@ -293,21 +381,45 @@ class MetricsCollector(BaseEventCollector):
         try:
             data = event.data
 
-            metric_record = MetricRecord(
-                agent_id=data.get('agent_id', 'unknown'),
-                capability=data.get('capability', ''),
-                metric_type=MetricType(data.get('metric_type', 'gauge')),
-                name=data.get('name', ''),
-                value=float(data.get('value', 0)),
-                timestamp=event.timestamp,
-                session_id=data.get('session_id'),
-                correlation_id=event.correlation_id,
-                version=data.get('version'),
-                tags=data.get('tags', {})
-            )
+            metric_type = data.get('metric_type', 'gauge')
+            name = data.get('name', '')
+            value = float(data.get('value', 0))
+            agent_id = data.get('agent_id', 'unknown')
+            capability = data.get('capability', '')
+            session_id = data.get('session_id')
+            correlation_id = event.correlation_id
+            version = data.get('version')
+            tags = data.get('tags', {})
 
-            if metric_record.capability and metric_record.name:
-                await self.storage.record(metric_record)
+            if capability and name:
+                # НОВЫЙ API: MetricsPublisher
+                await self.publisher.record_custom(
+                    metric_type=metric_type,
+                    name=name,
+                    value=value,
+                    agent_id=agent_id,
+                    capability=capability,
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    version=version,
+                    timestamp=event.timestamp,
+                    tags=tags,
+                    publish_event=False  # Это уже обработчик события METRIC_COLLECTED
+                )
+
+                # СТАРЫЙ API (закомментирован для обратной совместимости):
+                # await self.storage.record(MetricRecord(
+                #     agent_id=agent_id,
+                #     capability=capability,
+                #     metric_type=MetricType(metric_type.lower()),
+                #     name=name,
+                #     value=value,
+                #     timestamp=event.timestamp,
+                #     session_id=session_id,
+                #     correlation_id=correlation_id,
+                #     version=version,
+                #     tags=tags
+                # ))
 
         except Exception as e:
             self.event_bus_logger.error("Ошибка обработки METRIC_COLLECTED: %s", e)

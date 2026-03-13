@@ -180,6 +180,7 @@ async def run_optimization(
             benchmark_service=benchmark_service,
             prompt_generator=prompt_generator,
             metrics_collector=metrics_collector,
+            log_collector=log_collector,
             event_bus=event_bus,
             config=opt_config
         )

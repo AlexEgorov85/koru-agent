@@ -204,9 +204,11 @@ class MockLLMProvider(BaseLLMProvider):
             )
 
         # Поиск подходящего ответа
-        response = self._default_response
+        # ❌ УДАЛЕНО: default_response для неизвестных промптов
+        # ✅ ТЕПЕРЬ: Выбрасываем MockProviderError если паттерн не найден
+        response = None
         matched_pattern = None
-        
+
         for pattern, resp in self._prompt_responses.items():
             if isinstance(pattern, Pattern):
                 # Regex паттерн
@@ -220,7 +222,16 @@ class MockLLMProvider(BaseLLMProvider):
                     response = resp
                     matched_pattern = pattern
                     break
-        
+
+        # Если ответ не найден - выбрасываем ошибку
+        if response is None:
+            from core.errors.exceptions import MockProviderError
+            raise MockProviderError(
+                f"Не зарегистрирован ответ для промпта: {request.prompt[:200]}. "
+                f"Зарегистрируйте ответ через register_response() или register_regex_response().",
+                prompt=request.prompt
+            )
+
         # Логирование в историю
         self._call_history.append({
             'prompt': request.prompt,

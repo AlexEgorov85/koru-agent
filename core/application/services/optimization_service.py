@@ -25,11 +25,10 @@ from core.models.data.benchmark import (
 from core.application.services.benchmark_service import BenchmarkService
 from core.application.services.prompt_contract_generator import PromptContractGenerator
 from core.infrastructure.metrics_collector import MetricsCollector
+from core.infrastructure.log_collector import LogCollector
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging import EventBusLogger
-
-
-logger = logging.getLogger(__name__)
+from core.application.services.metrics_publisher import MetricsPublisher
 
 
 @dataclass
@@ -64,7 +63,7 @@ class OptimizationService:
 
     USAGE:
     ```python
-    service = OptimizationService(benchmark_service, generator, metrics_collector, event_bus)
+    service = OptimizationService(benchmark_service, generator, metrics_collector, log_collector, event_bus)
     result = await service.start_optimization_cycle('capability', mode=OptimizationMode.ACCURACY)
     ```
     """
@@ -74,7 +73,9 @@ class OptimizationService:
         benchmark_service: BenchmarkService,
         prompt_generator: PromptContractGenerator,
         metrics_collector: MetricsCollector,
+        log_collector: LogCollector,
         event_bus: UnifiedEventBus,
+        metrics_publisher: Optional[MetricsPublisher] = None,
         config: Optional[OptimizationConfig] = None
     ):
         """
@@ -83,16 +84,32 @@ class OptimizationService:
         ARGS:
         - benchmark_service: сервис бенчмарков
         - prompt_generator: генератор промптов
-        - metrics_collector: сборщик метрик
+        - metrics_collector: сборщик метрик (для получения агрегированных метрик)
+        - log_collector: сборщик логов (для анализа ошибок)
         - event_bus: шина событий
+        - metrics_publisher: публикатор метрик (опционально, создаётся автоматически)
         - config: конфигурация оптимизации
         """
         self.benchmark_service = benchmark_service
         self.prompt_generator = prompt_generator
         self.metrics_collector = metrics_collector
+        self.log_collector = log_collector
         self.event_bus = event_bus
         self.config = config or OptimizationConfig()
         self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="OptimizationService")
+
+        # Используем MetricsPublisher если предоставлен
+        # Если metrics_collector=None (тесты), то metrics_publisher тоже None
+        self.metrics_publisher = None
+        if metrics_publisher:
+            self.metrics_publisher = metrics_publisher
+        elif metrics_collector and hasattr(metrics_collector, 'storage') and metrics_collector.storage:
+            # Создаём MetricsPublisher из существующих компонентов для обратной совместимости
+            # НОВЫЙ API: MetricsPublisher
+            self.metrics_publisher = MetricsPublisher(
+                storage=metrics_collector.storage,
+                event_bus=event_bus
+            )
 
         # Активные блокировки
         self._locks: Dict[str, OptimizationLock] = {}
@@ -116,6 +133,24 @@ class OptimizationService:
         - OptimizationResult: результат оптимизации или None если не удалось начать
         """
         await self.event_bus_logger.info(f"Запуск оптимизации для {capability} (режим: {mode.value})")
+
+        # Публикация метрики начала оптимизации
+        # НОВЫЙ API: MetricsPublisher
+        await self.metrics_publisher.counter(
+            name="optimization_cycle_started",
+            capability=capability,
+            tags={"mode": mode.value}
+        )
+
+        # СТАРЫЙ API (закомментирован для обратной совместимости):
+        # await self.metrics_collector.storage.record(MetricRecord(
+        #     agent_id="system",
+        #     capability=capability,
+        #     metric_type=MetricType.COUNTER,
+        #     name="optimization_cycle_started",
+        #     value=1.0,
+        #     tags={"mode": mode.value}
+        # ))
 
         # Проверка возможности оптимизации
         if not await self._is_capability_optimizable(capability):
@@ -156,6 +191,25 @@ class OptimizationService:
             for iteration in range(self.config.max_iterations):
                 result.iterations = iteration + 1
 
+                # Публикация метрики итерации
+                # НОВЫЙ API: MetricsPublisher
+                await self.metrics_publisher.gauge(
+                    name="optimization_iteration",
+                    value=iteration + 1,
+                    capability=capability,
+                    tags={"mode": mode.value}
+                )
+
+                # СТАРЫЙ API (закомментирован для обратной совместимости):
+                # await self.metrics_collector.storage.record(MetricRecord(
+                #     agent_id="system",
+                #     capability=capability,
+                #     metric_type=MetricType.GAUGE,
+                #     name="optimization_iteration",
+                #     value=iteration + 1,
+                #     tags={"mode": mode.value}
+                # ))
+
                 # Генерация новой версии
                 new_prompt, new_contract = await self.prompt_generator.generate_and_save(
                     original_prompt=await self._get_current_prompt(capability, current_version),
@@ -179,9 +233,46 @@ class OptimizationService:
                 if self._is_improvement(result.initial_metrics, result.final_metrics, mode):
                     result.to_version = new_version
 
+                    # Публикация метрики успешной оптимизации
+                    # НОВЫЙ API: MetricsPublisher
+                    await self.metrics_publisher.counter(
+                        name="optimization_success",
+                        capability=capability,
+                        tags={"mode": mode.value, "version": new_version}
+                    )
+
+                    # СТАРЫЙ API (закомментирован для обратной совместимости):
+                    # await self.metrics_collector.storage.record(MetricRecord(
+                    #     agent_id="system",
+                    #     capability=capability,
+                    #     metric_type=MetricType.COUNTER,
+                    #     name="optimization_success",
+                    #     value=1.0,
+                    #     tags={"mode": mode.value, "version": new_version}
+                    # ))
+
                     # Проверка достижения цели
                     if self._is_target_achieved(result.final_metrics, target_metrics):
                         result.target_achieved = True
+
+                        # Публикация метрики достижения цели
+                        # НОВЫЙ API: MetricsPublisher
+                        await self.metrics_publisher.gauge(
+                            name="optimization_target_achieved",
+                            value=1.0,
+                            capability=capability,
+                            tags={"mode": mode.value, "version": new_version}
+                        )
+
+                        # СТАРЫЙ API (закомментирован для обратной совместимости):
+                        # await self.metrics_collector.storage.record(MetricRecord(
+                        #     agent_id="system",
+                        #     capability=capability,
+                        #     metric_type=MetricType.GAUGE,
+                        #     name="optimization_target_achieved",
+                        #     value=1.0,
+                        #     tags={"mode": mode.value, "version": new_version}
+                        # ))
 
                         # Продвижение версии
                         await self.benchmark_service.promote_version(
@@ -194,6 +285,24 @@ class OptimizationService:
                         break
                 else:
                     await self.event_bus_logger.info(f"Версия {new_version} не показала улучшения")
+                    # Публикация метрики неудачной оптимизации
+                    # НОВЫЙ API: MetricsPublisher
+                    await self.metrics_publisher.counter(
+                        name="optimization_failure",
+                        capability=capability,
+                        tags={"mode": mode.value, "version": new_version}
+                    )
+
+                    # СТАРЫЙ API (закомментирован для обратной совместимости):
+                    # await self.metrics_collector.storage.record(MetricRecord(
+                    #     agent_id="system",
+                    #     capability=capability,
+                    #     metric_type=MetricType.COUNTER,
+                    #     name="optimization_failure",
+                    #     value=1.0,
+                    #     tags={"mode": mode.value, "version": new_version}
+                    # ))
+
                     # Отклонение версии
                     await self.benchmark_service.reject_version(
                         capability,
@@ -204,6 +313,25 @@ class OptimizationService:
             # Расчёт улучшений
             result.calculate_improvements()
 
+            # Публикация метрики завершения оптимизации
+            # НОВЫЙ API: MetricsPublisher
+            await self.metrics_publisher.gauge(
+                name="optimization_improvement",
+                value=result.improvements.get('accuracy', 0),
+                capability=capability,
+                tags={"mode": mode.value, "iterations": str(result.iterations)}
+            )
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.metrics_collector.storage.record(MetricRecord(
+            #     agent_id="system",
+            #     capability=capability,
+            #     metric_type=MetricType.GAUGE,
+            #     name="optimization_improvement",
+            #     value=result.improvements.get('accuracy', 0),
+            #     tags={"mode": mode.value, "iterations": str(result.iterations)}
+            # ))
+
             # Публикация события завершения
             await self._publish_optimization_complete(result)
 
@@ -213,6 +341,24 @@ class OptimizationService:
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка оптимизации: {e}")
+            # Публикация метрики ошибки оптимизации
+            # НОВЫЙ API: MetricsPublisher
+            await self.metrics_publisher.counter(
+                name="optimization_error",
+                capability=capability,
+                tags={"mode": mode.value, "error_type": type(e).__name__}
+            )
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.metrics_collector.storage.record(MetricRecord(
+            #     agent_id="system",
+            #     capability=capability,
+            #     metric_type=MetricType.COUNTER,
+            #     name="optimization_error",
+            #     value=1.0,
+            #     tags={"mode": mode.value, "error_type": type(e).__name__}
+            # ))
+
             return None
 
         finally:
@@ -233,10 +379,30 @@ class OptimizationService:
         await self.event_bus_logger.info(f"Анализ неудач для {capability}@{version}")
 
         # Получение логов ошибок
-        error_logs = await self.metrics_collector.log_collector.get_error_logs(
+        # ИСПРАВЛЕНО: используем log_collector напрямую вместо metrics_collector.log_collector
+        error_logs = await self.log_collector.get_error_logs(
             capability,
             limit=100
         )
+
+        # Публикация метрики анализа неудач
+        # НОВЫЙ API: MetricsPublisher
+        await self.metrics_publisher.gauge(
+            name="failure_analysis_total_failures",
+            value=len(error_logs),
+            capability=capability,
+            tags={"version": version}
+        )
+
+        # СТАРЫЙ API (закомментирован для обратной совместимости):
+        # await self.metrics_collector.storage.record(MetricRecord(
+        #     agent_id="system",
+        #     capability=capability,
+        #     metric_type=MetricType.GAUGE,
+        #     name="failure_analysis_total_failures",
+        #     value=len(error_logs),
+        #     tags={"version": version}
+        # ))
 
         # Создание анализа
         analysis = FailureAnalysis(
@@ -250,6 +416,26 @@ class OptimizationService:
         for log in error_logs:
             error_type = log.data.get('error_type', 'unknown')
             error_types[error_type] = error_types.get(error_type, 0) + 1
+
+        # Публикация метрик по типам ошибок
+        # НОВЫЙ API: MetricsPublisher
+        for error_type, count in error_types.items():
+            await self.metrics_publisher.gauge(
+                name="failure_analysis_error_type",
+                value=count,
+                capability=capability,
+                tags={"version": version, "error_type": error_type}
+            )
+
+            # СТАРЫЙ API (закомментирован для обратной совместимости):
+            # await self.metrics_collector.storage.record(MetricRecord(
+            #     agent_id="system",
+            #     capability=capability,
+            #     metric_type=MetricType.GAUGE,
+            #     name="failure_analysis_error_type",
+            #     value=count,
+            #     tags={"version": version, "error_type": error_type}
+            # ))
 
         # Добавление категорий
         for error_type, count in error_types.items():
@@ -300,10 +486,30 @@ class OptimizationService:
         - bool: требуется ли оптимизация
         """
         # Получение текущих метрик
+        # ИСПОЛЬЗУЕМ старый API через metrics_collector (агрегация остаётся там)
         metrics = await self.metrics_collector.get_aggregated_metrics(
             capability,
             version='latest'
         )
+
+        # Публикация метрик для мониторинга
+        # НОВЫЙ API: MetricsPublisher
+        await self.metrics_publisher.gauge(
+            name="optimization_check_accuracy",
+            value=metrics.accuracy,
+            capability=capability,
+            tags={"mode": mode.value}
+        )
+
+        # СТАРЫЙ API (закомментирован для обратной совместимости):
+        # await self.metrics_collector.storage.record(MetricRecord(
+        #     agent_id="system",
+        #     capability=capability,
+        #     metric_type=MetricType.GAUGE,
+        #     name="optimization_check_accuracy",
+        #     value=metrics.accuracy,
+        #     tags={"mode": mode.value}
+        # ))
 
         if mode == OptimizationMode.ACCURACY:
             return metrics.accuracy < self.config.target_accuracy

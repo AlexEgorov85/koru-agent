@@ -275,9 +275,14 @@ class VectorBooksTool(BaseTool):
             
             count = await faiss.count()
             if count == 0:
-                if self.event_bus_logger:
-                    self.event_bus_logger.debug_sync("⏱️ [_search] FAISS empty, using SQL fallback")
-                return await self._sql_fallback_search(query, top_k)
+                # ❌ УДАЛЕНО: SQL fallback когда FAISS пуст
+                # ✅ ТЕПЕРЬ: Выбрасываем DataNotFoundError
+                from core.errors.exceptions import DataNotFoundError
+                raise DataNotFoundError(
+                    f"FAISS индекс пуст для коллекции 'books'. "
+                    f"Необходимо проиндексировать данные перед поиском.",
+                    query=query
+                )
 
             # 3. Поиск в FAISS (напрямую как в тесте)
             if self.event_bus_logger:
@@ -321,80 +326,19 @@ class VectorBooksTool(BaseTool):
             import traceback
             if self.event_bus_logger:
                 self.event_bus_logger.error_sync(f"Traceback: {traceback.format_exc()}")
-            
-            # Fallback на SQL
-            return await self._sql_fallback_search(query, top_k)
-            
-            # Fallback на SQL поиск при любой ошибке
-            try:
-                return await self._sql_fallback_search(query, top_k)
-            except Exception as sql_error:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(f"SQL fallback also failed: {sql_error}")
-                return {
-                    "results": [],
-                    "total_found": 0,
-                    "search_type": "none",
-                    "error": str(e)
-                }
 
-    async def _sql_fallback_search(self, query: str, top_k: int = 10) -> Dict[str, Any]:
-        """
-        SQL fallback для векторного поиска.
-        Ищет по названию книги и фамилии автора.
-        """
-        if not self._sql_provider:
-            raise RuntimeError("SQL provider not initialized")
+            # ❌ УДАЛЕНО: Fallback на SQL при любой ошибке
+            # ✅ ТЕПЕРЬ: Выбрасываем VectorSearchError
+            from core.errors.exceptions import VectorSearchError
+            raise VectorSearchError(
+                f"Векторный поиск не удался: {e}. "
+                f"Проверьте что FAISS индекс создан, загружен и содержит данные.",
+                component="vector_books_tool.search"
+            )
 
-        # Экранирование запроса для LIKE
-        safe_query = query.replace("'", "''")
-        
-        sql = f"""
-            SELECT 
-                b.id as book_id,
-                b.title as book_title,
-                b.isbn,
-                b.publication_date,
-                a.first_name,
-                a.last_name,
-                0.5 as score
-            FROM "Lib".books b
-            JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.title ILIKE '%{safe_query}%' 
-               OR a.last_name ILIKE '%{safe_query}%' 
-               OR a.first_name ILIKE '%{safe_query}%'
-            ORDER BY score DESC
-            LIMIT {top_k}
-        """
-        
-        rows = await self._sql_provider.fetch(sql, ())
-        
-        results = []
-        for row in rows:
-            results.append({
-                "book_id": row.get("book_id"),
-                "document_id": f"book_{row.get('book_id')}",
-                "chapter": None,
-                "chunk_id": None,
-                "score": 0.5,
-                "content": f"{row.get('book_title')} by {row.get('last_name')} {row.get('first_name')}",
-                "metadata": {
-                    "title": row.get("book_title"),
-                    "author": f"{row.get('last_name')} {row.get('first_name')}",
-                    "isbn": row.get("isbn"),
-                    "publication_date": row.get("publication_date")
-                }
-            })
-        
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"SQL fallback search: {len(results)} results")
-        
-        return {
-            "results": results,
-            "total_found": len(results),
-            "search_type": "sql"
-        }
-    
+    # ❌ УДАЛЕНО: _sql_fallback_search
+    # ✅ ТЕПЕРЬ: Векторный поиск должен работать, иначе DataNotFoundError/VectorSearchError
+
     async def _get_document(
         self,
         document_id: str,

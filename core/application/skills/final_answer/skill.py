@@ -14,6 +14,7 @@ import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.session_context.base_session_context import BaseSessionContext
 from core.application.skills.base_skill import BaseSkill
 from core.config.component_config import ComponentConfig
@@ -122,7 +123,7 @@ class FinalAnswerSkill(BaseSkill):
             await self.event_bus_logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
         return True
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения навыка финального ответа."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
@@ -505,10 +506,13 @@ class FinalAnswerSkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
-            fallback_result = self._build_fallback_response(goal, observations, steps_taken, format_type)
-            return ExecutionResult.failure(
-                error=str(e),
-                metadata=fallback_result
+            # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
+            # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Не удалось сгенерировать финальный ответ: {str(e)}. "
+                f"Проверьте что LLM провайдер доступен и промпт загружен.",
+                component="final_answer"
             )
 
     def _render_prompt_fallback(
@@ -585,43 +589,6 @@ class FinalAnswerSkill(BaseSkill):
 
         return "\n".join(summary_parts)
 
-    def _build_fallback_response(
-        self,
-        goal: str,
-        observations: List[str],
-        steps_taken: List[Dict],
-        format_type: str
-    ) -> Dict[str, Any]:
-        """
-        Построение резервного ответа при ошибке генерации.
-        
-        ПАРАМЕТРЫ:
-        - goal: цель сессии
-        - observations: список наблюдений
-        - steps_taken: список шагов
-        - format_type: тип формата
-        
-        ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: резервный ответ
-        """
-        fallback_answer = (
-            f"На основе проведённого анализа, цель '{goal}' была обработана.\n\n"
-            f"Обработано наблюдений: {len(observations)}\n"
-            f"Выполнено шагов: {len(steps_taken)}\n\n"
-            f"К сожалению, произошла ошибка при генерации развёрнутого ответа. "
-            f"Пожалуйста, попробуйте повторить запрос."
-        )
-        
-        return {
-            "final_answer": fallback_answer,
-            "sources": observations[:5],
-            "confidence_score": 0.5,
-            "remaining_questions": [],
-            "summary_of_steps": self._build_steps_summary(steps_taken),
-            "metadata": {
-                "total_observations": len(observations),
-                "total_steps": len(steps_taken),
-                "generation_time_ms": 0,
-                "format_type": format_type
-            }
-        }
+    # ❌ УДАЛЕНО: _build_fallback_response
+    # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError вместо fallback ответа
+

@@ -16,8 +16,9 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from core.application.skills.base_skill import BaseSkill
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionStatus
+from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.infrastructure.logging import EventBusLogger
 
 
@@ -89,7 +90,7 @@ class DataAnalysisSkill(BaseSkill):
             self.logger.info(f"DataAnalysisSkill инициализирован с capability: {list(self.supported_capabilities.keys())}")
         return True
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения навыка анализа данных."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.SKILL_EXECUTED
@@ -152,10 +153,10 @@ class DataAnalysisSkill(BaseSkill):
                         await self.event_bus_logger.error(f"Ошибка валидации параметров: {e}")
                     else:
                         self.logger.error(f"Ошибка валидации параметров: {e}")
-                    return ExecutionResult.failure(
-                        error=f"Неверные параметры: {str(e)}",
-                        metadata={"answer": "", "confidence": 0.0, "evidence": []}
-                    )
+                    # ❌ УДАЛЕНО: ExecutionResult.failure
+                    # ✅ ТЕПЕРЬ: Выбрасываем ValidationError
+                    from core.errors.exceptions import ValidationError
+                    raise ValidationError(f"Неверные параметры: {str(e)}")
 
         step_id = params.get("step_id") if not isinstance(params, BaseModel) else getattr(params, 'step_id', None)
         question = params.get("question") if not isinstance(params, BaseModel) else getattr(params, 'question', None)
@@ -173,9 +174,13 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"Ошибка загрузки данных: {e}")
             else:
                 self.logger.error(f"Ошибка загрузки данных: {e}")
-            return ExecutionResult.failure(
-                error=f"Ошибка загрузки данных: {str(e)}",
-                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            # ❌ УДАЛЕНО: ExecutionResult.failure
+            # ✅ ТЕПЕРЬ: Выбрасываем DataError
+            from core.errors.exceptions import DataError
+            raise DataError(
+                f"Не удалось загрузить данные: {str(e)}. "
+                f"Проверьте что источник данных доступен и содержит данные.",
+                source=data_source.get("type", "unknown")
             )
 
         # 3. Чанкинг при необходимости
@@ -201,9 +206,12 @@ class DataAnalysisSkill(BaseSkill):
         # 5. Получение промпта С КОНТРАКТАМИ
         prompt_with_contract = self.get_prompt_with_contract("data_analysis.analyze_step_data")
         if not prompt_with_contract:
-            return ExecutionResult.failure(
-                error="Промпт не найден",
-                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            # ❌ УДАЛЕНО: ExecutionResult.failure
+            # ✅ ТЕПЕРЬ: Выбрасываем PromptNotFoundError
+            from core.errors.exceptions import PromptNotFoundError
+            raise PromptNotFoundError(
+                prompt="data_analysis.analyze_step_data",
+                message="Промпт для анализа данных не найден. Проверьте что промпт загружен в репозиторий."
             )
 
         rendered_prompt = self._render_prompt(prompt_with_contract, prompt_vars)
@@ -232,15 +240,14 @@ class DataAnalysisSkill(BaseSkill):
             # Проверка на ошибку
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED:
-                return ExecutionResult.failure(
-                    error=f"Ошибка LLM: {llm_result.error}",
-                    metadata={
-                        "error_type": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown",
-                        "attempts": llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0,
-                        "answer": "",
-                        "confidence": 0.0,
-                        "evidence": []
-                    }
+                # ❌ УДАЛЕНО: ExecutionResult.failure
+                # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError
+                from core.errors.exceptions import StructuredOutputError
+                raise StructuredOutputError(
+                    message=f"Ошибка LLM при анализе данных: {llm_result.error}",
+                    model_name="data_analysis",
+                    attempts=llm_result.metadata.get("attempts", 0) if isinstance(llm_result.metadata, dict) else 0,
+                    validation_errors=[{"error": llm_result.metadata.get("error_type", "unknown") if isinstance(llm_result.metadata, dict) else "unknown"}]
                 )
 
             # 8. Получаем структурированные данные (Pydantic model_dump())
@@ -297,9 +304,13 @@ class DataAnalysisSkill(BaseSkill):
                 await self.event_bus_logger.error(f"Ошибка анализа: {e}", exc_info=True)
             else:
                 self.logger.error(f"Ошибка анализа: {e}", exc_info=True)
-            return ExecutionResult.failure(
-                error=f"Ошибка анализа: {str(e)}",
-                metadata={"answer": "", "confidence": 0.0, "evidence": []}
+            # ❌ УДАЛЕНО: ExecutionResult.failure
+            # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Не удалось выполнить анализ данных: {str(e)}. "
+                f"Проверьте что данные доступны и LLM провайдер работает.",
+                component="data_analysis"
             )
 
     # ─────────────────────────────────────────────────────────────────

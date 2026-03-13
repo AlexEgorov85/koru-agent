@@ -286,202 +286,22 @@ class SQLGenerationService(BaseService):
             
         except Exception as e:
             await self._publish_generation_event("generation_failed", str(e), input_data)
-            raise ValueError(f"Ошибка валидации сгенерированного SQL: {str(e)}")
-
-    async def correct_query(
-        self,
-        original_query: str,
-        parameters: Dict[str, Any],
-        execution_error: ExecutionError,
-        context: Optional[Any] = None,
-        attempt: int = 1
-    ) -> Optional[SQLGenerationResult]:
-        """
-        Автоматическая коррекция запроса на основе ошибки выполнения.
-        
-        СТРАТЕГИЯ КОРРЕКЦИИ:
-        1. Анализ типа ошибки (синтаксис, семантика, права доступа)
-        2. Выбор стратегии исправления:
-           - Синтаксис → генерация нового запроса с примером правильного синтаксиса
-           - Семантика → уточнение метаданных таблиц + повторная генерация
-           - Права → ограничение запроса до разрешенных операций
-        3. Ограничение попыток (защита от зацикливания)
-        """
-        if attempt > self.max_correction_attempts:
-            return None
-            
-        # 1. Анализ ошибки
-        error_analysis = await self.error_analyzer.analyze(execution_error)
-        
-        # 2. Формирование промпта для коррекции
-        correction_input = SQLCorrectionInput(
-            original_query=original_query,
-            error_message=execution_error.message,
-            error_type=error_analysis.error_type,
-            suggested_fix=error_analysis.suggested_fix,
-            tables=error_analysis.tables_involved,
-            context=str(context) if context else ""
-        )
-        
-        prompt_vars = {
-            "original_query": correction_input.original_query,
-            "error_message": correction_input.error_message,
-            "error_type": correction_input.error_type,
-            "suggested_fix": correction_input.suggested_fix,
-            "allowed_operations": ", ".join(self.allowed_operations)
-        }
-        
-        # Используем кэшированный промпт из компонента
-        prompt_key = "sql_generation.correct_query"
-        prompt_obj = self.get_prompt(prompt_key)
-        prompt = prompt_obj.content if prompt_obj else ""
-
-        # Заменяем переменные в кэшированном промпте
-        for var_name, var_value in prompt_vars.items():
-            placeholder = f"{{{var_name}}}"  # Формат {variable_name}
-            prompt = prompt.replace(placeholder, str(var_value))
-        
-        try:
-            # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели для коррекции
-            request = LLMRequest(
-                prompt=f"Исправь ошибку: {correction_input.error_message}",
-                system_prompt=prompt,
-                temperature=0.2,  # Более детерминированная генерация
-                max_tokens=400,
-                structured_output=StructuredOutputConfig(
-                    output_model="SQLCorrectionOutput",  # Имя модели из реестра
-                    schema_def=SQLCorrectionOutput.model_json_schema(),
-                    max_retries=2,  # Меньше попыток для коррекции
-                    strict_mode=True
-                ),
-                correlation_id=f"sql_corr_{hash(correction_input.original_query)}",
-                capability_name="sql_generation.correct_query"
-            )
-            
-            # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
-            response = await self.system_context.call_llm(request)
-            
-            # 5. Валидация скорректированного SQL-запроса через централизованный SQLValidatorService
-            correction_output = response.parsed_content
-            
-            # Проверяем, что валидатор доступен
-            if not self.validator_service:
-                raise RuntimeError("SQLValidatorService не зарегистрирован")
-                
-            validated = await self.validator_services.validate_query(
-                correction_output.corrected_sql,
-                parameters  # Сохраняем оригинальные параметры
+            # ❌ УДАЛЕНО: ValueError без контекста
+            # ✅ ТЕПЕРЬ: Выбрасываем SQLValidationError
+            from core.errors.exceptions import SQLValidationError
+            raise SQLValidationError(
+                f"Ошибка валидации сгенерированного SQL: {str(e)}. "
+                f"Проверьте что SQLValidatorService доступен и запрос корректен.",
+                sql=""  # SQL может быть недоступен при ошибке
             )
 
-            result = SQLGenerationResult(
-                sql=validated.sql,
-                parameters=parameters,
-                reasoning=correction_output.reasoning,
-                tables_used=correction_output.tables_used or [],
-                safety_score=validated.safety_score,
-                generation_id=f"corr_{attempt}_{hash(original_query)}"
-            )
+    # ❌ УДАЛЕНО: correct_query() - автоматическая коррекция запросов
+    # ✅ ТЕПЕРЬ: При ошибке SQL выбрасываем SQLValidationError вместо коррекции
+    # Причина: коррекция скрывает реальные проблемы и усложняет отладку
 
-            await self._publish_correction_event("correction_success", result, attempt, error_analysis)
-            return result
-
-        except Exception as e:
-            await self._publish_correction_event("correction_failed", str(e), attempt, error_analysis)
-
-            # Рекурсивная попытка с увеличенным номером
-            return await self.correct_query(
-                original_query,
-                parameters,
-                execution_error,
-                context,
-                attempt + 1
-            )
-
-    async def execute_with_auto_correction(
-        self,
-        generation_input: SQLGenerationInput,
-        context: Optional[Any] = None,
-        max_corrections: int = 3
-    ) -> DBQueryResult:
-        """
-        Единый метод: генерация → выполнение → автоматическая коррекция при ошибках.
-        
-        ИСПОЛЬЗОВАНИЕ В НАВЫКАХ:
-        ```python
-        result = await sql_services.execute_with_auto_correction(
-            SQLGenerationInput(
-                user_question="Какие книги написал Толстой?",
-                tables=["books", "authors"]
-            ),
-            context=session_context
-        )
-        ```
-        """
-        # 1. Генерация запроса
-        generation_result = await self.generate_query(generation_input, context)
-        
-        # 2. Выполнение с попытками коррекции
-        for attempt in range(max_corrections + 1):
-            try:
-                # Выполнение через внутренний безопасный интерфейс (параметризованный запрос!)
-                # Используем прямое выполнение, так как запрос уже прошел валидацию в SQLValidatorService
-                result = await self.system_context._execute_raw_sql_query(
-                    query=generation_result.sql,
-                    params=generation_result.parameters
-                )
-                
-                if result.success:
-                    await self._publish_execution_event("execution_success", result, attempt)
-                    return result
-                    
-                # Анализ ошибки для коррекции
-                execution_error = ExecutionError(
-                    message=result.error or "Неизвестная ошибка выполнения",
-                    query=generation_result.sql,
-                    parameters=generation_result.parameters,
-                    db_error_type=self._classify_db_error(result.error)
-                )
-                
-            except Exception as e:
-                execution_error = ExecutionError(
-                    message=str(e),
-                    query=generation_result.sql,
-                    parameters=generation_result.parameters,
-                    db_error_type="unknown"
-                )
-            
-            # 3. Коррекция (если есть попытки)
-            if attempt < max_corrections:
-                corrected = await self.correct_query(
-                    generation_result.sql,
-                    generation_result.parameters,
-                    execution_error,
-                    context,
-                    attempt + 1
-                )
-
-                if corrected:
-                    generation_result = corrected
-                    continue
-                else:
-                    break
-            else:
-                break
-        
-        # Возврат ошибочного результата с метаданными для отладки
-        return DBQueryResult(
-            success=False,
-            rows=[],
-            rowcount=0,
-            columns=[],
-            error=f"Не удалось выполнить запрос после {max_corrections} попыток коррекции",
-            execution_time=0.0,
-            metadata={
-                "original_query": generation_result.sql,
-                "last_error": execution_error.message if 'execution_error' in locals() else "unknown",
-                "correction_attempts": attempt
-            }
-        )
+    # ❌ УДАЛЕНО: execute_with_auto_correction() - выполнение с авто-коррекцией
+    # ✅ ТЕПЕРЬ: Используйте generate_query() + execute_query() с явной обработкой ошибок
+    # Причина: авто-коррекция скрывает ошибки и создаёт скрытое поведение
 
     # Вспомогательные методы (приватные)
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:

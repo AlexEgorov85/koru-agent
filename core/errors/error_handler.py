@@ -576,6 +576,14 @@ class ErrorHandler:
             category=error_category,
         )
 
+        # ✅ НОВОЕ: Проброс CRITICAL и HIGH ошибок
+        # Для критических ошибок - не обрабатываем, а пробрасываем дальше
+        if error_severity in [ErrorSeverity.CRITICAL, ErrorSeverity.HIGH]:
+            await self._log_error(error_info)
+            await self._publish_error_event(error_info)
+            # Пробрасываем ошибку дальше
+            raise error
+
         # Проверка retry
         if self._retry_policy.should_retry(error, 0, error_category, error_severity):
             result = await self._retry(error, context, error_info)

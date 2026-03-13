@@ -398,8 +398,14 @@ class ApplicationContext(BaseSystemContext):
             await self.llm_orchestrator.initialize()
             self.logger.info("✅ LLMOrchestrator инициализирован")
         except Exception as e:
-            self.logger.warning(f"⚠️ Не удалось инициализировать LLMOrchestrator: {e}. Будет использоваться прямой вызов LLM.")
-            self.llm_orchestrator = None
+            # ❌ УДАЛЕНО: Продолжение инициализации при ошибке
+            # ✅ ТЕПЕРЬ: Выбрасываем ComponentInitializationError
+            from core.errors.exceptions import ComponentInitializationError
+            raise ComponentInitializationError(
+                f"Не удалось инициализировать LLMOrchestrator: {e}. "
+                f"LLMOrchestrator критически важен для работы системы.",
+                component="llm_orchestrator"
+            )
 
         # Сначала создаем и регистрируем все компоненты
         self.logger.info("Начало создания компонентов...")
@@ -1410,11 +1416,26 @@ class ApplicationContext(BaseSystemContext):
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
                 except Exception as e:
+                    # ❌ УДАЛЕНО: Проглатывание ошибки
+                    # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                     if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от навыка {skill.name}: {e}")
+                        await self.event_bus_logger.error(f"get_all_capabilities: Критическая ошибка получения capability от навыка {skill.name}: {e}")
+                    from core.errors.exceptions import ComponentInitializationError
+                    raise ComponentInitializationError(
+                        f"Навык {skill.name} не вернул capability: {str(e)}",
+                        component=skill.name
+                    )
             else:
+                # ❌ УДАЛЕНО: Warning вместо ошибки
+                # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                 if self.event_bus_logger:
-                    await self.event_bus_logger.warning(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities")
+                    await self.event_bus_logger.error(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities")
+                from core.errors.exceptions import ComponentInitializationError
+                raise ComponentInitializationError(
+                    f"Навык {skill.name} не имеет метода get_capabilities. "
+                    f"Это критическая ошибка инициализации.",
+                    component=skill.name
+                )
 
         # Получаем capability от всех инструментов
         for tool in self.components.all_of_type(ComponentType.TOOL):
@@ -1427,11 +1448,26 @@ class ApplicationContext(BaseSystemContext):
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
                 except Exception as e:
+                    # ❌ УДАЛЕНО: Проглатывание ошибки
+                    # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                     if self.event_bus_logger:
-                        await self.event_bus_logger.error(f"get_all_capabilities: Ошибка получения capability от инструмента {tool.name}: {e}")
+                        await self.event_bus_logger.error(f"get_all_capabilities: Критическая ошибка получения capability от инструмента {tool.name}: {e}")
+                    from core.errors.exceptions import ComponentInitializationError
+                    raise ComponentInitializationError(
+                        f"Инструмент {tool.name} не вернул capability: {str(e)}",
+                        component=tool.name
+                    )
             else:
+                # ❌ УДАЛЕНО: Warning вместо ошибки
+                # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                 if self.event_bus_logger:
-                    await self.event_bus_logger.warning(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities")
+                    await self.event_bus_logger.error(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities")
+                from core.errors.exceptions import ComponentInitializationError
+                raise ComponentInitializationError(
+                    f"Инструмент {tool.name} не имеет метода get_capabilities. "
+                    f"Это критическая ошибка инициализации.",
+                    component=tool.name
+                )
 
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}")

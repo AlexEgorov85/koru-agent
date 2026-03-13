@@ -57,6 +57,7 @@ from core.infrastructure.logging.logger import (
 from core.infrastructure.logging.handlers import (
     TerminalLogHandler,
     TerminalLogFormatter,
+    LoggingToEventBusHandler,
     setup_logging,
     shutdown_logging,
 )
@@ -96,35 +97,25 @@ from core.config.paths import (
     create_all_directories,
 )
 
+from core.infrastructure.logging.structured import (
+    StructuredLoggerMixin,
+    ContextualLoggerMixin,
+    session_id_var,
+    agent_id_var,
+    step_number_var,
+    correlation_id_var,
+    log_context,
+    LoggingHealthCheck,
+    patch_event_bus_logger,
+)
+
 # ============================================================
-# УСТАРЕВШИЕ ЭКСПОРТЫ (для обратной совместимости)
+# УСТАРЕВШИЕ ЭКСПОРТЫ (заглушки)
 # ============================================================
 
-# FileLogHandler ОТКЛЮЧЁН - дублировал SessionLogHandler
-# Для обратной совместимости экспортируем заглушку
-class FileLogHandler:
-    """Устаревший обработчик (удалён, дублировал SessionLogHandler)."""
-    def __init__(self, *args, **kwargs):
-        raise NotImplementedError(
-            "FileLogHandler удалён. Используйте SessionLogHandler."
-        )
-
-
-class FileOutputConfig:
-    """Устаревший класс (удалён). Используйте FileConfig."""
-    def __new__(cls, *args, **kwargs):
-        raise NotImplementedError(
-            "FileOutputConfig удалён. Используйте FileConfig из core.config.logging_config."
-        )
-
-
-def get_log_manager():
-    """Устаревшая функция (удалена)."""
-    return None
-
-
-# Для полной обратной совместимости
-FileOutputConfig = FileConfig
+# FileLogHandler и FileLogFormatter УДАЛЕНЫ - дублировали SessionLogHandler
+# Для обратной совместимости экспортируем заглушки из handlers.py
+from core.infrastructure.logging.handlers import FileLogHandler, FileLogFormatter
 
 __all__ = [
     # Logger
@@ -138,6 +129,7 @@ __all__ = [
     # Handlers
     'TerminalLogHandler',
     'TerminalLogFormatter',
+    'LoggingToEventBusHandler',
     'SessionLogHandler',
     'create_session_log_handler',
     'setup_logging',
@@ -168,8 +160,18 @@ __all__ = [
     'init_paths',
     'create_all_directories',
 
-    # Устаревшие (для обратной совместимости)
+    # Structured & Contextual
+    'StructuredLoggerMixin',
+    'ContextualLoggerMixin',
+    'session_id_var',
+    'agent_id_var',
+    'step_number_var',
+    'correlation_id_var',
+    'log_context',
+    'LoggingHealthCheck',
+    'patch_event_bus_logger',
+
+    # Устаревшие (заглушки)
     'FileLogHandler',      # Заглушка
-    'FileOutputConfig',    # Alias на FileConfig
-    'get_log_manager',     # Заглушка
+    'FileLogFormatter',    # Заглушка
 ]

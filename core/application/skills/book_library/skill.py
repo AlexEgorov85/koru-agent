@@ -286,8 +286,14 @@ class BookLibrarySkill(BaseSkill):
             llm_available = False
 
         if not llm_available:
-            # LLM недоступен — сразу используем fallback
-            await self.event_bus_logger.warning("LLM недоступен, используем SQL fallback")
+            # ❌ УДАЛЕНО: LLM fallback
+            # ✅ ТЕПЕРЬ: Выбрасываем SQLGenerationError
+            from core.errors.exceptions import SQLGenerationError
+            raise SQLGenerationError(
+                "LLM недоступен для генерации SQL запроса. "
+                "Проверьте что LLM провайдер инициализирован и доступен.",
+                request=query_val
+            )
         else:
             try:
                 exec_context = ExecutionContext()
@@ -330,30 +336,28 @@ class BookLibrarySkill(BaseSkill):
                     sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
                     await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
                 else:
-                    await self.event_bus_logger.warning(f"Генерация SQL не удалась: {gen_result.error}")
+                    # ❌ УДАЛЕНО: Warning вместо ошибки
+                    # ✅ ТЕПЕРЬ: Выбрасываем SQLGenerationError
+                    from core.errors.exceptions import SQLGenerationError
+                    raise SQLGenerationError(
+                        f"Генерация SQL не удалась: {gen_result.error}",
+                        request=query_val
+                    )
 
             except Exception as e:
                 await self.event_bus_logger.error(f"Ошибка генерации SQL: {e}")
+                # Пробрасываем ошибку выше
+                raise
 
-        # Fallback: простой SQL запрос если генерация не удалась
+        # ❌ УДАЛЕНО: Fallback SQL когда генерация не удалась
+        # ✅ ТЕПЕРЬ: SQL запрос должен быть сгенерирован, иначе SQLGenerationError
         if not sql_query:
-            # Нормализованная схема с JOIN между books и authors
-            sql_query = f"""
-                SELECT
-                    b.id as book_id,
-                    b.title as book_title,
-                    b.isbn,
-                    b.publication_date,
-                    a.id as author_id,
-                    a.first_name,
-                    a.last_name,
-                    a.birth_date
-                FROM "Lib".books b
-                JOIN "Lib".authors a ON b.author_id = a.id
-                WHERE b.title ILIKE '%{query_val}%' OR a.last_name ILIKE '%{query_val}%' OR a.first_name ILIKE '%{query_val}%'
-                LIMIT {max_results_val}
-            """
-            await self.event_bus_logger.info(f"Использован fallback SQL: {sql_query}")
+            from core.errors.exceptions import SQLGenerationError
+            raise SQLGenerationError(
+                "Не удалось сгенерировать SQL запрос. "
+                "Проверьте что sql_generation сервис доступен и промпт загружен.",
+                request=query_val
+            )
 
         # 4. Выполнение SQL через sql_query_service
         rows = []
@@ -736,9 +740,14 @@ class BookLibrarySkill(BaseSkill):
             vector_search_ready = False
         
         if not vector_search_ready:
-            await self.event_bus_logger.warning("Vector Search для книг не готов, используем SQL fallback")
-            # Используем SQL fallback напрямую
-            return await self._semantic_search_sql_fallback(query, top_k, start_time)
+            # ❌ УДАЛЕНО: SQL fallback когда векторный поиск не готов
+            # ✅ ТЕПЕРЬ: Выбрасываем InfrastructureError
+            from core.errors.exceptions import InfrastructureError
+            raise InfrastructureError(
+                "Vector Search для книг не инициализирован. "
+                "Проверьте что FAISS индекс создан и vector_books_tool доступен.",
+                component="book_library.semantic_search"
+            )
 
         # 3. Выполнение capability "search" инструмента vector_books через executor
         exec_context = ExecutionContext(
@@ -757,13 +766,25 @@ class BookLibrarySkill(BaseSkill):
                 context=exec_context
             )
         except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка выполнения vector_books.search: {e}, используем SQL fallback")
-            return await self._semantic_search_sql_fallback(query, top_k, start_time)
+            # ❌ УДАЛЕНО: Fallback на SQL при ошибке векторного поиска
+            # ✅ ТЕПЕРЬ: Пробрасываем ошибку с детальным сообщением
+            from core.errors.exceptions import VectorSearchError
+            raise VectorSearchError(
+                f"Векторный поиск не удался: {e}. "
+                f"Проверьте что FAISS индекс создан и содержит данные.",
+                component="book_library.semantic_search"
+            )
 
         # 6. Обработка результата
         if result.status != ExecutionStatus.COMPLETED:
-            await self.event_bus_logger.warning(f"Векторный поиск не завершён: {result.error}, используем SQL fallback")
-            return await self._semantic_search_sql_fallback(query, top_k, start_time)
+            # ❌ УДАЛЕНО: Fallback на SQL при ошибке
+            # ✅ ТЕПЕРЬ: Выбрасываем VectorSearchError
+            from core.errors.exceptions import VectorSearchError
+            raise VectorSearchError(
+                f"Векторный поиск завершился с ошибкой: {result.error}. "
+                f"Статус: {result.status}",
+                component="book_library.semantic_search"
+            )
 
         # Извлекаем данные из результата
         search_data = result.data if hasattr(result, 'data') else result
@@ -813,102 +834,8 @@ class BookLibrarySkill(BaseSkill):
         # Fallback: возвращаем dict если схема не загружена
         return result_data
 
-    async def _semantic_search_sql_fallback(self, query: str, top_k: int, start_time: float) -> Any:
-        """
-        SQL fallback для семантического поиска.
-        Используется когда векторный индекс недоступен.
-        """
-        await self.event_bus_logger.info(f"Выполнение SQL fallback для семантического поиска: {query}")
-        
-        # Используем executor для SQL запроса
-        exec_context = ExecutionContext()
-        
-        safe_query = query.replace("'", "''")
-        sql = f"""
-            SELECT 
-                b.id as book_id,
-                b.title as book_title,
-                b.isbn,
-                b.publication_date,
-                a.first_name,
-                a.last_name,
-                0.5 as score
-            FROM "Lib".books b
-            JOIN "Lib".authors a ON b.author_id = a.id
-            WHERE b.title ILIKE '%{safe_query}%' 
-               OR a.last_name ILIKE '%{safe_query}%' 
-               OR a.first_name ILIKE '%{safe_query}%'
-            ORDER BY score DESC
-            LIMIT {top_k}
-        """
-        
-        try:
-            query_result = await self.executor.execute_action(
-                action_name="sql_query.execute",
-                parameters={
-                    "sql": sql,
-                    "parameters": {},
-                    "max_rows": top_k
-                },
-                context=exec_context
-            )
-            
-            rows = []
-            if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
-                rows = query_result.data.get('rows', [])
-            
-            # Преобразуем результаты в формат семантического поиска
-            results = []
-            for row in rows:
-                results.append({
-                    "book_id": row.get("book_id"),
-                    "document_id": f"book_{row.get('book_id')}",
-                    "chapter": None,
-                    "chunk_id": None,
-                    "score": 0.5,
-                    "content": f"{row.get('book_title')} by {row.get('last_name')} {row.get('first_name')}",
-                    "metadata": {
-                        "title": row.get("book_title"),
-                        "author": f"{row.get('last_name')} {row.get('first_name')}",
-                        "isbn": row.get("isbn"),
-                        "publication_date": row.get("publication_date")
-                    }
-                })
-            
-            total_time = time.time() - start_time
-            result_data = {
-                "results": results,
-                "total_found": len(results),
-                "execution_type": "vector",
-                "search_type": "sql"
-            }
-            
-            await self.event_bus_logger.info(
-                f"SQL fallback завершён: найдено {len(results)} результатов "
-                f"за {total_time*1000:.2f}мс"
-            )
-            
-            # Валидация через выходной контракт
-            output_schema = self.get_output_contract("book_library.semantic_search")
-            if output_schema:
-                try:
-                    validated_result = output_schema.model_validate(result_data)
-                    return validated_result
-                except Exception as e:
-                    await self.event_bus_logger.error(f"Ошибка валидации через контракт: {e}")
-            
-            return result_data
-            
-        except Exception as e:
-            await self.event_bus_logger.error(f"SQL fallback failed: {e}")
-            total_time = time.time() - start_time
-            return {
-                "results": [],
-                "total_found": 0,
-                "execution_type": "vector",
-                "search_type": "none",
-                "error": str(e)
-            }
+    # ❌ УДАЛЕНО: _semantic_search_sql_fallback
+    # ✅ ТЕПЕРЬ: Векторный поиск должен быть готов, иначе InfrastructureError
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """

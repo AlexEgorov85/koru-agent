@@ -154,8 +154,14 @@ class ResourceDiscovery:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
-                self._log_warning(f"Файл промпта {file_path} не содержит словарь")
-                return None
+                # ❌ УДАЛЕНО: Пропуск файлов с ошибками
+                # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                from core.errors.exceptions import ResourceLoadError
+                raise ResourceLoadError(
+                    f"Файл промпта {file_path} не содержит словарь. "
+                    f"Проверьте корректность YAML формата.",
+                    resource_path=str(file_path)
+                )
 
             # Извлекаем обязательные поля
             capability = data.get('capability')
@@ -168,11 +174,18 @@ class ResourceDiscovery:
 
             # Валидация обязательных полей
             if not capability or not version:
-                self._log_warning(f"Файл {file_path} не содержит capability или version")
-                return None
+                # ❌ УДАЛЕНО: Пропуск файлов
+                # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                from core.errors.exceptions import ResourceLoadError
+                raise ResourceLoadError(
+                    f"Файл {file_path} не содержит capability или version. "
+                    f"Это обязательные поля для промпта.",
+                    resource_path=str(file_path)
+                )
 
             # Проверяем статус
             if not self._should_load_resource(status, 'prompt'):
+                # Пропускаем ресурсы с неподходящим статусом (это нормально)
                 self._stats['prompts_skipped'] += 1
                 return None
 
@@ -184,15 +197,27 @@ class ResourceDiscovery:
                     try:
                         parsed_variables.append(PromptVariable(**var))
                     except Exception as e:
-                        self._log_warning(f"Ошибка парсинга переменной в {file_path}: {e}")
+                        # ❌ УДАЛЕНО: Пропуск ошибок парсинга переменных
+                        # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                        from core.errors.exceptions import ResourceLoadError
+                        raise ResourceLoadError(
+                            f"Ошибка парсинга переменной в {file_path}: {e}",
+                            resource_path=str(file_path)
+                        )
 
             # Определяем тип компонента
             if component_type:
                 try:
                     comp_type = ComponentType(component_type)
                 except ValueError:
-                    self._log_warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
-                    comp_type = ComponentType.SKILL  # Default
+                    # ❌ УДАЛЕНО: Default на SKILL
+                    # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                    from core.errors.exceptions import ResourceLoadError
+                    raise ResourceLoadError(
+                        f"Неизвестный тип компонента '{component_type}' в {file_path}. "
+                        f"Допустимые значения: skill, service, tool, behavior",
+                        resource_path=str(file_path)
+                    )
             else:
                 # Авто-определение по пути
                 comp_type = self._infer_component_type_from_path(file_path)
@@ -207,13 +232,21 @@ class ResourceDiscovery:
                 variables=parsed_variables,
                 metadata=metadata
             )
-            
+
             self._stats['prompts_loaded'] += 1
             return prompt
 
+        except ResourceLoadError:
+            # Пробрасываем ResourceLoadError дальше
+            raise
         except Exception as e:
-            self._log_error(f"Ошибка парсинга промпта {file_path}: {e}", exc_info=True)
-            return None
+            # ❌ УДАЛЕНО: Пропуск файлов с ошибками
+            # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+            from core.errors.exceptions import ResourceLoadError
+            raise ResourceLoadError(
+                f"Критическая ошибка загрузки ресурса {file_path}: {e}",
+                resource_path=str(file_path)
+            )
 
     def _parse_contract_file(self, file_path: Path) -> Optional[Contract]:
         """
@@ -233,8 +266,14 @@ class ResourceDiscovery:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
-                self._log_warning(f"Файл контракта {file_path} не содержит словарь")
-                return None
+                # ❌ УДАЛЕНО: Пропуск файлов с ошибками
+                # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                from core.errors.exceptions import ResourceLoadError
+                raise ResourceLoadError(
+                    f"Файл контракта {file_path} не содержит словарь. "
+                    f"Проверьте корректность YAML формата.",
+                    resource_path=str(file_path)
+                )
 
             # Извлекаем поля
             capability = data.get('capability')
@@ -250,11 +289,18 @@ class ResourceDiscovery:
                 capability, version, direction = self._parse_contract_filename(file_path)
 
             if not capability or not version:
-                self._log_warning(f"Не удалось определить capability/version для {file_path}")
-                return None
+                # ❌ УДАЛЕНО: Пропуск файлов
+                # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                from core.errors.exceptions import ResourceLoadError
+                raise ResourceLoadError(
+                    f"Не удалось определить capability/version для {file_path}. "
+                    f"Укажите их в файле или используйте формат имени файла {{capability}}_{{direction}}_{{version}}.yaml",
+                    resource_path=str(file_path)
+                )
 
             # Проверяем статус
             if not self._should_load_resource(status, 'contract'):
+                # Пропускаем ресурсы с неподходящим статусом (это нормально)
                 self._stats['contracts_skipped'] += 1
                 return None
 
@@ -263,16 +309,29 @@ class ResourceDiscovery:
                 direction = self._infer_direction_from_filename(file_path)
 
             if not direction:
-                self._log_warning(f"Не удалось определить направление контракта для {file_path}")
-                return None
+                # ❌ УДАЛЕНО: Пропуск файлов
+                # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                from core.errors.exceptions import ResourceLoadError
+                raise ResourceLoadError(
+                    f"Не удалось определить направление контракта для {file_path}. "
+                    f"Используйте формат имени файла {{capability}}_{{direction}}_{{version}}.yaml "
+                    f"или укажите direction: input|output в файле.",
+                    resource_path=str(file_path)
+                )
 
             # Определяем тип компонента
             if component_type:
                 try:
                     comp_type = ComponentType(component_type)
                 except ValueError:
-                    self._log_warning(f"Неизвестный тип компонента '{component_type}' в {file_path}")
-                    comp_type = ComponentType.SKILL
+                    # ❌ УДАЛЕНО: Default на SKILL
+                    # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+                    from core.errors.exceptions import ResourceLoadError
+                    raise ResourceLoadError(
+                        f"Неизвестный тип компонента '{component_type}' в {file_path}. "
+                        f"Допустимые значения: skill, service, tool, behavior",
+                        resource_path=str(file_path)
+                    )
             else:
                 comp_type = self._infer_component_type_from_path(file_path)
 
@@ -290,9 +349,17 @@ class ResourceDiscovery:
             self._stats['contracts_loaded'] += 1
             return contract
 
+        except ResourceLoadError:
+            # Пробрасываем ResourceLoadError дальше
+            raise
         except Exception as e:
-            self._log_error(f"Ошибка парсинга контракта {file_path}: {e}", exc_info=True)
-            return None
+            # ❌ УДАЛЕНО: Пропуск файлов с ошибками
+            # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
+            from core.errors.exceptions import ResourceLoadError
+            raise ResourceLoadError(
+                f"Критическая ошибка загрузки ресурса {file_path}: {e}",
+                resource_path=str(file_path)
+            )
 
     # === Метод _parse_manifest_file() удалён ===
     # Манифесты удалены из системы

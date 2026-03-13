@@ -34,6 +34,7 @@ from core.infrastructure.log_storage import FileSystemLogStorage
 from core.infrastructure.metrics_collector import MetricsCollector
 from core.infrastructure.log_collector import LogCollector
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+from core.application.services.metrics_publisher import MetricsPublisher
 
 
 class InfrastructureContext:
@@ -71,6 +72,9 @@ class InfrastructureContext:
         # Сборщики метрик и логов
         self.metrics_collector: Optional[MetricsCollector] = None
         self.log_collector: Optional[LogCollector] = None
+
+        # MetricsPublisher для унифицированной публикации метрик
+        self.metrics_publisher: Optional[MetricsPublisher] = None
 
         # Vector Search провайдеры
         self._faiss_providers: Dict[str, Any] = {}
@@ -210,7 +214,15 @@ class InfrastructureContext:
         self.log_storage = FileSystemLogStorage(logs_dir)
 
         # === ЭТАП 4: Сборщики метрик и логов ===
-        self.metrics_collector = MetricsCollector(self.event_bus, self.metrics_storage)
+        # Создаём MetricsPublisher для унифицированной публикации метрик
+        self.metrics_publisher = MetricsPublisher(self.metrics_storage, self.event_bus)
+        
+        # Инициализация MetricsCollector с поддержкой MetricsPublisher
+        self.metrics_collector = MetricsCollector(
+            self.event_bus, 
+            self.metrics_storage,
+            self.metrics_publisher  # Передаём созданный publisher
+        )
         await self.metrics_collector.initialize()
 
         self.log_collector = LogCollector(self.event_bus, self.log_storage)
@@ -471,8 +483,6 @@ class InfrastructureContext:
             return resource_info.instance
         return None
 
-
-
     def get_resource(self, name: str):
         """
         DEPRECATED: Получение ресурса по имени.
@@ -531,6 +541,12 @@ class InfrastructureContext:
         if not hasattr(self, 'log_collector'):
             raise RuntimeError("LogCollector не инициализирован")
         return self.log_collector
+
+    def get_metrics_publisher(self) -> MetricsPublisher:
+        """Получение MetricsPublisher для унифицированной публикации метрик."""
+        if not hasattr(self, 'metrics_publisher') or self.metrics_publisher is None:
+            raise RuntimeError("MetricsPublisher не инициализирован")
+        return self.metrics_publisher
 
     def __setattr__(self, name, value):
         """Запрет на изменение после инициализации."""

@@ -264,3 +264,102 @@ class PromptNotFoundError(PromptError):
             metadata=metadata,
             **kwargs
         )
+
+
+# ============================================================================
+# НОВЫЕ ИСКЛЮЧЕНИЯ ДЛЯ ОТКАЗА ОТ FALLBACK (Март 2026)
+# ============================================================================
+
+class InfrastructureError(AgentBaseError):
+    """Критическая ошибка инфраструктуры - требует немедленного внимания."""
+    def __init__(self, message: str, component: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if component:
+            metadata["component"] = component
+        super().__init__(message, code="INFRASTRUCTURE_ERROR", metadata=metadata, **kwargs)
+
+
+class VectorSearchError(InfrastructureError):
+    """Ошибка векторного поиска - не должна маскироваться fallback."""
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, component="vector_search", code="VECTOR_SEARCH_ERROR", **kwargs)
+
+
+class DataNotFoundError(AgentBaseError):
+    """Данные не найдены - это не ошибка, но должно быть явно обработано."""
+    def __init__(self, message: str, query: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if query:
+            metadata["query"] = query
+        super().__init__(message, code="DATA_NOT_FOUND", metadata=metadata, **kwargs)
+
+
+class SQLGenerationError(AgentBaseError):
+    """Не удалось сгенерировать SQL запрос."""
+    def __init__(self, message: str, request: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if request:
+            metadata["request"] = request
+        super().__init__(message, code="SQL_GENERATION_ERROR", metadata=metadata, **kwargs)
+
+
+class SQLValidationError(AgentBaseError):
+    """SQL запрос не прошёл валидацию."""
+    def __init__(self, message: str, sql: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if sql:
+            metadata["sql"] = sql
+        super().__init__(message, code="SQL_VALIDATION_ERROR", metadata=metadata, **kwargs)
+
+
+class StructuredOutputError(AgentBaseError):
+    """Не удалось получить валидный структурированный ответ от LLM."""
+    def __init__(
+        self,
+        message: str,
+        model_name: str = None,
+        attempts: int = None,
+        validation_errors: list = None,
+        **kwargs
+    ):
+        metadata = kwargs.pop("metadata", {})
+        if model_name:
+            metadata["model_name"] = model_name
+        if attempts:
+            metadata["attempts"] = attempts
+        if validation_errors:
+            metadata["validation_errors"] = validation_errors
+        super().__init__(message, code="STRUCTURED_OUTPUT_ERROR", metadata=metadata, **kwargs)
+
+
+class SkillExecutionError(ComponentExecutionError):
+    """Ошибка выполнения навыка."""
+    def __init__(self, message: str, component: str = None, **kwargs):
+        super().__init__(message, component=component, code="SKILL_EXECUTION_ERROR", **kwargs)
+
+
+class DataError(AgentBaseError):
+    """Ошибка работы с данными."""
+    def __init__(self, message: str, source: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if source:
+            metadata["source"] = source
+        super().__init__(message, code="DATA_ERROR", metadata=metadata, **kwargs)
+
+
+class ResourceLoadError(InfrastructureError):
+    """Критическая ошибка загрузки ресурса."""
+    def __init__(self, message: str, resource_path: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if resource_path:
+            metadata["resource_path"] = resource_path
+        super().__init__(message, component="resource_loader", code="RESOURCE_LOAD_ERROR", metadata=metadata, **kwargs)
+
+
+class MockProviderError(ProviderError):
+    """Ошибка Mock провайдера - неизвестный промпт."""
+    def __init__(self, message: str, prompt: str = None, **kwargs):
+        metadata = kwargs.pop("metadata", {})
+        if prompt:
+            metadata["prompt"] = prompt[:200]  # Обрезаем длинные промпты
+        super().__init__(message, provider="MockLLMProvider", code="MOCK_PROVIDER_ERROR", metadata=metadata, **kwargs)
