@@ -16,6 +16,7 @@ from core.application.context.application_context import ApplicationContext
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus, ErrorCategory, RetryDecision
 from core.infrastructure.logging import EventBusLogger
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.types.retry_policy import ExecutionErrorInfo
 
 # Импорт компонентов из новой архитектуры
@@ -894,6 +895,21 @@ class AgentRuntime:
             return ExecutionResult.failure(str(e))
         finally:
             self._running = False
+            
+            # ← НОВОЕ: Публикация события завершения сессии
+            if hasattr(self, 'application_context') and self.application_context:
+                if hasattr(self.application_context, 'infrastructure_context'):
+                    event_bus = self.application_context.infrastructure_context.event_bus
+                    if event_bus and hasattr(self.application_context, 'session_context'):
+                        session_id = self.application_context.session_context.session_id
+                        await event_bus._publish_internal(
+                            EventType.SESSION_COMPLETED,
+                            {
+                                "session_id": session_id,
+                                "agent_id": getattr(self, 'agent_id', 'unknown'),
+                                "steps_completed": getattr(self, '_current_step', 0)
+                            }
+                        )
 
     async def stop(self):
         """Остановка выполнения агента."""

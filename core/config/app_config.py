@@ -534,21 +534,7 @@ class AppConfig(BaseSettings):
             'tool_configs': {
                 'file_tool': {},
                 'sql_tool': {},
-                'vector_books_tool': {
-                    'prompt_versions': {},
-                    'input_contract_versions': {
-                        "vector_books.search": "v1.0.0",
-                        "vector_books.get_document": "v1.0.0",
-                        "vector_books.analyze": "v1.0.0",
-                        "vector_books.query": "v1.0.0"
-                    },
-                    'output_contract_versions': {
-                        "vector_books.search": "v1.0.0",
-                        "vector_books.get_document": "v1.0.0",
-                        "vector_books.analyze": "v1.0.0",
-                        "vector_books.query": "v1.0.0"
-                    }
-                }
+                # vector_books добавляется автоматически из контрактов
             }
         }
 

@@ -318,7 +318,8 @@ class ComponentFactory:
             elif name == "file_tool":
                 from core.application.tools.file_tool import FileTool
                 return FileTool
-            elif name == "vector_books_tool":
+            elif name == "vector_books" or name == "vector_books_tool":
+                # vector_books — основное имя, vector_books_tool — устаревшее
                 from core.application.tools.vector_books_tool import VectorBooksTool
                 return VectorBooksTool
             elif name == "book_library":

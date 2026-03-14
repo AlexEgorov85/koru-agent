@@ -805,7 +805,7 @@ class ActionExecutor:
             if action_name == "llm.generate":
                 return await self._llm_generate(llm_provider, parameters, orchestrator, context)
             elif action_name == "llm.generate_structured":
-                return await self._llm_generate_structured(llm_provider, parameters, orchestrator, context)
+                return await self._llm_generate_structured(llm_provider, parameters, orchestrator, context, action_name)
             else:
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
@@ -886,7 +886,8 @@ class ActionExecutor:
         llm_provider,
         parameters: Dict[str, Any],
         orchestrator: Any = None,
-        context: ExecutionContext = None
+        context: ExecutionContext = None,
+        action_name: str = "llm.generate_structured"
     ) -> ExecutionResult:
         """
         Структурированная генерация через LLM с JSON Schema.

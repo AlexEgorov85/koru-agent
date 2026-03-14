@@ -177,34 +177,43 @@ class SQLGenerationService(BaseService):
         # В данном случае у нас нет внешних ресурсов для освобождения
 
     async def generate_query(
-        self, 
-        input_data: SQLGenerationInput,
+        self,
+        natural_language_query: str = None,
+        table_schema: str = None,
+        input_data: SQLGenerationInput = None,
         context: Optional[Any] = None
     ) -> SQLGenerationResult:
         """
         Генерация безопасного параметризованного SQL-запроса.
-        
+
         ПРОЦЕСС:
         1. Получение метаданных таблиц через TableDescriptionService
         2. Формирование промпта через PromptService
         3. Генерация через LLM с выходной схемой
         4. Валидация безопасности через SQLValidatorService
         5. Публикация события генерации
-        
+
         ВОЗВРАЩАЕТ:
         - Параметризованный запрос + параметры (никакой конкатенации!)
         """
+        # Поддержка обоих способов вызова: через параметры или через input_data
+        if input_data is not None:
+            natural_language_query = input_data.natural_language_query
+            table_schema = input_data.table_schema
+        elif natural_language_query is None or table_schema is None:
+            raise ValueError("generate_query requires either natural_language_query and table_schema, or input_data")
+
         # 1. Получение метаданных таблиц
-        table_metadata = await self._get_table_metadata(input_data.tables)
-        
+        # table_metadata = await self._get_table_metadata(input_data.tables)
+
         # 2. Формирование промпта через централизованный сервис
         prompt_vars = {
-            "user_question": input_data.user_question,
-            "table_descriptions": self._format_table_metadata(table_metadata),
+            "user_question": natural_language_query,
+            "table_descriptions": table_schema if isinstance(table_schema, str) else str(table_schema),
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows
         }
-        
+
         # Используем кэшированный промпт из компонента
         prompt_key = "sql_generation.generate_safe_query"
         prompt_obj = self.get_prompt(prompt_key)
@@ -214,78 +223,77 @@ class SQLGenerationService(BaseService):
         for var_name, var_value in prompt_vars.items():
             placeholder = f"{{{var_name}}}"  # Формат {variable_name}
             prompt = prompt.replace(placeholder, str(var_value))
-        
+
+        # Логирование для отладки
+        if self.event_bus_logger:
+            await self.event_bus_logger.debug(f"SQL Generation prompt length: {len(prompt)}")
+            await self.event_bus_logger.debug(f"SQL Generation prompt[:200]: {prompt[:200]}...")
+
         try:
-            # 3. Создание ТИПИЗИРОВАННОГО запроса с указанием выходной модели
-            request = LLMRequest(
-                prompt=input_data.user_question,
-                system_prompt=prompt,
-                temperature=0.3,
-                max_tokens=500,
-                structured_output=StructuredOutputConfig(
-                    output_model="SQLGenerationOutput",  # Имя модели из реестра
-                    schema_def=SQLGenerationOutput.model_json_schema(),
-                    max_retries=3,
-                    strict_mode=True
-                ),
-                correlation_id=f"sql_gen_{hash(input_data.user_question)}",
-                capability_name="sql_generation.generate_safe_query"
-            )
+            # 4. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR
+            # Используем executor для вызова LLM
+            from core.application.agent.components.action_executor import ExecutionContext
+            exec_context = ExecutionContext()
             
-            # 4. ЕДИНСТВЕННЫЙ ВЫЗОВ — получаем ГАРАНТИРОВАННО валидную модель
-            # Типизация на уровне компиляции: ответ будет StructuredLLMResponse[SQLGenerationOutput]
-            # ИСПОЛЬЗУЕМ внедрённый LLMInterface для генерации
-            llm_provider = self.llm
-            if not llm_provider:
-                raise RuntimeError("LLMInterface не внедрён")
+            llm_result = await self.executor.execute_action(
+                action_name="llm.generate_structured",
+                parameters={
+                    "prompt": natural_language_query,
+                    "system_prompt": prompt,
+                    "temperature": 0.3,
+                    "max_tokens": 500,
+                    "structured_output": {
+                        "output_model": "SQLGenerationOutput",
+                        "schema_def": SQLGenerationOutput.model_json_schema(),
+                        "max_retries": 3,
+                        "strict_mode": True
+                    }
+                },
+                context=exec_context
+            )
 
-            # Получаем orchestrator если доступен (для обратной совместимости)
-            orchestrator = getattr(self.application_context, 'llm_orchestrator', None) if hasattr(self, 'application_context') and self.application_context else None
+            from core.models.data.execution import ExecutionStatus
+            if llm_result.status != ExecutionStatus.COMPLETED or not llm_result.data:
+                errors = llm_result.error if hasattr(llm_result, 'error') else 'unknown error'
+                raise ValueError(f"SQL generation failed: {errors}")
 
-            if orchestrator:
-                # Вызов через orchestrator с retry и валидацией
-                response = await orchestrator.execute_structured(
-                    request=request,
-                    provider=llm_provider,
-                    max_retries=3,
-                    attempt_timeout=60.0,
-                    total_timeout=300.0,
-                    phase="sql_generation"
-                )
-
-                # Проверка успеха
-                if not response.success:
-                    errors = '; '.join([e.get('message', 'unknown') for e in response.validation_errors])
-                    raise ValueError(f"SQL generation failed after {response.parsing_attempts} attempts: {errors}")
+            # Извлекаем parsed_content из результата
+            result_data = llm_result.data
+            if hasattr(result_data, 'parsed_content'):
+                output = result_data.parsed_content
+            elif isinstance(result_data, dict) and 'parsed_content' in result_data:
+                output = result_data['parsed_content']
             else:
-                # Fallback: прямой вызов если orchestrator недоступен
-                response = await llm_provider.generate(request)
-
-            # 5. Валидация сгенерированного SQL-запроса через централизованный SQLValidatorService
-            # Типизация гарантирует, что parsed_content — валидный экземпляр SQLGenerationOutput
-            output = response.parsed_content
+                # Fallback: пытаемся использовать data напрямую
+                output = result_data
 
             # Проверяем, что валидатор доступен
-            if not self.validator_service:
+            if "sql_validator_service" not in self._dependencies:
                 raise RuntimeError("SQLValidatorService не зарегистрирован")
 
-            validated = await self.validator_services.validate_query(output.sql, output.parameters)
+            # SQLGenerationOutput имеет поле generated_sql, а не sql
+            # validate_query — синхронный метод, не нужен await
+            validator_service = self._dependencies["sql_validator_service"]
+            validated = validator_service.validate_query(output.generated_sql, {})
 
             # 5. Формирование результата
             result = SQLGenerationResult(
                 sql=validated.sql,
                 parameters=validated.parameters,
-                reasoning=output.reasoning,
-                tables_used=output.tables_used,
+                reasoning=getattr(output, 'explanation', ''),
+                tables_used=[],
                 safety_score=validated.safety_score,
-                generation_id=f"gen_{hash(input_data.user_question)}"
+                generation_id=f"gen_{hash(natural_language_query)}"
             )
 
-            await self._publish_generation_event("generation_success", result.sql, input_data, result.safety_score)
+            # Создаём временный объект для публикации события
+            temp_input = SQLGenerationInput(natural_language_query=natural_language_query, table_schema=table_schema)
+            await self._publish_generation_event("generation_success", result.sql, temp_input, result.safety_score)
             return result
-            
+
         except Exception as e:
-            await self._publish_generation_event("generation_failed", str(e), input_data)
+            temp_input = SQLGenerationInput(natural_language_query=natural_language_query, table_schema=table_schema)
+            await self._publish_generation_event("generation_failed", str(e), temp_input)
             # ❌ УДАЛЕНО: ValueError без контекста
             # ✅ ТЕПЕРЬ: Выбрасываем SQLValidationError
             from core.errors.exceptions import SQLValidationError
@@ -348,8 +356,8 @@ class SQLGenerationService(BaseService):
             await self._event_bus.publish(
                 event_type=f"sql_generation.{event_type}",
                 payload={
-                    "user_question": input_data.user_question,
-                    "tables": input_data.tables,
+                    "user_question": input_data.natural_language_query,
+                    "table_schema": input_data.table_schema[:200] if input_data.table_schema else "",
                     "result": str(data)[:500],
                     "safety_score": safety_score
                 }
@@ -359,14 +367,14 @@ class SQLGenerationService(BaseService):
             await self._application_context.infrastructure_context.event_bus.publish(
                 event_type=f"sql_generation.{event_type}",
                 data={
-                    "user_question": input_data.user_question,
-                    "tables": input_data.tables,
+                    "user_question": input_data.natural_language_query,
+                    "table_schema": input_data.table_schema[:200] if input_data.table_schema else "",
                     "result": str(data)[:500],
                     "safety_score": safety_score,
                     "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
                 },
                 source="SQLGenerationService",
-                correlation_id=f"sql_gen_{hash(input_data.user_question)}"
+                correlation_id=f"sql_gen_{hash(input_data.natural_language_query)}"
             )
 
     async def _publish_correction_event(self, event_type: str, data: Any, attempt: int, error_analysis: Any):

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class SQLGenerationInput(BaseModel):
     """Входная схема для генерации SQL-запроса."""
     natural_language_query: str = Field(..., description="Запрос на естественном языке")
-    table_schema: Dict[str, Any] = Field(..., description="Схема таблицы в формате JSON")
+    table_schema: str = Field(..., description="Схема таблицы в текстовом формате")
     required_columns: Optional[List[str]] = Field(default_factory=list, description="Требуемые колонки в результате")
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Фильтры для запроса")
     connection_name: Optional[str] = Field(None, description="Имя подключения к базе данных")

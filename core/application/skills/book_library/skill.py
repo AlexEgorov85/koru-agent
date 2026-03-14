@@ -279,11 +279,10 @@ class BookLibrarySkill(BaseSkill):
         exec_context = ExecutionContext()
 
         # Генерируем SQL запрос через сервис генерации
-        # === REFACTOR: Передаём схему отдельно для structured output ===
         gen_result = await self.executor.execute_action(
             action_name="sql_generation.generate_query",
             parameters={
-                "natural_language_request": query_val,
+                "natural_language_query": query_val,
                 "table_schema": """
                     "Lib".books (
                         id INTEGER PRIMARY KEY,
@@ -299,9 +298,7 @@ class BookLibrarySkill(BaseSkill):
                         last_name TEXT,
                         birth_date DATE
                     )
-                """.strip(),
-                "prompt": prompt_text,  # Промпт БЕЗ контрактов
-                "schema": output_schema if output_schema is not BaseModel else None  # Схема отдельно
+                """.strip()
             },
             context=exec_context
         )
@@ -313,7 +310,7 @@ class BookLibrarySkill(BaseSkill):
                 data_dict = gen_result.data.model_dump()
             else:
                 data_dict = gen_result.data
-            sql_query = data_dict.get('sql_query', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'sql_query', '')
+            sql_query = data_dict.get('generated_sql', '') if isinstance(data_dict, dict) else getattr(gen_result.data, 'generated_sql', '')
             await self.event_bus_logger.info(f"Сгенерированный SQL: {sql_query}")
         else:
             # ❌ УДАЛЕНО: Warning вместо ошибки

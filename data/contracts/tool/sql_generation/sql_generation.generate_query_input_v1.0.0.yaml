@@ -4,14 +4,14 @@ description: Input contract for sql_generation.generate_query
 direction: input
 schema_data:
   properties:
-    natural_language_request:
+    natural_language_query:
       description: Request in natural language
       type: string
     table_schema:
       description: Database schema
       type: string
   required:
-  - natural_language_request
+  - natural_language_query
   - table_schema
   type: object
 status: active

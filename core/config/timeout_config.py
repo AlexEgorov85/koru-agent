@@ -165,15 +165,15 @@ class TimeoutConfig(BaseModel):
     def for_local_llm(cls) -> 'TimeoutConfig':
         """
         Конфигурация для локальных LLM (Qwen 4B, Llama 3).
-        
+
         Требуются большие таймауты из-за медленной генерации.
         """
         return cls(
-            llm_attempt_timeout=600.0,
-            llm_total_timeout=1200.0,
+            llm_attempt_timeout=180.0,  # 3 минуты на попытку
+            llm_total_timeout=600.0,    # 10 минут всего
             llm_max_retries=3,
-            action_default_timeout=600.0,
-            agent_step_timeout=1200.0,
+            action_default_timeout=180.0,
+            agent_step_timeout=600.0,
         )
     
     @classmethod

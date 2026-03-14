@@ -357,7 +357,8 @@ class SessionWorker:
         all_subscribers: List[SubscriberInfo],
         idle_timeout: float = DEFAULT_WORKER_IDLE_TIMEOUT,
         subscriber_timeout: float = DEFAULT_SUBSCRIBER_TIMEOUT,
-        event_bus: "UnifiedEventBus" = None
+        event_bus: "UnifiedEventBus" = None,
+        session_bound: bool = False  # Worker живёт пока сессия активна
     ):
         self.session_id = session_id
         self.agent_id = agent_id
@@ -367,6 +368,7 @@ class SessionWorker:
         self._idle_timeout = idle_timeout
         self._subscriber_timeout = subscriber_timeout
         self._event_bus = event_bus
+        self._session_bound = session_bound  # ← НОВОЕ: режим привязки к сессии
 
         self._task: Optional[asyncio.Task] = None
         self._running = False
@@ -399,7 +401,10 @@ class SessionWorker:
 
     async def _run(self):
         """Основной цикл worker'а."""
-        self._logger.debug("Цикл worker'а запущен")
+        if self._session_bound:
+            self._logger.debug(f"Цикл worker'а запущен (session_bound=True, idle_timeout={self._idle_timeout}s)")
+        else:
+            self._logger.debug(f"Цикл worker'а запущен (idle_timeout={self._idle_timeout}s)")
 
         try:
             while self._running:
@@ -409,6 +414,22 @@ class SessionWorker:
                         timeout=self._idle_timeout
                     )
 
+                    # ← НОВОЕ: Проверка на завершение сессии для session_bound worker'а
+                    if (self._session_bound and 
+                        event.event_type == EventType.SESSION_COMPLETED.value and
+                        event.data.get('session_id') == self.session_id):
+                        self._logger.info(f"Сессия {self.session_id} завершена, остановка worker'а")
+                        self._queue.task_done()
+                        break
+                    
+                    # ← НОВОЕ: Проверка на закрытие сессии
+                    if (self._session_bound and 
+                        event.event_type == EventType.SESSION_CLOSED.value and
+                        event.data.get('session_id') == self.session_id):
+                        self._logger.info(f"Сессия {self.session_id} закрыта, остановка worker'а")
+                        self._queue.task_done()
+                        break
+
                     await self._process_event(event)
                     self._last_activity = time.time()
                     self._queue.task_done()
@@ -416,6 +437,13 @@ class SessionWorker:
                 except asyncio.TimeoutError:
                     idle_time = time.time() - self._last_activity
                     if idle_time >= self._idle_timeout:
+                        # ← НОВОЕ: session_bound worker не завершается по idle timeout
+                        if self._session_bound:
+                            self._logger.debug(
+                                f"Idle timeout ({idle_time:.1f}s), но worker session_bound - продолжаем ждать"
+                            )
+                            continue  # ← Продолжаем ждать вместо break
+                        
                         self._logger.debug(f"Idle timeout ({idle_time:.1f}s), завершение worker'а")
                         if self._event_bus:
                             await self._event_bus._publish_internal(
@@ -1004,7 +1032,8 @@ class UnifiedEventBus:
                     all_subscribers=self._all_subscribers,
                     idle_timeout=self._worker_idle_timeout,
                     subscriber_timeout=self._subscriber_timeout,
-                    event_bus=self
+                    event_bus=self,
+                    session_bound=True  # ← Worker живёт пока сессия активна
                 )
                 self._session_workers[session_id] = worker
 
