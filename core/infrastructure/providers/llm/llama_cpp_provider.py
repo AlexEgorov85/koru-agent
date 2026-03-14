@@ -365,10 +365,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             if not self.llm:
                 raise RuntimeError("LLM модель не загружена")
 
-            # ✅ Передаём system_prompt с добавленной схемой (если есть)
+            # ✅ llama-cpp-python НЕ поддерживает system_prompt отдельным параметром
+            # Объединяем system_prompt + prompt в один текст
+            full_prompt = prompt
+            if system_prompt:
+                full_prompt = system_prompt + "\n\n" + prompt
+
             return self.llm(
-                prompt,
-                system_prompt=system_prompt if system_prompt else None,
+                full_prompt,  # ← system_prompt уже в prompt
                 max_tokens=max_tokens,
                 temperature=request.temperature,
                 top_p=request.top_p,
