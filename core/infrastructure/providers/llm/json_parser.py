@@ -151,18 +151,33 @@ def schema_to_pydantic_model(
 def extract_json_from_response(content: str) -> str:
     """
     Извлечение JSON из текста ответа (если есть обёртка).
-    
+
     ПАРАМЕТРЫ:
     - content: Текст ответа LLM
-    
+
     ВОЗВРАЩАЕТ:
     - JSON строка
     """
+    # Удаляем markdown обёртки ```json ... ```
+    import re
+    # Ищем markdown блоки с json
+    markdown_json_pattern = r'```json\s*(.*?)\s*```'
+    matches = re.findall(markdown_json_pattern, content, re.DOTALL)
+    if matches:
+        # Нашли markdown блок - берём первое совпадение
+        content = matches[0]
+    
+    # Также пробуем просто ``` без указания языка
+    markdown_pattern = r'```\s*(.*?)\s*```'
+    matches = re.findall(markdown_pattern, content, re.DOTALL)
+    if matches:
+        content = matches[0]
+    
     # Попытка найти JSON в тексте
     start = content.find('{')
     end = content.rfind('}') + 1
-    
+
     if start != -1 and end > start:
         return content[start:end]
-    
+
     return content

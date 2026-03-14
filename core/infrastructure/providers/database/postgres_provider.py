@@ -182,10 +182,21 @@ class PostgreSQLProvider(BaseDBProvider):
                                 except (ValueError, IndexError):
                                     return 0
                         param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
-                        result = await conn.fetch(query, *param_values)
+                        # Конвертируем %s в $1, $2, ... для asyncpg
+                        converted_query = query
+                        for i in range(len(param_values)):
+                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
+                        result = await conn.fetch(converted_query, *param_values)
                     elif isinstance(params, (list, tuple)):
                         # Если параметры переданы как список или кортеж, передаем напрямую
-                        result = await conn.fetch(query, *params)
+                        # Конвертируем %s в $1, $2, ... для asyncpg
+                        converted_query = query
+                        print(f"[DEBUG] Before conversion: {converted_query[:200]}", flush=True)
+                        for i in range(len(params)):
+                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
+                            print(f"[DEBUG] After replacing {i+1}: {converted_query[:200]}", flush=True)
+                        print(f"[DEBUG] Final query: {converted_query[:200]}", flush=True)
+                        result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров
                         result = await conn.fetch(query)
@@ -245,10 +256,21 @@ class PostgreSQLProvider(BaseDBProvider):
                                 except (ValueError, IndexError):
                                     return 0
                         param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
-                        result = await conn.fetch(query, *param_values)
+                        # Конвертируем %s в $1, $2, ... для asyncpg
+                        converted_query = query
+                        for i in range(len(param_values)):
+                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
+                        result = await conn.fetch(converted_query, *param_values)
                     elif isinstance(params, (list, tuple)):
                         # Если параметры переданы как список или кортеж, передаем напрямую
-                        result = await conn.fetch(query, *params)
+                        # Конвертируем %s в $1, $2, ... для asyncpg
+                        converted_query = query
+                        print(f"[DEBUG] Before conversion: {converted_query[:200]}", flush=True)
+                        for i in range(len(params)):
+                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
+                            print(f"[DEBUG] After replacing {i+1}: {converted_query[:200]}", flush=True)
+                        print(f"[DEBUG] Final query: {converted_query[:200]}", flush=True)
+                        result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров
                         result = await conn.fetch(query)

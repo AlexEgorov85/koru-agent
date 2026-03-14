@@ -172,10 +172,18 @@ class SQLQueryService(BaseService):
                 )
 
             # Валидируем запрос (синхронный вызов, не await!)
-            print(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}", flush=True)
+            # Конвертируем параметры из списка в dict для валидатора
+            params_for_validation = parameters
+            if isinstance(parameters, (list, tuple)):
+                # Конвертируем список в dict с ключами '1', '2', ...
+                params_for_validation = {str(i+1): val for i, val in enumerate(parameters)}
+            elif parameters is None:
+                params_for_validation = {}
+            
+            print(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}, params_for_validation={params_for_validation}", flush=True)
             validation_result = self.sql_validator_service_instance.validate_query(
                 sql_query,
-                parameters or {}
+                params_for_validation
             )
             
             print(f"[SQL_DEBUG] validation_result: is_valid={validation_result.is_valid}, sql={validation_result.sql[:200] if validation_result.sql else 'None'}", flush=True)
@@ -220,8 +228,13 @@ class SQLQueryService(BaseService):
                     params=parameters
                 )
                 execution_time = time.time() - start_exec_time
-                
-                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute_query: success={result.success}, error={result.error}, rows={len(result.rows) if result.rows else 0}")
+
+                # [DEBUG] Отладка результата
+                await self.event_bus_logger.info(f"[DEBUG] result type={type(result).__name__}")
+                await self.event_bus_logger.info(f"[DEBUG] result has rows attr={hasattr(result, 'rows')}")
+                if hasattr(result, 'rows'):
+                    await self.event_bus_logger.info(f"[DEBUG] result.rows type={type(result.rows).__name__}")
+                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute_query: success={result.success if hasattr(result, 'success') else 'N/A'}, error={result.error if hasattr(result, 'error') else 'N/A'}, rows={len(result.rows) if hasattr(result, 'rows') and result.rows else 0}")
 
                 # Преобразуем результат в DBQueryResult
                 # [SQL_DEBUG] 2.4. Возврат DBQueryResult (успех)

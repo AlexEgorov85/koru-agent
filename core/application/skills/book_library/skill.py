@@ -348,8 +348,9 @@ class BookLibrarySkill(BaseSkill):
 
             from core.models.data.execution import ExecutionStatus
             if query_result.status == ExecutionStatus.COMPLETED and query_result.data:
-                rows = query_result.data.get('rows', [])
-                execution_time = query_result.data.get('execution_time', 0.0)
+                # DBQueryResult имеет атрибуты rows и execution_time напрямую
+                rows = query_result.data.rows if hasattr(query_result.data, 'rows') else []
+                execution_time = query_result.data.execution_time if hasattr(query_result.data, 'execution_time') else 0.0
                 await self.event_bus_logger.info(f"Найдено строк: {len(rows)}")
 
         except Exception as e:
@@ -384,7 +385,7 @@ class BookLibrarySkill(BaseSkill):
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                event_type=EventType.ACTION_COMPLETED,
+                event_type=EventType.SKILL_EXECUTED,
                 capability_name="book_library.search_books",
                 success=True,
                 execution_time_ms=total_time * 1000,
@@ -535,9 +536,19 @@ class BookLibrarySkill(BaseSkill):
                 context=exec_context
             )
 
+            # [DEBUG] Отладка результата
+            print(f"[DEBUG] result type={type(result).__name__}", flush=True)
+            print(f"[DEBUG] result.status={result.status}", flush=True)
+            print(f"[DEBUG] result.data type={type(result.data).__name__ if result.data else 'None'}", flush=True)
+            if result.data:
+                print(f"[DEBUG] result.data has rows attr={hasattr(result.data, 'rows')}", flush=True)
+                if hasattr(result.data, 'rows'):
+                    print(f"[DEBUG] result.data.rows type={type(result.data.rows).__name__}", flush=True)
+
             if result.status == ExecutionStatus.COMPLETED and result.data:
-                rows = result.data.get('rows', [])
-                execution_time = result.data.get('execution_time', 0.0)
+                # DBQueryResult имеет атрибуты rows и execution_time напрямую
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                execution_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
             else:
                 error_msg = result.error if hasattr(result, 'error') else "Неизвестная ошибка"
                 raise RuntimeError(f"Ошибка выполнения SQL: {error_msg}")
@@ -561,7 +572,7 @@ class BookLibrarySkill(BaseSkill):
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                event_type=EventType.ACTION_COMPLETED,
+                event_type=EventType.SKILL_EXECUTED,
                 capability_name="book_library.execute_script",
                 success=True,
                 execution_time_ms=total_time * 1000,
@@ -781,7 +792,7 @@ class BookLibrarySkill(BaseSkill):
         try:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._publish_metrics(
-                event_type=EventType.ACTION_COMPLETED,
+                event_type=EventType.SKILL_EXECUTED,
                 capability_name="book_library.semantic_search",
                 success=True,
                 execution_time_ms=total_time * 1000,
