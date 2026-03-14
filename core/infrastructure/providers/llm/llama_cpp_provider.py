@@ -253,6 +253,43 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 "is_initialized": self.is_initialized
             }
 
+    def _build_schema_prompt(self, schema_def: Dict[str, Any]) -> str:
+        """
+        Формирование промпта с JSON схемой для structured output.
+
+        АРХИТЕКТУРА:
+        - Provider сам решает как добавить схему в промпт
+        - Схема добавляется в system_prompt или user prompt
+        - Формат зависит от возможностей модели
+
+        ПАРАМЕТРЫ:
+        - schema_def: JSON Schema определения ответа
+
+        ВОЗВРАЩАЕТ:
+        - str: Текст промпта с инструкцией и схемой
+        """
+        import json
+        
+        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
+        
+        # Формируем инструкцию для JSON вывода
+        schema_prompt = (
+            "=== ТРЕБОВАНИЯ К ОТВЕТУ ===\n"
+            "Верни ответ ТОЛЬКО в формате JSON согласно следующей схеме.\n"
+            "Никакого текста до или после JSON.\n\n"
+            "=== JSON SCHEMA ===\n"
+            f"{schema_json}\n"
+            "\n=== ПРИМЕР ОТВЕТА ===\n"
+            '{"key": "value"}\n'
+            "\n=== ВАЖНО ===\n"
+            "- Ответ должен быть валидным JSON\n"
+            "- Используй двойные кавычки для строк\n"
+            "- Не добавляй markdown разметку (```json ... ```)\n"
+            "- Не добавляй пояснения до или после JSON\n"
+        )
+        
+        return schema_prompt
+
     async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
         """
         Реализация генерации текста для Llama.cpp.
@@ -262,6 +299,11 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - НЕ публикует события (это делает LLMOrchestrator)
         - НЕ логирует (это делает LLMOrchestrator через события)
         - Возвращает LLMResponse или бросает исключение
+        
+        STRUCTURED OUTPUT:
+        - Если request.structured_output — добавляет схему в промпт
+        - Схема добавляется в system_prompt или user prompt
+        - Provider сам решает формат промпта
         """
         if not self.is_initialized or not self.llm:
             await self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
@@ -269,14 +311,26 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
 
         start_time = time.time()
 
-        # Подготовим параметры для вызова модели
-        max_tokens = request.max_tokens
+        # === ПОДГОТОВКА ПРОМПТА ===
+        prompt = request.prompt
+        system_prompt = request.system_prompt or ""
+        
+        # ✅ Если есть structured_output — добавляем схему в промпт
         if hasattr(request, 'structured_output') and request.structured_output:
-            max_tokens = min(max_tokens, 1000)
+            max_tokens = min(request.max_tokens, 1000)
             msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
             print(msg, flush=True)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(msg)
+            
+            # Добавляем схему в промпт
+            schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
+            system_prompt = system_prompt + "\n\n" + schema_prompt
+            
+            msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
+            print(msg, flush=True)
+        else:
+            max_tokens = request.max_tokens
 
         # Проверка что модель инициализирована
         if not self.llm:
@@ -301,8 +355,10 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             if not self.llm:
                 raise RuntimeError("LLM модель не загружена")
 
+            # ✅ Передаём system_prompt с добавленной схемой (если есть)
             return self.llm(
-                request.prompt,
+                prompt,
+                system_prompt=system_prompt if system_prompt else None,
                 max_tokens=max_tokens,
                 temperature=request.temperature,
                 top_p=request.top_p,
