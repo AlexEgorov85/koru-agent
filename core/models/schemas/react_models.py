@@ -26,13 +26,13 @@ class ReasoningDecision(BaseModel):
 class ReasoningResult(BaseModel):
     """
     Модель результата рассуждения.
-    
+
     СООТВЕТСТВУЕТ КОНТРАКТУ: behavior.react.think_output_v1.0.0
     """
     thought: str = Field(..., description="Развёрнутое рассуждение о текущей ситуации")
     analysis: ReasoningAnalysis = Field(..., description="Анализ текущей ситуации")
     decision: ReasoningDecision = Field(..., description="Решение о следующем действии")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Уверенность в решении (0.0-1.0)")
-    alternative_actions: List[Dict[str, Any]] = Field(default_factory=list, description="Альтернативные действия")
+    alternative_actions: List[str] = Field(default_factory=list, description="Альтернативные действия (список capability_name)")
     stop_condition: bool = Field(..., description="Флаг завершения работы")
     stop_reason: Optional[str] = Field(None, description="Причина остановки")
