@@ -314,7 +314,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # === ПОДГОТОВКА ПРОМПТА ===
         prompt = request.prompt
         system_prompt = request.system_prompt or ""
-        
+
         # ✅ Если есть structured_output — добавляем схему в промпт
         if hasattr(request, 'structured_output') and request.structured_output:
             max_tokens = min(request.max_tokens, 1000)
@@ -322,13 +322,27 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             print(msg, flush=True)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(msg)
-            
+
             # Добавляем схему в промпт
             schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
             system_prompt = system_prompt + "\n\n" + schema_prompt
-            
+
             msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
             print(msg, flush=True)
+            
+            # 🔵 Логирование полного промпта с схемой
+            print("\n" + "=" * 80, flush=True)
+            print("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", flush=True)
+            print("=" * 80, flush=True)
+            print("\n=== SYSTEM (со схемой) ===", flush=True)
+            print(system_prompt[:3000], flush=True)
+            if len(system_prompt) > 3000:
+                print(f"... (ещё {len(system_prompt) - 3000} символов)", flush=True)
+            print("\n=== USER ===", flush=True)
+            print(prompt[:2000], flush=True)
+            if len(prompt) > 2000:
+                print(f"... (ещё {len(prompt) - 2000} символов)", flush=True)
+            print("\n" + "=" * 80, flush=True)
         else:
             max_tokens = request.max_tokens
 
