@@ -695,7 +695,12 @@ class LLMOrchestrator:
             duration = time.time() - start_time
 
             # Проверка на ошибку в ответе
-            if response.finish_reason == "error":
+            # ✅ StructuredLLMResponse имеет finish_reason в raw_response
+            finish_reason = getattr(response, 'finish_reason', None)
+            if finish_reason is None and hasattr(response, 'raw_response'):
+                finish_reason = getattr(response.raw_response, 'finish_reason', None)
+            
+            if finish_reason == "error":
                 error_msg = response.metadata.get('error', 'Unknown error') if response.metadata else 'Unknown error'
                 return RetryAttempt(
                     attempt_number=attempt_num,
