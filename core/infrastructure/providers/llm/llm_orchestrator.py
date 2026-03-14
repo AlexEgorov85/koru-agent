@@ -71,11 +71,12 @@ class RetryAttempt:
     """Информация о попытке структурированного вывода."""
     attempt_number: int
     prompt: str
-    raw_response: Optional[str]
-    success: bool
-    error_type: Optional[str]  # "json_error", "validation_error", "incomplete", "timeout"
-    error_message: Optional[str]
-    duration: float
+    raw_response: Optional[str]  # Сырой JSON текст
+    parsed_content: Optional[Any] = None  # ✅ НОВОЕ: Распарсенная Pydantic модель
+    success: bool = False
+    error_type: Optional[str] = None  # "json_error", "validation_error", "incomplete", "timeout"
+    error_message: Optional[str] = None
+    duration: float = 0.0
     tokens_used: int = 0
 
 
@@ -599,9 +600,9 @@ class LLMOrchestrator:
                     call_id, attempt_num, attempt.duration, session_id
                 )
 
-                # Возвращаем успешный ответ
+                # ✅ Возвращаем успешный ответ с распарсенной моделью
                 return StructuredLLMResponse(
-                    parsed_content=attempt.raw_response,  # type: ignore
+                    parsed_content=attempt.parsed_content,  # ← Pydantic модель из LlamaCppProvider
                     raw_response=RawLLMResponse(
                         content=attempt.raw_response or "",
                         model="structured",
@@ -713,13 +714,16 @@ class LLMOrchestrator:
                 )
 
             # Парсинг и валидация ответа
-            # response может быть LLMResponse или StructuredLLMResponse
+            # ✅ response может быть LLMResponse или StructuredLLMResponse
+            parsed_model = None  # Сохраняем распарсенную Pydantic модель
             if hasattr(response, 'parsed_content') and response.parsed_content:
-                # StructuredLLMResponse - уже распарсен
-                raw_content = response.raw_response.content if hasattr(response, 'raw_response') else str(response.parsed_content)
+                # StructuredLLMResponse - уже распарсен в LlamaCppProvider
+                parsed_model = response.parsed_content  # ← Pydantic модель!
+                raw_content = response.raw_response.content if hasattr(response, 'raw_response') else str(parsed_model)
             else:
                 # LLMResponse - берём content
                 raw_content = response.content
+            
             validation_result = self._validate_structured_response(
                 raw_content=raw_content,
                 schema=request.structured_output.schema_def if request.structured_output else None
@@ -730,6 +734,7 @@ class LLMOrchestrator:
                     attempt_number=attempt_num,
                     prompt=request.prompt,
                     raw_response=raw_content,
+                    parsed_content=parsed_model,  # ← Сохраняем Pydantic модель
                     success=True,
                     error_type=None,
                     error_message=None,
