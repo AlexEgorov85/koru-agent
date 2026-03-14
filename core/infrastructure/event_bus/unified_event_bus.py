@@ -387,7 +387,12 @@ class SessionWorker:
 
         self._running = True
         self._task = asyncio.create_task(self._run())
-        self._logger.debug(f"Worker запущен (idle_timeout={self._idle_timeout}s)")
+        
+        # ← НОВОЕ: Показываем session_bound статус
+        if self._session_bound:
+            self._logger.debug(f"Worker запущен (session_bound=True, idle_timeout={self._idle_timeout}s)")
+        else:
+            self._logger.debug(f"Worker запущен (idle_timeout={self._idle_timeout}s)")
 
         if self._event_bus:
             await self._event_bus._publish_internal(
@@ -401,10 +406,7 @@ class SessionWorker:
 
     async def _run(self):
         """Основной цикл worker'а."""
-        if self._session_bound:
-            self._logger.debug(f"Цикл worker'а запущен (session_bound=True, idle_timeout={self._idle_timeout}s)")
-        else:
-            self._logger.debug(f"Цикл worker'а запущен (idle_timeout={self._idle_timeout}s)")
+        # Логирование уже было в start()
 
         try:
             while self._running:
