@@ -424,10 +424,10 @@ class LLMOrchestrator:
         # Логирование начала вызова
         await self._log_call_start(call_record)
 
-        # === ПОЛНОЕ ЛОГИРОВАНИЕ ПРОМПТА И ОТВЕТА ===
-        self._print_prompt(request, call_id)
+        # ✅ Логирование промпта осуществляется в Provider (LlamaCppProvider._generate_impl)
+        # self._print_prompt(request, call_id)  ← Удалено: дублирование с Provider
 
-        # Установка контекста в провайдере для логирования
+        # Установка контекта в провайдере для логирования
         if hasattr(provider, 'set_call_context'):
             provider.set_call_context(
                 event_bus=self._event_bus,
@@ -1046,8 +1046,8 @@ class LLMOrchestrator:
             # Логирование успешного завершения
             await self._log_call_success(record, result)
 
-            # === ПОЛНОЕ ЛОГИРОВАНИЕ ОТВЕТА ===
-            self._print_response(result, call_id, record.duration or 0)
+            # ✅ Логирование ответа осуществляется в Provider (LlamaCppProvider._generate_impl)
+            # self._print_response(result, call_id, record.duration or 0)  ← Удалено: дублирование с Provider
 
             return result
 
@@ -1564,77 +1564,5 @@ class LLMOrchestrator:
             "recent_calls": pending[:10]  # Последние 10
         }
 
-    def _print_prompt(self, request: LLMRequest, call_id: str) -> None:
-        """
-        Полное логирование промпта и ответа LLM.
-        
-        ВЫВОДИТ:
-        - PROMPT: полный текст промпта с системной инструкцией
-        - RESPONSE: ответ от LLM (после получения)
-        """
-        print("\n" + "=" * 80)
-        print("━━━━━━━━ LLM CALL ━━━━━━━━")
-        print("=" * 80)
-
-        # PROMPT
-        print(f"\n📝 PROMPT (call_id={call_id})")
-        print("-" * 60)
-
-        # Системный промпт — выводим ПОЛНОСТЬЮ
-        if request.system_prompt:
-            print("=== SYSTEM ===")
-            print(request.system_prompt)
-            print()
-
-        # User промпт — выводим ПОЛНОСТЬЮ
-        print("=== USER ===")
-        print(request.prompt)
-
-        print(f"\n📊 Длина промпта: {len(request.prompt)} символов")
-        print(f"🌡️ Temperature: {request.temperature}")
-        print(f"🎯 Max tokens: {request.max_tokens}")
-        if request.structured_output:
-            print(f"📋 Structured output: {request.structured_output.output_model}")
-
-    def _print_response(self, result, call_id: str, duration: float) -> None:
-        """
-        Полное логирование ответа LLM.
-
-        ПОДДЕРЖКА:
-        - LLMResponse: обычный ответ
-        - StructuredLLMResponse: структурированный ответ
-
-        ВЫВОДИТ:
-        - RESPONSE: полный текст ответа
-        - METRICS: время генерации, токены
-        """
-        print("\n" + "-" * 60)
-        print("💬 RESPONSE")
-        print("-" * 60)
-
-        # Извлекаем контент — выводим ПОЛНОСТЬЮ
-        # ✅ StructuredLLMResponse имеет raw_response.content
-        # ✅ LLMResponse имеет content напрямую
-        content = ''
-        if hasattr(result, 'raw_response') and result.raw_response:
-            # StructuredLLMResponse
-            content = getattr(result.raw_response, 'content', '')
-        elif hasattr(result, 'content'):
-            # LLMResponse
-            content = result.content
-
-        print(content)
-
-        # Метрики
-        print(f"\n⏱️ Время генерации: {duration:.2f}с")
-        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
-        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
-        print(f"🪙 Токенов: {tokens_used}")
-        if hasattr(result, 'generation_time'):
-            print(f"⏱️ Generation time: {result.generation_time:.2f}с")
-        if hasattr(result, 'finish_reason'):
-            print(f"🏁 Finish reason: {result.finish_reason}")
-
-        print("\n" + "=" * 80)
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("=" * 80 + "\n")
+    # ✅ Методы _print_prompt и _print_response удалены
+    # Логирование теперь осуществляется в Provider (LlamaCppProvider._generate_impl)
