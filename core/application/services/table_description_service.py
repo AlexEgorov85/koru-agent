@@ -68,19 +68,8 @@ class TableDescriptionService(BaseService):
         Специфичная инициализация для TableDescriptionService.
         """
         try:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("Инициализация сервиса описания таблицы")
-            # Проверка доступности прикладного контекста и необходимых компонентов
-            if self.application_context is None:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error("Отсутствует прикладной контекст")
-                return False
-
             # Инициализация кэша таблиц
             self._table_cache = {}
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("Сервис описания таблицы успешно инициализирован")
             return True
         except Exception as e:
             if self.event_bus_logger:

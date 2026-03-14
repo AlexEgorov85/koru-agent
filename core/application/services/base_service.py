@@ -163,11 +163,7 @@ class BaseService(BaseComponent):
 
         # 2. Вызов родительской инициализации (BaseComponent)
         try:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"BaseService.initialize: вызов super().initialize() для {self.name}")
             base_result = await super().initialize()
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"BaseService.initialize: super().initialize() вернул {base_result} для {self.name}")
             if not base_result:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
