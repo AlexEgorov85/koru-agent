@@ -720,8 +720,21 @@ class LLMOrchestrator:
                 # StructuredLLMResponse - уже распарсен в LlamaCppProvider
                 parsed_model = response.parsed_content  # ← Pydantic модель!
                 raw_content = response.raw_response.content if hasattr(response, 'raw_response') else str(parsed_model)
+                
+                # ✅ Если модель уже распарсена - не валидируем заново!
+                return RetryAttempt(
+                    attempt_number=attempt_num,
+                    prompt=request.prompt,
+                    raw_response=raw_content,
+                    parsed_content=parsed_model,  # ← Сохраняем Pydantic модель
+                    success=True,  # ← Уже валидно!
+                    error_type=None,
+                    error_message=None,
+                    duration=duration,
+                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
+                )
             else:
-                # LLMResponse - берём content
+                # LLMResponse - берём content и валидируем
                 raw_content = response.content
             
             validation_result = self._validate_structured_response(
