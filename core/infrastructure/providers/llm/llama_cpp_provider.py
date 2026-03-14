@@ -330,18 +330,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
             print(msg, flush=True)
             
-            # 🔵 Логирование полного промпта с схемой
+            # 🔵 Логирование полного промпта с схемой (БЕЗ ОБРЕЗАНИЯ)
             print("\n" + "=" * 80, flush=True)
             print("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", flush=True)
             print("=" * 80, flush=True)
             print("\n=== SYSTEM (со схемой) ===", flush=True)
-            print(system_prompt[:3000], flush=True)
-            if len(system_prompt) > 3000:
-                print(f"... (ещё {len(system_prompt) - 3000} символов)", flush=True)
+            print(system_prompt, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
             print("\n=== USER ===", flush=True)
-            print(prompt[:2000], flush=True)
-            if len(prompt) > 2000:
-                print(f"... (ещё {len(prompt) - 2000} символов)", flush=True)
+            print(prompt, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
             print("\n" + "=" * 80, flush=True)
         else:
             max_tokens = request.max_tokens
@@ -408,7 +404,15 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
-                print(f"🔵 [LLM] generated_text[:80]: {generated_text[:80]}...", flush=True)
+                
+                # 🔵 Логирование полного ответа (БЕЗ ОБРЕЗАНИЯ)
+                print("\n" + "=" * 80, flush=True)
+                print("💬 RESPONSE (LlamaCppProvider)", flush=True)
+                print("=" * 80, flush=True)
+                print(generated_text, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
+                print("\n" + "=" * 80, flush=True)
+                
+                print(f"🔵 [LLM] generated_text: {len(generated_text)} символов", flush=True)
                 print(f"🔵 [LLM] finish_reason: {finish_reason}", flush=True)
             else:
                 generated_text = ''
