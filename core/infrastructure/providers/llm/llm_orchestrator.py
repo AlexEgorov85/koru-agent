@@ -1575,25 +1575,21 @@ class LLMOrchestrator:
         print("\n" + "=" * 80)
         print("━━━━━━━━ LLM CALL ━━━━━━━━")
         print("=" * 80)
-        
+
         # PROMPT
         print(f"\n📝 PROMPT (call_id={call_id})")
         print("-" * 60)
-        
-        # Системный промпт
+
+        # Системный промпт — выводим ПОЛНОСТЬЮ
         if request.system_prompt:
             print("=== SYSTEM ===")
-            print(request.system_prompt[:2000])
-            if len(request.system_prompt) > 2000:
-                print(f"... (ещё {len(request.system_prompt) - 2000} символов)")
+            print(request.system_prompt)
             print()
-        
-        # User промпт
+
+        # User промпт — выводим ПОЛНОСТЬЮ
         print("=== USER ===")
-        print(request.prompt[:2000])
-        if len(request.prompt) > 2000:
-            print(f"... (ещё {len(request.prompt) - 2000} символов)")
-        
+        print(request.prompt)
+
         print(f"\n📊 Длина промпта: {len(request.prompt)} символов")
         print(f"🌡️ Temperature: {request.temperature}")
         print(f"🎯 Max tokens: {request.max_tokens}")
@@ -1616,7 +1612,7 @@ class LLMOrchestrator:
         print("💬 RESPONSE")
         print("-" * 60)
 
-        # Извлекаем контент
+        # Извлекаем контент — выводим ПОЛНОСТЬЮ
         # ✅ StructuredLLMResponse имеет raw_response.content
         # ✅ LLMResponse имеет content напрямую
         content = ''
@@ -1627,9 +1623,7 @@ class LLMOrchestrator:
             # LLMResponse
             content = result.content
 
-        print(content[:2000])
-        if len(content) > 2000:
-            print(f"... (ещё {len(content) - 2000} символов)")
+        print(content)
 
         # Метрики
         print(f"\n⏱️ Время генерации: {duration:.2f}с")
