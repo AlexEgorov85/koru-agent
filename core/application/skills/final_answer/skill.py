@@ -95,32 +95,22 @@ class FinalAnswerSkill(BaseSkill):
         # Проверяем наличие необходимых ресурсов для capability
         capability_name = "final_answer.generate"
 
-        # Проверяем промпт
+        # Проверяем промпт и схемы (без логирования - только ошибки)
         if capability_name not in self.prompts:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Промпт для {capability_name} не загружен")
-        else:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Промпт для {capability_name} загружен: {self.prompts[capability_name].version}")
+                await self.event_bus_logger.error(f"Критический промпт {capability_name} не загружен")
+                return False
 
-        # Проверяем входную схему
         if capability_name not in self.input_contracts:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Входная схема для {capability_name} не загружена")
-        else:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Входная схема для {capability_name} загружена")
+                await self.event_bus_logger.error(f"Входная схема {capability_name} не загружена")
+                return False
 
-        # Проверяем выходную схему
         if capability_name not in self.output_contracts:
             if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Выходная схема для {capability_name} не загружена")
-        else:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Выходная схема для {capability_name} загружена")
+                await self.event_bus_logger.error(f"Выходная схема {capability_name} не загружена")
+                return False
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"FinalAnswerSkill инициализирован с capability: {list(self.get_capability_names())}")
         return True
 
     def _get_event_type_for_success(self) -> EventType:

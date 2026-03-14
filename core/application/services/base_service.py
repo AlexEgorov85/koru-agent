@@ -192,9 +192,6 @@ class BaseService(BaseComponent):
 
         # Устанавливаем флаг инициализации
         self._initialized = True
-        msg = f"Сервис '{self.name}' инициализирован. Зависимости: {list(self._dependencies.keys()) or 'отсутствуют'}, _initialized flag set to: {self._initialized}"
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(msg)
         return True
 
     async def _resolve_dependencies(self) -> bool:

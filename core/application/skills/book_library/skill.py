@@ -171,7 +171,6 @@ class BookLibrarySkill(BaseSkill):
                 self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
             self._scripts_registry = {}
 
-        await self.event_bus_logger.info(f"BookLibrarySkill инициализирован с capability: {[cap.name for cap in self.get_capabilities()]}")
         return True
 
     def _get_event_type_for_success(self) -> EventType:

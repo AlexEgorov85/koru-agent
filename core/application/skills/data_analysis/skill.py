@@ -84,12 +84,6 @@ class DataAnalysisSkill(BaseSkill):
             else:
                 self.logger.warning("Выходная схема для data_analysis.analyze_step_data не загружена")
 
-        # Логирование инициализации с использованием get_capabilities()
-        capabilities_list = [cap.name for cap in self.get_capabilities()]
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"DataAnalysisSkill инициализирован с capability: {capabilities_list}")
-        else:
-            self.logger.info(f"DataAnalysisSkill инициализирован с capability: {capabilities_list}")
         return True
 
     def _get_event_type_for_success(self) -> EventType:
