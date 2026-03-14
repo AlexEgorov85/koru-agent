@@ -1600,10 +1600,14 @@ class LLMOrchestrator:
         if request.structured_output:
             print(f"📋 Structured output: {request.structured_output.output_model}")
 
-    def _print_response(self, result: LLMResponse, call_id: str, duration: float) -> None:
+    def _print_response(self, result, call_id: str, duration: float) -> None:
         """
         Полное логирование ответа LLM.
-        
+
+        ПОДДЕРЖКА:
+        - LLMResponse: обычный ответ
+        - StructuredLLMResponse: структурированный ответ
+
         ВЫВОДИТ:
         - RESPONSE: полный текст ответа
         - METRICS: время генерации, токены
@@ -1611,14 +1615,22 @@ class LLMOrchestrator:
         print("\n" + "-" * 60)
         print("💬 RESPONSE")
         print("-" * 60)
-        
+
         # Извлекаем контент
-        content = getattr(result, 'content', '') if result else ''
-        
+        # ✅ StructuredLLMResponse имеет raw_response.content
+        # ✅ LLMResponse имеет content напрямую
+        content = ''
+        if hasattr(result, 'raw_response') and result.raw_response:
+            # StructuredLLMResponse
+            content = getattr(result.raw_response, 'content', '')
+        elif hasattr(result, 'content'):
+            # LLMResponse
+            content = result.content
+
         print(content[:2000])
         if len(content) > 2000:
             print(f"... (ещё {len(content) - 2000} символов)")
-        
+
         # Метрики
         print(f"\n⏱️ Время генерации: {duration:.2f}с")
         # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
@@ -1628,7 +1640,7 @@ class LLMOrchestrator:
             print(f"⏱️ Generation time: {result.generation_time:.2f}с")
         if hasattr(result, 'finish_reason'):
             print(f"🏁 Finish reason: {result.finish_reason}")
-        
+
         print("\n" + "=" * 80)
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("=" * 80 + "\n")
