@@ -169,11 +169,11 @@ class TimeoutConfig(BaseModel):
         Требуются большие таймауты из-за медленной генерации.
         """
         return cls(
-            llm_attempt_timeout=180.0,  # 3 минуты на попытку
-            llm_total_timeout=600.0,    # 10 минут всего
+            llm_attempt_timeout=600.0,  # 10 минут на попытку (было 180с)
+            llm_total_timeout=1800.0,   # 30 минут всего (было 600с)
             llm_max_retries=3,
-            action_default_timeout=180.0,
-            agent_step_timeout=600.0,
+            action_default_timeout=600.0,
+            agent_step_timeout=1800.0,
         )
     
     @classmethod

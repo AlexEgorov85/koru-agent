@@ -270,22 +270,27 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         """
         import json
         
-        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
+        # Упрощаем схему — убираем лишние поля для экономии токенов
+        simplified_schema = {
+            "type": "object",
+            "properties": {},
+            "required": schema_def.get("required", [])
+        }
         
-        # Формируем инструкцию для JSON вывода
+        # Копируем только основные поля
+        for prop_name, prop_def in schema_def.get("properties", {}).items():
+            simplified_schema["properties"][prop_name] = {
+                "type": prop_def.get("type", "string"),
+                "description": prop_def.get("description", "")[:100]  # Обрезаем описание
+            }
+        
+        schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
+        
+        # Формируем компактную инструкцию
         schema_prompt = (
-            "=== ТРЕБОВАНИЯ К ОТВЕТУ ===\n"
-            "Верни ответ ТОЛЬКО в формате JSON согласно следующей схеме.\n"
-            "Никакого текста до или после JSON.\n\n"
-            "=== JSON SCHEMA ===\n"
+            "\n=== JSON SCHEMA ===\n"
             f"{schema_json}\n"
-            "\n=== ПРИМЕР ОТВЕТА ===\n"
-            '{"key": "value"}\n'
-            "\n=== ВАЖНО ===\n"
-            "- Ответ должен быть валидным JSON\n"
-            "- Используй двойные кавычки для строк\n"
-            "- Не добавляй markdown разметку (```json ... ```)\n"
-            "- Не добавляй пояснения до или после JSON\n"
+            "\nВерни ТОЛЬКО JSON согласно схеме выше.\n"
         )
         
         return schema_prompt
