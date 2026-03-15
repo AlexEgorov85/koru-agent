@@ -258,20 +258,21 @@ class VectorBooksTool(BaseTool):
 
             embedding_start = time.time()
             query_vector_list = await self._embedding_provider.generate([query])
-            query_vector = np.array(query_vector_list[0]) if query_vector_list else None
+            # query_vector_list = [[0.1, 0.2, ...]] (batch of 1)
+            query_vector = np.array(query_vector_list[0], dtype=np.float32) if query_vector_list else None
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Embedding done: {time.time() - embedding_start:.2f}s")
 
             # 2. Получаем FAISS индекс напрямую из инфраструктуры
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Getting FAISS...")
-            
+
             infra = self.application_context.infrastructure_context
             faiss = infra._faiss_providers.get('books')
-            
+
             if not faiss:
                 return {"error": "FAISS books provider not found", "search_type": "error"}
-            
+
             count = await faiss.count()
             if count == 0:
                 # ❌ УДАЛЕНО: SQL fallback когда FAISS пуст
@@ -286,9 +287,10 @@ class VectorBooksTool(BaseTool):
             # 3. Поиск в FAISS (напрямую как в тесте)
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Searching FAISS ({count} vectors)...")
-            
+
             faiss_search_start = time.time()
-            faiss_results = await faiss.search(query_vector[0].tolist(), top_k=top_k)
+            # Передаём вектор как list (FAISS ожидает 1D array)
+            faiss_results = await faiss.search(query_vector.tolist() if query_vector is not None else [], top_k=top_k)
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] FAISS done: {time.time() - faiss_search_start:.2f}s | results={len(faiss_results)}")
 
