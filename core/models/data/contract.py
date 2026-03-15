@@ -74,7 +74,7 @@ class Contract(TemplateValidatorMixin, BaseModel):
         annotations = {}
         field_definitions = {}
         for field_name, field_schema in properties.items():
-            field_type = self._json_schema_type_to_python(field_schema.get("type", "string"))
+            field_type = self._json_schema_type_to_python(field_schema.get("type", "string"), field_schema)
             annotations[field_name] = field_type
             field_kwargs = {"description": field_schema.get("description", "")}
             if field_name in required:
@@ -94,7 +94,16 @@ class Contract(TemplateValidatorMixin, BaseModel):
             "model_config": ConfigDict(extra="forbid")
         })
 
-    def _json_schema_type_to_python(self, json_type: str) -> type:
+    def _json_schema_type_to_python(self, json_type: str, field_schema: dict = None) -> type:
+        # Обработка array с items
+        if json_type == "array" and field_schema:
+            items_schema = field_schema.get("items", {})
+            if items_schema:
+                # Рекурсивно получаем тип элементов
+                item_type = self._json_schema_type_to_python(items_schema.get("type", "string"), items_schema)
+                return list[item_type] if hasattr(list, '__class_getitem__') else list
+            return list
+        
         type_map = {"string": str, "integer": int, "number": float, "boolean": bool, "array": list, "object": dict}
         return type_map.get(json_type, str)
 
