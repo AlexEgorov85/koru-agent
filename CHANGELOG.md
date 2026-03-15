@@ -10,11 +10,32 @@
   - Обновлён системный промпт с примером правильного JSON ответа
   - Добавлено преобразование списков в строки для рендеринга промпта
   - Добавлено `additionalProperties: false` в output контракт
+  - Исправлены `default_value` в переменных промпта (списки/булевы → строки)
+
+- **exceptions.py: Исправлено дублирование параметра `code` в иерархии исключений**
+  - `ResourceLoadError`: убрано дублирование `code` (InfrastructureError уже устанавливает)
+  - `VectorSearchError`: убрано дублирование `code`
+  - `SkillExecutionError`: изменено на установку `self.code` после `super().__init__()`
+  - `ProviderInitializationError`, `ProviderConnectionError`: убрано дублирование `code`
+  - `StorageNotFoundError`: убрано дублирование `code`
+  - `AuthenticationError`, `AuthorizationError`: убрано дублирование `code`
+  - `ContractValidationError`: убрано дублирование `code`
+  - `PromptNotFoundError`: убрано дублирование `code`
+  - `MockProviderError`: убрано дублирование `code`
+
+- **llama_cpp_provider.py: Добавлена поддержка динамической валидации для final_answer.generate.output**
+  - Для `final_answer.generate.output` создаётся динамическая Pydantic модель из JSON схемы
+  - Поддержка типов: str, int, float, bool, List, Dict
+  - Исправлена ошибка `parsed_content type=None`
+
+- **main.py: Исправлено отображение количества шагов в финальном отчёте**
+  - Добавлена поддержка `total_steps` из метаданных final_answer.generate
+  - Fallback на `steps_executed` для обратной совместимости
 
 ### Changed
 - **data/prompts/skill/final_answer/final_answer.generate.user_v1.0.0.yaml**
   - Полный редизайн промпта с явными секциями для цели, наблюдений, шагов и требований
-  - Добавлены 6 переменных с default значениями
+  - Добавлены 6 переменных с default значениями (строки)
   - Улучшены инструкции для LLM с акцентом на чистый JSON без markdown
 
 - **data/prompts/skill/final_answer/final_answer.generate.system_v1.0.0.yaml**
@@ -25,6 +46,7 @@
 - **core/application/skills/final_answer/skill.py**
   - Исправлено извлечение полей из Pydantic модели/dict (final_answer, confidence_score, sources, summary_of_steps)
   - Добавлено преобразование observations и steps_taken в строки перед рендерингом
+  - Добавлено преобразование булевых параметров в строки
   - Обновлён _render_prompt_fallback для соответствия новому формату промпта
   - Улучшена обработка metadata из LLM ответа
 

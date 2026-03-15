@@ -22,7 +22,7 @@ content: |
 
   ## Инструкции
   Сгенерируй финальный ответ согласно требованиям.
-  
+
   ## Формат ответа
   - Верни ТОЛЬКО валидный JSON согласно выходному контракту
   - Не используй markdown разметку (```json)
@@ -34,20 +34,20 @@ variables:
   - name: observations
     description: Список наблюдений (список строк)
     required: false
-    default_value: []
+    default_value: ""
   - name: steps_taken
     description: Список выполненных шагов
     required: false
-    default_value: []
+    default_value: ""
   - name: format_type
     description: Формат вывода (concise/detailed/structured)
     required: false
-    default_value: detailed
+    default_value: "detailed"
   - name: include_steps
     description: Включать ли шаги выполнения
     required: false
-    default_value: true
+    default_value: "true"
   - name: include_evidence
     description: Включать ли источники
     required: false
-    default_value: true
+    default_value: "true"

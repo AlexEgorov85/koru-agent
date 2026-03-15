@@ -379,14 +379,19 @@ class FinalAnswerSkill(BaseSkill):
             observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
             steps_str = "\n".join([f"{i}. {step.get('action', 'неизвестно')}" for i, step in enumerate(steps_taken[-10:], 1)]) if steps_taken else "Шаги не выполнены."
             
+            # Преобразуем булевы значения в строки
+            format_type_str = str(format_type)
+            include_steps_str = str(include_steps).lower()
+            include_evidence_str = str(include_evidence).lower()
+
             rendered_prompt = self.render_prompt(
                 capability_name,
                 goal=goal,
                 observations=observations_str,
                 steps_taken=steps_str,
-                format_type=format_type,
-                include_steps=include_steps,
-                include_evidence=include_evidence
+                format_type=format_type_str,
+                include_steps=include_steps_str,
+                include_evidence=include_evidence_str
             )
         except Exception as e:
             if self.event_bus_logger:

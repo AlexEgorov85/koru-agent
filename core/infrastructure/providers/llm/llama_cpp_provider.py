@@ -448,6 +448,31 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                             if request.structured_output.output_model == "ReasoningResult":
                                 parsed_content = ReasoningResult.model_validate(parsed_json)
                                 print(f"✅ Валидировано по ReasoningResult: stop_condition={parsed_content.stop_condition}", flush=True)
+                            elif request.structured_output.output_model == "final_answer.generate.output":
+                                # Создаём Pydantic модель на лету из JSON схемы
+                                from pydantic import create_model, BaseModel
+                                from typing import Optional, List, Dict, Any
+                                
+                                # Определяем поля из parsed_json
+                                field_definitions = {}
+                                for field_name, field_value in parsed_json.items():
+                                    if isinstance(field_value, bool):
+                                        field_definitions[field_name] = (bool, ...)
+                                    elif isinstance(field_value, int):
+                                        field_definitions[field_name] = (int, ...)
+                                    elif isinstance(field_value, float):
+                                        field_definitions[field_name] = (float, ...)
+                                    elif isinstance(field_value, list):
+                                        field_definitions[field_name] = (List[Any], ...)
+                                    elif isinstance(field_value, dict):
+                                        field_definitions[field_name] = (Dict[str, Any], ...)
+                                    else:
+                                        field_definitions[field_name] = (str, ...)
+                                
+                                # Создаём динамическую модель
+                                DynamicModel = create_model('FinalAnswerOutput', **field_definitions)
+                                parsed_content = DynamicModel(**parsed_json)
+                                print(f"✅ Валидировано по динамической модели final_answer.generate.output", flush=True)
                         except Exception as model_error:
                             print(f"⚠️ Не удалось валидировать по модели: {model_error}", flush=True)
                             parsed_content = parsed_json

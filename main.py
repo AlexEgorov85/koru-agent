@@ -325,11 +325,12 @@ async def main_async() -> int:
             print("\n" + "-" * 60)
             print("📊 Метаданные:")
             if result.metadata:
-                steps = result.metadata.get('steps_executed', 'N/A')
+                # Поддерживаем разные форматы метаданных
+                steps = result.metadata.get('total_steps') or result.metadata.get('steps_executed', 'N/A')
                 errors = result.metadata.get('error_count', 0)
                 print(f"  - Шагов выполнено: {steps}")
                 print(f"  - Ошибок: {errors}")
-        
+
         print("=" * 60)
 
         return 0

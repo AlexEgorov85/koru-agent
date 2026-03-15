@@ -169,13 +169,13 @@ class ProviderError(AgentBaseError):
 class ProviderInitializationError(ProviderError):
     """Ошибка инициализации провайдера."""
     def __init__(self, message: str, provider: str = None, **kwargs):
-        super().__init__(message, provider=provider, code="PROVIDER_INIT_ERROR", **kwargs)
+        super().__init__(message, provider=provider, **kwargs)
 
 
 class ProviderConnectionError(ProviderError):
     """Ошибка соединения с провайдером."""
     def __init__(self, message: str, provider: str = None, **kwargs):
-        super().__init__(message, provider=provider, code="PROVIDER_CONNECTION_ERROR", **kwargs)
+        super().__init__(message, provider=provider, **kwargs)
 
 
 # === Storage Errors ===
@@ -194,10 +194,10 @@ class StorageNotFoundError(StorageError):
     def __init__(self, resource: str, storage: str = None, **kwargs):
         metadata = kwargs.pop("metadata", {})
         metadata["resource"] = resource
+        # StorageError уже устанавливает code="STORAGE_ERROR"
         super().__init__(
             f"Resource '{resource}' not found",
             storage=storage,
-            code="STORAGE_NOT_FOUND",
             metadata=metadata,
             **kwargs
         )
@@ -214,13 +214,15 @@ class SecurityError(AgentBaseError):
 class AuthenticationError(SecurityError):
     """Ошибка аутентификации."""
     def __init__(self, message: str = "Authentication failed", **kwargs):
-        super().__init__(message, code="AUTH_ERROR", **kwargs)
+        # SecurityError уже устанавливает code="SECURITY_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class AuthorizationError(SecurityError):
     """Ошибка авторизации."""
     def __init__(self, message: str = "Authorization failed", **kwargs):
-        super().__init__(message, code="AUTHZ_ERROR", **kwargs)
+        # SecurityError уже устанавливает code="SECURITY_ERROR"
+        super().__init__(message, **kwargs)
 
 
 # === Contract Errors ===
@@ -237,7 +239,8 @@ class ContractError(AgentBaseError):
 class ContractValidationError(ContractError):
     """Ошибка валидации контракта."""
     def __init__(self, message: str, contract: str = None, **kwargs):
-        super().__init__(message, contract=contract, code="CONTRACT_VALIDATION_ERROR", **kwargs)
+        # ContractError уже устанавливает code="CONTRACT_ERROR"
+        super().__init__(message, contract=contract, **kwargs)
 
 
 # === Prompt Errors ===
@@ -257,10 +260,10 @@ class PromptNotFoundError(PromptError):
         metadata = kwargs.pop("metadata", {})
         if version:
             metadata["version"] = version
+        # PromptError уже устанавливает code="PROMPT_ERROR"
         super().__init__(
             f"Prompt '{prompt}' not found",
             prompt=prompt,
-            code="PROMPT_NOT_FOUND",
             metadata=metadata,
             **kwargs
         )
@@ -282,7 +285,8 @@ class InfrastructureError(AgentBaseError):
 class VectorSearchError(InfrastructureError):
     """Ошибка векторного поиска - не должна маскироваться fallback."""
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, component="vector_search", code="VECTOR_SEARCH_ERROR", **kwargs)
+        # InfrastructureError уже устанавливает code="INFRASTRUCTURE_ERROR"
+        super().__init__(message, component="vector_search", **kwargs)
 
 
 class DataNotFoundError(AgentBaseError):
@@ -335,7 +339,8 @@ class StructuredOutputError(AgentBaseError):
 class SkillExecutionError(ComponentExecutionError):
     """Ошибка выполнения навыка."""
     def __init__(self, message: str, component: str = None, **kwargs):
-        super().__init__(message, component=component, code="SKILL_EXECUTION_ERROR", **kwargs)
+        super().__init__(message, component=component, **kwargs)
+        self.code = "SKILL_EXECUTION_ERROR"
 
 
 class DataError(AgentBaseError):
@@ -353,7 +358,8 @@ class ResourceLoadError(InfrastructureError):
         metadata = kwargs.pop("metadata", {})
         if resource_path:
             metadata["resource_path"] = resource_path
-        super().__init__(message, component="resource_loader", code="RESOURCE_LOAD_ERROR", metadata=metadata, **kwargs)
+        # InfrastructureError уже устанавливает code="INFRASTRUCTURE_ERROR"
+        super().__init__(message, component="resource_loader", metadata=metadata, **kwargs)
 
 
 class MockProviderError(ProviderError):
@@ -362,4 +368,5 @@ class MockProviderError(ProviderError):
         metadata = kwargs.pop("metadata", {})
         if prompt:
             metadata["prompt"] = prompt[:200]  # Обрезаем длинные промпты
-        super().__init__(message, provider="MockLLMProvider", code="MOCK_PROVIDER_ERROR", metadata=metadata, **kwargs)
+        # ProviderError уже устанавливает code="PROVIDER_ERROR"
+        super().__init__(message, provider="MockLLMProvider", metadata=metadata, **kwargs)
