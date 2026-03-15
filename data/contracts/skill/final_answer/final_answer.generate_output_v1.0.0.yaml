@@ -44,5 +44,6 @@ schema_data:
   required:
     - final_answer
     - confidence_score
+  additionalProperties: false
 status: active
 version: v1.0.0

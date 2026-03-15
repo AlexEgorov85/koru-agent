@@ -4,26 +4,50 @@ version: v1.0.0
 status: active
 description: Промпт для генерации финального ответа
 content: |
-  Ты — интеллектуальный ассистент, который генерирует финальный ответ.
+  Ты — интеллектуальный ассистент, который генерирует финальный ответ на основе всего контекста сессии.
 
-  ## Цель
+  ## Исходная цель
   {goal}
 
   ## Собранная информация (наблюдения)
-  {observation}
+  {observations}
+
+  ## Выполненные шаги
+  {steps_taken}
+
+  ## Требования к ответу
+  - **Формат вывода**: {format_type}
+  - **Включать шаги выполнения**: {include_steps}
+  - **Включать источники (доказательства)**: {include_evidence}
 
   ## Инструкции
-  Сгенерируй финальный ответ на основе предоставленной информации.
+  Сгенерируй финальный ответ согласно требованиям.
   
   ## Формат ответа
-  - Верни ТОЛЬКО валидный JSON
+  - Верни ТОЛЬКО валидный JSON согласно выходному контракту
   - Не используй markdown разметку (```json)
   - Не добавляй пояснений до или после JSON
 variables:
   - name: goal
     description: Исходная цель
     required: true
-  - name: observation
-    description: Наблюдения
+  - name: observations
+    description: Список наблюдений (список строк)
     required: false
-    default_value: ""
+    default_value: []
+  - name: steps_taken
+    description: Список выполненных шагов
+    required: false
+    default_value: []
+  - name: format_type
+    description: Формат вывода (concise/detailed/structured)
+    required: false
+    default_value: detailed
+  - name: include_steps
+    description: Включать ли шаги выполнения
+    required: false
+    default_value: true
+  - name: include_evidence
+    description: Включать ли источники
+    required: false
+    default_value: true

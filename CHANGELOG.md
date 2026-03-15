@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## [5.36.0] - 2026-03-15
+
+### Fixed
+- **final_answer.generate: Исправлены критические ошибки промпта и контрактов**
+  - Исправлено имя переменной в user-промпте: `{observation}` → `{observations}` (множественное число)
+  - Добавлены новые переменные в user-промпт: `{steps_taken}`, `{format_type}`, `{include_steps}`, `{include_evidence}`
+  - Исправлено извлечение полей из LLM ответа: `answer` → `final_answer`, `confidence` → `confidence_score`
+  - Обновлён системный промпт с примером правильного JSON ответа
+  - Добавлено преобразование списков в строки для рендеринга промпта
+  - Добавлено `additionalProperties: false` в output контракт
+
+### Changed
+- **data/prompts/skill/final_answer/final_answer.generate.user_v1.0.0.yaml**
+  - Полный редизайн промпта с явными секциями для цели, наблюдений, шагов и требований
+  - Добавлены 6 переменных с default значениями
+  - Улучшены инструкции для LLM с акцентом на чистый JSON без markdown
+
+- **data/prompts/skill/final_answer/final_answer.generate.system_v1.0.0.yaml**
+  - Добавлен пример правильного JSON ответа
+  - Уточнены критичные правила (чистый JSON, поля final_answer/confidence_score)
+  - Добавлено требование confidence_score 0.9+ для точных данных
+
+- **core/application/skills/final_answer/skill.py**
+  - Исправлено извлечение полей из Pydantic модели/dict (final_answer, confidence_score, sources, summary_of_steps)
+  - Добавлено преобразование observations и steps_taken в строки перед рендерингом
+  - Обновлён _render_prompt_fallback для соответствия новому формату промпта
+  - Улучшена обработка metadata из LLM ответа
+
+### Docs
+- **docs/RULES.MD**
+  - Добавлена документация по правильному именованию переменных в промптах
+  - Добавлены примеры контрактов с additionalProperties: false
+  - Обновлены рекомендации по созданию промптов для LLM
+
 ## [5.35.0] - 2026-03-10
 
 ### Added

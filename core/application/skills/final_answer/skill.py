@@ -375,16 +375,18 @@ class FinalAnswerSkill(BaseSkill):
 
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
         try:
+            # Преобразуем списки в строки для рендеринга промпта
+            observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
+            steps_str = "\n".join([f"{i}. {step.get('action', 'неизвестно')}" for i, step in enumerate(steps_taken[-10:], 1)]) if steps_taken else "Шаги не выполнены."
+            
             rendered_prompt = self.render_prompt(
                 capability_name,
                 goal=goal,
-                observations=observations[-max_sources:],
-                steps_taken=steps_taken[-10:],
+                observations=observations_str,
+                steps_taken=steps_str,
                 format_type=format_type,
                 include_steps=include_steps,
-                include_evidence=include_evidence,
-                confidence_threshold=confidence_threshold,
-                max_sources=max_sources
+                include_evidence=include_evidence
             )
         except Exception as e:
             if self.event_bus_logger:
@@ -457,23 +459,30 @@ class FinalAnswerSkill(BaseSkill):
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
             from pydantic import BaseModel
             if isinstance(parsed_response, BaseModel):
-                # Pydantic модель — используем атрибуты
-                final_answer_val = getattr(parsed_response, 'answer', '')
-                confidence_val = getattr(parsed_response, 'confidence', 0.8)
+                # Pydantic модель — используем атрибуты согласно контракту
+                final_answer_val = getattr(parsed_response, 'final_answer', '')
+                confidence_val = getattr(parsed_response, 'confidence_score', 0.8)
+                sources_val = getattr(parsed_response, 'sources', [])
+                summary_val = getattr(parsed_response, 'summary_of_steps', '')
                 remaining_questions_val = getattr(parsed_response, 'remaining_questions', [])
+                metadata_val = getattr(parsed_response, 'metadata', {})
             else:
-                # dict — используем .get()
-                final_answer_val = parsed_response.get("answer", "")
-                confidence_val = parsed_response.get("confidence", 0.8)
+                # dict — используем .get() согласно контракту
+                final_answer_val = parsed_response.get("final_answer", "")
+                confidence_val = parsed_response.get("confidence_score", 0.8)
+                sources_val = parsed_response.get("sources", [])
+                summary_val = parsed_response.get("summary_of_steps", "")
                 remaining_questions_val = parsed_response.get("remaining_questions", [])
+                metadata_val = parsed_response.get("metadata", {})
 
             result_data = {
                 "final_answer": final_answer_val,
-                "sources": observations[-max_sources:] if include_evidence else [],
+                "sources": sources_val if sources_val else (observations[-max_sources:] if include_evidence else []),
                 "confidence_score": confidence_val,
                 "remaining_questions": remaining_questions_val,
-                "summary_of_steps": self._build_steps_summary(steps_taken) if include_steps else "",
+                "summary_of_steps": summary_val if summary_val else (self._build_steps_summary(steps_taken) if include_steps else ""),
                 "metadata": {
+                    **metadata_val,
                     "total_observations": len(observations),
                     "total_steps": len(steps_taken),
                     "generation_time_ms": 0,
@@ -517,39 +526,32 @@ class FinalAnswerSkill(BaseSkill):
         max_sources: int
     ) -> str:
         """Fallback-рендеринг промпта без использования сервиса."""
-        prompt_parts = [
-            "Ты — интеллектуальный ассистент, который генерирует финальный ответ на основе всего контекста сессии.",
-            f"\n## Исходная цель\n{goal}",
-            f"\n## Собранная информация (наблюдения)\n"
-        ]
-
-        if observations:
-            for i, obs in enumerate(observations[-max_sources:], 1):
-                prompt_parts.append(f"{i}. {obs[:300]}")
-        else:
-            prompt_parts.append("Наблюдения отсутствуют.")
-
-        prompt_parts.append(f"\n## Выполненные шаги\n")
+        # Преобразуем списки в строки
+        observations_str = "\n".join([f"{i}. {obs[:300]}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
+        
+        steps_parts = []
         if steps_taken:
             for i, step in enumerate(steps_taken[-10:], 1):
-                # Используем summary если есть
                 summary = step.get('summary', '')
                 if summary:
-                    prompt_parts.append(f"{i}. {summary}")
+                    steps_parts.append(f"{i}. {summary}")
                 else:
                     action = step.get('action', 'неизвестно')
                     result_part = f" → {step.get('result', '')[:100]}" if step.get('result') else ""
-                    prompt_parts.append(f"{i}. {action}{result_part}")
-        else:
-            prompt_parts.append("Шаги выполнения не зафиксированы.")
-
-        prompt_parts.extend([
+                    steps_parts.append(f"{i}. {action}{result_part}")
+        steps_str = "\n".join(steps_parts) if steps_parts else "Шаги не выполнены."
+        
+        prompt_parts = [
+            "Ты — интеллектуальный ассистент, который генерирует финальный ответ на основе всего контекста сессии.",
+            f"\n## Исходная цель\n{goal}",
+            f"\n## Собранная информация (наблюдения)\n{observations_str}",
+            f"\n## Выполненные шаги\n{steps_str}",
             f"\n## Требования к ответу",
             f"- **Формат вывода**: {format_type}",
             f"- **Включать шаги выполнения**: {include_steps}",
             f"- **Включать источники (доказательства)**: {include_evidence}",
             f"\nСгенерируй финальный ответ согласно требованиям."
-        ])
+        ]
 
         return "\n".join(prompt_parts)
 

@@ -1,10 +1,11 @@
 # Требования к Разработке Агента — Agent v5
 
-> **Версия:** 5.4.0
+> **Версия:** 5.36.0
 > **Статус:** Active
-> **Дата обновления:** 2026-03-13
+> **Дата обновления:** 2026-03-15
 > **Владелец:** @system
 > **Последние изменения:**
+> - v5.36.0: Добавлены рекомендации по промптам и контрактам, исправлены ошибки в final_answer
 > - v5.4.0: Обновлена архитектура загрузки промптов и контрактов (ResourcePreloader)
 > - v5.3.0: Исправлены ошибки в документации, добавлены новые секции
 > - v5.2.0: Удалён избыточный LoggingMixin, логирование напрямую в BaseComponent
@@ -721,6 +722,211 @@ Checked X files, successful: X, errors: 0
 ```bash
 # Проверка соответствия файлов в ФС и registry.yaml
 python scripts/maintenance/check_consistency.py
+```
+
+---
+
+## 📝 Рекомендации по Промптам и Контрактам
+
+### 1. Именование Переменных в Промптах
+
+**ПРАВИЛО:** Имена переменных в промпте должны точно соответствовать передаваемым значениям в коде.
+
+```yaml
+# ✅ ПРАВИЛЬНО: переменная observations (множественное число)
+content: |
+  ## Собранная информация (наблюдения)
+  {observations}
+variables:
+  - name: observations
+    description: Список наблюдений
+    required: false
+    default_value: []
+
+# ❌ НЕПРАВИЛЬНО: переменная observation (единственное число)
+content: |
+  ## Собранная информация (наблюдения)
+  {observation}  ← Ошибка: в коде передаётся observations
+```
+
+**Типичные ошибки:**
+| Ошибка | Исправление |
+|--------|-------------|
+| `{observation}` | `{observations}` (список) |
+| `{step}` | `{steps_taken}` (список шагов) |
+| `{format}` | `{format_type}` |
+
+### 2. Преобразование Типов для Рендеринга
+
+**ПРАВИЛО:** `.format()` в Python требует строки. Списки нужно преобразовывать в строки.
+
+```python
+# ✅ ПРАВИЛЬНО: Преобразование списка в строку
+observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations, 1)])
+rendered_prompt = prompt_obj.render(
+    goal=goal,
+    observations=observations_str,  # ← строка, не список!
+    steps_taken=steps_str
+)
+
+# ❌ НЕПРАВИЛЬНО: Передача списка напрямую
+rendered_prompt = prompt_obj.render(
+    goal=goal,
+    observations=observations  # ← Ошибка: список не строка
+)
+```
+
+### 3. Соответствие Полей Контракта и Кода
+
+**ПРАВИЛО:** Имена полей в output контракте должны точно совпадать с кодом извлечения.
+
+```yaml
+# output контракт
+schema_data:
+  type: object
+  properties:
+    final_answer:
+      type: string
+      description: Основной финальный ответ
+    confidence_score:
+      type: number
+      description: Уровень уверенности
+  required:
+    - final_answer
+    - confidence_score
+```
+
+```python
+# ✅ ПРАВИЛЬНО: Извлечение полей согласно контракту
+if isinstance(parsed_response, BaseModel):
+    final_answer_val = getattr(parsed_response, 'final_answer', '')
+    confidence_val = getattr(parsed_response, 'confidence_score', 0.8)
+else:
+    final_answer_val = parsed_response.get("final_answer", "")
+    confidence_val = parsed_response.get("confidence_score", 0.8)
+
+# ❌ НЕПРАВИЛЬНО: Неправильные имена полей
+final_answer_val = parsed_response.get("answer", "")  # ← Ошибка: поле final_answer
+confidence_val = parsed_response.get("confidence", 0.8)  # ← Ошибка: поле confidence_score
+```
+
+### 4. additionalProperties в Контрактах
+
+**ПРАВИЛО:** Всегда указывай `additionalProperties: false` для строгой валидации.
+
+```yaml
+# ✅ ПРАВИЛЬНО: Строгая валидация
+schema_data:
+  type: object
+  properties:
+    final_answer:
+      type: string
+    confidence_score:
+      type: number
+  required:
+    - final_answer
+    - confidence_score
+  additionalProperties: false  # ← Запрет лишних полей
+
+# ❌ НЕПРАВИЛЬНО: Разрешены любые поля
+schema_data:
+  type: object
+  properties:
+    final_answer:
+      type: string
+  # Нет additionalProperties: false
+```
+
+### 5. Пример Правильного Промпта
+
+```yaml
+# data/prompts/skill/final_answer/final_answer.generate.user_v1.0.0.yaml
+capability: final_answer.generate
+version: v1.0.0
+status: active
+content: |
+  Ты — интеллектуальный ассистент, который генерирует финальный ответ.
+
+  ## Исходная цель
+  {goal}
+
+  ## Собранная информация (наблюдения)
+  {observations}
+
+  ## Выполненные шаги
+  {steps_taken}
+
+  ## Требования к ответу
+  - **Формат вывода**: {format_type}
+  - **Включать шаги выполнения**: {include_steps}
+  - **Включать источники (доказательства)**: {include_evidence}
+
+  ## Формат ответа
+  - Верни ТОЛЬКО валидный JSON согласно выходному контракту
+  - Не используй markdown разметку (```json)
+  - Не добавляй пояснений до или после JSON
+variables:
+  - name: goal
+    description: Исходная цель
+    required: true
+  - name: observations
+    description: Список наблюдений
+    required: false
+    default_value: []
+  - name: steps_taken
+    description: Список выполненных шагов
+    required: false
+    default_value: []
+  - name: format_type
+    description: Формат вывода
+    required: false
+    default_value: detailed
+  - name: include_steps
+    description: Включать ли шаги
+    required: false
+    default_value: true
+  - name: include_evidence
+    description: Включать ли источники
+    required: false
+    default_value: true
+```
+
+### 6. Пример Правильного Системного Промпта
+
+```yaml
+# data/prompts/skill/final_answer/final_answer.generate.system_v1.0.0.yaml
+capability: final_answer.generate.system
+version: v1.0.0
+status: active
+content: |
+  Ты — модуль генерации финального ответа агента.
+
+  == ТВОЯ ЗАДАЧА ==
+  Сформируй финальный ответ на основе предоставленного контекста.
+
+  == ВЫХОДНОЙ ФОРМАТ ==
+  Верни JSON согласно выходному контракту со следующими полями:
+  - final_answer (string, required): Основной ответ пользователю
+  - confidence_score (number 0.0-1.0, required): Уровень уверенности
+  - sources (array, optional): Список источников
+  - summary_of_steps (string, optional): Краткое резюме шагов
+  - remaining_questions (array, optional): Нерешённые вопросы
+
+  == КРИТИЧНЫЕ ПРАВИЛА ==
+  1. Верни ТОЛЬКО чистый JSON без markdown разметки
+  2. Не добавляй никаких пояснений до или после JSON
+  3. Поле final_answer должно содержать полный ответ на цель
+  4. confidence_score должен отражать реальную уверенность (0.9+ для точных данных)
+
+  == ПРИМЕР ПРАВИЛЬНОГО ОТВЕТА ==
+  {
+    "final_answer": "Пушкин написал 5 книг: Евгений Онегин, Капитанская дочка...",
+    "confidence_score": 0.99,
+    "sources": ["Евгений Онегин (1833)", "Капитанская дочка (1836)"],
+    "summary_of_steps": "Выполнен поиск книг по автору",
+    "remaining_questions": []
+  }
+variables: []
 ```
 
 ---
