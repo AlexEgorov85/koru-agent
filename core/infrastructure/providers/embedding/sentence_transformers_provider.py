@@ -35,10 +35,19 @@ class SentenceTransformersProvider(IEmbeddingProvider):
 
     def _validate_local_model(self, model_path: str) -> None:
         """Проверка существования локальной модели."""
-        # Если это путь к файлу/папке
-        if os.path.exists(model_path):
-            return
+        from pathlib import Path
         
+        # Резолвим относительные пути относительно проекта
+        path = Path(model_path)
+        if not path.is_absolute():
+            # Пробуем найти относительно проекта
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            path = project_root / model_path
+        
+        # Если это путь к файлу/папке
+        if path.exists():
+            return
+
         # Если это имя модели (не путь), проверяем наличие в кэше
         if not any(x in model_path for x in ['/', '\\']):
             from huggingface_hub import try_to_load_from_cache
@@ -52,7 +61,7 @@ class SentenceTransformersProvider(IEmbeddingProvider):
                     return
             except Exception:
                 pass
-        
+
         raise FileNotFoundError(
             f"Локальная модель не найдена: {model_path}\n"
             f"Онлайн загрузка отключена.\n"
