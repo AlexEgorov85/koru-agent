@@ -711,23 +711,23 @@ class BookLibrarySkill(BaseSkill):
         # 2. Проверка доступности векторного поиска через executor
         vector_search_ready = False
         try:
-            # Пытаемся выполнить ping для проверки доступности vector_books_tool
+            # Пытаемся выполнить ping для проверки доступности vector_books
             test_result = await self.executor.execute_action(
-                action_name="vector_books_tool.ping",
-                parameters={},
+                action_name="vector_books.search",  # Используем search вместо ping
+                parameters={"query": "test", "top_k": 1},  # Минимальный запрос
                 context=ExecutionContext()
             )
             vector_search_ready = test_result.status == ExecutionStatus.COMPLETED
         except Exception:
             vector_search_ready = False
-        
+
         if not vector_search_ready:
             # ❌ УДАЛЕНО: SQL fallback когда векторный поиск не готов
             # ✅ ТЕПЕРЬ: Выбрасываем InfrastructureError
             from core.errors.exceptions import InfrastructureError
             raise InfrastructureError(
                 "Vector Search для книг не инициализирован. "
-                "Проверьте что FAISS индекс создан и vector_books_tool доступен.",
+                "Проверьте что FAISS индекс создан и vector_books доступен.",
                 component="book_library.semantic_search"
             )
 
@@ -739,7 +739,7 @@ class BookLibrarySkill(BaseSkill):
 
         try:
             result = await self.executor.execute_action(
-                action_name="vector_books_tool.search",
+                action_name="vector_books.search",
                 parameters={
                     "query": query,
                     "top_k": top_k,
