@@ -273,12 +273,10 @@ class VectorBooksTool(BaseTool):
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] COMPLETE: {total_time:.2f}s, found={len(results)}")
 
+            # Возвращаем только поля из output контракта (additionalProperties: false)
             return {
                 "results": results,
-                "total_found": len(results),
-                "search_type": "vector",
-                "query": query,
-                "execution_time": total_time
+                "total_found": len(results)
             }
 
         except Exception as e:
