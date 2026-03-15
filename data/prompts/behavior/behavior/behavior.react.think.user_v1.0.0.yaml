@@ -8,7 +8,6 @@ content: |
   {input}
   Цель: {goal}
   История: {step_history}
-  Наблюдение: {observation}
 
   === ИНСТРУМЕНТЫ ===
   {available_tools}
@@ -70,9 +69,6 @@ variables:
   - name: step_history
     description: История выполненных шагов с результатами
     required: false
-  - name: observation
-    description: Результат последнего наблюдения
-    required: false
   - name: available_tools
     description: Список доступных инструментов с описаниями и параметрами
     required: false
@@ -80,4 +76,4 @@ metadata:
   author: system
   created: '2026-02-19'
   description: User prompt для behavior.react.think с примерами форматов
-  version_notes: 'Добавлен пример правильного поведения после получения данных'
+  version_notes: 'Удалена переменная {observation} — данные уже в step_history'
