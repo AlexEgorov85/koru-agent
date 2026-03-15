@@ -244,22 +244,21 @@ class VectorBooksTool(BaseTool):
         import time
         import numpy as np
         start_time = time.time()
-        
+
         if self.event_bus_logger:
             self.event_bus_logger.debug_sync(f"⏱️ [_search] START | query='{query[:50]}...'")
 
         try:
-            # 1. Загружаем модель и генерируем вектор (как в тесте)
+            # 1. Генерируем вектор через _embedding_provider (уже инициализирован с правильным путём)
             if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Loading model...")
-            
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('all-MiniLM-L6-v2')
-            
-            if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"⏱️ [_search] Generating embedding...")
+                self.event_bus_logger.debug_sync(f"⏱️ [_search] Using embedding provider...")
+
+            if not self._embedding_provider:
+                return {"error": "Embedding provider not initialized", "search_type": "error"}
+
             embedding_start = time.time()
-            query_vector = model.encode([query], convert_to_numpy=True)
+            query_vector_list = await self._embedding_provider.generate([query])
+            query_vector = np.array(query_vector_list[0]) if query_vector_list else None
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Embedding done: {time.time() - embedding_start:.2f}s")
 
