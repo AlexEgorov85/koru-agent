@@ -70,7 +70,46 @@ CREATED → INITIALIZING → READY → SHUTDOWN
 - ✅ Проверяй состояние через `self._state` или `self.is_ready`
 - ✅ Реализуй `shutdown()` для очистки ресурсов
 
-### 4. Архитектура Загрузки Ресурсов
+### 4. Архитектурные Гарантии
+
+**Гарантия 1: Никакого общего состояния между агентами**
+```python
+# ✅ ПРАВИЛЬНО: Изолированный кэш на агента
+class PromptService(BaseService):
+    def __init__(self, application_context: ApplicationContext):
+        self._isolated_cache = {}  ← Изолированный кэш
+
+# ❌ ЗАПРЕЩЕНО: Общий кэш = утечка состояния
+class PromptService(BaseService):
+    _shared_cache = {}  ← Ошибка архитектуры
+```
+
+**Гарантия 2: Инфраструктура — только для чтения**
+```python
+# ✅ ПРАВИЛЬНО: Только чтение из инфраструктуры
+prompt = app_ctx.infrastructure.prompt_storage.load(cap, ver)
+
+# ❌ ЗАПРЕЩЕНО: Изменение инфраструктуры
+app_ctx.infrastructure.register_resource("x", y)  ← Ошибка
+```
+
+**Гарантия 3: Профиль определяет разрешённые статусы**
+| Профиль | Разрешённые статусы | Поведение |
+|---------|---------------------|-----------|
+| `prod` | Только `active` | Исключение при нарушении |
+| `sandbox` | `draft` + `active` | Предупреждение для `draft` |
+| `dev` | Все статусы | Без ограничений |
+
+**Гарантия 4: Однократная загрузка ресурсов**
+```python
+# При инициализации:
+await data_repository.initialize(app_config)  ← 1 раз, загрузка в индексы
+
+# Во время выполнения:
+prompt = data_repository.get_prompt(cap, ver)  ← Из кэша, 0 обращений к ФС
+```
+
+### 5. Архитектура Загрузки Ресурсов и Конфигурация
 
 **Принципы:**
 
@@ -79,23 +118,37 @@ CREATED → INITIALIZING → READY → SHUTDOWN
 | **Компоненты не знают о версиях** | Версии определяются в `AppConfig` через `from_discovery(profile)` |
 | **Профиль управляет загрузкой** | `prod` = active, `sandbox` = active + draft, `dev` = все статусы |
 | **Единая точка загрузки** | `DataRepository` загружает всё один раз при старте |
-| **ResourcePreloader заполняет resolved_*** | `ComponentFactory` вызывает preloader перед созданием компонента |
+| **ComponentFactory заполняет resolved_*** | Factory вызывает `ResourcePreloader` перед созданием компонента |
 | **Компонент получает готовые ресурсы** | `self.prompts`, `self.input_contracts` уже загружены |
+
+**Иерархия конфигурации:**
+
+```
+SystemConfig (InfraConfig)     ← core/config/defaults/{profile}.yaml
+    ↓                              Тяжёлые ресурсы: llm_providers, db_providers
+AppConfig                      ← data/ + from_discovery(profile)
+    ↓                              Поведение: prompt_versions, contract_versions
+ComponentConfig                ← Генерируется из AppConfig
+    ↓                              Ресурсы компонента: resolved_prompts, resolved_contracts
+Компонент (Skill/Tool/Service) ← Использует готовые ресурсы
+```
 
 **Поток загрузки:**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  AppConfig.from_discovery(profile='prod')                    │
+│  → Загружает llm_providers, db_providers из YAML            │
 │  → Сканирует ФС, фильтрует по статусу (active для prod)      │
 │  → Возвращает {prompt_versions, input_contract_versions...} │
 └──────────────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  ApplicationContext.initialize()                             │
-│  → Создаёт DataRepository                                    │
-│  → DataRepository загружает ВСЕ активные ресурсы в кэш       │
+│  DataRepository.initialize(app_config)                       │
+│  → Загружает ВСЕ метаданные в индексы (Prompt, Contract)     │
+│  → Валидирует статусы версий против профиля                 │
+│  → Проверяет соответствие конфигурации и ФС                 │
 └──────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -936,14 +989,13 @@ variables: []
 | Документ | Описание |
 |----------|----------|
 | `docs/RULES.MD` | Требования к разработке (этот файл) |
-| `docs/ARCHITECTURE_OVERVIEW.md` | Общая архитектура системы |
-| `docs/COMPONENTS_GUIDE.md` | Руководство по созданию компонентов |
-| `docs/CONFIGURATION_MANUAL.md` | Руководство по конфигурации |
-| `docs/LOGGING_GUIDE.md` | Руководство по логированию |
-| `docs/TESTING.md` | Руководство по тестированию |
-| `docs/DEPLOYMENT_GUIDE.md` | Руководство по развёртыванию |
-| `docs/COMPLIANCE_REPORT.md` | Отчёт о соответствии требованиям |
-| `docs/API_REFERENCE.md` | Справочник API |
+| `docs/architecture/ideal.md` | Целевая архитектура системы |
+| `docs/architecture/checklist.md` | Чек-лист зрелости архитектуры |
+| `docs/architecture/lifecycle.md` | Жизненный цикл компонентов |
+| `docs/components/README.md` | Документация компонентов |
+| `docs/guides/README.md` | Практические руководства |
+| `docs/logging/README.md` | Система логирования |
+| `docs/vector_search/README.md` | Векторный поиск |
 
 ---
 
