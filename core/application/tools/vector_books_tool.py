@@ -121,17 +121,17 @@ class VectorBooksTool(BaseTool):
         """Закрытие инструмента."""
         pass
     
-    def _execute_impl(
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
         """
-        Выполнение операции (как FileTool и SQLTool).
+        Выполнение операции (ASYNC версия для vector_books).
 
         Capabilities:
-        - vector_books.search: Семантический поиск (с fallback на SQL)
+        - vector_books.search: Семантический поиск
         - vector_books.get_document: Полный текст книги (SQL)
         - vector_books.analyze: LLM анализ
         - vector_books.query: SQL запрос
@@ -160,69 +160,29 @@ class VectorBooksTool(BaseTool):
         if self.event_bus_logger:
             self.event_bus_logger.debug_sync(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}")
 
-        # Запускаем async операцию в event loop
-        # TIMEOUT: 5 минут (300 секунд) для всех операций
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        if self.event_bus_logger:
-            self.event_bus_logger.debug_sync(f"VectorBooksTool: event loop={loop}, operation={operation}")
-
+        # Выполняем async операцию напрямую
         if operation == "search":
             query = params_dict.get('query', '')
             top_k = params_dict.get('top_k', 10)
             min_score = params_dict.get('min_score', 0.5)
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}")
-            
-            try:
-                future = asyncio.run_coroutine_threadsafe(
-                    self._search(query=query, top_k=top_k, min_score=min_score),
-                    loop
-                )
-                if self.event_bus_logger:
-                    self.event_bus_logger.debug_sync(f"VectorBooksTool: waiting for result (timeout=300s)...")
-                result = future.result(timeout=300.0)
-                if self.event_bus_logger:
-                    self.event_bus_logger.debug_sync(f"VectorBooksTool: search completed, results={len(result) if result else 0}")
-                return result
-            except Exception as e:
-                if self.event_bus_logger:
-                    self.event_bus_logger.error_sync(f"VectorBooksTool: search error: {e}")
-                import traceback
-                if self.event_bus_logger:
-                    self.event_bus_logger.error_sync(f"Traceback: {traceback.format_exc()}")
-                return {"error": str(e)}
+
+            return await self._search(query=query, top_k=top_k, min_score=min_score)
 
         elif operation == "get_document":
             book_id = params_dict.get('book_id')
-            future = asyncio.run_coroutine_threadsafe(
-                self._get_document(book_id=book_id),
-                loop
-            )
-            return future.result(timeout=300.0)
+            return await self._get_document(book_id=book_id)
 
         elif operation == "analyze":
             text = params_dict.get('text', '')
             analysis_type = params_dict.get('analysis_type', 'summary')
-            future = asyncio.run_coroutine_threadsafe(
-                self._analyze(text=text, analysis_type=analysis_type),
-                loop
-            )
-            return future.result(timeout=300.0)
+            return await self._analyze(text=text, analysis_type=analysis_type)
 
         elif operation == "query":
             sql = params_dict.get('sql', '')
             params = params_dict.get('parameters', {})
-            future = asyncio.run_coroutine_threadsafe(
-                self._query(sql=sql, parameters=params),
-                loop
-            )
-            return future.result(timeout=300.0)
+            return await self._query(sql=sql, parameters=params)
 
         else:
             error_msg = f"Unknown operation: {operation}"
