@@ -769,16 +769,31 @@ class BookLibrarySkill(BaseSkill):
             )
 
         # Извлекаем данные из результата
-        search_data = result.data if hasattr(result, 'data') else result
-        if hasattr(search_data, 'model_dump'):
-            search_data = search_data.model_dump()
+        # result.data может быть ExecutionResult (вложенный) или Pydantic моделью
+        search_data = None
+        if hasattr(result, 'data') and result.data:
+            if hasattr(result.data, 'data'):
+                # Вложенный ExecutionResult от vector_books.search
+                search_data = result.data.data
+            elif hasattr(result.data, 'model_dump'):
+                # Pydantic модель
+                search_data = result.data.model_dump()
+            else:
+                # dict
+                search_data = result.data
+        elif hasattr(result, 'model_dump'):
+            # Pydantic модель на верхнем уровне
+            search_data = result.model_dump()
+        else:
+            # dict на верхнем уровне
+            search_data = result
 
         # 7. Формируем результат с добавлением execution_type
         total_time = time.time() - start_time
-        search_type = search_data.get("search_type", "vector")
+        search_type = search_data.get("search_type", "vector") if isinstance(search_data, dict) else "vector"
         result_data = {
-            "results": search_data.get("results", []),
-            "total_found": search_data.get("total_found", 0),
+            "results": search_data.get("results", []) if isinstance(search_data, dict) else [],
+            "total_found": search_data.get("total_found", 0) if isinstance(search_data, dict) else 0,
             "execution_type": "vector",
             "search_type": search_type  # vector | sql | none
         }
