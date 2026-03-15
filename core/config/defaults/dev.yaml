@@ -66,7 +66,7 @@ vector_search:
     min_chunk_size: 50
   embedding:
     dimension: 384
-    model_name: c:/Users/Алексей/Documents/WORK/Agent_v5/models/embedding/all-MiniLM-L6-v2
+    model_name: ./models/embedding/all-MiniLM-L6-v2
   enabled: true
   faiss:
     index_type: Flat

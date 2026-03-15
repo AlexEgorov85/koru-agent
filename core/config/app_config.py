@@ -380,6 +380,7 @@ class AppConfig(BaseSettings):
         # === ЗАГРУЗКА LLM/DB ПРОВАЙДЕРОВ ИЗ YAML ===
         llm_providers = {}
         db_providers = {}
+        vector_search_config = None
         config_file = Path(__file__).parent / "defaults" / f"{profile}.yaml"
 
         if config_file.exists():
@@ -404,6 +405,11 @@ class AppConfig(BaseSettings):
                             enabled=provider_data.get('enabled', False),
                             parameters=provider_data.get('parameters', {})
                         )
+                
+                # Загружаем vector_search конфигурацию
+                if yaml_config and 'vector_search' in yaml_config:
+                    from core.config.vector_config import VectorSearchConfig
+                    vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
             except Exception as e:
                 print(f"⚠️ Не удалось загрузить конфигурацию из {config_file}: {e}")
 
@@ -573,6 +579,7 @@ class AppConfig(BaseSettings):
             enable_context_window_management=True,
             llm_providers=llm_providers,
             db_providers=db_providers,
+            vector_search=vector_search_config,
         )
 
 
