@@ -797,9 +797,18 @@ class BookLibrarySkill(BaseSkill):
 
         # 7. Формируем результат с добавлением execution_type
         total_time = time.time() - start_time
+        if isinstance(search_data, dict):
+            results_list = search_data.get("results", [])
+            total_found = search_data.get("total_found", 0)
+        elif hasattr(search_data, 'model_dump'):
+            results_list = list(search_data.results) if search_data.results else []
+            total_found = int(search_data.total_found) if search_data.total_found else 0
+        else:
+            results_list = []
+            total_found = 0
         result_data = {
-            "results": search_data.get("results", []) if isinstance(search_data, dict) else [],
-            "total_found": search_data.get("total_found", 0) if isinstance(search_data, dict) else 0,
+            "results": results_list,
+            "total_found": total_found,
             "execution_type": "vector"
         }
 
