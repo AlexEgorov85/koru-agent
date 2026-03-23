@@ -297,13 +297,12 @@ class VectorBooksTool(BaseTool):
         
         import json
         import os
+        from pathlib import Path
         
         book_id = int(document_id.replace("book_", ""))
         
-        metadata_path = os.path.join(
-            self.application_context.infrastructure_context.base_dir,
-            "data", "vector", "books_index_metadata.json"
-        )
+        data_dir = Path(self.application_context.infrastructure_context.config.data_dir)
+        metadata_path = data_dir / "vector" / "books_index_metadata.json"
         
         chapters_dict: Dict[int, List[str]] = {}
         
