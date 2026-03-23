@@ -586,11 +586,18 @@ class BookLibrarySkill(BaseSkill):
 
         # ✅ Возвращаем Pydantic модель напрямую
         output_schema = self.get_output_contract("book_library.execute_script")
+        await self.event_bus_logger.debug(f"[DEBUG] output_schema для execute_script: {output_schema}, type: {type(output_schema)}")
+        
         if output_schema:
-            validated_result = output_schema.model_validate(result_data)
-            return validated_result  # ← Pydantic модель
+            try:
+                validated_result = output_schema.model_validate(result_data)
+                return validated_result  # ← Pydantic модель
+            except Exception as e:
+                await self.event_bus_logger.error(f"[ERROR] Валидация execute_script failed: schema={output_schema}, data={result_data}")
+                raise
         else:
             # Fallback: возвращаем dict если схема не загружена
+            await self.event_bus_logger.warning("[WARN] output_schema не загружен, возвращаем dict")
             return result_data
 
     async def _list_scripts(self, params: Dict[str, Any] = None) -> Dict[str, Any]:

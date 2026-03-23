@@ -863,10 +863,8 @@ class BaseComponent(LifecycleMixin, ABC):
             self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
             return data
 
-        contract = self.output_contracts[capability_name]
+        schema_cls = self.output_contracts[capability_name]
         try:
-            # Получаем Pydantic модель из контракта и валидируем данные
-            schema_cls = contract.pydantic_schema
             validated = schema_cls.model_validate(data)
             return validated  # ← Pydantic модель типа T
         except Exception as e:
