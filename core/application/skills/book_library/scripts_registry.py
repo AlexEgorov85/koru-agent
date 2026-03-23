@@ -167,7 +167,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["author", "max_rows"],
         required_parameters=["author"],
         max_rows=50,
-        output_contract="book_library.get_books_by_author_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -195,7 +195,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["genre", "max_rows"],
         required_parameters=["genre"],
         max_rows=50,
-        output_contract="book_library.get_books_by_genre_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -223,7 +223,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["year_from", "year_to", "max_rows"],
         required_parameters=["year_from", "year_to"],
         max_rows=100,
-        output_contract="book_library.get_books_by_year_range_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -249,7 +249,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["book_id"],
         required_parameters=["book_id"],
         max_rows=1,
-        output_contract="book_library.get_book_by_id_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -271,7 +271,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["author"],
         required_parameters=["author"],
         max_rows=1,
-        output_contract="book_library.count_books_by_author_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -299,7 +299,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["title_pattern", "max_rows"],
         required_parameters=["title_pattern"],
         max_rows=50,
-        output_contract="book_library.get_books_by_title_pattern_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -323,7 +323,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=100,
-        output_contract="book_library.get_distinct_authors_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -342,7 +342,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=50,
-        output_contract="book_library.get_distinct_genres_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------
@@ -365,7 +365,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=20,
-        output_contract="book_library.get_genre_statistics_output"
+        output_contract="book_library.execute_script_output"
     ),
 }
 

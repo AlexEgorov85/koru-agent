@@ -10,34 +10,7 @@ schema_data:
       description: Результаты выполнения запроса
       items:
         type: object
-        properties:
-          id:
-            type: integer
-            description: ID книги
-          title:
-            type: string
-            description: Название книги
-          author:
-            type: string
-            description: Автор книги
-          year:
-            type: integer
-            description: Год публикации
-          isbn:
-            type: string
-            description: ISBN
-          genre:
-            type: string
-            description: Жанр
-          count:
-            type: integer
-            description: Количество (для агрегирующих запросов)
-          book_count:
-            type: integer
-            description: Количество книг (для статистики)
-          avg_year:
-            type: number
-            description: Средний год (для статистики)
+        additionalProperties: true
     rowcount:
       type: integer
       description: Общее количество возвращённых строк

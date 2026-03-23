@@ -27,6 +27,7 @@ schema_data:
             type: string
           metadata:
             type: object
+            additionalProperties: true
     total_found:
       type: integer
       description: "Общее количество найденных результатов"
