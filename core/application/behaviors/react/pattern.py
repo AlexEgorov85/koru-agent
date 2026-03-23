@@ -633,7 +633,7 @@ class ReActPattern(BaseBehaviorPattern):
     async def _make_decision_from_reasoning(
         self,
         session_context,
-        reasoning_result: ReasoningResult,  # ReasoningResult объект
+        reasoning_result: ReasoningResult,  # ReasoningResult объект или dict
         available_capabilities: List[Capability]
     ) -> BehaviorDecision:
         """Принимает решение о следующем действии на основе анализа контекста."""
@@ -642,28 +642,48 @@ class ReActPattern(BaseBehaviorPattern):
             # 🔵 ОТЛАДКА: Проверяем тип reasoning_result
             print(f"🔵 [_make_decision] reasoning_result type={type(reasoning_result).__name__}", flush=True)
 
-            # 1. Проверка условия остановки (согласно контракту behavior.react.think)
-            stop_condition = reasoning_result.stop_condition
+            # Определяем accessor functions в зависимости от типа
+            if isinstance(reasoning_result, dict):
+                # dict - используем .get() для доступа
+                get_attr = lambda key: reasoning_result.get(key)
+                get_nested = lambda path: reasoning_result.get(path.split('.')[0], {}).get(path.split('.')[1]) if '.' in path else reasoning_result.get(path)
+                stop_condition = reasoning_result.get('stop_condition', False)
+                stop_reason = reasoning_result.get('stop_reason')
+                decision_dict = reasoning_result.get('decision', {})
+                capability_name = decision_dict.get('next_action') if isinstance(decision_dict, dict) else None
+                parameters = decision_dict.get('parameters', {}) if isinstance(decision_dict, dict) else {}
+                reasoning = decision_dict.get('reasoning', '') if isinstance(decision_dict, dict) else ''
+                model_dump = reasoning_result
+            else:
+                # Pydantic модель - используем атрибуты
+                get_attr = lambda key: getattr(reasoning_result, key, None)
+                get_nested = lambda path: getattr(reasoning_result, path.replace('.', '_'))
+                stop_condition = reasoning_result.stop_condition
+                stop_reason = reasoning_result.stop_reason
+                decision_dict = reasoning_result.decision
+                capability_name = reasoning_result.decision.next_action
+                parameters = reasoning_result.decision.parameters
+                reasoning = reasoning_result.decision.reasoning
+                model_dump = reasoning_result.model_dump if hasattr(reasoning_result, 'model_dump') else reasoning_result
+
             await self._log("info", f"_make_decision_from_reasoning: stop_condition={stop_condition}")
 
             # 2. Извлечение capability_name из decision.next_action
-            capability_name = reasoning_result.decision.next_action
             await self._log("info", f"_make_decision_from_reasoning: capability_name={capability_name}")
-            await self._log("info", f"_make_decision_from_reasoning: decision={reasoning_result.decision}")
+            await self._log("info", f"_make_decision_from_reasoning: decision={decision_dict}")
 
             # ОСОБЫЙ СЛУЧАЙ: stop_condition=True но next_action='final_answer.generate'
             # Это значит LLM хочет вызвать final_answer перед остановкой
             if stop_condition and capability_name == "final_answer.generate":
                 await self._log("info", "STOP + final_answer.generate — вызываем final_answer")
                 # Возвращаем ACT для вызова final_answer
-                parameters = reasoning_result.decision.parameters
                 # Создаём фейковый capability для валидации
                 final_answer_cap = type('Capability', (), {'name': 'final_answer.generate', 'input_schema': {}})()
                 validated_params = self.capability_resolver.validate_parameters(
                     final_answer_cap,
                     parameters,
                     self.schema_validator,
-                    reasoning_result.model_dump()
+                    model_dump if isinstance(model_dump, dict) else {}
                 )
                 # КРИТИЧНО: Помечаем как финальное решение
                 return BehaviorDecision(
@@ -675,7 +695,7 @@ class ReActPattern(BaseBehaviorPattern):
                 )
 
             if stop_condition:
-                await self._log("warning", f"STOP condition detected: {reasoning_result.stop_reason or 'goal_achieved'}")
+                await self._log("warning", f"STOP condition detected: {stop_reason or 'goal_achieved'}")
                 # Если stop_condition=True, но capability_name не final_answer.generate,
                 # всё равно вызываем final_answer.generate для формирования ответа
                 if capability_name and capability_name != "final_answer.generate":
@@ -683,23 +703,23 @@ class ReActPattern(BaseBehaviorPattern):
                     return BehaviorDecision(
                         action=BehaviorDecisionType.ACT,
                         capability_name="final_answer.generate",
-                        parameters={"input": f"Цель достигнута: {reasoning_result.stop_reason or 'goal_achieved'}"},
+                        parameters={"input": f"Цель достигнута: {stop_reason or 'goal_achieved'}"},
                         reason="final_answer_on_stop",
                         is_final=True
                     )
 
                 return BehaviorDecision(
                     action=BehaviorDecisionType.STOP,
-                    reason=reasoning_result.stop_reason or "goal_achieved"
+                    reason=stop_reason or "goal_achieved"
                 )
 
             # КРИТИЧЕСКАЯ ПРОВЕРКА: capability_name должен быть указан
             if not capability_name:
-                await self._log("error", "LLM не ��ернул next_action в decision",
+                await self._log("error", "LLM не вернул next_action в decision",
                                reasoning_result=reasoning_result)
                 return BehaviorDecision(
                     action=BehaviorDecisionType.RETRY,
-                    reason="LLM не вернул корре��т��ое действие"
+                    reason="LLM не вернул корректное действие"
                 )
             
             # 3. Поиск capability через сервис
@@ -722,9 +742,11 @@ class ReActPattern(BaseBehaviorPattern):
                         reason="no_available_capabilities"
                     )
             
-            # 4. Вали��ация и корректировка параметров через SchemaValidator
-            parameters = reasoning_result.decision.parameters
-            validated_params = self.capability_resolver.validate_parameters(capability, parameters, self.schema_validator, reasoning_result.model_dump())
+            # 4. Валидация и корректировка параметров через SchemaValidator
+            validated_params = self.capability_resolver.validate_parameters(
+                capability, parameters, self.schema_validator, 
+                model_dump if isinstance(model_dump, dict) else {}
+            )
 
             # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
             print(f"✅ [_make_decision] Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}", flush=True)
@@ -736,7 +758,7 @@ class ReActPattern(BaseBehaviorPattern):
                 action=BehaviorDecisionType.ACT,
                 capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
                 parameters=validated_params,
-                reason=reasoning_result.decision.reasoning,
+                reason=reasoning,
                 is_final=is_final  # ← Помечаем финальный шаг
             )
 

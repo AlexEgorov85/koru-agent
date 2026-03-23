@@ -20,7 +20,7 @@ class ReasoningDecision(BaseModel):
     next_action: str = Field(..., description="Название следующего действия (capability_name)")
     reasoning: str = Field(..., description="Обоснование выбора")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Параметры для capability")
-    expected_outcome: str = Field(..., description="Ожидаемый результат")
+    expected_outcome: Optional[str] = Field(None, description="Ожидаемый результат")
 
 
 class ReasoningResult(BaseModel):
