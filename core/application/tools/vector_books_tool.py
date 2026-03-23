@@ -284,35 +284,49 @@ class VectorBooksTool(BaseTool):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Получение информации о книге из SQL.
+        Получение полного текста книги из FAISS индекса.
         
-        NOTE: База данных содержит только метаданные о книгах (без полного текста).
-        Полный текст доступен через семантический поиск в FAISS индексе.
+        NOTE: Данные книг хранятся в FAISS индексе, не в PostgreSQL.
 
         Args:
             document_id: ID документа (например, "book_1")
 
         Returns:
-            {"book_id": int, "metadata": {...}}
+            {"book_id": int, "chapters": [{"chapter": int, "content": str}, ...]}
         """
         
-        # Получаем инфраструктуру
-        self._get_infrastructure()
+        import json
+        import os
         
-        # Извлекаем book_id из document_id
         book_id = int(document_id.replace("book_", ""))
         
-        # Запрос метаданных книги (полный текст в БД отсутствует)
-        result = await self._sql_provider.query("""
-            SELECT id, title, year, genre
-            FROM books
-            WHERE id = %s
-        """, {"id": book_id})
+        metadata_path = os.path.join(
+            self.application_context.infrastructure_context.base_dir,
+            "data", "vector", "books_index_metadata.json"
+        )
+        
+        chapters_dict: Dict[int, List[str]] = {}
+        
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            for idx, chunk_info in data.get("metadata", {}).items():
+                if chunk_info.get("document_id") == document_id:
+                    chapter = chunk_info.get("chapter", 0)
+                    content = chunk_info.get("content", "")
+                    if chapter not in chapters_dict:
+                        chapters_dict[chapter] = []
+                    chapters_dict[chapter].append(content)
+        
+        chapters = [
+            {"chapter": ch, "content": "".join(chunks)}
+            for ch, chunks in sorted(chapters_dict.items())
+        ]
         
         return {
             "book_id": book_id,
-            "metadata": result[0] if result else None,
-            "note": "Полный текст доступен через семантический поиск"
+            "chapters": chapters
         }
     
     async def _analyze(

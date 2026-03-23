@@ -271,11 +271,14 @@ class LoggingToEventBusHandler(logging.Handler):
 
             loop = self._get_loop()
             if loop and loop.is_running():
-                loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(
-                        self.event_bus.publish(event_type, data=data, source=record.name)
+                from concurrent.futures import Future
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.event_bus.publish(event_type, data=data, source=record.name),
+                        loop
                     )
-                )
+                except Exception:
+                    pass  # Fallback - сообщение будет потеряно но не сломает систему
 
         except Exception:
             pass  # Игнорируем ошибки при закрытии

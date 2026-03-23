@@ -63,7 +63,14 @@ class ActionExecutor:
     def _log_debug(self, msg: str, *args, **kwargs):
         """Отладочное логирование."""
         if self._event_bus_logger:
-            asyncio.create_task(self._event_bus_logger.debug(msg, *args, **kwargs))
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    asyncio.create_task(self._event_bus_logger.debug(msg, *args, **kwargs))
+                else:
+                    self._event_bus_logger.debug_sync(msg, *args, **kwargs)
+            except RuntimeError:
+                self._event_bus_logger.debug_sync(msg, *args, **kwargs)
     
     async def execute_action(
         self,
@@ -126,7 +133,14 @@ class ActionExecutor:
 
         except Exception as e:
             if self._event_bus_logger:
-                asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True))
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True))
+                    else:
+                        self._event_bus_logger.error_sync(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
+                except RuntimeError:
+                    self._event_bus_logger.error_sync(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -229,7 +243,19 @@ class ActionExecutor:
                 )
         except Exception as e:
             if self._event_bus_logger:
-                asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия контекста '{action_name}': {e}", exc_info=True))
+                try:
+                    error_msg = f"Ошибка выполнения действия контекста '{action_name}': {e}"
+                    if asyncio.iscoroutinefunction(self._event_bus_logger.error):
+                        if threading.current_thread() == threading.main_thread():
+                            asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
+                        else:
+                            loop = asyncio.new_event_loop()
+                            loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
+                            loop.close()
+                    else:
+                        self._event_bus_logger.error(error_msg, exc_info=True)
+                except Exception:
+                    pass
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка действия контекста: {str(e)}"
@@ -649,7 +675,19 @@ class ActionExecutor:
                 )
         except Exception as e:
             if self._event_bus_logger:
-                asyncio.create_task(self._event_bus_logger.error(f"Ошибка валидации '{action_name}': {e}", exc_info=True))
+                try:
+                    error_msg = f"Ошибка валидации '{action_name}': {e}"
+                    if asyncio.iscoroutinefunction(self._event_bus_logger.error):
+                        if threading.current_thread() == threading.main_thread():
+                            asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
+                        else:
+                            loop = asyncio.new_event_loop()
+                            loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
+                            loop.close()
+                    else:
+                        self._event_bus_logger.error(error_msg, exc_info=True)
+                except Exception:
+                    pass
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка валидации: {str(e)}"

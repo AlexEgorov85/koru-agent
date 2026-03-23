@@ -92,11 +92,16 @@ class StructuredLoggerMixin:
         event_bus = getattr(self, 'event_bus', None)
         if event_bus:
             from core.infrastructure.event_bus.unified_event_bus import EventType
-            asyncio.create_task(event_bus.publish(
-                EventType.LOG_INFO,
-                {"message": structured, "structured": True},
-                source=getattr(self, 'component', 'unknown')
-            ))
+            try:
+                loop = asyncio.get_running_loop()
+                task = asyncio.create_task(event_bus.publish(
+                    EventType.LOG_INFO,
+                    {"message": structured, "structured": True},
+                    source=getattr(self, 'component', 'unknown')
+                ))
+            except RuntimeError as e:
+                # Нет работающего event loop - fallback на stdout
+                print(structured, flush=True)
         else:
             # Fallback на stdout
             print(structured, flush=True)

@@ -106,14 +106,18 @@ class SessionLogHandler:
                 if not file_path.exists():
                     file_path.touch()
                 
+                # Используем session_id из события если есть, иначе из self
+                session_id = getattr(event, 'session_id', None) or self.session_id
+                agent_id = getattr(event, 'agent_id', None) or self.agent_id
+                
                 event_data = {
                     "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, 'isoformat') else str(event.timestamp),
                     "event_type": event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type),
                     "source": event.source,
                     "message": event.data.get("message", "") if event.data else "",
                     "level": event.data.get("level", "INFO") if event.data else "INFO",
-                    "session_id": self.session_id,
-                    "agent_id": self.agent_id,
+                    "session_id": session_id,
+                    "agent_id": agent_id,
                 }
                 
                 # Добавляем дополнительные данные из event.data
