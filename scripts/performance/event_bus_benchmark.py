@@ -42,8 +42,9 @@ async def benchmark_publish_performance():
     print("ТЕСТ 1: Публикация 1000 событий")
     print("=" * 60)
 
-    from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
     from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+
+    EventBusConcurrent = UnifiedEventBus
 
     results = {}
 
@@ -124,8 +125,9 @@ async def benchmark_memory_usage():
     print("ТЕСТ 2: Потребление памяти (100 сессий)")
     print("=" * 60)
 
-    from core.infrastructure.event_bus.event_bus_concurrent import EventBus as EventBusConcurrent
     from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+
+    EventBusConcurrent = UnifiedEventBus
 
     results = {}
 

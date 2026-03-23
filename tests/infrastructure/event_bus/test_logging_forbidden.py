@@ -34,7 +34,7 @@ violations = {
 
 # Разрешённые модули (системные)
 ALLOWED_MODULES = [
-    'event_bus_concurrent',
+    'unified_event_bus',
     'domain_event_bus',
     'test_',
 ]
@@ -84,7 +84,7 @@ async def test_logging_forbidden():
     
     try:
         # Импортируем и используем EventBus
-        from core.infrastructure.event_bus.event_bus_concurrent import (
+        from core.infrastructure.event_bus import (
             create_event_bus,
             EventType,
         )

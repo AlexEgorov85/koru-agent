@@ -83,37 +83,17 @@ class VectorBooksTool(BaseTool):
         """Получение провайдеров из инфраструктуры."""
         if self._embedding_provider is None:
             infra = self.application_context.infrastructure_context
-            self._faiss_providers = infra._faiss_providers
             self._embedding_provider = infra.get_embedding_provider()
             self._chunking_strategy = infra.get_chunking_strategy()
-            # Используем resource_registry для SQL провайдера
             self._sql_provider = infra.resource_registry.get_resource('default_db').instance if infra.resource_registry else None
 
-            # Если embedding провайдер не инициализирован, загружаем модель онлайн
             if not self._embedding_provider:
-                try:
-                    from sentence_transformers import SentenceTransformer
-                    import numpy as np
-                    
-                    class SimpleEmbeddingProvider:
-                        def __init__(self, model):
-                            self.model = model
-                        async def generate(self, texts):
-                            embeddings = self.model.encode(texts, convert_to_numpy=True)
-                            if isinstance(embeddings, np.ndarray):
-                                embeddings = embeddings.tolist()
-                            return embeddings
-                    
-                    self._embedding_provider = SimpleEmbeddingProvider(
-                        SentenceTransformer('all-MiniLM-L6-v2')
-                    )
-                    if self.event_bus_logger:
-                        self.event_bus_logger.debug_sync("✅ Embedding загружен онлайн")
-                except Exception as e:
-                    if self.event_bus_logger:
-                        self.event_bus_logger.error_sync(f"❌ Ошибка загрузки embedding: {e}")
+                from core.errors.exceptions import InfrastructureError
+                raise InfrastructureError(
+                    "Embedding провайдер не инициализирован. "
+                    "Убедитесь что SentenceTransformersProvider настроен в InfrastructureContext."
+                )
 
-            # Получаем кэш из application context
             from core.infrastructure.cache.analysis_cache import AnalysisCache
             self._cache_service = AnalysisCache()
     
@@ -223,12 +203,12 @@ class VectorBooksTool(BaseTool):
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Embedding done: {time.time() - embedding_start:.2f}s")
 
-            # 2. Получаем FAISS индекс напрямую из инфраструктуры
+            # 2. Получаем FAISS индекс через метод доступа
             if self.event_bus_logger:
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Getting FAISS...")
 
             infra = self.application_context.infrastructure_context
-            faiss = infra._faiss_providers.get('books')
+            faiss = infra.get_faiss_provider('books')
 
             if not faiss:
                 return {"error": "FAISS books provider not found", "search_type": "error"}

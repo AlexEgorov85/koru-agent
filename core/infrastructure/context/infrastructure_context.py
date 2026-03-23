@@ -376,7 +376,6 @@ class InfrastructureContext:
                 )
                 await provider.initialize()
 
-                # Загрузка индекса если существует
                 index_path = Path(vs_config.storage.base_path) / index_file
                 index_exists = index_path.exists()
                 
@@ -404,6 +403,7 @@ class InfrastructureContext:
                     "error": str(e)
                 }
                 await self.event_bus_logger.error(f"❌ Ошибка инициализации FAISS провайдера {source}: {e}")
+                continue
 
         # Логирование общего статуса
         total_vectors = sum(s.get("vectors", 0) for s in indexes_status.values())

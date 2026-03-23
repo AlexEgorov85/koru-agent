@@ -22,6 +22,14 @@ from core.config.component_config import ComponentConfig
 from core.config.agent_config import AgentConfig
 
 
+class ConfigLoader:
+    """Алиас для обратной совместимости. Используйте get_config() или create_minimal_config()."""
+    
+    @staticmethod
+    def load(profile: str = "dev") -> AppConfig:
+        return get_config(profile=profile)
+
+
 def get_config(profile: Optional[str] = None, data_dir: str = "data") -> AppConfig:
     """
     Получение конфигурации приложения через авто-обнаружение.
@@ -101,4 +109,7 @@ __all__ = [
     
     # Конфигурация агента
     'AgentConfig',
+
+    # Алиасы для обратной совместимости
+    'ConfigLoader',
 ]

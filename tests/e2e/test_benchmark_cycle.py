@@ -40,7 +40,7 @@ class TestFullBenchmarkCycle:
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
         from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-        from core.infrastructure.event_bus.event_bus import EventBus, EventType
+        from core.infrastructure.event_bus import EventBus, EventType
 
         # Создание тестовой директории
         metrics_dir = tmp_path / 'metrics'
@@ -130,7 +130,7 @@ class TestFullBenchmarkCycle:
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
         from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         # Инициализация
         event_bus = EventBus()
@@ -213,7 +213,7 @@ class TestFullBenchmarkCycle:
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
-        from core.infrastructure.event_bus.event_bus import EventBus, EventType
+        from core.infrastructure.event_bus import EventBus, EventType
 
         # Инициализация
         event_bus = EventBus()
@@ -257,7 +257,7 @@ class TestBenchmarkWithRealComponents:
         """Тест бенчмарка с моковыми хранилищами"""
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService, EvaluationResult
-        from core.infrastructure.event_bus.event_bus import EventBus, EventType
+        from core.infrastructure.event_bus import EventBus, EventType
 
         # Создаём моки для хранилищ
         event_bus = EventBus()
@@ -338,7 +338,7 @@ class TestBenchmarkErrorHandling:
         """Тест ошибки executor"""
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = BenchmarkService(
@@ -383,7 +383,7 @@ class TestBenchmarkErrorHandling:
         """Тест таймаута бенчмарка"""
         from core.application.services.benchmark_service import BenchmarkService, BenchmarkConfig
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = BenchmarkService(

@@ -11,7 +11,7 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from core.infrastructure.event_bus.event_bus import EventBus, Event, EventType
+from core.infrastructure.event_bus import EventBus, Event, EventType
 
 
 @pytest.mark.integration

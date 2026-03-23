@@ -139,7 +139,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
         parameters=["max_rows"],
         required_parameters=[],
         max_rows=100,
-        output_contract="book_library.get_all_books_output"
+        output_contract="book_library.execute_script_output"
     ),
 
     # -------------------------------------------------------------------------

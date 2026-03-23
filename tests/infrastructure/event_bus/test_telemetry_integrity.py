@@ -15,7 +15,7 @@ from collections import defaultdict
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-from core.infrastructure.event_bus.event_bus_concurrent import (
+from core.infrastructure.event_bus import (
     EventBus,
     Event,
     EventType,

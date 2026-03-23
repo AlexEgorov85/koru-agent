@@ -126,7 +126,7 @@ async def run_optimization(
     from core.application.services.prompt_contract_generator import PromptContractGenerator
     from core.infrastructure.metrics_storage import FileSystemMetricsStorage
     from core.infrastructure.log_storage import FileSystemLogStorage
-    from core.infrastructure.event_bus.event_bus import get_event_bus
+    from core.infrastructure.event_bus import get_event_bus
     from core.models.data.benchmark import OptimizationMode, TargetMetric
 
     try:

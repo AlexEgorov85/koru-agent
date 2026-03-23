@@ -18,9 +18,18 @@ from .unified_event_bus import (
 )
 from .event_handlers import MetricsEventHandler, AuditEventHandler, DebuggingEventHandler
 
+EventBus = UnifiedEventBus
+
+
+def reset_event_bus_manager() -> None:
+    """Сброс singleton EventBus (stub для обратной совместимости)."""
+    pass
+
+
 __all__ = [
     # === ЕДИНАЯ ШИНА ===
     'UnifiedEventBus',
+    'EventBus',  # Алиас для обратной совместимости
     'Event',
     'EventType',
     'EventDomain',
@@ -34,4 +43,7 @@ __all__ = [
     'MetricsEventHandler',
     'AuditEventHandler',
     'DebuggingEventHandler',
+
+    # Совместимость
+    'reset_event_bus_manager',
 ]

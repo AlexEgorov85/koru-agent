@@ -28,6 +28,7 @@ class ExecutionResult:
     - error_category: категория ошибки (ErrorCategory)
     - metadata: дополнительные метаданные (время, токены, версии)
     - side_effect: был ли side-effect (файл, сеть, БД, изменение контекста)
+    - llm_called: был ли вызван LLM (для гарантии вызова)
 
     ARCHITECTURE:
     - data сохраняет Pydantic модель для типизированного доступа
@@ -40,6 +41,7 @@ class ExecutionResult:
     error_category: ErrorCategory = ErrorCategory.UNKNOWN  # ← Категория ошибки
     metadata: Dict[str, Any] = field(default_factory=dict)
     side_effect: bool = False
+    llm_called: bool = False  # ← Для гарантии вызова LLM
 
     def __post_init__(self):
         # Гарантируем, что metadata всегда dict
@@ -62,7 +64,8 @@ class ExecutionResult:
             "error": self.error,
             "error_category": self.error_category.value if hasattr(self.error_category, 'value') else str(self.error_category),
             "metadata": self.metadata,
-            "side_effect": self.side_effect
+            "side_effect": self.side_effect,
+            "llm_called": self.llm_called
         }
 
     @classmethod

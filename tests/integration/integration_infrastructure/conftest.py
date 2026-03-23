@@ -8,7 +8,7 @@ import os
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from core.config.config_loader import ConfigLoader
+from core.config.registry_loader import RegistryLoader as ConfigLoader
 from core.infrastructure.context.infrastructure_context import InfrastructureContext
 
 

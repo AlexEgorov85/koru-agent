@@ -8,7 +8,7 @@
 - Кэширование
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Dict, Optional, List
 
 
@@ -27,10 +27,11 @@ class FAISSConfig(BaseModel):
     nprobe: int = Field(default=10, ge=1)
     metric: Literal["L2", "IP"] = "IP"  # Inner Product для косинусного
     
-    @validator('nprobe')
-    def validate_nprobe(cls, v, values):
+    @field_validator('nprobe')
+    @classmethod
+    def validate_nprobe(cls, v, info):
         """nprobe не должен превышать nlist."""
-        if 'nlist' in values and v > values['nlist']:
+        if 'nlist' in info.data and v > info.data['nlist']:
             raise ValueError("nprobe cannot be greater than nlist")
         return v
 
@@ -151,7 +152,8 @@ class VectorSearchConfig(BaseModel):
     max_workers: int = 4
     timeout_seconds: float = 30.0
     
-    @validator('indexes')
+    @field_validator('indexes')
+    @classmethod
     def validate_indexes(cls, v):
         """Валидация индексов."""
         required = {"knowledge", "history", "docs", "books"}

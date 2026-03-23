@@ -23,13 +23,13 @@ from datetime import datetime
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
-from core.infrastructure.event_bus.event_bus_concurrent import (
+from core.infrastructure.event_bus import (
     EventBus,
     Event,
     EventType,
     create_event_bus,
-    DEFAULT_QUEUE_MAX_SIZE,
 )
+DEFAULT_QUEUE_MAX_SIZE = 1000
 
 logging.basicConfig(
     level=logging.INFO,

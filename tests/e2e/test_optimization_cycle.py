@@ -44,7 +44,7 @@ class TestFullOptimizationCycle:
         from core.infrastructure.log_collector import LogCollector
         from core.infrastructure.metrics_storage import FileSystemMetricsStorage
         from core.infrastructure.log_storage import FileSystemLogStorage
-        from core.infrastructure.event_bus.event_bus import EventBus, EventType
+        from core.infrastructure.event_bus import EventBus, EventType
 
         # Инициализация компонентов
         event_bus = EventBus()
@@ -128,7 +128,7 @@ class TestFullOptimizationCycle:
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         # Создание FailureAnalysis
         failure_analysis = FailureAnalysis(
@@ -188,7 +188,7 @@ class TestFullOptimizationCycle:
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
         from core.models.data.benchmark import OptimizationResult, OptimizationMode
         from core.models.data.prompt import Prompt
         from core.models.enums.common_enums import ComponentType
@@ -276,7 +276,7 @@ class TestOptimizationLocking:
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
         from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -313,7 +313,7 @@ class TestOptimizationLocking:
         """Тест получения статуса оптимизации"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -348,7 +348,7 @@ class TestOptimizationLocking:
         """Тест отмены оптимизации"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -383,7 +383,7 @@ class TestOptimizationModes:
         """Тест режима accuracy"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -411,7 +411,7 @@ class TestOptimizationModes:
         """Тест режима speed"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -439,7 +439,7 @@ class TestOptimizationModes:
         """Тест порога улучшения"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus
+        from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
         benchmark_service = MagicMock(spec=BenchmarkService)
@@ -481,7 +481,7 @@ class TestOptimizationEvents:
         """Тест публикации событий оптимизации"""
         from core.application.services.optimization_service import OptimizationService, OptimizationConfig
         from core.application.services.benchmark_service import BenchmarkService
-        from core.infrastructure.event_bus.event_bus import EventBus, EventType
+        from core.infrastructure.event_bus import EventBus, EventType
         from core.models.data.prompt import Prompt
         from core.models.enums.common_enums import ComponentType
 

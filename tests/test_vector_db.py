@@ -27,11 +27,11 @@ async def test_vector_search():
 
     # 2. Проверка FAISS провайдеров
     print("\n[2/5] Проверка FAISS провайдеров...")
-    print(f"   FAISS провайдеры: {list(infra._faiss_providers.keys())}")
+    status = infra.get_vector_search_status()
+    print(f"   FAISS провайдеры: {list(status.keys())}")
 
-    for name, provider in infra._faiss_providers.items():
-        count = await provider.count()
-        print(f"   - {name}: {count} векторов")
+    for name, info in status.items():
+        print(f"   - {name}: {info.get('vectors', 0)} векторов, статус: {info.get('status')}")
 
     # 3. Проверка Embedding провайдера
     print("\n[3/5] Проверка Embedding провайдера...")
@@ -58,7 +58,7 @@ async def test_vector_search():
 
     # 4. Тест поиска в FAISS
     print("\n[5/5] Тест поиска в FAISS...")
-    faiss = infra._faiss_providers.get('books')
+    faiss = infra.get_faiss_provider('books')
     if not faiss:
         print("   ❌ FAISS провайдер 'books' не найден!")
         return

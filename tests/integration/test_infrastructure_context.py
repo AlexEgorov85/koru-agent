@@ -108,7 +108,7 @@ class TestInfrastructureContextIntegration:
             assert context.log_storage is not None
             
             # Публикация тестового события через EventBus
-            from core.infrastructure.event_bus.event_bus import EventType
+            from core.infrastructure.event_bus import EventType
             
             await context.event_bus.publish(
                 EventType.SKILL_EXECUTED,
@@ -196,7 +196,7 @@ class TestInfrastructureContextIntegration:
             assert context.log_collector.event_bus is context.event_bus
             
             # Публикация различных событий
-            from core.infrastructure.event_bus.event_bus import EventType
+            from core.infrastructure.event_bus import EventType
             
             events_to_test = [
                 (EventType.CAPABILITY_SELECTED, {

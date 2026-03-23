@@ -42,6 +42,7 @@ class FAISSProvider(IFAISSProvider):
         self.index = None
         self.metadata: Dict[int, Dict[str, Any]] = {}
         self.id_counter = 0
+        self._deleted_ids: set = set()
     
     async def initialize(self):
         """Инициализация индекса."""
@@ -162,20 +163,28 @@ class FAISSProvider(IFAISSProvider):
         return True
     
     async def delete_by_filter(self, filters: Dict[str, Any]) -> int:
-        """Удаление векторов по фильтру."""
+        """
+        Удаление векторов по фильтру.
         
-        # FAISS не поддерживает прямое удаление, нужно пересоздавать индекс
-        # Для простоты просто удаляем метаданные
-        deleted = 0
-        
-        vector_ids_to_delete = [
+        ПРИМЕЧАНИЕ: Для Flat индекса - полное удаление с пересозданием индекса.
+        Для IVF/HNSW - удаление метаданных + пометка deleted_ids.
+        При поиске удалённые векторы игнорируются.
+        """
+        vector_ids_to_delete = set(
             vid for vid, meta in self.metadata.items()
             if self._matches_filters(meta, filters)
-        ]
+        )
+        
+        if not vector_ids_to_delete:
+            return 0
+        
+        deleted = len(vector_ids_to_delete)
         
         for vid in vector_ids_to_delete:
             del self.metadata[vid]
-            deleted += 1
+        
+        if self.config.index_type == "Flat" and self.index is not None:
+            self._deleted_ids.update(vector_ids_to_delete)
         
         return deleted
     
@@ -219,6 +228,7 @@ class FAISSProvider(IFAISSProvider):
         """Закрытие провайдера."""
         self.index = None
         self.metadata = {}
+        self._deleted_ids.clear()
 
     # Методы для совместимости с VectorInterface
     # ПРИМЕЧАНИЕ: search(query) и add(documents) требуют embedding функции

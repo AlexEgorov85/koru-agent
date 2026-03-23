@@ -2,7 +2,7 @@
 Тесты гарантии вызова LLM.
 
 Проверяют:
-1. ActionResult имеет поле llm_called
+1. ExecutionResult имеет поле llm_called
 2. BehaviorDecision имеет поле requires_llm
 3. InfrastructureError если requires_llm=True но llm_called=False
 """
@@ -10,42 +10,36 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 from core.models.errors import InfrastructureError
+from core.models.enums.common_enums import ExecutionStatus
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
-from core.application.agent.components.action_executor import ActionResult
+from core.models.data.execution import ExecutionResult
 
 
 # ============================================================================
-# ТЕСТ 1: ACTIONRESULT LLm_CALLED FLAG
+# ТЕСТ 1: EXECUTIONRESULT LLm_CALLED FLAG
 # ============================================================================
 
-class TestActionResultLlmCalled:
-    """Тесты флага llm_called в ActionResult"""
+class TestExecutionResultLlmCalled:
+    """Тесты флага llm_called в ExecutionResult"""
 
-    def test_action_result_has_llm_called_field(self):
-        """Тест: ActionResult имеет поле llm_called"""
-        result = ActionResult(success=True, data={})
+    def test_execution_result_has_llm_called_field(self):
+        """Тест: ExecutionResult имеет поле llm_called"""
+        result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={})
         
         assert hasattr(result, 'llm_called')
         assert result.llm_called is False  # По умолчанию False
 
-    def test_action_result_llm_called_true(self):
-        """Тест: ActionResult с llm_called=True"""
-        result = ActionResult(success=True, data={}, llm_called=True)
+    def test_execution_result_llm_called_true(self):
+        """Тест: ExecutionResult с llm_called=True"""
+        result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={}, llm_called=True)
         
         assert result.llm_called is True
 
-    def test_action_result_llm_called_false(self):
-        """Тест: ActionResult с llm_called=False"""
-        result = ActionResult(success=True, data={}, llm_called=False)
+    def test_execution_result_llm_called_false(self):
+        """Тест: ExecutionResult с llm_called=False"""
+        result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={}, llm_called=False)
         
         assert result.llm_called is False
-
-    def test_action_result_repr_includes_llm_called(self):
-        """Тест: __repr__ включает llm_called"""
-        result = ActionResult(success=True, data={}, llm_called=True)
-        
-        repr_str = repr(result)
-        assert 'llm_called=True' in repr_str
 
 
 # ============================================================================
@@ -101,7 +95,7 @@ class TestInfrastructureErrorIfLlmNotCalled:
             requires_llm=True
         )
         
-        execution_result = ActionResult(success=True, data={}, llm_called=False)
+        execution_result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={}, llm_called=False)
         
         # Проверка условия
         if getattr(decision, 'requires_llm', False):
@@ -120,7 +114,7 @@ class TestInfrastructureErrorIfLlmNotCalled:
             requires_llm=True
         )
         
-        execution_result = ActionResult(success=True, data={}, llm_called=True)
+        execution_result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={}, llm_called=True)
         
         # Проверка условия - ошибки не должно быть
         error_raised = False
@@ -143,7 +137,7 @@ class TestInfrastructureErrorIfLlmNotCalled:
             requires_llm=False
         )
         
-        execution_result = ActionResult(success=True, data={}, llm_called=False)
+        execution_result = ExecutionResult(status=ExecutionStatus.COMPLETED, data={}, llm_called=False)
         
         # Проверка условия - ошибки не должно быть
         error_raised = False

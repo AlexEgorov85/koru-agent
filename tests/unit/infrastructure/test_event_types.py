@@ -8,7 +8,7 @@
 """
 import pytest
 import asyncio
-from core.infrastructure.event_bus.event_bus import EventBus, EventType, Event
+from core.infrastructure.event_bus import EventBus, EventType, Event
 
 
 class TestNewEventTypes:

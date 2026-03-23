@@ -19,7 +19,7 @@ from core.models.data.benchmark import (
 )
 from core.application.services.benchmark_service import BenchmarkService, BenchmarkConfig
 from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
-from core.infrastructure.event_bus.event_bus import EventBus, EventType
+from core.infrastructure.event_bus import EventBus, EventType
 
 
 @pytest.fixture

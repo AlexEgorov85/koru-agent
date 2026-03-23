@@ -104,7 +104,7 @@ async def run_single_benchmark(
     from core.application.services.benchmark_service import BenchmarkService
     from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
     from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-    from core.infrastructure.event_bus.event_bus import get_event_bus
+    from core.infrastructure.event_bus import get_event_bus
 
     try:
         # Загрузка конфигурации
