@@ -151,8 +151,8 @@ class VectorBooksTool(BaseTool):
             return await self._search(query=query, top_k=top_k, min_score=min_score)
 
         elif operation == "get_document":
-            book_id = params_dict.get('book_id')
-            return await self._get_document(book_id=book_id)
+            document_id = params_dict.get('document_id')
+            return await self._get_document(document_id=document_id)
 
         elif operation == "analyze":
             text = params_dict.get('text', '')
@@ -284,13 +284,16 @@ class VectorBooksTool(BaseTool):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Получение полного текста книги из SQL.
+        Получение информации о книге из SQL.
+        
+        NOTE: База данных содержит только метаданные о книгах (без полного текста).
+        Полный текст доступен через семантический поиск в FAISS индексе.
 
         Args:
             document_id: ID документа (например, "book_1")
 
         Returns:
-            {"book_id": int, "chapters": [...]}
+            {"book_id": int, "metadata": {...}}
         """
         
         # Получаем инфраструктуру
@@ -299,17 +302,17 @@ class VectorBooksTool(BaseTool):
         # Извлекаем book_id из document_id
         book_id = int(document_id.replace("book_", ""))
         
-        # SQL запрос для получения полного текста
-        chapters = await self._sql_provider.fetch("""
-            SELECT chapter, content
-            FROM book_texts
-            WHERE book_id = ?
-            ORDER BY chapter
-        """, (book_id,))
+        # Запрос метаданных книги (полный текст в БД отсутствует)
+        result = await self._sql_provider.query("""
+            SELECT id, title, year, genre
+            FROM books
+            WHERE id = %s
+        """, {"id": book_id})
         
         return {
             "book_id": book_id,
-            "chapters": chapters
+            "metadata": result[0] if result else None,
+            "note": "Полный текст доступен через семантический поиск"
         }
     
     async def _analyze(
