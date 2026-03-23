@@ -797,17 +797,15 @@ class BookLibrarySkill(BaseSkill):
 
         # 7. Формируем результат с добавлением execution_type
         total_time = time.time() - start_time
-        search_type = search_data.get("search_type", "vector") if isinstance(search_data, dict) else "vector"
         result_data = {
             "results": search_data.get("results", []) if isinstance(search_data, dict) else [],
             "total_found": search_data.get("total_found", 0) if isinstance(search_data, dict) else 0,
-            "execution_type": "vector",
-            "search_type": search_type  # vector | sql | none
+            "execution_type": "vector"
         }
 
         await self.event_bus_logger.info(
             f"Семантический поиск завершён: найдено {result_data['total_found']} результатов "
-            f"за {total_time*1000:.2f}мс (тип: {search_type})"
+            f"за {total_time*1000:.2f}мс (тип: vector)"
         )
 
         # 8. Публикация метрик через EventBus
