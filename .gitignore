@@ -138,6 +138,10 @@ temp/
 *.db
 *.sqlite
 
+# FAISS vector indexes
+data/vector/*.faiss
+data/vector/*_metadata.json
+
 # Models and datasets
 models/trained/
 dataset/
