@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.application.behaviors.services import FallbackStrategyService
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
