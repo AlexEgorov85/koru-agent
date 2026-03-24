@@ -12,6 +12,9 @@
 - OptimizationOrchestrator: оркестрация цикла оптимизации
 - TraceHandler: получение и реконструкция traces
 - TraceCollector: сбор execution traces
+- PatternAnalyzer: анализ паттернов выполнения
+- PromptResponseAnalyzer: анализ промптов и ответов
+- RootCauseAnalyzer: поиск корневых причин
 """
 
 from .dataset_builder import DatasetBuilder
@@ -24,6 +27,9 @@ from .safety_layer import SafetyLayer
 from .orchestrator import OptimizationOrchestrator
 from .trace_handler import TraceHandler
 from .trace_collector import TraceCollector
+from .pattern_analyzer import PatternAnalyzer
+from .prompt_analyzer import PromptResponseAnalyzer
+from .root_cause_analyzer import RootCauseAnalyzer
 
 __all__ = [
     "DatasetBuilder",
@@ -36,4 +42,7 @@ __all__ = [
     "OptimizationOrchestrator",
     "TraceHandler",
     "TraceCollector",
+    "PatternAnalyzer",
+    "PromptResponseAnalyzer",
+    "RootCauseAnalyzer",
 ]
