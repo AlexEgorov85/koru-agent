@@ -252,32 +252,28 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Валидация автора через vector search (authors index)"""
+        """Валидация автора через SQL LIKE запрос"""
         try:
             exec_context = ExecutionContext()
             result = await self.executor.execute_action(
-                action_name="vector_books.search",
+                action_name="sql_query.execute",
                 parameters={
-                    "query": author_name,
-                    "top_k": 3,
-                    "min_score": 0.5,
-                    "source": "authors"
+                    "sql": 'SELECT DISTINCT a.first_name || \' \' || a.last_name as author_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.first_name ILIKE $1 OR a.last_name ILIKE $1 OR a.first_name || \' \' || a.last_name ILIKE $1 LIMIT 3',
+                    "parameters": [f"%{author_name}%"]
                 },
                 context=exec_context
             )
 
             if result.status == ExecutionStatus.COMPLETED and result.data:
-                data = result.data
-                results = data.results if hasattr(data, 'results') else []
-
-                if results:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                if rows:
                     return {"valid": True, "suggestions": []}
 
             suggestions = await self._get_author_suggestions(author_name)
             return {"valid": False, "suggestions": suggestions}
 
         except Exception as e:
-            await self.log_warning(f"Vector search failed: {e}")
+            await self.log_warning(f"Author validation failed: {e}")
             return {"valid": True, "suggestions": []}
 
     async def _validate_genre(self, genre: str) -> Dict[str, Any]:
@@ -287,7 +283,7 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
             result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
-                    "sql": "SELECT DISTINCT genre FROM books WHERE genre ILIKE $1 LIMIT 5",
+                    "sql": 'SELECT DISTINCT g.name FROM "Lib".books b JOIN "Lib".book_genres bg ON b.id = bg.book_id JOIN "Lib".genres g ON bg.genre_id = g.id WHERE g.name ILIKE $1 LIMIT 5',
                     "parameters": [f"%{genre}%"]
                 },
                 context=exec_context
@@ -331,7 +327,7 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
             result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
-                    "sql": "SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL ORDER BY genre LIMIT 20",
+                    "sql": 'SELECT DISTINCT g.name FROM "Lib".genres g ORDER BY g.name LIMIT 20',
                     "parameters": []
                 },
                 context=exec_context
