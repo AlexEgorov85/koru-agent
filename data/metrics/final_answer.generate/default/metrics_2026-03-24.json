@@ -70,5 +70,77 @@
     "correlation_id": "",
     "version": null,
     "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 1.0,
+    "timestamp": "2026-03-24T14:39:25.016273",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "histogram",
+    "name": "execution_time_ms",
+    "value": 149817.1534538269,
+    "timestamp": "2026-03-24T14:39:25.016273",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "counter",
+    "name": "tokens_used",
+    "value": 0.0,
+    "timestamp": "2026-03-24T14:39:25.016273",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 1.0,
+    "timestamp": "2026-03-24T14:39:25.075608",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "histogram",
+    "name": "execution_time_ms",
+    "value": 149817.1534538269,
+    "timestamp": "2026-03-24T14:39:25.083457",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "3c0b5e64-ddc6-482d-a923-b328b4fc30a6",
+    "capability": "final_answer.generate",
+    "metric_type": "counter",
+    "name": "tokens_used",
+    "value": 0.0,
+    "timestamp": "2026-03-24T14:39:25.089829",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
   }
 ]
