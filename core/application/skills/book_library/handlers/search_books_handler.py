@@ -23,6 +23,10 @@ class SearchBooksHandler(BaseBookLibraryHandler):
 
     capability_name = "book_library.search_books"
 
+    # Конфигурация таблиц для SQL генерации
+    DEFAULT_SCHEMA = "Lib"
+    TABLES = ["books", "authors"]
+
     async def execute(self, params: Dict[str, Any]) -> Any:
         """
         Выполнение динамического поиска книг.
@@ -165,27 +169,22 @@ class SearchBooksHandler(BaseBookLibraryHandler):
         RETURNS:
         - str: отформатированная схема таблиц для LLM
         """
+        schema_name = self.DEFAULT_SCHEMA
+        tables = self.TABLES
+
         try:
             table_service = self.skill.table_description_service_instance
             if table_service:
-                books_metadata = await table_service.get_table_metadata(
-                    schema_name="Lib",
-                    table_name="books",
-                    context=None,
-                    step_number=0
-                )
-                authors_metadata = await table_service.get_table_metadata(
-                    schema_name="Lib",
-                    table_name="authors",
-                    context=None,
-                    step_number=0
-                )
-
                 schema_parts = []
-                if books_metadata:
-                    schema_parts.append(self._format_table_metadata(books_metadata))
-                if authors_metadata:
-                    schema_parts.append(self._format_table_metadata(authors_metadata))
+                for table_name in tables:
+                    metadata = await table_service.get_table_metadata(
+                        schema_name=schema_name,
+                        table_name=table_name,
+                        context=None,
+                        step_number=0
+                    )
+                    if metadata:
+                        schema_parts.append(self._format_table_metadata(metadata))
 
                 if schema_parts:
                     return "\n\n".join(schema_parts)
@@ -219,22 +218,28 @@ class SearchBooksHandler(BaseBookLibraryHandler):
 
     def _get_default_schema(self) -> str:
         """Fallback: возвращает захардкоженную схему если сервис недоступен"""
-        return '''
-"Lib".books (
-    id INTEGER PRIMARY KEY,
+        schema = self.DEFAULT_SCHEMA
+        tables = self.TABLES
+
+        schema_map = {
+            "books": '''id INTEGER PRIMARY KEY,
     title TEXT NOT NULL,
     author_id INTEGER REFERENCES "Lib".authors(id),
     isbn TEXT,
     publication_date DATE,
-    genre TEXT
-),
-"Lib".authors (
-    id INTEGER PRIMARY KEY,
+    genre TEXT''',
+            "authors": '''id INTEGER PRIMARY KEY,
     first_name TEXT,
     last_name TEXT,
-    birth_date DATE
-)
-'''
+    birth_date DATE'''
+        }
+
+        schema_parts = []
+        for table in tables:
+            if table in schema_map:
+                schema_parts.append(f'"{schema}"."{table}" (\n    {schema_map[table]}\n)')
+
+        return ",\n\n".join(schema_parts)
 
     async def _execute_sql(self, sql: str, max_rows: int) -> tuple:
         """
