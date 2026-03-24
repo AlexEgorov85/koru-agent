@@ -627,3 +627,304 @@ class LogEntry:
             step_quality_score=data.get('step_quality_score'),
             benchmark_scenario_id=data.get('benchmark_scenario_id')
         )
+
+
+# ============================================================================
+# Модели для оптимизации (ЭТАП 1-3 рефакторинга)
+# ============================================================================
+
+class ScenarioType(Enum):
+    """
+    Типы сценариев для бенчмарка.
+
+    TYPES:
+    - EASY: успешные кейсы (baseline)
+    - EDGE: пограничные случаи
+    - FAILURE: кейсы с ошибками
+    """
+    EASY = "easy"
+    EDGE = "edge"
+    FAILURE = "failure"
+
+
+class MutationType(Enum):
+    """
+    Типы мутаций промптов.
+
+    TYPES:
+    - ADD_EXAMPLES: добавление примеров
+    - ADD_CONSTRAINTS: добавление ограничений
+    - SIMPLIFY: упрощение формулировок
+    - ERROR_FIX: исправление ошибок
+    """
+    ADD_EXAMPLES = "add_examples"
+    ADD_CONSTRAINTS = "add_constraints"
+    SIMPLIFY = "simplify"
+    ERROR_FIX = "error_fix"
+
+
+@dataclass
+class OptimizationSample:
+    """
+    Образец данных для оптимизации.
+
+    ATTRIBUTES:
+    - id: уникальный идентификатор
+    - input: входные данные
+    - context: контекст выполнения
+    - expected_behavior: ожидаемое поведение (опционально)
+    - actual_output: фактический вывод (опционально)
+    - success: успешность выполнения
+    - error: ошибка (если была)
+    - metadata: дополнительные метаданные
+    - scenario_type: тип сценария
+    """
+    id: str
+    input: str
+    context: Dict[str, Any] = field(default_factory=dict)
+    expected_behavior: Optional[str] = None
+    actual_output: Optional[str] = None
+    success: bool = True
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    scenario_type: ScenarioType = ScenarioType.EASY
+
+    def __post_init__(self):
+        """Автоматическая классификация типа сценария"""
+        if self.error:
+            self.scenario_type = ScenarioType.FAILURE
+        elif not self.success:
+            self.scenario_type = ScenarioType.EDGE
+        else:
+            self.scenario_type = ScenarioType.EASY
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь"""
+        return {
+            'id': self.id,
+            'input': self.input,
+            'context': self.context,
+            'expected_behavior': self.expected_behavior,
+            'actual_output': self.actual_output,
+            'success': self.success,
+            'error': self.error,
+            'metadata': self.metadata,
+            'scenario_type': self.scenario_type.value
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'OptimizationSample':
+        """Десериализация из словаря"""
+        return cls(
+            id=data['id'],
+            input=data['input'],
+            context=data.get('context', {}),
+            expected_behavior=data.get('expected_behavior'),
+            actual_output=data.get('actual_output'),
+            success=data.get('success', True),
+            error=data.get('error'),
+            metadata=data.get('metadata', {}),
+            scenario_type=ScenarioType(data.get('scenario_type', 'easy'))
+        )
+
+
+@dataclass
+class PromptVersion:
+    """
+    Модель версии промпта для VersionManager.
+
+    ATTRIBUTES:
+    - id: уникальный идентификатор версии
+    - parent_id: идентификатор родительской версии
+    - capability: название способности
+    - prompt: содержимое промпта
+    - metrics: метрики качества
+    - score: итоговый скор
+    - status: статус версии
+    - mutation_type: тип применённой мутации
+    - created_at: время создания
+    """
+    id: str
+    parent_id: Optional[str]
+    capability: str
+    prompt: str
+    metrics: Dict[str, float] = field(default_factory=dict)
+    score: float = 0.0
+    status: str = "candidate"  # candidate, active, rejected
+    mutation_type: Optional[MutationType] = None
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self):
+        """Валидация статуса"""
+        valid_statuses = {"candidate", "active", "rejected"}
+        if self.status not in valid_statuses:
+            raise ValueError(f"Невалидный статус: {self.status}. Допустимые: {valid_statuses}")
+
+    def promote(self) -> None:
+        """Продвижение версии в active"""
+        self.status = "active"
+
+    def reject(self) -> None:
+        """Отклонение версии"""
+        self.status = "rejected"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь"""
+        return {
+            'id': self.id,
+            'parent_id': self.parent_id,
+            'capability': self.capability,
+            'prompt': self.prompt,
+            'metrics': self.metrics,
+            'score': self.score,
+            'status': self.status,
+            'mutation_type': self.mutation_type.value if self.mutation_type else None,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+@dataclass
+class EvaluationResult:
+    """
+    Результат оценки качества (Evaluator).
+
+    ATTRIBUTES:
+    - version_id: идентификатор версии
+    - success_rate: доля успешных выполнений
+    - sql_validity: валидность SQL (если применимо)
+    - execution_success: успешность выполнения
+    - latency: среднее время выполнения (мс)
+    - error_rate: доля ошибок
+    - score: итоговый скор (рассчитывается)
+    """
+    version_id: str
+    success_rate: float = 0.0
+    sql_validity: float = 1.0
+    execution_success: float = 0.0
+    latency: float = 0.0
+    error_rate: float = 0.0
+    score: float = 0.0
+
+    def calculate_score(self) -> float:
+        """
+        Расчёт итогового скора по формуле.
+
+        score = (
+            success_rate * 0.4 +
+            execution_success * 0.3 +
+            sql_validity * 0.2 -
+            latency * 0.1
+        )
+        """
+        self.score = (
+            self.success_rate * 0.4 +
+            self.execution_success * 0.3 +
+            self.sql_validity * 0.2 -
+            min(self.latency / 1000, 1.0) * 0.1  # Нормализуем latency
+        )
+        return self.score
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь"""
+        return {
+            'version_id': self.version_id,
+            'success_rate': self.success_rate,
+            'sql_validity': self.sql_validity,
+            'execution_success': self.execution_success,
+            'latency': self.latency,
+            'error_rate': self.error_rate,
+            'score': self.score
+        }
+
+
+@dataclass
+class BenchmarkDataset:
+    """
+    Набор данных для бенчмарка.
+
+    ATTRIBUTES:
+    - id: идентификатор набора
+    - capability: название способности
+    - samples: образцы данных
+    - created_at: время создания
+    - metadata: метаданные
+    """
+    id: str
+    capability: str
+    samples: List[OptimizationSample] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def size(self) -> int:
+        """Размер датасета"""
+        return len(self.samples)
+
+    @property
+    def failure_count(self) -> int:
+        """Количество неудачных кейсов"""
+        return sum(1 for s in self.samples if not s.success)
+
+    @property
+    def failure_rate(self) -> float:
+        """Доля неудачных кейсов"""
+        if not self.samples:
+            return 0.0
+        return self.failure_count / len(self.samples)
+
+    def get_by_type(self, scenario_type: ScenarioType) -> List[OptimizationSample]:
+        """Получение образцов по типу сценария"""
+        return [s for s in self.samples if s.scenario_type == scenario_type]
+
+    def get_type_distribution(self) -> Dict[str, float]:
+        """Распределение типов сценариев"""
+        if not self.samples:
+            return {}
+
+        distribution = {}
+        for st in ScenarioType:
+            count = len(self.get_by_type(st))
+            distribution[st.value] = count / len(self.samples)
+        return distribution
+
+    def add_sample(self, sample: OptimizationSample) -> None:
+        """Добавление образца"""
+        self.samples.append(sample)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь"""
+        return {
+            'id': self.id,
+            'capability': self.capability,
+            'size': self.size,
+            'failure_rate': self.failure_rate,
+            'type_distribution': self.get_type_distribution(),
+            'samples': [s.to_dict() for s in self.samples],
+            'created_at': self.created_at.isoformat(),
+            'metadata': self.metadata
+        }
+
+
+@dataclass
+class BenchmarkRunResult:
+    """
+    Результат запуска бенчмарка (для совместимости с тестами).
+
+    ATTRIBUTES:
+    - version_id: идентификатор версии
+    - scenario_id: идентификатор сценария
+    - success: успешность выполнения
+    - output: вывод (опционально)
+    - error: ошибка (опционально)
+    - execution_time_ms: время выполнения
+    - tokens_used: количество токенов
+    - raw_result: сырой результат
+    """
+    version_id: str
+    scenario_id: str
+    success: bool = False
+    output: Optional[str] = None
+    error: Optional[str] = None
+    execution_time_ms: float = 0.0
+    tokens_used: int = 0
+    raw_result: Optional[Dict[str, Any]] = None

@@ -1,0 +1,524 @@
+#!/usr/bin/env python3
+"""
+CLI скрипт для запуска оптимизации промптов на новой архитектуре.
+
+Использует компоненты:
+- DatasetBuilder → ScenarioBuilder → BenchmarkRunner → Evaluator → PromptGenerator → VersionManager → SafetyLayer → OptimizationOrchestrator
+
+ИСПОЛЬЗОВАНИЕ:
+    python scripts/cli/run_optimization_v2.py --capability <capability> --mode accuracy
+    python scripts/cli/run_optimization_v2.py --capability <capability> --list-capabilities
+"""
+import argparse
+import asyncio
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+
+def parse_args() -> argparse.Namespace:
+    """Парсинг аргументов командной строки"""
+    parser = argparse.ArgumentParser(
+        description='Запуск оптимизации промптов (новая архитектура)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Примеры использования:
+  %(prog)s --capability vector_books.search --mode accuracy
+  %(prog)s --capability vector_books.search --mode accuracy --target-accuracy 0.95
+  %(prog)s --capability vector_books.search --list-capabilities
+  %(prog)s --capability vector_books.search --dry-run  # Тест без реальных изменений
+        """
+    )
+
+    parser.add_argument(
+        '-c', '--capability',
+        type=str,
+        required=False,
+        help='Название способности для оптимизации (например, vector_books.search)'
+    )
+
+    parser.add_argument(
+        '--list-capabilities',
+        action='store_true',
+        help='Список доступных способностей для оптимизации'
+    )
+
+    parser.add_argument(
+        '-m', '--mode',
+        type=str,
+        choices=['accuracy', 'speed', 'tokens', 'balanced'],
+        default='accuracy',
+        help='Режим оптимизации (по умолчанию: accuracy)'
+    )
+
+    parser.add_argument(
+        '-t', '--target-accuracy',
+        type=float,
+        default=0.9,
+        help='Целевая точность (по умолчанию: 0.9)'
+    )
+
+    parser.add_argument(
+        '--max-iterations',
+        type=int,
+        default=5,
+        help='Максимальное количество итераций (по умолчанию: 5)'
+    )
+
+    parser.add_argument(
+        '--min-improvement',
+        type=float,
+        default=0.05,
+        help='Минимальное улучшение для продолжения (по умолчанию: 0.05)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        help='Файл для вывода результатов в формате JSON'
+    )
+
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Подробный вывод результатов'
+    )
+
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Тестовый запуск без реальных изменений'
+    )
+
+    return parser.parse_args()
+
+
+def list_capabilities(data_dir: Path) -> list:
+    """
+    Получение списка доступных способностей.
+
+    ARGS:
+        data_dir: директория с данными
+
+    RETURNS:
+        list: список способностей
+    """
+    capabilities = []
+
+    # Поиск в prompts
+    prompts_dir = data_dir / 'prompts' / 'skill'
+    if prompts_dir.exists():
+        for item in prompts_dir.iterdir():
+            if item.is_dir():
+                # Проверяем есть ли промпты
+                prompt_files = list(item.glob('*.yaml')) + list(item.glob('*.json'))
+                if prompt_files:
+                    capabilities.append(item.name)
+
+    # Поиск в metrics
+    metrics_dir = data_dir / 'metrics'
+    if metrics_dir.exists():
+        for item in metrics_dir.iterdir():
+            if item.is_dir() and item.name not in capabilities:
+                capabilities.append(item.name)
+
+    return sorted(set(capabilities))
+
+
+async def run_optimization_v2(
+    capability: str,
+    mode: str,
+    target_accuracy: float,
+    max_iterations: int,
+    min_improvement: float,
+    dry_run: bool = False,
+    verbose: bool = False
+) -> dict:
+    """
+    Запуск цикла оптимизации на новой архитектуре.
+
+    ARGS:
+        capability: название способности
+        mode: режим оптимизации
+        target_accuracy: целевая точность
+        max_iterations: максимальное количество итераций
+        min_improvement: минимальное улучшение
+        dry_run: тестовый запуск
+        verbose: подробный вывод
+
+    RETURNS:
+        dict: результаты оптимизации
+    """
+    print(f"\n{'='*60}")
+    print(f"Оптимизация v2: {capability}")
+    print(f"{'='*60}")
+    print(f"Режим: {mode}")
+    print(f"Целевая точность: {target_accuracy}")
+    print(f"Максимум итераций: {max_iterations}")
+    print(f"Минимальное улучшение: {min_improvement:.1%}")
+    print(f"Dry run: {dry_run}")
+    print(f"{'='*60}\n")
+
+    try:
+        # Импорты новой архитектуры
+        from core.config import get_config
+        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.application.context.application_context import ApplicationContext
+        from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+        from core.models.data.benchmark import OptimizationMode, FailureAnalysis
+
+        from core.application.components.optimization import (
+            DatasetBuilder,
+            ScenarioBuilder,
+            BenchmarkRunner,
+            Evaluator,
+            PromptGenerator,
+            VersionManager,
+            SafetyLayer,
+            OptimizationOrchestrator,
+        )
+        from core.application.components.optimization.dataset_builder import DatasetConfig
+        from core.application.components.optimization.scenario_builder import ScenarioConfig
+        from core.application.components.optimization.benchmark_runner import BenchmarkRunConfig
+        from core.application.components.optimization.evaluator import EvaluationConfig
+        from core.application.components.optimization.prompt_generator import GenerationConfig
+        from core.application.components.optimization.safety_layer import SafetyConfig
+        from core.application.components.optimization.orchestrator import OrchestratorConfig
+
+        # Загрузка конфигурации
+        config = get_config(profile='dev', data_dir='data')
+        data_dir = Path(config.data_dir)
+
+        # Инициализация инфраструктуры
+        print("🔄 Инициализация инфраструктуры...")
+        infra_context = InfrastructureContext(config)
+        await infra_context.initialize()
+
+        # Создание application context
+        app_context = ApplicationContext(
+            infrastructure_context=infra_context,
+            config=config,
+            profile='sandbox'
+        )
+        await app_context.initialize()
+        print("✅ Инфраструктура готова\n")
+
+        # Создание event bus
+        event_bus = infra_context.event_bus
+
+        # === СОЗДАНИЕ КОМПОНЕНТОВ ===
+        print("🔧 Создание компонентов оптимизации...")
+
+        # 1. DatasetBuilder
+        dataset_config = DatasetConfig(
+            min_samples=50,  # Снижено для тестирования
+            min_failure_rate=0.15,
+            max_samples=500,
+            time_window_hours=48
+        )
+        dataset_builder = DatasetBuilder(
+            metrics_collector=infra_context.metrics_collector,
+            event_bus=event_bus,
+            config=dataset_config
+        )
+        print("  ✅ DatasetBuilder")
+
+        # 2. ScenarioBuilder
+        scenario_config = ScenarioConfig(
+            min_type_percentage=0.1,
+            min_failure_percentage=0.15,
+            max_scenarios=100,
+            balance_types=True
+        )
+        scenario_builder = ScenarioBuilder(config=scenario_config)
+        print("  ✅ ScenarioBuilder")
+
+        # 3. BenchmarkRunner
+        benchmark_config = BenchmarkRunConfig(
+            temperature=0.0,  # Фиксированная для воспроизводимости
+            seed=42,
+            max_retries=3,
+            timeout_seconds=60
+        )
+
+        # Callback для выполнения промптов
+        async def executor_callback(input_text: str, version_id: str) -> dict:
+            """Выполнение промпта через LLM"""
+            # TODO: Реальная интеграция с LLM
+            return {
+                'success': True,
+                'output': f'Mock output for {input_text[:50]}',
+                'execution_time_ms': 100,
+                'tokens_used': 50
+            }
+
+        benchmark_runner = BenchmarkRunner(
+            event_bus=event_bus,
+            executor_callback=executor_callback,
+            config=benchmark_config
+        )
+        print("  ✅ BenchmarkRunner")
+
+        # 4. Evaluator
+        evaluation_config = EvaluationConfig(
+            success_rate_weight=0.4,
+            execution_success_weight=0.3,
+            sql_validity_weight=0.2,
+            latency_weight=0.1,
+            min_success_rate=0.8,
+            max_latency_ms=1000.0
+        )
+        evaluator = Evaluator(event_bus=event_bus, config=evaluation_config)
+        print("  ✅ Evaluator")
+
+        # 5. PromptGenerator
+        generation_config = GenerationConfig(
+            temperature=0.7,
+            max_tokens=4000,
+            top_p=0.9,
+            diversity_threshold=0.3,
+            max_candidates=3
+        )
+        prompt_generator = PromptGenerator(
+            event_bus=event_bus,
+            config=generation_config
+        )
+        print("  ✅ PromptGenerator")
+
+        # 6. VersionManager
+        version_manager = VersionManager(event_bus=event_bus)
+        print("  ✅ VersionManager")
+
+        # 7. SafetyLayer
+        safety_config = SafetyConfig(
+            max_success_rate_degradation=0.05,
+            max_error_rate_increase=0.05,
+            max_latency_increase_factor=1.5,
+            min_acceptable_score=0.6,
+            check_sql_injection=True,
+            check_empty_result=True
+        )
+        safety_layer = SafetyLayer(event_bus=event_bus, config=safety_config)
+        print("  ✅ SafetyLayer\n")
+
+        # 8. OptimizationOrchestrator
+        orchestrator_config = OrchestratorConfig(
+            max_iterations=max_iterations,
+            target_accuracy=target_accuracy,
+            min_improvement=min_improvement,
+            timeout_seconds=600,
+            parallel_candidates=1
+        )
+        orchestrator = OptimizationOrchestrator(
+            dataset_builder=dataset_builder,
+            scenario_builder=scenario_builder,
+            benchmark_runner=benchmark_runner,
+            evaluator=evaluator,
+            prompt_generator=prompt_generator,
+            version_manager=version_manager,
+            safety_layer=safety_layer,
+            event_bus=event_bus,
+            config=orchestrator_config
+        )
+        orchestrator.set_executor_callback(executor_callback)
+
+        # === ЗАПУСК ОПТИМИЗАЦИИ ===
+        print("🚀 Запуск оптимизации...\n")
+
+        # Определение режима
+        mode_map = {
+            'accuracy': OptimizationMode.ACCURACY,
+            'speed': OptimizationMode.SPEED,
+            'tokens': OptimizationMode.TOKENS,
+            'balanced': OptimizationMode.BALANCED
+        }
+        optimization_mode = mode_map.get(mode, OptimizationMode.ACCURACY)
+
+        if dry_run:
+            print("⚠️  DRY RUN: Тестовый запуск без реальных изменений\n")
+            
+            # Тестирование DatasetBuilder
+            print("📊 Тестирование DatasetBuilder...")
+            dataset = await dataset_builder.build(capability)
+            dataset_stats = dataset_builder.get_dataset_stats(dataset)
+            print(f"  Образцов: {dataset_stats['total_samples']}")
+            print(f"  Failure rate: {dataset_stats['failure_rate']:.1%}")
+            print(f"  Типы: {dataset_stats['type_distribution']}\n")
+
+            # Тестирование ScenarioBuilder
+            print("📋 Тестирование ScenarioBuilder...")
+            scenarios = await scenario_builder.build(dataset)
+            scenario_stats = scenario_builder.get_scenario_stats(scenarios)
+            print(f"  Сценариев: {scenario_stats['total_scenarios']}")
+            print(f"  Распределение: {scenario_stats['type_distribution']}\n")
+
+            result = {
+                'capability': capability,
+                'mode': mode,
+                'timestamp': datetime.now().isoformat(),
+                'status': 'dry_run',
+                'dataset_stats': dataset_stats,
+                'scenario_stats': scenario_stats
+            }
+        else:
+            # Реальный запуск
+            result = await orchestrator.optimize(
+                capability=capability,
+                mode=optimization_mode
+            )
+
+            if result is None:
+                print("❌ Оптимизация не была запущена")
+                return {
+                    'capability': capability,
+                    'mode': mode,
+                    'timestamp': datetime.now().isoformat(),
+                    'status': 'not_started',
+                    'reason': 'Optimization not needed or not possible'
+                }
+
+            # Форматирование результатов
+            result = {
+                'capability': capability,
+                'mode': mode,
+                'timestamp': result.timestamp.isoformat(),
+                'status': 'completed',
+                'from_version': result.from_version,
+                'to_version': result.to_version,
+                'iterations': result.iterations,
+                'target_achieved': result.target_achieved,
+                'initial_metrics': result.initial_metrics,
+                'final_metrics': result.final_metrics,
+                'improvements': result.improvements
+            }
+
+        # Вывод результатов
+        print(f"\n{'='*60}")
+        print(f"Результаты оптимизации")
+        print(f"{'='*60}")
+
+        if dry_run:
+            print(f"Статус: 🔹 Dry run завершён")
+            print(f"Датасет: {result.get('dataset_stats', {}).get('total_samples', 0)} образцов")
+            print(f"Сценарии: {result.get('scenario_stats', {}).get('total_scenarios', 0)} сценариев")
+        else:
+            status_icon = '✅' if result.get('target_achieved') else '⚠️'
+            print(f"Статус: {status_icon} {'Успешно' if result.get('target_achieved') else 'Частично'}")
+            print(f"Итераций: {result.get('iterations', 0)}")
+            print(f"Версия: {result.get('from_version')} → {result.get('to_version')}")
+
+            if result.get('initial_metrics') and result.get('final_metrics'):
+                print(f"\nНачальные метрики:")
+                for metric, value in result['initial_metrics'].items():
+                    print(f"  {metric}: {value:.3f}" if isinstance(value, float) else f"  {metric}: {value}")
+
+                print(f"\nКонечные метрики:")
+                for metric, value in result['final_metrics'].items():
+                    print(f"  {metric}: {value:.3f}" if isinstance(value, float) else f"  {metric}: {value}")
+
+                if result.get('improvements'):
+                    print(f"\nУлучшения:")
+                    for metric, improvement in result['improvements'].items():
+                        sign = '+' if improvement > 0 else ''
+                        print(f"  {metric}: {sign}{improvement:.1f}%")
+
+        print(f"\n{'='*60}\n")
+
+        if verbose:
+            print("Полные результаты:")
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        return result
+
+    except Exception as e:
+        print(f"\n❌ Ошибка выполнения оптимизации: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+        return {
+            'capability': capability,
+            'mode': mode,
+            'timestamp': datetime.now().isoformat(),
+            'status': 'failed',
+            'error': str(e)
+        }
+
+
+async def main():
+    """Основная функция"""
+    args = parse_args()
+
+    print("\n" + "="*60)
+    print("Optimization CLI v2 - Новая архитектура")
+    print("="*60)
+
+    # Загрузка конфигурации для получения data_dir
+    try:
+        from core.config import get_config
+        config = get_config(profile='dev', data_dir='data')
+        data_dir = Path(config.data_dir)
+    except Exception:
+        data_dir = Path('data')
+
+    # Список способностей
+    if args.list_capabilities:
+        capabilities = list_capabilities(data_dir)
+        print(f"\nДоступные способности ({len(capabilities)}):")
+        for cap in capabilities:
+            print(f"  - {cap}")
+        print()
+        sys.exit(0)
+
+    # Проверка capability
+    if not args.capability:
+        print("❌ Укажите --capability или --list-capabilities")
+        sys.exit(1)
+
+    print(f"Конфигурация: registry.yaml")
+    print(f"Data dir: {data_dir}")
+    print(f"Capability: {args.capability}")
+    print(f"Режим: {args.mode}")
+    print(f"Целевая точность: {args.target_accuracy}")
+
+    try:
+        result = await run_optimization_v2(
+            capability=args.capability,
+            mode=args.mode,
+            target_accuracy=args.target_accuracy,
+            max_iterations=args.max_iterations,
+            min_improvement=args.min_improvement,
+            dry_run=args.dry_run,
+            verbose=args.verbose
+        )
+
+        # Сохранение результатов в файл
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"\n✅ Результаты сохранены в {args.output}")
+
+        # Выход с кодом ошибки если оптимизация не удалась
+        if result.get('status') == 'failed':
+            sys.exit(1)
+
+        if result.get('status') == 'not_started':
+            sys.exit(2)
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Прервано пользователем")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n❌ Критическая ошибка: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
