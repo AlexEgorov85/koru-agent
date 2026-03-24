@@ -267,14 +267,13 @@ class SQLGenerationService(BaseService):
                 # Fallback: пытаемся использовать data напрямую
                 output = result_data
 
-            # Проверяем, что валидатор доступен
-            if "sql_validator_service" not in self._dependencies:
-                raise RuntimeError("SQLValidatorService не зарегистрирован")
+            # Валидация SQL через безопасный метод (с fallback)
+            validated = await self._validate_sql_safely(output.generated_sql, {})
 
-            # SQLGenerationOutput имеет поле generated_sql, а не sql
-            # validate_query — синхронный метод, не нужен await
-            validator_service = self._dependencies["sql_validator_service"]
-            validated = validator_service.validate_query(output.generated_sql, {})
+            # Проверяем что запрос валиден
+            if not validated.is_safe or not validated.sql:
+                error_msg = "; ".join(validated.validation_errors) if hasattr(validated, 'validation_errors') else "Validation failed"
+                raise RuntimeError(f"SQL validation failed: {error_msg}")
 
             # 5. Формирование результата
             result = SQLGenerationResult(
@@ -303,13 +302,77 @@ class SQLGenerationService(BaseService):
                 sql=""  # SQL может быть недоступен при ошибке
             )
 
-    # ❌ УДАЛЕНО: correct_query() - автоматическая коррекция запросов
-    # ✅ ТЕПЕРЬ: При ошибке SQL выбрасываем SQLValidationError вместо коррекции
-    # Причина: коррекция скрывает реальные проблемы и усложняет отладку
+    async def generate_query_with_correction(
+        self,
+        natural_language_query: str = None,
+        table_schema: str = None,
+        input_data: SQLGenerationInput = None,
+        context: Optional[Any] = None,
+        max_correction_attempts: int = 3
+    ) -> SQLGenerationResult:
+        """
+        Генерация SQL с авто-коррекцией при ошибках.
 
-    # ❌ УДАЛЕНО: execute_with_auto_correction() - выполнение с авто-коррекцией
-    # ✅ ТЕПЕРЬ: Используйте generate_query() + execute_query() с явной обработкой ошибок
-    # Причина: авто-коррекция скрывает ошибки и создаёт скрытое поведение
+        ПРОЦЕСС:
+        1. Генерируем SQL запрос
+        2. Если ошибка валидации - пытаемся корректировать
+        3. Повторяем до max_correction_attempts или успеха
+        """
+        last_error = None
+
+        for attempt in range(max_correction_attempts):
+            try:
+                result = await self.generate_query(
+                    natural_language_query=natural_language_query,
+                    table_schema=table_schema,
+                    input_data=input_data,
+                    context=context
+                )
+                return result
+
+            except Exception as e:
+                last_error = e
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(
+                        f"SQL generation attempt {attempt + 1} failed: {str(e)}"
+                    )
+
+                if self.correction_engine and attempt < max_correction_attempts - 1:
+                    try:
+                        from core.application.services.sql_generation.error_analyzer import ExecutionError
+
+                        error = ExecutionError(
+                            message=str(e),
+                            query="",
+                            parameters={},
+                            db_error_type="validation_error"
+                        )
+
+                        analysis = await self.correction_engine.error_analyzer.analyze(error)
+
+                        correction_input = SQLCorrectionInput(
+                            original_query=str(e),
+                            error_type=analysis.get("error_type", "other_error"),
+                            error_message=str(e),
+                            suggested_fix=analysis.get("suggested_fix", ""),
+                            db_schema=table_schema or ""
+                        )
+
+                        corrected = await self.correction_engine.correct_query(correction_input)
+
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.info(f"Applied correction: {corrected.corrected_sql}")
+
+                    except Exception as correction_error:
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.warning(f"Correction failed: {str(correction_error)}")
+
+        from core.errors.exceptions import SQLValidationError
+        raise SQLValidationError(
+            f"Не удалось сгенерировать корректный SQL после {max_correction_attempts} попыток. "
+            f"Последняя ошибка: {str(last_error)}",
+            sql=""
+        )
 
     # Вспомогательные методы (приватные)
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:
