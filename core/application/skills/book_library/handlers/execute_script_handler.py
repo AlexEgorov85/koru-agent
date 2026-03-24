@@ -252,7 +252,7 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Валидация автора через vector search"""
+        """Валидация автора через vector search (authors index)"""
         try:
             exec_context = ExecutionContext()
             result = await self.executor.execute_action(
@@ -260,7 +260,8 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
                 parameters={
                     "query": author_name,
                     "top_k": 3,
-                    "min_score": 0.7
+                    "min_score": 0.5,
+                    "source": "authors"
                 },
                 context=exec_context
             )
@@ -311,14 +312,14 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
             result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
-                    "sql": "SELECT DISTINCT author FROM books WHERE author ILIKE $1 LIMIT 5",
+                    "sql": "SELECT DISTINCT a.first_name || ' ' || a.last_name FROM \"Lib\".books b JOIN \"Lib\".authors a ON b.author_id = a.id WHERE a.first_name ILIKE $1 OR a.last_name ILIKE $1 LIMIT 5",
                     "parameters": [f"%{author_name}%"]
                 },
                 context=exec_context
             )
             if result.status == ExecutionStatus.COMPLETED and result.data:
                 rows = result.data.rows if hasattr(result.data, 'rows') else []
-                return [row[0] if hasattr(row, '__getitem__') else getattr(row, 'author', '') for row in rows]
+                return [row[0] if hasattr(row, '__getitem__') else str(row) for row in rows]
         except:
             pass
         return []

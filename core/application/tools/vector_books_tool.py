@@ -146,10 +146,11 @@ class VectorBooksTool(BaseTool):
             query = params_dict.get('query', '')
             top_k = params_dict.get('top_k', 10)
             min_score = params_dict.get('min_score', 0.5)
+            source = params_dict.get('source', 'books')
             if self.event_bus_logger:
-                self.event_bus_logger.debug_sync(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}")
+                self.event_bus_logger.debug_sync(f"VectorBooksTool._search: query='{query[:50]}...', top_k={top_k}, source={source}")
 
-            return await self._search(query=query, top_k=top_k, min_score=min_score)
+            return await self._search(query=query, top_k=top_k, min_score=min_score, source=source)
 
         elif operation == "get_document":
             document_id = params_dict.get('document_id')
@@ -183,7 +184,8 @@ class VectorBooksTool(BaseTool):
         query: str,
         top_k: int = 10,
         min_score: float = 0.5,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        source: str = "books"
     ) -> Dict[str, Any]:
         """
         Семантический поиск по книгам.
@@ -216,18 +218,16 @@ class VectorBooksTool(BaseTool):
                 self.event_bus_logger.debug_sync(f"⏱️ [_search] Getting FAISS...")
 
             infra = self.application_context.infrastructure_context
-            faiss = infra.get_faiss_provider('books')
+            faiss = infra.get_faiss_provider(source)
 
             if not faiss:
-                return {"error": "FAISS books provider not found", "search_type": "error"}
+                return {"error": f"FAISS {source} provider not found", "search_type": "error"}
 
             count = await faiss.count()
             if count == 0:
-                # ❌ УДАЛЕНО: SQL fallback когда FAISS пуст
-                # ✅ ТЕПЕРЬ: Выбрасываем DataNotFoundError
                 from core.errors.exceptions import DataNotFoundError
                 raise DataNotFoundError(
-                    f"FAISS индекс пуст для коллекции 'books'. "
+                    f"FAISS индекс пуст для коллекции '{source}'. "
                     f"Необходимо проиндексировать данные перед поиском.",
                     query=query
                 )

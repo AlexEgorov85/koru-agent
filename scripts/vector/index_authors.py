@@ -46,7 +46,13 @@ async def main():
         conn.autocommit = True
         cursor = conn.cursor()
         
-        cursor.execute("SELECT DISTINCT author FROM \"Lib\".books WHERE author IS NOT NULL AND author != '' ORDER BY author")
+        cursor.execute("""
+            SELECT DISTINCT a.first_name || ' ' || a.last_name as author_name
+            FROM "Lib".books b
+            JOIN "Lib".authors a ON b.author_id = a.id
+            WHERE a.first_name IS NOT NULL OR a.last_name IS NOT NULL
+            ORDER BY author_name
+        """)
         authors = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
