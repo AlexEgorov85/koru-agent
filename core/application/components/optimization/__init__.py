@@ -10,6 +10,8 @@
 - VersionManager: управление версиями промптов
 - SafetyLayer: проверка на деградацию
 - OptimizationOrchestrator: оркестрация цикла оптимизации
+- TraceHandler: получение и реконструкция traces
+- TraceCollector: сбор execution traces
 """
 
 from .dataset_builder import DatasetBuilder
@@ -20,6 +22,8 @@ from .prompt_generator import PromptGenerator
 from .version_manager import VersionManager
 from .safety_layer import SafetyLayer
 from .orchestrator import OptimizationOrchestrator
+from .trace_handler import TraceHandler
+from .trace_collector import TraceCollector
 
 __all__ = [
     "DatasetBuilder",
@@ -30,4 +34,6 @@ __all__ = [
     "VersionManager",
     "SafetyLayer",
     "OptimizationOrchestrator",
+    "TraceHandler",
+    "TraceCollector",
 ]
