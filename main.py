@@ -35,15 +35,15 @@ from core.application.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
 from core.errors import get_error_handler, ErrorContext, ErrorSeverity
 from core.infrastructure.logging import (
+    session_log_handler,
     shutdown_logging_system,
     get_session_logger,
-    create_session_log_handler,
 )
 
 
 # === ВОПРОС ДЛЯ ТЕСТИРОВАНИЯ ===
-# GOAL = "Какие книги написал Пушкин?"
-GOAL = "Где проходит действие в произведении Капитанская дочка?"
+GOAL = "Какие книги написал Пушкин?"
+# GOAL = "Где проходит действие в произведении Капитанская дочка?"
 MAX_STEPS = 10
 TEMPERATURE = 0.2
 
@@ -69,14 +69,9 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
     session_id = str(infrastructure_context.id)
     session_logger = get_session_logger(session_id, agent_id="agent_001")
 
-    # Создаём новый обработчик логов сессии (с датой/временем в имени папки)
-    # session_id=None чтобы получать события из ВСЕХ сессий (включая "system")
-    session_log_handler = create_session_log_handler(
-        event_bus=infrastructure_context.event_bus,
-        session_id=None,  # Получать события из всех сессий
-        agent_id="agent_001"
-    )
-    session_info = session_log_handler.get_session_info()
+    # SessionLogHandler уже инициализирован в InfrastructureContext
+    # Используем его для получения информации о папке логов
+    session_info = infrastructure_context.session_handler.get_session_info()
 
     # Получаем глобальный обработчик ошибок
     error_handler = get_error_handler()
@@ -276,8 +271,8 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
     finally:
         # Завершение обработчика логов сессии
-        if session_log_handler:
-            await session_log_handler.shutdown()
+        if infrastructure_context and hasattr(infrastructure_context, 'session_handler'):
+            await infrastructure_context.session_handler.shutdown()
 
         # Завершение прикладного контекста (включая LLMOrchestrator)
         if 'application_context' in locals():
