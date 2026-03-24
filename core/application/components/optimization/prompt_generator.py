@@ -6,6 +6,7 @@ PromptGenerator - умная генерация промптов с страте
 - Применение стратегий мутаций (ADD_EXAMPLES, ADD_CONSTRAINTS, SIMPLIFY, ERROR_FIX)
 - Детерминированная генерация
 - Отслеживание parent версий и типов мутаций
+- Генерация на основе root causes и examples (v2)
 """
 import hashlib
 import uuid
@@ -20,6 +21,9 @@ from core.models.data.benchmark import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging import EventBusLogger
+
+from .root_cause_analyzer import RootCause
+from .example_extractor import Example, ErrorExample
 
 
 @dataclass
@@ -470,3 +474,186 @@ class PromptGenerator:
             'mutation_type_distribution': mutation_counts,
             'diversity_types': len(mutation_counts)
         }
+
+    # ============================================================
+    # НОВЫЙ API (v2): Генерация на основе root causes и examples
+    # ============================================================
+
+    async def generate_improvements(
+        self,
+        original_prompt: PromptVersion,
+        root_causes: List[RootCause],
+        good_examples: Optional[List[Example]] = None,
+        error_examples: Optional[List[ErrorExample]] = None
+    ) -> List[PromptVersion]:
+        """
+        Генерация улучшенных промптов на основе root causes и examples.
+
+        Это НОВЫЙ API v2 который использует:
+        - RootCauseAnalyzer для понимания проблем
+        - ExampleExtractor для few-shot примеров
+
+        ARGS:
+        - original_prompt: оригинальная версия промпта
+        - root_causes: корневые причины проблем
+        - good_examples: хорошие примеры выполнения
+        - error_examples: примеры ошибок
+
+        RETURNS:
+        - List[PromptVersion]: список улучшенных кандидатов
+        """
+        await self.event_bus_logger.info(
+            f"Генерация улучшений на основе {len(root_causes)} root causes"
+        )
+
+        candidates = []
+
+        # Группировка root causes по типу проблемы
+        causes_by_type = self._group_causes_by_type(root_causes)
+
+        # Генерация кандидатов для каждого типа проблемы
+        for cause_type, causes in causes_by_type.items():
+            candidate = await self._generate_targeted_improvement(
+                parent=original_prompt,
+                causes=causes,
+                good_examples=good_examples,
+                error_examples=error_examples
+            )
+            if candidate:
+                candidates.append(candidate)
+
+        # Если нет root causes, используем примеры
+        if not candidates and good_examples:
+            candidate = await self._generate_from_examples(
+                parent=original_prompt,
+                good_examples=good_examples
+            )
+            if candidate:
+                candidates.append(candidate)
+
+        # Обеспечение diversity
+        candidates = self._ensure_diversity(candidates)
+
+        await self.event_bus_logger.info(
+            f"Сгенерировано {len(candidates)} улучшенных кандидатов"
+        )
+
+        return candidates[:self.config.max_candidates]
+
+    def _group_causes_by_type(
+        self,
+        root_causes: List[RootCause]
+    ) -> Dict[str, List[RootCause]]:
+        """Группировка root causes по типу причины"""
+        grouped = {}
+        for cause in root_causes:
+            # Используем cause как ключ
+            if cause.cause not in grouped:
+                grouped[cause.cause] = []
+            grouped[cause.cause].append(cause)
+        return grouped
+
+    async def _generate_targeted_improvement(
+        self,
+        parent: PromptVersion,
+        causes: List[RootCause],
+        good_examples: Optional[List[Example]] = None,
+        error_examples: Optional[List[ErrorExample]] = None
+    ) -> Optional[PromptVersion]:
+        """
+        Генерация целевого улучшения для конкретной проблемы.
+
+        ARGS:
+        - parent: родительская версия
+        - causes: список причин
+        - good_examples: хорошие примеры
+        - error_examples: примеры ошибок
+
+        RETURNS:
+        - Optional[PromptVersion]: улучшенная версия
+        """
+        # Определение типа мутации на основе причины
+        mutation_type = self._select_mutation_type(causes)
+
+        # Формирование улучшений
+        improvements = []
+
+        for cause in causes:
+            improvements.append(f"# FIX: {cause.fix}")
+
+        # Добавление примеров если есть
+        if good_examples:
+            improvements.append("\n# GOOD EXAMPLES:")
+            for ex in good_examples[:2]:
+                improvements.append(ex.to_prompt_format())
+
+        if error_examples:
+            improvements.append("\n# COMMON MISTAKES TO AVOID:")
+            for ex in error_examples[:2]:
+                improvements.append(ex.to_prompt_format())
+
+        # Применение улучшения к промпту
+        new_content = parent.prompt + "\n\n" + "\n".join(improvements)
+
+        # Создание новой версии
+        return self._create_version(
+            parent=parent,
+            content=new_content,
+            mutation_type=mutation_type
+        )
+
+    async def _generate_from_examples(
+        self,
+        parent: PromptVersion,
+        good_examples: List[Example]
+    ) -> Optional[PromptVersion]:
+        """
+        Генерация улучшения только на основе примеров.
+
+        ARGS:
+        - parent: родительская версия
+        - good_examples: хорошие примеры
+
+        RETURNS:
+        - Optional[PromptVersion]: улучшенная версия
+        """
+        examples_section = "\n\n# FEW-SHOT EXAMPLES:\n"
+        for i, ex in enumerate(good_examples[:3], 1):
+            examples_section += f"\n## Example {i}:\n"
+            examples_section += ex.to_prompt_format()
+            examples_section += "\n"
+
+        new_content = parent.prompt + examples_section
+
+        return self._create_version(
+            parent=parent,
+            content=new_content,
+            mutation_type=MutationType.ADD_EXAMPLES
+        )
+
+    def _select_mutation_type(self, causes: List[RootCause]) -> MutationType:
+        """
+        Выбор типа мутации на основе причин.
+
+        ARGS:
+        - causes: список причин
+
+        RETURNS:
+        - MutationType: тип мутации
+        """
+        # Анализ причин
+        cause_texts = [c.cause.lower() for c in causes]
+        issue_types = [i for c in causes for i in c.related_issues]
+
+        # Выбор на основе ключевых слов
+        if any('пример' in t or 'example' in t for t in cause_texts + issue_types):
+            return MutationType.ADD_EXAMPLES
+        elif any('ограничен' in t or 'constraint' in t for t in cause_texts + issue_types):
+            return MutationType.ADD_CONSTRAINTS
+        elif any('ошиб' in t or 'error' in t for t in cause_texts + issue_types):
+            return MutationType.ERROR_FIX
+        elif any('неоднознач' in t or 'ambiguous' in t for t in cause_texts + issue_types):
+            return MutationType.SIMPLIFY
+        else:
+            # Default
+            return MutationType.ADD_EXAMPLES
