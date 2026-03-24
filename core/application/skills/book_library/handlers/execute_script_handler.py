@@ -252,10 +252,12 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Валидация автора через SQL LIKE запрос"""
+        """Двухступенчатая валидация автора: SQL LIKE + векторная БД"""
         try:
             exec_context = ExecutionContext()
-            result = await self.executor.execute_action(
+
+            # Ступень 1: SQL LIKE (быстро, точное совпадение)
+            sql_result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
                     "sql": 'SELECT DISTINCT a.first_name || \' \' || a.last_name as author_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.first_name ILIKE $1 OR a.last_name ILIKE $1 OR a.first_name || \' \' || a.last_name ILIKE $1 LIMIT 3',
@@ -264,9 +266,29 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
                 context=exec_context
             )
 
-            if result.status == ExecutionStatus.COMPLETED and result.data:
-                rows = result.data.rows if hasattr(result.data, 'rows') else []
+            if sql_result.status == ExecutionStatus.COMPLETED and sql_result.data:
+                rows = sql_result.data.rows if hasattr(sql_result.data, 'rows') else []
                 if rows:
+                    return {"valid": True, "suggestions": []}
+
+            # Ступень 2: Векторная БД (семантический поиск)
+            await self.log_debug(f"Author '{author_name}' not found via SQL, trying vector search...")
+            
+            vector_result = await self.executor.execute_action(
+                action_name="vector_books.search",
+                parameters={
+                    "query": author_name,
+                    "top_k": 3,
+                    "min_score": 0.5,
+                    "source": "authors"
+                },
+                context=exec_context
+            )
+
+            if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
+                data = vector_result.data
+                results = data.results if hasattr(data, 'results') else []
+                if results:
                     return {"valid": True, "suggestions": []}
 
             suggestions = await self._get_author_suggestions(author_name)
