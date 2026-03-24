@@ -87,7 +87,7 @@ class TestFullOptimizationCycle:
 
         # Мокаем методы для теста
         optimization_service._is_capability_optimizable = AsyncMock(return_value=True)
-        optimization_service._needs_optimization = AsyncMock(return_value=True)
+        optimization_service._needs_optimization = AsyncMock(return_value=(True, {'accuracy': 0.7, 'avg_execution_time_ms': 200.0, 'avg_tokens': 500}))
         optimization_service._analyze_failures = AsyncMock(return_value=FailureAnalysis(
             capability='test_capability',
             version='v1.0.0',
@@ -226,7 +226,7 @@ class TestFullOptimizationCycle:
 
         # Мокаем методы
         optimization_service._is_capability_optimizable = AsyncMock(return_value=True)
-        optimization_service._needs_optimization = AsyncMock(return_value=True)
+        optimization_service._needs_optimization = AsyncMock(return_value=(True, {'accuracy': 0.7, 'avg_execution_time_ms': 200.0, 'avg_tokens': 500}))
         optimization_service._analyze_failures = AsyncMock(return_value=FailureAnalysis(
             capability='test_capability',
             version='v1.0.0',
@@ -509,7 +509,7 @@ class TestOptimizationEvents:
 
         # Мокаем методы
         optimization_service._is_capability_optimizable = AsyncMock(return_value=True)
-        optimization_service._needs_optimization = AsyncMock(return_value=True)
+        optimization_service._needs_optimization = AsyncMock(return_value=(True, {'accuracy': 0.7, 'avg_execution_time_ms': 200.0, 'avg_tokens': 500}))
         optimization_service._analyze_failures = AsyncMock(return_value=FailureAnalysis(
             capability='test_capability',
             version='v1.0.0',

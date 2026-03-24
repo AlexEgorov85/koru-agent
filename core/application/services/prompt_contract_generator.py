@@ -20,6 +20,8 @@ from core.models.data.prompt import Prompt
 from core.models.data.contract import Contract
 from core.models.data.benchmark import FailureAnalysis
 from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.infrastructure.logging import EventBusLogger
 
 
 @dataclass
@@ -55,6 +57,7 @@ class PromptContractGenerator:
         llm_provider,
         data_source: FileSystemDataSource,
         data_dir: Path,
+        event_bus: Optional[UnifiedEventBus] = None,
         config: Optional[GenerationConfig] = None
     ):
         """
@@ -64,12 +67,24 @@ class PromptContractGenerator:
         - llm_provider: провайдер LLM для генерации контента
         - data_source: источник данных для сохранения
         - data_dir: директория для сохранения файлов
+        - event_bus: шина событий (опционально)
         - config: конфигурация генерации
         """
         self.llm_provider = llm_provider
         self.data_source = data_source
         self.data_dir = Path(data_dir)
+        self.event_bus = event_bus
         self.config = config or GenerationConfig()
+
+        # Инициализация логгера
+        self.event_bus_logger = None
+        if event_bus:
+            self.event_bus_logger = EventBusLogger(
+                event_bus,
+                session_id="system",
+                agent_id="system",
+                component="PromptContractGenerator"
+            )
 
         # Директории для сохранения
         self.prompts_dir = self.data_dir / "prompts"
