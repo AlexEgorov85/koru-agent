@@ -10,6 +10,9 @@
 - VersionManager: управление версиями промптов
 - SafetyLayer: проверка на деградацию
 - OptimizationOrchestrator: оркестрация с анализом traces
+- PromptImprover: LLM генерация улучшений
+- ABTester: A/B тестирование версий
+- VersionPromoter: продвижение лучших версий
 - TraceHandler: получение и реконструкция traces
 - TraceCollector: сбор execution traces
 - PatternAnalyzer: анализ паттернов выполнения
@@ -26,6 +29,9 @@ from .prompt_generator import PromptGenerator
 from .version_manager import VersionManager
 from .safety_layer import SafetyLayer
 from .orchestrator import OptimizationOrchestrator
+from .prompt_improver import PromptImprover
+from .ab_tester import ABTester
+from .version_promoter import VersionPromoter
 from .trace_handler import TraceHandler
 from .trace_collector import TraceCollector
 from .pattern_analyzer import PatternAnalyzer
@@ -34,6 +40,7 @@ from .root_cause_analyzer import RootCauseAnalyzer
 from .example_extractor import ExampleExtractor
 
 __all__ = [
+    # Основные компоненты
     "DatasetBuilder",
     "ScenarioBuilder",
     "BenchmarkRunner",
@@ -42,6 +49,11 @@ __all__ = [
     "VersionManager",
     "SafetyLayer",
     "OptimizationOrchestrator",
+    # Автоматизация
+    "PromptImprover",
+    "ABTester",
+    "VersionPromoter",
+    # Анализ traces
     "TraceHandler",
     "TraceCollector",
     "PatternAnalyzer",

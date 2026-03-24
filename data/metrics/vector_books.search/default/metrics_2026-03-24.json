@@ -1,0 +1,30 @@
+[
+  {
+    "agent_id": "3bf2385c-6c45-4d6a-8c2b-0914ce05045a",
+    "capability": "vector_books.search",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-24T16:42:03.118047",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "3bf2385c-6c45-4d6a-8c2b-0914ce05045a",
+    "capability": "vector_books.search",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-24T16:42:03.118047",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  }
+]

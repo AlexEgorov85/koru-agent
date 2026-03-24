@@ -44,6 +44,10 @@ schema_data:
           type: integer
         year_to:
           type: integer
+    source:
+      type: string
+      description: "Источник векторного индекса (books/authors)"
+      default: books
   required:
     - query
   additionalProperties: false

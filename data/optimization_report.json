@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-24T16:06:52.502575",
+  "timestamp": "2026-03-24T16:26:06.020590",
   "sessions_analyzed": 10,
   "traces_with_steps": 1,
   "total_steps": 3,
@@ -7,8 +7,8 @@
     "total": 4,
     "by_severity": {
       "critical": 0,
-      "high": 1,
-      "medium": 2,
+      "high": 0,
+      "medium": 3,
       "low": 1
     },
     "types": [
