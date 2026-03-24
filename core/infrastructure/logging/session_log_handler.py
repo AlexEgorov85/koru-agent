@@ -1,30 +1,35 @@
 """
-Обработчик логов для сессий с новой структурой.
+Обработчик логов для сессий.
 
 СТРУКТУРА:
 logs/sessions/
 └── YYYY-MM-DD_HH-MM-SS/     ← Дата и время старта агента
-    ├── session.log          ← Все общие логи сессии (JSONL)
-    ├── llm.jsonl            ← LLM промпты/ответы
-    └── metrics.jsonl        ← Метрики
+    └── session.jsonl        ← ВСЕ события в одном файле (JSONL)
+
+Поля:
+- timestamp: время события
+- event_type: тип события
+- session_id: ID сессии
+- agent_id: ID агента
+- capability: название способности (если есть)
+- data: произвольные данные события
 """
 import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from core.infrastructure.event_bus.unified_event_bus import Event, EventType, UnifiedEventBus
 
 
 class SessionLogHandler:
     """
-    Обработчик для записи логов сессии в файлы.
+    Обработчик для записи логов сессии в один файл.
 
     FEATURES:
-    - Папка с датой/временем вместо session_id
-    - Разделение на session.log, llm.jsonl, metrics.jsonl
-    - Автоматическое создание структуры
+    - Папка с датой/временем
+    - Один файл session.jsonl для всех событий
     - Асинхронная запись
     """
 
@@ -44,10 +49,8 @@ class SessionLogHandler:
         self.session_folder = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.session_path = self.base_log_dir / self.session_folder
 
-        # Пути к файлам
-        self.session_log_path = self.session_path / "session.log"
-        self.llm_log_path = self.session_path / "llm.jsonl"
-        self.metrics_log_path = self.session_path / "metrics.jsonl"
+        # Один файл для всех событий
+        self.session_log_path = self.session_path / "session.jsonl"
 
         # Создаём директорию
         self.session_path.mkdir(parents=True, exist_ok=True)
@@ -60,61 +63,60 @@ class SessionLogHandler:
         self._subscribe_to_events()
 
     def _subscribe_to_events(self):
-        """Подписка на события для логирования."""
-        # Подписка на события БЕЗ фильтрации по session_id (получать из ВСЕХ сессий)
+        """Подписка на все события для логирования в один файл."""
+        # События сессии и агента
+        self.event_bus.subscribe(EventType.SESSION_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SESSION_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SESSION_FAILED, self._on_any_event)
+        
+        self.event_bus.subscribe(EventType.AGENT_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.AGENT_COMPLETED, self._on_any_event)
         
         # Общие логи
-        self.event_bus.subscribe(EventType.LOG_INFO, self._on_log_event)
-        self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_log_event)
-        self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log_event)
-        self.event_bus.subscribe(EventType.LOG_ERROR, self._on_log_event)
+        self.event_bus.subscribe(EventType.LOG_INFO, self._on_any_event)
+        self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_any_event)
+        self.event_bus.subscribe(EventType.LOG_WARNING, self._on_any_event)
+        self.event_bus.subscribe(EventType.LOG_ERROR, self._on_any_event)
 
-        # LLM события (все типы!)
-        self.event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self._on_llm_prompt)
-        self.event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_llm_response)
-        self.event_bus.subscribe(EventType.LLM_CALL_STARTED, self._on_llm_call)
-        self.event_bus.subscribe(EventType.LLM_CALL_COMPLETED, self._on_llm_call)
+        # LLM события
+        self.event_bus.subscribe(EventType.LLM_PROMPT_GENERATED, self._on_any_event)
+        self.event_bus.subscribe(EventType.LLM_RESPONSE_RECEIVED, self._on_any_event)
+        self.event_bus.subscribe(EventType.LLM_CALL_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.LLM_CALL_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.LLM_CALL_FAILED, self._on_any_event)
+
+        # Capability события
+        self.event_bus.subscribe(EventType.CAPABILITY_SELECTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SKILL_EXECUTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.ACTION_PERFORMED, self._on_any_event)
 
         # Метрики
-        self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_metric)
+        self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_any_event)
 
-        # Self-improvement события (самообучение)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_STARTED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_STARTED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_COMPLETED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_DECISION, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_STARTED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_COMPLETED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_REPORT, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_COMPLETED, self._on_self_improvement)
-        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_FAILED, self._on_self_improvement)
+        # Self-improvement события
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_DECISION, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_REPORT, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_FAILED, self._on_any_event)
 
-    async def _on_log_event(self, event: Event):
-        """Обработка логов (INFO, DEBUG, WARNING, ERROR)."""
+        # Оптимизация
+        self.event_bus.subscribe(EventType.OPTIMIZATION_CYCLE_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.OPTIMIZATION_CYCLE_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.OPTIMIZATION_FAILED, self._on_any_event)
+
+        # Бенчмарки
+        self.event_bus.subscribe(EventType.BENCHMARK_STARTED, self._on_any_event)
+        self.event_bus.subscribe(EventType.BENCHMARK_COMPLETED, self._on_any_event)
+        self.event_bus.subscribe(EventType.BENCHMARK_FAILED, self._on_any_event)
+
+    async def _on_any_event(self, event: Event):
+        """Обработка любого события - запись в один файл."""
         await self._write_to_file(self.session_log_path, event)
-
-    async def _on_llm_prompt(self, event: Event):
-        """Обработка LLM промптов."""
-        await self._write_to_file(self.llm_log_path, event)
-
-    async def _on_llm_response(self, event: Event):
-        """Обработка LLM ответов."""
-        await self._write_to_file(self.llm_log_path, event)
-
-    async def _on_llm_call(self, event: Event):
-        """Обработка LLM вызовов (STARTED/COMPLETED)."""
-        await self._write_to_file(self.llm_log_path, event)
-
-    async def _on_metric(self, event: Event):
-        """Обработка метрик."""
-        await self._write_to_file(self.metrics_log_path, event)
-
-    async def _on_self_improvement(self, event: Event):
-        """Обработка событий самообучения (записываем в session.log и llm.jsonl)."""
-        # Основной лог
-        await self._write_to_file(self.session_log_path, event)
-        # Также в llm.jsonl для полного контекста
-        await self._write_to_file(self.llm_log_path, event)
 
     async def _write_to_file(self, file_path: Path, event: Event):
         """Асинхронная запись события в файл."""
@@ -131,24 +133,27 @@ class SessionLogHandler:
                 event_data = {
                     "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, 'isoformat') else str(event.timestamp),
                     "event_type": event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type),
-                    "source": event.source,
-                    "message": event.data.get("message", "") if event.data else "",
-                    "level": event.data.get("level", "INFO") if event.data else "INFO",
                     "session_id": session_id,
                     "agent_id": agent_id,
                 }
                 
-                # Добавляем дополнительные данные из event.data
+                # Добавляем данные из event.data
                 if event.data:
                     for key, value in event.data.items():
                         if key not in event_data and isinstance(value, (str, int, float, bool, type(None))):
                             event_data[key] = value
                 
+                # Извлекаем capability из source если есть
+                if event.source and '.' in event.source:
+                    parts = event.source.split('.')
+                    if len(parts) >= 2:
+                        event_data['capability'] = event.source
+                
                 # Запись в файл
                 with open(file_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps(event_data, ensure_ascii=False) + '\n')
                     
-            except Exception as e:
+            except Exception:
                 # Тихая ошибка чтобы не ломать основную систему
                 pass
 
@@ -160,14 +165,81 @@ class SessionLogHandler:
             "agent_id": self.agent_id,
             "created_at": self.session_folder,
             "session_log": str(self.session_log_path),
-            "llm_log": str(self.llm_log_path),
-            "metrics_log": str(self.metrics_log_path),
         }
 
     async def shutdown(self):
         """Завершение работы обработчика."""
         # Можно добавить финализацию если нужно
         pass
+
+    async def get_logs(
+        self,
+        event_types: Optional[List[str]] = None,
+        capability: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Чтение логов из session.jsonl.
+
+        ARGS:
+        - event_types: фильтр по типам событий
+        - capability: фильтр по способности
+        - limit: максимальное количество записей
+
+        RETURNS:
+        - List[Dict]: список записей лога
+        """
+        logs = []
+        if not self.session_log_path.exists():
+            return logs
+
+        try:
+            with open(self.session_log_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if len(logs) >= limit:
+                        break
+                    try:
+                        record = json.loads(line.strip())
+                        
+                        # Фильтрация по event_type
+                        if event_types:
+                            event_type = record.get('event_type', '')
+                            if not any(et in event_type for et in event_types):
+                                continue
+                        
+                        # Фильтрация по capability
+                        if capability:
+                            if record.get('capability') != capability:
+                                continue
+                        
+                        logs.append(record)
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass
+
+        return logs
+
+    async def get_error_logs(
+        self,
+        capability: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Получение логов ошибок.
+
+        ARGS:
+        - capability: фильтр по способности
+        - limit: максимальное количество записей
+
+        RETURNS:
+        - List[Dict]: список записей с ошибками
+        """
+        return await self.get_logs(
+            event_types=['error', 'failed', 'ERROR', 'FAILED'],
+            capability=capability,
+            limit=limit
+        )
 
 
 # =============================================================================
