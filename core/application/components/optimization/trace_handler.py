@@ -5,7 +5,7 @@ TraceHandler — обработка execution traces.
 - TraceHandler: получение и реконструкция traces из логов
 
 FEATURES:
-- Реконструкция ExecutionTrace из сессионных логов
+- Реконструкция ExecutionTrace из сессионных логов (JSONL)
 - Получение traces по capability
 - Фильтрация по успешности
 - Анализ паттернов выполнения
@@ -66,15 +66,15 @@ class TraceHandler:
         RETURNS:
         - ExecutionTrace или None если не найдено
         """
+        # Попытка загрузить из session.jsonl
+        trace = await self._load_trace_from_jsonl(session_id)
+        if trace:
+            return trace
+
         # Попытка получить из session_handler
         if self.session_handler and hasattr(self.session_handler, 'get_session_logs'):
             logs = await self.session_handler.get_session_logs(session_id)
             return self._reconstruct_trace_from_logs(logs, session_id)
-
-        # Попытка получить из файлов логов
-        trace = await self._load_trace_from_file(session_id)
-        if trace:
-            return trace
 
         return None
 
@@ -259,12 +259,17 @@ class TraceHandler:
 
         return step
 
-    async def _load_trace_from_file(
+    async def _load_trace_from_jsonl(
         self,
         session_id: str
     ) -> Optional[ExecutionTrace]:
         """
-        Загрузка trace из файла.
+        Загрузка и парсинг session.jsonl в ExecutionTrace.
+
+        ФОРМАТ ЛОГОВ:
+        {"timestamp": ..., "event_type": "llm.prompt.generated", "capability": "...", ...}
+        {"timestamp": ..., "event_type": "llm.response.received", ...}
+        {"timestamp": ..., "event_type": "log.info", "message": "Метрика: ..."}
 
         ARGS:
         - session_id: идентификатор сессии
@@ -272,18 +277,257 @@ class TraceHandler:
         RETURNS:
         - ExecutionTrace или None
         """
-        # Поиск файла trace
-        trace_file = self.logs_dir / "sessions" / f"{session_id}_trace.json"
+        session_dir = self.logs_dir / "sessions" / session_id
+        jsonl_file = session_dir / "session.jsonl"
 
-        if not trace_file.exists():
+        if not jsonl_file.exists():
             return None
 
+        events = []
         try:
-            with open(trace_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            return ExecutionTrace.from_dict(data)
+            with open(jsonl_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            event = json.loads(line)
+                            events.append(event)
+                        except json.JSONDecodeError:
+                            continue
         except Exception:
             return None
+
+        if not events:
+            return None
+
+        # Парсинг событий в trace
+        return self._parse_events_to_trace(events, session_id)
+
+    def _parse_events_to_trace(
+        self,
+        events: List[Dict[str, Any]],
+        session_id: str
+    ) -> ExecutionTrace:
+        """
+        Парсинг событий в ExecutionTrace.
+
+        ARGS:
+        - events: список событий из логов
+        - session_id: идентификатор сессии
+
+        RETURNS:
+        - ExecutionTrace
+        """
+        # Извлечение базовой информации
+        started_at = self._parse_timestamp(events[0].get('timestamp')) if events else datetime.now()
+        goal = self._extract_goal_from_events(events)
+        agent_id = "agent_001"  # Default
+
+        trace = ExecutionTrace(
+            session_id=session_id,
+            agent_id=agent_id,
+            goal=goal,
+            started_at=started_at
+        )
+
+        # Парсинг шагов
+        steps = self._parse_steps_from_events(events)
+        for step in steps:
+            trace.add_step(step)
+
+        # Извлечение финального ответа
+        trace.final_answer = self._extract_final_answer_from_events(events)
+
+        # Определение успешности
+        trace.success = self._determine_success_from_events(events)
+
+        # Извлечение ошибки если есть
+        if not trace.success:
+            trace.error = self._extract_error_from_events(events)
+
+        return trace
+
+    def _parse_steps_from_events(
+        self,
+        events: List[Dict[str, Any]]
+    ) -> List[StepTrace]:
+        """
+        Парсинг событий в список шагов.
+
+        ЛОГИКА:
+        - llm.prompt.generated → начало шага
+        - llm.response.received → конец шага
+        - log.info с "Метрика:" → завершение capability
+        """
+        steps = []
+        current_step = None
+        step_number = 0
+
+        for event in events:
+            event_type = event.get('event_type', '')
+
+            # Начало нового шага (LLM запрос)
+            if event_type == 'llm.prompt.generated':
+                if current_step:
+                    steps.append(current_step)
+                current_step = StepTrace(
+                    step_number=step_number,
+                    capability=self._extract_capability_from_event(event),
+                    goal=""
+                )
+                current_step.llm_request = self._parse_llm_request(event)
+                step_number += 1
+
+            # LLM ответ
+            elif event_type == 'llm.response.received':
+                if current_step:
+                    current_step.llm_response = self._parse_llm_response(event)
+
+            # Метрика выполнения (завершение шага)
+            elif event_type == 'log.info':
+                message = event.get('message', '')
+                if 'Метрика:' in message:
+                    # Извлечение метрики
+                    metric_info = self._parse_metric_message(message)
+                    if current_step:
+                        current_step.time_ms = metric_info.get('execution_time_ms', 0)
+                        current_step.tokens_used = metric_info.get('tokens', 0)
+
+                        # Проверка успешности
+                        if not metric_info.get('success', True):
+                            current_step.errors.append(ErrorDetail(
+                                error_type=ErrorType.LOGIC_ERROR,
+                                message=metric_info.get('error', 'Unknown error'),
+                                capability=current_step.capability,
+                                step_number=current_step.step_number
+                            ))
+
+                        steps.append(current_step)
+                        current_step = None
+
+        # Добавление последнего шага если есть
+        if current_step:
+            steps.append(current_step)
+
+        return steps
+
+    def _parse_llm_request(self, event: Dict[str, Any]) -> Optional[LLMRequest]:
+        """Парсинг LLM запроса из события"""
+        # В логах может не быть полного промпта
+        return LLMRequest(
+            prompt=event.get('message', '') or 'Prompt generated',
+            system_prompt='',
+            temperature=0.7,
+            max_tokens=2048,
+            timestamp=self._parse_timestamp(event.get('timestamp'))
+        )
+
+    def _parse_llm_response(self, event: Dict[str, Any]) -> Optional[LLMResponse]:
+        """Парсинг LLM ответа из события"""
+        return LLMResponse(
+            content=event.get('message', '') or 'Response received',
+            tokens_used=0,
+            latency_ms=0,
+            timestamp=self._parse_timestamp(event.get('timestamp'))
+        )
+
+    def _parse_metric_message(self, message: str) -> Dict[str, Any]:
+        """
+        Парсинг сообщения с метрикой.
+
+        ФОРМАТ:
+        "Метрика: capability | execution_type=static | execution_time=145.36ms | rows=5 | success=True"
+        """
+        result = {
+            'success': True,
+            'execution_time_ms': 0,
+            'tokens': 0,
+            'rows': 0
+        }
+
+        # Парсинг ключевых частей
+        parts = message.split('|')
+        for part in parts:
+            part = part.strip()
+
+            if 'execution_time=' in part:
+                try:
+                    time_str = part.split('=')[1].strip().replace('ms', '')
+                    result['execution_time_ms'] = float(time_str)
+                except (ValueError, IndexError):
+                    pass
+
+            elif 'success=' in part:
+                result['success'] = 'True' in part
+
+            elif 'rows=' in part:
+                try:
+                    result['rows'] = int(part.split('=')[1].strip())
+                except (ValueError, IndexError):
+                    pass
+
+        return result
+
+    def _extract_capability_from_event(self, event: Dict[str, Any]) -> str:
+        """Извлечение capability из события"""
+        capability = event.get('capability')
+        if capability:
+            return capability
+
+        # Попытка извлечь из message
+        message = event.get('message', '')
+        if 'Метрика:' in message:
+            parts = message.split('|')
+            if parts:
+                return parts[0].replace('Метрика:', '').strip()
+
+        return "unknown"
+
+    def _parse_timestamp(self, timestamp_str: Optional[str]) -> datetime:
+        """Парсинг timestamp строки"""
+        if not timestamp_str:
+            return datetime.now()
+
+        try:
+            return datetime.fromisoformat(timestamp_str)
+        except ValueError:
+            return datetime.now()
+
+    def _extract_goal_from_events(self, events: List[Dict[str, Any]]) -> str:
+        """Извлечение цели из событий"""
+        for event in events:
+            message = event.get('message', '')
+            # Поиск цели в логах
+            if 'запрос:' in message.lower() or 'goal:' in message.lower():
+                return message.split(':')[1].strip()[:200]
+
+        return "Session goal"
+
+    def _extract_final_answer_from_events(self, events: List[Dict[str, Any]]) -> Optional[str]:
+        """Извлечение финального ответа"""
+        for event in reversed(events):
+            message = event.get('message', '')
+            if 'final_answer' in message.lower() or 'ответ:' in message.lower():
+                return message[:500]
+        return None
+
+    def _determine_success_from_events(self, events: List[Dict[str, Any]]) -> bool:
+        """Определение успешности из событий"""
+        for event in events:
+            message = event.get('message', '')
+            if 'Метрика:' in message:
+                metric = self._parse_metric_message(message)
+                if not metric.get('success', True):
+                    return False
+        return True
+
+    def _extract_error_from_events(self, events: List[Dict[str, Any]]) -> Optional[str]:
+        """Извлечение ошибки из событий"""
+        for event in events:
+            message = event.get('message', '')
+            if 'error' in message.lower() and 'None' not in message:
+                return message[:200]
+        return None
 
     async def _search_traces_by_capability(
         self,
