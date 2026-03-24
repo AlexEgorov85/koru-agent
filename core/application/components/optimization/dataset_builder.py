@@ -1,15 +1,14 @@
 """
-DatasetBuilder - построение датасета для оптимизации.
+DatasetBuilder — построение датасета из execution traces.
 
 ОТВЕТСТВЕННОСТЬ:
-- Сбор данных из логов, метрик и execution traces
-- Формирование OptimizationSample из реальных данных
-- Фильтрация и валидация образцов
-- Обеспечение минимального размера датасета (100+ примеров)
-- Гарантия наличия failure cases (≥20%)
+- Сбор данных из execution traces (а не только метрик)
+- Формирование OptimizationSample с полным контекстом
+- Балансировка успешных/неуспешных кейсов
+- Интеграция с TraceCollector
 """
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
@@ -17,60 +16,93 @@ from core.models.data.benchmark import (
     BenchmarkDataset,
     OptimizationSample,
     ScenarioType,
-    LogEntry,
-    LogType,
 )
-from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+
+from .trace_collector import TraceCollector, TraceCollectionConfig
+from .trace_handler import TraceHandler
 
 
 @dataclass
-class DatasetConfig:
+class DatasetBuilderConfig:
     """Конфигурация DatasetBuilder"""
-    min_samples: int = 100
+    min_samples: int = 50
     min_failure_rate: float = 0.2  # 20% failure cases
-    max_samples: int = 1000
-    time_window_hours: int = 24  # Окно времени для сбора данных
+    max_samples: int = 500
+    use_traces: bool = True  # Использовать traces вместо метрик
 
 
 class DatasetBuilder:
     """
     Построитель датасета для оптимизации промптов.
 
+    В ОТЛИЧИЕ ОТ СТАРОЙ ВЕРСИИ:
+    - Использует execution traces вместо агрегированных метрик
+    - Извлекает полный контекст выполнения
+    - Сохраняет связи между шагами
+
     RESPONSIBILITIES:
-    - Сбор данных из логов и метрик
-    - Формирование OptimizationSample
+    - Сбор traces через TraceCollector
+    - Конвертация traces в OptimizationSample
     - Балансировка failure/success кейсов
     - Валидация качества датасета
 
     USAGE:
     ```python
-    builder = DatasetBuilder(metrics_collector, event_bus)
+    trace_handler = TraceHandler(session_handler)
+    trace_collector = TraceCollector(trace_handler)
+    builder = DatasetBuilder.from_trace_collector(trace_collector)
     dataset = await builder.build('capability_name')
     ```
     """
 
     def __init__(
         self,
-        metrics_collector: MetricsCollector,
+        trace_collector: TraceCollector,
         event_bus: UnifiedEventBus,
-        config: Optional[DatasetConfig] = None
+        config: Optional[DatasetBuilderConfig] = None
     ):
         """
         Инициализация DatasetBuilder.
 
         ARGS:
-        - metrics_collector: сборщик метрик
-        - event_bus: шина событий для получения логов
+        - trace_collector: сборщик traces
+        - event_bus: шина событий
         - config: конфигурация
         """
-        self.metrics_collector = metrics_collector
+        self.trace_collector = trace_collector
         self.event_bus = event_bus
-        self.config = config or DatasetConfig()
+        self.config = config or DatasetBuilderConfig()
+
+    @classmethod
+    def from_trace_collector(
+        cls,
+        trace_collector: TraceCollector,
+        event_bus: Optional[UnifiedEventBus] = None
+    ) -> 'DatasetBuilder':
+        """
+        Создание DatasetBuilder из TraceCollector.
+
+        ARGS:
+        - trace_collector: сборщик traces
+        - event_bus: шина событий (опционально)
+
+        RETURNS:
+        - DatasetBuilder: новый экземпляр
+        """
+        # Создаём mock event_bus если не предоставлен
+        if event_bus is None:
+            from unittest.mock import AsyncMock
+            event_bus = AsyncMock()
+
+        return cls(
+            trace_collector=trace_collector,
+            event_bus=event_bus
+        )
 
     async def build(self, capability: str) -> BenchmarkDataset:
         """
-        Построение датасета для capability.
+        Построение датасета для capability из traces.
 
         ARGS:
         - capability: название способности
@@ -83,232 +115,89 @@ class DatasetBuilder:
             capability=capability
         )
 
-        # Сбор данных из метрик
-        metrics_samples = await self._collect_from_metrics(capability)
-        for sample in metrics_samples:
-            dataset.add_sample(sample)
+        # Сбор traces
+        traces = await self.trace_collector.collect_traces(capability)
 
-        # Сбор данных из логов ошибок
-        error_samples = await self._collect_from_error_logs(capability)
-        for sample in error_samples:
+        # Конвертация в samples
+        for trace in traces:
+            sample = self._trace_to_sample(trace)
             dataset.add_sample(sample)
-
-        # Если недостаточно failure cases, увеличиваем окно сбора
-        if dataset.failure_rate < self.config.min_failure_rate:
-            additional_samples = await self._collect_additional_failures(capability)
-            for sample in additional_samples:
-                dataset.add_sample(sample)
 
         # Валидация датасета
         self._validate_dataset(dataset)
 
         return dataset
 
-    async def _collect_from_metrics(self, capability: str) -> List[OptimizationSample]:
+    def _trace_to_sample(self, trace) -> OptimizationSample:
         """
-        Сбор образцов из метрик выполнения.
+        Конвертация ExecutionTrace в OptimizationSample.
 
         ARGS:
-        - capability: название способности
+        - trace: execution trace
 
         RETURNS:
-        - List[OptimizationSample]: образцы из метрик
+        - OptimizationSample: образец для оптимизации
         """
-        samples = []
+        # Извлечение ключевой информации
+        input_text = trace.goal
 
-        # Получение агрегированных метрик
-        aggregated = await self.metrics_collector.get_aggregated_metrics(
-            capability,
-            version='latest'
+        # Контекст из шагов
+        context = {
+            'steps': trace.step_count,
+            'total_time_ms': trace.total_time_ms,
+            'total_tokens': trace.total_tokens,
+            'llm_calls': trace.llm_call_count,
+            'capabilities_used': trace.get_capabilities_used(),
+            'error_types': list(trace.get_errors_by_type().keys()),
+            'step_details': [self._step_to_dict(step) for step in trace.steps]
+        }
+
+        # Ожидаемое поведение (можно извлечь из контрактов)
+        expected_behavior = None  # TODO: извлечь из output контракта
+
+        # Фактический вывод
+        actual_output = trace.final_answer
+
+        # Успешность
+        success = trace.success
+
+        # Ошибка
+        error = trace.error
+
+        # Метаданные
+        metadata = {
+            'session_id': trace.session_id,
+            'agent_id': trace.agent_id,
+            'started_at': trace.started_at.isoformat(),
+            'completed_at': trace.completed_at.isoformat() if trace.completed_at else None,
+            'trace': trace.to_dict()  # Полный trace для детального анализа
+        }
+
+        return OptimizationSample(
+            id=trace.session_id,
+            input=input_text,
+            context=context,
+            expected_behavior=expected_behavior,
+            actual_output=actual_output,
+            success=success,
+            error=error,
+            metadata=metadata
         )
 
-        # Получение детальных метрик из хранилища
-        if hasattr(self.metrics_collector, 'storage') and self.metrics_collector.storage:
-            # Извлечение сырых данных из storage
-            raw_data = await self._fetch_raw_metrics(capability)
-            
-            for record in raw_data[:self.config.max_samples]:
-                sample = self._create_sample_from_metric(record, capability)
-                if sample:
-                    samples.append(sample)
-
-        return samples[:self.config.max_samples // 2]  # Не более 50% от лимита
-
-    async def _fetch_raw_metrics(self, capability: str) -> List[Dict[str, Any]]:
-        """
-        Получение сырых метрик из хранилища.
-
-        ARGS:
-        - capability: название способности
-
-        RETURNS:
-        - List[Dict]: сырые данные метрик
-        """
-        # Получение данных за временное окно
-        end_time = datetime.now()
-        start_time = end_time - timedelta(hours=self.config.time_window_hours)
-
-        # Запрос к storage (используем time_range)
-        if hasattr(self.metrics_collector.storage, 'get_records'):
-            records = await self.metrics_collector.storage.get_records(
-                capability=capability,
-                time_range=(start_time, end_time),
-                limit=self.config.max_samples
-            )
-            # Конвертируем MetricRecord в dict
-            return [r.to_dict() if hasattr(r, 'to_dict') else r for r in records] if records else []
-
-        return []
-
-    def _create_sample_from_metric(
-        self,
-        record: Dict[str, Any],
-        capability: str
-    ) -> Optional[OptimizationSample]:
-        """
-        Создание OptimizationSample из метрики.
-
-        ARGS:
-        - record: запись метрики
-        - capability: название способности
-
-        RETURNS:
-        - Optional[OptimizationSample]: образец или None
-        """
-        try:
-            # Извлечение данных из record
-            input_data = record.get('input', record.get('query', ''))
-            success = record.get('success', True)
-            error = record.get('error')
-            execution_time = record.get('execution_time_ms', 0)
-            tokens_used = record.get('tokens_used', 0)
-
-            # Пропускаем пустые записи
-            if not input_data:
-                return None
-
-            return OptimizationSample(
-                id=str(uuid.uuid4()),
-                input=str(input_data),
-                context={
-                    'execution_time_ms': execution_time,
-                    'tokens_used': tokens_used,
-                    'source': 'metrics'
-                },
-                success=success,
-                error=error,
-                metadata={
-                    'timestamp': record.get('timestamp', datetime.now().isoformat()),
-                    'version': record.get('version', 'unknown')
-                }
-            )
-        except Exception:
-            return None
-
-    async def _collect_from_error_logs(self, capability: str) -> List[OptimizationSample]:
-        """
-        Сбор образцов из логов ошибок.
-
-        ARGS:
-        - capability: название способности
-
-        RETURNS:
-        - List[OptimizationSample]: образцы из ошибок
-        """
-        samples = []
-
-        # Получение логов ошибок из event_bus или session_handler
-        error_logs = await self._fetch_error_logs(capability)
-
-        for log in error_logs:
-            sample = self._create_sample_from_error(log, capability)
-            if sample:
-                samples.append(sample)
-
-        return samples
-
-    async def _fetch_error_logs(self, capability: str) -> List[Dict[str, Any]]:
-        """
-        Получение логов ошибок.
-
-        ARGS:
-        - capability: название способности
-
-        RETURNS:
-        - List[Dict]: логи ошибок
-        """
-        # Запрос к хранилищу логов
-        if hasattr(self.metrics_collector.storage, 'get_error_logs'):
-            logs = await self.metrics_collector.storage.get_error_logs(
-                capability=capability,
-                limit=100
-            )
-            return logs if logs else []
-        
-        return []
-
-    def _create_sample_from_error(
-        self,
-        log: Dict[str, Any],
-        capability: str
-    ) -> Optional[OptimizationSample]:
-        """
-        Создание OptimizationSample из лога ошибки.
-
-        ARGS:
-        - log: запись лога ошибки
-        - capability: название способности
-
-        RETURNS:
-        - Optional[OptimizationSample]: образец или None
-        """
-        try:
-            input_data = log.get('input', log.get('query', log.get('data', {})))
-            error_message = log.get('error_message', log.get('error', 'Unknown error'))
-            error_type = log.get('error_type', 'unknown')
-
-            # Преобразуем input в строку если нужно
-            if isinstance(input_data, dict):
-                input_data = str(input_data.get('query', input_data))
-
-            return OptimizationSample(
-                id=str(uuid.uuid4()),
-                input=str(input_data) if input_data else "Unknown input",
-                context={
-                    'error_type': error_type,
-                    'source': 'error_log'
-                },
-                success=False,
-                error=error_message,
-                metadata={
-                    'timestamp': log.get('timestamp', datetime.now().isoformat()),
-                    'session_id': log.get('session_id', 'unknown')
-                }
-            )
-        except Exception:
-            return None
-
-    async def _collect_additional_failures(self, capability: str) -> List[OptimizationSample]:
-        """
-        Сбор дополнительных failure кейсов если их недостаточно.
-
-        ARGS:
-        - capability: название способности
-
-        RETURNS:
-        - List[OptimizationSample]: дополнительные образцы
-        """
-        # Расширяем временное окно
-        original_window = self.config.time_window_hours
-        self.config.time_window_hours *= 2
-
-        try:
-            # Повторный сбор с большим окном
-            error_samples = await self._collect_from_error_logs(capability)
-            return error_samples
-        finally:
-            # Восстанавливаем оригинальное окно
-            self.config.time_window_hours = original_window
+    def _step_to_dict(self, step) -> Dict[str, Any]:
+        """Конвертация шага в словарь"""
+        return {
+            'step_number': step.step_number,
+            'capability': step.capability,
+            'goal': step.goal,
+            'success': step.success,
+            'time_ms': step.time_ms,
+            'tokens_used': step.tokens_used,
+            'has_llm_request': step.llm_request is not None,
+            'has_llm_response': step.llm_response is not None,
+            'has_action': step.action is not None,
+            'error_count': len(step.errors)
+        }
 
     def _validate_dataset(self, dataset: BenchmarkDataset) -> None:
         """
@@ -316,19 +205,16 @@ class DatasetBuilder:
 
         ARGS:
         - dataset: датасет для валидации
-
-        RAISES:
-        - ValueError: если датасет не соответствует требованиям
         """
-        # Проверка минимального размера
-        if dataset.size < self.config.min_samples:
-            # Warning, но не ошибка - собираем что есть
-            pass
+        stats = self.get_dataset_stats(dataset)
 
-        # Проверка наличия failure cases
-        if dataset.failure_rate < self.config.min_failure_rate:
-            # Warning - недостаточно failure кейсов
-            pass
+        # Warning если недостаточно образцов
+        if not stats['meets_min_samples']:
+            pass  # Можно добавить логирование
+
+        # Warning если недостаточно failure cases
+        if not stats['meets_min_failure_rate']:
+            pass  # Можно добавить логирование
 
     def get_dataset_stats(self, dataset: BenchmarkDataset) -> Dict[str, Any]:
         """
@@ -341,12 +227,48 @@ class DatasetBuilder:
         - Dict[str, Any]: статистика
         """
         type_distribution = dataset.get_type_distribution()
-        
+
         return {
             'total_samples': dataset.size,
             'failure_count': dataset.failure_count,
             'failure_rate': dataset.failure_rate,
             'type_distribution': type_distribution,
             'meets_min_samples': dataset.size >= self.config.min_samples,
-            'meets_min_failure_rate': dataset.failure_rate >= self.config.min_failure_rate
+            'meets_min_failure_rate': dataset.failure_rate >= self.config.min_failure_rate,
+            'avg_steps': self._calculate_avg_steps(dataset),
+            'avg_time_ms': self._calculate_avg_time(dataset)
         }
+
+    def _calculate_avg_steps(self, dataset: BenchmarkDataset) -> float:
+        """Расчёт среднего количества шагов"""
+        if not dataset.samples:
+            return 0.0
+
+        total_steps = sum(
+            s.context.get('steps', 1) for s in dataset.samples
+        )
+        return total_steps / len(dataset.samples)
+
+    def _calculate_avg_time(self, dataset: BenchmarkDataset) -> float:
+        """Расчёт среднего времени выполнения"""
+        if not dataset.samples:
+            return 0.0
+
+        total_time = sum(
+            s.context.get('total_time_ms', 0) for s in dataset.samples
+        )
+        return total_time / len(dataset.samples)
+
+    async def build_with_stats(self, capability: str) -> tuple:
+        """
+        Построение датасета со статистикой.
+
+        ARGS:
+        - capability: название способности
+
+        RETURNS:
+        - tuple: (dataset, stats)
+        """
+        dataset = await self.build(capability)
+        stats = self.get_dataset_stats(dataset)
+        return dataset, stats
