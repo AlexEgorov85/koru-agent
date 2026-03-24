@@ -304,7 +304,8 @@ class LoggingToEventBusHandler(logging.Handler):
 
 def setup_logging(
     event_bus: UnifiedEventBus,
-    config: Optional[LoggingConfig] = None
+    config: Optional[LoggingConfig] = None,
+    session_log_dir: Optional[Path] = None
 ):
     """
     Настройка обработчиков логирования.
@@ -312,18 +313,31 @@ def setup_logging(
     ARGS:
     - event_bus: Шина событий
     - config: Конфигурация (не используется, оставлена для совместимости)
+    - session_log_dir: Директория для сессионных логов (опционально)
 
     RETURNS:
     - terminal_handler: TerminalLogHandler
+    - session_handler: SessionLogHandler
     """
+    from pathlib import Path
+    
     config = config or get_logging_config()
 
+    # Terminal handler - вывод в консоль
     terminal_handler = TerminalLogHandler(event_bus)
-
-    # Подписка на события
     terminal_handler.subscribe()
 
-    # Перехват стандартного logging
+    # Session handler - запись в файлы (логи, LLM, метрики)
+    from core.infrastructure.logging.session_log_handler import SessionLogHandler
+    base_dir = session_log_dir or Path("logs/sessions")
+    session_handler = SessionLogHandler(
+        event_bus=event_bus,
+        base_log_dir=base_dir,
+        session_id=None,  # Получать события из всех сессий
+        agent_id="system"
+    )
+
+    # Перехват стандартного logging → EventBus
     event_bus_logging_handler = LoggingToEventBusHandler(event_bus)
     event_bus_logging_handler.setLevel(logging.DEBUG)
 
@@ -331,7 +345,7 @@ def setup_logging(
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(event_bus_logging_handler)
 
-    return terminal_handler, None  # file_handler удалён
+    return terminal_handler, session_handler
 
 
 def shutdown_logging(file_handler=None) -> None:

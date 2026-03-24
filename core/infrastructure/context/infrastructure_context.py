@@ -154,22 +154,33 @@ class InfrastructureContext:
         # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
         #
         # TerminalLogHandler: вывод в терминал (онлайн для разработчика)
-        # FileLogHandler: ОТКЛЮЧЁН - дублирует SessionLogHandler
         # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
         #
+        from pathlib import Path
         from core.infrastructure.logging import setup_logging, LoggingConfig
         from core.config.logging_config import FileConfig, LogLevel, LogFormat
         
+        log_dir = Path(self.config.data_dir) / "logs"
+        
         log_config = LoggingConfig(
             file=FileConfig(
-                enabled=False,  # ОТКЛЮЧЁН - используется SessionLogHandler
+                enabled=True,
                 level=LogLevel.DEBUG.value,
                 format=LogFormat.JSONL,
                 max_file_size_mb=100,
                 backup_count=10,
             )
         )
-        self.terminal_handler, _ = setup_logging(self.event_bus, log_config)
+        
+        # Единая инициализация всех обработчиков логирования
+        self.terminal_handler, self.session_handler = setup_logging(
+            self.event_bus, 
+            log_config,
+            session_log_dir=log_dir / "sessions"
+        )
+        
+        session_info = self.session_handler.get_session_info()
+        print(f"📝 Логи сессии: {session_info['session_folder']}", flush=True)
 
         # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
