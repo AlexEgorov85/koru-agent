@@ -405,10 +405,177 @@ class SessionMixin:
 
 
 # ============================================================
+# MIXIN 5: SelfImprovementMixin — логирование самообучения
+# ============================================================
+
+class SelfImprovementMixin:
+    """
+    Миксин для логирования самообучения агента.
+    
+    FEATURES:
+    - Запуск/завершение самообучения
+    - Размышление (запрос и ответ LLM)
+    - Принятие решений
+    - Запуск действий
+    - Отчёты
+    """
+
+    async def log_self_improvement_started(self, goal: str, capability: str = None, **kwargs):
+        """Запуск самообучения."""
+        await self._publish(
+            EventType.SELF_IMPROVEMENT_STARTED,
+            f"🧠 Самообучение запущено: {goal[:100]}...",
+            "INFO",
+            goal=goal,
+            capability=capability,
+            **kwargs
+        )
+
+    async def log_self_improvement_thinking(
+        self,
+        phase: str,
+        system_prompt: str,
+        user_prompt: str,
+        response: str = None,
+        tokens: int = None,
+        duration_ms: float = None,
+        success: bool = True,
+        error: str = None,
+        **kwargs
+    ):
+        """Логирование размышления (запрос + ответ от LLM)."""
+        if not success:
+            event_type = EventType.SELF_IMPROVEMENT_FAILED
+            await self._publish(
+                event_type,
+                f"❌ Размышление не удалось: {error}",
+                "ERROR",
+                phase=phase,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                error=error,
+                **kwargs
+            )
+        elif response:
+            event_type = EventType.SELF_IMPROVEMENT_THINKING_COMPLETED
+            await self._publish(
+                event_type,
+                f"✅ Размышление завершено ({len(response)} символов)",
+                "INFO",
+                phase=phase,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response=response,
+                tokens=tokens,
+                duration_ms=duration_ms,
+                **kwargs
+            )
+        else:
+            event_type = EventType.SELF_IMPROVEMENT_THINKING_STARTED
+            await self._publish(
+                event_type,
+                f"🔄 Размышление начато: {phase}",
+                "INFO",
+                phase=phase,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                **kwargs
+            )
+
+    async def log_self_improvement_decision(
+        self,
+        decision: str,
+        reasoning: str = None,
+        confidence: float = None,
+        **kwargs
+    ):
+        """Логирование принятого решения."""
+        await self._publish(
+            EventType.SELF_IMPROVEMENT_DECISION,
+            f"🎯 Решение принято: {decision}",
+            "INFO",
+            decision=decision,
+            reasoning=reasoning,
+            confidence=confidence,
+            **kwargs
+        )
+
+    async def log_self_improvement_action(
+        self,
+        action: str,
+        parameters: dict = None,
+        started: bool = True,
+        result: str = None,
+        success: bool = True,
+        **kwargs
+    ):
+        """Логирование запущенного действия."""
+        if started:
+            event_type = EventType.SELF_IMPROVEMENT_ACTION_STARTED
+            await self._publish(
+                event_type,
+                f"⚡ Запуск действия: {action}",
+                "INFO",
+                action=action,
+                parameters=parameters,
+                **kwargs
+            )
+        else:
+            status = "успешно" if success else "с ошибкой"
+            await self._publish(
+                EventType.SELF_IMPROVEMENT_ACTION_COMPLETED,
+                f"{'✅' if success else '❌'} Действие {action}: {status}",
+                "INFO" if success else "ERROR",
+                action=action,
+                parameters=parameters,
+                result=result,
+                success=success,
+                **kwargs
+            )
+
+    async def log_self_improvement_report(
+        self,
+        summary: str,
+        metrics: dict = None,
+        improvements: dict = None,
+        **kwargs
+    ):
+        """Логирование отчёта о самообучении."""
+        await self._publish(
+            EventType.SELF_IMPROVEMENT_REPORT,
+            f"📊 Отчёт: {summary[:100]}...",
+            "INFO",
+            summary=summary,
+            metrics=metrics,
+            improvements=improvements,
+            **kwargs
+        )
+
+    async def log_self_improvement_completed(
+        self,
+        success: bool,
+        summary: str = None,
+        iterations: int = None,
+        **kwargs
+    ):
+        """Завершение самообучения."""
+        status = "завершено" if success else "не удалось"
+        await self._publish(
+            EventType.SELF_IMPROVEMENT_COMPLETED if success else EventType.SELF_IMPROVEMENT_FAILED,
+            f"{'✅' if success else '❌'} Самообучение {status}",
+            "INFO" if success else "ERROR",
+            success=success,
+            summary=summary,
+            iterations=iterations,
+            **kwargs
+        )
+
+
+# ============================================================
 # MAIN CLASS: EventBusLogger (композит миксинов)
 # ============================================================
 
-class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin):
+class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin, SelfImprovementMixin):
     """
     Универсальный логгер через EventBus.
     
@@ -417,11 +584,13 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin):
     - AsyncLoggerMixin — асинхронная публикация
     - LLMMixin — LLM логирование
     - SessionMixin — управление сессиями
+    - SelfImprovementMixin — логирование самообучения
     
     USAGE:
     ```python
     logger = EventBusLogger(event_bus, session_id, agent_id, "my_component")
     await logger.info("Started")
+    await logger.log_self_improvement_started(goal="Learn X")
     ```
     """
 
@@ -526,6 +695,7 @@ __all__ = [
     'AsyncLoggerMixin',
     'LLMMixin',
     'SessionMixin',
+    'SelfImprovementMixin',
     
     # Main class
     'EventBusLogger',

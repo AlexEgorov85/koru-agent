@@ -68,6 +68,38 @@ class EvaluationPattern(BaseBehaviorPattern):
             if log_method:
                 await log_method(message, **extra_data)
 
+    async def _log_self_improvement_thinking(
+        self,
+        phase: str,
+        system_prompt: str,
+        user_prompt: str,
+        response: str = None,
+        success: bool = True,
+        error: str = None,
+        **kwargs
+    ):
+        """Логирование размышления (запрос + ответ от LLM) для самообучения."""
+        if self.event_bus_logger is None:
+            if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+                from core.infrastructure.logging import EventBusLogger
+                self.event_bus_logger = EventBusLogger(
+                    event_bus=self.application_context.infrastructure_context.event_bus,
+                    session_id="system",
+                    agent_id="system",
+                    component="evaluation_pattern"
+                )
+
+        if self.event_bus_logger and hasattr(self.event_bus_logger, 'log_self_improvement_thinking'):
+            await self.event_bus_logger.log_self_improvement_thinking(
+                phase=phase,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response=response,
+                success=success,
+                error=error,
+                **kwargs
+            )
+
     async def _load_evaluation_resources(self) -> bool:
         """Загружает system prompt для оценки из автоматически разделённых промптов.
         
@@ -197,7 +229,15 @@ class EvaluationPattern(BaseBehaviorPattern):
         })
 
         try:
-            # Логирование начала оценки
+            # === РАЗВЁРНУТОЕ ЛОГИРОВАНИЕ САМООБУЧЕНИЯ ===
+            # 1. Запуск размышления
+            await self._log_self_improvement_thinking(
+                phase="evaluation",
+                system_prompt=self.system_prompt_template,
+                user_prompt=evaluation_prompt,
+            )
+
+            # 2. Логирование начала оценки
             await self._log("info", f"🔍 Оценка достижения цели: {goal[:100]}...")
 
             # Получаем LLM провайдер через executor (REFACTOR: требуется миграция на executor.execute_action)
@@ -217,10 +257,18 @@ class EvaluationPattern(BaseBehaviorPattern):
                 },
                 context=self.execution_context
             )
+            
             # Используем результат от executor.execute_action()
             if not llm_result.status.name == "COMPLETED":
                 error_msg = f"LLM evaluation failed: {llm_result.error}"
                 await self._log("error", error_msg)
+                await self._log_self_improvement_thinking(
+                    phase="evaluation",
+                    system_prompt=self.system_prompt_template,
+                    user_prompt=evaluation_prompt,
+                    success=False,
+                    error=error_msg
+                )
                 raise RuntimeError(error_msg)
 
             # Извлекаем результат
@@ -230,6 +278,16 @@ class EvaluationPattern(BaseBehaviorPattern):
                 result = result.parsed_content  # ← Pydantic модель, не dict!
             elif isinstance(result, dict):
                 result = result.get('parsed_content', result)
+
+            # 3. Логирование завершения размышления с ответом
+            response_text = str(result)[:2000]  # Ограничиваем для лога
+            await self._log_self_improvement_thinking(
+                phase="evaluation",
+                system_prompt=self.system_prompt_template,
+                user_prompt=evaluation_prompt,
+                response=response_text,
+                success=True
+            )
 
             # Логирование успешной оценки
             confidence_val = result.confidence if hasattr(result, 'confidence') else result.get('confidence', 0)

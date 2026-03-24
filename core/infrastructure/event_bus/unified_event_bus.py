@@ -140,6 +140,17 @@ class EventType(Enum):
     OPTIMIZATION_CYCLE_COMPLETED = "optimization.cycle.completed"
     OPTIMIZATION_FAILED = "optimization.failed"
 
+    # === События самообучения (Self-Improvement) ===
+    SELF_IMPROVEMENT_STARTED = "self_improvement.started"
+    SELF_IMPROVEMENT_THINKING_STARTED = "self_improvement.thinking.started"
+    SELF_IMPROVEMENT_THINKING_COMPLETED = "self_improvement.thinking.completed"
+    SELF_IMPROVEMENT_DECISION = "self_improvement.decision"
+    SELF_IMPROVEMENT_ACTION_STARTED = "self_improvement.action.started"
+    SELF_IMPROVEMENT_ACTION_COMPLETED = "self_improvement.action.completed"
+    SELF_IMPROVEMENT_REPORT = "self_improvement.report"
+    SELF_IMPROVEMENT_COMPLETED = "self_improvement.completed"
+    SELF_IMPROVEMENT_FAILED = "self_improvement.failed"
+
     # === События версий ===
     VERSION_PROMOTED = "version.promoted"
     VERSION_REJECTED = "version.rejected"
@@ -223,6 +234,16 @@ EVENT_TYPE_TO_DOMAIN: Dict[EventType, EventDomain] = {
     EventType.VERSION_PROMOTED: EventDomain.OPTIMIZATION,
     EventType.VERSION_REJECTED: EventDomain.OPTIMIZATION,
     EventType.VERSION_CREATED: EventDomain.OPTIMIZATION,
+    # Self-improvement events
+    EventType.SELF_IMPROVEMENT_STARTED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_THINKING_STARTED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_THINKING_COMPLETED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_DECISION: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_ACTION_STARTED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_ACTION_COMPLETED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_REPORT: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_COMPLETED: EventDomain.OPTIMIZATION,
+    EventType.SELF_IMPROVEMENT_FAILED: EventDomain.OPTIMIZATION,
 
     # Common domain
     EventType.RETRY_ATTEMPT: EventDomain.COMMON,

@@ -78,6 +78,17 @@ class SessionLogHandler:
         # Метрики
         self.event_bus.subscribe(EventType.METRIC_COLLECTED, self._on_metric)
 
+        # Self-improvement события (самообучение)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_STARTED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_STARTED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_THINKING_COMPLETED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_DECISION, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_STARTED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_ACTION_COMPLETED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_REPORT, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_COMPLETED, self._on_self_improvement)
+        self.event_bus.subscribe(EventType.SELF_IMPROVEMENT_FAILED, self._on_self_improvement)
+
     async def _on_log_event(self, event: Event):
         """Обработка логов (INFO, DEBUG, WARNING, ERROR)."""
         await self._write_to_file(self.session_log_path, event)
@@ -97,6 +108,13 @@ class SessionLogHandler:
     async def _on_metric(self, event: Event):
         """Обработка метрик."""
         await self._write_to_file(self.metrics_log_path, event)
+
+    async def _on_self_improvement(self, event: Event):
+        """Обработка событий самообучения (записываем в session.log и llm.jsonl)."""
+        # Основной лог
+        await self._write_to_file(self.session_log_path, event)
+        # Также в llm.jsonl для полного контекста
+        await self._write_to_file(self.llm_log_path, event)
 
     async def _write_to_file(self, file_path: Path, event: Event):
         """Асинхронная запись события в файл."""
