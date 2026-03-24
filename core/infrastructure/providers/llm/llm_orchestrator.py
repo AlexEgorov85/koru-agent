@@ -1313,10 +1313,21 @@ class LLMOrchestrator:
         if not self._event_bus:
             return
 
-        # Извлекаем контент ответа
+        # Извлекаем контент ответа (поддержка LLMResponse и StructuredLLMResponse)
         response_content = ""
-        if result and hasattr(result, 'content'):
-            response_content = str(result.parsed_content) if hasattr(result, 'parsed_content') and result.parsed_content else (result.content or "" if hasattr(result, 'content') else "")
+        raw_response_content = ""
+        
+        if result:
+            # StructuredLLMResponse: имеет parsed_content и raw_response
+            if hasattr(result, 'parsed_content') and result.parsed_content is not None:
+                response_content = str(result.parsed_content)
+            # LLMResponse: имеет content напрямую
+            elif hasattr(result, 'content') and result.content:
+                response_content = result.content
+            
+            # Всегда извлекаем raw_response для отладки
+            if hasattr(result, 'raw_response') and result.raw_response:
+                raw_response_content = result.raw_response.content if hasattr(result.raw_response, 'content') else str(result.raw_response)
 
         data = {
             "call_id": record.call_id,
@@ -1327,24 +1338,25 @@ class LLMOrchestrator:
             "success": success,
             "duration_ms": duration * 1000,
             "capability_name": record.request.capability_name,
-            # Сырой ответ (JSON строка)
-            "raw_response": response_content,
-            "response_length": len(response_content) if response_content else 0
+            # Ответ: parsed content или raw content
+            "response": response_content or raw_response_content,
+            "raw_response": raw_response_content,
+            "response_length": len(response_content) if response_content else len(raw_response_content)
         }
 
         if success and result:
             # Пытаемся распарсить JSON для удобства чтения
-            try:
-                import json
-                parsed = json.loads(response_content)
-                # Сохраняем и сырой, и распарсенный ответ
-                data["parsed_response"] = parsed
-                data["response_preview"] = json.dumps(parsed, ensure_ascii=False, indent=2)[:500]
-            except (json.JSONDecodeError, Exception):
-                # Не JSON - сохраняем как текст
-                data["response_preview"] = response_content[:500]
+            content_to_parse = response_content or raw_response_content
+            if content_to_parse:
+                try:
+                    import json
+                    parsed = json.loads(content_to_parse)
+                    data["parsed_response"] = parsed
+                    data["response_preview"] = json.dumps(parsed, ensure_ascii=False, indent=2)
+                except (json.JSONDecodeError, Exception):
+                    data["response_preview"] = content_to_parse
 
-            # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
+            # tokens_used и model
             tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
             model = result.raw_response.model if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'model', 'unknown')
             data.update({
