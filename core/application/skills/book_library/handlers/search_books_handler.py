@@ -175,19 +175,18 @@ class SearchBooksHandler(BaseBookLibraryHandler):
         try:
             table_service = self.skill.table_description_service_instance
             if table_service:
-                schema_parts = []
-                for table_name in tables:
-                    metadata = await table_service.get_table_metadata(
-                        schema_name=schema_name,
-                        table_name=table_name,
-                        context=None,
-                        step_number=0
-                    )
-                    if metadata:
+                tables_metadata = await table_service.get_tables_structure(
+                    table_list=tables,
+                    schema_name=schema_name
+                )
+
+                if tables_metadata:
+                    schema_parts = []
+                    for key, metadata in tables_metadata.items():
                         schema_parts.append(self._format_table_metadata(metadata))
 
-                if schema_parts:
-                    return "\n\n".join(schema_parts)
+                    if schema_parts:
+                        return "\n\n".join(schema_parts)
 
         except Exception as e:
             await self.log_warning(f"Не удалось получить схему из сервиса: {e}")

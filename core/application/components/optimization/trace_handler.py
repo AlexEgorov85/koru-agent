@@ -470,17 +470,34 @@ class TraceHandler:
 
     def _extract_capability_from_event(self, event: Dict[str, Any]) -> str:
         """Извлечение capability из события"""
+        
+        # 1. Прямое поле capability (для metric.collected)
         capability = event.get('capability')
-        if capability:
+        if capability and capability != 'null' and capability != 'None':
             return capability
-
-        # Попытка извлечь из message
+        
+        # 2. Поиск в logger_name (формат: core.application.skills.book_library...)
+        logger_name = event.get('logger_name', '')
+        if logger_name:
+            # Извлекаем skill/service name
+            if 'skills.' in logger_name:
+                parts = logger_name.split('skills.')
+                if len(parts) > 1:
+                    return parts[1].split('.')[0]
+            if 'services.' in logger_name:
+                parts = logger_name.split('services.')
+                if len(parts) > 1:
+                    return parts[1].split('.')[0]
+        
+        # 3. Поиск в message (старый формат "Метрика: capability | ...")
         message = event.get('message', '')
-        if 'Метрика:' in message:
+        if message and 'Метрика:' in message:
             parts = message.split('|')
             if parts:
-                return parts[0].replace('Метрика:', '').strip()
-
+                cap = parts[0].replace('Метрика:', '').strip()
+                if cap and cap != 'None':
+                    return cap
+        
         return "unknown"
 
     def _parse_timestamp(self, timestamp_str: Optional[str]) -> datetime:
