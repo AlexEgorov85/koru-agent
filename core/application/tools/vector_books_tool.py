@@ -84,6 +84,7 @@ class VectorBooksTool(BaseTool):
         if self._embedding_provider is None:
             infra = self.application_context.infrastructure_context
             self._embedding_provider = infra.get_embedding_provider()
+            self._faiss_provider = infra.get_faiss_provider('books')
             self._chunking_strategy = infra.get_chunking_strategy()
             self._sql_provider = infra.resource_registry.get_resource('default_db').instance if infra.resource_registry else None
 
@@ -140,7 +141,7 @@ class VectorBooksTool(BaseTool):
         if self.event_bus_logger:
             self.event_bus_logger.debug_sync(f"VectorBooksTool: infrastructure ready, embedding={self._embedding_provider is not None}")
 
-        # Выполняем async операцию напрямую
+        # Выполняем async операцию напрямую (используем Pydantic модели)
         if operation == "search":
             query = params_dict.get('query', '')
             top_k = params_dict.get('top_k', 10)
@@ -155,9 +156,16 @@ class VectorBooksTool(BaseTool):
             return await self._get_document(document_id=document_id)
 
         elif operation == "analyze":
-            text = params_dict.get('text', '')
+            entity_id = params_dict.get('entity_id', '')
             analysis_type = params_dict.get('analysis_type', 'summary')
-            return await self._analyze(text=text, analysis_type=analysis_type)
+            prompt = params_dict.get('prompt', '')
+            force_refresh = params_dict.get('force_refresh', False)
+            return await self._analyze(
+                entity_id=entity_id, 
+                analysis_type=analysis_type, 
+                prompt=prompt,
+                force_refresh=force_refresh
+            )
 
         elif operation == "query":
             sql = params_dict.get('sql', '')
@@ -386,31 +394,19 @@ class VectorBooksTool(BaseTool):
         output_schema = self.get_output_contract(capability_name)
         
         if output_schema:
-            # Используем структурированный вывод с контрактом
-            from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-            
-            llm_request = LLMRequest(
-                prompt=llm_prompt,
-                structured_output=StructuredOutputConfig(
-                    output_model="VectorBooksAnalysis",
-                    schema_def=output_schema,
-                    max_retries=3,
-                    strict_mode=False
-                )
-            )
-
             # Вызов через executor (который использует orchestrator)
+            # StructuredOutputConfig автоматически конвертирует Pydantic модель в schema_def
             result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
                 llm_provider=self._llm_provider,
                 parameters={
                     'prompt': llm_prompt,
-                    'structured_output': StructuredOutputConfig(
-                        output_model="VectorBooksAnalysis",
-                        schema_def=output_schema,
-                        max_retries=3,
-                        strict_mode=False
-                    )
+                    'structured_output': {
+                        'output_model': 'VectorBooksAnalysis',
+                        'schema_def': output_schema,  # Pydantic модель - StructuredOutputConfig конвертирует
+                        'max_retries': 3,
+                        'strict_mode': False
+                    }
                 }
             )
             
@@ -458,7 +454,7 @@ class VectorBooksTool(BaseTool):
         if entity_id.startswith("book_"):
             book_id = int(entity_id.replace("book_", ""))
             
-            results = await self.faiss_provider.search(
+            results = await self._faiss_provider.search(
                 query_vector=[0.0] * 384,  # Пустой вектор для получения любых чанков
                 top_k=5,
                 filters={"book_id": book_id}

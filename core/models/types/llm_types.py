@@ -35,11 +35,22 @@ class StructuredOutputConfig(PydanticBaseModel):
     """
     Конфигурация структурированного вывода.
     Вынесен в отдельную модель для гибкости и переиспользования.
+    
+    Поддерживает:
+    - schema_def как dict (JSON Schema)
+    - schema_def как Pydantic модель (автоматически конвертируется в JSON Schema)
     """
     output_model: str  # Имя модели (для сериализации в события)
-    schema_def: Dict[str, Any]  # JSON Schema (для провайдеров с нативной поддержкой) - renamed to avoid shadowing
+    schema_def: Dict[str, Any]  # JSON Schema или Pydantic модель (конвертируется автоматически)
     max_retries: int = Field(default=3, ge=1, le=5)
     strict_mode: bool = Field(default=True, description="Строгая валидация (все поля обязательны)")
+    
+    def __init__(self, **data):
+        # Автоматическая конвертация Pydantic модели в JSON Schema
+        schema_def = data.get('schema_def')
+        if schema_def is not None and hasattr(schema_def, 'model_json_schema'):
+            data['schema_def'] = schema_def.model_json_schema()
+        super().__init__(**data)
 
 @dataclass
 class LLMRequest:

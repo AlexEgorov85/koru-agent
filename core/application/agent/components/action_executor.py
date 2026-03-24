@@ -950,12 +950,8 @@ class ActionExecutor:
             return ExecutionResult(status=ExecutionStatus.FAILED, error="Параметр 'structured_output' обязателен")
 
         # Если передан dict, создаём StructuredOutputConfig
+        # StructuredOutputConfig сам конвертирует Pydantic модель в schema_def
         if isinstance(structured_output, dict):
-            # Автоматическая конвертация schema_def из класса модели в dict
-            schema_def = structured_output.get("schema_def")
-            if schema_def and hasattr(schema_def, 'model_json_schema'):
-                # Это класс Pydantic модели - конвертируем в JSON схему
-                structured_output["schema_def"] = schema_def.model_json_schema()
             structured_output = StructuredOutputConfig(**structured_output)
 
         request = LLMRequest(
