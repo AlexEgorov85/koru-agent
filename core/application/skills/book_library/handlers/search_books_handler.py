@@ -128,26 +128,13 @@ class SearchBooksHandler(BaseBookLibraryHandler):
         """
         exec_context = ExecutionContext()
 
+        table_schema = await self._get_book_library_schema()
+
         result = await self.executor.execute_action(
             action_name="sql_generation.generate_query",
             parameters={
                 "natural_language_query": query,
-                "table_schema": """
-                    "Lib".books (
-                        id INTEGER PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        author_id INTEGER REFERENCES "Lib".authors(id),
-                        isbn TEXT,
-                        publication_date DATE,
-                        genre TEXT
-                    ),
-                    "Lib".authors (
-                        id INTEGER PRIMARY KEY,
-                        first_name TEXT,
-                        last_name TEXT,
-                        birth_date DATE
-                    )
-                """.strip()
+                "table_schema": table_schema
             },
             context=exec_context
         )
@@ -170,6 +157,84 @@ class SearchBooksHandler(BaseBookLibraryHandler):
             )
 
         return sql_query
+
+    async def _get_book_library_schema(self) -> str:
+        """
+        Получение схемы таблиц библиотеки через table_description_service.
+
+        RETURNS:
+        - str: отформатированная схема таблиц для LLM
+        """
+        try:
+            table_service = self.skill.table_description_service_instance
+            if table_service:
+                books_metadata = await table_service.get_table_metadata(
+                    schema_name="Lib",
+                    table_name="books",
+                    context=None,
+                    step_number=0
+                )
+                authors_metadata = await table_service.get_table_metadata(
+                    schema_name="Lib",
+                    table_name="authors",
+                    context=None,
+                    step_number=0
+                )
+
+                schema_parts = []
+                if books_metadata:
+                    schema_parts.append(self._format_table_metadata(books_metadata))
+                if authors_metadata:
+                    schema_parts.append(self._format_table_metadata(authors_metadata))
+
+                if schema_parts:
+                    return "\n\n".join(schema_parts)
+
+        except Exception as e:
+            await self.log_warning(f"Не удалось получить схему из сервиса: {e}")
+
+        return self._get_default_schema()
+
+    def _format_table_metadata(self, metadata: Dict[str, Any]) -> str:
+        """Форматирование метаданных таблицы в строку для LLM"""
+        schema_name = metadata.get("schema_name", "public")
+        table_name = metadata.get("table_name", "unknown")
+        description = metadata.get("description", "")
+        columns = metadata.get("columns", [])
+
+        cols_str = []
+        for col in columns:
+            col_name = col.get("column_name", "")
+            data_type = col.get("data_type", "unknown")
+            nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
+            default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
+            cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
+
+        result = f'"{schema_name}"."{table_name}" (\n'
+        result += ",\n".join(f"    {c}" for c in cols_str)
+        result += "\n)"
+        if description:
+            result += f" -- {description}"
+        return result
+
+    def _get_default_schema(self) -> str:
+        """Fallback: возвращает захардкоженную схему если сервис недоступен"""
+        return '''
+"Lib".books (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    author_id INTEGER REFERENCES "Lib".authors(id),
+    isbn TEXT,
+    publication_date DATE,
+    genre TEXT
+),
+"Lib".authors (
+    id INTEGER PRIMARY KEY,
+    first_name TEXT,
+    last_name TEXT,
+    birth_date DATE
+)
+'''
 
     async def _execute_sql(self, sql: str, max_rows: int) -> tuple:
         """
