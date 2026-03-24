@@ -1,0 +1,74 @@
+[
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 1.0,
+    "timestamp": "2026-03-24T10:21:20.683939",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "histogram",
+    "name": "execution_time_ms",
+    "value": 113352.29873657227,
+    "timestamp": "2026-03-24T10:21:20.683939",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "counter",
+    "name": "tokens_used",
+    "value": 0.0,
+    "timestamp": "2026-03-24T10:21:20.683939",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 1.0,
+    "timestamp": "2026-03-24T10:21:22.201939",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "histogram",
+    "name": "execution_time_ms",
+    "value": 113352.29873657227,
+    "timestamp": "2026-03-24T10:21:22.210725",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "16e112eb-6c2b-496f-8a59-ad000558633f",
+    "capability": "final_answer.generate",
+    "metric_type": "counter",
+    "name": "tokens_used",
+    "value": 0.0,
+    "timestamp": "2026-03-24T10:21:22.217756",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  }
+]

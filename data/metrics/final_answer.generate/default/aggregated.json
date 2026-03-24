@@ -1,0 +1,21 @@
+[
+  {
+    "capability": "final_answer.generate",
+    "version": "default",
+    "total_runs": 2,
+    "success_count": 2,
+    "failure_count": 0,
+    "accuracy": 1.0,
+    "avg_execution_time_ms": 113352.29873657227,
+    "min_execution_time_ms": 113352.29873657227,
+    "max_execution_time_ms": 113352.29873657227,
+    "std_execution_time_ms": 0.0,
+    "total_tokens": 0.0,
+    "avg_tokens": 0.0,
+    "time_range": [
+      "2026-03-24T10:21:20.683939",
+      "2026-03-24T10:21:22.217756"
+    ],
+    "custom_metrics": {}
+  }
+]

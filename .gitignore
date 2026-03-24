@@ -181,3 +181,4 @@ config/database.yaml
 .secrets
 *.secrets
 secret_token.rb
+nul  
