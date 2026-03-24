@@ -125,7 +125,6 @@ async def run_optimization(
     from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
     from core.application.services.prompt_contract_generator import PromptContractGenerator
     from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-    from core.infrastructure.log_storage import FileSystemLogStorage
     from core.infrastructure.event_bus import get_event_bus
     from core.models.data.benchmark import OptimizationMode, TargetMetric
 
@@ -147,9 +146,7 @@ async def run_optimization(
 
         # Создание сервисов
         metrics_storage = FileSystemMetricsStorage()
-        log_storage = FileSystemLogStorage()
         metrics_collector = infra_context.metrics_collector
-        log_collector = infra_context.log_collector
         accuracy_evaluator = AccuracyEvaluatorService()
         event_bus = get_event_bus()
 
@@ -180,10 +177,12 @@ async def run_optimization(
             benchmark_service=benchmark_service,
             prompt_generator=prompt_generator,
             metrics_collector=metrics_collector,
-            log_collector=log_collector,
             event_bus=event_bus,
             config=opt_config
         )
+        
+        # Подключаем session_handler для чтения логов
+        optimization_service.session_handler = infra_context.session_handler
 
         # Определение режима оптимизации
         mode_map = {

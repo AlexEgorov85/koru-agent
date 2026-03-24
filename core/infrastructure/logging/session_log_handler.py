@@ -235,6 +235,7 @@ class SessionLogHandler:
         RETURNS:
         - List[Dict]: список записей с ошибками
         """
+        # Фильтр по event_type: содержит 'error', 'failed' или level='ERROR'
         return await self.get_logs(
             event_types=['error', 'failed', 'ERROR', 'FAILED'],
             capability=capability,

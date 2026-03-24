@@ -28,13 +28,12 @@ from core.models.enums.common_enums import ResourceType
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 from core.components.lifecycle import ComponentState
 
-# Импорты для сборщиков метрик и логов
+# Импорты для сборщиков метрик
 from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-from core.infrastructure.log_storage import FileSystemLogStorage
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.log_collector import LogCollector
-from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.application.services.metrics_publisher import MetricsPublisher
+from core.infrastructure.logging.session_log_handler import SessionLogHandler
 
 
 class InfrastructureContext:
@@ -65,13 +64,14 @@ class InfrastructureContext:
         # Инфраструктурные хранилища (только загрузка, без кэширования)
         self.resource_discovery: Optional[ResourceDiscovery] = None  # ЕДИНЫЙ экземпляр на всё приложение
 
-        # Хранилища метрик и логов
+        # Хранилище метрик
         self.metrics_storage: Optional[IMetricsStorage] = None
-        self.log_storage: Optional[ILogStorage] = None
 
-        # Сборщики метрик и логов
+        # Сборщик метрик
         self.metrics_collector: Optional[MetricsCollector] = None
-        self.log_collector: Optional[LogCollector] = None
+
+        # Обработчик логов сессии
+        self.session_handler: Optional[SessionLogHandler] = None
 
         # MetricsPublisher для унифицированной публикации метрик
         self.metrics_publisher: Optional[MetricsPublisher] = None
@@ -219,14 +219,12 @@ class InfrastructureContext:
         self.resource_discovery.discover_prompts()
         self.resource_discovery.discover_contracts()
 
-        # Хранилища метрик и логов
+        # Хранилище метрик
         metrics_dir = Path(self.config.data_dir) / "metrics"
-        logs_dir = Path(self.config.data_dir) / "logs"
 
         self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
-        self.log_storage = FileSystemLogStorage(logs_dir)
 
-        # === ЭТАП 4: Сборщики метрик и логов ===
+        # === ЭТАП 4: Сборщик метрик ===
         # Создаём MetricsPublisher для унифицированной публикации метрик
         self.metrics_publisher = MetricsPublisher(self.metrics_storage, self.event_bus)
         
@@ -237,9 +235,6 @@ class InfrastructureContext:
             self.metrics_publisher  # Передаём созданный publisher
         )
         await self.metrics_collector.initialize()
-
-        self.log_collector = LogCollector(self.event_bus, self.log_storage)
-        await self.log_collector.initialize()
 
         # === ЭТАП 5: Vector Search ===
         # Инициализация Vector Search
@@ -474,11 +469,9 @@ class InfrastructureContext:
         if self.contract_storage and hasattr(self.contract_storage, 'shutdown'):
             await self.contract_storage.shutdown()
 
-        # Завершение сборщиков метрик и логов
+        # Завершение сборщика метрик
         if self.metrics_collector:
             await self.metrics_collector.shutdown()
-        if self.log_collector:
-            await self.log_collector.shutdown()
 
     def get_provider(self, name: str):
         """
@@ -540,20 +533,16 @@ class InfrastructureContext:
             raise RuntimeError("MetricsStorage не инициализирован")
         return self.metrics_storage
 
-    def get_log_storage(self) -> ILogStorage:
-        if not hasattr(self, 'log_storage'):
-            raise RuntimeError("LogStorage не инициализирован")
-        return self.log_storage
-
     def get_metrics_collector(self) -> MetricsCollector:
         if not hasattr(self, 'metrics_collector'):
             raise RuntimeError("MetricsCollector не инициализирован")
         return self.metrics_collector
 
-    def get_log_collector(self) -> LogCollector:
-        if not hasattr(self, 'log_collector'):
-            raise RuntimeError("LogCollector не инициализирован")
-        return self.log_collector
+    def get_session_handler(self) -> SessionLogHandler:
+        """Получение обработчика логов сессии."""
+        if not hasattr(self, 'session_handler') or self.session_handler is None:
+            raise RuntimeError("SessionHandler не инициализирован")
+        return self.session_handler
 
     def get_metrics_publisher(self) -> MetricsPublisher:
         """Получение MetricsPublisher для унифицированной публикации метрик."""

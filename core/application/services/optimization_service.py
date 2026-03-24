@@ -25,7 +25,6 @@ from core.models.data.benchmark import (
 from core.application.services.benchmark_service import BenchmarkService
 from core.application.services.prompt_contract_generator import PromptContractGenerator
 from core.infrastructure.metrics_collector import MetricsCollector
-from core.infrastructure.log_collector import LogCollector
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging import EventBusLogger
 from core.application.services.metrics_publisher import MetricsPublisher
@@ -73,7 +72,6 @@ class OptimizationService:
         benchmark_service: BenchmarkService,
         prompt_generator: PromptContractGenerator,
         metrics_collector: MetricsCollector,
-        log_collector: LogCollector,
         event_bus: UnifiedEventBus,
         metrics_publisher: Optional[MetricsPublisher] = None,
         config: Optional[OptimizationConfig] = None
@@ -85,7 +83,6 @@ class OptimizationService:
         - benchmark_service: сервис бенчмарков
         - prompt_generator: генератор промптов
         - metrics_collector: сборщик метрик (для получения агрегированных метрик)
-        - log_collector: сборщик логов (для анализа ошибок)
         - event_bus: шина событий
         - metrics_publisher: публикатор метрик (опционально, создаётся автоматически)
         - config: конфигурация оптимизации
@@ -93,10 +90,12 @@ class OptimizationService:
         self.benchmark_service = benchmark_service
         self.prompt_generator = prompt_generator
         self.metrics_collector = metrics_collector
-        self.log_collector = log_collector
         self.event_bus = event_bus
         self.config = config or OptimizationConfig()
         self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="OptimizationService")
+        
+        # Session handler устанавливается отдельно (after construction)
+        self.session_handler = None
 
         # Используем MetricsPublisher если предоставлен
         # Если metrics_collector=None (тесты), то metrics_publisher тоже None
@@ -378,12 +377,13 @@ class OptimizationService:
         """
         await self.event_bus_logger.info(f"Анализ неудач для {capability}@{version}")
 
-        # Получение логов ошибок
-        # ИСПРАВЛЕНО: используем log_collector напрямую вместо metrics_collector.log_collector
-        error_logs = await self.log_collector.get_error_logs(
-            capability,
-            limit=100
-        )
+        # Получение логов ошибок из session_handler
+        error_logs = []
+        if self.session_handler:
+            error_logs = await self.session_handler.get_error_logs(
+                capability=capability,
+                limit=100
+            )
 
         # Публикация метрики анализа неудач
         # НОВЫЙ API: MetricsPublisher
@@ -393,16 +393,6 @@ class OptimizationService:
             capability=capability,
             tags={"version": version}
         )
-
-        # СТАРЫЙ API (закомментирован для обратной совместимости):
-        # await self.metrics_collector.storage.record(MetricRecord(
-        #     agent_id="system",
-        #     capability=capability,
-        #     metric_type=MetricType.GAUGE,
-        #     name="failure_analysis_total_failures",
-        #     value=len(error_logs),
-        #     tags={"version": version}
-        # ))
 
         # Создание анализа
         analysis = FailureAnalysis(
@@ -414,7 +404,8 @@ class OptimizationService:
         # Группировка по типам ошибок
         error_types: Dict[str, int] = {}
         for log in error_logs:
-            error_type = log.data.get('error_type', 'unknown')
+            # log — это dict, не LogEntry
+            error_type = log.get('error_type', log.get('error_message', 'unknown'))[:50]
             error_types[error_type] = error_types.get(error_type, 0) + 1
 
         # Публикация метрик по типам ошибок
