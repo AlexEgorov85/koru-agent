@@ -180,7 +180,7 @@ class InfrastructureContext:
         )
         
         session_info = self.session_handler.get_session_info()
-        print(f"📝 Логи сессии: {session_info['session_folder']}", flush=True)
+        print(f"[LOG] Session: {session_info['session_folder']}", flush=True)
 
         # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
@@ -263,34 +263,12 @@ class InfrastructureContext:
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
         # Вывод в консоль для отладки (event_bus_logger ещё не работает)
-        print(f"🤖 LLM → _register_providers_from_config: начало")
-        print(f"🤖 LLM → self.config type: {type(self.config).__name__}")
-        has_llm = hasattr(self.config, 'llm_providers')
-        print(f"🤖 LLM → llm_providers: {self.config.llm_providers if has_llm else 'NO ATTRIBUTE'}")
-        if has_llm and self.config.llm_providers:
-            for name, prov in self.config.llm_providers.items():
-                print(f"  - {name}: enabled={prov.enabled}, type={prov.provider_type}")
-
-        # Регистрация LLM провайдеров
-        first_llm_registered = False
-        for provider_name, provider_config in self.config.llm_providers.items():
-            print(f"🤖 LLM → Обработка: {provider_name}, enabled={provider_config.enabled}")
-            if provider_config.enabled:
-                try:
-                    # Create appropriate config based on provider type
-                    provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    print(f"🤖 LLM → Тип провайдера: {provider_type}")
-                    if provider_type == "mock":
-                        from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
-                        config_obj = MockLLMConfig(**provider_config.parameters)
-                    elif provider_type == "llama_cpp":
-                        from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
-                        # Добавляем timeout_seconds из конфига в параметры
-                        params = dict(provider_config.parameters)
-                        if hasattr(provider_config, 'timeout_seconds'):
-                            params['timeout_seconds'] = provider_config.timeout_seconds
-                        config_obj = MockLlamaCppConfig(**params)
-                        print(f"🤖 LLM → model_path: {config_obj.model_path}")
+        print(f"[LLM] _register_providers_from_config: start")
+        print(f"[LLM] self.config type: {type(self.config).__name__}")
+        print(f"[LLM] llm_providers: {self.config.llm_providers if has_llm else 'NO ATTRIBUTE'}")
+        print(f"[LLM] Processing: {provider_name}, enabled={provider_config.enabled}")
+        print(f"[LLM] Provider type: {provider_type}")
+        print(f"[LLM] model_path: {config_obj.model_path}")
                     else:
                         # For other providers, try to create a generic config
                         from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
@@ -300,7 +278,7 @@ class InfrastructureContext:
                         provider_type=provider_type,
                         config=config_obj
                     )
-                    print(f"🤖 LLM → ✅ Провайдер создан: {type(provider).__name__}")
+                    print(f"[LLM] Provider created: {type(provider).__name__}")
 
                     # Регистрация в LifecycleManager (инициализация будет в initialize_all)
                     await self.lifecycle_manager.register_resource(
@@ -309,7 +287,7 @@ class InfrastructureContext:
                         resource_type=LifecycleResourceType.LLM,
                         metadata={"is_default": not first_llm_registered}
                     )
-                    print(f"🤖 LLM → ✅ Зарегистрирован в LifecycleManager")
+                    print(f"[LLM] Registered in LifecycleManager")
 
                     # Также регистрируем в resource_registry для обратной совместимости
                     info_llm = ResourceInfo(
@@ -323,7 +301,7 @@ class InfrastructureContext:
                     self.resource_registry.register_resource(info_llm)
 
                 except Exception as e:
-                    print(f"🤖 LLM → ❌ Ошибка: {e}")
+                    print(f"[LLM] Error: {e}")
                     import traceback
                     traceback.print_exc()
                     await self.event_bus_logger.error(f"❌ Ошибка регистрации LLM провайдера '{provider_name}': {str(e)}", exc_info=True)
@@ -360,7 +338,7 @@ class InfrastructureContext:
                 except Exception as e:
                     await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}", exc_info=True)
 
-        print(f"🤖 LLM → _register_providers_from_config: завершено")
+        print(f"[LLM] _register_providers_from_config: done")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска с проверкой наличия индексов."""

@@ -362,33 +362,50 @@ class PatternAnalyzer:
         """
         Поиск циклических зависимостей.
 
-        Паттерн: одна и та же capability вызывается多次 в цикле
+        Паттерн: одна и та же capability вызывается 3+ раз ПОДРЯД без прогресса
         """
         patterns = []
 
         circular_traces = []
+        repeated_capabilities: Dict[str, int] = {}
+
         for trace in traces:
-            # Проверка на повторения capability в пределах 5 шагов
             capabilities = [s.capability for s in trace.steps]
-            for i in range(len(capabilities) - 2):
-                window = capabilities[i:i + 5]
-                if len(window) != len(set(window)):
-                    circular_traces.append(trace)
-                    break
+            
+            # Проверка на 3+ одинаковых capability подряд
+            consecutive_count = 1
+            max_consecutive = 1
+            current_cap = None
+            
+            for cap in capabilities:
+                if cap == current_cap:
+                    consecutive_count += 1
+                    max_consecutive = max(max_consecutive, consecutive_count)
+                else:
+                    consecutive_count = 1
+                    current_cap = cap
+            
+            # Флагим только если 3+ одинаковых capability подряд
+            if max_consecutive >= 3:
+                circular_traces.append(trace)
+                
+                # Подсчитываем какие capability повторяются
+                for cap in set(capabilities):
+                    if capabilities.count(cap) >= 3:
+                        repeated_capabilities[cap] = repeated_capabilities.get(cap, 0) + 1
 
         if circular_traces:
-            capabilities: Set[str] = set()
-            for trace in circular_traces:
-                capabilities.update(trace.get_capabilities_used())
-
+            # Сортируем по частоте повторений
+            top_repeated = sorted(repeated_capabilities.items(), key=lambda x: x[1], reverse=True)[:3]
+            
             patterns.append(Pattern(
                 type=ExecutionPattern.CIRCULAR_DEPENDENCY,
-                description="Циклические вызовы одних и тех же способностей",
+                description=f"Многократные вызовы без прогресса: {', '.join([c[0] for c in top_repeated])}",
                 frequency=len(circular_traces),
-                affected_capabilities=list(capabilities),
-                recommendation="Пересмотреть логику планирования задач",
+                affected_capabilities=list(repeated_capabilities.keys()),
+                recommendation="Добавить кэширование результатов или лимит повторов (max 2)",
                 example_traces=[t.session_id for t in circular_traces[:3]],
-                severity="high"
+                severity="medium"  # Снижаем severity — это может быть легитимный retry
             ))
 
         return patterns

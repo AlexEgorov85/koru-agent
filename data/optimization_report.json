@@ -1,36 +1,37 @@
 {
-  "timestamp": "2026-03-24T15:43:01.793910",
+  "timestamp": "2026-03-24T16:06:52.502575",
   "sessions_analyzed": 10,
   "traces_with_steps": 1,
   "total_steps": 3,
   "patterns": {
-    "total": 3,
+    "total": 4,
     "by_severity": {
       "critical": 0,
       "high": 1,
-      "medium": 1,
+      "medium": 2,
       "low": 1
     },
     "types": [
       "repeated_retry",
+      "timeout",
       "successful_short",
       "circular_dependency"
     ]
   },
   "issues": {
     "prompt_issues": 1,
-    "response_issues": 3,
+    "response_issues": 0,
     "critical_high": 0
   },
   "root_causes": {
-    "total": 5,
+    "total": 2,
     "critical_high": 1
   },
   "examples": {
-    "unknown": {
-      "good": 1,
+    "final_answer.generate": {
+      "good": 0,
       "bad": 0
     }
   },
-  "recommendations_count": 5
+  "recommendations_count": 2
 }

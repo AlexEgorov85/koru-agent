@@ -9,7 +9,7 @@ agent:
 data_dir: data
 db_providers:
   books_db:
-    enabled: false
+    enabled: true
     parameters:
       db_path: data/books.db
       timeout: 30.0
@@ -76,6 +76,7 @@ vector_search:
     docs: docs_index.faiss
     history: history_index.faiss
     knowledge: knowledge_index.faiss
+    authors: authors_index.faiss
   storage:
     base_path: data/vector
 version: 5.15.0

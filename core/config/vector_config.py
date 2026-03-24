@@ -136,7 +136,8 @@ class VectorSearchConfig(BaseModel):
         "knowledge": "knowledge_index.faiss",
         "history": "history_index.faiss",
         "docs": "docs_index.faiss",
-        "books": "books_index.faiss"
+        "books": "books_index.faiss",
+        "authors": "authors_index.faiss"
     }
     
     faiss: FAISSConfig = Field(default_factory=FAISSConfig)
@@ -156,7 +157,7 @@ class VectorSearchConfig(BaseModel):
     @classmethod
     def validate_indexes(cls, v):
         """Валидация индексов."""
-        required = {"knowledge", "history", "docs", "books"}
+        required = {"knowledge", "history", "docs", "books", "authors"}
         if set(v.keys()) != required:
             raise ValueError(f"Indexes must include: {required}")
         return v
