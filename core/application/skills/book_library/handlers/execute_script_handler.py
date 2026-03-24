@@ -48,7 +48,17 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
         script_config = allowed_scripts[script_name]
         sql_query = script_config['sql']
 
-        # 4. Подготовка параметров для SQL
+        # 4. Валидация параметров перед выполнением
+        validation_result = await self._validate_parameters(params, script_name)
+        if not validation_result["valid"]:
+            warning = validation_result.get("warning")
+            suggestions = validation_result.get("suggestions", [])
+            if suggestions:
+                raise ValueError(f"Параметры невалидны: {warning}. Возможно вы имели в виду: {', '.join(suggestions)}")
+            else:
+                raise ValueError(f"Параметры невалидны: {warning}")
+
+        # 5. Подготовка параметров для SQL
         script_params = self._prepare_script_params(params, script_config, max_rows)
         sql_params_list = self._convert_to_sql_params(script_params, script_config, max_rows)
 
@@ -189,6 +199,148 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
 
         sql_params_list.append(max_rows)
         return sql_params_list
+
+    async def _validate_parameters(self, params: Dict[str, Any], script_name: str) -> Dict[str, Any]:
+        """
+        Валидация параметров скрипта с использованием vector search.
+
+        Проверяет параметры типа author, genre и другие через vector DB
+        для поиска похожих значений и предотвращения ошибок.
+
+        RETURNS:
+        - Dict с ключами: valid (bool), warning (str), suggestions (list)
+        """
+        validation_result = {"valid": True, "warning": None, "suggestions": []}
+
+        required_params = self._get_validation_params(script_name)
+        if not required_params:
+            return validation_result
+
+        for param_name, param_type in required_params.items():
+            if param_name not in params:
+                continue
+
+            param_value = params[param_name]
+            if not param_value:
+                continue
+
+            if param_type == "author":
+                result = await self._validate_author(param_value)
+                if not result["valid"]:
+                    validation_result["valid"] = False
+                    validation_result["warning"] = f"Автор '{param_value}' не найден"
+                    validation_result["suggestions"] = result.get("suggestions", [])
+                    return validation_result
+            elif param_type == "genre":
+                result = await self._validate_genre(param_value)
+                if not result["valid"]:
+                    validation_result["valid"] = False
+                    validation_result["warning"] = f"Жанр '{param_value}' не найден"
+                    validation_result["suggestions"] = result.get("suggestions", [])
+
+        return validation_result
+
+    def _get_validation_params(self, script_name: str) -> Dict[str, str]:
+        """Определение какие параметры нужно валидировать для каждого скрипта"""
+        validation_map = {
+            "get_books_by_author": {"author": "author"},
+            "count_books_by_author": {"author": "author"},
+            "get_books_by_genre": {"genre": "genre"},
+            "get_distinct_authors": {},
+            "get_distinct_genres": {},
+        }
+        return validation_map.get(script_name, {})
+
+    async def _validate_author(self, author_name: str) -> Dict[str, Any]:
+        """Валидация автора через vector search"""
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="vector_books.search",
+                parameters={
+                    "query": author_name,
+                    "top_k": 3,
+                    "min_score": 0.7
+                },
+                context=exec_context
+            )
+
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                data = result.data
+                results = data.results if hasattr(data, 'results') else []
+
+                if results:
+                    return {"valid": True, "suggestions": []}
+
+            suggestions = await self._get_author_suggestions(author_name)
+            return {"valid": False, "suggestions": suggestions}
+
+        except Exception as e:
+            await self.log_warning(f"Vector search failed: {e}")
+            return {"valid": True, "suggestions": []}
+
+    async def _validate_genre(self, genre: str) -> Dict[str, Any]:
+        """Валидация жанра - точное совпадение"""
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": "SELECT DISTINCT genre FROM books WHERE genre ILIKE $1 LIMIT 5",
+                    "parameters": [f"%{genre}%"]
+                },
+                context=exec_context
+            )
+
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                if rows:
+                    return {"valid": True, "suggestions": []}
+
+            suggestions = await self._get_genre_suggestions()
+            return {"valid": False, "suggestions": suggestions}
+
+        except Exception as e:
+            await self.log_warning(f"Genre validation failed: {e}")
+            return {"valid": True, "suggestions": []}
+
+    async def _get_author_suggestions(self, author_name: str) -> List[str]:
+        """Получение списка авторов для подсказок"""
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": "SELECT DISTINCT author FROM books WHERE author ILIKE $1 LIMIT 5",
+                    "parameters": [f"%{author_name}%"]
+                },
+                context=exec_context
+            )
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                return [row[0] if hasattr(row, '__getitem__') else getattr(row, 'author', '') for row in rows]
+        except:
+            pass
+        return []
+
+    async def _get_genre_suggestions(self) -> List[str]:
+        """Получение списка жанров для подсказок"""
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": "SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL ORDER BY genre LIMIT 20",
+                    "parameters": []
+                },
+                context=exec_context
+            )
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                return [row[0] if hasattr(row, '__getitem__') else getattr(row, 'genre', '') for row in rows]
+        except:
+            pass
+        return []
 
     async def _execute_sql(self, sql: str, params: List[Any]) -> tuple:
         """

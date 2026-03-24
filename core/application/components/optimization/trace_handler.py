@@ -353,62 +353,95 @@ class TraceHandler:
     ) -> List[StepTrace]:
         """
         Парсинг событий в список шагов.
-
-        ЛОГИКА:
-        - llm.prompt.generated → начало шага
-        - llm.response.received → конец шага
-        - log.info с "Метрика:" → завершение capability
+        
+        НОВАЯ ЛОГИКА (2 прохода):
+        - Проход 1: Собираем все metric.collected в буфер
+        - Проход 2: Создаём шаги из llm.* событий и привязываем метрики
         """
+        # === ПРОХОД 1: Собираем метрики ===
+        metrics_by_capability: Dict[str, Dict] = {}
+        
+        for event in events:
+            event_type = event.get('event_type', '')
+            
+            if event_type == 'metric.collected':
+                capability = event.get('capability', 'unknown')
+                metric_name = event.get('name', '')
+                metric_value = event.get('value', 0)
+                
+                if capability not in metrics_by_capability:
+                    metrics_by_capability[capability] = {'count': 0}
+                
+                metrics_by_capability[capability]['count'] = metrics_by_capability[capability].get('count', 0) + 1
+                
+                # Сохраняем последнюю метрику каждого типа
+                if metric_name == 'execution_time_ms':
+                    metrics_by_capability[capability]['execution_time_ms'] = float(metric_value)
+                elif metric_name == 'tokens_used':
+                    metrics_by_capability[capability]['tokens_used'] = int(metric_value)
+                elif metric_name == 'success':
+                    metrics_by_capability[capability]['success'] = float(metric_value) == 1.0
+        
+        # === ПРОХОД 2: Создаём шаги ===
         steps = []
         current_step = None
         step_number = 0
-
+        
+        # Отслеживаем какие capability уже использованы
+        used_capabilities: Dict[str, int] = {}
+        
         for event in events:
             event_type = event.get('event_type', '')
-
+            
             # Начало нового шага (LLM запрос)
             if event_type == 'llm.prompt.generated':
                 if current_step:
                     steps.append(current_step)
+                
+                # Создаём новый шаг
                 current_step = StepTrace(
                     step_number=step_number,
-                    capability=self._extract_capability_from_event(event),
+                    capability="unknown",
                     goal=""
                 )
                 current_step.llm_request = self._parse_llm_request(event)
                 step_number += 1
-
+            
             # LLM ответ
             elif event_type == 'llm.response.received':
                 if current_step:
                     current_step.llm_response = self._parse_llm_response(event)
-
-            # Метрика выполнения (завершение шага)
-            elif event_type == 'log.info':
-                message = event.get('message', '')
-                if 'Метрика:' in message:
-                    # Извлечение метрики
-                    metric_info = self._parse_metric_message(message)
-                    if current_step:
-                        current_step.time_ms = metric_info.get('execution_time_ms', 0)
-                        current_step.tokens_used = metric_info.get('tokens', 0)
-
-                        # Проверка успешности
-                        if not metric_info.get('success', True):
-                            current_step.errors.append(ErrorDetail(
-                                error_type=ErrorType.LOGIC_ERROR,
-                                message=metric_info.get('error', 'Unknown error'),
-                                capability=current_step.capability,
-                                step_number=current_step.step_number
-                            ))
-
-                        steps.append(current_step)
-                        current_step = None
-
-        # Добавление последнего шага если есть
+        
+        # Добавляем последний шаг
         if current_step:
             steps.append(current_step)
-
+        
+        # === ПРОХОД 3: Привязываем метрики к шагам ===
+        # Сопоставляем шаги с метриками по порядку появления capability
+        for step in steps:
+            # Ищем capability с метриками который ещё не использован
+            for capability, metrics in metrics_by_capability.items():
+                cap_count = used_capabilities.get(capability, 0)
+                total_count = metrics.get('count', 0)
+                
+                # Если есть неиспользованные метрики для этого capability
+                if cap_count < total_count and 'execution_time_ms' in metrics:
+                    step.capability = capability
+                    step.time_ms = metrics.get('execution_time_ms', 0)
+                    step.tokens_used = metrics.get('tokens_used', 0)
+                    
+                    # Проверка успешности
+                    if not metrics.get('success', True):
+                        step.errors.append(ErrorDetail(
+                            error_type=ErrorType.LOGIC_ERROR,
+                            message='Execution failed',
+                            capability=capability,
+                            step_number=step.step_number
+                        ))
+                    
+                    used_capabilities[capability] = cap_count + 1
+                    break
+        
         return steps
 
     def _parse_llm_request(self, event: Dict[str, Any]) -> Optional[LLMRequest]:
@@ -423,11 +456,19 @@ class TraceHandler:
         )
 
     def _parse_llm_response(self, event: Dict[str, Any]) -> Optional[LLMResponse]:
-        """Парсинг LLM ответа из события"""
+        """Парсинг LLM ответа"""
+        
+        # В реальных логах message = null, используем placeholder
+        content = event.get('message', '')
+        
+        if not content:
+            # Создаём маркер что ответ был получен
+            content = f"[LLM response received at {event.get('timestamp', 'unknown')}]"
+        
         return LLMResponse(
-            content=event.get('message', '') or 'Response received',
-            tokens_used=0,
-            latency_ms=0,
+            content=content,
+            tokens_used=0,  # Будет заполнено из метрик
+            latency_ms=0,   # Будет заполнено из метрик
             timestamp=self._parse_timestamp(event.get('timestamp'))
         )
 
