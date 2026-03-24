@@ -1,0 +1,254 @@
+[
+  {
+    "agent_id": "e7ed350f-47d0-4d47-aaa4-c551f122672a",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T15:55:51.167634",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "e7ed350f-47d0-4d47-aaa4-c551f122672a",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T15:55:51.167634",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "a3406920-b198-463d-8983-6ef6cc4b17cb",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T16:11:11.581198",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "a3406920-b198-463d-8983-6ef6cc4b17cb",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T16:11:11.581198",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "38b51217-f04b-432e-9e6a-0e369d23ffdc",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T17:35:07.804641",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "38b51217-f04b-432e-9e6a-0e369d23ffdc",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T17:35:07.804641",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "79ea3aa6-a0d0-40a2-a464-8432eae0637a",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T18:00:43.843396",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "79ea3aa6-a0d0-40a2-a464-8432eae0637a",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T18:00:43.843396",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "7cac24ef-b68c-4e96-8cba-fceed440a756",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T18:11:18.130627",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "7cac24ef-b68c-4e96-8cba-fceed440a756",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T18:11:18.130627",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "11d0c819-5dbb-4eb5-b146-363767804326",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T18:22:03.694683",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "11d0c819-5dbb-4eb5-b146-363767804326",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T18:22:03.694683",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "b80a543f-0a6e-421a-8749-9f6c00e21584",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T18:33:37.672089",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "b80a543f-0a6e-421a-8749-9f6c00e21584",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T18:33:37.672089",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "be320202-8164-4380-a59b-980283be811f",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T18:58:50.642598",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "be320202-8164-4380-a59b-980283be811f",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T18:58:50.642598",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "TypeError"
+    }
+  },
+  {
+    "agent_id": "354d3aa1-112e-4fed-9e86-81456b9940e0",
+    "capability": "vector_books.get_document",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-23T19:09:50.815622",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  },
+  {
+    "agent_id": "354d3aa1-112e-4fed-9e86-81456b9940e0",
+    "capability": "vector_books.get_document",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-23T19:09:50.815622",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "AttributeError"
+    }
+  }
+]
