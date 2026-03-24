@@ -285,9 +285,21 @@ class ExecuteScriptHandler(BaseBookLibraryHandler):
                 context=exec_context
             )
 
+            await self.log_debug(f"Vector search result: status={vector_result.status}, data={vector_result.data}")
+            
             if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
                 data = vector_result.data
-                results = data.results if hasattr(data, 'results') else []
+                # Handle both Pydantic model and dict
+                if hasattr(data, 'model_dump'):
+                    data_dict = data.model_dump()
+                elif hasattr(data, 'dict'):
+                    data_dict = data.dict()
+                else:
+                    data_dict = data
+                
+                results = data_dict.get('results', []) if isinstance(data_dict, dict) else []
+                await self.log_debug(f"Vector results: {len(results)} found")
+                
                 if results:
                     return {"valid": True, "suggestions": []}
 
