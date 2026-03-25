@@ -176,15 +176,79 @@ async def main():
     total = len(results['test_results'])
     successful = sum(1 for r in results['test_results'] if r['success'])
     
-    print(f"\n📊 Всего тестов: {total}")
-    print(f"✅ Успешных: {successful}")
-    print(f"❌ Failed: {total - successful}")
-    if total > 0:
-        print(f"📈 Success Rate: {successful/total:.1%}")
+    # Расчёт метрик
+    total_steps = sum(r.get('steps', 0) for r in results['test_results'])
+    avg_steps = total_steps / successful if successful > 0 else 0
+    
+    # Оценка эффективности (1 шаг = идеально, >3 шагов = много)
+    efficiency_score = max(0, 100 - (avg_steps - 1) * 20) if avg_steps > 0 else 0
+    
+    # Оценка успешности
+    success_rate = (successful / total * 100) if total > 0 else 0
+    
+    # Общая оценка (0-100)
+    overall_score = (success_rate * 0.7 + efficiency_score * 0.3)
+    
+    # Интерпретация
+    if overall_score >= 90:
+        grade = "ОТЛИЧНО"
+        emoji = "🏆"
+    elif overall_score >= 75:
+        grade = "ХОРОШО"
+        emoji = "✅"
+    elif overall_score >= 50:
+        grade = "УДОВЛЕТВОРИТЕЛЬНО"
+        emoji = "⚠️"
+    else:
+        grade = "ТРЕБУЕТ УЛУЧШЕНИЙ"
+        emoji = "❌"
+    
+    print(f"\n📊 Общие метрики:")
+    print(f"   Всего тестов: {total}")
+    print(f"   ✅ Успешных: {successful}")
+    print(f"   ❌ Failed: {total - successful}")
+    print(f"   📈 Success Rate: {success_rate:.1f}%")
+    
+    if successful > 0:
+        print(f"\n📈 Эффективность:")
+        print(f"   Всего шагов: {total_steps}")
+        print(f"   Среднее шагов на тест: {avg_steps:.2f}")
+        print(f"   Efficiency Score: {efficiency_score:.1f}/100")
+    
+    print(f"\n{'='*60}")
+    print(f"   ОБЩАЯ ОЦЕНКА: {overall_score:.1f}/100 {emoji} {grade}")
+    print(f"{'='*60}")
+    
+    # Детализация по уровням
+    print(f"\n📊 Детализация по уровням:")
+    
+    sql_results = [r for r in results['test_results'] if 'sql' in r.get('test_id', '').lower() or 'author' in r.get('input', '').lower()]
+    answer_results = [r for r in results['test_results'] if 'answer' in r.get('test_id', '').lower()]
+    
+    if sql_results:
+        sql_success = sum(1 for r in sql_results if r['success'])
+        print(f"   SQL Generation: {sql_success}/{len(sql_results)} ({sql_success/len(sql_results)*100:.1f}%)")
+    
+    if answer_results:
+        answer_success = sum(1 for r in answer_results if r['success'])
+        print(f"   Final Answer: {answer_success}/{len(answer_results)} ({answer_success/len(answer_results)*100:.1f}%)")
 
     # Сохранение результатов
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Добавляем метрики в результаты
+    results['metrics'] = {
+        'total': total,
+        'successful': successful,
+        'failed': total - successful,
+        'success_rate': success_rate,
+        'total_steps': total_steps,
+        'avg_steps': avg_steps,
+        'efficiency_score': efficiency_score,
+        'overall_score': overall_score,
+        'grade': grade
+    }
 
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
