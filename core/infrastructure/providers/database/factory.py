@@ -2,7 +2,7 @@
 Фабрика для создания DB провайдеров.
 """
 from typing import Dict, Type
-from core.infrastructure.providers.database.base import BaseDBProvider
+from core.infrastructure.providers.database.base_db import BaseDBProvider
 from core.infrastructure.providers.database.postgres_provider import PostgresProvider
 from core.infrastructure.providers.database.mock_provider import SQLiteProvider
 
