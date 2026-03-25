@@ -207,6 +207,9 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             # Переход в состояние READY
             await self._transition_to(ComponentState.READY)
 
+            # ← НОВОЕ: Устанавливаем флаг инициализации для ActionExecutor
+            self._initialized = True
+
             # Переключаем логгер в асинхронный режим после успешной инициализации
             if self.event_bus_logger:
                 self.event_bus_logger._set_ready()
