@@ -369,11 +369,11 @@ class FinalAnswerSkill(BaseSkill):
                 self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
             # Продолжаем с пустыми шагами
 
-        # Получение промпта С КОНТРАКТАМИ из кэша (через BaseComponent.get_prompt_with_contract)
+        # Получение промпта из кэша (через BaseComponent.get_prompt)
         capability_name = "final_answer.generate"
-        prompt_with_contract = self.get_prompt_with_contract(capability_name)
+        prompt_obj = self.get_prompt(capability_name)
 
-        if not prompt_with_contract:
+        if not prompt_obj:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
@@ -383,7 +383,7 @@ class FinalAnswerSkill(BaseSkill):
             # Преобразуем списки в строки для рендеринга промпта
             observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
             steps_str = "\n".join([f"{i}. {step.get('action', 'неизвестно')}" for i, step in enumerate(steps_taken[-10:], 1)]) if steps_taken else "Шаги не выполнены."
-            
+
             # Преобразуем булевы значения в строки
             format_type_str = str(format_type)
             include_steps_str = str(include_steps).lower()
