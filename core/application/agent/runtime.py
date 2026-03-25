@@ -25,7 +25,9 @@ from .components import (
     ActionExecutor,
     AgentPolicy,
     ProgressScorer,
-    AgentState
+    AgentState,
+    SafeExecutor,
+    FailureMemory
 )
 from core.application.behaviors.base import BehaviorDecisionType, BehaviorDecision
 from core.models.errors import AgentStuckError, InfrastructureError
@@ -130,6 +132,16 @@ class AgentRuntime:
         # В новой архитектуре ApplicationContext сам является системным контекстом
         # так как наследуется от BaseSystemContext
         self.executor = ActionExecutor(application_context)
+        
+        # ← НОВОЕ: SafeExecutor с обработкой ошибок и FailureMemory
+        self.failure_memory = FailureMemory(max_age_minutes=30)
+        self.safe_executor = SafeExecutor(
+            executor=self.executor,
+            failure_memory=self.failure_memory,
+            max_retries=self.policy.max_retries,
+            base_delay=self.policy.base_delay,
+            max_delay=self.policy.max_delay
+        )
 
         # Инициализация менеджера поведения с executor
         self.behavior_manager = BehaviorManager(
@@ -356,8 +368,9 @@ class AgentRuntime:
 
             # component уже найден (SKILL.book_library или TOOL.book_library)
             # capability — это компонент, а cap_obj — объект Capability для валидации
-            execution_result = await self.executor.execute_action(
-                action_name=decision.capability_name,
+            # ← НОВОЕ: Выполнение через SafeExecutor с обработкой ошибок
+            execution_result = await self.safe_executor.execute(
+                capability_name=decision.capability_name,
                 parameters=decision.parameters,
                 context=self.application_context.session_context
             )
