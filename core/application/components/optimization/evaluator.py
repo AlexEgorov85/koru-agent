@@ -10,7 +10,7 @@ Evaluator - система оценки качества промптов.
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     EvaluationResult,
     PromptVersion,
     BenchmarkRunResult,

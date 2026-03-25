@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 from dataclasses import dataclass, field
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     BenchmarkScenario,
     BenchmarkResult,
     ActualOutput,

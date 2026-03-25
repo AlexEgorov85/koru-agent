@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     BenchmarkScenario,
     ExpectedOutput,
     ActualOutput,

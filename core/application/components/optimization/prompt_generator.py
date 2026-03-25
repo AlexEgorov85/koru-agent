@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     PromptVersion,
     MutationType,
     FailureAnalysis,

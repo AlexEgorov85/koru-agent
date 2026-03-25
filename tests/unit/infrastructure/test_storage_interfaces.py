@@ -268,7 +268,7 @@ class TestILogStorageInterface:
 
     def test_ilog_storage_concrete_implementation(self):
         """Тест конкретной реализации интерфейса"""
-        from core.models.data.benchmark import LogEntry, LogType
+        from core.benchmarks.benchmark_models import LogEntry, LogType
         
         class ConcreteLogStorage(ILogStorage):
             def __init__(self):
@@ -316,7 +316,7 @@ class TestILogStorageInterface:
     def test_ilog_storage_implementation_works(self):
         """Тест работы конкретной реализации"""
         import asyncio
-        from core.models.data.benchmark import LogEntry, LogType
+        from core.benchmarks.benchmark_models import LogEntry, LogType
         
         class ConcreteLogStorage(ILogStorage):
             def __init__(self):

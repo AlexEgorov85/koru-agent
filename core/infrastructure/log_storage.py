@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from core.models.data.benchmark import LogEntry, LogType
+from core.benchmarks.benchmark_models import LogEntry, LogType
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
 from core.infrastructure.storage.base.base_storage import FileSystemStorage
 

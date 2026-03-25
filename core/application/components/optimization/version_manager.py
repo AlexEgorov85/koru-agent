@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
-from core.models.data.benchmark import PromptVersion, MutationType
+from core.benchmarks.benchmark_models import PromptVersion, MutationType
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging import EventBusLogger
 

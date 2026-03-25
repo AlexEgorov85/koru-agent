@@ -4,7 +4,7 @@
 import pytest
 from datetime import datetime
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     OptimizationSample,
     ScenarioType,
     PromptVersion,

@@ -5,16 +5,16 @@
 Использование:
     # Запустить ВСЕ тесты из бенчмарка
     py -m scripts.cli.run_real_agent_benchmark
-    
+
     # Запустить только SQL тесты
     py -m scripts.cli.run_real_agent_benchmark --level sql
-    
+
     # Запустить только Final Answer тесты
     py -m scripts.cli.run_real_agent_benchmark --level answer
-    
+
     # Запустить первые 5 тестов
     py -m scripts.cli.run_real_agent_benchmark --limit 5
-    
+
     # Запустить один конкретный вопрос
     py -m scripts.cli.run_real_agent_benchmark -g "Какие книги написал Пушкин?"
 """
@@ -24,6 +24,9 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
+
+# Импорт валидатора
+from core.benchmarks import BenchmarkValidator
 
 
 async def main():
@@ -111,6 +114,10 @@ async def main():
     # Создание фабрики агентов
     agent_factory = AgentFactory(app)
 
+    # Инициализация валидатора
+    validator = BenchmarkValidator()
+    print("✅ Валидатор инициализирован\n")
+
     # Запуск тестов
     print("="*70)
     print("ЗАПУСК ТЕСТОВ")
@@ -183,14 +190,34 @@ async def main():
         # Проверка на ошибки
         if hasattr(result, 'error') and result.error:
             success = False
-        
+
+        # ВАЛИДАЦИЯ с использованием benchmark_validator
+        validation_result = None
+        if test.get('validation'):
+            # Валидация финального ответа
+            validation_result = validator.validate_final_answer(
+                answer=final_answer,
+                validation_rules=test.get('validation', {}),
+                context={'metadata': test.get('metadata', {})},
+                expected_books=test.get('expected_output', {}).get('books', [])
+            )
+            # Переопределяем success на основе валидации
+            success = validation_result['passed']
+            
+            # Вывод результатов валидации
+            if validation_result['passed']:
+                print(f"\n    ✅ ВАЛИДАЦИЯ: PASS")
+            else:
+                print(f"\n    ❌ ВАЛИДАЦИЯ: FAIL - {', '.join(validation_result['errors'][:3])}")
+
         test_result = {
             'test_id': test.get('id', f'test_{i}'),
             'input': test['input'],
             'success': success,
             'final_answer': final_answer[:1000],  # Ограничиваем длину
             'metadata': result.metadata if hasattr(result, 'metadata') else {},
-            'steps': steps_count
+            'steps': steps_count,
+            'validation': validation_result
         }
         results['test_results'].append(test_result)
 

@@ -87,7 +87,7 @@ from core.models.data.metrics import (
 **Файл:** `core/models/data/benchmark.py`
 
 ```python
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     BenchmarkConfig,
     BenchmarkResult,
     BenchmarkMetrics,

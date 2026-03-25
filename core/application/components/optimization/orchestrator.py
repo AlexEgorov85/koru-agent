@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 from dataclasses import dataclass
 
-from core.models.data.benchmark import (
+from core.benchmarks.benchmark_models import (
     PromptVersion,
     EvaluationResult,
     OptimizationResult,
@@ -396,7 +396,7 @@ class OptimizationOrchestrator:
 
         # Запуск бенчмарка (упрощённо)
         # В реальной реализации нужно загружать сценарии
-        from core.models.data.benchmark import BenchmarkRunResult
+        from core.benchmarks.benchmark_models import BenchmarkRunResult
 
         # Mock результаты для примера
         mock_results = [

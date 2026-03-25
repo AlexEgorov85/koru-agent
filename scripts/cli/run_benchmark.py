@@ -135,7 +135,7 @@ async def run_single_benchmark(
         )
 
         # Создание тестовых сценариев (заглушка)
-        from core.models.data.benchmark import BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType
+        from core.benchmarks.benchmark_models import BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType
 
         scenarios = [
             BenchmarkScenario(

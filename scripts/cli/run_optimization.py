@@ -167,7 +167,7 @@ async def run_optimization_v2(
         from core.infrastructure.context.infrastructure_context import InfrastructureContext
         from core.application.context.application_context import ApplicationContext
         from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-        from core.models.data.benchmark import OptimizationMode, FailureAnalysis
+        from core.benchmarks.benchmark_models import OptimizationMode, FailureAnalysis
 
         from core.application.components.optimization import (
             DatasetBuilder,
@@ -181,7 +181,7 @@ async def run_optimization_v2(
         )
         from core.application.components.optimization.dataset_builder import DatasetConfig
         from core.application.components.optimization.scenario_builder import ScenarioConfig
-        from core.application.components.optimization.benchmark_runner import BenchmarkRunConfig
+        from core.benchmarks.benchmark_runner import BenchmarkRunConfig
         from core.application.components.optimization.evaluator import EvaluationConfig
         from core.application.components.optimization.prompt_generator import GenerationConfig
         from core.application.components.optimization.safety_layer import SafetyConfig
