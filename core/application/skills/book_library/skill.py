@@ -94,8 +94,6 @@ class BookLibrarySkill(BaseSkill):
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": "v1.0.0",
                     "requires_llm": True,
                     "execution_type": "dynamic"
                 }
@@ -107,8 +105,6 @@ class BookLibrarySkill(BaseSkill):
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": None,
                     "requires_llm": False,
                     "execution_type": "static",
                     "scripts_count": 10,
@@ -122,8 +118,6 @@ class BookLibrarySkill(BaseSkill):
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": None,
                     "requires_llm": False,
                     "execution_type": "informational"
                 }
@@ -135,8 +129,6 @@ class BookLibrarySkill(BaseSkill):
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": None,
                     "requires_llm": False,
                     "execution_type": "vector"
                 }
@@ -209,85 +201,17 @@ class BookLibrarySkill(BaseSkill):
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """
-        Реестр разрешённых SQL-скриптов (fallback).
+        Реестр разрешённых SQL-скриптов.
 
-        Возвращает скрипты из scripts_registry.py или встроенный реестр.
+        Возвращает скрипты из scripts_registry.py — единого источника истины.
         """
-        if self._scripts_registry:
-            return {name: config.to_dict() for name, config in self._scripts_registry.items()}
+        if not self._scripts_registry:
+            raise RuntimeError(
+                "Scripts registry не загружен! "
+                "Проверьте инициализацию BookLibrarySkill."
+            )
 
-        return {
-            "get_all_books": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books ORDER BY id LIMIT $1",
-                "max_rows": 100,
-                "required_parameters": [],
-                "parameters": ["max_rows"],
-                "description": "Получить все книги (с лимитом)"
-            },
-            "get_books_by_author": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books WHERE author = $1 ORDER BY title LIMIT $2",
-                "max_rows": 50,
-                "required_parameters": ["author"],
-                "parameters": ["author", "max_rows"],
-                "description": "Получить книги по автору"
-            },
-            "get_books_by_genre": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books WHERE genre = $1 ORDER BY title LIMIT $2",
-                "max_rows": 50,
-                "required_parameters": ["genre"],
-                "parameters": ["genre", "max_rows"],
-                "description": "Получить книги по жанру"
-            },
-            "get_books_by_year_range": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books WHERE year BETWEEN $1 AND $2 ORDER BY year LIMIT $3",
-                "max_rows": 100,
-                "required_parameters": ["year_from", "year_to"],
-                "parameters": ["year_from", "year_to", "max_rows"],
-                "description": "Получить книги по диапазону лет"
-            },
-            "get_book_by_id": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books WHERE id = $1",
-                "max_rows": 1,
-                "required_parameters": ["book_id"],
-                "parameters": ["book_id"],
-                "description": "Получить книгу по ID"
-            },
-            "count_books_by_author": {
-                "sql": "SELECT COUNT(*) as count, author FROM books WHERE author = $1 GROUP BY author",
-                "max_rows": 1,
-                "required_parameters": ["author"],
-                "parameters": ["author"],
-                "description": "Посчитать количество книг автора"
-            },
-            "get_books_by_title_pattern": {
-                "sql": "SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE $1 ORDER BY title LIMIT $2",
-                "max_rows": 50,
-                "required_parameters": ["title_pattern"],
-                "parameters": ["title_pattern", "max_rows"],
-                "description": "Получить книги по шаблону названия (ILIKE)"
-            },
-            "get_distinct_authors": {
-                "sql": "SELECT DISTINCT author FROM books WHERE author IS NOT NULL ORDER BY author LIMIT $1",
-                "max_rows": 100,
-                "required_parameters": [],
-                "parameters": ["max_rows"],
-                "description": "Получить список уникальных авторов"
-            },
-            "get_distinct_genres": {
-                "sql": "SELECT DISTINCT genre FROM books WHERE genre IS NOT NULL ORDER BY genre LIMIT $1",
-                "max_rows": 50,
-                "required_parameters": [],
-                "parameters": ["max_rows"],
-                "description": "Получить список уникальных жанров"
-            },
-            "get_genre_statistics": {
-                "sql": "SELECT genre, COUNT(*) as book_count, AVG(year) as avg_year FROM books WHERE genre IS NOT NULL GROUP BY genre ORDER BY book_count DESC LIMIT $1",
-                "max_rows": 20,
-                "required_parameters": [],
-                "parameters": ["max_rows"],
-                "description": "Получить статистику по жанрам"
-            }
-        }
+        return {name: config.to_dict() for name, config in self._scripts_registry.items()}
 
     async def _publish_metrics(
         self,

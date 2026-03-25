@@ -60,7 +60,7 @@ class FinalAnswerSkill(BaseSkill):
     def get_capabilities(self) -> List[Capability]:
         """
         Возвращает список поддерживаемых capability для генерации финального ответа.
-        
+
         ВОЗВРАЩАЕТ:
         - List[Capability]: Список capability с метаданными
         """
@@ -72,8 +72,6 @@ class FinalAnswerSkill(BaseSkill):
                 supported_strategies=self.supported_strategies,
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": "v1.0.0",
                     "requires_llm": True,
                     "execution_type": "llm-powered",
                     "formats": ["concise", "detailed", "structured"]

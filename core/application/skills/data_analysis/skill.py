@@ -51,8 +51,6 @@ class DataAnalysisSkill(BaseSkill):
                 supported_strategies=["react", "planning"],
                 visiable=True,
                 meta={
-                    "contract_version": "v1.0.0",
-                    "prompt_version": "v1.0.0",
                     "supports_chunking": True,
                     "aggregation_methods": ["summary", "statistical", "extractive", "generative"]
                 }
