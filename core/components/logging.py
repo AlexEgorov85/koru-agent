@@ -9,7 +9,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     pass
 ```
 """
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Callable, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
@@ -32,7 +32,8 @@ class LoggingMixin:
     def __init__(
         self,
         event_bus: Optional['EventBusInterface'] = None,
-        component_name: str = "unknown"
+        component_name: str = "unknown",
+        get_init_state_callback: Optional[Callable] = None
     ):
         """
         Инициализация логгера.
@@ -40,8 +41,10 @@ class LoggingMixin:
         ARGS:
         - event_bus: EventBusInterface для создания логгера
         - component_name: Имя компонента для логирования
+        - get_init_state_callback: Callback для получения состояния инициализации
         """
         self._event_bus = event_bus
+        self._get_init_state_callback = get_init_state_callback
         self.event_bus_logger = None
         
         if event_bus is not None:
@@ -62,12 +65,22 @@ class LoggingMixin:
         session_id = getattr(self, 'session_id', 'system')
         agent_id = getattr(self, 'agent_id', 'system')
         
-        self.event_bus_logger = EventBusLogger(
-            event_bus=self._event_bus,
-            session_id=session_id,
-            agent_id=agent_id,
-            component=component_name
-        )
+        # Создаём EventBusLogger с callback если есть
+        if self._get_init_state_callback:
+            self.event_bus_logger = EventBusLogger(
+                event_bus=self._event_bus,
+                session_id=session_id,
+                agent_id=agent_id,
+                component=component_name,
+                get_init_state_callback=self._get_init_state_callback
+            )
+        else:
+            self.event_bus_logger = EventBusLogger(
+                event_bus=self._event_bus,
+                session_id=session_id,
+                agent_id=agent_id,
+                component=component_name
+            )
 
     def _safe_log_sync(self, level: str, message: str, *args, **kwargs):
         """
