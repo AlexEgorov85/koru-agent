@@ -3,11 +3,20 @@
 Запуск РЕАЛЬНОГО агента на бенчмарке.
 
 Использование:
-    # Запустить все тесты из бенчмарка
+    # Запустить ВСЕ тесты из бенчмарка
     py -m scripts.cli.run_real_agent_benchmark
     
-    # Запустить один тест
-    py -m scripts.cli.run_real_agent_benchmark --goal "Какие книги написал Пушкин?"
+    # Запустить только SQL тесты
+    py -m scripts.cli.run_real_agent_benchmark --level sql
+    
+    # Запустить только Final Answer тесты
+    py -m scripts.cli.run_real_agent_benchmark --level answer
+    
+    # Запустить первые 5 тестов
+    py -m scripts.cli.run_real_agent_benchmark --limit 5
+    
+    # Запустить один конкретный вопрос
+    py -m scripts.cli.run_real_agent_benchmark -g "Какие книги написал Пушкин?"
 """
 import asyncio
 import json
@@ -26,7 +35,11 @@ async def main():
                         default='data/benchmarks/real_benchmark_results.json',
                         help='Файл для результатов')
     parser.add_argument('--goal', '-g', type=str, default=None,
-                        help='Один тестовый вопрос (если не указан — запускаются все тесты из бенчмарка)')
+                        help='Один тестовый вопрос (если не указан — запускаются тесты из бенчмарка)')
+    parser.add_argument('--limit', '-l', type=int, default=None,
+                        help='Максимум тестов для запуска (по умолчанию — все тесты из бенчмарка)')
+    parser.add_argument('--level', type=str, default='all', choices=['all', 'sql', 'answer'],
+                        help='Какой уровень тестов запускать (all/sql/answer)')
     args = parser.parse_args()
 
     print("="*70)
@@ -49,18 +62,35 @@ async def main():
         print(f"Mode: SINGLE TEST\n")
         test_cases = [{'input': args.goal, 'id': 'single_test', 'name': 'Single Test'}]
     else:
-        # Запуск всех тестов из бенчмарка
+        # Запуск тестов из бенчмарка
         print(f"Benchmark: {args.benchmark}")
         print(f"Mode: FULL BENCHMARK\n")
-        
+
         sql_tests = benchmark['levels']['sql_generation']['test_cases']
         answer_tests = benchmark['levels']['final_answer']['test_cases']
-        test_cases = sql_tests[:3] + answer_tests[:3]  # Первые 3 из каждого уровня
+        
+        # Выбор уровня тестов
+        if args.level == 'sql':
+            test_cases = sql_tests
+            print(f"📊 Уровень: SQL Generation")
+        elif args.level == 'answer':
+            test_cases = answer_tests
+            print(f"📊 Уровень: Final Answer")
+        else:
+            test_cases = sql_tests + answer_tests
+            print(f"📊 Уровни: SQL Generation + Final Answer")
+        
+        # Ограничение количества тестов
+        if args.limit:
+            test_cases = test_cases[:args.limit]
+            print(f"📊 Ограничение: {args.limit} тестов\n")
+        else:
+            print(f"📊 Ограничение: нет (все тесты)\n")
         
         print(f"📊 Загружено тестов:")
-        print(f"   SQL Generation: {len(sql_tests)} (запускаем первые 3)")
-        print(f"   Final Answer: {len(answer_tests)} (запускаем первые 3)")
-        print()
+        print(f"   SQL Generation: {len(sql_tests)}" + (f" (запускаем {args.limit})" if args.limit and args.level != 'answer' else ""))
+        print(f"   Final Answer: {len(answer_tests)}" + (f" (запускаем {args.limit})" if args.limit and args.level != 'sql' else ""))
+        print(f"   👉 Всего запускаем: {len(test_cases)} тестов\n")
 
     from core.config import get_config
     from core.infrastructure.context.infrastructure_context import InfrastructureContext
