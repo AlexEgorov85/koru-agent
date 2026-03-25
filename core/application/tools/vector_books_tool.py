@@ -49,6 +49,13 @@ class VectorBooksTool(BaseTool):
             **kwargs
         )
         # EventBusLogger инициализируется в LoggingMixin автоматически
+        
+        # ← НОВОЕ: Инициализация атрибутов инфраструктуры
+        self._embedding_provider = None
+        self._faiss_provider = None
+        self._chunking_strategy = None
+        self._sql_provider = None
+        self._cache_service = None
 
     @property
     def description(self) -> str:
