@@ -53,9 +53,9 @@ class ReActPattern(BaseBehaviorPattern):
     # Явная декларация зависимостей
     DEPENDENCIES = ["prompt_service", "contract_service"]
 
-    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None):
+    def __init__(self, component_name: str, component_config = None, application_context = None, executor = None, event_bus = None):
         """Инициализация паттерна."""
-        super().__init__(component_name, component_config, application_context, executor)
+        super().__init__(component_name, component_config, application_context, executor, event_bus)
 
         # Специфичные для ReAct атрибуты
         self.reasoning_schema = None

@@ -41,7 +41,8 @@ class SQLCorrectionEngine(BaseService):
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""
         await self.error_analyzer.initialize()
-        self.event_bus_logger.info_sync("SQLCorrectionEngine успешно инициализирован")
+        if self.event_bus_logger:
+            self.event_bus_logger.info_sync("SQLCorrectionEngine успешно инициализирован")
         return True
     
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:
@@ -51,7 +52,8 @@ class SQLCorrectionEngine(BaseService):
     async def shutdown(self) -> None:
         """Завершение работы движка коррекции"""
         await self.error_analyzer.shutdown()
-        self.event_bus_logger.info_sync("Завершение работы SQLCorrectionEngine")
+        if self.event_bus_logger:
+            self.event_bus_logger.info_sync("Завершение работы SQLCorrectionEngine")
     
     async def correct_query(self, correction_input: SQLCorrectionInput) -> SQLCorrectionOutput:
         """

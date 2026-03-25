@@ -76,17 +76,19 @@ class SQLErrorAnalyzer(BaseService):
     
     async def initialize(self) -> bool:
         """Инициализация анализатора ошибок"""
-        self.event_bus_logger.info_sync("SQLErrorAnalyzer успешно инициализирован")
+        if self.event_bus_logger:
+            self.event_bus_logger.info_sync("SQLErrorAnalyzer успешно инициализирован")
         return True
-    
+
     async def execute(self, input_data: ServiceInput) -> ServiceOutput:
         """Выполнение анализа ошибки - в данном случае не используется напрямую"""
         # Этот метод не используется напрямую, так как анализатор ошибок используется через метод analyze
         raise NotImplementedError("SQLErrorAnalyzer не поддерживает прямое выполнение. Используйте метод analyze()")
-    
+
     async def shutdown(self) -> None:
         """Завершение работы анализатора ошибок"""
-        self.event_bus_logger.info_sync("Завершение работы SQLErrorAnalyzer")
+        if self.event_bus_logger:
+            self.event_bus_logger.info_sync("Завершение работы SQLErrorAnalyzer")
     
     async def analyze(self, error: ExecutionError) -> Dict[str, Any]:
         """
