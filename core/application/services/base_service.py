@@ -70,11 +70,7 @@ class BaseService(BaseComponent):
         app_config: Optional['AppConfig'] = None,
         executor=None,
         component_config: Optional['ComponentConfig'] = None,
-        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        # [REFACTOR Этап 7] db, llm, cache, vector удалены — используйте executor
-        event_bus: Optional[EventBusInterface] = None,
-        metrics_storage: Optional[MetricsStorageInterface] = None,
-        log_storage: Optional[LogStorageInterface] = None
+        event_bus = None  # ← Только для логирования
     ):
         """
         Инициализация базового сервиса.
@@ -117,16 +113,13 @@ class BaseService(BaseComponent):
             )
 
         # Вызов конструктора родительского класса с ComponentConfig и executor
-        # Передаем все внедрённые зависимости
+        # Передаем event_bus для логирования
         super().__init__(
             name,
             application_context,
             component_config=component_config,
             executor=executor,
-            # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
-            event_bus=event_bus,
-            metrics_storage=metrics_storage,
-            log_storage=log_storage
+            event_bus=event_bus
         )
 
         # Устанавливаем атрибут component_config для обратной совместимости

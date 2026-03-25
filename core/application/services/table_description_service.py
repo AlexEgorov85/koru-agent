@@ -41,7 +41,7 @@ class TableDescriptionService(BaseService):
     def description(self) -> str:
         return "Сервис для получения описания таблицы с метаданными"
 
-    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None, event_bus=None, metrics_storage=None, log_storage=None):
+    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None, event_bus=None):
         """
         Инициализация сервиса получения описания таблицы.
 
@@ -68,9 +68,7 @@ class TableDescriptionService(BaseService):
             application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
-            metrics_storage=metrics_storage,
-            log_storage=log_storage
+            event_bus=event_bus
         )
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
 

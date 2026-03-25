@@ -193,24 +193,11 @@ class ComponentFactory:
         if 'application_context' in params:
             kwargs['application_context'] = application_context
 
-        # Передаем провайдеры по именам параметров
-        # [REFACTOR Этап 7] db, llm, cache, vector удалены из BaseComponent
-        # Оставлены только интерфейсы для логирования и хранения
-
-        if 'event_bus' in params and providers.get('event_bus'):
+        # Передаем event_bus для логирования
+        # metrics_storage и log_storage НЕ передаются — они подписаны на EventBus
+        # и автоматически получают события
+        if providers.get('event_bus'):
             kwargs['event_bus'] = providers['event_bus']
-
-        if 'prompt_storage' in params and providers.get('prompt_storage'):
-            kwargs['prompt_storage'] = providers['prompt_storage']
-
-        if 'contract_storage' in params and providers.get('contract_storage'):
-            kwargs['contract_storage'] = providers['contract_storage']
-
-        if 'metrics_storage' in params and providers.get('metrics_storage'):
-            kwargs['metrics_storage'] = providers['metrics_storage']
-
-        if 'log_storage' in params and providers.get('log_storage'):
-            kwargs['log_storage'] = providers['log_storage']
         
         # 5. Специальная обработка для behavior patterns
         from core.application.behaviors.base_behavior_pattern import BaseBehaviorPattern

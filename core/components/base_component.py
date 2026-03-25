@@ -91,14 +91,11 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         application_context: Optional['ApplicationContext'] = None,  # [DEPRECATED Этап 5]
         component_config: Optional[ComponentConfig] = None,
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
-        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        event_bus: Optional[EventBusInterface] = None,
-        metrics_storage: Optional[MetricsStorageInterface] = None,
-        log_storage: Optional[LogStorageInterface] = None
+        event_bus = None  # ← Только для логирования
     ):
         # Вызов конструктора LifecycleMixin
         LifecycleMixin.__init__(self, name)
-        
+
         # Вызов конструктора LoggingMixin с callback для состояния инициализации
         LoggingMixin.__init__(
             self,

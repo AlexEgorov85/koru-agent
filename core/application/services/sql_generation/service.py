@@ -48,7 +48,7 @@ class SQLGenerationService(BaseService):
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
 
-    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None, event_bus=None, metrics_storage=None, log_storage=None):
+    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None, event_bus=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -63,9 +63,7 @@ class SQLGenerationService(BaseService):
             application_context=application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
-            metrics_storage=metrics_storage,
-            log_storage=log_storage
+            event_bus=event_bus
         )
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния

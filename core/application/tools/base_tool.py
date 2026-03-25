@@ -45,21 +45,17 @@ class BaseTool(BaseComponent):
         application_context: 'ApplicationContext',
         component_config: Optional[ComponentConfig] = None,
         executor=None,
-        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
-        event_bus = None,
-        metrics_storage = None,
-        log_storage = None,
+        event_bus = None,  # ← Только для логирования
         **kwargs
     ):
-        # Вызов конструктора родительского класса с DI параметрами
+        # Вызов конструктора родительского класса
+        # event_bus передаётся от ComponentFactory для логирования
         super().__init__(
             name,
             application_context,
             component_config=component_config,
             executor=executor,
-            event_bus=event_bus,
-            metrics_storage=metrics_storage,
-            log_storage=log_storage
+            event_bus=event_bus
         )
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
