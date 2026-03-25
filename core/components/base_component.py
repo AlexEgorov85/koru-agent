@@ -122,6 +122,9 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
 
+        # ← НОВОЕ: Флаг инициализации для ActionExecutor
+        self._initialized = False
+
         # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
         self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
