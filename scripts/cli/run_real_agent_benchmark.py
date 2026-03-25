@@ -149,22 +149,48 @@ async def main():
             print(f"\n{result}")
 
         # Метаданные
-        if hasattr(result, 'metadata'):
+        if hasattr(result, 'metadata') and result.metadata:
             print("\n📈 Метаданные:")
-            if result.metadata:
-                steps = result.metadata.get('total_steps') or result.metadata.get('steps_executed', 'N/A')
-                errors = result.metadata.get('error_count', 0)
-                print(f"  - Шагов выполнено: {steps}")
-                print(f"  - Ошибок: {errors}")
+            metadata = result.metadata
+            if isinstance(metadata, dict):
+                steps = metadata.get('total_steps') or metadata.get('steps_executed', 'N/A')
+                errors = metadata.get('error_count', 0)
+            else:
+                steps = getattr(metadata, 'total_steps', 'N/A')
+                errors = getattr(metadata, 'error_count', 0)
+            print(f"  - Шагов выполнено: {steps}")
+            print(f"  - Ошибок: {errors}")
 
         # Сохранение результата
+        # Обработка результата (может быть dict, Pydantic модель или строка)
+        final_answer = ''
+        steps_count = 0
+        success = True
+        
+        if hasattr(result, 'data') and result.data:
+            if isinstance(result.data, dict):
+                final_answer = result.data.get('final_answer', '')
+                steps_count = result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
+            elif hasattr(result.data, '__dict__'):
+                # Pydantic модель
+                final_answer = getattr(result.data, 'final_answer', str(result.data))
+                steps_count = getattr(result, 'metadata', {}).get('total_steps', 0) if hasattr(result, 'metadata') else 0
+            else:
+                final_answer = str(result.data)
+        else:
+            final_answer = str(result)
+        
+        # Проверка на ошибки
+        if hasattr(result, 'error') and result.error:
+            success = False
+        
         test_result = {
             'test_id': test.get('id', f'test_{i}'),
             'input': test['input'],
-            'success': not (hasattr(result, 'error') and result.error),
-            'final_answer': result.data.get('final_answer', '') if hasattr(result, 'data') and result.data else str(result),
+            'success': success,
+            'final_answer': final_answer[:1000],  # Ограничиваем длину
             'metadata': result.metadata if hasattr(result, 'metadata') else {},
-            'steps': result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
+            'steps': steps_count
         }
         results['test_results'].append(test_result)
 
