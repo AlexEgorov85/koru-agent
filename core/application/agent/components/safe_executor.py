@@ -83,7 +83,7 @@ class SafeExecutor:
     ):
         """
         Инициализация безопасного исполнителя.
-        
+
         ПАРАМЕТРЫ:
         - executor: ActionExecutor для выполнения действий
         - failure_memory: FailureMemory для записи ошибок
@@ -99,6 +99,9 @@ class SafeExecutor:
         self.max_delay = max_delay
         self.jitter = jitter
         self.error_classifier = ErrorClassifier()
+        
+        # ← НОВОЕ: Логирование через executor.event_bus_logger
+        self._event_bus_logger = getattr(executor, '_event_bus_logger', None)
     
     async def execute(
         self,
@@ -149,10 +152,13 @@ class SafeExecutor:
             except Exception as e:
                 last_error = e
                 retry_count = attempt + 1
-                
+
                 # Классификация ошибки
                 error_type, recommendation = self.error_classifier.classify(e, capability_name)
-                
+
+                # ← НОВОЕ: Логирование ошибки
+                await self._log_error(capability_name, e, error_type, attempt)
+
                 # Запись в FailureMemory (ЕДИНЫЙ источник!)
                 self.failure_memory.record(
                     capability=capability_name,
@@ -292,6 +298,36 @@ class SafeExecutor:
             metadata=metadata,
             error_category=error_category
         )
+    
+    async def _log_error(
+        self,
+        capability_name: str,
+        error: Exception,
+        error_type: ErrorType,
+        attempt: int
+    ):
+        """
+        ← НОВОЕ: Логирование ошибки.
+        
+        ПАРАМЕТРЫ:
+        - capability_name: имя capability
+        - error: исключение
+        - error_type: тип ошибки
+        - attempt: номер попытки
+        """
+        if self._event_bus_logger:
+            log_message = (
+                f"Ошибка выполнения {capability_name}: {type(error).__name__}: {str(error)[:100]} | "
+                f"Тип: {error_type.value} | Попытка: {attempt + 1}/{self.max_retries}"
+            )
+            
+            # Логирование по уровню серьезности
+            if error_type == ErrorType.FATAL:
+                await self._event_bus_logger.error(log_message)
+            elif error_type == ErrorType.VALIDATION:
+                await self._event_bus_logger.warning(log_message)
+            else:
+                await self._event_bus_logger.info(log_message)
     
     def get_failure_memory(self) -> FailureMemory:
         """
