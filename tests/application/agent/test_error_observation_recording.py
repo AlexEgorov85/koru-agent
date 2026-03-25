@@ -66,9 +66,9 @@ class TestErrorObservationRecording:
             metadata={"error_type": "execution_error"}
         )
 
-        # Мокаем executor
+        # Мокаем executor.execute_action
         runtime.executor = MagicMock()
-        runtime.executor.execute_capability = AsyncMock(return_value=failed_result)
+        runtime.executor.execute_action = AsyncMock(return_value=failed_result)
 
         # Создаём decision
         decision = BehaviorDecision(
@@ -123,9 +123,9 @@ class TestErrorObservationRecording:
             metadata={}
         )
 
-        # Мокаем executor
+        # Мокаем executor.execute_action
         runtime.executor = MagicMock()
-        runtime.executor.execute_capability = AsyncMock(return_value=failed_result)
+        runtime.executor.execute_action = AsyncMock(return_value=failed_result)
 
         # Создаём decision
         decision = BehaviorDecision(
@@ -161,9 +161,9 @@ class TestErrorObservationRecording:
             metadata={}
         )
 
-        # Мокаем executor
+        # Мокаем executor.execute_action
         runtime.executor = MagicMock()
-        runtime.executor.execute_capability = AsyncMock(return_value=success_result)
+        runtime.executor.execute_action = AsyncMock(return_value=success_result)
 
         # Создаём decision
         decision = BehaviorDecision(
@@ -210,9 +210,9 @@ class TestErrorObservationRecording:
             metadata={}
         )
 
-        # Мокаем executor
+        # Мокаем executor.execute_action
         runtime.executor = MagicMock()
-        runtime.executor.execute_capability = AsyncMock(return_value=failed_result)
+        runtime.executor.execute_action = AsyncMock(return_value=failed_result)
 
         # Создаём decision
         decision = BehaviorDecision(
@@ -251,9 +251,9 @@ class TestErrorObservationRecording:
             metadata=None  # ← None metadata
         )
 
-        # Мокаем executor
+        # Мокаем executor.execute_action
         runtime.executor = MagicMock()
-        runtime.executor.execute_capability = AsyncMock(return_value=failed_result)
+        runtime.executor.execute_action = AsyncMock(return_value=failed_result)
 
         # Создаём decision
         decision = BehaviorDecision(

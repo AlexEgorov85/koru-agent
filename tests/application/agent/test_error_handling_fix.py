@@ -13,6 +13,7 @@ from core.application.agent.components.state import AgentState
 from core.application.agent.components.policy import AgentPolicy
 from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.enums.common_enums import ExecutionStatus
+from core.models.data.execution import ExecutionResult
 
 
 class TestErrorCountInFinalStatus:
@@ -112,14 +113,17 @@ class TestAgentRuntimeErrorHandling:
             runtime.state.register_error()
             # Возвращаем ExecutionResult с FAILED если лимит превышен
             if runtime.policy.should_fallback(runtime.state):
-                from core.models.data.execution import ExecutionResult
                 return ExecutionResult(
                     status=ExecutionStatus.FAILED,
-                    data=None,  # ← ИСПРАВЛЕНО: result -> data
+                    data=None,
                     error=f"Превышен лимит ошибок: {runtime.state.error_count}",
                     metadata={"error_count": runtime.state.error_count}
                 )
-            return None
+            # Возвращаем успешный результат вместо None
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"mock": "data"}
+            )
 
         runtime._execute_single_step_internal = mock_execute_step
 
@@ -156,7 +160,11 @@ class TestAgentRuntimeErrorHandling:
         # Имитируем ошибки
         async def mock_execute_step(decision, available_caps):
             runtime.state.register_error()
-            return None
+            # Возвращаем успешный результат вместо None
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"mock": "data"}
+            )
 
         runtime._execute_single_step_internal = mock_execute_step
 
@@ -192,7 +200,11 @@ class TestAgentRuntimeErrorHandling:
         # Имитируем отсутствие прогресса
         async def mock_execute_step(decision, available_caps):
             runtime.state.register_progress(progressed=False)
-            return None
+            # Возвращаем успешный результат вместо None
+            return ExecutionResult(
+                status=ExecutionStatus.COMPLETED,
+                data={"mock": "data"}
+            )
 
         runtime._execute_single_step_internal = mock_execute_step
 

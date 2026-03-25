@@ -1226,9 +1226,7 @@ class ApplicationContext(BaseSystemContext):
             )
         return self.get_service("contract_service")
 
-    def get_skill(self, skill_name: str) -> Optional[BaseSkill]:
-        """Получение навыка по имени."""
-        return self.components.get(ComponentType.SKILL, skill_name)
+
 
     def get_prompt(self, capability_name: str, version: Optional[str] = None) -> str:
         """
@@ -1331,15 +1329,6 @@ class ApplicationContext(BaseSystemContext):
 
         # Значение по умолчанию
         return 120.0
-
-    def get_tool(self, name: str):
-        """
-        DEPRECATED: Получение инструмента.
-        Используйте components.get(ComponentType.TOOL, name) напрямую.
-        """
-        import warnings
-        warnings.warn("get_tool deprecated. Используйте components.get(ComponentType.TOOL, name)", DeprecationWarning, stacklevel=2)
-        return self.components.get(ComponentType.TOOL, name)
 
     async def get_all_capabilities(self) -> List['Capability']:
         """
@@ -1512,15 +1501,6 @@ class ApplicationContext(BaseSystemContext):
         await new_ctx.initialize()
 
         return new_ctx
-
-    def get_service(self, name: str):
-        """
-        DEPRECATED: Получение сервиса по имени.
-        Используйте components.get(ComponentType.SERVICE, name) напрямую.
-        """
-        import warnings
-        warnings.warn("get_service deprecated. Используйте components.get(ComponentType.SERVICE, name)", DeprecationWarning, stacklevel=2)
-        return self.components.get(ComponentType.SERVICE, name)
 
     def is_fully_initialized(self) -> bool:
         """

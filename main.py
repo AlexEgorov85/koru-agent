@@ -322,9 +322,10 @@ async def main_async() -> int:
             if result.metadata:
                 # Поддерживаем разные форматы метаданных
                 # total_steps может быть в result.metadata или result.data.metadata
+                data_dict = result.data.model_dump() if hasattr(result, 'data') and result.data else {}
                 steps = result.metadata.get('total_steps') or \
                         result.metadata.get('steps_count') or \
-                        (result.data.get('metadata', {}).get('total_steps') if hasattr(result, 'data') and result.data else None) or \
+                        (data_dict.get('metadata', {}).get('total_steps') if data_dict else None) or \
                         'N/A'
                 errors = result.metadata.get('error_count', 0)
                 print(f"  - Шагов выполнено: {steps}")
