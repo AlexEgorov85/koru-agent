@@ -722,7 +722,12 @@ class AgentRuntime:
             # Инициализация менеджера поведения
             await self.behavior_manager.initialize(component_name="react_pattern")
 
-            # Переменные для детекции зацикливания
+            # ← НОВОЕ: Переменные для детекции зацикливания
+            action_history: list = []  # История действий для детекции циклов
+            consecutive_same_actions = 0
+            last_action_key = None
+            
+            # Переменные для детекции отсутствия прогресса
             previous_snapshot = None
             previous_decision = None
             no_progress_counter = 0
@@ -736,6 +741,12 @@ class AgentRuntime:
 
             while self._running and self._current_step < self._max_steps:
                 print(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===", flush=True)
+
+                # ← НОВОЕ: Явные stop conditions
+                if self._should_stop_early():
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info("Ранняя остановка: _should_stop_early=True")
+                    break
 
                 if self.state.finished:
                     print(f"🔴 [RUNTIME] BREAK: state.finished=True", flush=True)
@@ -763,6 +774,34 @@ class AgentRuntime:
                 )
 
                 print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
+
+                # ← НОВОЕ: Детекция зацикливания действий
+                current_action_key = f"{decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}"
+                
+                if current_action_key == last_action_key:
+                    consecutive_same_actions += 1
+                    if consecutive_same_actions >= 3:
+                        # ← НОВОЕ: Прерываем цикл при 3 одинаковых действиях подряд
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.warning(
+                                f"⚠️ Обнаружено зацикливание: действие {current_action_key} повторилось {consecutive_same_actions} раза подряд"
+                            )
+                        step_result = ExecutionResult.failure(
+                            error=f"Detected action loop: {current_action_key} repeated {consecutive_same_actions} times",
+                            metadata={
+                                "error_type": "loop_detected",
+                                "repeated_action": current_action_key,
+                                "consecutive_count": consecutive_same_actions
+                            }
+                        )
+                        self._result = step_result
+                        self._running = False
+                        break
+                else:
+                    consecutive_same_actions = 0
+                
+                last_action_key = current_action_key
+                action_history.append(current_action_key)
 
                 # ПРОВЕРКА 1: Повторение decision без изменения state
                 if previous_decision and decision:
@@ -852,25 +891,6 @@ class AgentRuntime:
                 # Сброс счётчика ошибок при успешном выполнении
                 if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.COMPLETED:
                     consecutive_error_count = 0
-
-                # DETECT LOOP: Проверка на зацикливание capability
-                if hasattr(decision, 'capability_name') and decision.capability_name:
-                    current_cap = decision.capability_name
-                    if hasattr(self, '_last_capability') and self._last_capability == current_cap:
-                        if hasattr(self, '_consecutive_same_capability'):
-                            self._consecutive_same_capability += 1
-                        else:
-                            self._consecutive_same_capability = 1
-
-                        if self._consecutive_same_capability >= 2:
-                            if self.event_bus_logger:
-                                await self.event_bus_logger.warning(
-                                    f"⚠️ Зацикливание на capability: {current_cap} "
-                                    f"({self._consecutive_same_capability} раз подряд)"
-                                )
-                    else:
-                        self._last_capability = current_cap
-                        self._consecutive_same_capability = 0
 
                 # Обновляем snapshot для следующей итерации
                 previous_snapshot = current_snapshot
@@ -964,4 +984,30 @@ class AgentRuntime:
         if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
             return True
 
+        return False
+
+    def _should_stop_early(self) -> bool:
+        """
+        ← НОВОЕ: Явные условия ранней остановки.
+        
+        КРИТЕРИИ:
+        1. Цель достигнута (state.finished=True)
+        2. Confidence высокий (если есть оценка > 0.95)
+        3. Пустые действия (no-op) — лимит no_progress_steps
+        
+        ВОЗВРАЩАЕТ:
+        - bool: True если нужно остановиться досрочно
+        """
+        # 1. Цель достигнута
+        if self.state.finished:
+            return True
+        
+        # 2. Confidence высокий (если есть оценка)
+        if hasattr(self.state, 'confidence') and getattr(self.state, 'confidence', 0) > 0.95:
+            return True
+        
+        # 3. Проверка лимита no-progress шагов
+        if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
+            return True
+        
         return False
