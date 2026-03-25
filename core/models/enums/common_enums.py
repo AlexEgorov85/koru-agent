@@ -36,6 +36,7 @@ class ComponentStatus(str, Enum):
     INACTIVE = "inactive"
     DEPRECATED = "deprecated"
     ARCHIVED = "archived"
+    EXPERIMENTAL = "experimental"
 
 
 class ResourceType(str, Enum):

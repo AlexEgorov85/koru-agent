@@ -317,8 +317,14 @@ class InfrastructureContext:
                 try:
                     # Create appropriate config based on provider type
                     provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    from core.models.types.db_types import DBConnectionConfig
-                    config_obj = DBConnectionConfig(**provider_config.parameters)
+                    
+                    # Выбираем класс конфигурации в зависимости от типа БД
+                    if provider_type == "sqlite":
+                        from core.models.types.db_types import SQLiteConnectionConfig
+                        config_obj = SQLiteConnectionConfig(**provider_config.parameters)
+                    else:
+                        from core.models.types.db_types import DBConnectionConfig
+                        config_obj = DBConnectionConfig(**provider_config.parameters)
 
                     provider = self.db_provider_factory.create_provider(
                         provider_type=provider_type,

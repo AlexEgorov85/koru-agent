@@ -10,8 +10,13 @@ from core.interfaces.database import DatabaseInterface
 from core.interfaces.llm import LLMInterface
 from core.interfaces.vector import VectorInterface
 from core.interfaces.event_bus import EventBusInterface
-from core.interfaces.metrics_storage import MetricsStorageInterface
-from core.interfaces.log_storage import LogStorageInterface
+
+# Re-export из infrastructure.interfaces (объединённые)
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+
+# Aliases для обратной совместимости
+MetricsStorageInterface = IMetricsStorage
+LogStorageInterface = ILogStorage
 
 __all__ = [
     "CacheInterface",
@@ -19,6 +24,8 @@ __all__ = [
     "LLMInterface",
     "VectorInterface",
     "EventBusInterface",
-    "MetricsStorageInterface",
-    "LogStorageInterface",
+    "IMetricsStorage",
+    "ILogStorage",
+    "MetricsStorageInterface",  # backward compatibility
+    "LogStorageInterface",       # backward compatibility
 ]

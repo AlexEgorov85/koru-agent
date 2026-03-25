@@ -1,0 +1,42 @@
+{
+  "run_at": "2026-03-25T09:18:08.535784",
+  "benchmark": "data/benchmarks/agent_benchmark.json",
+  "mode": "full",
+  "test_results": [
+    {
+      "test_id": "sql_гоголь_237",
+      "input": "Какие книги написал Николай Гоголь?",
+      "success": true,
+      "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
+      "metadata": {
+        "capability": "final_answer.generate",
+        "execution_time_ms": 156289.7641658783,
+        "is_final_answer": true
+      },
+      "steps": 0
+    },
+    {
+      "test_id": "sql_гоголь_363",
+      "input": "Найти все книги автора Гоголь",
+      "success": true,
+      "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
+      "metadata": {
+        "capability": "final_answer.generate",
+        "execution_time_ms": 136404.2410850525,
+        "is_final_answer": true
+      },
+      "steps": 0
+    }
+  ],
+  "metrics": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0,
+    "success_rate": 100.0,
+    "total_steps": 0,
+    "avg_steps": 0.0,
+    "efficiency_score": 0,
+    "overall_score": 70.0,
+    "grade": "УДОВЛЕТВОРИТЕЛЬНО"
+  }
+}

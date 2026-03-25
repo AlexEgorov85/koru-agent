@@ -2,20 +2,9 @@
 Manifest модели для компонентов.
 """
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Optional, Dict, Any
 
-
-class ComponentType(Enum):
-    SKILL = "skill"
-    TOOL = "tool"
-    SERVICE = "service"
-
-
-class ComponentStatus(Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    DEPRECATED = "deprecated"
+from core.models.enums.common_enums import ComponentType, ComponentStatus
 
 
 @dataclass

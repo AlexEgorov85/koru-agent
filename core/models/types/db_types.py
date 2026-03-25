@@ -19,8 +19,8 @@ class DBHealthStatus(Enum):
 @dataclass
 class DBConnectionConfig:
     """
-    Конфигурация подключения к БД.
-    
+    Конфигурация подключения к PostgreSQL БД.
+
     ATTRIBUTES:
     - host: хост БД
     - port: порт БД
@@ -39,6 +39,23 @@ class DBConnectionConfig:
     pool_size: int = 10
     timeout: int = 30
     sslmode: str = "disable"
+
+
+@dataclass
+class SQLiteConnectionConfig:
+    """
+    Конфигурация подключения к SQLite БД.
+
+    ATTRIBUTES:
+    - db_path: путь к файлу базы данных
+    - timeout: таймаут блокировки (в секундах)
+    - check_same_thread: проверять ли, что подключение используется из того же потока
+    - detect_types: определять типы данных автоматически
+    """
+    db_path: str = ":memory:"
+    timeout: float = 30.0
+    check_same_thread: bool = False
+    detect_types: int = 0
 
 
 @dataclass

@@ -6,6 +6,7 @@
 - component_name используется вместо pattern_id
 - Версии управляются через registry.yaml → AppConfig → ComponentConfig
 - Интеграция с FailureMemory для принятия решений о переключении паттернов
+- Интеграция с StrategySelector для интеллектуального выбора паттерна
 """
 import asyncio
 from typing import Optional, List
@@ -15,6 +16,7 @@ from core.models.errors import InvalidDecisionError
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
 from core.infrastructure.logging import EventBusLogger
 from core.application.agent.components.failure_memory import FailureMemory
+from core.application.agent.components.strategy_selector import StrategySelector
 
 
 class BehaviorManager:
@@ -40,6 +42,7 @@ class BehaviorManager:
         self._initial_component_name = initial_component_name or "react_pattern"  # Fallback для совместимости
         self._executor = executor  # ← Сохраняем executor
         self._failure_memory = failure_memory  # ← НОВОЕ: Сохраняем FailureMemory
+        self._strategy_selector = StrategySelector()  # ← НОВОЕ: StrategySelector
         self._current_pattern: Optional[BehaviorPatternInterface] = None
         self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None

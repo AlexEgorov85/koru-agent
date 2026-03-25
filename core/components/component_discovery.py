@@ -23,18 +23,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type
 from enum import Enum
 
-from core.models.enums.common_enums import ComponentType
+from core.models.enums.common_enums import ComponentType, ComponentStatus
 
 
 logger = logging.getLogger(__name__)
-
-
-class ComponentStatus(Enum):
-    """Статус компонента."""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    DEPRECATED = "deprecated"
-    EXPERIMENTAL = "experimental"
 
 
 @dataclass

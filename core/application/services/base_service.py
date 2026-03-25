@@ -25,8 +25,11 @@ from core.infrastructure.logging import EventBusLogger
 
 # Интерфейсы для внедрения зависимостей
 from core.interfaces.event_bus import EventBusInterface
-from core.interfaces.metrics_storage import MetricsStorageInterface
-from core.interfaces.log_storage import LogStorageInterface
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+
+# Aliases для обратной совместимости
+MetricsStorageInterface = IMetricsStorage
+LogStorageInterface = ILogStorage
 
 
 class ServiceInput(ABC):
