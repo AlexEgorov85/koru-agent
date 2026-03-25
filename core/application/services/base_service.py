@@ -216,10 +216,7 @@ class BaseService(BaseComponent):
                 # Continue instead of returning False immediately
                 continue
             else:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
-                else:
-                    self.event_bus_logger.info_sync(f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+                self._safe_log_sync("info", f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
 
             # Проверка инициализации зависимости
             if not getattr(dependency, '_initialized', False):
@@ -227,12 +224,12 @@ class BaseService(BaseComponent):
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(msg)
                 else:
-                    self.event_bus_logger.warning_sync(msg)
+                    self._safe_log_sync("warning", msg)
             else:
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
                 else:
-                    self.event_bus_logger.debug_sync(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                    self._safe_log_sync("debug", f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
             self._dependencies[dep_name] = dependency
             setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
@@ -242,7 +239,7 @@ class BaseService(BaseComponent):
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             else:
-                self.event_bus_logger.error_sync(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+                self._safe_log_sync("error", f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
 
         # Log warning if some dependencies are missing
@@ -250,12 +247,12 @@ class BaseService(BaseComponent):
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
             else:
-                self.event_bus_logger.info_sync(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+                self._safe_log_sync("info", f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
         else:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
             else:
-                self.event_bus_logger.info_sync(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+                self._safe_log_sync("info", f"Все зависимости для сервиса '{self.name}' успешно разрешены")
 
         return True
 

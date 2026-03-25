@@ -104,7 +104,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             self,
             event_bus=event_bus,
             component_name=name,
-            get_init_state_callback=self._get_logger_init_state
+            get_init_state_callback=self._get_logger_init_state,
+            require_event_bus=True  # ← ТРЕБУЕМ event_bus для безопасности
         )
 
         # Валидация обязательных параметров
