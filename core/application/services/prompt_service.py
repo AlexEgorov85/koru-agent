@@ -25,10 +25,22 @@ class PromptService(BaseService):
         name: str = "prompt_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None  # Добавляем executor для совместимости с новой архитектурой
+        executor = None,
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        event_bus = None,
+        metrics_storage = None,
+        log_storage = None
     ):
         # Call the parent constructor with proper parameters
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+        super().__init__(
+            name=name,
+            application_context=application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
         # Кэш: {capability: {version: prompt_obj}} - структура для совместимости с BaseComponent
         self.prompts: Dict[str, Dict[str, Any]] = {}  # ← Изолированный кэш!
     

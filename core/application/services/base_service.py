@@ -139,8 +139,8 @@ class BaseService(BaseComponent):
 
         # [REFACTOR Этап 6] EventBusLogger инициализируется в BaseComponent
         # self.event_bus_logger будет доступен после вызова super().__init__()
-        # Используем _safe_log_sync для безопасного логирования
-        self._safe_log_sync("debug", f"Инициализирован сервис: {self.name}")
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"Инициализирован сервис: {self.name}")
 
     # [REFACTOR Этап 6] _init_event_bus_logger удалён — дублирует BaseComponent
 

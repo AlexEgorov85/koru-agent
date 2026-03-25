@@ -41,7 +41,7 @@ class TableDescriptionService(BaseService):
     def description(self) -> str:
         return "Сервис для получения описания таблицы с метаданными"
 
-    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None):
+    def __init__(self, application_context: ApplicationContext, name: str = None, component_config=None, executor=None, event_bus=None, metrics_storage=None, log_storage=None):
         """
         Инициализация сервиса получения описания таблицы.
 
@@ -50,6 +50,9 @@ class TableDescriptionService(BaseService):
         - name: имя сервиса (опционально)
         - component_config: конфигурация компонента
         - executor: ActionExecutor для взаимодействия между компонентами
+        - event_bus: EventBusInterface для логирования
+        - metrics_storage: MetricsStorageInterface для метрик
+        - log_storage: LogStorageInterface для хранения логов
         """
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
@@ -60,7 +63,15 @@ class TableDescriptionService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name=name or "table_description_service", application_context=application_context, component_config=component_config, executor=executor)
+        super().__init__(
+            name=name or "table_description_service",
+            application_context=application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
 
     async def _custom_initialize(self) -> bool:

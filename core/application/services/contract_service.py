@@ -30,14 +30,21 @@ class ContractService(BaseService):
         name: str = "contract_service",
         application_context: 'ApplicationContext' = None,
         component_config: ComponentConfig = None,
-        executor = None
+        executor = None,
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        event_bus = None,
+        metrics_storage = None,
+        log_storage = None
     ):
         # Call the parent constructor with proper parameters - передаём component_config явно
         super().__init__(
             name=name,
             application_context=application_context,
-            component_config=component_config,  # ← Передаём напрямую!
-            executor=executor
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
         )
         # Кэш: {(capability, direction): schema}
         self.contracts: Dict[Tuple[str, str], Dict] = {}  # ← Изолированный кэш!
