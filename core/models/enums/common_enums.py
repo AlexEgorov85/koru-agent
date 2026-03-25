@@ -145,6 +145,36 @@ class ErrorCategory(str, Enum):
     UNKNOWN = "unknown"              # неизвестная категория
 
 
+class ErrorType(str, Enum):
+    """
+    Типы ошибок для классификации в ErrorClassifier.
+
+    ОТЛИЧИЕ ОТ ErrorCategory:
+    - ErrorCategory: низкоуровневая классификация (для retry policy)
+    - ErrorType: высокоуровневая классификация (для принятия решений о паттернах)
+
+    ТИПЫ:
+    - TRANSIENT: временные ошибки (сеть, таймаут) → RETRY
+    - LOGIC: логические ошибки агента → SWITCH паттерн
+    - VALIDATION: ошибки валидации параметров → ABORT
+    - FATAL: критические ошибки → FAIL немедленно
+
+    ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ:
+    # Временная ошибка — можно retry
+    error_type = ErrorType.TRANSIENT
+
+    # Логическая ошибка — нужно сменить паттерн
+    error_type = ErrorType.LOGIC
+
+    # Ошибка валидации — abort действие
+    error_type = ErrorType.VALIDATION
+    """
+    TRANSIENT = "transient"      # сеть, таймаут → RETRY
+    LOGIC = "logic"              # ошибка агента → SWITCH
+    VALIDATION = "validation"    # невалидные параметры → ABORT
+    FATAL = "fatal"              # критическая → FAIL
+
+
 class RetryDecision(str, Enum):
     """
     Возможные решения при обработке ошибки.

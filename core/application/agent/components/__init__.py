@@ -7,6 +7,8 @@ from .model import StrategyDecision, StrategyDecisionType
 from .policy import AgentPolicy
 from .progress import ProgressScorer
 from .state import AgentState
+from .error_classifier import ErrorClassifier
+from .failure_memory import FailureMemory, FailureRecord
 
 
 __all__ = [
@@ -17,5 +19,8 @@ __all__ = [
     'StrategyDecisionType',
     'AgentPolicy',
     'ProgressScorer',
-    'AgentState'
+    'AgentState',
+    'ErrorClassifier',
+    'FailureMemory',
+    'FailureRecord'
 ]
