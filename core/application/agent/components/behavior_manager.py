@@ -5,6 +5,7 @@
 - НЕ содержит захардкоженных версий паттернов
 - component_name используется вместо pattern_id
 - Версии управляются через registry.yaml → AppConfig → ComponentConfig
+- Интеграция с FailureMemory для принятия решений о переключении паттернов
 """
 import asyncio
 from typing import Optional, List
@@ -13,16 +14,18 @@ from core.models.data.capability import Capability
 from core.models.errors import InvalidDecisionError
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
 from core.infrastructure.logging import EventBusLogger
+from core.application.agent.components.failure_memory import FailureMemory
 
 
 class BehaviorManager:
     """Управление паттернами поведения с изоляцией через ApplicationContext"""
 
     def __init__(
-        self, 
-        application_context: 'ApplicationContext', 
+        self,
+        application_context: 'ApplicationContext',
         initial_component_name: str = None,
-        executor: Optional['ActionExecutor'] = None  # ← Добавляем executor
+        executor: Optional['ActionExecutor'] = None,
+        failure_memory: Optional[FailureMemory] = None  # ← НОВОЕ: FailureMemory
     ):
         """
         Инициализация менеджера поведения.
@@ -31,10 +34,12 @@ class BehaviorManager:
         - application_context: Прикладной контекст
         - initial_component_name: Имя начального компонента (из AppConfig, например "react_pattern")
         - executor: ActionExecutor для передачи в паттерны
+        - failure_memory: FailureMemory для принятия решений о переключении паттернов
         """
         self._app_ctx = application_context
         self._initial_component_name = initial_component_name or "react_pattern"  # Fallback для совместимости
         self._executor = executor  # ← Сохраняем executor
+        self._failure_memory = failure_memory  # ← НОВОЕ: Сохраняем FailureMemory
         self._current_pattern: Optional[BehaviorPatternInterface] = None
         self._pattern_history: List[dict] = []
         self._behavior_storage: Optional[BehaviorStorage] = None
@@ -153,6 +158,20 @@ class BehaviorManager:
                     action=BehaviorDecisionType.SWITCH,
                     next_pattern="react_pattern",
                     reason="capability_not_found"
+                )
+
+            # ← НОВОЕ: Проверка FailureMemory на необходимость переключения паттерна
+            if self._failure_memory and self._failure_memory.should_switch_pattern(decision.capability_name):
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(
+                        f"FailureMemory рекомендует переключить паттерн для {decision.capability_name}. "
+                        f"Recommendation: {self._failure_memory.get_recommendation(decision.capability_name)}"
+                    )
+                # Возвращаем SWITCH decision
+                return BehaviorDecision(
+                    action=BehaviorDecisionType.SWITCH,
+                    next_pattern="react_pattern",  # Fallback на простой паттерн
+                    reason=f"failure_memory_recommendation: {self._failure_memory.get_recommendation(decision.capability_name)}"
                 )
 
         # Логирование decision для аудита

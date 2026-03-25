@@ -143,10 +143,11 @@ class AgentRuntime:
             max_delay=self.policy.max_delay
         )
 
-        # Инициализация менеджера поведения с executor
+        # Инициализация менеджера поведения с executor и failure_memory
         self.behavior_manager = BehaviorManager(
             application_context=application_context,
-            executor=self.executor  # ← Передаём executor
+            executor=self.executor,  # ← Передаём executor
+            failure_memory=self.failure_memory  # ← НОВОЕ: Передаём failure_memory
         )
         self.progress_metrics = ProgressMetrics()
 
