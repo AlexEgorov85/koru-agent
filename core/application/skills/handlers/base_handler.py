@@ -92,10 +92,7 @@ class BaseSkillHandler(ABC):
         return prompt_obj.content if prompt_obj else None
 
     def get_prompt_with_contract(self) -> Optional[str]:
-        """Получение промпта с контрактом для capability"""
-        if hasattr(self.skill, 'get_prompt_with_contract'):
-            prompt_obj = self.skill.get_prompt_with_contract(self.capability_name)
-            return prompt_obj.content if prompt_obj else None
+        """Получение промпта для capability (метод для обратной совместимости)."""
         return self.get_prompt()
 
     async def publish_metrics(

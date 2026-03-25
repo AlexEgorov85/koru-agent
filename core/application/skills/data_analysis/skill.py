@@ -203,9 +203,9 @@ class DataAnalysisSkill(BaseSkill):
         else:
             prompt_vars["raw_data"] = raw_data[:10000]
 
-        # 5. Получение промпта С КОНТРАКТАМИ
-        prompt_with_contract = self.get_prompt_with_contract("data_analysis.analyze_step_data")
-        if not prompt_with_contract:
+        # 5. Получение промпта
+        prompt_obj = self.get_prompt("data_analysis.analyze_step_data")
+        if not prompt_obj:
             # ❌ УДАЛЕНО: ExecutionResult.failure
             # ✅ ТЕПЕРЬ: Выбрасываем PromptNotFoundError
             from core.errors.exceptions import PromptNotFoundError

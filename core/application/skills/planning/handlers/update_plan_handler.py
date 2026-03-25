@@ -34,13 +34,8 @@ class UpdatePlanHandler(BaseSkillHandler):
                     return ExecutionResult(status=ExecutionStatus.FAILED, error="Нет текущего плана для обновления")
                 current_plan = plan_result.data
 
-            prompt_with_contract = self.get_prompt_with_contract()
-            rendered_prompt = prompt_with_contract.format(
-                current_plan=str(current_plan),
-                new_requirements=str(updates),
-                constraints="Сохранить логическую связность плана",
-                context=f"Причина обновления: {reason}" if reason else ""
-            )
+            prompt_obj = self.get_prompt()
+            rendered_prompt = prompt_obj if prompt_obj else ""
 
             output_schema = self.get_output_schema()
 

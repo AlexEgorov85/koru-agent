@@ -12,14 +12,8 @@ class CreatePlanHandler(BaseSkillHandler):
     async def execute(self, params: Dict[str, Any], context: ExecutionContext) -> ExecutionResult:
         try:
             input_contract = self.get_input_schema()
-            prompt_with_contract = self.get_prompt_with_contract()
-
-            rendered_prompt = prompt_with_contract.format(
-                goal=params.get("goal", ""),
-                capabilities_list=self._format_capabilities(context.available_capabilities),
-                context=params.get("context", ""),
-                max_steps=params.get("max_steps", 10)
-            )
+            prompt_obj = self.get_prompt()
+            rendered_prompt = prompt_obj if prompt_obj else ""
 
             output_schema = self.get_output_schema()
 

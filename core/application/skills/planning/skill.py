@@ -155,14 +155,9 @@ class PlanningSkill(BaseComponent):
             input_contract = self.get_input_contract("planning.create_plan")
             # validate_against_schema(input_data, input_contract)
 
-            # 2. Получение промпта С КОНТРАКТАМИ ИЗ КЭША
-            prompt_with_contract = self.get_prompt_with_contract("planning.create_plan")
-            rendered_prompt = prompt_with_contract.format(
-                goal=input_data.get("goal", ""),
-                capabilities_list=self._format_capabilities(execution_context.available_capabilities),
-                context=input_data.get("context", ""),
-                max_steps=input_data.get("max_steps", 10)
-            )
+            # 2. Получение промпта ИЗ КЭША
+            prompt_obj = self.get_prompt("planning.create_plan")
+            rendered_prompt = prompt_obj.content if prompt_obj else ""
 
             # 3. Получаем схему выхода для structured output
             output_schema = self.get_output_contract("planning.create_plan")
@@ -307,14 +302,9 @@ class PlanningSkill(BaseComponent):
                     )
                 current_plan = plan_result.data
 
-            # 3. Подготовка промпта для обновления плана С КОНТРАКТАМИ
-            prompt_with_contract = self.get_prompt_with_contract("planning.update_plan")
-            rendered_prompt = prompt_with_contract.format(
-                current_plan=str(current_plan),
-                new_requirements=str(updates),
-                constraints="Сохранить логическую связность плана, не нарушать зависимости шагов",
-                context=f"Причина обновления: {reason}" if reason else ""
-            )
+            # 3. Подготовка промпта для обновления плана
+            prompt_obj = self.get_prompt("planning.update_plan")
+            rendered_prompt = prompt_obj.content if prompt_obj else ""
 
             # 4. Получаем схему выхода для structured output
             output_schema = self.get_output_contract("planning.update_plan")
@@ -667,14 +657,9 @@ class PlanningSkill(BaseComponent):
         Автоматическая коррекция плана после ошибки выполнения шага.
         """
         try:
-            # Формируем промпт коррекции С КОНТРАКТАМИ
-            prompt_with_contract = self.get_prompt_with_contract("planning.update_plan")
-            correction_prompt = prompt_with_contract.format(
-                current_plan=str(current_plan),
-                new_requirements=f"Исправить шаг {failed_step.get('step_id')} из-за ошибки: {error_info}",
-                constraints="Сохранить логическую связность плана, не увеличивать общее количество шагов",
-                context=f"Ошибка: {error_info}"
-            )
+            # Формируем промпт коррекции
+            prompt_obj = self.get_prompt("planning.update_plan")
+            correction_prompt = prompt_obj.content if prompt_obj else ""
 
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("planning.update_plan")
@@ -762,14 +747,9 @@ class PlanningSkill(BaseComponent):
         Декомпозиция сложной задачи на иерархию подзадач.
         """
         try:
-            # Получение промпта декомпозиции С КОНТРАКТАМИ
-            prompt_with_contract = self.get_prompt_with_contract("planning.decompose_task")
-            rendered_prompt = prompt_with_contract.format(
-                task_id=input_data.get("task_id", ""),
-                task_description=input_data.get("task_description", ""),
-                context=input_data.get("context", ""),
-                capabilities_list=self._format_capabilities(execution_context.available_capabilities)
-            )
+            # Получение промпта декомпозиции
+            prompt_obj = self.get_prompt("planning.decompose_task")
+            rendered_prompt = prompt_obj.content if prompt_obj else ""
 
             # Получаем схему выхода для structured output
             output_schema = self.get_output_contract("planning.decompose_task")
