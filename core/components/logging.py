@@ -100,3 +100,6 @@ class LoggingMixin:
             except Exception:
                 # Fallback на print если логгер недоступен
                 print(f"[{level.upper()}] {message}", flush=True)
+        else:
+            # Fallback на print если логгер не инициализирован
+            print(f"[{level.upper()}] {message}", flush=True)

@@ -121,6 +121,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             raise ValueError(f"Компонент '{name}' требует executor")
 
         # Сохраняем параметры
+        self._application_context = application_context  # [DEPRECATED Этап 5]
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
 
@@ -142,6 +143,11 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         elif self._state == ComponentState.INITIALIZING:
             return LoggerInitializationState.INITIALIZING
         return LoggerInitializationState.NOT_INITIALIZED
+
+    @property
+    def application_context(self) -> Optional['ApplicationContext']:
+        """Получить ApplicationContext (DEPRECATED)."""
+        return self._application_context
 
     async def initialize(self) -> bool:
         """
