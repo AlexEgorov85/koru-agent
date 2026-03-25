@@ -826,7 +826,8 @@ class ActionExecutor:
             # Получаем LLM провайдер напрямую из инфраструктуры
             llm_provider = None
             if hasattr(self.application_context, 'infrastructure_context'):
-                llm_provider = self.application_context.infrastructure_context.get_provider("default_llm")
+                infra = self.application_context.infrastructure_context
+                llm_provider = infra.resource_registry.get_resource("default_llm").instance if infra.resource_registry else None
 
             if not llm_provider:
                 return ExecutionResult(

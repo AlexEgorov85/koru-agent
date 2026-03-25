@@ -1,28 +1,28 @@
 {
-  "run_at": "2026-03-25T09:18:08.535784",
+  "run_at": "2026-03-25T16:26:51.035387",
   "benchmark": "data/benchmarks/agent_benchmark.json",
   "mode": "full",
   "test_results": [
     {
-      "test_id": "sql_гоголь_237",
+      "test_id": "sql_гоголь_515",
       "input": "Какие книги написал Николай Гоголь?",
       "success": true,
       "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
       "metadata": {
         "capability": "final_answer.generate",
-        "execution_time_ms": 156289.7641658783,
+        "execution_time_ms": 244315.29235839844,
         "is_final_answer": true
       },
       "steps": 0
     },
     {
-      "test_id": "sql_гоголь_363",
-      "input": "Найти все книги автора Гоголь",
+      "test_id": "sql_грибоедов_640",
+      "input": "Найти все книги автора Грибоедов",
       "success": true,
       "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
       "metadata": {
         "capability": "final_answer.generate",
-        "execution_time_ms": 136404.2410850525,
+        "execution_time_ms": 100435.59193611145,
         "is_final_answer": true
       },
       "steps": 0

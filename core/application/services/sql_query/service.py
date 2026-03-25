@@ -210,7 +210,8 @@ class SQLQueryService(BaseService):
             db_provider = None
             if hasattr(self, 'application_context') and self.application_context:
                 if hasattr(self.application_context, 'infrastructure_context'):
-                    db_provider = self.application_context.infrastructure_context.get_provider("default_db")
+                    infra = self.application_context.infrastructure_context
+                    db_provider = infra.resource_registry.get_resource("default_db").instance if infra.resource_registry else None
             
             await self.event_bus_logger.info(f"[SQL_DEBUG] db_provider найден: {db_provider is not None}")
 
