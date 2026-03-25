@@ -156,10 +156,17 @@ class BehaviorManager:
                         f"Capability '{decision.capability_name}' не найдена в доступных! "
                         f"Available: {[c.name for c in available_capabilities]}"
                     )
-                # Валидация не прошла — переключение на react_pattern
+                # ← НОВОЕ: Используем StrategySelector для выбора паттерна
+                next_pattern = self._strategy_selector.select_best_pattern(
+                    available_patterns=["react_pattern", "planning_pattern", "evaluation_pattern"],
+                    context={"complexity": "medium"},
+                    failure_memory=self._failure_memory,
+                    current_pattern=self._current_pattern.pattern_id if self._current_pattern else None
+                )
+                # Валидация не прошла — переключение на выбранный паттерн
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
-                    next_pattern="react_pattern",
+                    next_pattern=next_pattern,
                     reason="capability_not_found"
                 )
 
@@ -170,10 +177,17 @@ class BehaviorManager:
                         f"FailureMemory рекомендует переключить паттерн для {decision.capability_name}. "
                         f"Recommendation: {self._failure_memory.get_recommendation(decision.capability_name)}"
                     )
+                # ← НОВОЕ: Используем StrategySelector для выбора паттерна
+                next_pattern = self._strategy_selector.select_best_pattern(
+                    available_patterns=["react_pattern", "planning_pattern", "evaluation_pattern"],
+                    context={"complexity": "medium"},
+                    failure_memory=self._failure_memory,
+                    current_pattern=self._current_pattern.pattern_id if self._current_pattern else None
+                )
                 # Возвращаем SWITCH decision
                 return BehaviorDecision(
                     action=BehaviorDecisionType.SWITCH,
-                    next_pattern="react_pattern",  # Fallback на простой паттерн
+                    next_pattern=next_pattern,
                     reason=f"failure_memory_recommendation: {self._failure_memory.get_recommendation(decision.capability_name)}"
                 )
 

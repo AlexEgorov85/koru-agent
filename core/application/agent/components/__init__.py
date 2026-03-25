@@ -10,6 +10,7 @@ from .state import AgentState
 from .error_classifier import ErrorClassifier
 from .failure_memory import FailureMemory, FailureRecord
 from .safe_executor import SafeExecutor
+from .strategy_selector import StrategySelector
 
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     'ErrorClassifier',
     'FailureMemory',
     'FailureRecord',
-    'SafeExecutor'
+    'SafeExecutor',
+    'StrategySelector'
 ]
