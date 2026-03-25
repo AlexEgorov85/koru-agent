@@ -65,9 +65,16 @@ class BookLibrarySkill(BaseSkill):
         name: str,
         application_context: ApplicationContext,
         component_config: ComponentConfig,
-        executor: ActionExecutor
+        executor: ActionExecutor,
+        event_bus = None
     ):
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus
+        )
 
         self._scripts_registry: Optional[Dict[str, Any]] = None
 

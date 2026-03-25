@@ -18,10 +18,14 @@ class PlanningSkill(BaseComponent):
     # Явная декларация зависимостей
     DEPENDENCIES = ["prompt_service"]
 
-    def __init__(self, name: str, application_context: Any, component_config=None, executor=None):
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
-        # event_bus_logger инициализируется в BaseComponent.__init__()
-        # logging.getLogger() больше не используется
+    def __init__(self, name: str, application_context: Any, component_config=None, executor=None, event_bus=None):
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus
+        )
 
     async def execute(
         self,

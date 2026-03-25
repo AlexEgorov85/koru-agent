@@ -36,10 +36,16 @@ class DataAnalysisSkill(BaseSkill):
         name: str,
         application_context: Any,
         component_config: Any,
-        executor: Any
+        executor: Any,
+        event_bus = None
     ):
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
-        # EventBusLogger будет инициализирован в BaseComponent.__init__()
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus
+        )
 
     def get_capabilities(self) -> List[Capability]:
         """Возвращает список capability навыка."""

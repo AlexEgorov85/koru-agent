@@ -7,7 +7,6 @@ Capabilities:
 - analyze: LLM анализ (герои, темы, etc.)
 - query: SQL запрос к базе книг
 """
-
 import asyncio
 from typing import Optional, Dict, Any, List
 from core.application.tools.base_tool import BaseTool
@@ -15,7 +14,6 @@ from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
 from core.models.types.vector_types import VectorSearchResult, VectorQuery
 from core.models.types.analysis import AnalysisResult
-from core.infrastructure.logging import EventBusLogger
 
 
 class VectorBooksTool(BaseTool):
@@ -38,42 +36,19 @@ class VectorBooksTool(BaseTool):
         application_context: ApplicationContext,
         component_config: Optional[ComponentConfig] = None,
         executor=None,
+        event_bus=None,
         **kwargs
     ):
-        # Вызываем родительский конструктор
-        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
-
-        # Провайдеры будут получены из инфраструктуры при выполнении
-        self._faiss_provider = None
-        self._sql_provider = None
-        self._embedding_provider = None
-        self._llm_provider = None
-        self._cache_service = None
-        self._chunking_strategy = None
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # Используем внедрённый event_bus из BaseComponent
-        if hasattr(self, '_event_bus') and self._event_bus is not None:
-            self.event_bus_logger = EventBusLogger(
-                self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component=self.__class__.__name__
-            )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+        # Вызываем родительский конструктор с event_bus
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            **kwargs
+        )
+        # EventBusLogger инициализируется в LoggingMixin автоматически
 
     @property
     def description(self) -> str:

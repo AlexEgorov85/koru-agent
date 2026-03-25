@@ -412,7 +412,8 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         component_name: str,
         component_config: Optional[ComponentConfig] = None,
         application_context: 'ApplicationContext' = None,
-        executor: 'ActionExecutor' = None
+        executor: 'ActionExecutor' = None,
+        event_bus = None  # ← Только для логирования
     ):
         """
         Инициализация базового паттерна.
@@ -425,7 +426,8 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
             name=component_name,
             application_context=application_context,
             component_config=component_config,
-            executor=executor
+            executor=executor,
+            event_bus=event_bus
         )
 
         # pattern_id для совместимости

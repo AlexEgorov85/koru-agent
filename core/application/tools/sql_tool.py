@@ -14,7 +14,6 @@ from typing import Dict, Optional, Any
 from core.application.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application.context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
-from core.infrastructure.logging import EventBusLogger
 
 
 @dataclass
@@ -42,32 +41,16 @@ class SQLTool(BaseTool):
     def description(self) -> str:
         return "Выполнение SQL-запросов к базе данных с поддержкой изолированных кэшей и sandbox режима"
 
-    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
-        super().__init__(name, application_context, component_config=component_config, executor=executor, **kwargs)
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        # Используем внедрённый event_bus из BaseComponent
-        if hasattr(self, '_event_bus') and self._event_bus is not None:
-            self.event_bus_logger = EventBusLogger(
-                self._event_bus,
-                session_id="system",
-                agent_id="system",
-                component=self.__class__.__name__
-            )
-        # Fallback на application_context для обратной совместимости
-        elif hasattr(self, '_application_context') and self._application_context:
-            event_bus = getattr(self._application_context.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id="system",
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
+    def __init__(self, name: str, application_context: ApplicationContext, component_config: Optional[ComponentConfig] = None, executor=None, event_bus=None, **kwargs):
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            **kwargs
+        )
+        # EventBusLogger инициализируется в LoggingMixin автоматически
 
     async def initialize(self) -> bool:
         """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
