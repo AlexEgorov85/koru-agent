@@ -11,6 +11,7 @@ from .error_classifier import ErrorClassifier
 from .failure_memory import FailureMemory, FailureRecord
 from .safe_executor import SafeExecutor
 from .strategy_selector import StrategySelector
+from .metrics_collector import MetricsCollector, StepMetrics, SessionMetrics
 
 
 __all__ = [
@@ -26,5 +27,8 @@ __all__ = [
     'FailureMemory',
     'FailureRecord',
     'SafeExecutor',
-    'StrategySelector'
+    'StrategySelector',
+    'MetricsCollector',
+    'StepMetrics',
+    'SessionMetrics'
 ]

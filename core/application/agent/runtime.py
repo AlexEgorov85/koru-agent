@@ -8,6 +8,7 @@
 - Интеграцию с инфраструктурными сервисами
 """
 import asyncio
+import time
 from typing import Any, Dict, Optional
 from datetime import datetime
 import uuid
@@ -832,8 +833,25 @@ class AgentRuntime:
 
                 # Выполняем шаг
                 print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
+                step_start_time = time.time()
                 step_result = await self._execute_single_step_internal(decision, available_caps)
+                step_execution_time_ms = (time.time() - step_start_time) * 1000
                 print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
+                
+                # ← НОВОЕ: Запись метрик шага
+                capability_name = getattr(decision, 'capability_name', 'unknown')
+                status = "completed" if hasattr(step_result, 'status') and str(step_result.status) == "ExecutionStatus.COMPLETED" else "failed"
+                error_type = None
+                if hasattr(step_result, 'metadata') and step_result.metadata:
+                    error_type = step_result.metadata.get('error_type')
+                
+                self.metrics_collector.record_step(
+                    step_number=self._current_step + 1,
+                    capability=capability_name,
+                    status=status,
+                    execution_time_ms=step_execution_time_ms,
+                    error_type=error_type
+                )
 
                 # Обновление состояния
                 self._update_state(step_result)

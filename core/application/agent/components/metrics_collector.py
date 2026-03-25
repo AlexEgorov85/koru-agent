@@ -235,11 +235,13 @@ class MetricsCollector:
         
         # Публикация события завершения сессии
         if self.event_bus:
-            self._publish_event("session_completed", {
+            event_data = {
                 "session_id": self.session_id,
-                "final_status": final_status,
-                **self.session_metrics.to_dict() if self.session_metrics else {}
-            })
+                "final_status": final_status
+            }
+            if self.session_metrics:
+                event_data.update(self.session_metrics.to_dict())
+            self._publish_event("session_completed", event_data)
     
     def get_session_metrics(self) -> Optional[SessionMetrics]:
         """
