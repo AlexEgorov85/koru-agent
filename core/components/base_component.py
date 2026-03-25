@@ -133,6 +133,16 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     # ЛОГИРОВАНИЕ
     # ========================================================================
 
+    def _get_logger_init_state(self):
+        """Callback для LoggingMixin: получение текущего состояния инициализации."""
+        from core.infrastructure.logging.logger import LoggerInitializationState
+
+        if self._state == ComponentState.READY:
+            return LoggerInitializationState.READY
+        elif self._state == ComponentState.INITIALIZING:
+            return LoggerInitializationState.INITIALIZING
+        return LoggerInitializationState.NOT_INITIALIZED
+
     async def initialize(self) -> bool:
         """
         ЕДИНСТВЕННЫЙ метод инициализации — получает ресурсы ИЗ КОНФИГУРАЦИИ,
