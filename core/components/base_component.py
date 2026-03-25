@@ -9,13 +9,9 @@
 - Взаимодействие ТОЛЬКО через ActionExecutor
 - Поддержка внедрения зависимостей (DI) через интерфейсы
 
-ИНТЕГРИРОВАННОЕ ЛОГИРОВАНИЕ:
-- BaseComponent использует EventBusLogger для универсального логирования
-- Используйте self._safe_log_sync() для синхронного логирования
-- Используйте await self.event_bus_logger.info() для асинхронного логирования
-
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Наследует LifecycleMixin для управления состояниями
+- Наследует LoggingMixin для логирования
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import asyncio
@@ -31,6 +27,7 @@ from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 from pydantic import BaseModel
 from core.components.lifecycle import LifecycleMixin, ComponentState
+from core.components.logging import LoggingMixin
 
 # Интерфейсы для DI (используются только необходимые)
 from core.interfaces.event_bus import EventBusInterface
@@ -42,7 +39,7 @@ if TYPE_CHECKING:
     from core.application.agent.components.action_executor import ActionExecutor
 
 
-class BaseComponent(LifecycleMixin, ABC):
+class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     """
     БАЗОВЫЙ КЛАСС КОМПОНЕНТА С ПОЛНОЙ ИЗОЛЯЦИЕЙ И УНИВЕРСАЛЬНЫМ ЛОГИРОВАНИЕМ.
 
@@ -101,6 +98,9 @@ class BaseComponent(LifecycleMixin, ABC):
     ):
         # Вызов конструктора LifecycleMixin
         LifecycleMixin.__init__(self, name)
+        
+        # Вызов конструктора LoggingMixin (переиспользование существующего)
+        LoggingMixin.__init__(self, event_bus=event_bus, component_name=name)
 
         # Валидация обязательных параметров
         if component_config is None:
@@ -126,10 +126,6 @@ class BaseComponent(LifecycleMixin, ABC):
         self._metrics_storage = metrics_storage
         self._log_storage = log_storage
 
-        # EventBusLogger для асинхронного логирования
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
         # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
         self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
@@ -141,8 +137,6 @@ class BaseComponent(LifecycleMixin, ABC):
 
         # ← НОВОЕ: Словарь поддерживаемых capability
         self.supported_capabilities: Dict[str, Any] = {}  # {capability_name: handler}
-
-        # [REFACTOR Этап 2.2] TTL-кэширование удалено — ресурсы не истекают
 
     # ========================================================================
     # СВОЙСТВА ДЛЯ ВНЕДРЁННЫХ ЗАВИСИМОСТЕЙ
