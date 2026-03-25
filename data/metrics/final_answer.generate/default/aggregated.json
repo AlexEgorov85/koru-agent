@@ -2,19 +2,19 @@
   {
     "capability": "final_answer.generate",
     "version": "default",
-    "total_runs": 4,
-    "success_count": 4,
+    "total_runs": 6,
+    "success_count": 6,
     "failure_count": 0,
     "accuracy": 1.0,
-    "avg_execution_time_ms": 131584.72609519958,
-    "min_execution_time_ms": 113352.29873657227,
+    "avg_execution_time_ms": 118442.18134880066,
+    "min_execution_time_ms": 92157.09185600281,
     "max_execution_time_ms": 149817.1534538269,
-    "std_execution_time_ms": 21052.993686967562,
+    "std_execution_time_ms": 26086.024681747367,
     "total_tokens": 0.0,
     "avg_tokens": 0.0,
     "time_range": [
       "2026-03-24T10:21:20.683939",
-      "2026-03-24T14:39:25.089829"
+      "2026-03-25T08:10:29.644756"
     ],
     "custom_metrics": {}
   }
