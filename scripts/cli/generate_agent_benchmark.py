@@ -144,10 +144,21 @@ async def generate_sql_generation_tests(db_provider) -> List[Dict[str, Any]]:
         for row in authors_result.rows
     ]
 
-    for author in authors[:8]:  # Берём 8 авторов
+    # Берём только 3 авторов для 3 разных типов вопросов
+    # Чтобы не раздувать бенчмарк дублирующимися вопросами
+    test_authors = authors[:3]  # Первые 3 автора
+    
+    # Разные типы формулировок вопросов
+    question_templates = [
+        lambda a: f"Какие книги написал {a['first_name']} {a['last_name']}?",  # Прямой вопрос
+        lambda a: f"Найти все книги автора {a['last_name']}",  # Команда
+        lambda a: f"Покажи книги {a['first_name']} {a['last_name']}",  # Другая команда
+    ]
+
+    for i, author in enumerate(test_authors):
         last_name = author['last_name']
         first_name = author['first_name']
-        
+
         # Получаем книги для проверки
         books_result = await db_provider.query(f"""
             SELECT b.id, b.title, b.isbn, b.publication_date
@@ -156,7 +167,7 @@ async def generate_sql_generation_tests(db_provider) -> List[Dict[str, Any]]:
             WHERE a.last_name = '{last_name}'
             ORDER BY b.title
         """)
-        
+
         books = [
             {
                 'title': row.get('title') if isinstance(row, dict) else row[1],
@@ -165,36 +176,32 @@ async def generate_sql_generation_tests(db_provider) -> List[Dict[str, Any]]:
             for row in books_result.rows
         ]
 
-        # Natural language запросы (как пользователь спросит)
-        nl_queries = [
-            f"Какие книги написал {first_name} {last_name}?",
-            f"Найти все книги автора {last_name}",
-            f"Покажи книги {first_name} {last_name}",
-        ]
+        # Один вопрос на автора (разная формулировка)
+        nl_query = question_templates[i](author)
 
-        for nl_query in nl_queries:
-            tests.append({
-                'id': f"sql_{last_name.lower().replace(' ', '_')}_{hash(nl_query) % 1000}",
-                'name': f"SQL: {nl_query[:50]}",
-                'input': nl_query,
-                'expected_output': {
-                    'success': True,
-                    'books': books,
-                    'count': len(books)
-                },
-                'validation': {
-                    'must_have_tables': ['books', 'authors'],
-                    'must_have_where': True,
-                    'must_have_join': True,
-                    'must_be_valid_sql': True,
-                    'must_return_correct_columns': ['title', 'isbn', 'publication_date']
-                },
-                'metadata': {
-                    'author': f"{first_name} {last_name}",
-                    'expected_count': len(books),
-                    'difficulty': 'easy' if len(books) <= 2 else 'medium'
-                }
-            })
+        tests.append({
+            'id': f"sql_{last_name.lower().replace(' ', '_')}_{hash(nl_query) % 1000}",
+            'name': f"SQL: {nl_query[:50]}",
+            'input': nl_query,
+            'expected_output': {
+                'success': True,
+                'books': books,
+                'count': len(books)
+            },
+            'validation': {
+                'must_have_tables': ['books', 'authors'],
+                'must_have_where': True,
+                'must_have_join': True,
+                'must_be_valid_sql': True,
+                'must_return_correct_columns': ['title', 'isbn', 'publication_date']
+            },
+            'metadata': {
+                'author': f"{first_name} {last_name}",
+                'expected_count': len(books),
+                'difficulty': 'easy' if len(books) <= 2 else 'medium',
+                'question_type': ['direct', 'command_find', 'command_show'][i]
+            }
+        })
 
     # Дополнительные тесты: агрегация
     tests.append({
@@ -236,6 +243,57 @@ async def generate_sql_generation_tests(db_provider) -> List[Dict[str, Any]]:
             'difficulty': 'medium'
         }
     })
+
+    # Тесты: Семантический поиск (по описанию сюжета/темы)
+    # Оставляем только 2 теста для компактности
+    semantic_search_tests = [
+        {
+            'id': 'sql_semantic_captain_daughter',
+            'name': 'SQL: Роман о пугачёвском восстании',
+            'input': 'Найди книгу про пугачёвское восстание и офицера который присягнул самозванцу',
+            'expected_output': {
+                'success': True,
+                'books': [{'title': 'Капитанская дочка'}],
+                'count': 1
+            },
+            'validation': {
+                'must_have_tables': ['books'],
+                'must_have_where': True,
+                'must_be_valid_sql': True,
+                'must_return_correct_columns': ['title', 'isbn', 'publication_date']
+            },
+            'metadata': {
+                'search_type': 'semantic',
+                'target_book': 'Капитанская дочка',
+                'target_author': 'Александр Пушкин',
+                'difficulty': 'hard'
+            }
+        },
+        {
+            'id': 'sql_semantic_crime_punishment',
+            'name': 'SQL: Роман о преступлении студента',
+            'input': 'Найди роман где студент убил старуху процентщицу',
+            'expected_output': {
+                'success': True,
+                'books': [{'title': 'Преступление и наказание'}],
+                'count': 1
+            },
+            'validation': {
+                'must_have_tables': ['books'],
+                'must_have_where': True,
+                'must_be_valid_sql': True,
+                'must_return_correct_columns': ['title', 'isbn', 'publication_date']
+            },
+            'metadata': {
+                'search_type': 'semantic',
+                'target_book': 'Преступление и наказание',
+                'target_author': 'Фёдор Достоевский',
+                'difficulty': 'hard'
+            }
+        },
+    ]
+
+    tests.extend(semantic_search_tests)
 
     return tests
 

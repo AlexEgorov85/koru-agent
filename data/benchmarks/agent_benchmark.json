@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-24T17:12:54.966846",
+  "generated_at": "2026-03-25T15:45:44.588922",
   "version": "1.0",
   "description": "Бенчмарк для тестирования агента (SQL + Final Answer)",
   "levels": {
@@ -7,7 +7,7 @@
       "description": "Проверка качества генерации SQL запросов",
       "test_cases": [
         {
-          "id": "sql_гоголь_237",
+          "id": "sql_гоголь_515",
           "name": "SQL: Какие книги написал Николай Гоголь?",
           "input": "Какие книги написал Николай Гоголь?",
           "expected_output": {
@@ -49,137 +49,12 @@
           "metadata": {
             "author": "Николай Гоголь",
             "expected_count": 4,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "question_type": "direct"
           }
         },
         {
-          "id": "sql_гоголь_363",
-          "name": "SQL: Найти все книги автора Гоголь",
-          "input": "Найти все книги автора Гоголь",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Мертвые души",
-                "year": "1842-01-01"
-              },
-              {
-                "title": "Ревизор",
-                "year": "1836-01-01"
-              },
-              {
-                "title": "Тарас Бульба",
-                "year": "1835-01-01"
-              },
-              {
-                "title": "Шинель",
-                "year": "1842-01-01"
-              }
-            ],
-            "count": 4
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Гоголь",
-            "expected_count": 4,
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "sql_гоголь_350",
-          "name": "SQL: Покажи книги Николай Гоголь",
-          "input": "Покажи книги Николай Гоголь",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Мертвые души",
-                "year": "1842-01-01"
-              },
-              {
-                "title": "Ревизор",
-                "year": "1836-01-01"
-              },
-              {
-                "title": "Тарас Бульба",
-                "year": "1835-01-01"
-              },
-              {
-                "title": "Шинель",
-                "year": "1842-01-01"
-              }
-            ],
-            "count": 4
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Гоголь",
-            "expected_count": 4,
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "sql_грибоедов_727",
-          "name": "SQL: Какие книги написал Александр Грибоедов?",
-          "input": "Какие книги написал Александр Грибоедов?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Горе от ума",
-                "year": "1825-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Александр Грибоедов",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_грибоедов_942",
+          "id": "sql_грибоедов_640",
           "name": "SQL: Найти все книги автора Грибоедов",
           "input": "Найти все книги автора Грибоедов",
           "expected_output": {
@@ -209,137 +84,12 @@
           "metadata": {
             "author": "Александр Грибоедов",
             "expected_count": 1,
-            "difficulty": "easy"
+            "difficulty": "easy",
+            "question_type": "command_find"
           }
         },
         {
-          "id": "sql_грибоедов_915",
-          "name": "SQL: Покажи книги Александр Грибоедов",
-          "input": "Покажи книги Александр Грибоедов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Горе от ума",
-                "year": "1825-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Александр Грибоедов",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_достоевский_521",
-          "name": "SQL: Какие книги написал Фёдор Достоевский?",
-          "input": "Какие книги написал Фёдор Достоевский?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Бедные люди",
-                "year": "1846-01-01"
-              },
-              {
-                "title": "Братья Карамазовы",
-                "year": "1880-01-01"
-              },
-              {
-                "title": "Идиот",
-                "year": "1869-01-01"
-              },
-              {
-                "title": "Преступление и наказание",
-                "year": "1866-01-01"
-              }
-            ],
-            "count": 4
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Фёдор Достоевский",
-            "expected_count": 4,
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "sql_достоевский_822",
-          "name": "SQL: Найти все книги автора Достоевский",
-          "input": "Найти все книги автора Достоевский",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Бедные люди",
-                "year": "1846-01-01"
-              },
-              {
-                "title": "Братья Карамазовы",
-                "year": "1880-01-01"
-              },
-              {
-                "title": "Идиот",
-                "year": "1869-01-01"
-              },
-              {
-                "title": "Преступление и наказание",
-                "year": "1866-01-01"
-              }
-            ],
-            "count": 4
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Фёдор Достоевский",
-            "expected_count": 4,
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "sql_достоевский_65",
+          "id": "sql_достоевский_889",
           "name": "SQL: Покажи книги Фёдор Достоевский",
           "input": "Покажи книги Фёдор Достоевский",
           "expected_output": {
@@ -381,541 +131,8 @@
           "metadata": {
             "author": "Фёдор Достоевский",
             "expected_count": 4,
-            "difficulty": "medium"
-          }
-        },
-        {
-          "id": "sql_ильф_925",
-          "name": "SQL: Какие книги написал Илья Ильф?",
-          "input": "Какие книги написал Илья Ильф?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Двенадцать стульев",
-                "year": "1928-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Илья Ильф",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_ильф_242",
-          "name": "SQL: Найти все книги автора Ильф",
-          "input": "Найти все книги автора Ильф",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Двенадцать стульев",
-                "year": "1928-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Илья Ильф",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_ильф_371",
-          "name": "SQL: Покажи книги Илья Ильф",
-          "input": "Покажи книги Илья Ильф",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Двенадцать стульев",
-                "year": "1928-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Илья Ильф",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_крылов_357",
-          "name": "SQL: Какие книги написал Иван Крылов?",
-          "input": "Какие книги написал Иван Крылов?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Басни",
-                "year": "1811-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Иван Крылов",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_крылов_199",
-          "name": "SQL: Найти все книги автора Крылов",
-          "input": "Найти все книги автора Крылов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Басни",
-                "year": "1811-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Иван Крылов",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_крылов_471",
-          "name": "SQL: Покажи книги Иван Крылов",
-          "input": "Покажи книги Иван Крылов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Басни",
-                "year": "1811-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Иван Крылов",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лермонтов_654",
-          "name": "SQL: Какие книги написал Михаил Лермонтов?",
-          "input": "Какие книги написал Михаил Лермонтов?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Герой нашего времени",
-                "year": "1840-01-01"
-              },
-              {
-                "title": "Мцыри",
-                "year": "1840-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Михаил Лермонтов",
-            "expected_count": 2,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лермонтов_893",
-          "name": "SQL: Найти все книги автора Лермонтов",
-          "input": "Найти все книги автора Лермонтов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Герой нашего времени",
-                "year": "1840-01-01"
-              },
-              {
-                "title": "Мцыри",
-                "year": "1840-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Михаил Лермонтов",
-            "expected_count": 2,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лермонтов_5",
-          "name": "SQL: Покажи книги Михаил Лермонтов",
-          "input": "Покажи книги Михаил Лермонтов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Герой нашего времени",
-                "year": "1840-01-01"
-              },
-              {
-                "title": "Мцыри",
-                "year": "1840-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Михаил Лермонтов",
-            "expected_count": 2,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лесков_477",
-          "name": "SQL: Какие книги написал Николай Лесков?",
-          "input": "Какие книги написал Николай Лесков?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Левша",
-                "year": "1885-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Лесков",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лесков_775",
-          "name": "SQL: Найти все книги автора Лесков",
-          "input": "Найти все книги автора Лесков",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Левша",
-                "year": "1885-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Лесков",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_лесков_756",
-          "name": "SQL: Покажи книги Николай Лесков",
-          "input": "Покажи книги Николай Лесков",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Левша",
-                "year": "1885-01-01"
-              }
-            ],
-            "count": 1
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Лесков",
-            "expected_count": 1,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_некрасов_627",
-          "name": "SQL: Какие книги написал Николай Некрасов?",
-          "input": "Какие книги написал Николай Некрасов?",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Кому на Руси жить хорошо",
-                "year": "1863-01-01"
-              },
-              {
-                "title": "Мороз, Красный нос",
-                "year": "1863-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Некрасов",
-            "expected_count": 2,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_некрасов_646",
-          "name": "SQL: Найти все книги автора Некрасов",
-          "input": "Найти все книги автора Некрасов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Кому на Руси жить хорошо",
-                "year": "1863-01-01"
-              },
-              {
-                "title": "Мороз, Красный нос",
-                "year": "1863-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Некрасов",
-            "expected_count": 2,
-            "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_некрасов_9",
-          "name": "SQL: Покажи книги Николай Некрасов",
-          "input": "Покажи книги Николай Некрасов",
-          "expected_output": {
-            "success": true,
-            "books": [
-              {
-                "title": "Кому на Руси жить хорошо",
-                "year": "1863-01-01"
-              },
-              {
-                "title": "Мороз, Красный нос",
-                "year": "1863-01-01"
-              }
-            ],
-            "count": 2
-          },
-          "validation": {
-            "must_have_tables": [
-              "books",
-              "authors"
-            ],
-            "must_have_where": true,
-            "must_have_join": true,
-            "must_be_valid_sql": true,
-            "must_return_correct_columns": [
-              "title",
-              "isbn",
-              "publication_date"
-            ]
-          },
-          "metadata": {
-            "author": "Николай Некрасов",
-            "expected_count": 2,
-            "difficulty": "easy"
+            "difficulty": "medium",
+            "question_type": "command_show"
           }
         },
         {
@@ -959,6 +176,70 @@
               "year_from": 1850
             },
             "difficulty": "medium"
+          }
+        },
+        {
+          "id": "sql_semantic_captain_daughter",
+          "name": "SQL: Роман о пугачёвском восстании",
+          "input": "Найди книгу про пугачёвское восстание и офицера который присягнул самозванцу",
+          "expected_output": {
+            "success": true,
+            "books": [
+              {
+                "title": "Капитанская дочка"
+              }
+            ],
+            "count": 1
+          },
+          "validation": {
+            "must_have_tables": [
+              "books"
+            ],
+            "must_have_where": true,
+            "must_be_valid_sql": true,
+            "must_return_correct_columns": [
+              "title",
+              "isbn",
+              "publication_date"
+            ]
+          },
+          "metadata": {
+            "search_type": "semantic",
+            "target_book": "Капитанская дочка",
+            "target_author": "Александр Пушкин",
+            "difficulty": "hard"
+          }
+        },
+        {
+          "id": "sql_semantic_crime_punishment",
+          "name": "SQL: Роман о преступлении студента",
+          "input": "Найди роман где студент убил старуху процентщицу",
+          "expected_output": {
+            "success": true,
+            "books": [
+              {
+                "title": "Преступление и наказание"
+              }
+            ],
+            "count": 1
+          },
+          "validation": {
+            "must_have_tables": [
+              "books"
+            ],
+            "must_have_where": true,
+            "must_be_valid_sql": true,
+            "must_return_correct_columns": [
+              "title",
+              "isbn",
+              "publication_date"
+            ]
+          },
+          "metadata": {
+            "search_type": "semantic",
+            "target_book": "Преступление и наказание",
+            "target_author": "Фёдор Достоевский",
+            "difficulty": "hard"
           }
         }
       ]
