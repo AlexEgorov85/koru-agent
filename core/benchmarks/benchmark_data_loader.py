@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from core.infrastructure.db.providers.base.base_db_provider import BaseDBProvider
+from core.infrastructure.providers.database.base_db import BaseDBProvider
 
 
 @dataclass

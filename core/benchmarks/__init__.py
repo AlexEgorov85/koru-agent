@@ -6,12 +6,15 @@
 - benchmark_validator: валидация результатов бенчмарков
 - benchmark_runner: запуск бенчмарков
 - benchmark_data_loader: загрузка данных для бенчмарков
-- generate_agent_benchmark: генерация бенчмарков
-- compare_benchmarks: сравнение результатов
 
 Использование:
     from core.benchmarks import BenchmarkValidator, BenchmarkRunner
     validator = BenchmarkValidator()
+
+СКРИПТЫ (не импортировать отсюда):
+    - scripts/cli/generate_agent_benchmark.py — генерация бенчмарков
+    - scripts/cli/generate_benchmark_from_db.py — генерация из БД
+    - scripts/cli/compare_benchmarks.py — сравнение результатов
 """
 from core.benchmarks.benchmark_models import (
     # Модели оценки
