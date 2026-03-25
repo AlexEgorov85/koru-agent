@@ -344,7 +344,7 @@ class AgentRuntime:
             if hasattr(self.application_context, 'get_skill'):
                 # Пытаемся получить как skill (для совместимости)
                 skill_name = decision.capability_name.split('.')[0]
-                capability = self.application_context.get_skill(skill_name)
+                capability = self.application_context.components.get(ComponentType.SKILL, skill_name)
                 if capability:
                     print(f"🔵 [_execute_single_step_internal] ✅ Найден skill: {skill_name}", flush=True)
 

@@ -13,6 +13,7 @@ from typing import Optional, List
 from core.application.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
 from core.models.data.capability import Capability
 from core.models.errors import InvalidDecisionError
+from core.models.enums.common_enums import ComponentType
 from core.application.storage.behavior.behavior_storage import BehaviorStorage
 from core.infrastructure.logging import EventBusLogger
 from core.application.agent.components.failure_memory import FailureMemory
@@ -69,7 +70,7 @@ class BehaviorManager:
         - component_name: Имя компонента для инициализации (переопределяет initial_component_name)
         """
         # Инициализация хранилища паттернов
-        prompt_service = self._app_ctx.get_service("prompt_service")
+        prompt_service = self._app_ctx.components.get(ComponentType.SERVICE, "prompt_service")
         self._behavior_storage = BehaviorStorage(
             data_dir="data",
             prompt_service=prompt_service,

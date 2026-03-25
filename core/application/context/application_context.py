@@ -1215,7 +1215,7 @@ class ApplicationContext(BaseSystemContext):
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
             )
-        return self.get_service("prompt_service")
+        return self.components.get(ComponentType.SERVICE, "prompt_service")
 
     def get_contract_service(self):
         """Получение изолированного сервиса контрактов."""
@@ -1224,7 +1224,7 @@ class ApplicationContext(BaseSystemContext):
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
             )
-        return self.get_service("contract_service")
+        return self.components.get(ComponentType.SERVICE, "contract_service")
 
 
 
@@ -1241,7 +1241,7 @@ class ApplicationContext(BaseSystemContext):
             )
 
         # В новой архитектуре мы получаем промпт из изолир��ванного сервиса
-        prompt_service = self.get_service("prompt_service")
+        prompt_service = self.components.get(ComponentType.SERVICE, "prompt_service")
         if prompt_service is None:
             raise RuntimeError("PromptService не инициализирован")
         return prompt_service.get_prompt(capability_name)
@@ -1259,7 +1259,7 @@ class ApplicationContext(BaseSystemContext):
             )
 
         # В новой архитектуре мы получаем контракт из изолированного сервиса
-        contract_service = self.get_service("contract_service")
+        contract_service = self.components.get(ComponentType.SERVICE, "contract_service")
         if contract_service is None:
             raise RuntimeError("ContractService не инициализирован")
         return contract_service.get_contract(capability_name, "input")
@@ -1277,7 +1277,7 @@ class ApplicationContext(BaseSystemContext):
             )
 
         # В новой архитектуре мы получаем контракт из изолированного сервиса
-        contract_service = self.get_service("contract_service")
+        contract_service = self.components.get(ComponentType.SERVICE, "contract_service")
         if contract_service is None:
             raise RuntimeError("ContractService не инициализирован")
         return contract_service.get_contract(capability_name, "output")
@@ -1421,9 +1421,9 @@ class ApplicationContext(BaseSystemContext):
         """Получение ресурса - возвращает изолированные сервисы или обращается к инфраструктурному контексту."""
         # Возвращаем изолированные сервисы приложения через новый реестр компонентов
         if name == "prompt_service":
-            return self.get_service("prompt_service")
+            return self.components.get(ComponentType.SERVICE, "prompt_service")
         elif name == "contract_service":
-            return self.get_service("contract_service")
+            return self.components.get(ComponentType.SERVICE, "contract_service")
         else:
             # Проверяем, может быть это имя компонента в новом реестре
             # Сначала ищем среди сервисов
