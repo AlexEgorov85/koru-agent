@@ -48,7 +48,7 @@ class SQLGenerationService(BaseService):
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
 
-    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None):
+    def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None, event_bus=None, metrics_storage=None, log_storage=None):
         from core.config.component_config import ComponentConfig
         # Создаем минимальный ComponentConfig, если не передан
         if component_config is None:
@@ -58,7 +58,15 @@ class SQLGenerationService(BaseService):
                 input_contract_versions={},
                 output_contract_versions={}
             )
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+        super().__init__(
+            name=name,
+            application_context=application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
 
         # НЕ загружаем зависимости здесь! Только инициализация внутреннего состояния
         # Зависимости будут загружены в _resolve_dependencies() при вызове initialize()
