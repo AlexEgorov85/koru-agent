@@ -113,32 +113,6 @@ class BaseSkill(BaseComponent):
         capabilities = self.get_capabilities()
         return [cap.name for cap in capabilities]
 
-    def get_required_capabilities(self) -> List[Dict[str, Any]]:
-        """
-        Возвращает список необходимых capability с их ресурсами для загрузки.
-
-        ВОЗВРАЩАЕТ:
-        - List[Dict]: Список словарей с информацией о необходимых ресурсах для каждой capability
-          Каждый словарь содержит:
-          - 'name': имя capability
-          - 'prompt_versions': словарь {capability_name: version} для промтов
-          - 'input_contract_versions': словарь {capability_name: version} для входных контрактов
-          - 'output_contract_versions': словарь {capability_name: version} для выходных контрактов
-        """
-        capabilities = self.get_capabilities()
-        required_resources = []
-
-        for cap in capabilities:
-            # Для каждой capability определяем необходимые ресурсы
-            required_resources.append({
-                'name': cap.name,
-                'prompt_versions': {cap.name: 'v1.0.0'},  # По умолчанию используем v1.0.0
-                'input_contract_versions': {cap.name: 'v1.0.0'},
-                'output_contract_versions': {cap.name: 'v1.0.0'}
-            })
-
-        return required_resources
-
     def _get_component_type(self) -> str:
         """Возвращает тип компонента для манифеста."""
         return "skill"
