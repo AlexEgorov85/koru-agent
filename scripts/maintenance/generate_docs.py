@@ -193,7 +193,6 @@ class RegistryLoader:
                         "prompt_versions": config.get("prompt_versions", {}),
                         "input_contracts": config.get("input_contract_versions", {}),
                         "output_contracts": config.get("output_contract_versions", {}),
-                        "manifest_path": config.get("manifest_path", "")
                     }
         
         return components

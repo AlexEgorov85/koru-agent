@@ -1,8 +1,5 @@
 """
 Абстрактный интерфейс для источника данных ресурсов (промптов и контрактов).
-
-ПРИМЕЧАНИЕ: Манифесты удалены из системы. Зависимости компонентов объявляются
-через DEPENDENCIES в коде каждого компонента.
 """
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
@@ -41,10 +38,3 @@ class ResourceDataSource(ABC):
     @abstractmethod
     def delete_contract(self, name: str) -> None:
         pass
-
-    # === УДАЛЕНО: Методы для манифестов больше не требуются ===
-    # Манифесты удалены из системы. Зависимости объявляются через DEPENDENCIES в коде компонентов.
-    # Эти методы были удалены:
-    # - load_manifest()
-    # - list_manifests()
-    # - manifest_exists()

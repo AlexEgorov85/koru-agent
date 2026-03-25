@@ -155,8 +155,8 @@ class BaseSkill(BaseComponent):
 
         return True
     
-    def get_required_capabilities_from_manifest(self) -> List[str]:
-        """Возвращает список required capabilities из манифеста."""
+    def get_required_capabilities(self) -> List[str]:
+        """Возвращает список required capabilities."""
         if self.component_config and self.component_config.constraints:
             return self.component_config.constraints.get('required_capabilities', [])
         return []

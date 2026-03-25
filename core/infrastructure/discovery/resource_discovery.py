@@ -361,9 +361,6 @@ class ResourceDiscovery:
                 resource_path=str(file_path)
             )
 
-    # === Метод _parse_manifest_file() удалён ===
-    # Манифесты удалены из системы
-
     def _infer_component_type_from_path(self, file_path: Path) -> ComponentType:
         """
         Авто-определение типа компонента по пути к файлу.
@@ -527,9 +524,6 @@ class ResourceDiscovery:
         self._log_info(f"✅ Загружено {len(contracts)} контрактов (просканировано: {self._stats['contracts_scanned']}, пропущено: {self._stats['contracts_skipped']})")
         return contracts
 
-    # === Метод discover_manifests() удалён ===
-    # Манифесты удалены из системы. Зависимости объявляются через DEPENDENCIES в коде компонентов.
-    
     def get_prompt(self, capability: str, version: str) -> Optional[Prompt]:
         """
         Получение конкретного промпта из кэша.
@@ -562,9 +556,6 @@ class ResourceDiscovery:
         """
         return self._contracts_cache.get((capability, version, direction))
 
-    # === Метод get_manifest() удалён ===
-    # Манифесты удалены из системы
-    
     def get_stats(self) -> Dict[str, int]:
         """
         Получение статистики сканирования.

@@ -16,7 +16,6 @@ class MockDatabaseResourceDataSource(ResourceDataSource):
         self._initialized = False
         self._prompts = {}
         self._contracts = {}
-        self._manifests = {}  # Добавляем хранение манифестов
 
     def initialize(self):
         """
@@ -93,37 +92,3 @@ class MockDatabaseResourceDataSource(ResourceDataSource):
             raise ValueError(f"Контракт с именем {name} не существует")
 
         del self._contracts[name]
-
-    # === МЕТОДЫ ДЛЯ МАНИФЕСТОВ ===
-    def load_manifest(self, component_type: str, component_name: str) -> Manifest:
-        """Загрузка конкретного манифеста"""
-        self._assert_initialized()
-        
-        key = f"{component_type}.{component_name}"
-        if key not in self._manifests:
-            raise FileNotFoundError(f"Manifest not found: {key}")
-        
-        return self._manifests[key]
-
-    def list_manifests(self, component_type: Optional[str] = None) -> List[Manifest]:
-        """Список всех манифестов (опционально по типу)"""
-        self._assert_initialized()
-        
-        manifests = []
-        for manifest in self._manifests.values():
-            if component_type is None or manifest.component_type.value == component_type:
-                manifests.append(manifest)
-        
-        # Сортировка для детерминизма
-        manifests.sort(key=lambda m: (m.component_type.value, m.component_id))
-        return manifests
-
-    def manifest_exists(self, component_type: str, component_name: str, version: str) -> bool:
-        """Проверка существования манифеста"""
-        self._assert_initialized()
-        
-        try:
-            manifest = self.load_manifest(component_type, component_name)
-            return manifest.version == version and manifest.status != ComponentStatus.ARCHIVED
-        except (FileNotFoundError, KeyError):
-            return False

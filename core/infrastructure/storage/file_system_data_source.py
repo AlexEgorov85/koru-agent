@@ -29,24 +29,16 @@ class FileSystemDataSource(ResourceDataSource):
         PromptComponentType.BEHAVIOR: "behavior"
     }
 
-    # Маппинг типа компонента → имя каталога (для манифестов)
-    MANIFEST_TYPE_TO_DIR = {
-        ComponentType.SKILL: "skills",
-        ComponentType.TOOL: "tools",
-        ComponentType.SERVICE: "services",
-        ComponentType.BEHAVIOR: "behaviors"
-    }
+
 
     def __init__(self, base_dir: Path, registry_config: RegistryConfig):
         self.base_dir = base_dir.resolve()
         self.prompts_dir = self.base_dir / "prompts"
         self.contracts_dir = self.base_dir / "contracts"
-        self.manifests_dir = self.base_dir / "manifests"  # Добавляем директорию для манифестов
         self.registry_config = registry_config  # ← Единый источник маппинга типов
         self._initialized = False
         self._loaded_prompts = {}
         self._loaded_contracts = {}
-        self._loaded_manifests = {}  # Добавляем кэш для манифестов
         # EventBusLogger для асинхронного логирования
         self.event_bus_logger = None
         self._init_event_bus_logger()
@@ -65,7 +57,7 @@ class FileSystemDataSource(ResourceDataSource):
         """
         Инициализация источника данных:
         1. Проверка существования базовой директории
-        2. Создание директорий prompts/, contracts/ и manifests/, если отсутствуют
+        2. Создание директорий prompts/, contracts/, если отсутствуют
         3. Выполнение preload всех ресурсов
         4. Публикация события о загрузке ресурсов (не print/log!)
         5. Установка _initialized = True
@@ -76,13 +68,9 @@ class FileSystemDataSource(ResourceDataSource):
         # Проверить существование базовой директории
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-        # Создать директории prompts/, contracts/ и manifests/, если отсутствуют
+        # Создать директории prompts/, contracts/, если отсутствуют
         self.prompts_dir.mkdir(exist_ok=True)
         self.contracts_dir.mkdir(exist_ok=True)
-
-        # Создание директорий для манифестов
-        for type_dir in self.MANIFEST_TYPE_TO_DIR.values():
-            (self.manifests_dir / type_dir).mkdir(parents=True, exist_ok=True)
 
         # Выполнить preload всех ресурсов
         self._preload_all_resources()
@@ -101,20 +89,16 @@ class FileSystemDataSource(ResourceDataSource):
                         "component": "FileSystemDataSource",
                         "prompts_loaded": len(self._loaded_prompts),
                         "contracts_loaded": len(self._loaded_contracts),
-                        "manifests_loaded": len(self._loaded_manifests),
                         "prompts": sorted(self._loaded_prompts.keys()),
                         "contracts": sorted(self._loaded_contracts.keys()),
-                        "manifests": sorted(self._loaded_manifests.keys())
                     }, source="FileSystemDataSource"))
                 else:
                     loop.run_until_complete(event_bus.publish(EventType.SYSTEM_INITIALIZED, {
                         "component": "FileSystemDataSource",
                         "prompts_loaded": len(self._loaded_prompts),
                         "contracts_loaded": len(self._loaded_contracts),
-                        "manifests_loaded": len(self._loaded_manifests),
                         "prompts": sorted(self._loaded_prompts.keys()),
                         "contracts": sorted(self._loaded_contracts.keys()),
-                        "manifests": sorted(self._loaded_manifests.keys())
                     }, source="FileSystemDataSource"))
             except RuntimeError:
                 # Нет активного event loop - пропускаем
@@ -155,30 +139,6 @@ class FileSystemDataSource(ResourceDataSource):
 
         # Загрузка контрактов
         self._preload_contracts()
-        
-        # Загрузка манифестов
-        self._preload_manifests()
-
-    def _preload_manifests(self):
-        """Загрузка всех манифестов с валидацией."""
-        for type_enum, type_dir_name in self.MANIFEST_TYPE_TO_DIR.items():
-            type_dir = self.manifests_dir / type_dir_name
-            if not type_dir.exists():
-                continue
-            
-            for component_dir in type_dir.iterdir():
-                if component_dir.is_dir():
-                    manifest_file = component_dir / "manifest.yaml"
-                    if manifest_file.exists():
-                        try:
-                            with open(manifest_file, 'r', encoding='utf-8') as f:
-                                raw = yaml.safe_load(f)
-                            manifest = Manifest(**raw)
-                            key = f"{type_enum.value}.{manifest.component_id}"
-                            self._loaded_manifests[key] = manifest
-                        except Exception as e:
-                            # All-or-nothing: падаем при ошибке
-                            raise ValueError(f"Ошибка загрузки манифеста {manifest_file}: {e}")
 
     def _preload_prompts(self):
         """Загрузка всех промптов с валидацией."""
@@ -484,9 +444,6 @@ class FileSystemDataSource(ResourceDataSource):
 
         # Удалить из кэша
         del self._loaded_contracts[name]
-
-    # === Методы для манифестов удалены ===
-    # Манифесты удалены из системы. Зависимости объявляются через DEPENDENCIES в коде компонентов.
 
 
 class ConfigurationError(Exception):

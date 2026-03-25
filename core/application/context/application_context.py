@@ -313,40 +313,7 @@ class ApplicationContext(BaseSystemContext):
             f"{self.data_repository.get_validation_report()}"
         )
 
-        # === ЭТАП: Загрузка и валидация манифестов ===
-        # TODO: Реализовать load_manifests() в DataRepository
-        # if self.data_repository:
-        #     await self.data_repository.load_manifests()
-        #
-        #     validation_report = await self._validate_manifests_by_profile()
-        #
-        #     if validation_report['critical_errors'] and self.profile == "prod":
-        #         self.logger.critical(
-        #             f"❌ КРИТИЧЕСКИЕ ОШИБКИ МАНИФЕСТОВ:\n"
-        #             f"{chr(10).join(validation_report['error_details'])}\n"
-        #             f"Система НЕ БУДЕТ запущена с неконсистентными манифестами."
-        #         )
-        #         return False
-        #
-        #     if validation_report['warnings']:
-        #         self.logger.warning(
-        #             f"⚠️ ПРЕДУПРЕЖДЕНИЯ МАНИФЕСТОВ:\n"
-        #             f"{chr(10).join(validation_report['warning_details'])}"
-        #         )
-        #
-        #     self.logger.info(
-        #         f"✅ Валидация манифестов завершена:\n"
-        #         f"  - Проверено: {validation_report['total_manifests']}\n"
-        #         f"  - Критических ошибок: {validation_report['critical_errors']}\n"
-        #         f"  - Предупреждений: {validation_report['warnings']}"
-        #     )
 
-        # === ЭТАП: Валидация дублирования и целостности схем ===
-        # TODO: Временно отключено до реализации _manifest_cache в DataRepository
-        # from core.application.services.manifest_validation_service import ManifestValidationService
-        #
-        # validation_service = ManifestValidationService(self.data_repository)
-        #
         # # Валидация дублирования
         # duplicate_report = await validation_service.validate_no_duplicates()
         # if not duplicate_report['is_valid']:

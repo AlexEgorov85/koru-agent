@@ -27,7 +27,8 @@ from .components import (
     ProgressScorer,
     AgentState,
     SafeExecutor,
-    FailureMemory
+    FailureMemory,
+    MetricsCollector
 )
 from core.application.behaviors.base import BehaviorDecisionType, BehaviorDecision
 from core.models.errors import AgentStuckError, InfrastructureError
@@ -150,6 +151,14 @@ class AgentRuntime:
             failure_memory=self.failure_memory  # ← НОВОЕ: Передаём failure_memory
         )
         self.progress_metrics = ProgressMetrics()
+        
+        # ← НОВОЕ: MetricsCollector для сбора метрик
+        session_id = getattr(application_context.infrastructure_context, 'id', 'unknown')
+        event_bus = getattr(application_context.infrastructure_context, 'event_bus', None)
+        self.metrics_collector = MetricsCollector(
+            session_id=session_id,
+            event_bus=event_bus
+        )
 
         # Создаем session_context, если он не существует в application_context
         if not hasattr(application_context, 'session_context') or application_context.session_context is None:
@@ -722,6 +731,9 @@ class AgentRuntime:
 
             # Инициализация менеджера поведения
             await self.behavior_manager.initialize(component_name="react_pattern")
+            
+            # ← НОВОЕ: Начало сессии метрик
+            self.metrics_collector.start_session(goal=self.goal)
 
             # ← НОВОЕ: Переменные для детекции зацикливания
             action_history: list = []  # История действий для детекции циклов

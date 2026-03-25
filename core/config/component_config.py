@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
-from pathlib import Path
 from datetime import datetime, timezone
 
 
@@ -26,14 +25,11 @@ class ComponentConfig(BaseModel):
     # Идентификатор варианта (для логирования)
     variant_id: str = Field(..., description="Уникальный ID варианта компонента")
 
-    # ← НОВОЕ: Путь к манифесту
-    manifest_path: Optional[Path] = Field(None, description="Путь к манифесту компонента")
+    # Ограничения компонента
+    constraints: Optional[Dict[str, Any]] = Field(None, description="Ограничения компонента")
     
-    # ← НОВОЕ: Ограничения из манифеста
-    constraints: Optional[Dict[str, Any]] = Field(None, description="Ограничения из манифеста")
-    
-    # ← НОВОЕ: Владелец из манифеста
-    owner: Optional[str] = Field(None, description="Владелец компонента из манифеста")
+    # Владелец компонента
+    owner: Optional[str] = Field(None, description="Владелец компонента")
 
     # ← НОВОЕ: Критические ресурсы
     critical_resources: Dict[str, bool] = Field(default_factory=dict, description="Критические ресурсы, которые должны быть загружены")
