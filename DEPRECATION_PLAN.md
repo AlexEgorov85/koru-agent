@@ -2,119 +2,52 @@
 
 ---
 
-## СТАТУС: В ПРОЦЕССЕ
+## ✅ ВЫПОЛНЕНО
+
+### Этап 1: Дубликаты методов
+- [x] Удалён дубликат `get_service()` (строка 1516)
+- [x] Удалён дубликат `get_skill()` (строка 1229)
+- [x] Удалён дубликат `get_tool()` (строка 1335)
+
+### Этап 2: Замена в core/ (get_service/get_skill/get_tool)
+- [x] `application_context.py` - 7 замен
+- [x] `behavior_manager.py` - 1 замена
+- [x] `runtime.py` - 1 замен
+
+### Этап 3: infrastructure_context (get_provider/get_resource)
+- [x] `sql_query/service.py` - заменён на resource_registry
+- [x] `action_executor.py` - заменён на resource_registry
+- [x] Оставшиеся вызовы - внутри deprecated методов (будут удалены вместе с ними)
 
 ---
 
-## 🔴 ЭТАП 1: Дубликаты методов (консолидация)
+## ⏸️ НЕ ВЫПОЛНЕНО
 
-### application_context.py
+### Этап 4: application_context в компонентах
 
-Удалить дубликаты, оставить по одному методу с warning:
+**Проблема:** ~100+ файлов используют `self.application_context` напрямую
 
-| Метод | Строки | Статус |
-|-------|--------|--------|
-| `get_service()` | 954, 1516 | ⚠️ 2 определения |
-| `get_skill()` | 960, 1229 | ⚠️ 2 определения (1 без warning!) |
-| `get_tool()` | 966, 1335 | ⚠️ 2 определения |
-
----
-
-## 🟠 ЭТАП 2: Замена в core/ (приоритет)
-
-Заменяем вызовы в core коде на новый API:
-
-### 2.1 get_service("prompt_service"), get_service("contract_service")
-
-Найти и заменить:
+**Примеры:**
 ```python
-# БЫЛО
-self.get_service("prompt_service")
-self.get_service("contract_service")
-
-# СТАЛО
-self.components.get(ComponentType.SERVICE, "prompt_service")
-self.components.get(ComponentType.SERVICE, "contract_service")
-```
-
-**Файлы для обновления:**
-- [ ] `application_context.py` (строки 1218, 1227, 1246, 1264, 1282, 1435, 1437)
-- [ ] `behavior_manager.py` (строка 72)
-- [ ] `runtime.py` (строка 347)
-
-### 2.2 get_skill(name)
-
-```python
-# БЫЛО
-self.get_skill("planning")
-
-# СТАЛО
-self.components.get(ComponentType.SKILL, "planning")
-```
-
-**Файлы для обновления:**
-- [ ] `runtime.py` (строка 347)
-
-### 2.3 get_tool(name)
-
-```python
-# БЫЛО
-self.get_tool("sql_tool")
-
-# СТАЛО
-self.components.get(ComponentType.TOOL, "sql_tool")
-```
-
----
-
-## 🟡 ЭТАП 3: infrastructure_context
-
-### get_provider() и get_resource()
-
-Эти методы используются в 43 местах. Замены:
-
-```python
-# БЫЛО
-self.infrastructure_context.get_provider("default_db")
-self.infrastructure_context.get_resource("default_db")
-
-# СТАЛО - в зависимости от провайдера:
-self.infrastructure_context.db_provider
-self.infrastructure_context.llm_provider
-# или
-self.infrastructure_context.resource_discovery
-```
-
-**Файлы для обновления (core):**
-- [ ] `sql_query/service.py` (строка 213)
-- [ ] `action_executor.py` (строка 829)
-- [ ] `config/agent_config.py` (строка 41)
-
----
-
-## 🟢 ЭТАП 4: application_context в компонентах
-
-Удаление прямого доступа к `.application_context`:
-
-```python
-# БЫЛО
 self.application_context.infrastructure_context
 self.application_context.session_context
-
-# СТАЛО
-# Получать через constructor parameters
+self.application_context.components
 ```
 
-**Затронутые файлы:** ~100+ файлов
+**Требует:** большого рефакторинга - замены на прямые параметры конструктора
+
+**Статус:** ⏸️ Отложено
 
 ---
 
-## 📊 Прогресс
+## 📊 Итог
 
-- [ ] Этап 1: Дубликаты
-- [ ] Этап 2: core/ get_service/get_skill/get_tool
-- [ ] Этап 3: infrastructure_context  
-- [ ] Этап 4: application_context в компонентах
+| Этап | Статус |
+|------|--------|
+| 1. Дубликаты | ✅ |
+| 2. core/ get_* методы | ✅ |
+| 3. infrastructure_context | ✅ |
+| 4. application_context | ⏸️ |
 
 ---
 
