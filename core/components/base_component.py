@@ -127,6 +127,10 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self.input_contracts: Dict[str, Type[BaseModel]] = {}  # ← Классы схем, не словари!
         self.output_contracts: Dict[str, Type[BaseModel]] = {}
 
+        # ← НОВОЕ: Автоматическое разделение system/user промптов
+        self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
+        self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
+
     # ========================================================================
     # ЛОГИРОВАНИЕ
     # ========================================================================
