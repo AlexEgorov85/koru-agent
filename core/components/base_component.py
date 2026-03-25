@@ -433,6 +433,16 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             self._safe_log_sync("error", f"Валидация выходных данных для {capability_name} провалена: {e}")
             return None
 
+    def render_prompt(self, capability_name: str, **kwargs) -> str:
+        """
+        Безопасный рендеринг шаблона с валидацией переменных.
+        """
+        if capability_name not in self.prompts:
+            raise ValueError(f"Промпт '{capability_name}' не загружен")
+
+        prompt_obj: Prompt = self.prompts[capability_name]
+        return prompt_obj.render(**kwargs)
+
     # === АБСТРАКТНЫЙ МЕТОД ВЫПОЛНЕНИЯ (БЕЗ ПРЯМЫХ ЗАВИСИМОСТЕЙ) ===
 
     async def execute(
