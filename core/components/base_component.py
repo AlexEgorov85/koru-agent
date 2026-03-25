@@ -121,15 +121,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             raise ValueError(f"Компонент '{name}' требует executor")
 
         # Сохраняем параметры
-        self._application_context = application_context  # [DEPRECATED Этап 5]
         self.component_config = component_config
         self.executor = executor  # ← Критически важно!
-
-        # === ВНЕДРЁННЫЕ ЗАВИСИМОСТИ ===
-        # [REFACTOR Этап 5] db, llm, cache, vector удалены — используйте executor
-        self._event_bus = event_bus
-        self._metrics_storage = metrics_storage
-        self._log_storage = log_storage
 
         # Основные данные компонента (не кэш!)
         self.prompts: Dict[str, Prompt] = {}  # ← Объекты, не строки!
@@ -144,51 +137,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self.supported_capabilities: Dict[str, Any] = {}  # {capability_name: handler}
 
     # ========================================================================
-    # СВОЙСТВА ДЛЯ ВНЕДРЁННЫХ ЗАВИСИМОСТЕЙ
-    # ========================================================================
-
-    # [REFACTOR Этап 5] Свойства db, llm, cache, vector удалены как deprecated
-    # Используйте executor.execute_action() для взаимодействия с инфраструктурой
-
-    @property
-    def event_bus(self) -> Optional[EventBusInterface]:
-        """Получить EventBusInterface."""
-        return self._event_bus
-
-    @property
-    def metrics_storage(self) -> Optional[MetricsStorageInterface]:
-        """Получить MetricsStorageInterface."""
-        return self._metrics_storage
-
-    @property
-    def log_storage(self) -> Optional[LogStorageInterface]:
-        """Получить LogStorageInterface."""
-        return self._log_storage
-
-    @property
-    def application_context(self) -> Optional['ApplicationContext']:
-        """Получить ApplicationContext (DEPRECATED)."""
-        return self._application_context
-
-    # ========================================================================
     # ЛОГИРОВАНИЕ
     # ========================================================================
-
-    def _get_logger_init_state(self):
-        """
-        Callback для EventBusLogger: получение текущего состояния инициализации.
-
-        Возвращает LoggerInitializationState на основе _state компонента.
-        """
-        from core.infrastructure.logging.logger import LoggerInitializationState
-
-        if self._state == ComponentState.READY:
-            return LoggerInitializationState.READY
-        elif self._state == ComponentState.INITIALIZING:
-            return LoggerInitializationState.INITIALIZING
-        else:
-            # CREATED, FAILED, SHUTDOWN → считаем как NOT_INITIALIZED
-            return LoggerInitializationState.NOT_INITIALIZED
 
     async def initialize(self) -> bool:
         """
@@ -229,19 +179,13 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             )
 
         try:
-            # === ЭТАП 1: Валидация манифеста (НОВОЕ) ===
-            if not await self._validate_manifest():
-                self._safe_log_sync("error", f"{self.name}: Валидация манифеста не пройдена")
-                await self._transition_to(ComponentState.FAILED)
-                return False
-
-            # === ЭТАП 2: Предзагрузка ресурсов ===
-            if not await self._preload_resources(current_time):
+            # === ЭТАП 1: Предзагрузка ресурсов ===
+            if not await self._preload_resources():
                 self._safe_log_sync("error", f"{self.name}: Предзагрузка ресурсов не удалась")
                 await self._transition_to(ComponentState.FAILED)
                 return False
 
-            # === ЭТАП 3: Валидация загруженных ресурсов ===
+            # === ЭТАП 2: Валидация загруженных ресурсов ===
             if not await self._validate_loaded_resources():
                 self._safe_log_sync("error", f"{self.name}: Валидация загруженных ресурсов не пройдена")
                 await self._transition_to(ComponentState.FAILED)
@@ -252,7 +196,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
 
             # Переход в состояние READY
             await self._transition_to(ComponentState.READY)
-            
+
             # ← НОВОЕ: Устанавливаем флаг инициализации для обратной совместимости
             self._initialized = True
 
@@ -267,47 +211,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             await self._transition_to(ComponentState.FAILED)
             return False
 
-    async def _validate_manifest(self) -> bool:
-        """
-        Валидация конфигурации компонента вместо манифеста.
-
-        Проверяет:
-        1. Наличие component_config
-        2. Корректность версий контрактов в config
-        3. Доступность зависимостей из DEPENDENCIES
-        """
-        # Проверка ComponentConfig
-        if not self.component_config:
-            self._safe_log_sync("debug", f"{self.name}: component_config отсутствует")
-            return True  # Не блокируем, но логируем
-
-        # Проверка что версии контрактов указаны корректно
-        if hasattr(self.component_config, 'input_contract_versions'):
-            for cap, ver in self.component_config.input_contract_versions.items():
-                if not ver or not isinstance(ver, str):
-                    self._safe_log_sync("error", f"{self.name}: Некорректная версия контракта {cap}@{ver}")
-                    return False
-
-        # Проверка зависимостей из DEPENDENCIES
-        if hasattr(self, 'DEPENDENCIES'):
-            for dep_name in self.DEPENDENCIES:
-                # Сначала пробуем найти в registry компонентов
-                dep = None
-                if self._application_context is not None:
-                    dep = (
-                        self._application_context.components.get(ComponentType.SERVICE, dep_name) or
-                        self._application_context.components.get(ComponentType.TOOL, dep_name) or
-                        self._application_context.components.get(ComponentType.SKILL, dep_name) or
-                        self._application_context.components.get(ComponentType.BEHAVIOR, dep_name)
-                    )
-                
-                if not dep:
-                    self._safe_log_sync("warning", f"{self.name}: Зависимость '{dep_name}' не найдена в registry (будет внедрена через DI)")
-                    # Не блокируем - зависимость может быть внедрена через DI
-
-        return True
-
-    async def _preload_resources(self, current_time: float) -> bool:
+    async def _preload_resources(self) -> bool:
         """
         Предзагрузка ресурсов компонента.
 
@@ -513,28 +417,6 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self._safe_log_sync("debug", f"{self.name}: Все ресурсы валидированы успешно")
         return True
 
-    def _get_component_type(self) -> str:
-        """Определяет тип компонента (skill/tool/service/behavior)."""
-        # Переопределяется в наследниках
-        return "component"
-
-    def _ensure_initialized(self):
-        """
-        Проверяет, что компонент инициализирован перед использованием.
-        
-        DEPRECATED: Используйте ensure_ready() из LifecycleMixin.
-        Этот метод сохранён для обратной совместимости.
-
-        RAISES:
-        - RuntimeError: если компонент не инициализирован
-        """
-        # Для обратной совместимости проверяем старое условие
-        if self._state not in (ComponentState.READY, ComponentState.SHUTDOWN):
-            raise RuntimeError(
-                f"Компонент '{self.name}' не инициализирован (state={self._state.value}). "
-                f"Вызовите .initialize() перед использованием."
-            )
-
     # ========================================================================
     # [REFACTOR Этап 2.2] TTL-кэширование удалено
     # invalidate_cache() и _is_cache_expired() больше не используются
@@ -554,7 +436,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         RETURNS:
         - Prompt: объект промпта или None если не найден
         """
-        self._ensure_initialized()
+        self.ensure_ready()
 
         if capability_name not in self.prompts:
             return None
@@ -573,7 +455,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         RETURNS:
         - Type[BaseModel]: класс схемы или базовый BaseModel если не найден
         """
-        self._ensure_initialized()
+        self.ensure_ready()
 
         if capability_name not in self.input_contracts:
             return BaseModel
@@ -592,144 +474,13 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         RETURNS:
         - Type[BaseModel]: класс схемы или базовый BaseModel если не найден
         """
-        self._ensure_initialized()
+        self.ensure_ready()
 
         if capability_name not in self.output_contracts:
             return BaseModel
 
         return self.output_contracts[capability_name]
 
-    # === МЕТОДЫ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ (DEPRECATED) ===
-
-    def get_prompt_text(self, capability_name: str) -> str:
-        """
-        Получение текста промпта для обратной совместимости.
-
-        DEPRECATED: Используйте get_prompt() для получения объекта Prompt.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - capability_name: имя capability для получения промпта
-
-        RETURNS:
-        - str: текст промпта или пустая строка если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_prompt_text() deprecated. Используйте get_prompt() для получения объекта Prompt.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        self._ensure_initialized()
-
-        if capability_name not in self.prompts:
-            self._safe_log_sync(
-                "warning",
-                f"Промпт для capability '{capability_name}' не загружен в компонент '{self.name}'. "
-                f"Доступные: {list(self.prompts.keys())}. Возвращаем пустую строку."
-            )
-            return ""
-
-        prompt_obj = self.prompts[capability_name]
-        if hasattr(prompt_obj, 'content'):
-            return prompt_obj.content
-        return str(prompt_obj)
-
-    def get_input_contract_dict(self, capability_name: str) -> Dict:
-        """
-        Получение входной схемы как словаря для обратной совместимости.
-
-        DEPRECATED: Используйте get_input_contract() для получения класса Pydantic модели.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - capability_name: имя capability для получения входной схемы
-
-        RETURNS:
-        - Dict: JSON схема словаря или пустой словарь если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_input_contract_dict() deprecated. Используйте get_input_contract() для получения класса модели.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        self._ensure_initialized()
-
-        if capability_name not in self.input_contracts:
-            self._safe_log_sync(
-                "warning",
-                f"Входная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self.input_contracts.keys())}. Возвращаем пустой словарь."
-            )
-            return {}
-
-        schema_cls = self.input_contracts[capability_name]
-        return schema_cls.model_json_schema()
-
-    def get_output_contract_dict(self, capability_name: str) -> Dict:
-        """
-        Получение выходной схемы как словаря для обратной совместимости.
-
-        DEPRECATED: Используйте get_output_contract() для получения класса Pydantic модели.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - capability_name: имя capability для получения выходной схемы
-
-        RETURNS:
-        - Dict: JSON схема словаря или пустой словарь если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_output_contract_dict() deprecated. Используйте get_output_contract() для получения класса модели.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        self._ensure_initialized()
-
-        if capability_name not in self.output_contracts:
-            self._safe_log_sync(
-                "warning",
-                f"Выходная схема для '{capability_name}' не загружена в компонент '{self.name}'. "
-                f"Доступные: {list(self.output_contracts.keys())}. Возвращаем пустой словарь."
-            )
-            return {}
-
-        schema_cls = self.output_contracts[capability_name]
-        return schema_cls.model_json_schema()
-
-    def validate_input(self, capability_name: str, data: Dict) -> bool:
-        """
-        Типобезопасная валидация через скомпилированную схему.
-
-        DEPRECATED: Используйте validate_input_typed() для получения типизированной модели.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARCHITECTURE:
-        - Валидирует входные данные через Pydantic модель
-        - Для типизированной валидации используйте validate_input_typed()
-        """
-        import warnings
-        warnings.warn(
-            "validate_input() deprecated. Используйте validate_input_typed() для получения типизированной модели.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        
-        if capability_name not in self.input_contracts:
-            self._safe_log_sync("warning", f"Схема для {capability_name} не загружена, пропускаем валидацию")
-            return True
-
-        schema_cls = self.input_contracts[capability_name]
-        try:
-            # Pydantic автоматически валидирует и конвертирует типы
-            validated = schema_cls.model_validate(data)
-            return True
-        except Exception as e:
-            self._safe_log_sync("error", f"Валидация входных данных для {capability_name} провалена: {e}")
-            return False
-    
     def validate_input_typed(self, capability_name: str, data: Dict) -> Optional[BaseModel]:
         """
         Типобезопасная валидация с возвратом Pydantic модели.
@@ -759,40 +510,6 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             self._safe_log_sync("error", f"Валидация входных данных для {capability_name} провалена: {e}")
             return None
 
-    def validate_output(self, capability_name: str, data: Any) -> bool:
-        """
-        Валидация выходных данных через скомпилированную схему.
-
-        DEPRECATED: Используйте validate_output_typed() для получения типизированной модели.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ПАРАМЕТРЫ:
-        - capability_name: имя capability
-        - data: данные для валидации
-
-        ВОЗВРАЩАЕТ:
-        - bool: True если валидация пройдена
-        """
-        import warnings
-        warnings.warn(
-            "validate_output() deprecated. Используйте validate_output_typed() для получения типизированной модели.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        
-        if capability_name not in self.output_contracts:
-            self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
-            return True
-
-        schema_cls = self.output_contracts[capability_name]
-        try:
-            # Pydantic автоматически валидирует и конвертирует типы
-            validated = schema_cls.model_validate(data)
-            return True
-        except Exception as e:
-            self._safe_log_sync("error", f"Валидация выходных данных для {capability_name} провалена: {e}")
-            return False
-    
     def validate_output_typed(self, capability_name: str, data: Any) -> Optional[BaseModel]:
         """
         Типобезопасная валидация выходных данных с возвратом Pydantic модели.
@@ -980,121 +697,6 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             include_input_contract=include_input_contract,
             include_output_contract=include_output_contract,
             position=position
-        )
-
-    # === ДОСТУП К ПРОВАЙДЕРАМ ИНФРАСТРУКТУРЫ ===
-
-    def get_provider(self, name: str):
-        """
-        Универсальный метод получения провайдера из инфраструктуры.
-
-        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - name: имя провайдера
-
-        RETURNS:
-        - Провайдер или None если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        
-        if not hasattr(self.application_context, 'infrastructure_context'):
-            self._safe_log_sync("warning", f"infrastructure_context не доступен для получения провайдера '{name}'")
-            return None
-        return self.application_context.infrastructure_context.get_provider(name)
-
-    def get_llm_provider(self, name: str = "default_llm"):
-        """
-        Получение LLM провайдера.
-
-        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - name: имя LLM провайдера (по умолчанию "default_llm")
-
-        RETURNS:
-        - LLM провайдер или None если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_llm_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.get_provider(name)
-
-    def get_db_provider(self, name: str = "default_db"):
-        """
-        Получение DB провайдера.
-
-        DEPRECATED: Используйте executor.execute_action() для взаимодействия с инфраструктурой.
-        Этот метод будет удалён в следующей мажорной версии.
-
-        ARGS:
-        - name: имя DB провайдера (по умолчанию "default_db")
-
-        RETURNS:
-        - DB провайдер или None если не найден
-        """
-        import warnings
-        warnings.warn(
-            "get_db_provider() deprecated. Используйте executor.execute_action() для взаимодействия с инфраструктурой.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.get_provider(name)
-
-    # === ПУБЛИКАЦИЯ МЕТОРИК И СОБЫТИЙ ===
-
-    async def _publish_metrics(
-        self,
-        event_type: EventType,
-        capability_name: str,
-        success: bool,
-        execution_time_ms: float,
-        tokens_used: int = 0,
-        **extra_data
-    ) -> None:
-        """
-        Универсальный метод публикации метрик выполнения компонента через EventBus.
-
-        ARGS:
-        - event_type: тип события (EventType.SKILL_EXECUTED, EventType.TOOL_EXECUTED, etc.)
-        - capability_name: название выполненной capability
-        - success: успешность выполнения
-        - execution_time_ms: время выполнения в мс
-        - tokens_used: количество использованных токенов
-        - **extra_data: дополнительные данные для события
-        """
-        if not hasattr(self.application_context, 'infrastructure_context'):
-            self._safe_log_sync("debug", f"infrastructure_context не доступен для публикации метрик")
-            return
-
-        event_bus = self.application_context.infrastructure_context.event_bus
-        
-        # Формируем базовые данные события
-        event_data = {
-            'agent_id': getattr(self.application_context, 'agent_id', getattr(self.application_context, 'id', 'unknown')),
-            'component_name': self.name,
-            'component_type': self._get_component_type(),
-            'capability': capability_name,
-            'success': success,
-            'execution_time_ms': execution_time_ms,
-            'tokens_used': tokens_used,
-            **extra_data
-        }
-
-        await event_bus.publish(
-            event_type,
-            data=event_data,
-            source=self.name
         )
 
     # === АБСТРАКТНЫЙ МЕТОД ВЫПОЛНЕНИЯ (БЕЗ ПРЯМЫХ ЗАВИСИМОСТЕЙ) ===
