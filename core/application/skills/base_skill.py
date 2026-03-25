@@ -45,7 +45,11 @@ class BaseSkill(BaseComponent):
         name: str,
         application_context: 'ApplicationContext',
         component_config: ComponentConfig,
-        executor: 'ActionExecutor'
+        executor: 'ActionExecutor',
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        event_bus = None,
+        metrics_storage = None,
+        log_storage = None
     ):
         """
         Инициализация навыка с внедрением зависимостей.
@@ -55,8 +59,19 @@ class BaseSkill(BaseComponent):
         - application_context: контекст приложения (DEPRECATED, используется для совместимости)
         - component_config: конфигурация компонента с версиями ресурсов
         - executor: ActionExecutor для взаимодействия с другими компонентами
+        - event_bus: EventBusInterface для логирования
+        - metrics_storage: MetricsStorageInterface для метрик
+        - log_storage: LogStorageInterface для хранения логов
         """
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
     
     # --------------------------------------------------
     # Initialization API

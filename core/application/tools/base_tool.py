@@ -39,9 +39,28 @@ class BaseTool(BaseComponent):
         """Описание назначения инструмента."""
         pass
 
-    def __init__(self, name: str, application_context: 'ApplicationContext', component_config: Optional[ComponentConfig] = None, executor=None, **kwargs):
-        # Вызов конструктора родительского класса
-        super().__init__(name, application_context, component_config=component_config, executor=executor)
+    def __init__(
+        self,
+        name: str,
+        application_context: 'ApplicationContext',
+        component_config: Optional[ComponentConfig] = None,
+        executor=None,
+        # === ВНЕДРЕНИЕ ЗАВИСИМОСТЕЙ ЧЕРЕЗ ИНТЕРФЕЙСЫ ===
+        event_bus = None,
+        metrics_storage = None,
+        log_storage = None,
+        **kwargs
+    ):
+        # Вызов конструктора родительского класса с DI параметрами
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus,
+            metrics_storage=metrics_storage,
+            log_storage=log_storage
+        )
         self.config = kwargs
         self.executor = executor  # Сохраняем executor как атрибут
 

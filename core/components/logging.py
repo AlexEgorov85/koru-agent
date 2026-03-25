@@ -33,8 +33,7 @@ class LoggingMixin:
         self,
         event_bus: Optional['EventBusInterface'] = None,
         component_name: str = "unknown",
-        get_init_state_callback: Optional[Callable] = None,
-        require_event_bus: bool = True  # ← НОВОЕ: требовать event_bus по умолчанию
+        get_init_state_callback: Optional[Callable] = None
     ):
         """
         Инициализация логгера.
@@ -43,10 +42,10 @@ class LoggingMixin:
         - event_bus: EventBusInterface для создания логгера
         - component_name: Имя компонента для логирования
         - get_init_state_callback: Callback для получения состояния инициализации
-        - require_event_bus: Требовать event_bus (True по умолчанию для безопасности)
         
-        RAISES:
-        - ValueError: если require_event_bus=True и event_bus=None
+        NOTE:
+        - Если event_bus=None, logger остаётся None (для тестов)
+        - ComponentFactory обязан передавать event_bus для production
         """
         self._event_bus = event_bus
         self._get_init_state_callback = get_init_state_callback
@@ -54,12 +53,7 @@ class LoggingMixin:
 
         if event_bus is not None:
             self._init_event_bus_logger(component_name)
-        elif require_event_bus:
-            # ← НОВОЕ: Запрещаем инициализацию без event_bus
-            raise ValueError(
-                f"Component '{component_name}' requires event_bus for logging. "
-                "Pass event_bus parameter or set require_event_bus=False for testing."
-            )
+        # else: logger остаётся None — ComponentFactory должен передать event_bus
 
     def _init_event_bus_logger(self, component_name: str = "unknown"):
         """
