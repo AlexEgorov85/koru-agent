@@ -3,10 +3,10 @@ from datetime import date, datetime
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.application.agent.components.action_executor import ExecutionContext
 from core.session_context.base_session_context import BaseSessionContext
-from .base_handler import BaseFinalAnswerHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class GenerateFinalAnswerHandler(BaseFinalAnswerHandler):
+class GenerateFinalAnswerHandler(BaseSkillHandler):
     """Обработчик генерации финального ответа."""
 
     capability_name = "final_answer.generate"

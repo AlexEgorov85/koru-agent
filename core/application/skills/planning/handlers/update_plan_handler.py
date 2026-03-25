@@ -1,10 +1,10 @@
 from typing import Dict, Any
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.application.agent.components.action_executor import ExecutionContext
-from .base_handler import BasePlanningHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class UpdatePlanHandler(BasePlanningHandler):
+class UpdatePlanHandler(BaseSkillHandler):
     """Обработчик обновления плана."""
 
     capability_name = "planning.update_plan"

@@ -4,10 +4,10 @@ from typing import Dict, Any, Optional
 from core.application.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import VectorSearchError, InfrastructureError
-from .base_handler import BaseBookLibraryHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class SemanticSearchHandler(BaseBookLibraryHandler):
+class SemanticSearchHandler(BaseSkillHandler):
     """
     Обработчик семантического поиска через векторную БД.
 

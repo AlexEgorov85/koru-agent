@@ -5,10 +5,10 @@ from pydantic import BaseModel
 from core.application.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import SQLGenerationError
-from .base_handler import BaseBookLibraryHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class SearchBooksHandler(BaseBookLibraryHandler):
+class SearchBooksHandler(BaseSkillHandler):
     """
     Обработчик динамической генерации SQL через LLM.
 

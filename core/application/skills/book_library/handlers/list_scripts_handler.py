@@ -1,8 +1,8 @@
 from typing import Dict, Any, List
-from .base_handler import BaseBookLibraryHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class ListScriptsHandler(BaseBookLibraryHandler):
+class ListScriptsHandler(BaseSkillHandler):
     """
     Обработчик получения списка доступных скриптов.
 

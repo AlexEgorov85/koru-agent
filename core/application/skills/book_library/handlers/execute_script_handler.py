@@ -4,10 +4,10 @@ from pydantic import BaseModel
 
 from core.application.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
-from .base_handler import BaseBookLibraryHandler
+from core.application.skills.handlers.base_handler import BaseSkillHandler
 
 
-class ExecuteScriptHandler(BaseBookLibraryHandler):
+class ExecuteScriptHandler(BaseSkillHandler):
     """
     Обработчик выполнения заготовленных SQL-скриптов.
 
