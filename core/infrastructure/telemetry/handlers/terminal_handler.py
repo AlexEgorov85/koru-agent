@@ -6,12 +6,10 @@ FEATURES:
 - Фильтрация шума
 - Показывает только meaningful execution trace
 """
-import logging
+import sys
 from typing import Optional
 
 from core.infrastructure.event_bus.unified_event_bus import Event, EventType, UnifiedEventBus
-
-logger = logging.getLogger(__name__)
 
 
 class TerminalLogFormatter:
@@ -158,7 +156,8 @@ class TerminalLogHandler:
             return
 
         if message:
-            logger.info(message)
+            # Прямой вывод в консоль (минуя logging)
+            print(message, flush=True)
 
     async def _on_error(self, event: Event):
         """Обработка ERROR логов."""
@@ -170,7 +169,8 @@ class TerminalLogHandler:
         message = self.formatter.format(event, level)
 
         if message:
-            logger.error(message)
+            # Прямой вывод в консоль (минуя logging)
+            print(message, flush=True)
 
     def disable(self):
         """Отключить вывод."""
