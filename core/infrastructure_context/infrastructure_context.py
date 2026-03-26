@@ -244,51 +244,51 @@ class InfrastructureContext:
 
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
-    has_llm = hasattr(self.config, 'llm_providers')
-    if has_llm and self.config.llm_providers:
-        for name, prov in self.config.llm_providers.items():
-            logger.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}")
+        has_llm = hasattr(self.config, 'llm_providers')
+        if has_llm and self.config.llm_providers:
+            for name, prov in self.config.llm_providers.items():
+                logger.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}")
 
-        first_llm_registered = False
-        for provider_name, provider_config in self.config.llm_providers.items():
-            if provider_config.enabled:
-                try:
-                    provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
-                    if provider_type == "mock":
-                        config_obj = MockLLMConfig(**provider_config.parameters)
-                    elif provider_type == "llama_cpp":
-                        params = dict(provider_config.parameters)
-                        if hasattr(provider_config, 'timeout_seconds'):
-                            params['timeout_seconds'] = provider_config.timeout_seconds
-                        config_obj = MockLlamaCppConfig(**params)
-                    else:
-                        config_obj = MockLLMConfig(**provider_config.parameters)
+            first_llm_registered = False
+            for provider_name, provider_config in self.config.llm_providers.items():
+                if provider_config.enabled:
+                    try:
+                        provider_type = getattr(provider_config, 'provider_type', getattr(provider_config, 'type_provider', None))
+                        if provider_type == "mock":
+                            config_obj = MockLLMConfig(**provider_config.parameters)
+                        elif provider_type == "llama_cpp":
+                            params = dict(provider_config.parameters)
+                            if hasattr(provider_config, 'timeout_seconds'):
+                                params['timeout_seconds'] = provider_config.timeout_seconds
+                            config_obj = MockLlamaCppConfig(**params)
+                        else:
+                            config_obj = MockLLMConfig(**provider_config.parameters)
 
-                    provider = self.llm_provider_factory.create_provider(
-                        provider_type=provider_type,
-                        config=config_obj
-                    )
+                        provider = self.llm_provider_factory.create_provider(
+                            provider_type=provider_type,
+                            config=config_obj
+                        )
 
-                    await self.lifecycle_manager.register_resource(
-                        name=provider_name,
-                        resource=provider,
-                        resource_type=ResourceType.LLM,
-                        metadata={"is_default": not first_llm_registered}
-                    )
+                        await self.lifecycle_manager.register_resource(
+                            name=provider_name,
+                            resource=provider,
+                            resource_type=ResourceType.LLM,
+                            metadata={"is_default": not first_llm_registered}
+                        )
 
-                    info_llm = ResourceInfo(
-                        name=provider_name,
-                        resource_type=ResourceType.LLM,
-                        instance=provider
-                    )
-                    info_llm.is_default = not first_llm_registered
-                    if not first_llm_registered:
-                        first_llm_registered = True
-                    self.resource_registry.register_resource(info_llm)
+                        info_llm = ResourceInfo(
+                            name=provider_name,
+                            resource_type=ResourceType.LLM,
+                            instance=provider
+                        )
+                        info_llm.is_default = not first_llm_registered
+                        if not first_llm_registered:
+                            first_llm_registered = True
+                        self.resource_registry.register_resource(info_llm)
 
-                except Exception as e:
-                    logger.error(f"[LLM] Error: {e}")
-                    await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {str(e)}", exc_info=True)
+                    except Exception as e:
+                        logger.error(f"[LLM] Error: {e}")
+                        await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {str(e)}", exc_info=True)
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
