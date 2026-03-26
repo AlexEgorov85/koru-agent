@@ -50,29 +50,11 @@ class SyncLoggerMixin:
     
     def _write_sync(self, message: str, level: str, stream=None):
         """
-        Синхронная запись в stdout/stderr.
-        
-        ARGS:
-        - message: Сообщение
-        - level: Уровень (INFO, DEBUG, WARNING, ERROR)
-        - stream: Поток (stdout/stderr)
+        Синхронная запись в stdout/stderr — ОТКЛЮЧЕНА.
+
+        Все логи теперь идут только через EventBus → TerminalLogHandler.
         """
-        if stream is None:
-            stream = sys.stderr if level in ("ERROR", "CRITICAL") else sys.stdout
-
-        try:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            component = getattr(self, 'component', 'unknown')
-            formatted = f"[{timestamp}] [{level}] [{component}] {message}"
-
-            try:
-                stream.buffer.write((formatted + '\n').encode('utf-8'))
-                stream.buffer.flush()
-            except (AttributeError, UnicodeEncodeError):
-                print(formatted, file=stream, flush=True)
-
-        except Exception as e:
-            self._write_fallback(message, level, str(e))
+        pass  # Отключено для чистого вывода с иконками
 
     def _write_fallback(self, message: str, level: str, reason: str):
         """Fallback запись через EventBus при ошибке stdout."""
