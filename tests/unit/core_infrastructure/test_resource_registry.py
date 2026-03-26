@@ -27,7 +27,7 @@ def test_register_resource_adds_to_registry():
     mock_instance = object()
     resource_info = ResourceInfo(
         name="test_resource",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=mock_instance
     )
     
@@ -48,7 +48,7 @@ def test_get_existing_resource_returns_correct_instance():
     mock_instance = object()
     resource_info = ResourceInfo(
         name="test_resource",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=mock_instance
     )
     
@@ -78,7 +78,7 @@ def test_register_multiple_resources():
     # Создаем несколько тестовых ресурсов
     resource1 = ResourceInfo(
         name="resource1",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=object()
     )
     
@@ -112,7 +112,7 @@ def test_overwrite_resource_with_same_name():
     
     resource1 = ResourceInfo(
         name="same_name",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=instance1
     )
     
@@ -139,7 +139,7 @@ def test_get_all_resources_returns_correct_list():
     # Создаем несколько ресурсов
     resource1 = ResourceInfo(
         name="resource1",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=object()
     )
     
@@ -168,7 +168,7 @@ def test_get_all_names_returns_correct_list():
     # Создаем несколько ресурсов
     resource1 = ResourceInfo(
         name="resource1",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=object()
     )
     

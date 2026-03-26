@@ -146,7 +146,7 @@ async def test_get_provider_returns_correct_instance():
     mock_provider = MagicMock()
     resource_info = ResourceInfo(
         name="test_provider",
-        resource_type=ResourceType.LLM_PROVIDER,
+        resource_type=ResourceType.LLM,
         instance=mock_provider
     )
     infra.resource_registry.register_resource(resource_info)

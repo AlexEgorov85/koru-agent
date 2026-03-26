@@ -36,7 +36,6 @@ from core.config import get_config, AppConfig
 from core.config.agent_config import AgentConfig
 from core.errors import get_error_handler, ErrorContext, ErrorSeverity
 from core.infrastructure.logging import (
-    session_log_handler,
     shutdown_logging_system,
     get_session_logger,
 )

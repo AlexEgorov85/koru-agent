@@ -26,6 +26,7 @@ import asyncio
 from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.agent.components.lifecycle import ComponentState
+from core.models.enums.common_enums import ResourceType
 
 
 class ManagedResource(Protocol):
@@ -51,23 +52,6 @@ class ManagedResource(Protocol):
     def get_info(self) -> Dict[str, Any]:
         """Базовая информация (имя, тип, состояние)."""
         ...
-
-
-class ResourceType(Enum):
-    """Типы инфраструктурных ресурсов и компонентов."""
-    LLM = "llm"
-    DATABASE = "database"
-    VECTOR = "vector"
-    EMBEDDING = "embedding"
-    CACHE = "cache"
-    STORAGE = "storage"
-    COLLECTOR = "collector"
-    DISCOVERY = "discovery"
-    SKILL = "skill"
-    TOOL = "tool"
-    SERVICE = "service"
-    BEHAVIOR = "behavior"
-    OTHER = "other"
 
 
 @dataclass
@@ -642,8 +626,8 @@ class LifecycleManager:
 
     @property
     def is_ready(self) -> bool:
-        """Готов к работе (все ресурсы инициализированы)."""
-        return self._initialized and self.initialized_count == self.resources_count
+        """Готов к работе (менеджер инициализирован)."""
+        return self._initialized
 
     @property
     def state(self) -> ComponentState:

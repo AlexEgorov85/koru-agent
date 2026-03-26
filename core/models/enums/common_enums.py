@@ -41,34 +41,47 @@ class ComponentStatus(str, Enum):
 
 class ResourceType(str, Enum):
     """
-    Типы ресурсов системы.
-
-    КАТЕГОРИИ РЕСУРСОВ:
-    - LLM_PROVIDER: Провайдеры языковых моделей
-    - SKILL: Навыки агента (логика принятия решений)
-    - TOOL: Инструменты для выполнения конкретных задач
-    - DATABASE: Базы данных для хранения контекста и знаний
-    - CACHE: Кэши для ускорения работы
-    - CONFIG: Конфигурационные параметры
-
-    ИСПОЛЬЗОВАНИЕ:
-    resource = ResourceInfo(
-        name="primary_llm",
-        resource_type=ResourceType.LLM_PROVIDER,
-        instance=llm_provider
-    )
-
-    ВАЖНО:
-    - Классификация ресурсов позволяет гибко управлять жизненным циклом
-    - Разные типы ресурсов могут требовать разной логики инициализации/завершения
+    Типы ресурсов системы (ЕДИНЫЙ для всех модулей).
+    
+    ИСПОЛЬЗУЕТСЯ В:
+    - ResourceRegistry (resource_discovery)
+    - LifecycleManager (управление жизненным циклом)
+    - ComponentRegistry (компоненты приложения)
+    
+    КАТЕГОРИИ:
+    - LLM: Провайдеры языковых моделей
+    - DATABASE: Базы данных
+    - VECTOR: Векторные хранилища
+    - EMBEDDING: Модели эмбеддингов
+    - CACHE: Кэши
+    - STORAGE: Хранилища
+    - COLLECTOR: Сборщики метрик/логов
+    - DISCOVERY: Обнаружение ресурсов
+    - SKILL: Навыки агента
+    - TOOL: Инструменты
+    - SERVICE: Сервисы
+    - BEHAVIOR: Паттерны поведения
+    - CONFIG: Конфигурация
     """
-    LLM_PROVIDER = "llm_provider"
+    # Инфраструктура
+    LLM = "llm"
+    DATABASE = "database"
+    VECTOR = "vector"
+    EMBEDDING = "embedding"
+    CACHE = "cache"
+    STORAGE = "storage"
+    COLLECTOR = "collector"
+    DISCOVERY = "discovery"
+    CONFIG = "config"
+    
+    # Компоненты приложения
     SKILL = "skill"
     TOOL = "tool"
-    DATABASE = "database"
-    CACHE = "cache"
-    CONFIG = "config"
     SERVICE = "service"
+    BEHAVIOR = "behavior"
+    
+    # Прочее
+    OTHER = "other"
 
 
 class ResourceHealth(str, Enum):

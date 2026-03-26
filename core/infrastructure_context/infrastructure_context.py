@@ -275,7 +275,7 @@ class InfrastructureContext:
 
                     info_llm = ResourceInfo(
                         name=provider_name,
-                        resource_type=ResourceType.LLM_PROVIDER,
+                        resource_type=ResourceType.LLM,
                         instance=provider
                     )
                     info_llm.is_default = not first_llm_registered
@@ -411,7 +411,7 @@ class InfrastructureContext:
     async def _cleanup_providers(self):
         """Очистка провайдеров при завершении работы."""
         # Получаем все провайдеры из реестра ресурсов
-        llm_providers = self.resource_registry.get_resources_by_type(ResourceType.LLM_PROVIDER)
+        llm_providers = self.resource_registry.get_resources_by_type(ResourceType.LLM)
         db_providers = self.resource_registry.get_resources_by_type(ResourceType.DATABASE)
         
         # Объединяем все провайдеры
@@ -605,14 +605,14 @@ class InfrastructureContext:
     def _get_default_llm(self):
         """Получение default LLM провайдера."""
         for info in self.resource_registry.all():
-            if info.resource_type == ResourceType.LLM_PROVIDER and info.is_default:
+            if info.resource_type == ResourceType.LLM and info.is_default:
                 return info.instance
         return None
 
     def _get_first_available_llm(self):
         """Получение первого доступного LLM провайдера."""
         for info in self.resource_registry.all():
-            if info.resource_type == ResourceType.LLM_PROVIDER:
+            if info.resource_type == ResourceType.LLM:
                 return info.instance
         return None
 
@@ -627,7 +627,7 @@ class InfrastructureContext:
         - LLM провайдер или None
         """
         for info in self.resource_registry.all():
-            if (info.resource_type == ResourceType.LLM_PROVIDER and
+            if (info.resource_type == ResourceType.LLM and
                 info.name != exclude_name):
                 return info.instance
         return None

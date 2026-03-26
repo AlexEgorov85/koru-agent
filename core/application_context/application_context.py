@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Any, Literal, Type, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.infrastructure_context.lifecycle_manager import LifecycleManager as LifecycleManagerType
-    from core.infrastructure_context.lifecycle_manager import ResourceType as ResourceTypeType
+from core.models.enums.common_enums import ResourceType as ResourceTypeType
 
 from pydantic import BaseModel
 
@@ -169,7 +169,7 @@ class ApplicationContext(BaseSystemContext):
 
     def _get_resource_type_for_component(self, component_type: ComponentType) -> 'ResourceTypeType':
         """Преобразование ComponentType в ResourceType для LifecycleManager."""
-        from core.infrastructure_context.lifecycle_manager import ResourceType
+        from core.models.enums.common_enums import ResourceType
         mapping = {
             ComponentType.SERVICE: ResourceType.SERVICE,
             ComponentType.SKILL: ResourceType.SKILL,

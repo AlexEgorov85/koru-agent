@@ -81,7 +81,7 @@ def infrastructure_with_mock_llm(mock_llm_provider):
     infra.resource_registry.register_resource(
         ResourceInfo(
             name='mock_llm',
-            resource_type=ResourceType.LLM_PROVIDER,
+            resource_type=ResourceType.LLM,
             instance=mock_llm_provider
         )
     )
