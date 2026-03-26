@@ -105,6 +105,11 @@ class TelemetryCollector(BaseEventCollector):
             await self.event_bus_logger.warning("TelemetryCollector уже инициализирован")
             return
 
+        # Отключаем стандартный logging (оставляем только TerminalLogHandler с иконками)
+        import logging
+        logging.getLogger().setLevel(logging.WARNING)  # Root logger: только WARNING+
+        logging.getLogger('core').setLevel(logging.WARNING)  # Наш logger: только WARNING+
+
         # 1. Terminal handler - только иконки
         if self._enable_terminal:
             from core.config.logging_config import LoggingConfig
