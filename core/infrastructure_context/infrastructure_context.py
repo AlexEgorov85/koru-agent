@@ -32,11 +32,14 @@ from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 
-# Импорты для сборщиков метрик
-from core.infrastructure.metrics_storage import FileSystemMetricsStorage
-from core.infrastructure.metrics_collector import MetricsCollector
+# Импорты для телеметрии
+from core.infrastructure.telemetry import TelemetryCollector, init_telemetry
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
-from core.infrastructure.logging.session_log_handler import SessionLogHandler
+
+# TYPE_CHECKING импорты для аннотаций
+if TYPE_CHECKING:
+    from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
+    from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
 
 
 class InfrastructureContext:
@@ -51,7 +54,6 @@ class InfrastructureContext:
         """
         self.id = str(uuid.uuid4())
         self.config = config
-        self._state = ComponentState.CREATED  # ← НОВОЕ: enum состояний
         self.event_bus_logger = None  # Будет инициализирован после создания event_bus
 
         # Основные компоненты инфраструктуры
@@ -126,19 +128,16 @@ class InfrastructureContext:
         - При ошибке: FAILED
         """
         # Проверка повторной инициализации
-        if self._state == ComponentState.READY:
+        if self.lifecycle_manager and self.lifecycle_manager.is_ready:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
             return True
         
         # Проверка на предыдущую ошибку
-        if self._state == ComponentState.FAILED:
+        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.FAILED:
             if self.event_bus_logger:
                 await self.event_bus_logger.error("InfrastructureContext в состоянии FAILED")
             return False
-        
-        # Переход в состояние INITIALIZING
-        self._state = ComponentState.INITIALIZING
 
         # === ЭТАП 1: Базовая инициализация ===
         # Используем sys.stdout.buffer.write для поддержки emoji в Windows
@@ -153,37 +152,31 @@ class InfrastructureContext:
         sys.stdout.buffer.write("✅ InfrastructureContext инициализирован\n".encode('utf-8'))
         sys.stdout.flush()
 
-        # Инициализация обработчиков логирования
-        # ВАЖНО: Должно быть ДО создания EventBusLogger, чтобы не пропустить события
-        #
-        # TerminalLogHandler: вывод в терминал (онлайн для разработчика)
-        # SessionLogHandler: запись в сессионные папки (logs/sessions/YYYY-MM-DD_HH-MM-SS/)
-        #
+        # Инициализация телеметрии (логи + метрики)
         from pathlib import Path
-        from core.infrastructure.logging import setup_logging, LoggingConfig
-        from core.config.logging_config import FileConfig, LogLevel, LogFormat
         
         log_dir = Path(self.config.data_dir) / "logs"
-        
-        log_config = LoggingConfig(
-            file=FileConfig(
-                enabled=True,
-                level=LogLevel.DEBUG.value,
-                format=LogFormat.JSONL,
-                max_file_size_mb=100,
-                backup_count=10,
-            )
+        storage_dir = Path(self.config.data_dir)
+
+        # Единая инициализация всей телеметрии
+        self.telemetry = await init_telemetry(
+            event_bus=self.event_bus,
+            storage_dir=storage_dir,
+            log_dir=log_dir,
+            enable_terminal=True,
+            enable_session_logs=True,
+            enable_metrics=True
         )
-        
-        # Единая инициализация всех обработчиков логирования
-        self.terminal_handler, self.session_handler = setup_logging(
-            self.event_bus, 
-            log_config,
-            session_log_dir=log_dir / "sessions"
-        )
-        
-        session_info = self.session_handler.get_session_info()
-        print(f"📝 Логи сессии: {session_info['session_folder']}", flush=True)
+
+        # Получение обработчиков для доступа
+        self.terminal_handler = self.telemetry.get_terminal_handler()
+        self.session_handler = self.telemetry.get_session_handler()
+        self.metrics_publisher = self.telemetry.get_metrics_publisher()
+
+        # Информация о сессии
+        if self.session_handler:
+            session_info = self.session_handler.get_session_info()
+            print(f"📝 Логи сессии: {session_info['session_folder']}", flush=True)
 
         # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
@@ -222,22 +215,8 @@ class InfrastructureContext:
         self.resource_discovery.discover_prompts()
         self.resource_discovery.discover_contracts()
 
-        # Хранилище метрик
-        metrics_dir = Path(self.config.data_dir) / "metrics"
-
-        self.metrics_storage = FileSystemMetricsStorage(metrics_dir)
-
-        # === ЭТАП 4: Сборщик метрик ===
-        # Создаём MetricsPublisher для унифицированной публикации метрик
-        self.metrics_publisher = MetricsPublisher(self.metrics_storage, self.event_bus)
-        
-        # Инициализация MetricsCollector с поддержкой MetricsPublisher
-        self.metrics_collector = MetricsCollector(
-            self.event_bus, 
-            self.metrics_storage,
-            self.metrics_publisher  # Передаём созданный publisher
-        )
-        await self.metrics_collector.initialize()
+        # === ЭТАП 4: Метрики (уже инициализированы в telemetry) ===
+        # Доступ через self.telemetry.metrics_publisher
 
         # === ЭТАП 5: Vector Search ===
         # Инициализация Vector Search
@@ -256,11 +235,8 @@ class InfrastructureContext:
             await self.event_bus_logger.info("✅ LifecycleManager инициализирован")
         except Exception as e:
             await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}", exc_info=True)
-            self._state = ComponentState.FAILED
             return False
 
-        # Переход в состояние READY
-        self._state = ComponentState.READY
         return True
 
     async def _register_providers_from_config(self):
@@ -514,30 +490,29 @@ class InfrastructureContext:
             raise RuntimeError("ResourceDiscovery не инициализирован")
         return self.resource_discovery
 
-    def get_metrics_storage(self) -> IMetricsStorage:
-        """DEPRECATED: Используйте свойство metrics_storage напрямую"""
-        import warnings
-        warnings.warn("get_metrics_storage deprecated. Используйте self.metrics_storage напрямую", DeprecationWarning, stacklevel=2)
-        if not hasattr(self, 'metrics_storage'):
-            raise RuntimeError("MetricsStorage не инициализирован")
-        return self.metrics_storage
-
-    def get_metrics_collector(self) -> MetricsCollector:
-        if not hasattr(self, 'metrics_collector'):
-            raise RuntimeError("MetricsCollector не инициализирован")
-        return self.metrics_collector
-
-    def get_session_handler(self) -> SessionLogHandler:
-        """Получение обработчика логов сессии."""
-        if not hasattr(self, 'session_handler') or self.session_handler is None:
-            raise RuntimeError("SessionHandler не инициализирован")
-        return self.session_handler
+    def get_telemetry(self) -> TelemetryCollector:
+        """Получение TelemetryCollector."""
+        if not hasattr(self, 'telemetry') or self.telemetry is None:
+            raise RuntimeError("TelemetryCollector не инициализирован")
+        return self.telemetry
 
     def get_metrics_publisher(self) -> MetricsPublisher:
         """Получение MetricsPublisher для унифицированной публикации метрик."""
         if not hasattr(self, 'metrics_publisher') or self.metrics_publisher is None:
             raise RuntimeError("MetricsPublisher не инициализирован")
         return self.metrics_publisher
+
+    def get_session_handler(self) -> 'SessionLogHandler':
+        """Получение обработчика логов сессии."""
+        if not hasattr(self, 'session_handler') or self.session_handler is None:
+            raise RuntimeError("SessionHandler не инициализирован")
+        return self.session_handler
+
+    def get_terminal_handler(self) -> 'TerminalLogHandler':
+        """Получение терминального обработчика."""
+        if not hasattr(self, 'terminal_handler') or self.terminal_handler is None:
+            raise RuntimeError("TerminalHandler не инициализирован")
+        return self.terminal_handler
 
     def __setattr__(self, name, value):
         """Запрет на изменение после инициализации."""
@@ -699,14 +674,10 @@ class InfrastructureContext:
 
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""
-        if self._state != ComponentState.READY:
-            if self._state == ComponentState.SHUTDOWN:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning("InfrastructureContext уже завершён")
+        if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.SHUTDOWN:
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("InfrastructureContext уже завершён")
             return
-
-        # Переход в состояние SHUTDOWN
-        self._state = ComponentState.SHUTDOWN
         
         await self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
 
@@ -755,22 +726,24 @@ class InfrastructureContext:
     @property
     def is_ready(self) -> bool:
         """Проверка готовности инфраструктурного контекста."""
-        return self._state == ComponentState.READY
+        return self.lifecycle_manager is not None and self.lifecycle_manager.is_ready
     
     @property
     def is_initialized(self) -> bool:
         """Проверка, был ли контекст инициализирован."""
-        return self._state in (ComponentState.READY, ComponentState.SHUTDOWN)
+        return self.lifecycle_manager is not None and self.lifecycle_manager.is_initialized
     
     @property
     def is_failed(self) -> bool:
         """Проверка, завершилась ли инициализация ошибкой."""
-        return self._state == ComponentState.FAILED
+        return self.lifecycle_manager is not None and self.lifecycle_manager.state == ComponentState.FAILED
     
     @property
     def state(self) -> ComponentState:
         """Текущее состояние инфраструктурного контекста."""
-        return self._state
+        if self.lifecycle_manager is None:
+            return ComponentState.CREATED
+        return self.lifecycle_manager.state
     
     def is_fully_initialized(self) -> bool:
         """Проверка полной инициализации (для обратной совместимости)."""
