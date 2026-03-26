@@ -15,7 +15,7 @@ import tempfile
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from core.benchmarks.benchmark_models import LogEntry, LogType
+from core.services.benchmarks.benchmark_models import LogEntry, LogType
 from core.infrastructure.log_storage import FileSystemLogStorage
 
 

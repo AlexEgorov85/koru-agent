@@ -3,8 +3,8 @@ import sys
 sys.path.insert(0, r'c:\Users\Алексей\Documents\WORK\Agent_v5')
 
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 async def test_app_context_with_new_registry():
     """Тестирование создания ApplicationContext с обновленным реестром"""

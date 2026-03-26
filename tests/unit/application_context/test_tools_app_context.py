@@ -4,8 +4,8 @@ sys.path.insert(0, r'c:\Users\Алексей\Documents\WORK\Agent_v5')
 
 from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 async def test_tools_in_app_context():
     # Создаем минимальную конфигурацию
@@ -43,7 +43,7 @@ async def test_tools_in_app_context():
     print(f'ApplicationContext инициализирован: {success}')
     
     # Проверим, что у нас есть компоненты инструментов через новый API
-    from core.application.context.application_context import ComponentType
+    from core.application_context.application_context import ComponentType
     tools = app_context.components.all_of_type(ComponentType.TOOL)
     print(f'Количество инструментов: {len(tools)}')
 

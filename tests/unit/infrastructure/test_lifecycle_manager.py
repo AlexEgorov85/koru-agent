@@ -12,7 +12,7 @@ TESTS:
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from core.infrastructure.context.lifecycle_manager import (
+from core.infrastructure_context.lifecycle_manager import (
     LifecycleManager,
     ResourceType,
     ResourceStatus,

@@ -89,7 +89,7 @@ class TestBookLibrarySkill:
     def test_skill_has_no_state_access(self):
         """BookLibrarySkill не имеет прямого доступа к state"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
 
         # Получаем исходный код
         source = inspect.getsource(BookLibrarySkill)
@@ -107,7 +107,7 @@ class TestFinalAnswerSkill:
     def test_skill_has_no_direct_context_access(self):
         """FinalAnswerSkill не имеет прямого доступа к context.data_context"""
         import inspect
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
 
         source = inspect.getsource(FinalAnswerSkill)
 
@@ -118,7 +118,7 @@ class TestFinalAnswerSkill:
     def test_skill_calls_executor_for_context(self):
         """FinalAnswerSkill использует executor для доступа к контексту"""
         import inspect
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
 
         source = inspect.getsource(FinalAnswerSkill)
 
@@ -133,7 +133,7 @@ class TestPlanningSkill:
     def test_skill_returns_data_from_execute_impl(self):
         """PlanningSkill._execute_impl возвращает данные (BaseComponent.execute() обернёт в ExecutionResult)"""
         import inspect
-        from core.application.skills.planning.skill import PlanningSkill
+        from core.services.skills.planning.skill import PlanningSkill
 
         source = inspect.getsource(PlanningSkill)
 
@@ -145,7 +145,7 @@ class TestPlanningSkill:
     def test_skill_marks_side_effects(self):
         """PlanningSkill помечает side_effect=True"""
         import inspect
-        from core.application.skills.planning.skill import PlanningSkill
+        from core.services.skills.planning.skill import PlanningSkill
 
         source = inspect.getsource(PlanningSkill)
 
@@ -161,7 +161,7 @@ class TestDataAnalysisSkill:
     def test_skill_returns_data_from_execute_impl(self):
         """DataAnalysisSkill._execute_impl возвращает данные (BaseComponent.execute() обернёт в ExecutionResult)"""
         import inspect
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         source = inspect.getsource(DataAnalysisSkill)
 
@@ -173,7 +173,7 @@ class TestDataAnalysisSkill:
     def test_skill_marks_side_effects(self):
         """DataAnalysisSkill помечает side_effect=True для file/DB access"""
         import inspect
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         source = inspect.getsource(DataAnalysisSkill)
 
@@ -187,10 +187,10 @@ class TestSkillDeterminism:
     def test_no_random_usage(self):
         """Skills не используют random"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -201,7 +201,7 @@ class TestSkillDeterminism:
     def test_time_only_for_metrics(self):
         """time.time используется только для метрик"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
 
         source = inspect.getsource(BookLibrarySkill)
 
@@ -217,10 +217,10 @@ class TestSkillNoPatternKnowledge:
     def test_no_pattern_type_checks(self):
         """Skills не проверяют тип Pattern"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -233,9 +233,9 @@ class TestSkillNoPatternKnowledge:
     def test_supported_strategies_is_metadata(self):
         """supported_strategies это только metadata, не логика"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, FinalAnswerSkill, DataAnalysisSkill]:
             # Проверяем исходный код что нет проверок стратегии
@@ -250,10 +250,10 @@ class TestSkillNoDirectLLM:
     def test_no_direct_llm_calls(self):
         """Skills не создают LLM клиентов напрямую"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -274,10 +274,10 @@ class TestSkillNoRetry:
     def test_no_retry_loops(self):
         """Skills не имеют циклов retry"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)

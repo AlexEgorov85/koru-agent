@@ -14,8 +14,8 @@ async def test_component_isolation():
     
     try:
         from core.config.app_config import AppConfig
-        from core.components.base_component import BaseComponent
-        from core.application.context.application_context import ApplicationContext
+        from core.agent.components.base_component import BaseComponent
+        from core.application_context.application_context import ApplicationContext
         from core.config.component_config import ComponentConfig
         
         print("[OK] Imports completed successfully")

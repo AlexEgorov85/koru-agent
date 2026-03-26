@@ -1,0 +1,489 @@
+"""
+Базовый класс для инфраструктурных сервисов.
+
+АРХИТЕКТУРА:
+- Наследует BaseComponent для получения внедрённых зависимостей
+- Все сервисы получают зависимости через интерфейсы
+- Никаких прямых обращений к контекстам
+
+ЖИЗНЕННЫЙ ЦИКЛ:
+- Наследует LifecycleMixin через BaseComponent
+- Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
+"""
+import inspect
+import asyncio
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional, ClassVar, List
+
+from core.config.app_config import AppConfig
+from core.agent.components.base_component import BaseComponent
+from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.data.capability import Capability
+from core.models.errors.architecture_violation import ArchitectureViolationError
+from core.models.enums.common_enums import ComponentType
+from core.infrastructure.logging import EventBusLogger
+
+# Интерфейсы для внедрения зависимостей
+from core.infrastructure.interfaces.event_bus import EventBusInterface
+from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage, ILogStorage
+
+# Aliases для обратной совместимости
+MetricsStorageInterface = IMetricsStorage
+LogStorageInterface = ILogStorage
+
+
+class ServiceInput(ABC):
+    """Абстрактный класс для входных данных сервиса."""
+    pass
+
+
+class ServiceOutput(ABC):
+    """Абстрактный класс для выходных данных сервиса."""
+    pass
+
+
+class BaseService(BaseComponent):
+    """
+    Абстрактный базовый класс для всех инфраструктурных сервисов.
+
+    ОСОБЕННОСТИ:
+    - Обеспечивает единый интерфейс для всех сервисов
+    - Предоставляет базовую функциональность логирования
+    - Обеспечивает доступ к системному и сессионному контексту
+    - Определяет общую структуру инициализации и жизненного цикла
+    - Включает четкие контракты для входных и выходных данных
+    - Поддерживает декларацию зависимостей через DEPENDENCIES
+    """
+    
+    # Явная декларация зависимостей на уровне КЛАССА
+    DEPENDENCIES: ClassVar[List[str]] = []
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Описание назначения сервиса.
+        """
+        pass
+
+    def __init__(
+        self,
+        name: str,
+        application_context: Optional['ApplicationContext'] = None,
+        app_config: Optional['AppConfig'] = None,
+        executor=None,
+        component_config: Optional['ComponentConfig'] = None,
+        event_bus = None  # ← Только для логирования
+    ):
+        """
+        Инициализация базового сервиса.
+
+        ARGS:
+        - name: имя сервиса
+        - application_context: прикладной контекст (DEPRECATED)
+        - app_config: конфигурация приложения (AppConfig) [устаревший параметр]
+        - executor: ActionExecutor для взаимодействия между компонентами
+        - component_config: конфигурация компонента (ComponentConfig)
+        - **kwargs: Внедрение зависимостей через интерфейсы
+        """
+        # Для обратной совместимости с существующими сервисами,
+        # преобразуем AppConfig в ComponentConfig
+        from core.config.component_config import ComponentConfig
+
+        # Новый путь: используем переданный component_config напрямую
+        if component_config is not None and isinstance(component_config, ComponentConfig):
+            # Используем существующий component_config (новый путь)
+            pass
+        elif app_config is not None:
+            # Создаем ComponentConfig из AppConfig (старый путь)
+            component_config = ComponentConfig(
+                variant_id=getattr(app_config, 'config_id', f"service_{name}"),
+                prompt_versions=getattr(app_config, 'prompt_versions', {}),
+                input_contract_versions=getattr(app_config, 'input_contract_versions', {}),
+                output_contract_versions=getattr(app_config, 'output_contract_versions', {}),
+                side_effects_enabled=getattr(app_config, 'side_effects_enabled', True),
+                detailed_metrics=getattr(app_config, 'detailed_metrics', False)
+            )
+        else:
+            # Если app_config None, создаем пустой ComponentConfig
+            component_config = ComponentConfig(
+                variant_id=f"service_{name}",
+                prompt_versions={},
+                input_contract_versions={},
+                output_contract_versions={},
+                side_effects_enabled=True,
+                detailed_metrics=False
+            )
+
+        # Вызов конструктора родительского класса с ComponentConfig и executor
+        # Передаем event_bus для логирования
+        super().__init__(
+            name,
+            application_context,
+            component_config=component_config,
+            executor=executor,
+            event_bus=event_bus
+        )
+
+        # Устанавливаем атрибут component_config для обратной совместимости
+        self.component_config = component_config
+
+        # Сохраняем executor как атрибут
+        self.executor = executor
+
+        self._dependencies: Dict[str, Any] = {}  # Кэш загруженных зависимостей
+
+        # [REFACTOR Этап 6] EventBusLogger инициализируется в BaseComponent
+        # self.event_bus_logger будет доступен после вызова super().__init__()
+        if self.event_bus_logger:
+            self.event_bus_logger.debug_sync(f"Инициализирован сервис: {self.name}")
+
+    # [REFACTOR Этап 6] _init_event_bus_logger удалён — дублирует BaseComponent
+
+    async def initialize(self) -> bool:
+        """
+        Единая точка входа для инициализации с разрешением зависимостей.
+        """
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+        if getattr(self, '_initialized', False):
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
+            return True
+
+        # 1. Загрузка зависимостей
+        if not await self._resolve_dependencies():
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
+            return False
+
+        # 2. Вызов родительской инициализации (BaseComponent)
+        try:
+            base_result = await super().initialize()
+            if not base_result:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                return False
+        except Exception as e:
+            if self.event_bus_logger:
+                await self.event_bus_logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
+            return False
+
+        # 3. Специфичная инициализация потомка
+        try:
+            if not await self._custom_initialize():
+                if self.event_bus_logger:
+                    await self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
+                return False
+        except Exception as e:
+            if self.event_bus_logger:
+                await self.event_bus_logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
+            return False
+
+        # 4. Финальная проверка
+        if not await self._verify_readiness():
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
+            return False
+
+        # Устанавливаем флаг инициализации
+        self._initialized = True
+        return True
+
+    async def _resolve_dependencies(self) -> bool:
+        """
+        Загрузка всех декларированных зависимостей.
+        """
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+
+        missing_deps = []
+        for dep_name in self.DEPENDENCIES:
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
+            dependency = self.get_dependency(dep_name)
+            if not dependency:
+                msg = f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. Возможные причины: 1) Зависимость еще не инициализирована 2) Циклическая зависимость в графе сервисов 3) Сервис '{dep_name}' отключён в конфигурации 4) Ошибка в декларации зависимостей"
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(msg)
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
+                missing_deps.append(dep_name)
+                # Continue instead of returning False immediately
+                continue
+            else:
+                self._safe_log_sync("info", f"_resolve_dependencies: зависимость '{dep_name}' найдена для сервиса '{self.name}'")
+
+            # Проверка инициализации зависимости
+            if not getattr(dependency, '_initialized', False):
+                msg = f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. Это допустимо при топологической сортировке, но требует осторожности."
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(msg)
+                else:
+                    self._safe_log_sync("warning", msg)
+            else:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                else:
+                    self._safe_log_sync("debug", f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+
+            self._dependencies[dep_name] = dependency
+            setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
+
+        # Return False only if ALL dependencies are missing
+        if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            else:
+                self._safe_log_sync("error", f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+            return False
+
+        # Log warning if some dependencies are missing
+        if missing_deps:
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+            else:
+                self._safe_log_sync("info", f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+        else:
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+            else:
+                self._safe_log_sync("info", f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+
+        return True
+
+    async def _custom_initialize(self) -> bool:
+        """
+        Специфичная логика инициализации для каждого сервиса.
+        """
+        # Вызов родительской инициализации
+        return True  # BaseComponent.initialize() теперь вызывается в основном initialize()
+
+    async def _verify_readiness(self) -> bool:
+        """
+        Финальная проверка готовности сервиса к работе.
+        """
+        # Базовая проверка: все зависимости загружены
+        for dep_name in self.DEPENDENCIES:
+            if dep_name not in self._dependencies:
+                return False
+        return True
+
+    def get_dependency(self, name: str) -> Optional[Any]:
+        """
+        Безопасное получение зависимости по имени.
+        Сначала ищем в локальном кэше, затем в registry компонентов.
+        """
+        self.event_bus_logger.debug_sync(f"get_dependency: ищем зависимость '{name}' для компонента '{self.name}'")
+
+        # Сначала ищем в локальном кэше
+        if name in self._dependencies:
+            self.event_bus_logger.debug_sync(f"get_dependency: зависимость '{name}' найдена в локальном кэше компонента '{self.name}'")
+            return self._dependencies[name]
+
+        # Затем ищем в registry компонентов (используем components напрямую)
+        if hasattr(self, '_application_context') and self._application_context:
+            # Пытаемся получить сервис из registry компонентов
+            service = self._application_context.components.get(ComponentType.SERVICE, name)
+            if service:
+                self.event_bus_logger.debug_sync(f"get_dependency: сервис '{name}' найден в registry компонентов")
+                return service
+
+            # Если не сервис, пробуем другие типы компонентов
+            skill = self._application_context.components.get(ComponentType.SKILL, name)
+            if skill:
+                self.event_bus_logger.debug_sync(f"get_dependency: навык '{name}' найден в registry компонентов")
+                return skill
+
+            tool = self._application_context.components.get(ComponentType.TOOL, name)
+            if tool:
+                self.event_bus_logger.debug_sync(f"get_dependency: инструмент '{name}' найден в registry компонентов")
+                return tool
+        else:
+            self.event_bus_logger.error_sync(f"get_dependency: application_context отсутствует для компонента '{self.name}'")
+
+        self.event_bus_logger.debug_sync(f"get_dependency: зависимость '{name}' НЕ НАЙДЕНА для компонента '{self.name}'")
+        return None
+
+    def _convert_params_to_input(self, parameters: Dict[str, Any]) -> ServiceInput:
+        """
+        Преобразование параметров нового интерфейса в ServiceInput старого интерфейса.
+        """
+        raise NotImplementedError("_convert_params_to_input должен быть реализован в подклассе")
+
+    def _get_event_type_for_success(self) -> EventType:
+        """Возвращает тип события для успешного выполнения сервиса."""
+        # Для сервисов нет специального события, используем общее
+        from core.infrastructure.event_bus.unified_event_bus import EventType
+        return EventType.PROVIDER_REGISTERED
+
+    async def execute(self, capability: Capability = None, parameters: Dict[str, Any] = None, execution_context: 'ExecutionContext' = None, input_data: ServiceInput = None):
+        """
+        Универсальный метод выполнения, поддерживающий оба интерфейса.
+        """
+        # Если вызов происходит с новым интерфейсом (Capability, parameters, context)
+        if capability is not None or parameters is not None or execution_context is not None:
+            # Используем универсальный шаблон выполнения из BaseComponent
+            if capability is None:
+                # Создаём capability по умолчанию для сервиса
+                from core.models.data.capability import Capability
+                capability = Capability(
+                    name=f"{self.name}.default",
+                    description=f"Операция сервиса {self.name}",
+                    skill_name=self.name
+                )
+            
+            return await super().execute(capability, parameters or {}, execution_context)
+        
+        elif input_data is not None:
+            # Это вызов старого интерфейса - преобразуем в новый
+            from core.models.data.capability import Capability
+            from core.agent.components.action_executor import ExecutionContext
+            
+            capability = Capability(
+                name=f"{self.name}.default",
+                description=f"Операция сервиса {self.name}",
+                skill_name=self.name
+            )
+            
+            # Преобразуем ServiceInput в parameters
+            parameters = {}
+            if hasattr(input_data, '__dict__'):
+                parameters = input_data.__dict__
+            
+            return await super().execute(capability, parameters, ExecutionContext())
+        
+        else:
+            # Это вызов с явным input_data (старый интерфейс)
+            raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
+
+    def _execute_impl(
+        self,
+        capability: 'Capability',
+        parameters: Dict[str, Any],
+        execution_context: 'ExecutionContext'
+    ) -> Dict[str, Any]:
+        """
+        Реализация бизнес-логики сервиса (СИНХРОННАЯ).
+
+        Преобразует параметры в ServiceInput и вызывает execute_specific.
+        """
+        input_data = self._convert_params_to_input(parameters)
+        result = self.execute_specific(input_data)
+
+        # Преобразуем результат в словарь
+        if hasattr(result, '__dict__'):
+            return result.__dict__
+        return {'result': result}
+
+    def execute_specific(self, input_data: ServiceInput) -> ServiceOutput:
+        """
+        Специфичный метод выполнения для конкретных сервисов (СИНХРОННЫЙ).
+        """
+        raise NotImplementedError("Метод execute_specific должен быть реализован в подклассе")
+
+    async def restart(self) -> bool:
+        """
+        Перезапуск сервиса без полной перезагрузки системного контекста.
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если перезапуск прошел успешно, иначе False
+        """
+        try:
+            # Сначала останавливаем текущий экземпляр
+            await self.shutdown()
+
+            # Затем инициализируем заново
+            return await self.initialize()
+        except Exception as e:
+            if self.event_bus_logger:
+                await self.event_bus_logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            else:
+                self.event_bus_logger.error_sync(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+            return False
+
+    async def restart_with_module_reload(self):
+        """
+        Перезапуск сервиса с перезагрузкой модуля Python.
+        ВНИМАНИЕ: Использовать с осторожностью!
+
+        ВОЗВРАЩАЕТ:
+        - Новый экземпляр сервиса из перезагруженного модуля
+        """
+        from core.utils.module_reloader import safe_reload_component_with_module_reload
+        if self.event_bus_logger:
+            await self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        else:
+            self.event_bus_logger.warning_sync(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+        return safe_reload_component_with_module_reload(self)
+
+    def _validate_input(self, data: Dict[str, Any], required_fields: list) -> bool:
+        """
+        Валидация входных данных.
+
+        ARGS:
+        - data: словарь с входными данными
+        - required_fields: список обязательных полей
+
+        RETURNS:
+        - True если все обязательные поля присутствуют, иначе False
+        """
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                self.event_bus_logger.error_sync(f"Отсутствует обязательное поле: {field}")
+                return False
+        return True
+
+    def _sanitize_input(self, data: str) -> str:
+        """
+        Санитизация входных данных для предотвращения инъекций.
+
+        ARGS:
+        - data: строка для санитизации
+
+        RETURNS:
+        - Очищенная строка
+        """
+        # Простая санитизация - удаление потенциально опасных символов
+        # В реальном приложении может потребоваться более сложная логика
+        sanitized = data.replace(';', '').replace('--', '').replace('/*', '').replace('*/', '')
+        if sanitized != data:
+            self.event_bus_logger.warning_sync("Обнаружены потенциально опасные символы во входных данных, выполнена санитизация")
+        return sanitized
+
+    def _get_component_type(self) -> str:
+        """Возвращает тип компонента для манифеста."""
+        return "service"
+    
+    async def _validate_loaded_resources(self) -> bool:
+        """Расширенная валидация для сервисов."""
+        if not await super()._validate_loaded_resources():
+            return False
+
+        # ← НОВОЕ: Валидация методов сервиса
+        if hasattr(self, 'methods'):
+            for method_name in self.methods:
+                cap_name = f"{self.name}.{method_name}"
+
+                # Проверка наличия контрактов для метода
+                if cap_name not in self.input_contracts:
+                    msg = f"{self.name}: Метод '{method_name}' не имеет input контракта"
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.event_bus_logger.warning_sync(msg)
+
+                if cap_name not in self.output_contracts:
+                    msg = f"{self.name}: Метод '{method_name}' не имеет output контракта"
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.warning(msg)
+                    else:
+                        self.event_bus_logger.warning_sync(msg)
+
+        return True
+    
+    def get_timeout_seconds(self) -> int:
+        """Возвращает timeout из манифеста."""
+        if self.component_config and self.component_config.constraints:
+            return self.component_config.constraints.get('timeout_seconds', 30)
+        return 30

@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, Union
 
 
-from core.application.agent.components.policy import AgentPolicy
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
 from core.infrastructure.providers.base_provider import BaseProvider
 

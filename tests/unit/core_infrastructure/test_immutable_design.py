@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
 
 def test_can_modify_attributes_before_initialization():

@@ -11,8 +11,8 @@ import pytest
 from pathlib import Path
 
 from core.config import get_config
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 from core.config.app_config import AppConfig
 from core.session_context.session_context import SessionContext
 

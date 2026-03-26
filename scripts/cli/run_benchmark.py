@@ -99,10 +99,10 @@ async def run_single_benchmark(
 
     # Импорты внутри async функции для избежания circular imports
     from core.config.app_config import AppConfig
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.context.application_context import ApplicationContext
-    from core.application.services.benchmark_service import BenchmarkService
-    from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.application_context.application_context import ApplicationContext
+    from core.services.benchmark_service import BenchmarkService
+    from core.services.accuracy_evaluator import AccuracyEvaluatorService
     from core.infrastructure.metrics_storage import FileSystemMetricsStorage
     from core.infrastructure.event_bus import get_event_bus
 
@@ -135,7 +135,7 @@ async def run_single_benchmark(
         )
 
         # Создание тестовых сценариев (заглушка)
-        from core.benchmarks.benchmark_models import BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType
+        from core.services.benchmarks.benchmark_models import BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType
 
         scenarios = [
             BenchmarkScenario(

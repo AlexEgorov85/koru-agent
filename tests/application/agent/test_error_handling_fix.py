@@ -9,9 +9,9 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from core.application.agent.components.state import AgentState
-from core.application.agent.components.policy import AgentPolicy
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.components.state import AgentState
+from core.agent.components.policy import AgentPolicy
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.enums.common_enums import ExecutionStatus
 from core.models.data.execution import ExecutionResult
 
@@ -98,7 +98,7 @@ class TestAgentRuntimeErrorHandling:
     @pytest.mark.asyncio
     async def test_failed_status_on_error_limit(self, mock_application_context):
         """Тест: FAILED статус при превышении лимита ошибок"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         # Создаём runtime с лимитом 2 ошибки
         runtime = AgentRuntime(
@@ -149,7 +149,7 @@ class TestAgentRuntimeErrorHandling:
     @pytest.mark.asyncio
     async def test_error_count_in_metadata(self, mock_application_context):
         """Тест: error_count попадает в metadata результата"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,
@@ -190,7 +190,7 @@ class TestAgentRuntimeErrorHandling:
     @pytest.mark.asyncio
     async def test_no_progress_in_metadata(self, mock_application_context):
         """Тест: no_progress_steps попадает в metadata результата"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,

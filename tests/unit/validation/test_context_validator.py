@@ -7,13 +7,13 @@ pytest tests/unit/validation/test_context_validator.py -v
 ```
 """
 import pytest
-from core.application.validation.context_validator import (
+from core.services.validation.context_validator import (
     ContextValidator,
     ValidationResult,
 )
-from core.application.registry.component_registry import ComponentRegistry
+from core.services.registry.component_registry import ComponentRegistry
 from core.models.enums.common_enums import ComponentType
-from core.components.lifecycle import LifecycleMixin, ComponentState
+from core.agent.components.lifecycle import LifecycleMixin, ComponentState
 
 
 class MockComponent(LifecycleMixin):

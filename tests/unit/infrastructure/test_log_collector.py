@@ -12,7 +12,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock
 from core.infrastructure.event_bus import EventBus, Event, EventType
-from core.benchmarks.benchmark_models import LogEntry, LogType
+from core.services.benchmarks.benchmark_models import LogEntry, LogType
 from core.infrastructure.log_collector import LogCollector
 
 

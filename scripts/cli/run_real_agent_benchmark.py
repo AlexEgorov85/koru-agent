@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 # Импорт валидатора
-from core.benchmarks import BenchmarkValidator
+from core.services.benchmarks import BenchmarkValidator
 
 
 async def main():
@@ -96,9 +96,9 @@ async def main():
         print(f"   👉 Всего запускаем: {len(test_cases)} тестов\n")
 
     from core.config import get_config
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.context.application_context import ApplicationContext
-    from core.application.agent.factory import AgentFactory
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.application_context.application_context import ApplicationContext
+    from core.agent.factory import AgentFactory
     from core.config.agent_config import AgentConfig
     
     config = get_config(profile='dev', data_dir='data')

@@ -20,7 +20,7 @@ async def test_skill():
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 from datetime import datetime
 
-from core.interfaces import (
+from core.infrastructure.interfaces import (
     DatabaseInterface,
     LLMInterface,
     VectorInterface,

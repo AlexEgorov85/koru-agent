@@ -14,7 +14,7 @@ import tempfile
 import shutil
 
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
 
 @pytest.fixture

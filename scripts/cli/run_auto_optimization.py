@@ -180,7 +180,7 @@ async def run_agent_on_task(
     """
     Запуск агента на одной задаче.
     """
-    from core.application.agent.factory import AgentFactory
+    from core.agent.factory import AgentFactory
     from core.config.agent_config import AgentConfig
     
     try:
@@ -310,12 +310,12 @@ async def analyze_logs_and_generate_proposal(
     print("ЭТАП 2: Анализ логов")
     print(f"{'='*60}")
     
-    from core.application.components.optimization.trace_handler import TraceHandler
-    from core.application.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
-    from core.application.components.optimization.pattern_analyzer import PatternAnalyzer
-    from core.application.components.optimization.prompt_analyzer import PromptResponseAnalyzer
-    from core.application.components.optimization.root_cause_analyzer import RootCauseAnalyzer
-    from core.application.components.optimization.example_extractor import ExampleExtractor
+    from core.agent.components.optimization.trace_handler import TraceHandler
+    from core.agent.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
+    from core.agent.components.optimization.pattern_analyzer import PatternAnalyzer
+    from core.agent.components.optimization.prompt_analyzer import PromptResponseAnalyzer
+    from core.agent.components.optimization.root_cause_analyzer import RootCauseAnalyzer
+    from core.agent.components.optimization.example_extractor import ExampleExtractor
     
     trace_handler = TraceHandler(session_handler=session_handler, logs_dir="data/logs")
     trace_collector = TraceCollector(trace_handler=trace_handler, config=TraceCollectionConfig())
@@ -508,8 +508,8 @@ async def run_full_pipeline(
     print("\n🔄 Инициализация инфраструктуры...")
     
     from core.config import get_config
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.context.application_context import ApplicationContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.application_context.application_context import ApplicationContext
     from core.config.app_config import AppConfig
     
     config = get_config(profile='dev', data_dir='data')

@@ -12,7 +12,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, Mock
 from datetime import datetime
-from core.application.services.metrics_publisher import (
+from core.services.metrics_publisher import (
     MetricsPublisher, 
     MetricsContext, 
     record_metrics

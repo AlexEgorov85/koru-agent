@@ -87,7 +87,7 @@ class TestRunOptimization:
     async def test_run_optimization_mock(self):
         """Тест оптимизации с моками"""
         from scripts.cli.run_optimization import run_optimization
-        from core.benchmarks.benchmark_models import OptimizationResult, OptimizationMode
+        from core.services.benchmarks.benchmark_models import OptimizationResult, OptimizationMode
 
         # Создаём мок результата
         mock_result = OptimizationResult(
@@ -104,12 +104,12 @@ class TestRunOptimization:
         )
 
         with patch('core.config.app_config.AppConfig') as mock_config, \
-             patch('core.infrastructure.context.infrastructure_context.InfrastructureContext') as mock_infra, \
-             patch('core.application.context.application_context.ApplicationContext') as mock_app, \
-             patch('core.application.services.optimization_service.OptimizationService') as mock_opt_service, \
-             patch('core.application.services.benchmark_service.BenchmarkService') as mock_bench, \
-             patch('core.application.services.accuracy_evaluator.AccuracyEvaluatorService') as mock_eval, \
-             patch('core.application.services.prompt_contract_generator.PromptContractGenerator') as mock_gen, \
+             patch('core.infrastructure_context.infrastructure_context.InfrastructureContext') as mock_infra, \
+             patch('core.application_context.application_context.ApplicationContext') as mock_app, \
+             patch('core.services.optimization_service.OptimizationService') as mock_opt_service, \
+             patch('core.services.benchmark_service.BenchmarkService') as mock_bench, \
+             patch('core.services.accuracy_evaluator.AccuracyEvaluatorService') as mock_eval, \
+             patch('core.services.prompt_contract_generator.PromptContractGenerator') as mock_gen, \
              patch('core.infrastructure.metrics_storage.FileSystemMetricsStorage') as mock_storage, \
              patch('core.infrastructure.event_bus.event_bus.get_event_bus') as mock_bus:
 
@@ -150,9 +150,9 @@ class TestRunOptimization:
         from scripts.cli.run_optimization import run_optimization
 
         with patch('core.config.app_config.AppConfig') as mock_config, \
-             patch('core.infrastructure.context.infrastructure_context.InfrastructureContext') as mock_infra, \
-             patch('core.application.context.application_context.ApplicationContext') as mock_app, \
-             patch('core.application.services.optimization_service.OptimizationService') as mock_opt_service:
+             patch('core.infrastructure_context.infrastructure_context.InfrastructureContext') as mock_infra, \
+             patch('core.application_context.application_context.ApplicationContext') as mock_app, \
+             patch('core.services.optimization_service.OptimizationService') as mock_opt_service:
 
             mock_config.load_from_file.return_value = MagicMock()
             mock_infra.return_value.initialize = AsyncMock()

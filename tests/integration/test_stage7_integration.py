@@ -27,7 +27,7 @@ class TestDataRepositoryVersionMethods:
     @pytest.fixture
     def data_repository(self, mock_data_source):
         """DataRepository для тестов"""
-        from core.application.data_repository import DataRepository
+        from core.services.data_repository import DataRepository
         
         repo = DataRepository(data_source=mock_data_source, profile='sandbox')
         repo._initialized = True  # Пропускаем инициализацию для тестов
@@ -339,7 +339,7 @@ class TestBaseSkillPublishMetrics:
     @pytest.fixture
     def base_skill(self, mock_application_context, mock_config):
         """BaseSkill для тестов"""
-        from core.application.skills.base_skill import BaseSkill
+        from core.services.skills.base_skill import BaseSkill
         from core.models.data.capability import Capability
         from core.models.data.execution import ExecutionResult
 

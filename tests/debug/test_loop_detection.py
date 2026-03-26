@@ -10,8 +10,8 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from core.application.agent.components.state import AgentState
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.components.state import AgentState
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 
 
 # ============================================================================
@@ -99,8 +99,8 @@ class TestLoopDetection:
 
     def test_loop_detection_with_repeating_decisions(self, agent_state, mock_session_context, mock_capabilities):
         """Тест: детекция зацикливания при повторяющихся decision"""
-        from core.application.agent.components.behavior_manager import BehaviorManager
-        from core.application.context.application_context import ApplicationContext
+        from core.agent.components.behavior_manager import BehaviorManager
+        from core.application_context.application_context import ApplicationContext
         
         # Создаём мок application_context
         app_context = MagicMock()

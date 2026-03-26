@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 from core.models.errors import InfrastructureError
 from core.models.enums.common_enums import ExecutionStatus
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.data.execution import ExecutionResult
 
 

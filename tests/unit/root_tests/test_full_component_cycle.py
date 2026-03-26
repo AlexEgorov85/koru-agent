@@ -14,7 +14,7 @@ async def test_full_component_cycle():
     
     try:
         from core.config.app_config import AppConfig
-        from core.application.context.application_context import ApplicationContext
+        from core.application_context.application_context import ApplicationContext
         
         print("[OK] Импорты выполнены успешно")
         
@@ -24,7 +24,7 @@ async def test_full_component_cycle():
         
         # Создаем и инициализируем прикладной контекст напрямую из реестра
         # (это более простой способ для тестирования)
-        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.infrastructure_context.infrastructure_context import InfrastructureContext
         from core.config.models import SystemConfig
         import tempfile
         import os

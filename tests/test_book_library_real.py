@@ -12,11 +12,11 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.config import get_config
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 from core.config.app_config import AppConfig
 from core.session_context.session_context import SessionContext
-from core.application.agent.components.action_executor import ExecutionContext
+from core.agent.components.action_executor import ExecutionContext
 from core.models.data.capability import Capability
 
 

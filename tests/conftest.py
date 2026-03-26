@@ -61,10 +61,10 @@ def infrastructure_with_mock_llm(mock_llm_provider):
     Используется для интеграционных тестов с mock LLM.
     """
     from core.config.models import SystemConfig
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
     from core.models.data.resource import ResourceInfo
     from core.models.enums.common_enums import ResourceType
-    from core.infrastructure.context.resource_registry import ResourceRegistry
+    from core.infrastructure_context.resource_registry import ResourceRegistry
     
     config = SystemConfig(
         llm_providers={},  # Не используем стандартную регистрацию
@@ -177,7 +177,7 @@ def real_component_config():
 def real_application_context(fake_infra_context):
     """Создает минимальный реальный ApplicationContext для тестов."""
     from core.config.app_config import AppConfig
-    from core.application.context.application_context import ApplicationContext
+    from core.application_context.application_context import ApplicationContext
 
     app_config = AppConfig(
         config_id="test_config",
@@ -202,7 +202,7 @@ def create_react_pattern():
 
     Тесты с этим фикстурой должны создавать собственный ApplicationContext.
     """
-    from core.application.behaviors.base import ReActInput, ReActOutput
+    from core.agent.behaviors.base import ReActInput, ReActOutput
     from core.config.component_config import ComponentConfig
 
     def _create(application_context=None):
@@ -235,7 +235,7 @@ def create_react_pattern():
 @pytest.fixture
 def create_planning_pattern():
     """Factory fixture для создания PlanningPattern в тестах."""
-    from core.application.behaviors.base import PlanningInput, PlanningOutput
+    from core.agent.behaviors.base import PlanningInput, PlanningOutput
     from core.config.component_config import ComponentConfig
 
     def _create(application_context=None):
@@ -267,7 +267,7 @@ def create_planning_pattern():
 @pytest.fixture
 def create_evaluation_pattern():
     """Factory fixture для создания EvaluationPattern в тестах."""
-    from core.application.behaviors.evaluation.pattern import EvaluationPattern
+    from core.agent.behaviors.evaluation.pattern import EvaluationPattern
     from core.config.component_config import ComponentConfig
 
     def _create():
@@ -283,7 +283,7 @@ def create_evaluation_pattern():
 @pytest.fixture
 def create_fallback_pattern():
     """Factory fixture для создания FallbackPattern в тестах."""
-    from core.application.behaviors.fallback.pattern import FallbackPattern
+    from core.agent.behaviors.fallback.pattern import FallbackPattern
     from core.config.component_config import ComponentConfig
 
     def _create():

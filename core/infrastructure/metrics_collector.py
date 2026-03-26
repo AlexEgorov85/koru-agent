@@ -16,7 +16,7 @@ from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Eve
 from core.models.data.metrics import MetricRecord, MetricType, AggregatedMetrics
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
-from core.application.services.metrics_publisher import MetricsPublisher
+from core.services.metrics_publisher import MetricsPublisher
 
 
 class MetricsCollector(BaseEventCollector):
@@ -59,22 +59,113 @@ class MetricsCollector(BaseEventCollector):
         Инициализация сборщика метрик.
 
         Подписка на события:
+        - EventType.SESSION_STARTED: начало сессии
         - EventType.SKILL_EXECUTED: выполнение навыков
         - EventType.CAPABILITY_SELECTED: выбор способности
         - EventType.ERROR_OCCURRED: ошибки выполнения
         - EventType.METRIC_COLLECTED: произвольные метрики
+        - EventType.SESSION_COMPLETED: завершение сессии
         """
         if self._initialized:
             self.event_bus_logger.warning("MetricsCollector уже инициализирован")
             return
 
         # Подписка на события
+        self._subscribe(EventType.SESSION_STARTED, self._on_session_started)
         self._subscribe(EventType.SKILL_EXECUTED, self._on_skill_executed)
         self._subscribe(EventType.CAPABILITY_SELECTED, self._on_capability_selected)
         self._subscribe(EventType.ERROR_OCCURRED, self._on_error_occurred)
         self._subscribe(EventType.METRIC_COLLECTED, self._on_metric_collected)
+        self._subscribe(EventType.SESSION_COMPLETED, self._on_session_completed)
 
         await super().initialize()
+
+    async def _on_session_started(self, event: Event) -> None:
+        """
+        Обработчик события начала сессии.
+
+        Извлекает метрики:
+        - session_id: идентификатор сессии
+        - goal: цель сессии
+        - agent_id: идентификатор агента
+        """
+        try:
+            data = event.data
+            session_id = data.get('session_id', 'unknown')
+            goal = data.get('goal', '')
+            agent_id = data.get('agent_id', 'unknown')
+
+            self.event_bus_logger.debug(
+                "Начало сессии: session_id=%s, goal=%s, agent_id=%s",
+                session_id, goal, agent_id
+            )
+
+            # Публикуем событие для SessionLogHandler
+            await self.event_bus.publish(
+                event=EventType.METRIC_COLLECTED,
+                data={
+                    "session_id": session_id,
+                    "agent_id": agent_id,
+                    "metric_type": "session_start",
+                    "name": "session_started",
+                    "value": 1.0,
+                    "goal": goal
+                },
+                source="MetricsCollector"
+            )
+
+        except Exception as e:
+            self.event_bus_logger.error("Ошибка обработки SESSION_STARTED: %s", e)
+
+    async def _on_session_completed(self, event: Event) -> None:
+        """
+        Обработчик события завершения сессии.
+
+        Извлекает метрики:
+        - session_id: идентификатор сессии
+        - agent_id: идентификатор агента
+        - steps_completed: количество выполненных шагов
+        - final_status: финальный статус
+        """
+        try:
+            data = event.data
+            session_id = data.get('session_id', 'unknown')
+            agent_id = data.get('agent_id', 'unknown')
+            steps_completed = data.get('steps_completed', 0)
+            final_status = data.get('final_status', 'unknown')
+
+            self.event_bus_logger.debug(
+                "Завершение сессии: session_id=%s, steps=%d, status=%s",
+                session_id, steps_completed, final_status
+            )
+
+            # Метрика завершения сессии
+            await self.publisher.gauge(
+                name='session_steps_completed',
+                value=float(steps_completed),
+                agent_id=agent_id,
+                session_id=session_id,
+                correlation_id=event.correlation_id,
+                tags={'final_status': final_status},
+                publish_event=False
+            )
+
+            # Публикуем событие для SessionLogHandler
+            await self.event_bus.publish(
+                event=EventType.METRIC_COLLECTED,
+                data={
+                    "session_id": session_id,
+                    "agent_id": agent_id,
+                    "metric_type": "session_end",
+                    "name": "session_completed",
+                    "value": float(steps_completed),
+                    "final_status": final_status
+                },
+                source="MetricsCollector"
+            )
+
+        except Exception as e:
+            self.event_bus_logger.error("Ошибка обработки SESSION_COMPLETED: %s", e)
 
     async def _on_skill_executed(self, event: Event) -> None:
         """
@@ -133,19 +224,38 @@ class MetricsCollector(BaseEventCollector):
             # ))
 
             # Публикуем событие для SessionLogHandler (сохраняем обратную совместимость)
+            event_data = {
+                "agent_id": agent_id,
+                "session_id": session_id,
+                "capability": capability,
+                "metric_type": "gauge",
+                "name": "success",
+                "value": success_value,
+                "version": version
+            }
+            # Добавляем error_type если есть
+            error_type = data.get('error_type')
+            if error_type:
+                event_data['error_type'] = error_type
+            
             await self.event_bus.publish(
                 event=EventType.METRIC_COLLECTED,
-                data={
-                    "agent_id": agent_id,
-                    "session_id": session_id,
-                    "capability": capability,
-                    "metric_type": "gauge",
-                    "name": "success",
-                    "value": success_value,
-                    "version": version
-                },
+                data=event_data,
                 source="MetricsCollector"
             )
+
+            # Если ошибка - публикуем событие ERROR_OCCURRED для обработки в _on_error_occurred
+            if not data.get('success', False) and error_type:
+                await self.event_bus.publish(
+                    event=EventType.ERROR_OCCURRED,
+                    data={
+                        "agent_id": agent_id,
+                        "capability": capability,
+                        "error_type": error_type,
+                        "session_id": session_id
+                    },
+                    source="MetricsCollector"
+                )
 
             # Метрика времени выполнения
             execution_time = data.get('execution_time_ms')

@@ -32,7 +32,7 @@ async def main():
     print()
 
     from core.config import get_config
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
     
     config = get_config(profile='dev', data_dir='data')
     

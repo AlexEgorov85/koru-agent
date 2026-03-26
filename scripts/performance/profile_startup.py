@@ -24,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 
 async def measure_startup_time(data_dir: str = "./data"):

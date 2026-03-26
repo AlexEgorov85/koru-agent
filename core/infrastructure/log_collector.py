@@ -13,7 +13,7 @@ FEATURES:
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
-from core.benchmarks.benchmark_models import LogEntry, LogType
+from core.services.benchmarks.benchmark_models import LogEntry, LogType
 from core.models.data.execution import ExecutionContextSnapshot
 from core.infrastructure.interfaces.metrics_log_interfaces import ILogStorage
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector

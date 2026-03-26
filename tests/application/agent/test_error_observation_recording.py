@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, AsyncMock, call
 
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 
 
 class TestErrorObservationRecording:
@@ -51,7 +51,7 @@ class TestErrorObservationRecording:
         self, mock_application_context, mock_capability
     ):
         """Тест: observation записывается при FAILED статусе выполнения"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,
@@ -106,7 +106,7 @@ class TestErrorObservationRecording:
         self, mock_application_context, mock_capability
     ):
         """Тест: счётчик ошибок увеличивается при FAILED статусе"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,
@@ -147,7 +147,7 @@ class TestErrorObservationRecording:
         self, mock_application_context, mock_capability
     ):
         """Тест: observation записывается при успешном выполнении"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,
@@ -197,7 +197,7 @@ class TestErrorObservationRecording:
         self, mock_application_context, mock_capability
     ):
         """Тест: summary содержит сообщение об ошибке"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,
@@ -239,7 +239,7 @@ class TestErrorObservationRecording:
         self, mock_application_context, mock_capability
     ):
         """Тест: обработка случая когда error_type отсутствует в metadata"""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
 
         runtime = AgentRuntime(
             application_context=mock_application_context,

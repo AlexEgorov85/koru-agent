@@ -14,10 +14,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
-from core.application.agent.factory import AgentFactory
-from core.application.agent.components.state import AgentState
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
+from core.agent.factory import AgentFactory
+from core.agent.components.state import AgentState
 
 
 async def test_react_loop():

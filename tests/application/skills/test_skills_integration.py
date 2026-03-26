@@ -11,7 +11,7 @@ import asyncio
 from core.models.data.execution import ExecutionResult
 from core.models.data.capability import Capability
 from core.session_context.session_context import SessionContext
-from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.event_bus import EventBus
 from core.infrastructure.logging import EventBusLogger
 
@@ -48,7 +48,7 @@ def action_executor(session_context, event_bus):
     mock_app_context.session_context = session_context
     
     # Создаём executor
-    from core.application.agent.components.action_executor import ActionExecutor
+    from core.agent.components.action_executor import ActionExecutor
     executor = ActionExecutor(application_context=mock_app_context)
     
     return executor, mock_app_context
@@ -73,7 +73,7 @@ class TestBookLibrarySkillIntegration:
     @pytest.mark.asyncio
     async def test_list_scripts(self, action_executor, component_config):
         """Тест: получение списка скриптов"""
-        from core.application.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
 
         executor, app_context = action_executor
 
@@ -89,7 +89,7 @@ class TestBookLibrarySkillIntegration:
         capabilities = skill.get_capabilities()
         list_scripts_cap = next(c for c in capabilities if c.name == "book_library.list_scripts")
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=list_scripts_cap,
             parameters={},
@@ -110,7 +110,7 @@ class TestBookLibrarySkillIntegration:
     @pytest.mark.asyncio
     async def test_execute_script_get_all_books(self, action_executor, component_config):
         """Тест: выполнение скрипта get_all_books"""
-        from core.application.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
 
         executor, app_context = action_executor
 
@@ -144,7 +144,7 @@ class TestBookLibrarySkillIntegration:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=execute_script_cap,
             parameters={"script_name": "get_all_books", "max_rows": 10},
@@ -171,7 +171,7 @@ class TestPlanningSkillIntegration:
     @pytest.mark.asyncio
     async def test_create_plan(self, action_executor, component_config):
         """Тест: создание плана"""
-        from core.application.skills.planning.skill import PlanningSkill
+        from core.services.skills.planning.skill import PlanningSkill
 
         executor, app_context = action_executor
 
@@ -213,7 +213,7 @@ class TestPlanningSkillIntegration:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=create_plan_cap,
             parameters={
@@ -236,7 +236,7 @@ class TestPlanningSkillIntegration:
     @pytest.mark.asyncio
     async def test_get_next_step(self, action_executor, component_config):
         """Тест: получение следующего шага"""
-        from core.application.skills.planning.skill import PlanningSkill
+        from core.services.skills.planning.skill import PlanningSkill
 
         executor, app_context = action_executor
 
@@ -270,7 +270,7 @@ class TestPlanningSkillIntegration:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=get_next_step_cap,
             parameters={},
@@ -295,7 +295,7 @@ class TestFinalAnswerSkillIntegration:
     @pytest.mark.asyncio
     async def test_generate_final_answer(self, action_executor, component_config):
         """Тест: генерация финального ответа"""
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
 
         executor, app_context = action_executor
 
@@ -341,7 +341,7 @@ class TestFinalAnswerSkillIntegration:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=generate_cap,
             parameters={
@@ -373,7 +373,7 @@ class TestDataAnalysisSkillIntegration:
     @pytest.mark.asyncio
     async def test_analyze_step_data(self, action_executor, component_config):
         """Тест: анализ данных шага"""
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         executor, app_context = action_executor
 
@@ -407,7 +407,7 @@ class TestDataAnalysisSkillIntegration:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
         result = await skill.execute(
             capability=analyze_cap,
             parameters={
@@ -446,8 +446,8 @@ class TestSkillsEndToEnd:
     @pytest.mark.asyncio
     async def test_planning_then_final_answer(self, action_executor, component_config):
         """Тест: планирование → выполнение → финальный ответ"""
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
 
         executor, app_context = action_executor
 
@@ -511,7 +511,7 @@ class TestSkillsEndToEnd:
 
         executor.execute_action = mock_execute_action
 
-        from core.application.agent.components.action_executor import ExecutionContext
+        from core.agent.components.action_executor import ExecutionContext
 
         # Выполняем planning
         planning_caps = planning_skill.get_capabilities()

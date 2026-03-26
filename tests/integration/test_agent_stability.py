@@ -11,8 +11,8 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from core.models.errors import AgentStuckError, InfrastructureError
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
-from core.application.agent.components.state import AgentState
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.components.state import AgentState
 
 
 # ============================================================================
@@ -69,8 +69,8 @@ class TestNoInfiniteLoop:
         Проверяет что при повторяющихся decision без изменения state
         агент завершает работу с ошибкой вместо бесконечного цикла.
         """
-        from core.application.agent.runtime import AgentRuntime
-        from core.application.agent.components.policy import AgentPolicy
+        from core.agent.runtime import AgentRuntime
+        from core.agent.components.policy import AgentPolicy
         from core.models.enums.common_enums import ExecutionStatus
 
         # Создаём повторяющийся decision
@@ -118,7 +118,7 @@ class TestNoInfiniteLoop:
         
         Проверяет логику детекции зацикливания.
         """
-        from core.application.agent.components.state import AgentState
+        from core.agent.components.state import AgentState
 
         state = AgentState()
         decisions = []
@@ -163,7 +163,7 @@ class TestLlmAlwaysCalled:
         Проверяет что когда decision.requires_llm=True,
         execution_result.llm_called должно быть True.
         """
-        from core.application.agent.components.action_executor import ActionResult
+        from core.agent.components.action_executor import ActionResult
         from core.models.errors import InfrastructureError
 
         # Decision требует LLM
@@ -239,8 +239,8 @@ class TestStateAlwaysMutates:
         
         Проверяет что snapshot состояния меняется после каждого шага выполнения.
         """
-        from core.application.agent.runtime import AgentRuntime
-        from core.application.agent.components.policy import AgentPolicy
+        from core.agent.runtime import AgentRuntime
+        from core.agent.components.policy import AgentPolicy
 
         # Создаём разные decision
         decisions = [
@@ -329,8 +329,8 @@ class TestPlanningCompletes:
         
         Проверяет что planning skill имеет все необходимые capabilities.
         """
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.agent.components.action_executor import ActionExecutor
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.agent.components.action_executor import ActionExecutor
 
         # Создаём полный мок application_context
         mock_app_ctx = MagicMock()
@@ -371,8 +371,8 @@ class TestPlanningCompletes:
         
         Проверяет что skill может быть инициализирован без ошибок.
         """
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.agent.components.action_executor import ActionExecutor
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.agent.components.action_executor import ActionExecutor
 
         # Создаём полный мок application_context
         mock_app_ctx = MagicMock()
@@ -406,8 +406,8 @@ class TestPlanningCompletes:
 
         Проверяет что результат всегда имеет тип ExecutionResult.
         """
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.agent.components.action_executor import ExecutionContext, ActionExecutor
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.agent.components.action_executor import ExecutionContext, ActionExecutor
         from core.models.data.execution import ExecutionResult
 
         # Создаём полный мок application_context

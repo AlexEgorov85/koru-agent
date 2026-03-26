@@ -9,9 +9,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.config.app_config import AppConfig
-from core.application.context.application_context import ApplicationContext
+from core.application_context.application_context import ApplicationContext
 
 
 @pytest.fixture(scope="function")
@@ -50,5 +50,5 @@ async def app_context(infra):
 @pytest.fixture
 def tools(app_context):
     """Get all tools from app_context."""
-    from core.application.context.application_context import ComponentType
+    from core.application_context.application_context import ComponentType
     return app_context.components.all_of_type(ComponentType.TOOL)

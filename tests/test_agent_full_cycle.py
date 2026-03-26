@@ -5,11 +5,11 @@
 Моки допускаются только для LLM и БД провайдеров.
 """
 import pytest
-from core.application.agent.components.policy import AgentPolicy
-from core.application.agent.components.state import AgentState
-from core.application.agent.components.progress import ProgressScorer
-from core.application.agent.components.action_executor import ActionExecutor
-from core.application.agent.components.behavior_manager import BehaviorManager
+from core.agent.components.policy import AgentPolicy
+from core.agent.components.state import AgentState
+from core.agent.components.progress import ProgressScorer
+from core.agent.components.action_executor import ActionExecutor
+from core.agent.components.behavior_manager import BehaviorManager
 
 
 class TestAgentState:

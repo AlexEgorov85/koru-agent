@@ -10,7 +10,7 @@ import os
 # Добавляем путь к проекту
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.application.context.application_context import ApplicationContext
+from core.application_context.application_context import ApplicationContext
 from core.config.app_config import AppConfig
 from core.models.data.contract import ComponentType
 

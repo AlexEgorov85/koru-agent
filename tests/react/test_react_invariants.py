@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from core.models.errors import InfrastructureError, PatternError
-from core.application.behaviors.base import BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecisionType
 
 
 # ============================================================================
@@ -65,7 +65,7 @@ class TestReActLLMGuarantee:
         self, mock_application_context, mock_component_config, mock_executor
     ):
         """Тест: LLM вызывается в generate_decision"""
-        from core.application.behaviors.react.pattern import ReActPattern
+        from core.agent.behaviors.react.pattern import ReActPattern
 
         # Создаём паттерн
         pattern = ReActPattern(
@@ -121,7 +121,7 @@ class TestReActLLMGuarantee:
         self, mock_application_context, mock_component_config, mock_executor
     ):
         """Тест: InfrastructureError если LLM не был вызван"""
-        from core.application.behaviors.react.pattern import ReActPattern
+        from core.agent.behaviors.react.pattern import ReActPattern
 
         # Создаём паттерн
         pattern = ReActPattern(
@@ -191,7 +191,7 @@ class TestStateMutationInvariant:
 
     def test_state_snapshot_changes_after_action(self):
         """Тест: snapshot состояния меняется после действия"""
-        from core.application.agent.components.state import AgentState
+        from core.agent.components.state import AgentState
 
         state = AgentState()
         snapshot_before = state.snapshot()
@@ -209,7 +209,7 @@ class TestStateMutationInvariant:
 
     def test_state_equality_comparison(self):
         """Тест: сравнение состояний"""
-        from core.application.agent.components.state import AgentState
+        from core.agent.components.state import AgentState
 
         state1 = AgentState(step=5, error_count=2)
         state2 = AgentState(step=5, error_count=2)
@@ -231,7 +231,7 @@ class TestDecisionValidation:
         self, mock_application_context, mock_component_config, mock_executor
     ):
         """Тест: ACT decision имеет capability_name"""
-        from core.application.behaviors.react.pattern import ReActPattern
+        from core.agent.behaviors.react.pattern import ReActPattern
 
         pattern = ReActPattern(
             component_name="react_pattern",
@@ -289,7 +289,7 @@ class TestErrorHandling:
         self, mock_application_context, mock_component_config, mock_executor
     ):
         """Тест: Выбрасывает InfrastructureError когда LLM недоступен"""
-        from core.application.behaviors.react.pattern import ReActPattern
+        from core.agent.behaviors.react.pattern import ReActPattern
         from core.errors.exceptions import InfrastructureError, SkillExecutionError
 
         # LLM провайдер недоступен (по умолчанию в mock_application_context)

@@ -8,7 +8,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.application.context.application_context import ApplicationContext, ComponentType
+from core.application_context.application_context import ApplicationContext, ComponentType
 from core.config.app_config import AppConfig
 
 

@@ -37,8 +37,8 @@ async def analyze_library_schema():
     # 1. ИНИЦИАЛИЗАЦИЯ ЧЕРЕЗ ConfigLoader
     # ========================================================================
     from core.config.config_loader import ConfigLoader
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.context.application_context import ApplicationContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.application_context.application_context import ApplicationContext
     from core.config.app_config import AppConfig
     
     # Загрузка конфигурации из dev.yaml
