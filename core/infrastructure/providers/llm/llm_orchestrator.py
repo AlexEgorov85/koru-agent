@@ -45,7 +45,7 @@ from core.models.types.llm_types import (
 )
 from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.metrics_collector import MetricsCollector
+from core.infrastructure.telemetry.telemetry_collector import TelemetryCollector
 from core.infrastructure.providers.llm.json_parser import (
     validate_structured_response,
     schema_to_pydantic_model,
