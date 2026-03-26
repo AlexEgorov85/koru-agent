@@ -145,10 +145,10 @@ class TelemetryCollector(BaseEventCollector):
             
             await self.event_bus_logger.info("MetricsPublisher инициализирован")
 
-        # 4. Standard logging → EventBus
-        self.event_bridge_handler = LoggingToEventBusHandler(self.event_bus)
-        self.event_bridge_handler.install()
-        await self.event_bus_logger.info("LoggingToEventBusHandler инициализирован")
+        # 4. Отключаем LoggingToEventBusHandler (чтобы стандартный logging не шёл в EventBus и консоль)
+        # self.event_bridge_handler = LoggingToEventBusHandler(self.event_bus)
+        # self.event_bridge_handler.install()
+        # await self.event_bus_logger.info("LoggingToEventBusHandler инициализирован")
 
         await super().initialize()
 
