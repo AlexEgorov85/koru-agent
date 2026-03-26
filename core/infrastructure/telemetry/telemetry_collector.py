@@ -27,7 +27,6 @@ from pathlib import Path
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
 from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
-from core.infrastructure.telemetry.handlers.event_bridge_handler import LoggingToEventBusHandler
 from core.infrastructure.telemetry.storage.metrics_storage import FileSystemMetricsStorage
 from core.services.metrics_publisher import MetricsPublisher
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
@@ -84,7 +83,6 @@ class TelemetryCollector(BaseEventCollector):
         self.terminal_handler: Optional[TerminalLogHandler] = None
         self.session_handler: Optional[SessionLogHandler] = None
         self.metrics_publisher: Optional[MetricsPublisher] = None
-        self.event_bridge_handler: Optional[LoggingToEventBusHandler] = None
 
         # Флаги
         self._enable_terminal = enable_terminal
@@ -272,12 +270,9 @@ class TelemetryCollector(BaseEventCollector):
 
     async def shutdown(self) -> None:
         """Завершение телеметрии."""
-        if self.event_bridge_handler:
-            self.event_bridge_handler.uninstall()
-        
         if self.session_handler:
             await self.session_handler.shutdown()
-        
+
         await super().shutdown()
 
     # === Методы доступа для обратной совместимости ===

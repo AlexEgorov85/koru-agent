@@ -24,9 +24,8 @@ telemetry = await init_telemetry(event_bus)
 
 КОМПОНЕНТЫ:
 - TelemetryCollector: единый сборщик
-- TerminalLogHandler: вывод в консоль
+- TerminalLogHandler: вывод в консоль (только иконки)
 - SessionLogHandler: запись в файлы сессий
-- LoggingToEventBusHandler: standard logging → EventBus
 - FileSystemMetricsStorage: хранилище метрик
 """
 from core.infrastructure.telemetry.telemetry_collector import (
@@ -40,7 +39,6 @@ from core.infrastructure.telemetry.handlers import (
     TerminalLogHandler,
     TerminalLogFormatter,
     SessionLogHandler,
-    LoggingToEventBusHandler,
 )
 
 from core.infrastructure.telemetry.storage import (
@@ -58,7 +56,6 @@ __all__ = [
     'TerminalLogHandler',
     'TerminalLogFormatter',
     'SessionLogHandler',
-    'LoggingToEventBusHandler',
 
     # Storage
     'FileSystemMetricsStorage',
