@@ -6,7 +6,7 @@
     py -m pytest tests/test_cli/test_benchmark_validator.py -v
 """
 import pytest
-from core.benchmarks import (
+from core.services.benchmarks import (
     SQLValidator,
     AnswerValidator,
     BenchmarkValidator

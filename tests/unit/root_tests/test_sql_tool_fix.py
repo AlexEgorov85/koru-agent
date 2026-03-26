@@ -16,8 +16,8 @@ async def test_sql_tool_initialization():
     try:
         # Импортируем необходимые модули
         from core.config.app_config import AppConfig
-        from core.application.context.application_context import ApplicationContext
-        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.application_context.application_context import ApplicationContext
+        from core.infrastructure_context.infrastructure_context import InfrastructureContext
         from core.config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
         
         print("+ Импорт модулей выполнен успешно")

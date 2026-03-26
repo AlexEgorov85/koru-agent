@@ -11,9 +11,9 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 from core.models.data.capability import Capability
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
-from core.application.agent.components.behavior_manager import BehaviorManager
-from core.application.agent.components.failure_memory import FailureMemory
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.components.behavior_manager import BehaviorManager
+from core.agent.components.failure_memory import FailureMemory
 from core.models.enums.common_enums import ErrorType
 
 
@@ -219,7 +219,7 @@ class TestAgentRuntimeIntegration:
     @pytest.mark.asyncio
     async def test_runtime_passes_failure_memory_to_behavior_manager(self, mock_app_context):
         """Тест: AgentRuntime передаёт failure_memory в BehaviorManager."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         runtime = AgentRuntime(
             application_context=mock_app_context,
@@ -232,7 +232,7 @@ class TestAgentRuntimeIntegration:
     @pytest.mark.asyncio
     async def test_full_integration_workflow(self, mock_app_context):
         """Тест: полный цикл интеграции."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         runtime = AgentRuntime(
             application_context=mock_app_context,

@@ -8,8 +8,8 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from core.application.agent.components.state import AgentState
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.components.state import AgentState
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.models.errors import AgentStuckError
 
 
@@ -66,8 +66,8 @@ class TestAgentStuckErrorDetection:
         self, mock_application_context, mock_behavior_manager
     ):
         """Тест: AgentStuckError при повторяющихся decision без изменения state"""
-        from core.application.agent.runtime import AgentRuntime
-        from core.application.agent.components.policy import AgentPolicy
+        from core.agent.runtime import AgentRuntime
+        from core.agent.components.policy import AgentPolicy
         from core.models.enums.common_enums import ExecutionStatus
 
         # Создаём повторяющийся decision
@@ -115,8 +115,8 @@ class TestAgentStuckErrorDetection:
         self, mock_application_context, mock_behavior_manager
     ):
         """Тест: AgentStuckError если state не меняется после observe"""
-        from core.application.agent.runtime import AgentRuntime
-        from core.application.agent.components.policy import AgentPolicy
+        from core.agent.runtime import AgentRuntime
+        from core.agent.components.policy import AgentPolicy
         from core.models.enums.common_enums import ExecutionStatus
 
         # Создаём разные decision чтобы избежать первой проверки
@@ -173,8 +173,8 @@ class TestAgentStuckErrorDetection:
         self, mock_application_context, mock_behavior_manager
     ):
         """Тест: Нет ошибки если state меняется"""
-        from core.application.agent.runtime import AgentRuntime
-        from core.application.agent.components.policy import AgentPolicy
+        from core.agent.runtime import AgentRuntime
+        from core.agent.components.policy import AgentPolicy
 
         # Создаём разные decision
         decisions = [

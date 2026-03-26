@@ -18,9 +18,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.common_enums import ErrorCategory, ErrorType
-from core.application.agent.components.safe_executor import SafeExecutor
-from core.application.agent.components.failure_memory import FailureMemory
-from core.application.agent.components.action_executor import ActionExecutor, ExecutionContext
+from core.agent.components.safe_executor import SafeExecutor
+from core.agent.components.failure_memory import FailureMemory
+from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 
 
 class MockActionExecutor:

@@ -5,7 +5,7 @@ import asyncio
 from pathlib import Path
 
 from core.config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
 
 async def test_prompt_search():

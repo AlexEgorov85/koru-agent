@@ -47,8 +47,8 @@ async def app_contexts():
     - app: ApplicationContext
     """
     from core.config.models import SystemConfig
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
-    from core.application.context.application_context import ApplicationContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
+    from core.application_context.application_context import ApplicationContext
     from core.config.app_config import AppConfig
 
     config = SystemConfig(data_dir='data')
@@ -393,7 +393,7 @@ class TestScriptsRegistry:
     
     def test_registry_import(self):
         """Тест импорта реестра скриптов."""
-        from core.application.skills.book_library.scripts_registry import (
+        from core.services.skills.book_library.scripts_registry import (
             SCRIPTS_REGISTRY,
             get_script,
             get_all_scripts,
@@ -408,7 +408,7 @@ class TestScriptsRegistry:
     
     def test_get_script(self):
         """Тест получения скрипта из реестра."""
-        from core.application.skills.book_library.scripts_registry import get_script
+        from core.services.skills.book_library.scripts_registry import get_script
         
         script = get_script("get_all_books")
         assert script is not None
@@ -419,7 +419,7 @@ class TestScriptsRegistry:
     
     def test_validate_script_parameters(self):
         """Тест валидации параметров скрипта."""
-        from core.application.skills.book_library.scripts_registry import validate_script_parameters
+        from core.services.skills.book_library.scripts_registry import validate_script_parameters
         
         # Валидные параметры
         is_valid, error = validate_script_parameters(

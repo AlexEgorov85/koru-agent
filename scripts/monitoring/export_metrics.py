@@ -21,8 +21,8 @@ from dataclasses import dataclass, asdict
 
 from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 
 @dataclass

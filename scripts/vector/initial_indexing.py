@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 async def main():
     """Первичная индексация всех книг и создание индексов."""
     from core.config import get_config
-    from core.infrastructure.context.infrastructure_context import InfrastructureContext
+    from core.infrastructure_context.infrastructure_context import InfrastructureContext
     from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
     from pathlib import Path
 

@@ -26,7 +26,7 @@ async def example_1_basic_search():
     
     from core.infrastructure.providers.vector.mock_faiss_provider import MockFAISSProvider
     from core.infrastructure.providers.embedding.mock_embedding_provider import MockEmbeddingProvider
-    from core.application.tools.vector_books_tool import VectorBooksTool
+    from core.services.tools.vector_books_tool import VectorBooksTool
     
     # Mock провайдеры
     faiss = MockFAISSProvider(dimension=384)
@@ -94,7 +94,7 @@ async def example_2_character_analysis():
     
     from core.infrastructure.providers.vector.mock_faiss_provider import MockFAISSProvider
     from core.infrastructure.providers.embedding.mock_embedding_provider import MockEmbeddingProvider
-    from core.application.tools.vector_books_tool import VectorBooksTool
+    from core.services.tools.vector_books_tool import VectorBooksTool
     
     # Mock провайдеры
     faiss = MockFAISSProvider(dimension=384)
@@ -166,7 +166,7 @@ async def example_3_book_indexing():
     from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
     from core.infrastructure.providers.embedding.mock_embedding_provider import MockEmbeddingProvider
     from core.infrastructure.providers.vector.mock_faiss_provider import MockFAISSProvider
-    from core.application.services.document_indexing_service import DocumentIndexingService
+    from core.services.document_indexing_service import DocumentIndexingService
     
     # Mock SQL
     class MockSQL:

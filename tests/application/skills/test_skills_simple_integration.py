@@ -24,7 +24,7 @@ class TestAllSkillsReturnExecutionResult:
     def test_book_library_skill_returns_execution_result_type(self):
         """BookLibrarySkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
 
         source = inspect.getsource(BookLibrarySkill)
 
@@ -35,7 +35,7 @@ class TestAllSkillsReturnExecutionResult:
     def test_planning_skill_returns_execution_result_type(self):
         """PlanningSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
-        from core.application.skills.planning.skill import PlanningSkill
+        from core.services.skills.planning.skill import PlanningSkill
 
         source = inspect.getsource(PlanningSkill)
 
@@ -46,7 +46,7 @@ class TestAllSkillsReturnExecutionResult:
     def test_final_answer_skill_returns_execution_result_type(self):
         """FinalAnswerSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
 
         source = inspect.getsource(FinalAnswerSkill)
 
@@ -57,7 +57,7 @@ class TestAllSkillsReturnExecutionResult:
     def test_data_analysis_skill_returns_execution_result_type(self):
         """DataAnalysisSkill._execute_impl возвращает ExecutionResult (проверка типа)"""
         import inspect
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         source = inspect.getsource(DataAnalysisSkill)
 
@@ -72,10 +72,10 @@ class TestExecutionResultUsage:
     def test_all_skills_use_success_factory(self):
         """Все skills используют ExecutionResult.success или конструктор для успешных результатов"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -86,10 +86,10 @@ class TestExecutionResultUsage:
     def test_all_skills_use_failure_factory(self):
         """Все skills используют ExecutionResult.failure или конструктор для ошибок"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -100,10 +100,10 @@ class TestExecutionResultUsage:
     def test_side_effect_flag_used(self):
         """Skills явно указывают side_effect"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:
             source = inspect.getsource(skill_class)
@@ -215,10 +215,10 @@ class TestSkillsHaveNoLegacyPatterns:
     def test_no_direct_dict_return_in_skills(self):
         """Skills не возвращают голый dict из основных методов (кроме внутренних)"""
         import inspect
-        from core.application.skills.book_library.skill import BookLibrarySkill
-        from core.application.skills.planning.skill import PlanningSkill
-        from core.application.skills.final_answer.skill import FinalAnswerSkill
-        from core.application.skills.data_analysis.skill import DataAnalysisSkill
+        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.services.skills.planning.skill import PlanningSkill
+        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.services.skills.data_analysis.skill import DataAnalysisSkill
 
         # Проверяем только основные методы (_execute_impl и публичные)
         for skill_class in [BookLibrarySkill, PlanningSkill, FinalAnswerSkill, DataAnalysisSkill]:

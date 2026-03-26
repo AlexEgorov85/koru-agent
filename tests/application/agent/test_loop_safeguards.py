@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 
 
 class TestLoopDetection:
@@ -20,7 +20,7 @@ class TestLoopDetection:
     @pytest.fixture
     def mock_runtime(self):
         """Создаёт мок AgentRuntime с минимальной инициализацией."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         # Создаём runtime с моками
         mock_app_ctx = MagicMock()
@@ -143,7 +143,7 @@ class TestShouldStopEarly:
     @pytest.fixture
     def mock_runtime(self):
         """Создаёт мок AgentRuntime."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         mock_app_ctx = MagicMock()
         mock_app_ctx.is_ready = True
@@ -208,7 +208,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_full_loop_detection_workflow(self):
         """Тест: полный цикл детекции зацикливания."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         mock_app_ctx = MagicMock()
         mock_app_ctx.is_ready = True
@@ -253,7 +253,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_early_stop_prevents_max_steps(self):
         """Тест: ранняя остановка предотвращает достижение max_steps."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         mock_app_ctx = MagicMock()
         mock_app_ctx.is_ready = True

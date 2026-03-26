@@ -3,10 +3,10 @@ sys.path.insert(0, r'c:\Users\Алексей\Documents\WORK\Agent_v5')
 
 import asyncio
 from core.config.models import SystemConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.agent.factory import AgentFactory  # Исправленный импорт
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.agent.factory import AgentFactory  # Исправленный импорт
 from core.config.app_config import AppConfig
-from core.application.context.application_context import ApplicationContext
+from core.application_context.application_context import ApplicationContext
 
 async def test_new_architecture():
     print("Тестирование новой архитектуры конфигурации...")

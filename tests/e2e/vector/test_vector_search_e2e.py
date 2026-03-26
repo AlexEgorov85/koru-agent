@@ -11,7 +11,7 @@ import pytest
 from core.infrastructure.providers.vector.text_chunking_strategy import TextChunkingStrategy
 from core.infrastructure.providers.embedding.mock_embedding_provider import MockEmbeddingProvider
 from core.infrastructure.providers.vector.mock_faiss_provider import MockFAISSProvider
-from core.application.services.document_indexing_service import DocumentIndexingService
+from core.services.document_indexing_service import DocumentIndexingService
 
 
 class TestDocumentIndexingE2E:

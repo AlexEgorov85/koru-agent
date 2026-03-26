@@ -8,8 +8,8 @@
 4. Обновление scores
 """
 import pytest
-from core.application.agent.components.strategy_selector import StrategySelector
-from core.application.agent.components.failure_memory import FailureMemory
+from core.agent.components.strategy_selector import StrategySelector
+from core.agent.components.failure_memory import FailureMemory
 from core.models.enums.common_enums import ErrorType
 
 

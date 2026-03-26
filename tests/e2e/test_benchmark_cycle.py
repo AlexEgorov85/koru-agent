@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.benchmarks.benchmark_models import (
+from core.services.benchmarks.benchmark_models import (
     BenchmarkScenario,
     ExpectedOutput,
     ActualOutput,
@@ -36,8 +36,8 @@ class TestFullBenchmarkCycle:
         3. Сбор метрик
         4. Оценка результатов
         """
-        from core.application.services.benchmark_service import BenchmarkService, BenchmarkConfig
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+        from core.services.benchmark_service import BenchmarkService, BenchmarkConfig
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
         from core.infrastructure.metrics_storage import FileSystemMetricsStorage
         from core.infrastructure.event_bus import EventBus, EventType
@@ -126,8 +126,8 @@ class TestFullBenchmarkCycle:
         3. Сравнение результатов
         4. Определение победителя
         """
-        from core.application.services.benchmark_service import BenchmarkService, BenchmarkConfig
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+        from core.services.benchmark_service import BenchmarkService, BenchmarkConfig
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
         from core.infrastructure.metrics_storage import FileSystemMetricsStorage
         from core.infrastructure.event_bus import EventBus
@@ -210,8 +210,8 @@ class TestFullBenchmarkCycle:
         2. Вызов promote_version
         3. Проверка публикации события
         """
-        from core.application.services.benchmark_service import BenchmarkService
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+        from core.services.benchmark_service import BenchmarkService
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.metrics_collector import MetricsCollector
         from core.infrastructure.event_bus import EventBus, EventType
 
@@ -255,8 +255,8 @@ class TestBenchmarkWithRealComponents:
     @pytest.mark.asyncio
     async def test_benchmark_with_mock_storages(self, tmp_path):
         """Тест бенчмарка с моковыми хранилищами"""
-        from core.application.services.benchmark_service import BenchmarkService
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService, EvaluationResult
+        from core.services.benchmark_service import BenchmarkService
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService, EvaluationResult
         from core.infrastructure.event_bus import EventBus, EventType
 
         # Создаём моки для хранилищ
@@ -336,8 +336,8 @@ class TestBenchmarkErrorHandling:
     @pytest.mark.asyncio
     async def test_benchmark_executor_error(self):
         """Тест ошибки executor"""
-        from core.application.services.benchmark_service import BenchmarkService
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+        from core.services.benchmark_service import BenchmarkService
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()
@@ -381,8 +381,8 @@ class TestBenchmarkErrorHandling:
     @pytest.mark.asyncio
     async def test_benchmark_timeout(self):
         """Тест таймаута бенчмарка"""
-        from core.application.services.benchmark_service import BenchmarkService, BenchmarkConfig
-        from core.application.services.accuracy_evaluator import AccuracyEvaluatorService
+        from core.services.benchmark_service import BenchmarkService, BenchmarkConfig
+        from core.services.accuracy_evaluator import AccuracyEvaluatorService
         from core.infrastructure.event_bus import EventBus
 
         event_bus = EventBus()

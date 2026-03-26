@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Type, List
 from contextlib import asynccontextmanager
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
-from core.interfaces.llm import LLMInterface
+from core.infrastructure.interfaces.llm import LLMInterface
 from core.models.types.llm_types import (
     LLMRequest, 
     LLMResponse, 

@@ -22,7 +22,7 @@ from typing import Dict, List, Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.infrastructure.log_storage import FileSystemLogStorage
-from core.benchmarks.benchmark_models import LogType
+from core.services.benchmarks.benchmark_models import LogType
 
 
 async def aggregate_logs(

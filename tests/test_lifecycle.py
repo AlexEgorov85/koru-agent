@@ -10,8 +10,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.components.lifecycle import ComponentState, LifecycleMixin
-from core.components.base_component import BaseComponent
+from core.agent.components.lifecycle import ComponentState, LifecycleMixin
+from core.agent.components.base_component import BaseComponent
 
 
 class TestComponentState:
@@ -190,7 +190,7 @@ class TestAgentRuntimeChecks:
     
     def test_runtime_requires_ready_context(self):
         """Проверка что AgentRuntime требует готовый контекст."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         # Создаём мокированный неготовый контекст
         mock_context = MagicMock()
@@ -208,7 +208,7 @@ class TestAgentRuntimeChecks:
     
     def test_runtime_requires_ready_infra_context(self):
         """Проверка что AgentRuntime требует готовый инфраструктурный контекст."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         # Создаём мокированный готовый app контекст
         mock_context = MagicMock()
@@ -226,7 +226,7 @@ class TestAgentRuntimeChecks:
     
     def test_runtime_with_ready_contexts(self):
         """Проверка создания AgentRuntime с готовыми контекстами."""
-        from core.application.agent.runtime import AgentRuntime
+        from core.agent.runtime import AgentRuntime
         
         # Создаём мокированные готовые контексты
         mock_context = MagicMock()
@@ -254,7 +254,7 @@ class TestBehaviorManagerChecks:
     @pytest.mark.asyncio
     async def test_generate_decision_requires_init(self):
         """Проверка что generate_next_decision требует инициализации."""
-        from core.application.agent.components.behavior_manager import BehaviorManager
+        from core.agent.components.behavior_manager import BehaviorManager
         from core.models.data.capability import Capability
         
         # Создаём мокированный контекст

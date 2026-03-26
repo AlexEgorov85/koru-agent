@@ -10,7 +10,7 @@ import os
 # Добавляем путь к проекту
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.application.context.application_context import ApplicationContext
+from core.application_context.application_context import ApplicationContext
 from core.config.app_config import AppConfig
 from core.config.component_config import ComponentConfig
 
@@ -92,7 +92,7 @@ async def test_dependencies_resolution(fake_infra_context):
         print(f"Инициализация успешна: {success}")
 
         if success:
-            from core.application.context.application_context import ComponentType
+            from core.application_context.application_context import ComponentType
             services = app_context.components.all_of_type(ComponentType.SERVICE)
             print(f"Количество сервисов: {len(services)}")
 

@@ -56,7 +56,7 @@ class TestBehaviorPatternStructure:
 
     def test_react_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у ReActPattern."""
-        from core.application.behaviors.base import ReActInput, ReActOutput
+        from core.agent.behaviors.base import ReActInput, ReActOutput
 
         # Проверяем наличие классов входа/выхода
         assert ReActInput is not None
@@ -76,7 +76,7 @@ class TestBehaviorPatternStructure:
 
     def test_planning_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у PlanningPattern."""
-        from core.application.behaviors.base import PlanningInput, PlanningOutput
+        from core.agent.behaviors.base import PlanningInput, PlanningOutput
 
         assert PlanningInput is not None
         assert PlanningOutput is not None
@@ -95,7 +95,7 @@ class TestBehaviorPatternStructure:
 
     def test_evaluation_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у EvaluationPattern."""
-        from core.application.behaviors.evaluation.pattern import EvaluationPattern
+        from core.agent.behaviors.evaluation.pattern import EvaluationPattern
         from core.config.component_config import ComponentConfig
         from unittest.mock import Mock
 
@@ -116,7 +116,7 @@ class TestBehaviorPatternStructure:
 
     def test_fallback_pattern_has_required_attributes(self):
         """Тест наличия обязательных атрибутов у FallbackPattern."""
-        from core.application.behaviors.fallback.pattern import FallbackPattern
+        from core.agent.behaviors.fallback.pattern import FallbackPattern
         from core.config.component_config import ComponentConfig
         from unittest.mock import Mock
 
@@ -141,7 +141,7 @@ class TestBehaviorDecisionTypes:
 
     def test_behavior_decision_type_values(self):
         """Тест значений BehaviorDecisionType."""
-        from core.application.behaviors.base import BehaviorDecisionType
+        from core.agent.behaviors.base import BehaviorDecisionType
         
         assert BehaviorDecisionType.ACT.value == "act"
         assert BehaviorDecisionType.STOP.value == "stop"
@@ -150,7 +150,7 @@ class TestBehaviorDecisionTypes:
 
     def test_behavior_decision_creation(self):
         """Тест создания BehaviorDecision."""
-        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
         
         decision = BehaviorDecision(
             action=BehaviorDecisionType.ACT,
@@ -168,7 +168,7 @@ class TestBehaviorDecisionTypes:
 
     def test_behavior_decision_switch_type(self):
         """Тест создания BehaviorDecision для SWITCH."""
-        from core.application.behaviors.base import BehaviorDecision, BehaviorDecisionType
+        from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
         
         decision = BehaviorDecision(
             action=BehaviorDecisionType.SWITCH,

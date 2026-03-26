@@ -8,7 +8,7 @@ TESTS:
 import pytest
 from datetime import datetime
 from core.models.data.execution import ExecutionContextSnapshot
-from core.benchmarks.benchmark_models import LogEntry, LogType
+from core.services.benchmarks.benchmark_models import LogEntry, LogType
 
 
 class TestExecutionContextSnapshot:

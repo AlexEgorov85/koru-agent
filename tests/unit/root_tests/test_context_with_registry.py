@@ -14,7 +14,7 @@ async def test_context_initialization_with_registry():
     
     try:
         from core.config.app_config import AppConfig
-        from core.application.context.application_context import ApplicationContext
+        from core.application_context.application_context import ApplicationContext
         
         print("[OK] Импорты выполнены успешно")
         
@@ -23,7 +23,7 @@ async def test_context_initialization_with_registry():
         print("[OK] AppConfig успешно загружен из реестра")
         
         # Создаем инфраструктурный контекст с минимальной конфигурацией
-        from core.infrastructure.context.infrastructure_context import InfrastructureContext
+        from core.infrastructure_context.infrastructure_context import InfrastructureContext
         
         # Создаем временную конфигурацию для тестирования
         class MockSystemConfig:

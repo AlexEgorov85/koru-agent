@@ -15,7 +15,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-from core.application.agent.components.policy import AgentPolicy
+from typing import Protocol, Any
 
 
 class ProviderHealthStatus:
@@ -105,7 +105,7 @@ class BaseProvider(IProvider):
         self.request_count = 0
         self.error_count = 0
         self.avg_response_time = 0.0
-        self.retry_policy: Optional[AgentPolicy] = None
+        self.retry_policy: Optional[Any] = None
 
         # event_bus_logger будет инициализирован в initialize()
         self.event_bus_logger = None
@@ -224,7 +224,7 @@ class BaseProvider(IProvider):
             elif error_rate >= 0.5:
                 self._set_degraded_status()
 
-    def set_retry_policy(self, policy: AgentPolicy) -> None:
+    def set_retry_policy(self, policy: Any) -> None:
         """Установка политики повторных попыток."""
         self.retry_policy = policy
 

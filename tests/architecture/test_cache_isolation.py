@@ -8,8 +8,8 @@ from pathlib import Path
 
 from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 
 @pytest.fixture
@@ -103,7 +103,7 @@ async def test_prompt_cache_isolated(app_context_pair):
     ctx1, ctx2 = app_context_pair
 
     # Получаем сервисы промптов через components registry
-    from core.application.context.application_context import ComponentType
+    from core.application_context.application_context import ComponentType
     prompt_service1 = ctx1.components.get(ComponentType.SERVICE, 'prompt_service')
     prompt_service2 = ctx2.components.get(ComponentType.SERVICE, 'prompt_service')
 

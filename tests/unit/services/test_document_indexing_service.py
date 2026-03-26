@@ -3,7 +3,7 @@
 """
 
 import pytest
-from core.application.services.document_indexing_service import DocumentIndexingService
+from core.services.document_indexing_service import DocumentIndexingService
 
 
 class TestDocumentIndexingService:

@@ -166,12 +166,12 @@ async def run_optimization_v2(
     try:
         # Импорты новой архитектуры
         from core.config import get_config
-        from core.infrastructure.context.infrastructure_context import InfrastructureContext
-        from core.application.context.application_context import ApplicationContext
+        from core.infrastructure_context.infrastructure_context import InfrastructureContext
+        from core.application_context.application_context import ApplicationContext
         from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-        from core.benchmarks.benchmark_models import OptimizationMode, FailureAnalysis
+        from core.services.benchmarks.benchmark_models import OptimizationMode, FailureAnalysis
 
-        from core.application.components.optimization import (
+        from core.agent.components.optimization import (
             Evaluator,
             PromptGenerator,
             VersionManager,
@@ -183,12 +183,12 @@ async def run_optimization_v2(
             RootCauseAnalyzer,
             ExampleExtractor,
         )
-        from core.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
-        from core.application.components.optimization.trace_collector import TraceCollectionConfig
-        from core.application.components.optimization.evaluator import EvaluationConfig
-        from core.application.components.optimization.prompt_generator import GenerationConfig
-        from core.application.components.optimization.safety_layer import SafetyConfig
-        from core.application.components.optimization.orchestrator import OrchestratorV2Config
+        from core.services.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
+        from core.agent.components.optimization.trace_collector import TraceCollectionConfig
+        from core.agent.components.optimization.evaluator import EvaluationConfig
+        from core.agent.components.optimization.prompt_generator import GenerationConfig
+        from core.agent.components.optimization.safety_layer import SafetyConfig
+        from core.agent.components.optimization.orchestrator import OrchestratorV2Config
 
         # Загрузка конфигурации
         config = get_config(profile='dev', data_dir='data')
@@ -215,8 +215,8 @@ async def run_optimization_v2(
         print("🔧 Создание компонентов оптимизации...\n")
 
         # 1. TraceCollector
-        from core.application.components.optimization.trace_handler import TraceHandler
-        from core.application.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
+        from core.agent.components.optimization.trace_handler import TraceHandler
+        from core.agent.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
 
         trace_handler = TraceHandler(
             session_handler=infra_context.session_handler,

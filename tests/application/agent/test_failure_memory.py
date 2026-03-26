@@ -14,7 +14,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from core.application.agent.components.failure_memory import FailureMemory, FailureRecord
+from core.agent.components.failure_memory import FailureMemory, FailureRecord
 from core.models.enums.common_enums import ErrorType
 
 

@@ -15,6 +15,10 @@ import io
 # ============================================================
 # НАСТРОЙКА КОДИРОВКИ (единая точка для всех ОС)
 # ============================================================
+
+from core.agent.factory import AgentFactory
+from core.application_context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.utils.encoding import setup_encoding
 
 # Вызываем ОДИН раз в начале программы
@@ -29,9 +33,6 @@ from core.utils.encoding import StderrFilter
 sys.stderr = StderrFilter(sys.stderr, patterns=["llama_context:", "n_ctx_per_seq"])
 
 from core.config import get_config, AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
-from core.application.agent.factory import AgentFactory
 from core.config.agent_config import AgentConfig
 from core.errors import get_error_handler, ErrorContext, ErrorSeverity
 from core.infrastructure.logging import (

@@ -7,7 +7,7 @@
 - Получение всех ресурсов
 """
 import pytest
-from core.infrastructure.context.resource_registry import ResourceRegistry
+from core.infrastructure_context.resource_registry import ResourceRegistry
 from core.models.data.resource import ResourceInfo, ResourceType
 
 

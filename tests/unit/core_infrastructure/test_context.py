@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.config.models import SystemConfig, LLMProviderConfig, DBProviderConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
 
 
 @pytest.mark.asyncio

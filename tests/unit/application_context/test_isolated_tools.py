@@ -4,8 +4,8 @@ sys.path.insert(0, r'c:\Users\Алексей\Documents\WORK\Agent_v5')
 
 from core.config.models import SystemConfig
 from core.config.app_config import AppConfig
-from core.infrastructure.context.infrastructure_context import InfrastructureContext
-from core.application.context.application_context import ApplicationContext
+from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.application_context.application_context import ApplicationContext
 
 async def test_isolated_tools():
     # Создаем минимальную конфигурацию
@@ -59,7 +59,7 @@ async def test_isolated_tools():
     print(f'ApplicationContext2 инициализирован: {success2}')
     
     # Проверим, что у каждого контекста есть свои собственные инструменты через новый API
-    from core.application.context.application_context import ComponentType
+    from core.application_context.application_context import ComponentType
     tools1 = app_context1.components.all_of_type(ComponentType.TOOL)
     tools2 = app_context2.components.all_of_type(ComponentType.TOOL)
     print(f'Контекст 1 - количество инструментов: {len(tools1)}')
