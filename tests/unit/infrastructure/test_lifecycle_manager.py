@@ -15,10 +15,10 @@ from unittest.mock import AsyncMock, MagicMock
 from core.infrastructure_context.lifecycle_manager import (
     LifecycleManager,
     ResourceType,
-    ResourceStatus,
     ResourceRecord,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.agent.components.lifecycle import ComponentState
 
 
 class MockResource:

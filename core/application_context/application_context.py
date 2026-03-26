@@ -14,7 +14,11 @@
 import uuid
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Literal, Type
+from typing import Dict, List, Optional, Any, Literal, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.infrastructure_context.lifecycle_manager import LifecycleManager as LifecycleManagerType
+    from core.infrastructure_context.lifecycle_manager import ResourceType as ResourceTypeType
 
 from pydantic import BaseModel
 
@@ -53,7 +57,9 @@ class ApplicationContext(BaseSystemContext):
         self.infrastructure_context = infrastructure_context  # Только для чтения!
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
-        self._state = ComponentState.CREATED  # ← НОВОЕ: enum состояний
+
+        # Менеджер жизненного цикла компонентов (инициализируется в initialize())
+        self.lifecycle_manager: Any = None
 
         # Если конфигурация не передана, создаем пустую для последующего авто-заполнения
         if config is None:
@@ -83,18 +89,15 @@ class ApplicationContext(BaseSystemContext):
         # LLMOrchestrator для централизованного управления LLM вызовами
         self.llm_orchestrator = None  # Будет создан в initialize()
 
-        # Флаг инициализации
-        self._initialized = False
-
     @property
     def is_ready(self) -> bool:
         """Проверка готовности контекста."""
-        return self._state == ComponentState.READY and self._initialized
-
+        return self.lifecycle_manager is not None and self.lifecycle_manager.is_ready
+    
     @property
     def is_initialized(self) -> bool:
         """Проверка инициализации контекста."""
-        return self._initialized
+        return self.lifecycle_manager is not None and self.lifecycle_manager.is_initialized
 
     def _init_event_bus_logger(self):
         """Инициализация EventBusLogger для асинхронного логирования."""
@@ -153,6 +156,17 @@ class ApplicationContext(BaseSystemContext):
         """Критическая ошибка."""
         if self.event_bus_logger:
             await self.event_bus_logger.error(message, *args, **kwargs)
+
+    def _get_resource_type_for_component(self, component_type: ComponentType) -> 'ResourceTypeType':
+        """Преобразование ComponentType в ResourceType для LifecycleManager."""
+        from core.infrastructure_context.lifecycle_manager import ResourceType
+        mapping = {
+            ComponentType.SERVICE: ResourceType.SERVICE,
+            ComponentType.SKILL: ResourceType.SKILL,
+            ComponentType.TOOL: ResourceType.TOOL,
+            ComponentType.BEHAVIOR: ResourceType.BEHAVIOR,
+        }
+        return mapping.get(component_type, ResourceType.OTHER)
 
     def _resolve_component_configs(self) -> Dict[ComponentType, Dict[str, Any]]:
         """
@@ -239,12 +253,16 @@ class ApplicationContext(BaseSystemContext):
         ЕДИНЫЙ жизненный цикл инициализации для ВСЕХ компонентов:
         1. Загрузка ВСЕХ промптов/контрактов из хранилищ (один раз!) → 2. Создание и регистрация → 3. Инициализация с учетом зависимостей → 4. Валидация
         """
-        if self._initialized:
+        if self.lifecycle_manager and self.lifecycle_manager.is_ready:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("ApplicationContext уже инициализирован")
             else:
                 self.logger.warning("ApplicationContext уже инициализирован")
             return True
+
+        # === Инициализация LifecycleManager ===
+        from core.infrastructure_context.lifecycle_manager import LifecycleManager
+        self.lifecycle_manager = LifecycleManager(self.infrastructure_context.event_bus)
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
@@ -381,6 +399,15 @@ class ApplicationContext(BaseSystemContext):
                     # Регистрация компонента ДО инициализации
                     self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
                     self.components.register(comp_type, name, component)
+                    
+                    # Регистрация в LifecycleManager
+                    resource_type = self._get_resource_type_for_component(comp_type)
+                    await self.lifecycle_manager.register_component(
+                        name=name,
+                        component=component,
+                        component_type=resource_type
+                    )
+                    
                     components_created += 1
                     self.logger.info(f"✅ Компонент {comp_type.value}.{name} создан и зарегистрирован")
 
@@ -402,8 +429,9 @@ class ApplicationContext(BaseSystemContext):
             if not await self._verify_readiness():
                 return False
 
-        self._initialized = True
-        self._state = ComponentState.READY  # ← Переход в состояние READY
+        # Инициализация компонентов через LifecycleManager
+        await self.lifecycle_manager.initialize_all()
+        
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
 
         return True
@@ -875,7 +903,7 @@ class ApplicationContext(BaseSystemContext):
         }
         
         # Проверяем статус самого контекста
-        context_healthy = self._initialized
+        context_healthy = self.is_initialized
         health_report['context_healthy'] = context_healthy
         
         if not context_healthy:
@@ -1198,7 +1226,7 @@ class ApplicationContext(BaseSystemContext):
 
     def get_prompt_service(self):
         """Получение изолированного сервиса промптов."""
-        if not self._initialized:
+        if not self.is_initialized:
             raise RuntimeError(
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
@@ -1207,7 +1235,7 @@ class ApplicationContext(BaseSystemContext):
 
     def get_contract_service(self):
         """Получение изолированного сервиса контрактов."""
-        if not self._initialized:
+        if not self.is_initialized:
             raise RuntimeError(
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
@@ -1222,13 +1250,13 @@ class ApplicationContext(BaseSystemContext):
 
         ВАЖНО: Защита от раннего доступа (до инициализации).
         """
-        if not self._initialized:
+        if not self.is_initialized:
             raise RuntimeError(
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
             )
 
-        # В новой архитектуре мы получаем промпт из изолир��ванного сервиса
+        # В новой архитектуре мы получаем промпт из изолированного сервиса
         prompt_service = self.components.get(ComponentType.SERVICE, "prompt_service")
         if prompt_service is None:
             raise RuntimeError("PromptService не инициализирован")
@@ -1240,7 +1268,7 @@ class ApplicationContext(BaseSystemContext):
 
         ВАЖНО: Защита от раннего доступа (до инициализации).
         """
-        if not self._initialized:
+        if not self.is_initialized:
             raise RuntimeError(
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
@@ -1258,7 +1286,7 @@ class ApplicationContext(BaseSystemContext):
 
         ВАЖНО: Защита от раннего доступа (до инициализации).
         """
-        if not self._initialized:
+        if not self.is_initialized:
             raise RuntimeError(
                 f"ApplicationContext не инициализирован. "
                 f"Вызовите .initialize() перед использованием."
@@ -1494,13 +1522,21 @@ class ApplicationContext(BaseSystemContext):
         """
         Проверка, полностью ли инициализирована система.
         """
-        return self._initialized
+        return self.is_initialized
 
     async def shutdown(self):
         """
         Корректное завершение работы ApplicationContext.
         """
         self.logger.info("Завершение работы ApplicationContext...")
+        
+        # Завершение компонентов через LifecycleManager
+        if self.lifecycle_manager:
+            try:
+                await self.lifecycle_manager.shutdown_all()
+                self.logger.info("LifecycleManager завершён")
+            except Exception as e:
+                self.logger.error(f"Ошибка при завершении LifecycleManager: {e}")
         
         # Завершение LLMOrchestrator
         if self.llm_orchestrator:
@@ -1519,5 +1555,5 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.error(f"Ошибка при завершении DataRepository: {e}")
         
-        self._initialized = False
+        self.lifecycle_manager = None
         self.logger.info("ApplicationContext завершён")

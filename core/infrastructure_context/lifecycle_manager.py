@@ -25,6 +25,7 @@ import asyncio
 
 from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.agent.components.lifecycle import ComponentState
 
 
 class ManagedResource(Protocol):
@@ -52,18 +53,8 @@ class ManagedResource(Protocol):
         ...
 
 
-class ResourceStatus(Enum):
-    """Статусы ресурса в lifecycle."""
-    PENDING = "pending"           # Ожидает инициализации
-    INITIALIZING = "initializing" # В процессе инициализации
-    INITIALIZED = "initialized"   # Успешно инициализирован
-    FAILED = "failed"             # Ошибка инициализации
-    SHUTDOWN = "shutdown"         # Завершён
-    UNKNOWN = "unknown"           # Статус неизвестен
-
-
 class ResourceType(Enum):
-    """Типы инфраструктурных ресурсов."""
+    """Типы инфраструктурных ресурсов и компонентов."""
     LLM = "llm"
     DATABASE = "database"
     VECTOR = "vector"
@@ -72,6 +63,10 @@ class ResourceType(Enum):
     STORAGE = "storage"
     COLLECTOR = "collector"
     DISCOVERY = "discovery"
+    SKILL = "skill"
+    TOOL = "tool"
+    SERVICE = "service"
+    BEHAVIOR = "behavior"
     OTHER = "other"
 
 
@@ -95,7 +90,7 @@ class ResourceRecord:
     resource: Any
     resource_type: ResourceType
     dependencies: List[str] = field(default_factory=list)
-    status: ResourceStatus = ResourceStatus.PENDING
+    status: ComponentState = ComponentState.PENDING
     metadata: Dict[str, Any] = field(default_factory=dict)
     init_error: Optional[str] = None
     registered_at: datetime = field(default_factory=datetime.now)
@@ -213,6 +208,61 @@ class LifecycleManager:
                     name, resource_type.value
                 )
 
+    # ==================== УДОБНЫЕ МЕТОДЫ РЕГИСТРАЦИИ ====================
+
+    async def register_infrastructure(
+        self,
+        name: str,
+        resource: Any,
+        resource_type: ResourceType,
+        dependencies: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Регистрация инфраструктурного ресурса (провайдеры, хранилища).
+        
+        Псевдоним для register_resource с типом инфраструктуры.
+        """
+        await self.register_resource(name, resource, resource_type, dependencies, metadata)
+
+    async def register_component(
+        self,
+        name: str,
+        component: Any,
+        component_type: Optional[ResourceType] = None,
+        dependencies: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Регистрация компонента приложения (skills, tools, services, behaviors).
+        
+        ARGS:
+        - name: уникальное имя компонента
+        - component: экземпляр компонента (BaseComponent)
+        - component_type: тип компонента (SKILL, TOOL, SERVICE, BEHAVIOR)
+        - dependencies: список имён ресурсов, от которых зависит компонент
+        - metadata: дополнительные метаданные
+        
+        NOTE: Если component_type не указан, определяется автоматически
+        """
+        if component_type is None:
+            component_type = self._detect_component_type(component)
+        
+        await self.register_resource(name, component, component_type, dependencies, metadata)
+    
+    def _detect_component_type(self, component: Any) -> ResourceType:
+        """Определение типа компонента по классу."""
+        class_name = component.__class__.__name__
+        if "Skill" in class_name:
+            return ResourceType.SKILL
+        elif "Tool" in class_name:
+            return ResourceType.TOOL
+        elif "Service" in class_name:
+            return ResourceType.SERVICE
+        elif "Behavior" in class_name or "BehaviorPattern" in class_name:
+            return ResourceType.BEHAVIOR
+        return ResourceType.OTHER
+
     # ==================== ИНИЦИАЛИЗАЦИЯ ====================
 
     async def initialize_all(self) -> Dict[str, bool]:
@@ -265,7 +315,7 @@ class LifecycleManager:
                     if dep in results and not results[dep]
                 ]
                 if failed_deps:
-                    record.status = ResourceStatus.FAILED
+                    record.status = ComponentState.FAILED
                     record.init_error = f"Failed dependencies: {failed_deps}"
                     results[name] = False
                     if self.event_bus_logger:
@@ -275,7 +325,7 @@ class LifecycleManager:
                         )
                     continue
                 
-                record.status = ResourceStatus.INITIALIZING
+                record.status = ComponentState.INITIALIZING
                 
                 try:
                     if hasattr(record.resource, 'initialize') and callable(record.resource.initialize):
@@ -285,20 +335,20 @@ class LifecycleManager:
                         result = True
                     
                     if result:
-                        record.status = ResourceStatus.INITIALIZED
+                        record.status = ComponentState.INITIALIZED
                         record.initialized_at = datetime.now()
                         results[name] = True
                         if self.event_bus_logger:
                             await self.event_bus_logger.debug("Ресурс '%s' успешно инициализирован", name)
                     else:
-                        record.status = ResourceStatus.FAILED
+                        record.status = ComponentState.FAILED
                         record.init_error = "initialize returned False"
                         results[name] = False
                         if self.event_bus_logger:
                             await self.event_bus_logger.error("Ресурс '%s' вернул False при инициализации", name)
                             
                 except Exception as e:
-                    record.status = ResourceStatus.FAILED
+                    record.status = ComponentState.FAILED
                     record.init_error = str(e)
                     results[name] = False
                     if self.event_bus_logger:
@@ -396,9 +446,9 @@ class LifecycleManager:
             for name in shutdown_order:
                 record = self._resources[name]
                 
-                if record.status == ResourceStatus.PENDING:
+                if record.status == ComponentState.PENDING:
                     # Ресурс не был инициализирован, пропускаем
-                    record.status = ResourceStatus.SHUTDOWN
+                    record.status = ComponentState.SHUTDOWN
                     results[name] = True
                     continue
                 
@@ -406,7 +456,7 @@ class LifecycleManager:
                     if hasattr(record.resource, 'shutdown') and callable(record.resource.shutdown):
                         await record.resource.shutdown()
                     
-                    record.status = ResourceStatus.SHUTDOWN
+                    record.status = ComponentState.SHUTDOWN
                     results[name] = True
                     
                     if self.event_bus_logger:
@@ -582,13 +632,43 @@ class LifecycleManager:
         """Количество инициализированных ресурсов."""
         return sum(
             1 for record in self._resources.values() 
-            if record.status == ResourceStatus.INITIALIZED
+            if record.status == ComponentState.INITIALIZED
         )
 
     @property
     def is_initialized(self) -> bool:
         """Статус инициализации менеджера."""
         return self._initialized
+
+    @property
+    def is_ready(self) -> bool:
+        """Готов к работе (все ресурсы инициализированы)."""
+        return self._initialized and self.initialized_count == self.resources_count
+
+    @property
+    def state(self) -> ComponentState:
+        """Общее состояние менеджера."""
+        if not self._initialized:
+            return ComponentState.CREATED
+        if self._shutdown_in_progress:
+            return ComponentState.SHUTDOWN
+        return ComponentState.READY
+
+    def get_components(self, component_type: ResourceType) -> List[Any]:
+        """Получение всех компонентов определённого типа."""
+        return self.get_resources_by_type(component_type)
+
+    def get_all_components(self) -> Dict[ResourceType, List[Any]]:
+        """Получение всех компонентов по типам."""
+        result: Dict[ResourceType, List[Any]] = {}
+        for record in self._resources.values():
+            if record.resource_type not in (ResourceType.LLM, ResourceType.DATABASE, ResourceType.VECTOR,
+                                             ResourceType.EMBEDDING, ResourceType.CACHE, ResourceType.STORAGE,
+                                             ResourceType.COLLECTOR, ResourceType.DISCOVERY):
+                if record.resource_type not in result:
+                    result[record.resource_type] = []
+                result[record.resource_type].append(record.resource)
+        return result
 
     # ==================== ВНУТРЕННИЕ МЕТОДЫ ====================
 

@@ -12,18 +12,38 @@ import asyncio
 
 class ComponentState(Enum):
     """
-    Состояния жизненного цикла компонента.
+    Состояния жизненного цикла компонента/ресурса.
     
     DIAGRAM:
     CREATED → INITIALIZING → READY → SHUTDOWN
                 ↓
               FAILED (при ошибке)
+    
+    PENDING/UNKNOWN - для совместимости с LifecycleManager
     """
     CREATED = "created"           # Экземпляр создан, не инициализирован
+    PENDING = "pending"           # Ожидает инициализации (для LifecycleManager)
     INITIALIZING = "initializing" # В процессе инициализации
+    INITIALIZED = "initialized"   # Успешно инициализирован (alias для READY)
     READY = "ready"               # Готов к работе
     FAILED = "failed"             # Ошибка инициализации
     SHUTDOWN = "shutdown"         # Завершён
+    UNKNOWN = "unknown"           # Статус неизвестен (для LifecycleManager)
+
+    @property
+    def is_ready_state(self) -> bool:
+        """Готов к работе (READY или INITIALIZED)."""
+        return self in (ComponentState.READY, ComponentState.INITIALIZED)
+    
+    @property
+    def is_initialized_state(self) -> bool:
+        """Был инициализирован (READY, INITIALIZED или SHUTDOWN)."""
+        return self in (ComponentState.READY, ComponentState.INITIALIZED, ComponentState.SHUTDOWN)
+    
+    @property
+    def is_failed_state(self) -> bool:
+        """Завершился ошибкой."""
+        return self == ComponentState.FAILED
 
 
 class LifecycleMixin:
