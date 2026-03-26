@@ -40,8 +40,9 @@ class ApplicationContext(BaseSystemContext):
     def __init__(
         self,
         infrastructure_context: InfrastructureContext,
-        config: Optional['AppConfig'] = None,  # Единая конфигурация приложения (может быть None для авто-создания)
-        profile: Literal["prod", "sandbox"] = "prod"  # Профиль работы
+        config: Optional['AppConfig'] = None,
+        profile: Literal["prod", "sandbox"] = "prod",
+        lifecycle_manager: Optional[Any] = None
     ):
         """
         Инициализация прикладного контекста.
@@ -50,11 +51,20 @@ class ApplicationContext(BaseSystemContext):
         - infrastructure_context: Инфраструктурный контекст (только для чтения!)
         - config: Единая конфигурация приложения (AppConfig). Если None, будет создана автоматически.
         - profile: Профиль работы ('prod' или 'sandbox')
+        - lifecycle_manager: Общий менеджер жизненного цикла (опционально)
         """
         from core.config.app_config import AppConfig
 
         self.id = str(uuid.uuid4())
         self.infrastructure_context = infrastructure_context  # Только для чтения!
+        
+        # Используем переданный lifecycle_manager или берём из infrastructure_context
+        if lifecycle_manager is not None:
+            self.lifecycle_manager = lifecycle_manager
+        elif hasattr(infrastructure_context, 'lifecycle_manager'):
+            self.lifecycle_manager = infrastructure_context.lifecycle_manager
+        else:
+            self.lifecycle_manager = None
         self.profile = profile  # "prod" или "sandbox"
         self._prompt_overrides: Dict[str, str] = {}  # Только для песочницы
 
@@ -260,9 +270,10 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.warning("ApplicationContext уже инициализирован")
             return True
 
-        # === Инициализация LifecycleManager ===
-        from core.infrastructure_context.lifecycle_manager import LifecycleManager
-        self.lifecycle_manager = LifecycleManager(self.infrastructure_context.event_bus)
+        # Используем общий LifecycleManager из InfrastructureContext
+        self.lifecycle_manager = self.infrastructure_context.lifecycle_manager
+        if not self.lifecycle_manager:
+            raise RuntimeError("InfrastructureContext.lifecycle_manager не инициализирован")
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
@@ -1530,15 +1541,7 @@ class ApplicationContext(BaseSystemContext):
         """
         self.logger.info("Завершение работы ApplicationContext...")
         
-        # Завершение компонентов через LifecycleManager
-        if self.lifecycle_manager:
-            try:
-                await self.lifecycle_manager.shutdown_all()
-                self.logger.info("LifecycleManager завершён")
-            except Exception as e:
-                self.logger.error(f"Ошибка при завершении LifecycleManager: {e}")
-        
-        # Завершение LLMOrchestrator
+        # LLMOrchestrator завершается (это локальный ресурс ApplicationContext)
         if self.llm_orchestrator:
             try:
                 await self.llm_orchestrator.shutdown()
@@ -1547,7 +1550,7 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.error(f"Ошибка при завершении LLMOrchestrator: {e}")
             self.llm_orchestrator = None
         
-        # Завершение DataRepository
+        # DataRepository завершается (это локальный ресурс ApplicationContext)
         if self.data_repository:
             try:
                 await self.data_repository.shutdown()
@@ -1555,5 +1558,5 @@ class ApplicationContext(BaseSystemContext):
             except Exception as e:
                 self.logger.error(f"Ошибка при завершении DataRepository: {e}")
         
-        self.lifecycle_manager = None
+        # LifecycleManager НЕ завершаем - это общий ресурс с InfrastructureContext
         self.logger.info("ApplicationContext завершён")
