@@ -15,7 +15,6 @@ from datetime import datetime
 
 from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
 from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
-from core.infrastructure_context.lifecycle_manager import LifecycleManager
 from core.infrastructure_context.resource_registry import ResourceRegistry
 from core.services.metrics_publisher import MetricsPublisher
 
@@ -190,8 +189,9 @@ class InfrastructureContext:
         await self.event_bus_logger.info("Обработчики логирования инициализированы")
         print("EventBusLogger инициализирован", flush=True)
 
-        # Инициализация менеджера жизненного цикла (нужен event_bus)
-        self.lifecycle_manager = LifecycleManager(self.event_bus)
+        # Инициализация сервиса жизненного цикла (синглтон)
+        from core.services.lifecycle_service import LifecycleService
+        self.lifecycle_manager = LifecycleService.get_instance(self.event_bus).manager
 
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
