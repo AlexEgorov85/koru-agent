@@ -108,14 +108,15 @@ class TerminalLogHandler:
     """
     Clean terminal log handler.
 
-    Displays only meaningful execution trace.
+    Displays only meaningful execution trace with icons.
     """
 
-    def __init__(self, event_bus: UnifiedEventBus, min_level: str = "INFO"):
+    def __init__(self, event_bus: UnifiedEventBus, min_level: str = "INFO", icons_only: bool = True):
         self.event_bus = event_bus
         self.formatter = TerminalLogFormatter()
         self._enabled = True
         self._min_level = min_level.upper()
+        self._icons_only = icons_only
         self._level_priority = {
             "DEBUG": 0,
             "INFO": 1,
@@ -151,6 +152,10 @@ class TerminalLogHandler:
             return
         
         message = self.formatter.format(event, level)
+
+        # Фильтрация: только сообщения с иконками
+        if self._icons_only and message and not any(char in message for char in "🧠🔧📊🤖❌ℹ️✅🚀🔄💾⏱️📋🧩"):
+            return
 
         if message:
             logger.info(message)
