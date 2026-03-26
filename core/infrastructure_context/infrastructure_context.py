@@ -189,9 +189,9 @@ class InfrastructureContext:
         await self.event_bus_logger.info("Обработчики логирования инициализированы")
         print("EventBusLogger инициализирован", flush=True)
 
-        # Инициализация сервиса жизненного цикла (синглтон)
-        from core.services.lifecycle_service import LifecycleService
-        self.lifecycle_manager = LifecycleService.get_instance(self.event_bus).manager
+        # Инициализация менеджера жизненного цикла
+        from core.infrastructure_context.lifecycle_manager import LifecycleManager
+        self.lifecycle_manager = LifecycleManager(self.event_bus)
 
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
