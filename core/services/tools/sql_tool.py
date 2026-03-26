@@ -14,6 +14,7 @@ from typing import Dict, Optional, Any
 from core.services.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+from core.utils.async_utils import safe_async_call
 
 
 @dataclass
@@ -185,16 +186,6 @@ class SQLTool(BaseTool):
                 }
 
         return output
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)
 
     def _is_write_operation(self, sql: str) -> bool:
         """Проверка является ли SQL операцией записи."""

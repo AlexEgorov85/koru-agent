@@ -1,7 +1,6 @@
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import VectorSearchError, InfrastructureError
 from core.services.skills.handlers.base_handler import BaseSkillHandler
@@ -220,19 +219,3 @@ class SemanticSearchHandler(BaseSkillHandler):
             "execution_time": total_time,
             "execution_type": "vector"
         }
-
-    def _validate_output(self, result: Dict[str, Any]) -> Any:
-        """
-        Валидация результата через выходной контракт.
-
-        ARGS:
-        - result: результат выполнения
-
-        RETURNS:
-        - Pydantic модель или dict
-        """
-        output_schema = self.get_output_schema()
-        if output_schema:
-            validated_result = output_schema.model_validate(result)
-            return validated_result
-        return result

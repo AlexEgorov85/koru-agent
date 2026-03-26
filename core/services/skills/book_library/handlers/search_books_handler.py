@@ -1,8 +1,6 @@
 import time
-from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from typing import Dict, Any
 
-from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import SQLGenerationError
 from core.services.skills.handlers.base_handler import BaseSkillHandler
@@ -86,36 +84,6 @@ class SearchBooksHandler(BaseSkillHandler):
 
         # 8. Валидация через выходной контракт
         return self._validate_output(result)
-
-    async def _extract_params(self, params: Dict[str, Any]) -> tuple:
-        """
-        Извлечение и валидация параметров.
-
-        ARGS:
-        - params: входные параметры (dict или Pydantic модель)
-
-        RETURNS:
-        - tuple: (query, max_results)
-        """
-        if isinstance(params, BaseModel):
-            query_val = getattr(params, 'query', '')
-            max_results_val = getattr(params, 'max_results', 10)
-        else:
-            input_schema = self.get_input_schema()
-            if input_schema:
-                try:
-                    validated_params = input_schema.model_validate(params)
-                    params = validated_params
-                    query_val = getattr(params, 'query', '')
-                    max_results_val = getattr(params, 'max_results', 10)
-                except Exception as e:
-                    await self.log_error(f"Ошибка валидации параметров: {e}")
-                    raise ValueError(f"Неверные параметры: {str(e)}")
-            else:
-                await self.log_error("Контракт book_library.search_books.input не загружен в кэш")
-                raise ValueError("Внутренняя ошибка: контракт не загружен")
-
-        return query_val, max_results_val
 
     async def _generate_sql(self, query: str) -> str:
         """
@@ -239,58 +207,3 @@ class SearchBooksHandler(BaseSkillHandler):
                 schema_parts.append(f'"{schema}"."{table}" (\n    {schema_map[table]}\n)')
 
         return ",\n\n".join(schema_parts)
-
-    async def _execute_sql(self, sql: str, max_rows: int) -> tuple:
-        """
-        Выполнение SQL запроса.
-
-        ARGS:
-        - sql: SQL запрос
-        - max_rows: максимальное количество строк
-
-        RETURNS:
-        - tuple: (rows, execution_time)
-        """
-        rows = []
-        execution_time = 0.0
-
-        try:
-            exec_context = ExecutionContext()
-            result = await self.executor.execute_action(
-                action_name="sql_query.execute",
-                parameters={
-                    "sql": sql,
-                    "parameters": {},
-                    "max_rows": max_rows
-                },
-                context=exec_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED and result.data:
-                rows = result.data.rows if hasattr(result.data, 'rows') else []
-                execution_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
-                await self.log_info(f"Найдено строк: {len(rows)}")
-            else:
-                raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")
-
-        except Exception as e:
-            await self.log_error(f"Ошибка выполнения SQL: {e}")
-            raise RuntimeError(f"Ошибка выполнения SQL запроса: {e}")
-
-        return rows, execution_time
-
-    def _validate_output(self, result: Dict[str, Any]) -> Any:
-        """
-        Валидация результата через выходной контракт.
-
-        ARGS:
-        - result: результат выполнения
-
-        RETURNS:
-        - Pydantic модель или dict
-        """
-        output_schema = self.get_output_schema()
-        if output_schema:
-            validated_result = output_schema.model_validate(result)
-            return validated_result
-        return result

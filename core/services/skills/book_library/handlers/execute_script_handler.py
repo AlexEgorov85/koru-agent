@@ -1,6 +1,5 @@
 import time
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
@@ -415,19 +414,3 @@ class ExecuteScriptHandler(BaseSkillHandler):
             raise
 
         return rows, execution_time
-
-    def _validate_output(self, result: Dict[str, Any]) -> Any:
-        """
-        Валидация результата через выходной контракт.
-
-        ARGS:
-        - result: результат выполнения
-
-        RETURNS:
-        - Pydantic модель или dict
-        """
-        output_schema = self.get_output_schema()
-        if output_schema:
-            validated_result = output_schema.model_validate(result)
-            return validated_result
-        return result

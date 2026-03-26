@@ -15,12 +15,12 @@ RESPONSIBILITIES:
 - Валидация входных/выходных данных через контракты
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Type, TYPE_CHECKING
+from typing import Dict, Any, Optional, Type, TYPE_CHECKING, Tuple
 
 from pydantic import BaseModel
 
 from core.models.data.capability import Capability
-from core.models.data.execution import ExecutionResult
+from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.logging import EventBusLogger
 
@@ -172,7 +172,7 @@ class BaseSkillHandler(ABC):
     def _validate_output(self, result: Dict[str, Any]) -> Any:
         """
         Валидация результата через выходной контракт.
-        
+
         RETURNS:
         - Валидированный результат (Pydantic модель или dict)
         """
@@ -180,3 +180,96 @@ class BaseSkillHandler(ABC):
         if output_schema:
             return output_schema.model_validate(result)
         return result
+
+    # === ОБЩИЕ МЕТОДЫ ДЛЯ УСТРАНЕНИЯ ДУБЛИРОВАНИЯ ===
+
+    def _extract_params(
+        self,
+        params: Dict[str, Any],
+        field_names: Tuple[str, ...] = ('query', 'max_results'),
+        defaults: Tuple[Any, ...] = ('', 10)
+    ) -> Tuple[Any, ...]:
+        """
+        Извлечение параметров из dict или Pydantic модели.
+
+        УНИВЕРСАЛЬНЫЙ МЕТОД — работает для всех хендлеров!
+
+        ARGS:
+        - params: входные параметры (dict или Pydantic модель)
+        - field_names: имена полей для извлечения (например, ('query', 'max_results'))
+        - defaults: значения по умолчанию для каждого поля
+
+        RETURNS:
+        - Tuple: значения извлеченных параметров в порядке field_names
+
+        RAISES:
+        - ValueError: если валидация не пройдена или контракт не загружен
+        """
+        if isinstance(params, BaseModel):
+            return tuple(getattr(params, name, default) for name, default in zip(field_names, defaults))
+        else:
+            input_schema = self.get_input_schema()
+            if input_schema:
+                try:
+                    validated_params = input_schema.model_validate(params)
+                    return tuple(
+                        getattr(validated_params, name, default)
+                        for name, default in zip(field_names, defaults)
+                    )
+                except Exception as e:
+                    raise ValueError(f"Ошибка валидации параметров: {e}")
+            else:
+                raise ValueError(
+                    f"Входной контракт для {self.capability_name} не загружен. "
+                    f"Убедитесь что компонент инициализирован корректно."
+                )
+
+    async def _execute_sql(
+        self,
+        sql: str,
+        max_rows: int = 50,
+        parameters: Optional[Dict[str, Any]] = None
+    ) -> Tuple[list, float]:
+        """
+        Выполнение SQL запроса через sql_query сервис.
+
+        УНИВЕРСАЛЬНЫЙ МЕТОД — работает для всех хендлеров!
+
+        ARGS:
+        - sql: SQL запрос для выполнения
+        - max_rows: максимальное количество возвращаемых строк
+        - parameters: параметры для параметризованного запроса
+
+        RETURNS:
+        - Tuple: (rows, execution_time)
+
+        RAISES:
+        - RuntimeError: если выполнение SQL завершилось с ошибкой
+        """
+        rows = []
+        execution_time = 0.0
+
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": sql,
+                    "parameters": parameters or {},
+                    "max_rows": max_rows
+                },
+                context=exec_context
+            )
+
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                execution_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
+                await self.log_info(f"Найдено строк: {len(rows)}")
+            else:
+                raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")
+
+        except Exception as e:
+            await self.log_error(f"Ошибка выполнения SQL: {e}")
+            raise RuntimeError(f"Ошибка выполнения SQL запроса: {e}")
+
+        return rows, execution_time

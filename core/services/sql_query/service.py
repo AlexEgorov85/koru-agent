@@ -6,6 +6,7 @@ from core.services.sql_generation.error_analyzer import SQLErrorAnalyzer
 from core.application_context.base_system_context import BaseSystemContext
 from core.models.schemas.sql_query_schemas import SQLQueryInput, SQLQueryOutput
 from core.application_context.application_context import ApplicationContext
+from core.utils.async_utils import safe_async_call
 
 
 class SQLQueryServiceInput(ServiceInput):
@@ -106,22 +107,12 @@ class SQLQueryService(BaseService):
         Здесь только бизнес-логика.
         """
         # Выполнение безопасного SQL-запроса (синхронное ожидание async метода)
-        result = self._safe_async_call(self.execute_query_from_user_request(
+        result = safe_async_call(self.execute_query_from_user_request(
             user_question=parameters.get("user_question", ""),
             tables=parameters.get("tables", []),
             max_rows=parameters.get("max_rows", 50)
         ))
         return {"query_result": result, "capability": capability.name}
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)
 
     async def execute_query(
         self,

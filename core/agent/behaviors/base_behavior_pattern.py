@@ -18,6 +18,7 @@ from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
 from core.agent.components.base_component import BaseComponent
 from core.config.component_config import ComponentConfig
+from core.utils.async_utils import safe_async_call
 
 if typing.TYPE_CHECKING:
     from core.application_context.application_context import ApplicationContext
@@ -537,8 +538,8 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         available_capabilities = execution_context.available_capabilities if hasattr(execution_context, 'available_capabilities') else []
 
         # Анализируем контекст и генерируем решение (синхронное ожидание async методов)
-        context_analysis = self._safe_async_call(self.analyze_context(session_context, available_capabilities))
-        decision = self._safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis, execution_context))
+        context_analysis = safe_async_call(self.analyze_context(session_context, available_capabilities))
+        decision = safe_async_call(self.generate_decision(session_context, available_capabilities, context_analysis, execution_context))
 
         # Возвращаем решение в виде словаря
         return {
@@ -547,13 +548,3 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
             "parameters": decision.parameters,
             "reasoning": decision.reasoning
         }
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)

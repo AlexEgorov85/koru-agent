@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from core.models.enums.common_enums import ComponentType
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
 from abc import ABC
+from core.utils.async_utils import safe_async_call
 
 
 # Конкретная реализация ServiceOutput для SQLGenerationService
@@ -133,31 +134,9 @@ class SQLGenerationService(BaseService):
         Здесь только бизнес-логика.
         """
         # Генерация SQL-запроса на основе параметров (синхронное ожидание)
-        result = self._safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
+        result = safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
         from dataclasses import asdict
         return asdict(result)
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        
-        # Проверяем есть ли running loop
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # Нет loop → используем asyncio.run()
-            return asyncio.run(coro)
-        
-        # Есть running loop → мы внутри async функции
-        # Используем asyncio.create_task() и ждём результат
-        # Это работает только если мы в том же event loop
-        async def wait_for_coro():
-            task = asyncio.create_task(coro)
-            return await asyncio.wait_for(task, timeout=timeout)
-        
-        # Запускаем в том же loop через call_soon_threadsafe
-        future = asyncio.run_coroutine_threadsafe(wait_for_coro(), loop)
-        return future.result(timeout=timeout)
 
     async def restart(self) -> bool:
         """

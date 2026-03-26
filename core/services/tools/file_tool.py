@@ -15,6 +15,7 @@ import aiofiles
 from core.services.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+from core.utils.async_utils import safe_async_call
 
 
 class FileToolInput(ToolInput):
@@ -136,14 +137,14 @@ class FileTool(BaseTool):
 
         # Выполняем файловые операции (синхронное ожидание async методов)
         if operation == "read":
-            result = self._safe_async_call(self._read_file(requested_path))
+            result = safe_async_call(self._read_file(requested_path))
         elif operation == "write":
             content = input_data.content or ""
-            result = self._safe_async_call(self._write_file(requested_path, content))
+            result = safe_async_call(self._write_file(requested_path, content))
         elif operation == "delete":
-            result = self._safe_async_call(self._delete_file(requested_path))
+            result = safe_async_call(self._delete_file(requested_path))
         elif operation == "list":
-            result = self._safe_async_call(self._list_directory(requested_path.parent if requested_path.is_file() else requested_path))
+            result = safe_async_call(self._list_directory(requested_path.parent if requested_path.is_file() else requested_path))
         else:
             result = {
                 "success": False,
@@ -151,16 +152,6 @@ class FileTool(BaseTool):
             }
 
         return result
-
-    def _safe_async_call(self, coro, timeout=30.0):
-        """Безопасный вызов async из sync контекста."""
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=timeout)
-        except RuntimeError:
-            return asyncio.run(coro)
 
     async def _read_file(self, path: Path) -> Dict[str, Any]:
         """Чтение содержимого файла (асинхронно)."""
