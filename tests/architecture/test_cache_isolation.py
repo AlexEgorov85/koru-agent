@@ -78,7 +78,6 @@ async def test_infrastructure_shared_between_agents(infra):
     assert ctx1.infrastructure_context is ctx2.infrastructure_context
     # Проверяем, что resource_registry один и тот же (общий доступ к ресурсам)
     assert id(ctx1.infrastructure_context.resource_registry) == id(ctx2.infrastructure_context.resource_registry)
-    print("[PASS] Инфраструктура общая между агентами")
 
 
 @pytest.mark.asyncio
@@ -94,7 +93,6 @@ async def test_application_context_isolated(infra):
     # Контексты должны быть разными объектами
     assert ctx1 is not ctx2
     assert id(ctx1.components) != id(ctx2.components)
-    print("✅ ApplicationContext изолирован между агентами")
 
 
 @pytest.mark.asyncio
@@ -115,7 +113,6 @@ async def test_prompt_cache_isolated(app_context_pair):
     if hasattr(prompt_service1, 'prompts') and hasattr(prompt_service2, 'prompts'):
         assert id(prompt_service1.prompts) != id(prompt_service2.prompts)
 
-    print("[PASS] Кэши промптов изолированы")
 
 
 @pytest.mark.asyncio
@@ -134,4 +131,3 @@ async def test_contract_cache_isolated(app_context_pair):
     # Кэши должны быть разными объектами (изолированными)
     assert id(contract_service1.contracts) != id(contract_service2.contracts)
 
-    print("[PASS] Кэши контрактов изолированы")

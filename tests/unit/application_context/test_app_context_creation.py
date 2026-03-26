@@ -18,7 +18,6 @@ async def test_application_context_creation():
     # Создаем инфраструктурный контекст
     infra = InfrastructureContext(system_config)
     await infra.initialize()
-    print('InfrastructureContext инициализирован')
     
     # Создаем AppConfig с минимальной конфигурацией
     app_config = AppConfig(
@@ -38,23 +37,17 @@ async def test_application_context_creation():
     
     # Инициализируем прикладной контекст
     success = await app_context.initialize()
-    print(f'ApplicationContext инициализирован: {success}')
     
     # Проверим, что у нас есть изолированные сервисы через новый API
     prompt_service = app_context.get_service("prompt_service")
     contract_service = app_context.get_service("contract_service")
-    print(f'PromptService создан: {prompt_service is not None}')
-    print(f'ContractService создан: {contract_service is not None}')
 
     # Проверим, что у нас есть изолированные инструменты через новый API
     from core.application_context.application_context import ComponentType
     tools = app_context.components.all_of_type(ComponentType.TOOL)
-    print(f'Инструменты созданы: {len(tools)}')
 
     # Проверим, что кэши изолированы
-    print(f'PromptService кэш изолирован: {hasattr(prompt_service, "_cached_prompts") if prompt_service else False}')
     
-    print('Тест создания ApplicationContext завершен успешно!')
 
 # Запускаем тест
 asyncio.run(test_application_context_creation())

@@ -6,7 +6,6 @@ from core.models.types.llm_types import LLMRequest
 
 async def test_llm_request_stop_sequences():
     """Тестирование LLMRequest с полем stop_sequences"""
-    print("Тестирование LLMRequest с полем stop_sequences...")
     
     # Создаем LLMRequest с полем stop_sequences
     request = LLMRequest(
@@ -16,10 +15,6 @@ async def test_llm_request_stop_sequences():
         stop_sequences=["END", "STOP", "CONCLUSION"]
     )
     
-    print(f"Prompt: {request.prompt}")
-    print(f"Max tokens: {request.max_tokens}")
-    print(f"Temperature: {request.temperature}")
-    print(f"Stop sequences: {request.stop_sequences}")
     
     # Проверяем, что поле stop_sequences корректно установлено
     assert request.stop_sequences == ["END", "STOP", "CONCLUSION"], f"Ожидалось ['END', 'STOP', 'CONCLUSION'], получено {request.stop_sequences}"
@@ -31,10 +26,8 @@ async def test_llm_request_stop_sequences():
         temperature=0.7
     )
     
-    print(f"Stop sequences по умолчанию: {request_default.stop_sequences}")
     assert request_default.stop_sequences is None, f"Ожидалось None, получено {request_default.stop_sequences}"
     
-    print("✓ Все тесты LLMRequest пройдены успешно!")
 
 # Запускаем тест
 asyncio.run(test_llm_request_stop_sequences())

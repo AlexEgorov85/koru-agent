@@ -61,4 +61,3 @@ async def test_full_architecture_cycle():
         assert hasattr(app_ctx.data_repository, '_manifest_cache')
     
     await infra.shutdown()
-    print("[PASS] E2E тест архитектуры пройден")

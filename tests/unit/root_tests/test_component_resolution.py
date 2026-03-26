@@ -17,7 +17,6 @@ from core.models.data.contract import ComponentType
 
 def test_component_resolution(fake_infra_context):
     """Тестируем разрешение классов компонентов"""
-    print("=== Тестирование разрешения классов компонентов ===")
 
     # Создаем минимальную конфигурацию
     app_config = AppConfig(config_id="test")
@@ -38,18 +37,14 @@ def test_component_resolution(fake_infra_context):
         ("sql_validator_service", ComponentType.SERVICE),
     ]
 
-    print("Проверка разрешения классов компонентов:")
     for name, comp_type in test_components:
         try:
             cls = app_context._resolve_component_class(comp_type, name)
-            print(f"[OK] {name}: {cls.__name__}")
         except Exception as e:
-            print(f"[FAIL] {name}: {e}")
 
 
 def test_minimal_config(fake_infra_context):
     """Тестирование с минимальной конфигурацией"""
-    print("\n=== Тестирование минимальной конфигурации ===")
 
     fake_infra = fake_infra_context
 
@@ -62,6 +57,3 @@ def test_minimal_config(fake_infra_context):
         profile="prod"
     )
 
-    print("ApplicationContext создан с минимальной конфигурацией")
-    print(f"Config ID: {app_context.config.config_id}")
-    print(f"Profile: {app_context.profile}")

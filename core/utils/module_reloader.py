@@ -38,9 +38,6 @@ class ModuleReloader:
             # Получаем имя модуля
             module_name = component_class.__module__
 
-            print(f"[WARNING] Попытка перезагрузки модуля {module_name} для компонента {component_class.__name__}")
-
-            # Получаем модуль
             module = sys.modules.get(module_name)
             if not module:
                 raise ValueError(f"Модуль {module_name} не найден в sys.modules")
@@ -61,8 +58,6 @@ class ModuleReloader:
             constructor_args = ModuleReloader._get_constructor_args(component_instance)
             
             new_instance = reloaded_class(**constructor_args)
-
-            print(f"[INFO] Модуль {module_name} успешно перезагружен, создан новый экземпляр {reloaded_class.__name__}")
 
             return new_instance
 
@@ -98,5 +93,4 @@ def safe_reload_component_with_module_reload(component_instance: Any) -> Any:
     try:
         return ModuleReloader.reload_module_for_component(component_instance)
     except Exception as e:
-        print(f"[ERROR] Безопасная перезагрузка модуля не удалась, возвращаем оригинальный экземпляр: {str(e)}")
         return component_instance

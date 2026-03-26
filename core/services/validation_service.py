@@ -52,8 +52,6 @@ class ValidationService:
     result = service.validate(MySchema, {"field": "value"})
     if result.is_valid:
         data = result.validated_data.field
-    else:
-        print(f"Ошибка: {result.error}")
     
     # Быстрая проверка
     if service.is_valid(MySchema, data):

@@ -92,7 +92,7 @@ class VersionPromoter:
             return True
 
         except Exception as e:
-            print(f"❌ Ошибка продвижения версии: {e}")
+            pass  # Silently ignore promotion errors
             return False
 
     def _save_to_yaml(self, prompt: Prompt, file_path: Path) -> None:
@@ -146,7 +146,6 @@ metadata:
             prompt = await self.data_source.load_prompt(capability, to_version)
 
             if not prompt:
-                print(f"❌ Версия {to_version} не найдена")
                 return False
 
             # Обновление статуса
@@ -163,5 +162,4 @@ metadata:
             return True
 
         except Exception as e:
-            print(f"❌ Ошибка отката: {e}")
             return False

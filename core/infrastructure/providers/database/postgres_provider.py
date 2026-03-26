@@ -191,11 +191,10 @@ class PostgreSQLProvider(BaseDBProvider):
                         # Если параметры переданы как список или кортеж, передаем напрямую
                         # Конвертируем %s в $1, $2, ... для asyncpg
                         converted_query = query
-                        print(f"[DEBUG] Before conversion: {converted_query[:200]}", flush=True)
                         for i in range(len(params)):
                             converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                            print(f"[DEBUG] After replacing {i+1}: {converted_query[:200]}", flush=True)
-                        print(f"[DEBUG] Final query: {converted_query[:200]}", flush=True)
+                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query[:200]}")
+                        await self.event_bus_logger.debug(f"Final query: {converted_query[:200]}")
                         result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров
@@ -229,8 +228,8 @@ class PostgreSQLProvider(BaseDBProvider):
         try:
             async with self.pool.acquire() as conn:
                 # [DB_DEBUG] 3.2. Выполнение запроса
-                print(f"[DB_DEBUG] Выполнение SQL: {query[:300]}", flush=True)
-                print(f"[DB_DEBUG] Params: {params}, type: {type(params)}", flush=True)
+                await self.event_bus_logger.debug(f"Выполнение SQL: {query[:300]}")
+                await self.event_bus_logger.debug(f"Params: {params}, type: {type(params)}")
                 
                 await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
 
@@ -265,11 +264,10 @@ class PostgreSQLProvider(BaseDBProvider):
                         # Если параметры переданы как список или кортеж, передаем напрямую
                         # Конвертируем %s в $1, $2, ... для asyncpg
                         converted_query = query
-                        print(f"[DEBUG] Before conversion: {converted_query[:200]}", flush=True)
                         for i in range(len(params)):
                             converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                            print(f"[DEBUG] After replacing {i+1}: {converted_query[:200]}", flush=True)
-                        print(f"[DEBUG] Final query: {converted_query[:200]}", flush=True)
+                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query[:200]}")
+                        await self.event_bus_logger.debug(f"Final query: {converted_query[:200]}")
                         result = await conn.fetch(converted_query, *params)
                     else:
                         # В противном случае, передаем без параметров

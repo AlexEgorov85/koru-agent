@@ -46,7 +46,6 @@ class TestSqlToolRead:
         assert "rows" in result.data
         assert len(result.data["rows"]) <= 5
 
-        print(f"[OK] SELECT вернул {len(result.data['rows'])} строк")
 
     @pytest.mark.asyncio
     async def test_select_with_parameters(self, app_context, session_context):
@@ -81,7 +80,6 @@ class TestSqlToolRead:
         for row in result.data["rows"]:
             assert "Пушкин" in row.get("author", ""), f"Неверный автор: {row.get('author')}"
 
-        print(f"[OK] Найдено {len(result.data['rows'])} книг Пушкина")
 
 
 class TestSqlToolWrite:
@@ -134,7 +132,6 @@ class TestSqlToolWrite:
         assert verify_result.status.value == "completed"
         assert len(verify_result.data["rows"]) == 1, "Запись не найдена в транзакции"
 
-        print("[OK] INSERT выполнен (будет откачен после теста)")
 
     @pytest.mark.asyncio
     async def test_update_with_rollback(self, app_context, session_context, db_transaction):
@@ -182,7 +179,6 @@ class TestSqlToolWrite:
         assert verify_result.status.value == "completed"
         assert verify_result.data["rows"][0]["title"] == "Обновлённое название"
 
-        print("[OK] UPDATE выполнен (будет откачен после теста)")
 
 
 if __name__ == "__main__":

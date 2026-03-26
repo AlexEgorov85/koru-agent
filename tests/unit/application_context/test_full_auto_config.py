@@ -15,7 +15,6 @@ from core.application_context.application_context import ApplicationContext
 
 async def test_full_auto_config():
     """Полный тест автоматической генерации конфигурации"""
-    print("=== Полный тест автоматической генерации конфигурации ===")
 
     # Создаем временную директорию для данных
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -177,38 +176,28 @@ async def test_full_auto_config():
         infra = InfrastructureContext(system_config)
         await infra.initialize()
         
-        print("Инфраструктурный контекст инициализирован")
         
         # Тестируем автоматическую генерацию конфигурации для продакшена
-        print("\n1. Тестирование автоматической генерации конфигурации для продакшена...")
         prod_context = await ApplicationContext.create_prod_auto(infra, profile="prod")
         
-        print(f"   Prompt versions в автосгенерированной конфигурации: {prod_context.config.prompt_versions}")
-        print(f"   Contract versions: {prod_context.config.contract_versions}")
         
         # Проверяем, что в продакшене есть только активные версии
         expected_active_prompts = {"planning": "v1.0.0", "book_library": "v2.0.0"}
         for capability, expected_version in expected_active_prompts.items():
             if capability in prod_context.config.prompt_versions:
                 actual_version = prod_context.config.prompt_versions[capability]
-                print(f"   - {capability}: {actual_version} (ожидалось {expected_version}) - {'V' if actual_version == expected_version else 'X'}")
             else:
-                print(f"   - {capability}: отсутствует (✗)")
         
         success = await prod_context.initialize()
-        print(f"   Продакшен контекст с автосгенерированной конфигурацией: {success}")
         
         if success:
             # Проверяем, что можно получить промпты
             for capability in prod_context.config.prompt_versions.keys():
                 try:
                     prompt = prod_context.get_prompt(capability)
-                    print(f"   - Промпт {capability}: {prompt[:30]}...")
                 except Exception as e:
-                    print(f"   - Ошибка получения промпта {capability}: {e}")
         
         # Тестируем песочницу с ручной конфигурацией
-        print("\n2. Тестирование песочницы с ручной конфигурацией...")
         from core.config.app_config import AppConfig
         sandbox_config = AppConfig(
             prompt_versions={"planning": "v1.0.0"},  # активная версия
@@ -228,7 +217,6 @@ async def test_full_auto_config():
         sandbox_context.set_prompt_override("planning", "v1.1.0")
         
         success = await sandbox_context.initialize()
-        print(f"   Песочница с ручной конфигурацией и оверрайдом: {success}")
         
         if success:
             # В новой архитектуре получение промптов работает через PromptService
@@ -237,14 +225,10 @@ async def test_full_auto_config():
             if prompt_service:
                 try:
                     prompt = await prompt_service.render("planning", {})
-                    print(f"   - Промпт в песочнице (должен быть v1.1.0): {prompt[:30]}...")
                 except Exception as e:
-                    print(f"   - Ошибка получения промпта в песочнице: {e}")
             else:
-                print("   - PromptService недоступен в песочнице")
         
         # Тестируем продакшен с попыткой использовать черновик (должно отклонить)
-        print("\n3. Тестирование продакшена с черновиком (должно отклонить)...")
         try:
             bad_config = AgentConfig(
                 prompt_versions={"planning": "v1.1.0"},  # черновик
@@ -258,14 +242,11 @@ async def test_full_auto_config():
             )
             
             success = await bad_prod_context.initialize()
-            print(f"   Продакшен с черновиком: {success} (должно быть False)")
         except Exception as e:
-            print(f"   Продакшен с черновиком отклонен: {e}")
         
         # Завершаем инфраструктурный контекст
         await infra.shutdown()
         
-        print("\n=== Полный тест автоматической генерации завершен ===")
 
 
 if __name__ == "__main__":

@@ -4,9 +4,12 @@
 """
 
 import time
+import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult
@@ -38,7 +41,7 @@ class BaseDBProvider(BaseProvider, ABC):
     result = await provider.execute("SELECT * FROM users WHERE id = $1", [user_id])
     if result.success:
         for row in result.rows:
-            print(row)
+            pass  # Process row
     """
 
     def __init__(self, config: Union[Dict[str, Any], DBConnectionConfig]):

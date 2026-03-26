@@ -19,13 +19,9 @@ from core.config.logging_config import FileConfig, LogLevel, LogFormat
 
 async def test_logging():
     """Тестирование системы логирования."""
-    print("=" * 60)
-    print("ТЕСТ НОВОЙ СИСТЕМЫ ЛОГИРОВАНИЯ")
-    print("=" * 60)
 
     # Создание EventBus
     event_bus = UnifiedEventBus()
-    print("[OK] EventBus создан")
 
     # Настройка конфигурации
     log_config = LoggingConfig(
@@ -43,7 +39,6 @@ async def test_logging():
 
     # Настройка обработчиков
     terminal_handler, file_handler = setup_logging(event_bus, log_config)
-    print("[OK] Обработчики настроены (терминал + файлы)")
     
     # Создание логгера
     logger = EventBusLogger(
@@ -52,12 +47,8 @@ async def test_logging():
         agent_id="test_agent",
         component="TestLogger"
     )
-    print("[OK] EventBusLogger создан")
     
     # Тестовые сообщения
-    print("\n" + "=" * 60)
-    print("ОТПРАВКА ТЕСТОВЫХ СООБЩЕНИЙ")
-    print("=" * 60 + "\n")
     
     await logger.info("INFO: Тестовое сообщение")
     await logger.debug("DEBUG: Отладочная информация")
@@ -95,28 +86,19 @@ async def test_logging():
     
     # Закрытие
     shutdown_logging(file_handler)
-    print("\n[OK] Обработчики закрыты")
     
     # Проверка файлов
     test_logs_dir = Path("logs/test_sessions")
     if test_logs_dir.exists():
-        print(f"\n[OK] Директория логов создана: {test_logs_dir}")
 
         # Список файлов
         files = list(test_logs_dir.rglob("*.log"))
         if files:
-            print(f"[OK] Файлов создано: {len(files)}")
             for f in files:
                 size = f.stat().st_size
-                print(f"  - {f.relative_to(test_logs_dir)} ({size} байт)")
         else:
-            print("[WARN] Файлы не созданы!")
     else:
-        print("[WARN] Директория логов не создана!")
     
-    print("\n" + "=" * 60)
-    print("ТЕСТ ЗАВЕРШЕН")
-    print("=" * 60)
 
 
 if __name__ == "__main__":

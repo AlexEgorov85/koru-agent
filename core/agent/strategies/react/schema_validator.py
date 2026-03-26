@@ -170,12 +170,11 @@ class SchemaValidator:
         """
         logger = logging.getLogger(__name__)
 
-        # [PARAM_DEBUG] 1. Входные параметры
-        print(f"[PARAM_DEBUG] validate_parameters: capability={capability.name}", flush=True)
-        print(f"[PARAM_DEBUG] raw_params={raw_params}", flush=True)
+        logger.debug(f"[PARAM_DEBUG] validate_parameters: capability={capability.name}")
+        logger.debug(f"[PARAM_DEBUG] raw_params={raw_params}")
 
         if not capability or not raw_params:
-            print(f"[PARAM_DEBUG] capability или raw_params пустые", flush=True)
+            logger.debug(f"[PARAM_DEBUG] capability или raw_params пустые")
             return None
 
         # Получаем схему из кэша по имени capability
@@ -222,7 +221,7 @@ class SchemaValidator:
                 logger.error(f"Обязательный параметр {param_name} отсутствует")
                 has_error = True
 
-        print(f"[PARAM_DEBUG] validated_params={validated_params}", flush=True)
+        logger.debug(f"[PARAM_DEBUG] validated_params={validated_params}")
 
         if has_error:
             return None

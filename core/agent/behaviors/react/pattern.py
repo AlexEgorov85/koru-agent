@@ -347,9 +347,6 @@ class ReActPattern(BaseBehaviorPattern):
             # Используем безопасный доступ к event_bus_logger
             if self.event_bus_logger:
                 self.event_bus_logger.error_sync(error_msg)
-            else:
-                # Fallback: print если logger ещё не инициализирован
-                print(f"❌ [ReAct] {error_msg}", flush=True)
             raise RuntimeError(error_msg)
 
         # Делегируем сервису с передачей session_context
@@ -439,15 +436,17 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities,
                 execution_context=execution_context
             )
-            # Логирование результата рассуждения
-            print(f"🔵 [generate_decision] reasoning_result тип={type(reasoning_result).__name__}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.info(f"reasoning_result тип={type(reasoning_result).__name__}")
             if hasattr(reasoning_result, 'to_dict'):
                 d = reasoning_result.to_dict()
-                print(f"🔵 [generate_decision] to_dict() decision={d.get('decision')}", flush=True)
-                print(f"🔵 [generate_decision] to_dict() stop_condition={d.get('stop_condition')}", flush=True)
+                if self.event_bus_logger:
+                    self.event_bus_logger.info(f"to_dict() decision={d.get('decision')}")
+                    self.event_bus_logger.info(f"to_dict() stop_condition={d.get('stop_condition')}")
             elif isinstance(reasoning_result, dict):
-                print(f"🔵 [generate_decision] reasoning_result.decision={reasoning_result.get('decision', {})}", flush=True)
-                print(f"🔵 [generate_decision] reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}", flush=True)
+                if self.event_bus_logger:
+                    self.event_bus_logger.info(f"reasoning_result.decision={reasoning_result.get('decision', {})}")
+                    self.event_bus_logger.info(f"reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}")
 
             # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
@@ -456,7 +455,8 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities  # КРИТИЧНО: передаём available_capabilities
             )
 
-            print(f"🔵 [generate_decision] decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.info(f"decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}")
 
             # Логирование финального решения
             await self._log("info", f"generate_decision: decision получен",
@@ -468,7 +468,8 @@ class ReActPattern(BaseBehaviorPattern):
             # 3. Сброс счётчика ошибок при успешном решении
             self.error_count = 0
 
-            print(f"🔵 [generate_decision] Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
 
             return decision
             
@@ -587,8 +588,8 @@ class ReActPattern(BaseBehaviorPattern):
         """Принимает решение о следующем действии на основе анализа контекста."""
 
         try:
-            # 🔵 ОТЛАДКА: Проверяем тип reasoning_result
-            print(f"🔵 [_make_decision] reasoning_result type={type(reasoning_result).__name__}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.info(f"reasoning_result type={type(reasoning_result).__name__}")
 
             # Определяем accessor functions в зависимости от типа
             if isinstance(reasoning_result, dict):
@@ -696,8 +697,8 @@ class ReActPattern(BaseBehaviorPattern):
                 model_dump if isinstance(model_dump, dict) else {}
             )
 
-            # 5. Возвращаем решение с ЗАПОЛНЕННЫМ capability_name
-            print(f"✅ [_make_decision] Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.info(f"Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}")
             
             # КРИТИЧНО: Помечаем final_answer.generate как финальный шаг
             is_final = (capability_name == "final_answer.generate")
@@ -711,7 +712,8 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
         except Exception as e:
-            print(f"❌ [_make_decision] Исключение: {e}", flush=True)
+            if self.event_bus_logger:
+                self.event_bus_logger.error(f"_make_decision_from_reasoning: ошибка: {e}")
             await self._log("error", f"_make_decision_from_reasoning: ошибка",
                            error=str(e),
                            exc_info=True)

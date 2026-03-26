@@ -89,10 +89,8 @@ class StressTestResult:
 
         # Проверка 1: Нет потери событий
         if self.total_events_received != self.total_events_published:
-            print(f"[FAIL] ПОТЕРЯ СОБЫТИЙ: опубликовано={self.total_events_published}, получено={self.total_events_received}")
             all_valid = False
         else:
-            print(f"[OK] Все события получены: {self.total_events_received}/{self.total_events_published}")
 
         # Проверка 2: Порядок внутри сессии
         for session_id, events in self.events_received.items():
@@ -100,60 +98,34 @@ class StressTestResult:
             expected = list(range(1, len(events) + 1))
 
             if sequence_numbers != expected:
-                print(f"[FAIL] НАРУШЕН ПОРЯДОК в сессии {session_id}:")
-                print(f"   Ожидалось: {expected[:10]}...")
-                print(f"   Получено:  {sequence_numbers[:10]}...")
                 all_valid = False
 
         if all_valid:
-            print("[OK] Порядок внутри всех сессий сохранён")
 
         # Проверка 3: Нет interleaving (sequence_number уникален внутри сессии)
         for session_id, events in self.events_received.items():
             sequence_numbers = [e.sequence_number for e in events]
             if len(sequence_numbers) != len(set(sequence_numbers)):
-                print(f"[FAIL] INTERLEAVING в сессии {session_id}: дубликаты sequence_number")
                 all_valid = False
 
         if all_valid:
-            print("[OK] Нет interleaving между сессиями")
 
         # Проверка 4: Нет ошибок
         if self.errors:
-            print(f"[FAIL] ОШИБКИ ({len(self.errors)}):")
             for error in self.errors[:5]:
-                print(f"   - {error}")
             all_valid = False
         else:
-            print("[OK] Нет ошибок в обработчиках")
 
         return all_valid
 
     def print_summary(self):
         """Вывод сводки."""
-        print("\n" + "="*70)
-        print("[SUMMARY] СВОДКА СТРЕСС-ТЕСТА")
-        print("="*70)
-        print(f"Агентов:              {NUM_AGENTS}")
-        print(f"Сессий на агент:      {SESSIONS_PER_AGENT}")
-        print(f"Событий на сессию:    {EVENTS_PER_SESSION}")
-        print(f"Всего опубликовано:   {self.total_events_published}")
-        print(f"Всего получено:       {self.total_events_received}")
-        print(f"Длительность:         {self.duration:.2f} сек")
         if self.duration > 0:
-            print(f"Событий/сек:          {self.total_events_received / self.duration:.1f}")
         else:
-            print("Событий/сек:          N/A")
-        print(f"Активных сессий:      {len(self.events_received)}")
-        print(f"Ошибок:               {len(self.errors)}")
-        print("="*70)
 
 
 async def run_stress_test():
     """Запуск стресс-теста."""
-    print("\n" + "="*70)
-    print("[TEST] СТРЕСС-ТЕСТ EVENT BUS (ФАЗА 1)")
-    print("="*70)
 
     # Создаём EventBus
     event_bus = create_event_bus(
@@ -239,9 +211,6 @@ async def run_stress_test():
 
 async def test_backpressure():
     """Тест backpressure при переполнении очереди."""
-    print("\n" + "="*70)
-    print("[TEST] BACKPRESSURE")
-    print("="*70)
 
     # Создаём EventBus с маленькой очередью
     event_bus = create_event_bus(
@@ -261,7 +230,6 @@ async def test_backpressure():
         nonlocal overflow_detected
         if event.event_type == EventType.QUEUE_OVERFLOW.value:
             overflow_detected = True
-            print(f"✔ QUEUE_OVERFLOW обнаружен: {event.data}")
 
     event_bus.subscribe_all(slow_subscriber)
     event_bus.subscribe(EventType.QUEUE_OVERFLOW, on_overflow)
@@ -282,18 +250,13 @@ async def test_backpressure():
     await event_bus.shutdown()
 
     if overflow_detected:
-        print("[OK] Backpressure работает корректно")
         return True
     else:
-        print("[WARN] Backpressure не сработал (возможно очередь успевала обрабатываться)")
         return True  # Не считаем это ошибкой
 
 
 async def test_subscriber_isolation():
     """Тест изоляции подписчиков (ошибка не валит EventBus)."""
-    print("\n" + "="*70)
-    print("[TEST] SUBSCRIBER ISOLATION")
-    print("="*70)
 
     event_bus = create_event_bus()
 
@@ -334,22 +297,15 @@ async def test_subscriber_isolation():
     await asyncio.sleep(2)
     await event_bus.shutdown()
 
-    print(f"Успешных обработок: {success_count}")
-    print(f"Ошибок в подписчиках: {error_count}")
 
     if success_count == 10 and error_count == 10:
-        print("[OK] Subscriber isolation работает корректно")
         return True
     else:
-        print("[FAIL] Subscriber isolation нарушен")
         return False
 
 
 async def test_worker_lifecycle():
     """Тест жизненного цикла worker'ов."""
-    print("\n" + "="*70)
-    print("[TEST] WORKER LIFECYCLE")
-    print("="*70)
 
     event_bus = create_event_bus(
         worker_idle_timeout=2.0  # Короткий таймаут
@@ -364,7 +320,6 @@ async def test_worker_lifecycle():
             EventType.WORKER_IDLE.value
         ]:
             worker_events.append((event.event_type, event.data))
-            print(f"  {event.event_type}: {event.data}")
 
     event_bus.subscribe_all(on_worker_event)
 
@@ -378,7 +333,6 @@ async def test_worker_lifecycle():
         )
 
     # Ждём idle timeout
-    print("  Ожидание idle timeout...")
     await asyncio.sleep(4)
 
     await event_bus.shutdown()
@@ -388,10 +342,8 @@ async def test_worker_lifecycle():
     closed = any(e[0] == EventType.WORKER_CLOSED.value for e in worker_events)
 
     if created and closed:
-        print("[OK] Worker lifecycle работает корректно")
         return True
     else:
-        print(f"[FAIL] Worker lifecycle нарушен (created={created}, closed={closed})")
         return False
 
 
@@ -413,24 +365,17 @@ async def main():
     results.append(("Worker Lifecycle", await test_worker_lifecycle()))
 
     # Итоговый отчёт
-    print("\n" + "="*70)
-    print("[REPORT] ИТОГОВЫЙ ОТЧЁТ")
-    print("="*70)
 
     all_passed = True
     for test_name, passed in results:
         status = "[PASS]" if passed else "[FAIL]"
-        print(f"{status}: {test_name}")
         if not passed:
             all_passed = False
 
-    print("="*70)
 
     if all_passed:
-        print("\n[SUCCESS] ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
         return 0
     else:
-        print("\n[FAILURE] НЕКОТОРЫЕ ТЕСТЫ НЕ ПРОЙДЕНЫ")
         return 1
 
 

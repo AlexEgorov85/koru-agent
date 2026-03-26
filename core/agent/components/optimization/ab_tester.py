@@ -67,7 +67,6 @@ class ABTester:
     )
     
     if result.winner == 'B':
-        print(f"Новая версия лучше на {result.improvements['success_rate']:.1f}%")
     ```
     """
 

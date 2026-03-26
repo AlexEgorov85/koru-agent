@@ -6,8 +6,11 @@ import asyncio
 import time
 import json
 import re
+import logging
 from typing import Dict, Any, Optional, Type, List
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
@@ -324,26 +327,24 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         if hasattr(request, 'structured_output') and request.structured_output:
             max_tokens = min(request.max_tokens, 1000)
             msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
-            print(msg, flush=True)
+            logger.info(msg)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(msg)
 
-            # Добавляем схему в промпт
             schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
             system_prompt = system_prompt + "\n\n" + schema_prompt
 
             msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
-            print(msg, flush=True)
+            logger.info(msg)
             
-            # 🔵 Логирование полного промпта с схемой (БЕЗ ОБРЕЗАНИЯ)
-            print("\n" + "=" * 80, flush=True)
-            print("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)", flush=True)
-            print("=" * 80, flush=True)
-            print("\n=== SYSTEM (со схемой) ===", flush=True)
-            print(system_prompt, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
-            print("\n=== USER ===", flush=True)
-            print(prompt, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
-            print("\n" + "=" * 80, flush=True)
+            logger.debug("\n" + "=" * 80)
+            logger.debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)")
+            logger.debug("=" * 80)
+            logger.debug("\n=== SYSTEM (со схемой) ===")
+            logger.debug(system_prompt)
+            logger.debug("\n=== USER ===")
+            logger.debug(prompt)
+            logger.debug("\n" + "=" * 80)
         else:
             max_tokens = request.max_tokens
 
@@ -408,52 +409,46 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             usage = response.get('usage', {})
 
             msg = f"🔵 [LLM] Получен ответ: choices={len(choices)}"
-            print(msg, flush=True)
+            logger.info(msg)
 
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
                 
-                # 🔵 Логирование полного ответа (БЕЗ ОБРЕЗАНИЯ)
-                print("\n" + "=" * 80, flush=True)
-                print("💬 RESPONSE (LlamaCppProvider)", flush=True)
-                print("=" * 80, flush=True)
-                print(generated_text, flush=True)  # ← ПОЛНОСТЬЮ, без обрезания
-                print("\n" + "=" * 80, flush=True)
+                logger.debug("\n" + "=" * 80)
+                logger.debug("💬 RESPONSE (LlamaCppProvider)")
+                logger.debug("=" * 80)
+                logger.debug(generated_text)
+                logger.debug("\n" + "=" * 80)
                 
-                print(f"🔵 [LLM] generated_text: {len(generated_text)} символов", flush=True)
-                print(f"🔵 [LLM] finish_reason: {finish_reason}", flush=True)
+                logger.info(f"🔵 [LLM] generated_text: {len(generated_text)} символов")
+                logger.info(f"🔵 [LLM] finish_reason: {finish_reason}")
             else:
                 generated_text = ''
                 finish_reason = 'error'
-                print("⚠️ [LLM] choices пуст!", flush=True)
+                logger.warning("⚠️ [LLM] choices пуст!")
 
             # === ОБРАБОТКА STRUCTURED OUTPUT ===
             if hasattr(request, 'structured_output') and request.structured_output:
                 msg = f"🔵 Structured output запрошен: {request.structured_output.output_model}"
-                print(msg, flush=True)
-                # Пытаемся распарсить JSON и валидировать по схеме
+                logger.info(msg)
                 try:
                     json_content = self._extract_json_from_response(generated_text)
-                    print(f"🔵 JSON извлечён: {json_content[:80]}...", flush=True)
+                    logger.debug(f"🔵 JSON извлечён: {json_content[:80]}...")
                     parsed_json = json.loads(json_content)
-                    print(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}", flush=True)
+                    logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
                     
-                    # Валидируем по схеме если есть Pydantic модель
                     parsed_content = None
                     if request.structured_output.output_model:
-                        # Пытаемся найти модель по имени
                         try:
                             from core.models.schemas.react_models import ReasoningResult
                             if request.structured_output.output_model == "ReasoningResult":
                                 parsed_content = ReasoningResult.model_validate(parsed_json)
-                                print(f"✅ Валидировано по ReasoningResult: stop_condition={parsed_content.stop_condition}", flush=True)
+                                logger.info(f"✅ Валидировано по ReasoningResult: stop_condition={parsed_content.stop_condition}")
                             elif request.structured_output.output_model == "final_answer.generate.output":
-                                # Создаём Pydantic модель на лету из JSON схемы
                                 from pydantic import create_model, BaseModel
                                 from typing import Optional, List, Dict, Any
                                 
-                                # Определяем поля из parsed_json
                                 field_definitions = {}
                                 for field_name, field_value in parsed_json.items():
                                     if isinstance(field_value, bool):
@@ -469,17 +464,15 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                                     else:
                                         field_definitions[field_name] = (str, ...)
                                 
-                                # Создаём динамическую модель
                                 DynamicModel = create_model('FinalAnswerOutput', **field_definitions)
                                 parsed_content = DynamicModel(**parsed_json)
-                                print(f"✅ Валидировано по динамической модели final_answer.generate.output", flush=True)
+                                logger.info(f"✅ Валидировано по динамической модели final_answer.generate.output")
                         except Exception as model_error:
-                            print(f"⚠️ Не удалось валидировать по модели: {model_error}", flush=True)
+                            logger.warning(f"⚠️ Не удалось валидировать по модели: {model_error}")
                             parsed_content = parsed_json
                     else:
                         parsed_content = parsed_json
                     
-                    # Создаём StructuredLLMResponse
                     structured_response = StructuredLLMResponse(
                         parsed_content=parsed_content,
                         raw_response=RawLLMResponse(
@@ -493,21 +486,18 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                         validation_errors=[]
                     )
                     
-                    print(f"✅ StructuredLLMResponse создан (success={structured_response.success})", flush=True)
+                    logger.info(f"✅ StructuredLLMResponse создан (success={structured_response.success})")
                     
-                    # Обновляем метрики
                     self._update_metrics(structured_response.raw_response.generation_time)
                     
                     return structured_response
                     
                 except json.JSONDecodeError as json_err:
-                    print(f"❌ Structured output JSON parse error: {json_err}", flush=True)
-                    # Fallback: возвращаем обычный LLMResponse
+                    logger.error(f"❌ Structured output JSON parse error: {json_err}")
                 except Exception as struct_err:
-                    print(f"❌ Structured output error: {struct_err}", flush=True)
-                    # Fallback: возвращаем обычный LLMResponse
+                    logger.error(f"❌ Structured output error: {struct_err}")
 
-            print(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)", flush=True)
+            logger.info(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)")
 
             # Создаем обычный результат
             llm_response = LLMResponse(

@@ -10,6 +10,7 @@
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
+import logging
 from typing import Dict, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 
@@ -34,6 +35,8 @@ from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 # Импорты для телеметрии
 from core.infrastructure.telemetry import TelemetryCollector, init_telemetry
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
+
+logger = logging.getLogger(__name__)
 
 # TYPE_CHECKING импорты для аннотаций
 if TYPE_CHECKING:
@@ -175,7 +178,7 @@ class InfrastructureContext:
         # Информация о сессии
         if self.session_handler:
             session_info = self.session_handler.get_session_info()
-            print(f"📝 Логи сессии: {session_info['session_folder']}", flush=True)
+            logger.info(f"📝 Логи сессии: {session_info['session_folder']}")
 
         # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
         from core.infrastructure.logging import EventBusLogger
@@ -187,7 +190,7 @@ class InfrastructureContext:
         )
 
         await self.event_bus_logger.info("Обработчики логирования инициализированы")
-        print("EventBusLogger инициализирован", flush=True)
+        logger.info("EventBusLogger инициализирован")
 
         # Инициализация менеджера жизненного цикла
         from core.infrastructure_context.lifecycle_manager import LifecycleManager
@@ -241,10 +244,10 @@ class InfrastructureContext:
 
     async def _register_providers_from_config(self):
         """Регистрация провайдеров из конфигурации."""
-        has_llm = hasattr(self.config, 'llm_providers')
-        if has_llm and self.config.llm_providers:
-            for name, prov in self.config.llm_providers.items():
-                print(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}")
+    has_llm = hasattr(self.config, 'llm_providers')
+    if has_llm and self.config.llm_providers:
+        for name, prov in self.config.llm_providers.items():
+            logger.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}")
 
         first_llm_registered = False
         for provider_name, provider_config in self.config.llm_providers.items():
@@ -284,7 +287,7 @@ class InfrastructureContext:
                     self.resource_registry.register_resource(info_llm)
 
                 except Exception as e:
-                    print(f"[LLM] Error: {e}")
+                    logger.error(f"[LLM] Error: {e}")
                     await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {str(e)}", exc_info=True)
 
         # Регистрация DB провайдеров
@@ -325,7 +328,7 @@ class InfrastructureContext:
                 except Exception as e:
                     await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}", exc_info=True)
 
-        print(f"🤖 LLM → _register_providers_from_config: завершено")
+        logger.info("🤖 LLM → _register_providers_from_config: завершено")
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска с проверкой наличия индексов."""

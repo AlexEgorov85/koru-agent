@@ -14,7 +14,6 @@ async def test_application_context_isolation():
     infra = InfrastructureContext(config)
     await infra.initialize()
     
-    print('InfrastructureContext инициализирован')
     
     # Создаем два разных прикладных контекста
     app_config1 = AppConfig(
@@ -52,27 +51,11 @@ async def test_application_context_isolation():
     cs1 = app_context1.get_service("contract_service")
     cs2 = app_context2.get_service("contract_service")
     
-    print(f'PromptService в контексте 1: {ps1 is not None}')
-    print(f'PromptService в контексте 2: {ps2 is not None}')
-    print(f'ContractService в контексте 1: {cs1 is not None}')
-    print(f'ContractService в контексте 2: {cs2 is not None}')
     
     # Проверяем изоляцию кэшей
-    print(f'PromptService1 ID: {id(ps1)}')
-    print(f'PromptService2 ID: {id(ps2)}')
-    print(f'ContractService1 ID: {id(cs1)}')
-    print(f'ContractService2 ID: {id(cs2)}')
     
     # Проверяем, что это разные объекты (изоляция)
-    print(f'PromptService изолированы: {ps1 is not ps2}')
-    print(f'ContractService изолированы: {cs1 is not cs2}')
     
     # Проверяем, что кэши изолированы
-    print(f'PromptService1 кэш: {hasattr(ps1, "_cached_prompts")}')
-    print(f'PromptService2 кэш: {hasattr(ps2, "_cached_prompts")}')
-    print(f'ContractService1 кэш: {hasattr(cs1, "_cached_contracts")}')
-    print(f'ContractService2 кэш: {hasattr(cs2, "_cached_contracts")}')
 
-print('Запуск теста изоляции...')
 asyncio.run(test_application_context_isolation())
-print('Тест изоляции завершен')

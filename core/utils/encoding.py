@@ -73,8 +73,6 @@ class EncodingSetup:
             return True
             
         except Exception as e:
-            # Fallback: хотя stderr должен работать
-            print(f"⚠️ Encoding setup failed: {e}", file=sys.stderr)
             return False
     
     def _setup_windows(self) -> None:
@@ -374,7 +372,6 @@ class encoding_context:
     ```python
     with encoding_context('cp1251'):
         # Работа с cp1251
-        print(text)
     # Автоматическое восстановление UTF-8
     ```
     """

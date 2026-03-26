@@ -17,7 +17,6 @@ from core.config.component_config import ComponentConfig
 
 async def test_config_loading(fake_infra_context):
     """Тестируем загрузку конфигураций"""
-    print("=== Тестирование загрузки конфигураций ===")
 
     # Создаем конфигурацию с инструментами
     app_config = AppConfig(
@@ -55,10 +54,6 @@ async def test_config_loading(fake_infra_context):
         }
     )
 
-    print(f"Конфигурация создана:")
-    print(f"- Сервисов: {len(app_config.service_configs)}")
-    print(f"- Инструментов: {len(app_config.tool_configs)}")
-    print(f"- Навыков: {len(app_config.skill_configs)}")
 
     # Создаем прикладной контекст
     app_context = ApplicationContext(
@@ -69,8 +64,5 @@ async def test_config_loading(fake_infra_context):
 
     # Проверим, что конфигурации компонентов извлекаются правильно
     component_configs = app_context._resolve_component_configs()
-    print(f"\nИзвлеченные конфигурации:")
     for comp_type, configs in component_configs.items():
-        print(f"  {comp_type}: {len(configs)} компонентов")
 
-    print("\n✅ Тест загрузки конфигураций пройден")

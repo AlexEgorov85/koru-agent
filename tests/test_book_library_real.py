@@ -43,25 +43,17 @@ class BookLibraryRealTest:
         self.results: List[TestResult] = []
     
     async def initialize(self):
-        print("\n" + "="*70)
-        print("ИНИЦИАЛИЗАЦИЯ КОНТЕКСТОВ")
-        print("="*70)
         
         # 1. Загрузка конфигурации
-        print("\n[1/5] Загрузка конфигурации...")
         config = get_config(profile=self.profile, data_dir='data')
-        print(f"   Profile: {config.profile}")
         
         # 2. InfrastructureContext
-        print("\n[2/5] Инициализация InfrastructureContext...")
         infra_start = time.perf_counter()
         self.infra = InfrastructureContext(config)
         await self.infra.initialize()
         infra_time = (time.perf_counter() - infra_start) * 1000
-        print(f"   ✅ InfrastructureContext инициализирован ({infra_time:.0f}ms)")
         
         # 3. ApplicationContext
-        print("\n[3/5] Инициализация ApplicationContext...")
         app_start = time.perf_counter()
         self.app_context = ApplicationContext(
             infrastructure_context=self.infra,
@@ -74,31 +66,21 @@ class BookLibraryRealTest:
         )
         await self.app_context.initialize()
         app_time = (time.perf_counter() - app_start) * 1000
-        print(f"   ✅ ApplicationContext инициализирован ({app_time:.0f}ms)")
         
         # 4. ⚠️ КРИТИЧНО: Создание session_context
-        print("\n[4/5] Создание SessionContext...")
         self.session_context = SessionContext(session_id=str(self.infra.id))
         self.session_context.set_goal("Тестирование BookLibrarySkill")
         self.app_context.session_context = self.session_context
-        print(f"   ✅ SessionContext создан: {self.session_context.session_id}")
         
         # 5. Получение навыка
-        print("\n[5/5] Получение BookLibrarySkill...")
         self.skill = self.app_context.get_skill("book_library")
         if not self.skill:
             raise RuntimeError("BookLibrarySkill не найден!")
         await self.skill.initialize()
-        print(f"   ✅ BookLibrarySkill инициализирован")
         
         capabilities = self.skill.get_capabilities()
-        print(f"\n   Доступные capability ({len(capabilities)}):")
         for cap in capabilities:
-            print(f"      - {cap.name}")
         
-        print("\n" + "="*70)
-        print("ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА")
-        print("="*70)
     
     async def test_list_scripts(self) -> TestResult:
         result = TestResult("list_scripts")
@@ -129,9 +111,7 @@ class BookLibraryRealTest:
                 scripts = result.data.get('scripts', []) if isinstance(result.data, dict) else []
                 if len(scripts) > 0:
                     result.success = True
-                    print(f"\n✅ list_scripts: найдено {len(scripts)} скриптов")
                     for script in scripts[:3]:
-                        print(f"   - {script.get('name', 'unknown')}")
                 else:
                     result.success = False
                     result.error = "Список скриптов пуст"
@@ -143,7 +123,6 @@ class BookLibraryRealTest:
             result.duration_ms = (time.perf_counter() - start) * 1000
             result.success = False
             result.error = str(e)
-            print(f"\n❌ list_scripts: {e}")
         
         self.results.append(result)
         return result
@@ -181,10 +160,8 @@ class BookLibraryRealTest:
             if response.status.value == "completed":
                 rows = result.data.get('rows', []) if isinstance(result.data, dict) else []
                 result.success = True
-                print(f"\n✅ execute_script.get_all_books: найдено {len(rows)} книг")
                 for book in rows[:2]:
                     title = book.get('book_title', book.get('title', 'N/A'))
-                    print(f"   - {title}")
             else:
                 result.success = False
                 result.error = f"Статус: {response.status.value}, Error: {response.error}"
@@ -193,7 +170,6 @@ class BookLibraryRealTest:
             result.duration_ms = (time.perf_counter() - start) * 1000
             result.success = False
             result.error = str(e)
-            print(f"\n❌ execute_script.get_all_books: {e}")
         
         self.results.append(result)
         return result
@@ -232,10 +208,8 @@ class BookLibraryRealTest:
             if response.status.value == "completed":
                 rows = result.data.get('rows', []) if isinstance(result.data, dict) else []
                 result.success = True
-                print(f"\n✅ execute_script.get_books_by_author: найдено {len(rows)} книг")
                 for book in rows[:2]:
                     title = book.get('book_title', book.get('title', 'N/A'))
-                    print(f"   - {title}")
             else:
                 result.success = False
                 result.error = f"Статус: {response.status.value}, Error: {response.error}"
@@ -244,7 +218,6 @@ class BookLibraryRealTest:
             result.duration_ms = (time.perf_counter() - start) * 1000
             result.success = False
             result.error = str(e)
-            print(f"\n❌ execute_script.get_books_by_author: {e}")
         
         self.results.append(result)
         return result
@@ -281,10 +254,8 @@ class BookLibraryRealTest:
                 rows = result.data.get('rows', []) if isinstance(result.data, dict) else []
                 exec_type = result.data.get('execution_type', 'unknown')
                 result.success = True
-                print(f"\n✅ search_books.dynamic: найдено {len(rows)} книг (тип: {exec_type})")
                 for book in rows[:2]:
                     title = book.get('book_title', book.get('title', 'N/A'))
-                    print(f"   - {title}")
             else:
                 result.success = False
                 result.error = f"Статус: {response.status.value}, Error: {response.error}"
@@ -293,7 +264,6 @@ class BookLibraryRealTest:
             result.duration_ms = (time.perf_counter() - start) * 1000
             result.success = False
             result.error = str(e)
-            print(f"\n❌ search_books.dynamic: {e}")
         
         self.results.append(result)
         return result
@@ -318,7 +288,6 @@ class BookLibraryRealTest:
             if not self.infra.is_vector_search_ready('books'):
                 result.success = False
                 result.error = "Vector Search не готов (индексы не созданы)"
-                print(f"\n⚠️  semantic_search: Vector Search не готов")
                 self.results.append(result)
                 return result
             
@@ -339,10 +308,8 @@ class BookLibraryRealTest:
                 results_list = result.data.get('results', []) if isinstance(result.data, dict) else []
                 search_type = result.data.get('search_type', 'unknown')
                 result.success = True
-                print(f"\n✅ semantic_search: найдено {len(results_list)} результатов (тип: {search_type})")
                 for res in results_list[:2]:
                     content = res.get('content', 'N/A')[:100]
-                    print(f"   - {content}...")
             else:
                 result.success = False
                 result.error = f"Статус: {response.status.value}, Error: {response.error}"
@@ -351,15 +318,11 @@ class BookLibraryRealTest:
             result.duration_ms = (time.perf_counter() - start) * 1000
             result.success = False
             result.error = str(e)
-            print(f"\n❌ semantic_search: {e}")
         
         self.results.append(result)
         return result
     
     async def run_all_tests(self):
-        print("\n" + "="*70)
-        print("ЗАПУСК ТЕСТОВ BOOK LIBRARY SKILL")
-        print("="*70)
         
         await self.test_list_scripts()
         await self.test_execute_script_get_all_books()
@@ -370,44 +333,26 @@ class BookLibraryRealTest:
         self.print_report()
     
     def print_report(self):
-        print("\n" + "="*70)
-        print("ИТОГОВЫЙ ОТЧЁТ")
-        print("="*70)
         
         passed = sum(1 for r in self.results if r.success)
         failed = len(self.results) - passed
         total_time = sum(r.duration_ms for r in self.results)
         
-        print(f"\nВсего тестов: {len(self.results)}")
-        print(f"✅ Прошло: {passed}")
-        print(f"❌ Не прошло: {failed}")
-        print(f"⏱️  Общее время: {total_time:.0f}ms")
         
-        print("\n" + "-"*70)
-        print("ДЕТАЛИ:")
-        print("-"*70)
         
         for result in self.results:
-            print(f"\n{result}")
             if result.error:
-                print(f"   Ошибка: {result.error[:200]}")
         
-        print("\n" + "="*70)
         
         if failed == 0:
-            print("[OK] ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
         else:
-            print(f"[WARN] {failed} тестов не прошли")
         
-        print("="*70)
     
     async def shutdown(self):
-        print("\nЗавершение работы...")
         if self.app_context:
             await self.app_context.shutdown()
         if self.infra:
             await self.infra.shutdown()
-        print("Контексты закрыты")
 
 
 async def main():
@@ -417,7 +362,6 @@ async def main():
         await test.initialize()
         await test.run_all_tests()
     except Exception as e:
-        print(f"\n❌ Критическая ошибка: {e}")
         import traceback
         traceback.print_exc()
     finally:

@@ -16,7 +16,6 @@ from core.config.component_config import ComponentConfig
 
 async def test_with_mock_infrastructure(fake_infra_context):
     """Тест с фиктивной инфраструктурой"""
-    print("\n=== Тестирование с фиктивной инфраструктурой ===")
 
     app_config = AppConfig(
         config_id="test_config",
@@ -42,13 +41,10 @@ async def test_with_mock_infrastructure(fake_infra_context):
     )
 
     success = await app_context.initialize()
-    print(f"Инициализация успешна: {success}")
-    print("\n✅ Тест с фиктивной инфраструктурой пройден")
 
 
 async def test_resolve_component_class(fake_infra_context):
     """Тестирование _resolve_component_class"""
-    print("\n=== Тестирование _resolve_component_class ===")
 
     app_config = AppConfig(config_id="test")
 
@@ -67,8 +63,5 @@ async def test_resolve_component_class(fake_infra_context):
     for name, comp_type in test_components:
         try:
             cls = app_context._resolve_component_class(comp_type, name)
-            print(f"[OK] {name}: {cls.__name__}")
         except Exception as e:
-            print(f"[FAIL] {name}: {e}")
 
-    print("\n✅ Тест _resolve_component_class пройден")

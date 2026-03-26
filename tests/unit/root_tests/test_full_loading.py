@@ -15,7 +15,6 @@ from core.config.component_config import ComponentConfig
 
 async def test_full_loading(fake_infra_context):
     """Тестирование полной загрузки с правильной конфигурацией"""
-    print("=== Тестирование полной загрузки с правильной конфигурацией ===")
 
     app_config = AppConfig(
         config_id="full_test_config",
@@ -60,9 +59,6 @@ async def test_full_loading(fake_infra_context):
         }
     )
 
-    print(f"Конфигурация создана:")
-    print(f"- Сервисов: {len(app_config.service_configs)}")
-    print(f"- Инструментов: {len(app_config.tool_configs)}")
 
     app_context = ApplicationContext(
         infrastructure_context=fake_infra_context,
@@ -71,12 +67,8 @@ async def test_full_loading(fake_infra_context):
     )
 
     success = await app_context.initialize()
-    print(f"ApplicationContext инициализирован: {success}")
 
     if success:
         services = app_context.components.all_of_type(ComponentType.SERVICE)
         tools = app_context.components.all_of_type(ComponentType.TOOL)
-        print(f"Загружено сервисов: {len(services)}")
-        print(f"Загружено инструментов: {len(tools)}")
 
-    print("\n✅ Тест полной загрузки пройден")

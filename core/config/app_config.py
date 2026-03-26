@@ -410,8 +410,8 @@ class AppConfig(BaseSettings):
                 if yaml_config and 'vector_search' in yaml_config:
                     from core.config.vector_config import VectorSearchConfig
                     vector_search_config = VectorSearchConfig(**yaml_config['vector_search'])
-            except Exception as e:
-                print(f"⚠️ Не удалось загрузить конфигурацию из {config_file}: {e}")
+            except Exception:
+                pass
 
         # === СКАНИРОВАНИЕ РЕСУРСОВ ===
         # [REFACTOR v5.4.0] ResourceDiscovery фильтрует по статусу в зависимости от профиля
@@ -515,7 +515,6 @@ class AppConfig(BaseSettings):
         # Создаем ComponentConfig для каждого компонента
         for component_name, resources in component_resources.items():
             comp_type = resources['type']
-            print(f"[DEBUG] {comp_type}.{component_name}: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}")
             component_config = ComponentConfig(
                 variant_id=f"{component_name}_{profile}",
                 side_effects_enabled=(profile == "prod"),

@@ -15,7 +15,6 @@ from core.config.component_config import ComponentConfig
 
 async def test_application_context_structure(fake_infra_context):
     """Тестирование структуры ApplicationContext"""
-    print("\n=== Тестирование структуры ApplicationContext ===")
 
     app_config = AppConfig(
         config_id="structure_test",
@@ -47,11 +46,4 @@ async def test_application_context_structure(fake_infra_context):
     assert hasattr(app_context, 'components')
     assert hasattr(app_context, 'data_repository')
 
-    print("✅ Все атрибуты ApplicationContext присутствуют")
-    print(f"  - infrastructure_context: {app_context.infrastructure_context is not None}")
-    print(f"  - config: {app_context.config is not None}")
-    print(f"  - profile: {app_context.profile}")
-    print(f"  - components: {app_context.components is not None}")
-    print(f"  - data_repository: {app_context.data_repository is not None}")
 
-    print("\n✅ Тест структуры ApplicationContext пройден")

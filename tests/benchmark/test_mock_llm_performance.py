@@ -43,7 +43,6 @@ async def test_mock_llm_single_request_latency():
     # Проверяем что задержка < 1ms
     assert latency < 0.001, f"Задержка слишком высокая: {latency*1000:.2f}ms"
     
-    print(f"\nMock LLM Single Request Latency: {latency*1000:.3f}ms")
 
 
 @pytest.mark.benchmark
@@ -74,10 +73,6 @@ async def test_mock_llm_average_response_time():
     min_time = min(times)
     max_time = max(times)
     
-    print(f"\nMock LLM Average Response Time:")
-    print(f"  Average: {avg_time*1000:.3f}ms")
-    print(f"  Min: {min_time*1000:.3f}ms")
-    print(f"  Max: {max_time*1000:.3f}ms")
     
     # Среднее время должно быть < 1ms
     assert avg_time < 0.001, f"Среднее время слишком высокое: {avg_time*1000:.2f}ms"
@@ -110,10 +105,6 @@ async def test_mock_llm_throughput():
     elapsed = time.perf_counter() - start
     requests_per_second = total_requests / elapsed
     
-    print(f"\nMock LLM Throughput:")
-    print(f"  Total Requests: {total_requests}")
-    print(f"  Total Time: {elapsed:.3f}s")
-    print(f"  Requests/sec: {requests_per_second:.0f}")
     
     # Пропускная способность должна быть > 1000 req/s
     assert requests_per_second > 1000, f"Пропускная способность слишком низкая: {requests_per_second:.0f} req/s"
@@ -152,10 +143,6 @@ async def test_mock_llm_concurrent_performance():
     elapsed = time.perf_counter() - start
     requests_per_second = total_requests / elapsed
     
-    print(f"\nMock LLM Concurrent Performance:")
-    print(f"  Concurrent Requests: {total_requests}")
-    print(f"  Total Time: {elapsed:.3f}s")
-    print(f"  Requests/sec: {requests_per_second:.0f}")
     
     # Пропускная способность должна быть > 5000 req/s для параллельных запросов
     assert requests_per_second > 5000, f"Пропускная способность слишком низкая: {requests_per_second:.0f} req/s"
@@ -197,9 +184,6 @@ async def test_mock_llm_scaled_concurrency():
             'throughput': throughput
         })
         
-        print(f"\nConcurrency {concurrency}:")
-        print(f"  Time: {elapsed*1000:.2f}ms")
-        print(f"  Throughput: {throughput:.0f} req/s")
     
     # Проверяем что производительность масштабируется
     # (время не должно расти линейно с количеством запросов)
@@ -250,10 +234,6 @@ async def test_mock_llm_memory_usage():
     history_size = len(provider.get_call_history())
     assert history_size == 1000
     
-    print(f"\nMock LLM Memory Usage:")
-    print(f"  Initial history size: {initial_size} bytes")
-    print(f"  Final history size: {final_size} bytes")
-    print(f"  Total calls stored: {history_size}")
 
 
 # ============================================================================
@@ -286,9 +266,6 @@ async def test_mock_llm_determinism_benchmark():
     # Все ответы должны быть одинаковыми
     unique_responses = set(responses)
     
-    print(f"\nMock LLM Determinism:")
-    print(f"  Total Requests: 1000")
-    print(f"  Unique Responses: {len(unique_responses)}")
     
     assert len(unique_responses) == 1, f"Недетерминированные ответы: {len(unique_responses)} уникальных"
 
@@ -332,10 +309,6 @@ async def test_mock_llm_vs_json_parsing():
         json.loads(json_string)
     json_time = time.perf_counter() - start
     
-    print(f"\nMock LLM vs JSON Parsing:")
-    print(f"  Mock LLM + JSON: {mock_time*1000:.2f}ms")
-    print(f"  JSON only: {json_time*1000:.2f}ms")
-    print(f"  Overhead: {(mock_time/json_time - 1)*100:.1f}%")
     
     # Overhead должен быть разумным (< 100x)
     assert mock_time < json_time * 100, f"Mock LLM слишком медленный"

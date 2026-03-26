@@ -51,7 +51,6 @@ def make_forbidden_logging(level_name):
                 module = frame.filename.split('\\')[-1].replace('.py', '')
                 if not any(allowed in module for allowed in ALLOWED_MODULES):
                     violations[f'logging.{level_name.lower()}'] += 1
-                    print(f"[VIOLATION] logging.{level_name} в {module}:{frame.lineno}")
                 break
     return forbidden
 
@@ -65,15 +64,11 @@ def forbidden_print(*args, **kwargs):
             module = frame.filename.split('\\')[-1].replace('.py', '')
             if not any(allowed in module for allowed in ALLOWED_MODULES):
                 violations['print'] += 1
-                print(f"[VIOLATION] print в {module}:{frame.lineno}")
             break
 
 
 async def test_logging_forbidden():
     """Тест на запрет старого логирования."""
-    print("\n" + "="*70)
-    print("[TEST] ЗАПРЕТ СТАРОГО ЛОГИРОВАНИЯ")
-    print("="*70)
     
     # Включаем запрет
     logging.info = make_forbidden_logging('INFO')
@@ -113,21 +108,14 @@ async def test_logging_forbidden():
         # Проверяем результаты
         total_violations = sum(violations.values())
         
-        print("\n" + "="*70)
-        print("[REPORT] НАРУШЕНИЯ ЛОГИРОВАНИЯ")
-        print("="*70)
         
         for violation_type, count in violations.items():
             status = "[FAIL]" if count > 0 else "[OK]"
-            print(f"{status}: {violation_type} = {count}")
         
-        print("="*70)
         
         if total_violations > 0:
-            print(f"\n[FAILURE] Найдено {total_violations} нарушений")
             return False
         else:
-            print("\n[SUCCESS] Нет нарушений логирования")
             return True
             
     finally:

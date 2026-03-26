@@ -8,11 +8,14 @@ BenchmarkDataLoader — загрузка тестовых данных из БД
 - Валидация данных
 """
 import asyncio
+import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,7 +68,7 @@ class BenchmarkDataLoader:
             self.initialized = True
             return True
         except Exception as e:
-            print(f"❌ Ошибка подключения к БД: {e}")
+            logger.error(f"❌ Ошибка подключения к БД: {e}")
             return False
 
     async def load_test_cases(
@@ -91,7 +94,7 @@ class BenchmarkDataLoader:
         elif capability == 'sql_generation':
             return await self._load_sql_generation_test_cases(limit)
         else:
-            print(f"⚠️  Нет тестовых данных для {capability}")
+            logger.warning(f"⚠️  Нет тестовых данных для {capability}")
             return []
 
     async def _load_book_library_test_cases(
@@ -308,13 +311,13 @@ class BenchmarkDataLoader:
             ))
 
         except Exception as e:
-            print(f"❌ Ошибка загрузки тестовых данных: {e}")
+            logger.error(f"❌ Ошибка загрузки тестовых данных: {e}")
 
         # Ограничение количества
         if limit:
             test_cases = test_cases[:limit]
 
-        print(f"✅ Загружено {len(test_cases)} тестовых кейсов для book_library")
+        logger.info(f"✅ Загружено {len(test_cases)} тестовых кейсов для book_library")
         return test_cases
 
     async def _load_sql_generation_test_cases(
@@ -395,6 +398,6 @@ class BenchmarkDataLoader:
                 }
 
         except Exception as e:
-            print(f"⚠️  Ошибка получения статистики: {e}")
+            logger.warning(f"⚠️  Ошибка получения статистики: {e}")
 
         return stats

@@ -72,10 +72,8 @@ class ShutdownTestResult:
 
         # Проверка 1: Все события до shutdown получены
         if self.total_received < self.shutdown_called_at:
-            print(f"[FAIL] ПОТЕРЯ СОБЫТИЙ: опубликовано до shutdown={self.shutdown_called_at}, получено={self.total_received}")
             all_valid = False
         else:
-            print(f"[OK] Все события до shutdown получены: {self.total_received}/{self.shutdown_called_at}")
 
         # Проверка 2: SessionFinished опубликован для всех сессий
         expected_sessions = NUM_AGENTS * SESSIONS_PER_AGENT
@@ -83,33 +81,17 @@ class ShutdownTestResult:
         
         # SessionFinished может не успеть опубликоваться при принудительном shutdown
         # Это допустимое поведение
-        print(f"[INFO] SessionFinished событий: {finished_sessions}/{expected_sessions}")
         
         if all_valid:
-            print("[OK] Shutdown корректный")
 
         return all_valid
 
     def print_summary(self):
         """Вывод сводки."""
-        print("\n" + "="*70)
-        print("[SUMMARY] СВОДКА SHUTDOWN ТЕСТА")
-        print("="*70)
-        print(f"Агентов:              {NUM_AGENTS}")
-        print(f"Сессий на агент:      {SESSIONS_PER_AGENT}")
-        print(f"Событий на сессию:    {EVENTS_PER_SESSION}")
-        print(f"Shutdown после:       {self.shutdown_called_at} событий")
-        print(f"Всего опубликовано:   {self.total_published}")
-        print(f"Всего получено:       {self.total_received}")
-        print(f"SessionFinished:      {len(self.session_finished_events)}")
-        print("="*70)
 
 
 async def run_shutdown_test():
     """Запуск теста shutdown."""
-    print("\n" + "="*70)
-    print("[TEST] SHUTDOWN В СЕРЕДИНЕ РАБОТЫ (ФАЗА 2)")
-    print("="*70)
 
     event_bus = create_event_bus(
         queue_max_size=1000,
@@ -191,17 +173,10 @@ async def main():
     """Запуск теста."""
     is_valid, _ = await run_shutdown_test()
     
-    print("\n" + "="*70)
-    print("[REPORT] ИТОГОВЫЙ ОТЧЁТ")
-    print("="*70)
     
     if is_valid:
-        print("[PASS]: Shutdown Test")
-        print("\n[SUCCESS] ТЕСТ ПРОЙДЕН")
         return 0
     else:
-        print("[FAIL]: Shutdown Test")
-        print("\n[FAILURE] ТЕСТ НЕ ПРОЙДЕН")
         return 1
 
 

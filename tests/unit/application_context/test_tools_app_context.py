@@ -18,7 +18,6 @@ async def test_tools_in_app_context():
     # Создаем инфраструктурный контекст
     infra = InfrastructureContext(system_config)
     await infra.initialize()
-    print('InfrastructureContext инициализирован')
     
     # Создаем AppConfig с конфигурацией инструментов
     app_config = AppConfig(
@@ -40,22 +39,17 @@ async def test_tools_in_app_context():
     
     # Инициализируем прикладной контекст
     success = await app_context.initialize()
-    print(f'ApplicationContext инициализирован: {success}')
     
     # Проверим, что у нас есть компоненты инструментов через новый API
     from core.application_context.application_context import ComponentType
     tools = app_context.components.all_of_type(ComponentType.TOOL)
-    print(f'Количество инструментов: {len(tools)}')
 
     # Проверим метод get_tool (он теперь использует новый API)
     try:
         tool = app_context.get_tool('nonexistent_tool')
-        print(f'Получение несуществующего инструмента: {tool}')
     except Exception as e:
-        print(f'Ошибка при получении инструмента: {e}')
         import traceback
         traceback.print_exc()
     
-    print('Тест завершен!')
 
 asyncio.run(test_tools_in_app_context())

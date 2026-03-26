@@ -72,9 +72,6 @@ class TelemetryValidator:
 
 async def run_telemetry_test():
     """Тест целостности телеметрии."""
-    print("\n" + "="*70)
-    print("[TEST] TELEMETRY INTEGRITY")
-    print("="*70)
     
     event_bus = create_event_bus()
     validator = TelemetryValidator()
@@ -103,15 +100,10 @@ async def run_telemetry_test():
     # Валидация
     is_valid, errors = validator.validate()
     
-    print(f"\nВсего событий: {len(validator.events)}")
-    print(f"Сессий: {len(validator.sessions)}")
     
     if errors:
-        print("\n[FAIL] Нарушения:")
         for error in errors[:10]:
-            print(f"  - {error}")
     else:
-        print("\n[OK] Все инварианты соблюдены")
     
     return is_valid
 
@@ -119,11 +111,6 @@ async def run_telemetry_test():
 async def main():
     is_valid = await run_telemetry_test()
     
-    print("\n" + "="*70)
-    print("[REPORT]")
-    print("="*70)
-    print(f"[{'PASS' if is_valid else 'FAIL'}]: Telemetry Integrity")
-    print("="*70)
     
     return 0 if is_valid else 1
 

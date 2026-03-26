@@ -118,7 +118,6 @@ class TestStaticScripts:
         assert result.get("execution_type") == "static"
         assert result.get("script_name") == "get_all_books"
         
-        print(f"[OK] test_get_all_books_script: найдено {result['rowcount']} книг")
     
     @pytest.mark.asyncio
     async def test_get_books_by_author_script(self, book_library_skill):
@@ -145,7 +144,6 @@ class TestStaticScripts:
             for book in result["rows"]:
                 assert "Толстой" in book.get("author", "")
         
-        print(f"[OK] test_get_books_by_author_script: найдено {result['rowcount']} книг Толстого")
     
     @pytest.mark.asyncio
     async def test_get_books_by_genre_script(self, book_library_skill):
@@ -166,7 +164,6 @@ class TestStaticScripts:
         assert "rows" in result
         assert result.get("execution_type") == "static"
         
-        print(f"[OK] test_get_books_by_genre_script: найдено {result['rowcount']} романов")
     
     @pytest.mark.asyncio
     async def test_get_book_by_id_script(self, book_library_skill):
@@ -190,7 +187,6 @@ class TestStaticScripts:
         if result["rows"]:
             assert result["rows"][0].get("id") == 1
         
-        print(f"[OK] test_get_book_by_id_script: найдена книга с ID=1")
     
     @pytest.mark.asyncio
     async def test_count_books_by_author_script(self, book_library_skill):
@@ -210,7 +206,6 @@ class TestStaticScripts:
         assert "rows" in result
         assert result.get("execution_type") == "static"
         
-        print(f"[OK] test_count_books_by_author_script: {result['rows']}")
     
     @pytest.mark.asyncio
     async def test_invalid_script_name(self, book_library_skill):
@@ -228,7 +223,6 @@ class TestStaticScripts:
         assert "error" in result
         assert "не найден" in result["error"].lower()
         
-        print(f"[OK] test_invalid_script_name: ошибка корректно обработана")
     
     @pytest.mark.asyncio
     async def test_missing_required_parameter(self, book_library_skill):
@@ -249,7 +243,6 @@ class TestStaticScripts:
         assert "error" in result
         assert "отсутствуют" in result["error"].lower() or "обязательные" in result["error"].lower()
         
-        print(f"[OK] test_missing_required_parameter: ошибка корректно обработана")
 
 
 # ============================================================================
@@ -276,7 +269,6 @@ class TestDynamicSearch:
         assert "rowcount" in result
         assert result.get("execution_type") == "dynamic"
         
-        print(f"[OK] test_search_books_by_author: найдено {result['rowcount']} книг")
     
     @pytest.mark.asyncio
     async def test_search_books_by_genre(self, book_library_skill):
@@ -294,7 +286,6 @@ class TestDynamicSearch:
         assert "rows" in result
         assert result.get("execution_type") == "dynamic"
         
-        print(f"[OK] test_search_books_by_genre: найдено {result['rowcount']} книг")
     
     @pytest.mark.asyncio
     async def test_search_books_by_year_range(self, book_library_skill):
@@ -312,7 +303,6 @@ class TestDynamicSearch:
         assert "rows" in result
         assert result.get("execution_type") == "dynamic"
         
-        print(f"[OK] test_search_books_by_year_range: найдено {result['rowcount']} книг")
     
     @pytest.mark.asyncio
     async def test_search_books_empty_query(self, book_library_skill):
@@ -330,7 +320,6 @@ class TestDynamicSearch:
         assert "rows" in result
         assert result.get("execution_type") == "dynamic"
         
-        print(f"[OK] test_search_books_empty_query: обработка пустого запроса")
 
 
 # ============================================================================
@@ -359,7 +348,6 @@ class TestPerformance:
         assert elapsed < 1.0, f"Static скрипт выполняется слишком долго: {elapsed}с"
         assert isinstance(result, dict)
         
-        print(f"[OK] test_static_script_performance: {elapsed*1000:.2f} мс")
     
     @pytest.mark.asyncio
     async def test_dynamic_search_performance(self, book_library_skill):
@@ -381,7 +369,6 @@ class TestPerformance:
         assert elapsed < 5.0, f"Dynamic поиск выполняется слишком долго: {elapsed}с"
         assert isinstance(result, dict)
         
-        print(f"[OK] test_dynamic_search_performance: {elapsed*1000:.2f} мс")
 
 
 # ============================================================================
@@ -404,7 +391,6 @@ class TestScriptsRegistry:
         assert SCRIPTS_REGISTRY is not None
         assert len(SCRIPTS_REGISTRY) > 0
         
-        print(f"[OK] test_registry_import: загружено {len(SCRIPTS_REGISTRY)} скриптов")
     
     def test_get_script(self):
         """Тест получения скрипта из реестра."""
@@ -415,7 +401,6 @@ class TestScriptsRegistry:
         assert script.name == "get_all_books"
         assert "SELECT" in script.sql
         
-        print(f"[OK] test_get_script: скрипт получен")
     
     def test_validate_script_parameters(self):
         """Тест валидации параметров скрипта."""
@@ -435,7 +420,6 @@ class TestScriptsRegistry:
         )
         assert not is_valid, "Ожидалась ошибка валидации"
         
-        print(f"[OK] test_validate_script_parameters: валидация работает")
 
 
 # ============================================================================

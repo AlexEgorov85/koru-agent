@@ -76,7 +76,6 @@ class TestBookLibraryExecuteScript:
         assert "rowcount" in data or hasattr(data, 'rowcount'), "Нет поля 'rowcount'"
         
         rowcount = data.get('rowcount', len(data.get('rows', []))) if isinstance(data, dict) else getattr(data, 'rowcount', len(getattr(data, 'rows', [])))
-        print(f"[OK] Найдено {rowcount} книг")
 
     @pytest.mark.asyncio
     async def test_get_books_by_author(self, app_context, session_context):
@@ -110,7 +109,6 @@ class TestBookLibraryExecuteScript:
         # Отладка: выводим всю информацию
         rowcount = data.get('rowcount', 0) if isinstance(data, dict) else getattr(data, 'rowcount', 0)
         rows = data.get('rows', []) if isinstance(data, dict) else getattr(data, 'rows', [])
-        print(f"[DEBUG] rowcount={rowcount}, rows={rows}")
         
         # Проверяем наличие авторов в БД
         if rowcount == 0:
@@ -127,7 +125,6 @@ class TestBookLibraryExecuteScript:
             data_all = _get_result_data(result_all)
             if data_all:
                 rows_all = data_all.get('rows', []) if isinstance(data_all, dict) else getattr(data_all, 'rows', [])
-                print(f"[DEBUG] Все авторы в БД: {rows_all}")
         
         assert rowcount > 0, "Книги Пушкина не найдены"
 
@@ -138,7 +135,6 @@ class TestBookLibraryExecuteScript:
             last_name = row.get('last_name', '') if isinstance(row, dict) else getattr(row, 'last_name', '')
             assert "Пушкин" in last_name, f"Неверный автор: {last_name}"
 
-        print(f"[OK] Найдено {rowcount} книг Пушкина")
 
     @pytest.mark.asyncio
     async def test_context_recording(self, app_context, session_context):
@@ -174,7 +170,6 @@ class TestBookLibraryExecuteScript:
         # Проверяем наблюдение
         assert len(step.observation_item_ids) >= 0  # Может быть 0 или больше
         
-        print(f"[OK] Шаг записан в контекст: {step.capability_name}")
 
     @pytest.mark.asyncio
     async def test_invalid_script_name(self, app_context, session_context):
@@ -203,7 +198,6 @@ class TestBookLibraryExecuteScript:
         assert error_msg is not None, "Нет сообщения об ошибке"
         assert "не найден" in error_msg.lower() or "not found" in error_msg.lower() or "nonexistent" in error_msg.lower(), f"Неверное сообщение об ошибке: {error_msg}"
 
-        print(f"[OK] Ошибка корректно обработана: {error_msg}")
 
 
 class TestBookLibrarySearch:
@@ -238,7 +232,6 @@ class TestBookLibrarySearch:
         assert data is not None, "Нет данных в результате"
         
         rows = data.get('rows', []) if isinstance(data, dict) else getattr(data, 'rows', [])
-        print(f"[OK] Поиск нашёл {len(rows)} книг")
 
 
 if __name__ == "__main__":

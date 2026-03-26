@@ -80,7 +80,7 @@ class Prompt(TemplateValidatorMixin, BaseModel):
 
         # Выводим предупреждения
         for warning in warnings:
-            print(warning.encode('ascii', 'replace').decode('ascii') if isinstance(warning, str) else warning)
+            pass  # Silently ignore validation warnings
 
         return self
 

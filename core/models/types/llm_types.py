@@ -181,10 +181,6 @@ class LLMResponse:
 
     ПРИМЕР ИСПОЛЬЗОВАНИЯ:
     response = await provider.generate(request)
-    print(f"Модель: {response.model}")
-    print(f"Токенов использовано: {response.tokens_used}")
-    print(f"Время генерации: {response.generation_time:.2f}с")
-    print(f"Ответ: {response.content}")
     """
     content: str
     model: str

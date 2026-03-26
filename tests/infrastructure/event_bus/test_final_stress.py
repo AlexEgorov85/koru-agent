@@ -90,10 +90,8 @@ class FinalStressTestResult:
 
         # Проверка 1: Нет потери событий
         if self.total_events_received != self.total_events_published:
-            print(f"[FAIL] ПОТЕРЯ СОБЫТИЙ: опубликовано={self.total_events_published}, получено={self.total_events_received}")
             all_valid = False
         else:
-            print(f"[OK] Все события получены: {self.total_events_received}/{self.total_events_published}")
 
         # Проверка 2: Порядок внутри сессии
         for session_id, events in self.events_received.items():
@@ -101,57 +99,34 @@ class FinalStressTestResult:
             expected = list(range(1, len(events) + 1))
 
             if sequence_numbers != expected:
-                print(f"[FAIL] НАРУШЕН ПОРЯДОК в сессии {session_id}")
                 all_valid = False
 
         if all_valid:
-            print("[OK] Порядок внутри всех сессий сохранён")
 
         # Проверка 3: Нет interleaving
         for session_id, events in self.events_received.items():
             sequence_numbers = [e.sequence_number for e in events]
             if len(sequence_numbers) != len(set(sequence_numbers)):
-                print(f"[FAIL] INTERLEAVING в сессии {session_id}")
                 all_valid = False
 
         if all_valid:
-            print("[OK] Нет interleaving между сессиями")
 
         # Проверка 4: Нет deadlock (тест завершился за разумное время)
         if self.duration > 60:
-            print(f"[FAIL] DEADLOCK подозрение: тест длился {self.duration:.1f} сек")
             all_valid = False
         else:
-            print(f"[OK] Нет deadlock (длительность {self.duration:.2f} сек)")
 
         # Проверка 5: Retry и ошибки обработаны
-        print(f"[INFO] Retry попыток: {self.retry_count}, Симулировано ошибок: {self.simulated_errors}")
 
         return all_valid
 
     def print_summary(self):
         """Вывод сводки."""
-        print("\n" + "="*70)
-        print("[SUMMARY] ФИНАЛЬНЫЙ СТРЕСС-ТЕСТ")
-        print("="*70)
-        print(f"Агентов:              {NUM_AGENTS}")
-        print(f"Сессий на агент:      {SESSIONS_PER_AGENT}")
-        print(f"Шагов на сессию:      {STEPS_PER_SESSION}")
-        print(f"Всего опубликовано:   {self.total_events_published}")
-        print(f"Всего получено:       {self.total_events_received}")
-        print(f"Длительность:         {self.duration:.2f} сек")
         if self.duration > 0:
-            print(f"Событий/сек:          {self.total_events_received / self.duration:.1f}")
-        print(f"Активных сессий:      {len(self.events_received)}")
-        print(f"Ошибок в обработчиках: {len(self.errors)}")
-        print("="*70)
 
 
 async def run_final_stress_test():
     """Запуск финального стресс-теста."""
-    print("\n" + "="*70)
-    print("[TEST] ФИНАЛЬНЫЙ СТРЕСС-ТЕСТ (ФАЗА 8)")
-    print("="*70)
 
     event_bus = create_event_bus(
         queue_max_size=QUEUE_MAX_SIZE,
@@ -249,17 +224,10 @@ async def main():
     """Запуск теста."""
     is_valid, _ = await run_final_stress_test()
     
-    print("\n" + "="*70)
-    print("[REPORT] ИТОГОВЫЙ ОТЧЁТ")
-    print("="*70)
     
     if is_valid:
-        print("[PASS]: Final Stress Test")
-        print("\n[SUCCESS] ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
         return 0
     else:
-        print("[FAIL]: Final Stress Test")
-        print("\n[FAILURE] ТЕСТ НЕ ПРОЙДЕН")
         return 1
 
 

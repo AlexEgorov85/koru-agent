@@ -14,13 +14,10 @@ from core.config.app_config import AppConfig
 
 async def test_tools_with_real_config(fake_infra_context):
     """Тестирование загрузки инструментов с реальной конфигурацией"""
-    print("=== Тестирование загрузки инструментов с реальной конфигурацией ===")
 
     # Загружаем конфигурацию из реестра
     app_config = AppConfig.from_discovery(profile="prod", data_dir="data")
 
-    print(f"Конфигурация загружена: {app_config.config_id}")
-    print(f"Количество инструментов в конфигурации: {len(app_config.tool_configs)}")
 
     app_context = ApplicationContext(
         infrastructure_context=fake_infra_context,
@@ -29,12 +26,8 @@ async def test_tools_with_real_config(fake_infra_context):
     )
 
     success = await app_context.initialize()
-    print(f"ApplicationContext инициализирован: {success}")
 
     if success:
         tools = app_context.components.all_of_type(ComponentType.TOOL)
-        print(f"Загружено инструментов: {len(tools)}")
         for tool in tools:
-            print(f"  - {tool.name}")
 
-    print("\n✅ Тест загрузки инструментов с реальной конфигурацией пройден")

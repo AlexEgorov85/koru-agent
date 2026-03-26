@@ -9,9 +9,12 @@
 """
 import asyncio
 import time
+import logging
 from typing import Any, Dict, Optional
 from datetime import datetime
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from core.agent.components.action_executor import ActionExecutor
 from core.agent.components.behavior_manager import BehaviorManager
@@ -198,8 +201,8 @@ class AgentRuntime:
 
         Используется в run() для избежания дублирования вызова generate_next_decision.
         """
-        print(f"\n🔵 [_execute_single_step_internal] НАЧАЛО: step={self._current_step}, decision.action={decision.action.value}", flush=True)
-        print(f"🔵 [_execute_single_step_internal] decision.capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
+        logger.debug(f"\n🔵 [_execute_single_step_internal] НАЧАЛО: step={self._current_step}, decision.action={decision.action.value}")
+        logger.debug(f"🔵 [_execute_single_step_internal] decision.capability_name={getattr(decision, 'capability_name', 'N/A')}")
         
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
@@ -231,16 +234,14 @@ class AgentRuntime:
                 await self.event_bus_logger.warning(
                     "⚠️ Agent attempted to stop on first step - это обычно ошибка LLM или пустой список capabilities"
                 )
-            print("\n⚠️ SAFEGUARD TRIGGERED: Agent attempted to stop on step 0")
-            print(f"   Goal: {self.goal[:100]}...")
-            print(f"   Available capabilities: {len(available_caps)}")
-            print("   Possible causes:")
-            print("   1. LLM incorrectly parsed the goal as already achieved")
-            print("   2. No capabilities were available to the LLM")
-            print("   3. Prompt template needs adjustment\n")
-
-            # Возвращаем ошибку чтобы behavior manager мог переключиться на fallback
-            print(f"🔴 [_execute_single_step_internal] Возврат SWITCH (safeguard)", flush=True)
+            logger.warning("\n⚠️ SAFEGUARD TRIGGERED: Agent attempted to stop on step 0")
+            logger.warning(f"   Goal: {self.goal[:100]}...")
+            logger.warning(f"   Available capabilities: {len(available_caps)}")
+            logger.warning("   Possible causes:")
+            logger.warning("   1. LLM incorrectly parsed the goal as already achieved")
+            logger.warning("   2. No capabilities were available to the LLM")
+            logger.warning("   3. Prompt template needs adjustment\n")
+            logger.debug(f"🔴 [_execute_single_step_internal] Возврат SWITCH (safeguard)")
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="fallback_pattern",
@@ -248,18 +249,18 @@ class AgentRuntime:
             )
 
         if decision.action == BehaviorDecisionType.STOP:
-            print(f"🔵 [_execute_single_step_internal] decision.action=STOP", flush=True)
+            logger.debug(f"🔵 [_execute_single_step_internal] decision.action=STOP")
             self.state.finished = True
             # Регистрируем финальное решение
             self.application_context.session_context.record_decision(
                 decision_data="STOP",
                 reasoning="goal_achieved"
             )
-            print(f"🔴 [_execute_single_step_internal] Возврат STOP decision", flush=True)
+            logger.debug(f"🔴 [_execute_single_step_internal] Возврат STOP decision")
             return decision
 
         if decision.action == BehaviorDecisionType.ACT:
-            print(f"🔵 [_execute_single_step_internal] decision.action=ACT", flush=True)
+            logger.debug(f"🔵 [_execute_single_step_internal] decision.action=ACT")
             # ПРОВЕРКА: capability_name должен быть указан
             if not decision.capability_name:
                 if self.event_bus_logger:
@@ -284,50 +285,44 @@ class AgentRuntime:
                         }
                     )
 
-                print(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)", flush=True)
-                return None
-
-            print(f"🔵 [_execute_single_step_internal] Поиск capability в application_context...", flush=True)
-            print(f"🔵 [_execute_single_step_internal] self.event_bus_logger={self.event_bus_logger is not None}", flush=True)
-            
-            # В новой архитектуре capability хранятся в components
-            capability = None
-            print(f"🔵 [_execute_single_step_internal] hasattr(application_context, 'components')={hasattr(self.application_context, 'components')}", flush=True)
+            logger.debug(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)")
+            logger.debug(f"🔵 [_execute_single_step_internal] Поиск capability в application_context...")
+            logger.debug(f"🔵 [_execute_single_step_internal] self.event_bus_logger={self.event_bus_logger is not None}")
+            logger.debug(f"🔵 [_execute_single_step_internal] hasattr(application_context, 'components')={hasattr(self.application_context, 'components')}")
             
             if hasattr(self.application_context, 'components'):
-                print(f"🔵 [_execute_single_step_internal] application_context.components доступен", flush=True)
+                logger.debug(f"🔵 [_execute_single_step_internal] application_context.components доступен")
                 # Пытаемся получить через components (универсальный метод)
                 # Разбиваем capability_name на skill/tool name и capability name
                 parts = decision.capability_name.split('.')
-                print(f"🔵 [_execute_single_step_internal] parts={parts}", flush=True)
+                logger.debug(f"🔵 [_execute_single_step_internal] parts={parts}")
                 if len(parts) >= 2:
-                    component_name = parts[0]  # например, book_library
-                    print(f"🔵 [_execute_single_step_internal] component_name={component_name}", flush=True)
-                    # Ищем во всех типах компонентов
+                    component_name = parts[0]
+                    logger.debug(f"🔵 [_execute_single_step_internal] component_name={component_name}")
                     from core.models.enums.common_enums import ComponentType
-                    print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...", flush=True)
+                    logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...")
                     comp = self.application_context.components.get(ComponentType.SKILL, component_name)
                     if comp:
                         capability = comp
-                        print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SKILL.{component_name}", flush=True)
+                        logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SKILL.{component_name}")
                     
                     if not capability:
-                        print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...", flush=True)
+                        logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...")
                         comp = self.application_context.components.get(ComponentType.TOOL, component_name)
                         if comp:
                             capability = comp
-                            print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.{component_name}", flush=True)
+                            logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.{component_name}")
                     
                     if not capability:
-                        print(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SERVICE...", flush=True)
+                        logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SERVICE...")
                         comp = self.application_context.components.get(ComponentType.SERVICE, component_name)
                         if comp:
                             capability = comp
-                            print(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SERVICE.{component_name}", flush=True)
+                            logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SERVICE.{component_name}")
             else:
-                print(f"🔴 [_execute_single_step_internal] capability_name не содержит '.' : {decision.capability_name}", flush=True)
+                logger.debug(f"🔴 [_execute_single_step_internal] capability_name не содержит '.' : {decision.capability_name}")
         else:
-            print(f"🔴 [_execute_single_step_internal] application_context.components НЕ доступен", flush=True)
+            logger.debug(f"🔴 [_execute_single_step_internal] application_context.components НЕ доступен")
 
         # Fallback: проверяем специальные методы если components не сработал
         if not capability:
@@ -336,11 +331,11 @@ class AgentRuntime:
                 skill_name = decision.capability_name.split('.')[0]
                 capability = self.application_context.components.get(ComponentType.SKILL, skill_name)
                 if capability:
-                    print(f"🔵 [_execute_single_step_internal] ✅ Найден skill: {skill_name}", flush=True)
+                    logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден skill: {skill_name}")
 
-        print(f"🔵 [_execute_single_step_internal] capability found: {capability is not None}", flush=True)
+        logger.debug(f"🔵 [_execute_single_step_internal] capability found: {capability is not None}")
         if not capability:
-            print(f"🔴 [_execute_single_step_internal] Capability '{decision.capability_name}' не найдена", flush=True)
+            logger.warning(f"🔴 [_execute_single_step_internal] Capability '{decision.capability_name}' не найдена")
             self.state.register_error()
 
             # ПРОВЕРКА: Превышен ли лимит ошибок
@@ -365,7 +360,7 @@ class AgentRuntime:
 
         # Выполняем capability
         try:
-            print(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...", flush=True)
+            logger.debug(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...")
 
             # component уже найден (SKILL.book_library или TOOL.book_library)
             # capability — это компонент, а cap_obj — объект Capability для валидации
@@ -375,8 +370,8 @@ class AgentRuntime:
                 parameters=decision.parameters,
                 context=self.application_context.session_context
             )
-            print(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно", flush=True)
-            print(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}", flush=True)
+            logger.debug(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно")
+            logger.debug(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}")
 
             # ПРОВЕРКА: Если decision требует LLM, проверяем что он был вызван
             if getattr(decision, 'requires_llm', False):
@@ -499,7 +494,7 @@ class AgentRuntime:
                 return execution_result
 
         except Exception as e:
-            print(f"🔴 [_execute_single_step_internal] ❌ Ошибка выполнения: {e}", flush=True)
+            logger.error(f"🔴 [_execute_single_step_internal] ❌ Ошибка выполнения: {e}")
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}")
             self.state.register_error()
@@ -535,7 +530,7 @@ class AgentRuntime:
         # В любом случае увеличиваем номер текущего шага для следующей итерации
         self.state.step += 1
 
-        print(f"🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action={decision.action.value})", flush=True)
+        logger.debug(f"🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action={decision.action.value})")
         return None
 
     async def _execute_single_step(self) -> Any:
@@ -749,11 +744,11 @@ class AgentRuntime:
             consecutive_error_count = 0
 
             # Цикл рассуждений
-            print(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}", flush=True)
-            print(f"🔵 [RUNTIME] state.finished={self.state.finished}", flush=True)
+            logger.debug(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}")
+            logger.debug(f"🔵 [RUNTIME] state.finished={self.state.finished}")
 
             while self._running and self._current_step < self._max_steps:
-                print(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===", flush=True)
+                logger.debug(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===")
 
                 # ← НОВОЕ: Явные stop conditions
                 if self._should_stop_early():
@@ -762,7 +757,7 @@ class AgentRuntime:
                     break
 
                 if self.state.finished:
-                    print(f"🔴 [RUNTIME] BREAK: state.finished=True", flush=True)
+                    logger.debug(f"🔴 [RUNTIME] BREAK: state.finished=True")
                     break
 
                 # Получаем доступные capability
@@ -777,16 +772,16 @@ class AgentRuntime:
                 else:
                     available_caps = []
 
-                print(f"🔵 [RUNTIME] available_caps count={len(available_caps)}", flush=True)
+                logger.debug(f"🔵 [RUNTIME] available_caps count={len(available_caps)}")
 
                 # Получаем decision
-                print(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...", flush=True)
+                logger.debug(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...")
                 decision = await self.behavior_manager.generate_next_decision(
                     session_context=self.application_context.session_context,
                     available_capabilities=available_caps
                 )
 
-                print(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}", flush=True)
+                logger.debug(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}")
 
                 # ← НОВОЕ: Детекция зацикливания действий
                 current_action_key = f"{decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}"
@@ -831,11 +826,11 @@ class AgentRuntime:
                                 )
 
                 # Выполняем шаг
-                print(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...", flush=True)
+                logger.debug(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...")
                 step_start_time = time.time()
                 step_result = await self._execute_single_step_internal(decision, available_caps)
                 step_execution_time_ms = (time.time() - step_start_time) * 1000
-                print(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}", flush=True)
+                logger.debug(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}")
                 
                 # ← НОВОЕ: Запись метрик шага через публикацию события EventBus
                 capability_name = getattr(decision, 'capability_name', 'unknown')
@@ -934,21 +929,21 @@ class AgentRuntime:
                 previous_decision = decision
 
                 self._current_step += 1
-                print(f"🔵 [RUNTIME] === КОНЕЦ ИТЕРАЦИИ {self._current_step} ===", flush=True)
+                logger.debug(f"🔵 [RUNTIME] === КОНЕЦ ИТЕРАЦИИ {self._current_step} ===")
 
             # Формируем результат
-            print(f"\n🔵 [RUNTIME] Цикл завершен: step={self._current_step}, running={self._running}", flush=True)
-            print(f"🔵 [RUNTIME] state.finished={self.state.finished}, result={self._result}", flush=True)
+            logger.debug(f"\n🔵 [RUNTIME] Цикл завершен: step={self._current_step}, running={self._running}")
+            logger.debug(f"🔵 [RUNTIME] state.finished={self.state.finished}, result={self._result}")
 
             if self._final_answer_result:
-                print(f"🔵 [RUNTIME] Возвращаем final_answer_result", flush=True)
+                logger.debug(f"🔵 [RUNTIME] Возвращаем final_answer_result")
                 return self._final_answer_result
 
             if self._result:
-                print(f"🔵 [RUNTIME] Возвращаем _result", flush=True)
+                logger.debug(f"🔵 [RUNTIME] Возвращаем _result")
                 return self._result
 
-            print(f"🔵 [RUNTIME] Возвращаем _extract_final_result()", flush=True)
+            logger.debug(f"🔵 [RUNTIME] Возвращаем _extract_final_result()")
             final_data = await self._extract_final_result()
             return ExecutionResult.success(
                 data=final_data,
@@ -959,7 +954,7 @@ class AgentRuntime:
             )
 
         except Exception as e:
-            print(f"\n🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}", flush=True)
+            logger.exception(f"\n🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}")
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения агента: {e}")
             return ExecutionResult.failure(str(e))

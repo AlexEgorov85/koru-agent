@@ -12,8 +12,6 @@
 from core.config.logging_config import LoggingConfig, get_logging_config
 
 config = get_logging_config()
-print(config.level)  # "INFO"
-print(config.file.enabled)  # True
 ```
 """
 from pathlib import Path
