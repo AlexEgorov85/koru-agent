@@ -436,16 +436,16 @@ class ReActPattern(BaseBehaviorPattern):
                 execution_context=execution_context
             )
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"reasoning_result тип={type(reasoning_result).__name__}")
+                await self.event_bus_logger.info(f"reasoning_result тип={type(reasoning_result).__name__}")
             if hasattr(reasoning_result, 'to_dict'):
                 d = reasoning_result.to_dict()
                 if self.event_bus_logger:
-                    self.event_bus_logger.info(f"to_dict() decision={d.get('decision')}")
-                    self.event_bus_logger.info(f"to_dict() stop_condition={d.get('stop_condition')}")
+                    await self.event_bus_logger.info(f"to_dict() decision={d.get('decision')}")
+                    await self.event_bus_logger.info(f"to_dict() stop_condition={d.get('stop_condition')}")
             elif isinstance(reasoning_result, dict):
                 if self.event_bus_logger:
-                    self.event_bus_logger.info(f"reasoning_result.decision={reasoning_result.get('decision', {})}")
-                    self.event_bus_logger.info(f"reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}")
+                    await self.event_bus_logger.info(f"reasoning_result.decision={reasoning_result.get('decision', {})}")
+                    await self.event_bus_logger.info(f"reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}")
 
             # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
@@ -455,7 +455,7 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}")
+                await self.event_bus_logger.info(f"decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}")
 
             # Логирование финального решения
             await self._log("info", f"generate_decision: decision получен",
@@ -468,7 +468,7 @@ class ReActPattern(BaseBehaviorPattern):
             self.error_count = 0
 
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
+                await self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
 
             return decision
             
@@ -588,7 +588,7 @@ class ReActPattern(BaseBehaviorPattern):
 
         try:
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"reasoning_result type={type(reasoning_result).__name__}")
+                await self.event_bus_logger.info(f"reasoning_result type={type(reasoning_result).__name__}")
 
             # Определяем accessor functions в зависимости от типа
             if isinstance(reasoning_result, dict):
@@ -692,12 +692,12 @@ class ReActPattern(BaseBehaviorPattern):
             
             # 4. Валидация и корректировка параметров через SchemaValidator
             validated_params = self.capability_resolver.validate_parameters(
-                capability, parameters, self.schema_validator, 
+                capability, parameters, self.schema_validator,
                 model_dump if isinstance(model_dump, dict) else {}
             )
 
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}")
+                await self.event_bus_logger.info(f"Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}")
             
             # КРИТИЧНО: Помечаем final_answer.generate как финальный шаг
             is_final = (capability_name == "final_answer.generate")

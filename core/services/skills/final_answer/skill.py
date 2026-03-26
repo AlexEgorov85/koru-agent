@@ -419,7 +419,7 @@ class FinalAnswerSkill(BaseSkill):
             output_schema = self.get_output_contract("final_answer.generate")
 
             if self.event_bus_logger:
-                self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
+                await self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
             llm_result = await self.executor.execute_action(
@@ -461,7 +461,7 @@ class FinalAnswerSkill(BaseSkill):
 
             # Логирование успешного structured output
             if self.event_bus_logger:
-                self.event_bus_logger.info(
+                await self.event_bus_logger.info(
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
