@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-from core.infrastructure.llm.providers.base.base_llm_provider import BaseLLMProvider
+from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.models.data.prompt import Prompt
 from core.models.enums.common_enums import ComponentType
 

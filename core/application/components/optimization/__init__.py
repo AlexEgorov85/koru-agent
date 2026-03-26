@@ -23,7 +23,6 @@
 
 from .dataset_builder import DatasetBuilder
 from .scenario_builder import ScenarioBuilder
-from .benchmark_runner import BenchmarkRunner
 from .evaluator import Evaluator
 from .prompt_generator import PromptGenerator
 from .version_manager import VersionManager
@@ -38,6 +37,9 @@ from .pattern_analyzer import PatternAnalyzer
 from .prompt_analyzer import PromptResponseAnalyzer
 from .root_cause_analyzer import RootCauseAnalyzer
 from .example_extractor import ExampleExtractor
+
+# BenchmarkRunner импортируется из core.benchmarks
+from core.benchmarks.benchmark_runner import BenchmarkRunner
 
 __all__ = [
     # Основные компоненты

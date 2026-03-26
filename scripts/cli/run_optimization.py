@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-CLI скрипт для запуска оптимизации промптов на новой архитектуре.
+CLI скрипт для запуска оптимизации промптов на новой архитектуре v2.
 
 Использует компоненты:
-- DatasetBuilder → ScenarioBuilder → BenchmarkRunner → Evaluator → PromptGenerator → VersionManager → SafetyLayer → OptimizationOrchestrator
+- TraceCollector → PatternAnalyzer → PromptResponseAnalyzer → RootCauseAnalyzer → 
+  ExampleExtractor → BenchmarkRunner → Evaluator → PromptGenerator → 
+  VersionManager → SafetyLayer → OptimizationOrchestrator
 
 ИСПОЛЬЗОВАНИЕ:
-    python scripts/cli/run_optimization_v2.py --capability <capability> --mode accuracy
-    python scripts/cli/run_optimization_v2.py --capability <capability> --list-capabilities
+    python scripts/cli/run_optimization.py --capability <capability> --mode accuracy
+    python scripts/cli/run_optimization.py --capability <capability> --dry-run --verbose
 """
 import argparse
 import asyncio
@@ -170,22 +172,23 @@ async def run_optimization_v2(
         from core.benchmarks.benchmark_models import OptimizationMode, FailureAnalysis
 
         from core.application.components.optimization import (
-            DatasetBuilder,
-            ScenarioBuilder,
-            BenchmarkRunner,
             Evaluator,
             PromptGenerator,
             VersionManager,
             SafetyLayer,
             OptimizationOrchestrator,
+            TraceCollector,
+            PatternAnalyzer,
+            PromptResponseAnalyzer,
+            RootCauseAnalyzer,
+            ExampleExtractor,
         )
-        from core.application.components.optimization.dataset_builder import DatasetConfig
-        from core.application.components.optimization.scenario_builder import ScenarioConfig
-        from core.benchmarks.benchmark_runner import BenchmarkRunConfig
+        from core.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
+        from core.application.components.optimization.trace_collector import TraceCollectionConfig
         from core.application.components.optimization.evaluator import EvaluationConfig
         from core.application.components.optimization.prompt_generator import GenerationConfig
         from core.application.components.optimization.safety_layer import SafetyConfig
-        from core.application.components.optimization.orchestrator import OrchestratorConfig
+        from core.application.components.optimization.orchestrator import OrchestratorV2Config
 
         # Загрузка конфигурации
         config = get_config(profile='dev', data_dir='data')
@@ -209,33 +212,23 @@ async def run_optimization_v2(
         event_bus = infra_context.event_bus
 
         # === СОЗДАНИЕ КОМПОНЕНТОВ ===
-        print("🔧 Создание компонентов оптимизации...")
+        print("🔧 Создание компонентов оптимизации...\n")
 
-        # 1. DatasetBuilder
-        dataset_config = DatasetConfig(
-            min_samples=50,  # Снижено для тестирования
-            min_failure_rate=0.15,
-            max_samples=500,
-            time_window_hours=48
-        )
-        dataset_builder = DatasetBuilder(
-            metrics_collector=infra_context.metrics_collector,
-            event_bus=event_bus,
-            config=dataset_config
-        )
-        print("  ✅ DatasetBuilder")
+        # 1. TraceCollector
+        from core.application.components.optimization.trace_handler import TraceHandler
+        from core.application.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
 
-        # 2. ScenarioBuilder
-        scenario_config = ScenarioConfig(
-            min_type_percentage=0.1,
-            min_failure_percentage=0.15,
-            max_scenarios=100,
-            balance_types=True
+        trace_handler = TraceHandler(
+            session_handler=infra_context.session_handler,
+            logs_dir="data/logs"
         )
-        scenario_builder = ScenarioBuilder(config=scenario_config)
-        print("  ✅ ScenarioBuilder")
+        trace_collector = TraceCollector(
+            trace_handler=trace_handler,
+            config=TraceCollectionConfig()
+        )
+        print("  ✅ TraceCollector")
 
-        # 3. BenchmarkRunner
+        # 2. BenchmarkRunner
         benchmark_config = BenchmarkRunConfig(
             temperature=0.0,  # Фиксированная для воспроизводимости
             seed=42,
@@ -301,19 +294,39 @@ async def run_optimization_v2(
             check_empty_result=True
         )
         safety_layer = SafetyLayer(event_bus=event_bus, config=safety_config)
-        print("  ✅ SafetyLayer\n")
+        print("  ✅ SafetyLayer")
 
-        # 8. OptimizationOrchestrator
-        orchestrator_config = OrchestratorConfig(
+        # 3. PatternAnalyzer
+        pattern_analyzer = PatternAnalyzer()
+        print("  ✅ PatternAnalyzer")
+
+        # 4. PromptResponseAnalyzer
+        prompt_analyzer = PromptResponseAnalyzer()
+        print("  ✅ PromptResponseAnalyzer")
+
+        # 5. RootCauseAnalyzer
+        root_cause_analyzer = RootCauseAnalyzer()
+        print("  ✅ RootCauseAnalyzer")
+
+        # 6. ExampleExtractor
+        example_extractor = ExampleExtractor()
+        print("  ✅ ExampleExtractor\n")
+
+        # 7. OptimizationOrchestrator
+        orchestrator_config = OrchestratorV2Config(
             max_iterations=max_iterations,
             target_accuracy=target_accuracy,
             min_improvement=min_improvement,
             timeout_seconds=600,
-            parallel_candidates=1
+            max_examples=5,
+            max_error_examples=3
         )
         orchestrator = OptimizationOrchestrator(
-            dataset_builder=dataset_builder,
-            scenario_builder=scenario_builder,
+            trace_collector=trace_collector,
+            pattern_analyzer=pattern_analyzer,
+            prompt_analyzer=prompt_analyzer,
+            root_cause_analyzer=root_cause_analyzer,
+            example_extractor=example_extractor,
             benchmark_runner=benchmark_runner,
             evaluator=evaluator,
             prompt_generator=prompt_generator,
@@ -338,29 +351,55 @@ async def run_optimization_v2(
 
         if dry_run:
             print("⚠️  DRY RUN: Тестовый запуск без реальных изменений\n")
-            
-            # Тестирование DatasetBuilder
-            print("📊 Тестирование DatasetBuilder...")
-            dataset = await dataset_builder.build(capability)
-            dataset_stats = dataset_builder.get_dataset_stats(dataset)
-            print(f"  Образцов: {dataset_stats['total_samples']}")
-            print(f"  Failure rate: {dataset_stats['failure_rate']:.1%}")
-            print(f"  Типы: {dataset_stats['type_distribution']}\n")
 
-            # Тестирование ScenarioBuilder
-            print("📋 Тестирование ScenarioBuilder...")
-            scenarios = await scenario_builder.build(dataset)
-            scenario_stats = scenario_builder.get_scenario_stats(scenarios)
-            print(f"  Сценариев: {scenario_stats['total_scenarios']}")
-            print(f"  Распределение: {scenario_stats['type_distribution']}\n")
+            # Тестирование TraceCollector
+            print("📊 Тестирование TraceCollector...")
+            traces = await trace_collector.collect_traces(capability)
+            print(f"  Trace найдено: {len(traces)}")
+            if traces:
+                success_count = sum(1 for t in traces if t.get('success', False))
+                print(f"  Успешных: {success_count}")
+                print(f"  Ошибок: {len(traces) - success_count}\n")
+
+            # Тестирование PatternAnalyzer
+            print("📋 Тестирование PatternAnalyzer...")
+            patterns = pattern_analyzer.analyze(traces)
+            print(f"  Паттернов найдено: {len(patterns)}\n")
+
+            # Тестирование PromptResponseAnalyzer
+            print("🔍 Тестирование PromptResponseAnalyzer...")
+            prompt_issues = prompt_analyzer.analyze_prompts(traces)
+            print(f"  Проблем с промптами: {len(prompt_issues)}\n")
+
+            # Тестирование RootCauseAnalyzer
+            print("🎯 Тестирование RootCauseAnalyzer...")
+            root_causes = root_cause_analyzer.analyze(
+                patterns=patterns,
+                prompt_issues=prompt_issues,
+                response_issues=[]
+            )
+            print(f"  Корневых причин: {len(root_causes)}\n")
+
+            # Тестирование ExampleExtractor
+            print("📚 Тестирование ExampleExtractor...")
+            examples, error_examples = example_extractor.extract_few_shot_examples(
+                traces=traces,
+                capability=capability,
+                num_good=3,
+                num_bad=2
+            )
+            print(f"  Примеров извлечено: {len(examples) + len(error_examples)}\n")
 
             result = {
                 'capability': capability,
                 'mode': mode,
                 'timestamp': datetime.now().isoformat(),
                 'status': 'dry_run',
-                'dataset_stats': dataset_stats,
-                'scenario_stats': scenario_stats
+                'traces_count': len(traces),
+                'patterns_count': len(patterns),
+                'prompt_issues_count': len(prompt_issues),
+                'root_causes_count': len(root_causes),
+                'examples_count': len(examples)
             }
         else:
             # Реальный запуск
@@ -401,8 +440,11 @@ async def run_optimization_v2(
 
         if dry_run:
             print(f"Статус: 🔹 Dry run завершён")
-            print(f"Датасет: {result.get('dataset_stats', {}).get('total_samples', 0)} образцов")
-            print(f"Сценарии: {result.get('scenario_stats', {}).get('total_scenarios', 0)} сценариев")
+            print(f"Trace найдено: {result.get('traces_count', 0)}")
+            print(f"Паттернов: {result.get('patterns_count', 0)}")
+            print(f"Проблем с промптами: {result.get('prompt_issues_count', 0)}")
+            print(f"Корневых причин: {result.get('root_causes_count', 0)}")
+            print(f"Примеров: {result.get('examples_count', 0)}")
         else:
             status_icon = '✅' if result.get('target_achieved') else '⚠️'
             print(f"Статус: {status_icon} {'Успешно' if result.get('target_achieved') else 'Частично'}")
