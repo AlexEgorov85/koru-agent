@@ -130,6 +130,11 @@ class TerminalLogHandler:
         self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_log)
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_error)
+        
+        # Подписка на пользовательские сообщения (всегда выводятся)
+        self.event_bus.subscribe(EventType.USER_MESSAGE, self._on_user_message)
+        self.event_bus.subscribe(EventType.USER_PROGRESS, self._on_user_message)
+        self.event_bus.subscribe(EventType.USER_RESULT, self._on_user_message)
 
     def _should_log(self, level: str) -> bool:
         """Проверка уровня логирования."""
@@ -158,6 +163,20 @@ class TerminalLogHandler:
         if message:
             # Прямой вывод в консоль (минуя logging)
             print(message, flush=True)
+
+    async def _on_user_message(self, event: Event):
+        """Обработка пользовательских сообщений (всегда выводятся)."""
+        if not self._enabled:
+            return
+
+        data = event.data or {}
+        message = data.get("message")
+        icon = data.get("icon", "ℹ️")
+
+        if message:
+            # Форматирование с иконкой
+            formatted = f"{icon} {message}"
+            print(formatted, flush=True)
 
     async def _on_error(self, event: Event):
         """Обработка ERROR логов."""

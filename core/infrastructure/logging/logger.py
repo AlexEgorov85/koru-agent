@@ -254,6 +254,54 @@ class AsyncLoggerMixin:
                 **extra_data
             )
 
+    # === USER-FRIENDLY MESSAGES (вывод в терминал) ===
+
+    async def user_message(self, message: str, icon: str = "ℹ️", **extra_data):
+        """
+        Пользовательское сообщение (выводится в терминал).
+
+        ARGS:
+        - message: Текст сообщения
+        - icon: Иконка (по умолчанию "ℹ️")
+        """
+        await self._publish(
+            EventType.USER_MESSAGE,
+            message,
+            "USER",
+            icon=icon,
+            **extra_data
+        )
+
+    async def user_progress(self, message: str, **extra_data):
+        """
+        Сообщение о прогрессе (выводится в терминал).
+
+        ARGS:
+        - message: Текст (например, "Запуск агента...")
+        """
+        await self._publish(
+            EventType.USER_PROGRESS,
+            message,
+            "USER",
+            icon="🔄",
+            **extra_data
+        )
+
+    async def user_result(self, message: str, **extra_data):
+        """
+        Сообщение о результате (выводится в терминал).
+
+        ARGS:
+        - message: Текст результата
+        """
+        await self._publish(
+            EventType.USER_RESULT,
+            message,
+            "USER",
+            icon="✅",
+            **extra_data
+        )
+
 
 # ============================================================
 # MIXIN 3: LLMMixin — логирование LLM вызовов

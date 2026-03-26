@@ -169,6 +169,11 @@ class EventType(Enum):
     LOG_WARNING = "log.warning"
     LOG_ERROR = "log.error"
 
+    # === Пользовательские сообщения (вывод в терминал) ===
+    USER_MESSAGE = "user.message"  # Важные сообщения для пользователя
+    USER_PROGRESS = "user.progress"  # Прогресс выполнения
+    USER_RESULT = "user.result"  # Результаты выполнения
+
     # === Telemetry события ===
     WORKER_CREATED = "worker.created"
     WORKER_STARTED = "worker.started"
