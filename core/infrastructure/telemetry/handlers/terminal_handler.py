@@ -111,10 +111,19 @@ class TerminalLogHandler:
     Displays only meaningful execution trace.
     """
 
-    def __init__(self, event_bus: UnifiedEventBus):
+    def __init__(self, event_bus: UnifiedEventBus, min_level: str = "INFO"):
         self.event_bus = event_bus
         self.formatter = TerminalLogFormatter()
         self._enabled = True
+        self._min_level = min_level.upper()
+        self._level_priority = {
+            "DEBUG": 0,
+            "INFO": 1,
+            "WARNING": 2,
+            "WARN": 2,
+            "ERROR": 3,
+            "CRITICAL": 4
+        }
 
     def subscribe(self):
         """Подписка на события логирования."""
@@ -123,6 +132,12 @@ class TerminalLogHandler:
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_error)
 
+    def _should_log(self, level: str) -> bool:
+        """Проверка уровня логирования."""
+        level_priority = self._level_priority.get(level.upper(), 1)
+        min_priority = self._level_priority.get(self._min_level, 1)
+        return level_priority >= min_priority
+
     async def _on_log(self, event: Event):
         """Обработка INFO/DEBUG/WARNING логов."""
         if not self._enabled:
@@ -130,6 +145,11 @@ class TerminalLogHandler:
 
         data = event.data or {}
         level = data.get("level", "INFO")
+        
+        # Фильтрация по уровню
+        if not self._should_log(level):
+            return
+        
         message = self.formatter.format(event, level)
 
         if message:

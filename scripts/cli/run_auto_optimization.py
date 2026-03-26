@@ -25,6 +25,10 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, asdict, field
 
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 
 @dataclass
 class BenchmarkResult:
@@ -133,6 +137,14 @@ def parse_args() -> argparse.Namespace:
         '--verbose',
         action='store_true',
         help='Подробный вывод'
+    )
+
+    parser.add_argument(
+        '--log-level',
+        type=str,
+        default='WARNING',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Уровень логирования (по умолчанию: WARNING)'
     )
 
     return parser.parse_args()
@@ -512,7 +524,8 @@ async def run_full_pipeline(
     from core.application_context.application_context import ApplicationContext
     from core.config.app_config import AppConfig
     
-    config = get_config(profile='dev', data_dir='data')
+    config = get_config(profile='prod', data_dir='data')
+    config.log_level = 'ERROR'
     
     infra_context = InfrastructureContext(config)
     await infra_context.initialize()
@@ -658,6 +671,11 @@ async def run_full_pipeline(
 async def main():
     """Точка входа"""
     args = parse_args()
+    
+    import logging
+    logging.getLogger().setLevel(args.log_level)
+    for handler in logging.getLogger().handlers:
+        handler.setLevel(args.log_level)
     
     try:
         report = await run_full_pipeline(

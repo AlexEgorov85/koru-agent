@@ -306,9 +306,8 @@ class ReActPattern(BaseBehaviorPattern):
             # Логирование что найдено
             if self.event_bus_logger:
                 self.event_bus_logger.info_sync(f"[ReAct] === ЗАГРУЗКА РЕСУРСОВ ===")
-                self.event_bus_logger.info_sync(f"[ReAct] system_prompts: {list(self.system_prompts.keys()) if hasattr(self, 'system_prompts') and self.system_prompts else 'None'}")
-                self.event_bus_logger.info_sync(f"[ReAct] user_prompts: {list(self.user_prompts.keys()) if hasattr(self, 'user_prompts') and self.user_prompts else 'None'}")
-                self.event_bus_logger.info_sync(f"[ReAct] prompts: {list(self.prompts.keys()) if hasattr(self, 'prompts') and self.prompts else 'None'}")
+                prompts_keys = list(self.prompts.keys()) if hasattr(self, 'prompts') and self.prompts else []
+                self.event_bus_logger.info_sync(f"[ReAct] prompts: {prompts_keys}")
                 self.event_bus_logger.info_sync(f"[ReAct] system_prompt_template загружен: {self.system_prompt_template is not None}")
                 self.event_bus_logger.info_sync(f"[ReAct] reasoning_prompt_template загружен: {self.reasoning_prompt_template is not None}")
                 self.event_bus_logger.info_sync(f"[ReAct] reasoning_schema загружена: {self.reasoning_schema is not None}")

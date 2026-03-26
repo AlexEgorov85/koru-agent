@@ -107,9 +107,12 @@ class TelemetryCollector(BaseEventCollector):
 
         # 1. Terminal handler
         if self._enable_terminal:
-            self.terminal_handler = TerminalLogHandler(self.event_bus)
+            from core.config.logging_config import LoggingConfig
+            log_config = LoggingConfig()
+            console_level = log_config.console.level if hasattr(log_config, 'console') else "INFO"
+            self.terminal_handler = TerminalLogHandler(self.event_bus, min_level=console_level)
             self.terminal_handler.subscribe()
-            await self.event_bus_logger.info("TerminalLogHandler инициализирован")
+            await self.event_bus_logger.info(f"TerminalLogHandler инициализирован (уровень: {console_level})")
 
         # 2. Session handler
         if self._enable_session_logs:
