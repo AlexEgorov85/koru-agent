@@ -504,39 +504,9 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                     
                     parsed_content = None
                     if request.structured_output.output_model:
-                        try:
-                            from core.models.schemas.react_models import ReasoningResult
-                            if request.structured_output.output_model == "ReasoningResult":
-                                parsed_content = ReasoningResult.model_validate(parsed_json)
-                                logger.info(f"✅ Валидировано по ReasoningResult: stop_condition={parsed_content.stop_condition}")
-                                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            elif request.structured_output.output_model == "final_answer.generate.output":
-                                from pydantic import create_model, BaseModel
-                                from typing import Optional, List, Dict, Any
-                                
-                                field_definitions = {}
-                                for field_name, field_value in parsed_json.items():
-                                    if isinstance(field_value, bool):
-                                        field_definitions[field_name] = (bool, ...)
-                                    elif isinstance(field_value, int):
-                                        field_definitions[field_name] = (int, ...)
-                                    elif isinstance(field_value, float):
-                                        field_definitions[field_name] = (float, ...)
-                                    elif isinstance(field_value, list):
-                                        field_definitions[field_name] = (List[Any], ...)
-                                    elif isinstance(field_value, dict):
-                                        field_definitions[field_name] = (Dict[str, Any], ...)
-                                    else:
-                                        field_definitions[field_name] = (str, ...)
-                                
-                                DynamicModel = create_model('FinalAnswerOutput', **field_definitions)
-                                parsed_content = DynamicModel(**parsed_json)
-                                logger.info(f"✅ Валидировано по динамической модели final_answer.generate.output")
-                                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        except Exception as model_error:
-                            logger.warning(f"⚠️ Не удалось валидировать по модели: {model_error}")
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            parsed_content = parsed_json
+                        # Провайдер только парсит JSON, валидация - ответственность оркестратора
+                        parsed_content = parsed_json
+                        logger.info(f"✅ JSON распарсен, валидация - ответственность оркестратора")
                     else:
                         parsed_content = parsed_json
                     
