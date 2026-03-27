@@ -242,6 +242,17 @@ class AgentRuntime:
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
+        # Публикуем событие progress для отображения шага
+        if self.event_bus_logger and decision.action == BehaviorDecisionType.ACT:
+            step_num = self._current_step + 1
+            cap_name = getattr(decision, 'capability_name', 'unknown')
+            await self.event_bus_logger.user_progress(
+                message=f"ШАГ {step_num}: act → {cap_name}",
+                step_number=step_num,
+                action=decision.action.value,
+                capability_name=cap_name
+            )
+
         # Запись решения паттерна поведения
         if decision:
             self.application_context.session_context.record_decision(
@@ -306,6 +317,17 @@ class AgentRuntime:
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат STOP decision")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return decision
+
+        # Публикуем событие рассуждения агента для вывода пользователю
+        if decision.action == BehaviorDecisionType.ACT and self.event_bus_logger:
+            reasoning_text = decision.reason or "Принято решение о действии"
+            await self.event_bus_logger.agent_thinking(
+                reasoning=reasoning_text,
+                capability_name=decision.capability_name or "unknown",
+                parameters=decision.parameters,
+                decision_action="act",
+                step_number=self._current_step + 1
+            )
 
         if decision.action == BehaviorDecisionType.ACT:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -459,6 +481,14 @@ class AgentRuntime:
             logger.debug(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
+            # Публикуем события для вывода пользователю
+            if self.event_bus_logger:
+                await self.event_bus_logger.tool_call(
+                    capability_name=decision.capability_name,
+                    parameters=decision.parameters,
+                    step_number=self._current_step + 1
+                )
+
             # component уже найден (SKILL.book_library или TOOL.book_library)
             # capability — это компонент, а cap_obj — объект Capability для валидации
             # ← НОВОЕ: Выполнение через SafeExecutor с обработкой ошибок
@@ -467,6 +497,24 @@ class AgentRuntime:
                 parameters=decision.parameters,
                 context=self.application_context.session_context
             )
+
+            # Публикуем результат выполнения
+            if self.event_bus_logger:
+                result_status = "completed" if execution_result.status == ExecutionStatus.COMPLETED else "failed"
+                result_data = None
+                if hasattr(execution_result, 'result'):
+                    result_data = execution_result.result
+                elif hasattr(execution_result, 'data'):
+                    result_data = execution_result.data
+                
+                await self.event_bus_logger.tool_result(
+                    capability_name=decision.capability_name,
+                    result=result_data,
+                    status=result_status,
+                    has_result=result_data is not None,
+                    step_number=self._current_step + 1
+                )
+
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
