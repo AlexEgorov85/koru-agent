@@ -135,6 +135,11 @@ class TerminalLogHandler:
         self.event_bus.subscribe(EventType.USER_MESSAGE, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_PROGRESS, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_RESULT, self._on_user_message)
+        
+        # Подписка на события агента для вывода рассуждений
+        self.event_bus.subscribe(EventType.AGENT_THINKING, self._on_agent_thinking)
+        self.event_bus.subscribe(EventType.TOOL_CALL, self._on_tool_call)
+        self.event_bus.subscribe(EventType.TOOL_RESULT, self._on_tool_result)
 
     def _should_log(self, level: str) -> bool:
         """Проверка уровня логирования."""
@@ -177,6 +182,64 @@ class TerminalLogHandler:
             # Форматирование с иконкой
             formatted = f"{icon} {message}"
             print(formatted, flush=True)
+
+    async def _on_agent_thinking(self, event: Event):
+        """Обработка рассуждений агента."""
+        if not self._enabled:
+            return
+
+        data = event.data or {}
+        reasoning = data.get("message", "")
+        capability_name = data.get("capability_name", "")
+        parameters = data.get("parameters", {})
+        decision_action = data.get("decision_action", "act")
+
+        if reasoning:
+            step_num = data.get("step_number", "?")
+            message = f"ШАГ {step_num}: {decision_action} → {capability_name}"
+            print(f"🧠 {message}", flush=True)
+            print(f"   💭 {reasoning}", flush=True)
+            if parameters:
+                params_str = str(parameters)[:100] + "..." if len(str(parameters)) > 100 else str(parameters)
+                print(f"   📋 {params_str}", flush=True)
+
+    async def _on_tool_call(self, event: Event):
+        """Обработка вызова инструмента."""
+        if not self._enabled:
+            return
+
+        data = event.data or {}
+        message = data.get("message", "")
+        capability_name = data.get("capability_name", "")
+        parameters = data.get("parameters", {})
+
+        if capability_name:
+            params_preview = ""
+            if parameters:
+                params_str = str(parameters)
+                params_preview = f" ({params_str[:80]}{'...' if len(params_str) > 80 else ''})"
+            print(f"🔧 TOOL вызов: {capability_name}{params_preview}", flush=True)
+
+    async def _on_tool_result(self, event: Event):
+        """Обработка результата инструмента."""
+        if not self._enabled:
+            return
+
+        data = event.data or {}
+        capability_name = data.get("capability_name", "")
+        status = data.get("status", "completed")
+        result = data.get("result", "")
+        has_result = data.get("has_result", False)
+
+        icon = "✅" if status == "completed" else "❌"
+        print(f"{icon} {capability_name}: {status}", flush=True)
+        
+        # Вывод результата инструмента
+        if has_result and result is not None:
+            result_str = str(result)
+            if len(result_str) > 500:
+                result_str = result_str[:500] + "..."
+            print(f"📊 RESULT → {result_str}", flush=True)
 
     async def _on_error(self, event: Event):
         """Обработка ERROR логов."""
