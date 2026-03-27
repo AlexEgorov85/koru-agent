@@ -6,6 +6,7 @@
 - Dataclass для структур данных
 """
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from core.models.data.capability import Capability
@@ -49,6 +50,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
     - ContextAnalysis: типизированный результат анализа
     """
     logger = logging.getLogger(__name__)
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     try:
         # Получаем историю последних шагов
@@ -56,11 +58,14 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
         if hasattr(session_context, 'get_last_steps'):
             last_steps = session_context.get_last_steps(limit=5)
             logger.info(f"analyze_context: get_last_steps() вернул {len(last_steps)} шагов")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         elif hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'get_last_steps'):
             last_steps = session_context.step_context.get_last_steps(5)
             logger.info(f"analyze_context: step_context.get_last_steps() вернул {len(last_steps)} шагов")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             logger.warning(f"analyze_context: не удалось получить last_steps. session_context имеет атрибуты: {dir(session_context)}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Получаем цель сессии
         goal = session_context.goal if hasattr(session_context, 'goal') else "Неизвестная цель"
@@ -74,8 +79,10 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
             try:
                 summary = session_context.get_summary()
                 logger.info(f"analyze_context: get_summary() вернул {summary.get('step_count', 0)} шагов, last_steps={len(summary.get('last_steps', []))}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except Exception as e:
                 logger.warning(f"analyze_context: get_summary() ошибка: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Собираем информацию о контексте и возвращаем объект
         return ContextAnalysis(
@@ -92,6 +99,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
 
     except Exception as e:
         logger.error(f"Ошибка при анализе контекста: {str(e)}", exc_info=True)
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         # Возвращаем минимальный анализ в случае ошибки
         return ContextAnalysis(
             goal="Неизвестная цель",

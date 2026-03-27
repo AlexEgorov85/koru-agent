@@ -65,6 +65,7 @@ class MockLLMProvider(BaseLLMProvider):
         """
         self._prompt_responses[prompt_pattern] = response
         self.event_bus_logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def register_regex_response(self, pattern: str, response: str):
         """
@@ -77,6 +78,7 @@ class MockLLMProvider(BaseLLMProvider):
         compiled_pattern = re.compile(pattern, re.IGNORECASE | re.DOTALL)
         self._prompt_responses[compiled_pattern] = response
         self.event_bus_logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def set_default_response(self, response: str):
         """
@@ -87,6 +89,7 @@ class MockLLMProvider(BaseLLMProvider):
         """
         self._default_response = response
         self.event_bus_logger.debug(f"Установлен ответ по умолчанию: {response[:50]}...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def get_call_history(self) -> List[Dict[str, Any]]:
         """
@@ -101,6 +104,7 @@ class MockLLMProvider(BaseLLMProvider):
         """Очистка истории вызовов."""
         self._call_history.clear()
         self.event_bus_logger.debug("История вызовов очищена")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def get_last_call(self) -> Optional[Dict[str, Any]]:
         """
@@ -150,12 +154,14 @@ class MockLLMProvider(BaseLLMProvider):
         """Инициализация провайдера."""
         try:
             self.event_bus_logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.initialized = True
             self.is_initialized = True
             self._set_healthy_status()
             return True
         except Exception as e:
             self.event_bus_logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def health_check(self) -> Dict[str, Any]:
@@ -181,6 +187,7 @@ class MockLLMProvider(BaseLLMProvider):
 
         # Логирование вызова
         self.event_bus_logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Публикация события LLM_CALL_STARTED
         if hasattr(self, '_event_bus') and self._event_bus:
@@ -281,6 +288,7 @@ class MockLLMProvider(BaseLLMProvider):
     async def shutdown(self):
         """Завершение работы провайдера."""
         self.event_bus_logger.info("Mock LLM провайдер завершает работу")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self.initialized = False
         self.is_initialized = False
 
@@ -375,6 +383,7 @@ class MockLLMProvider(BaseLLMProvider):
                 validation_errors.append(error_info)
                 
                 self.event_bus_logger.warning(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Mock: Попытка {attempt}/{config.max_retries} не удалась: {e}"
                 )
         

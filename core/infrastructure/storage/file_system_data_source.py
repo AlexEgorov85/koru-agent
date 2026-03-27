@@ -13,6 +13,8 @@ import yaml
 import re
 import json
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class FileSystemDataSource(ResourceDataSource):
@@ -182,6 +184,8 @@ class FileSystemDataSource(ResourceDataSource):
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
                         from core.infrastructure.logging import EventBusLogger
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         from core.infrastructure.event_bus.unified_event_bus import get_event_bus
                         event_bus = get_event_bus()
                         if event_bus:
@@ -233,6 +237,8 @@ class FileSystemDataSource(ResourceDataSource):
                         # Если хотя бы один файл не читается/не парсится/не проходит валидацию
                         # → выбрасываем исключение и НЕ продолжаем загрузку
                         from core.infrastructure.logging import EventBusLogger
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         from core.infrastructure.event_bus.unified_event_bus import get_event_bus
                         event_bus = get_event_bus()
                         if event_bus:

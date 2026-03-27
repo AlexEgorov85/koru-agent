@@ -112,6 +112,8 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Модель
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"📝 LLM вызов | Модель: {self.model_name} | "
             f"Промт: {len(request.prompt)} симв. | "
             f"Max tokens: {request.max_tokens} | "
@@ -120,6 +122,8 @@ class BaseLLMProvider(BaseProvider, ABC):
 
         # Логирует полный промт
         await self.event_bus_logger.info(f"Промт LLM ({len(request.prompt)} симв.): {request.prompt}")
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_llm_call_end(self, response: LLMResponse, elapsed_time: float) -> None:
         """
@@ -139,6 +143,8 @@ class BaseLLMProvider(BaseProvider, ABC):
                 elif isinstance(response.metadata, str):
                     error_msg = response.metadata
             await self.event_bus_logger.error(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"❌ LLM ответ | Модель: {self.model_name} | "
                 f"Ошибка: {error_msg} | "
                 f"Время: {elapsed_time:.2f}с"
@@ -146,6 +152,8 @@ class BaseLLMProvider(BaseProvider, ABC):
         else:
             content_length = len(response.content) if response.content else 0
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"✅ LLM ответ | Модель: {self.model_name} | "
                 f"Ответ: {content_length} симв. | "
                 f"Токенов: {response.tokens_used} | "
@@ -156,6 +164,8 @@ class BaseLLMProvider(BaseProvider, ABC):
             # Логирует полный ответ
             if response.content:
                 await self.event_bus_logger.info(f"Ответ LLM: {response.content}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_llm_call_error(self, error: Exception, elapsed_time: float) -> None:
         """
@@ -166,6 +176,8 @@ class BaseLLMProvider(BaseProvider, ABC):
         - Время до ошибки
         """
         await self.event_bus_logger.error(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ LLM ошибка | Модель: {self.model_name} | "
             f"{type(error).__name__}: {str(error)[:200]} | "
             f"Время: {elapsed_time:.2f}с"

@@ -89,6 +89,8 @@ class SQLGenerationService(BaseService):
             if not await self.error_analyzer.initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
             # Инициализация движка коррекции
@@ -98,12 +100,16 @@ class SQLGenerationService(BaseService):
             if not self.table_description_service_instance:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error("table_description_service не загружен (архитектурная ошибка)")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
             return True
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка инициализации SQLGenerationService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def _load_service_prompts(self):
@@ -154,6 +160,8 @@ class SQLGenerationService(BaseService):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска SQLGenerationService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def shutdown(self) -> None:
@@ -212,7 +220,11 @@ class SQLGenerationService(BaseService):
         # Логирование для отладки
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"SQL Generation prompt length: {len(prompt)}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.debug(f"SQL Generation prompt[:200]: {prompt[:200]}...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         try:
             # 4. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR
@@ -319,6 +331,8 @@ class SQLGenerationService(BaseService):
                 last_error = e
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"SQL generation attempt {attempt + 1} failed: {str(e)}"
                     )
 
@@ -347,10 +361,14 @@ class SQLGenerationService(BaseService):
 
                         if self.event_bus_logger:
                             await self.event_bus_logger.info(f"Applied correction: {corrected.corrected_sql}")
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                     except Exception as correction_error:
                         if self.event_bus_logger:
                             await self.event_bus_logger.warning(f"Correction failed: {str(correction_error)}")
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         from core.errors.exceptions import SQLValidationError
         raise SQLValidationError(

@@ -15,6 +15,8 @@ from core.models.data.capability import Capability
 from core.models.errors import InvalidDecisionError
 from core.models.enums.common_enums import ComponentType
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.strategy_selector import StrategySelector
 from core.services.storage.behavior.behavior_storage import BehaviorStorage
@@ -56,6 +58,8 @@ class BehaviorManager:
             event_bus = getattr(self._app_ctx.infrastructure_context, 'event_bus', None)
             if event_bus:
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus=event_bus,
                     session_id="system",
                     agent_id="system",
@@ -114,12 +118,16 @@ class BehaviorManager:
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Получен decision: action={decision.action.value}, capability_name={decision.capability_name}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # КРИТИЧЕСКАЯ ПРОВЕРКА: decision должен иметь capability_name для ACT
         if decision.action == BehaviorDecisionType.ACT:
             if not decision.capability_name:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"ACT decision без capability_name! "
                         f"Decision: {decision.action.value}, reason: {decision.reason[:100] if decision.reason else 'N/A'}"
                     )
@@ -134,6 +142,8 @@ class BehaviorManager:
             # ИСПОЛЬЗУЕМ ту же логику что и _find_capability (с поиском по префиксу)
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Проверка capability: {decision.capability_name}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             capability_exists = any(
                 cap.name == decision.capability_name
                 for cap in available_capabilities
@@ -148,12 +158,16 @@ class BehaviorManager:
                 )
                 if capability_exists and self.event_bus_logger:
                     await self.event_bus_logger.debug(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Capability '{decision.capability_name}' найдена по префиксу '{prefix}'"
                     )
             
             if not capability_exists:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Capability '{decision.capability_name}' не найдена в доступных! "
                         f"Available: {[c.name for c in available_capabilities]}"
                     )
@@ -175,6 +189,8 @@ class BehaviorManager:
             if self._failure_memory and self._failure_memory.should_switch_pattern(decision.capability_name):
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"FailureMemory рекомендует переключить паттерн для {decision.capability_name}. "
                         f"Recommendation: {self._failure_memory.get_recommendation(decision.capability_name)}"
                     )
@@ -195,6 +211,8 @@ class BehaviorManager:
         # Логирование decision для аудита
         if self.event_bus_logger:
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Decision: action={decision.action.value}, "
                 f"capability={decision.capability_name or 'N/A'}, "
                 f"reason={decision.reason[:100] if decision.reason else 'N/A'}"
@@ -206,6 +224,8 @@ class BehaviorManager:
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         return decision
 

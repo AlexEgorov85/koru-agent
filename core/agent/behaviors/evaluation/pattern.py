@@ -55,7 +55,11 @@ class EvaluationPattern(BaseBehaviorPattern):
         if self.event_bus_logger is None:
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.logging import EventBusLogger
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus=self.application_context.infrastructure_context.event_bus,
                     session_id="system",
                     agent_id="system",
@@ -81,7 +85,11 @@ class EvaluationPattern(BaseBehaviorPattern):
         if self.event_bus_logger is None:
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.logging import EventBusLogger
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus=self.application_context.infrastructure_context.event_bus,
                     session_id="system",
                     agent_id="system",
@@ -90,6 +98,8 @@ class EvaluationPattern(BaseBehaviorPattern):
 
         if self.event_bus_logger and hasattr(self.event_bus_logger, 'log_self_improvement_thinking'):
             await self.event_bus_logger.log_self_improvement_thinking(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 phase=phase,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -134,6 +144,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             return self.system_prompt_template is not None
         except Exception as e:
             self.logger.error(f"Ошибка загрузки system prompt: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     def _inject_schema_into_system_prompt(self, system_prompt: str, schema: dict) -> str:
@@ -219,6 +230,7 @@ class EvaluationPattern(BaseBehaviorPattern):
 
         if not assessment_prompt:
             self.logger.warning("Промпт для оценки не загружен, используем fallback")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             assessment_prompt = "Оцени достижение цели: {goal}\nКонтекст: {context_summary}"
 
         # Заменяем переменные в промпте

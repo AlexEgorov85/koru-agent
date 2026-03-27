@@ -10,11 +10,13 @@
 import asyncio
 import time
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Any, Dict, Optional
 from datetime import datetime
 import uuid
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 from core.agent.components.action_executor import ActionExecutor
 from core.agent.components.behavior_manager import BehaviorManager
@@ -27,6 +29,8 @@ from core.application_context.application_context import ApplicationContext
 from core.models.data.execution import ExecutionResult
 from core.models.enums.common_enums import ExecutionStatus, ErrorCategory, RetryDecision
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.types.retry_policy import ExecutionErrorInfo
 
@@ -175,6 +179,8 @@ class AgentRuntime:
 
         if has_app_ctx and has_infra and has_event_bus:
             self.event_bus_logger = EventBusLogger(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 event_bus=self.application_context.infrastructure_context.event_bus,
                 session_id="system",
                 agent_id="system",
@@ -201,21 +207,40 @@ class AgentRuntime:
 
         Используется в run() для избежания дублирования вызова generate_next_decision.
         """
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logger.debug(f"\n🔵 [_execute_single_step_internal] НАЧАЛО: step={self._current_step}, decision.action={decision.action.value}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logger.debug(f"🔵 [_execute_single_step_internal] decision.capability_name={getattr(decision, 'capability_name', 'N/A')}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.info(f"=== DECISION ПОЛУЧЕН ===")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.info(f"decision.action: {decision.action}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.info(f"decision.capability_name: {getattr(decision, 'capability_name', 'N/A')}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Запись решения паттерна поведения
         if decision:
@@ -231,17 +256,36 @@ class AgentRuntime:
             and decision.action == BehaviorDecisionType.STOP
         ):
             if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.warning(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     "⚠️ Agent attempted to stop on first step - это обычно ошибка LLM или пустой список capabilities"
                 )
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning("\n⚠️ SAFEGUARD TRIGGERED: Agent attempted to stop on step 0")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning(f"   Goal: {self.goal[:100]}...")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning(f"   Available capabilities: {len(available_caps)}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning("   Possible causes:")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning("   1. LLM incorrectly parsed the goal as already achieved")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning("   2. No capabilities were available to the LLM")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning("   3. Prompt template needs adjustment\n")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат SWITCH (safeguard)")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return BehaviorDecision(
                 action=BehaviorDecisionType.SWITCH,
                 next_pattern="fallback_pattern",
@@ -249,28 +293,40 @@ class AgentRuntime:
             )
 
         if decision.action == BehaviorDecisionType.STOP:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] decision.action=STOP")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.state.finished = True
             # Регистрируем финальное решение
             self.application_context.session_context.record_decision(
                 decision_data="STOP",
                 reasoning="goal_achieved"
             )
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат STOP decision")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return decision
 
         if decision.action == BehaviorDecisionType.ACT:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] decision.action=ACT")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # ПРОВЕРКА: capability_name должен быть указан
             if not decision.capability_name:
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.error(f"ACT decision но capability_name не указан!")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self.state.register_error()
 
                 # ПРОВЕРКА: Превышен ли лимит ошибок
                 if self.policy.should_fallback(self.state):
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.error(
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
                             f"Агент переходит в режим завершения."
                         )
@@ -285,44 +341,74 @@ class AgentRuntime:
                         }
                     )
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] Поиск capability в application_context...")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] self.event_bus_logger={self.event_bus_logger is not None}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] hasattr(application_context, 'components')={hasattr(self.application_context, 'components')}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
             if hasattr(self.application_context, 'components'):
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [_execute_single_step_internal] application_context.components доступен")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 # Пытаемся получить через components (универсальный метод)
                 # Разбиваем capability_name на skill/tool name и capability name
                 parts = decision.capability_name.split('.')
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [_execute_single_step_internal] parts={parts}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 if len(parts) >= 2:
                     component_name = parts[0]
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     logger.debug(f"🔵 [_execute_single_step_internal] component_name={component_name}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     from core.models.enums.common_enums import ComponentType
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SKILL...")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     comp = self.application_context.components.get(ComponentType.SKILL, component_name)
                     if comp:
                         capability = comp
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SKILL.{component_name}")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     
                     if not capability:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.TOOL...")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         comp = self.application_context.components.get(ComponentType.TOOL, component_name)
                         if comp:
                             capability = comp
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент TOOL.{component_name}")
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     
                     if not capability:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         logger.debug(f"🔵 [_execute_single_step_internal] Поиск в ComponentType.SERVICE...")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         comp = self.application_context.components.get(ComponentType.SERVICE, component_name)
                         if comp:
                             capability = comp
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден компонент SERVICE.{component_name}")
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔴 [_execute_single_step_internal] capability_name не содержит '.' : {decision.capability_name}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] application_context.components НЕ доступен")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Fallback: проверяем специальные методы если components не сработал
         if not capability:
@@ -331,17 +417,26 @@ class AgentRuntime:
                 skill_name = decision.capability_name.split('.')[0]
                 capability = self.application_context.components.get(ComponentType.SKILL, skill_name)
                 if capability:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     logger.debug(f"🔵 [_execute_single_step_internal] ✅ Найден skill: {skill_name}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logger.debug(f"🔵 [_execute_single_step_internal] capability found: {capability is not None}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         if not capability:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.warning(f"🔴 [_execute_single_step_internal] Capability '{decision.capability_name}' не найдена")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.state.register_error()
 
             # ПРОВЕРКА: Превышен ли лимит ошибок
             if self.policy.should_fallback(self.state):
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.error(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
                         f"Агент переходит в режим завершения."
                     )
@@ -360,7 +455,9 @@ class AgentRuntime:
 
         # Выполняем capability
         try:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] 🚀 Запуск выполнения {decision.capability_name}...")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # component уже найден (SKILL.book_library или TOOL.book_library)
             # capability — это компонент, а cap_obj — объект Capability для валидации
@@ -370,8 +467,12 @@ class AgentRuntime:
                 parameters=decision.parameters,
                 context=self.application_context.session_context
             )
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] ✅ {decision.capability_name} выполнен успешно")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] 📊 Результат: {execution_result}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # ПРОВЕРКА: Если decision требует LLM, проверяем что он был вызван
             if getattr(decision, 'requires_llm', False):
@@ -392,7 +493,10 @@ class AgentRuntime:
                 }, step_number=self._current_step + 1)
 
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.debug(f"✅ Action записан с ID: {action_id}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # КРИТИЧНО: Записываем observation из результата выполнения
                 # Навыки не записывают observation явно, делаем это в runtime
@@ -437,10 +541,16 @@ class AgentRuntime:
                             step_number=self._current_step + 1
                         )
                         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             await self.event_bus_logger.debug(f"✅ Observation записана с ID: {observation_id}")
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception as e:
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.warning(f"⚠️ Не удалось записать observation: {e}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # КРИТИЧНО: Записываем STEP чтобы update_summary() обновился!
                 # Без этого get_summary() возвращает одинаковые last_steps
@@ -458,8 +568,14 @@ class AgentRuntime:
 
                 try:
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info(f"🔵 Вызов register_step: step={self._current_step + 1}, capability={decision.capability_name}, obs_ids={observation_item_ids}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.application_context.session_context.step_context.count()}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                     self.application_context.session_context.register_step(
                         step_number=self._current_step + 1,
@@ -472,11 +588,20 @@ class AgentRuntime:
                     )
 
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info(f"✅ Step {self._current_step + 1} зарегистрирован в step_context")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.application_context.session_context.step_context.count()}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception as e:
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.error(f"❌ Ошибка register_step: {e}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # Оценка прогресса и обновление состояния
                 progressed = self.progress.evaluate(self.application_context.session_context)
@@ -494,9 +619,14 @@ class AgentRuntime:
                 return execution_result
 
         except Exception as e:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.error(f"🔴 [_execute_single_step_internal] ❌ Ошибка выполнения: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.error(f"Ошибка в работе агента на шаге {self._current_step + 1}: {e}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.state.register_error()
 
             # Регистрация ошибки в контексте
@@ -509,7 +639,10 @@ class AgentRuntime:
             # ПРОВЕРКА: Превышен ли лимит ошибок
             if self.policy.should_fallback(self.state):
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.error(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
                         f"Агент переходит в режим завершения."
                     )
@@ -530,13 +663,18 @@ class AgentRuntime:
         # В любом случае увеличиваем номер текущего шага для следующей итерации
         self.state.step += 1
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logger.debug(f"🔴 [_execute_single_step_internal] Возврат None (конец метода, decision.action={decision.action.value})")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return None
 
     async def _execute_single_step(self) -> Any:
         """Выполнение одного шага рассуждений."""
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Получаем доступные capability для использования в паттернах поведения
         # Агент использует ТОЛЬКО навыки (SKILL), не инструменты (TOOL)
@@ -553,7 +691,10 @@ class AgentRuntime:
             available_caps = []
 
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Получаем решение от менеджера поведения
         decision = await self.behavior_manager.generate_next_decision(
@@ -631,7 +772,10 @@ class AgentRuntime:
                     return final_answer_data
                 # ❌ Не возвращаем {} — это маскирует проблему!
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.error(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         "❌ _final_answer_result.metadata существует, но 'final_answer_data' отсутствует. "
                         "Это указывает на ошибку в final_answer.generate."
                     )
@@ -658,11 +802,17 @@ class AgentRuntime:
                                 return content
             except Exception as e:
                 if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.warning(f"⚠️ Не удалось получить final_answer из контекста: {e}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Приоритет 3: Fallback результат — НО с явным предупреждением!
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.warning(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 "⚠️ FINAL ANSWER НЕ НАЙДЕН! Возвращаем fallback результат. "
                 "Возможные причины: "
                 "1) final_answer.generate не был выполнен, "
@@ -702,7 +852,10 @@ class AgentRuntime:
 
         # Логирование
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.info(f"Запуск агента с целью: {self.goal[:100]}...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         try:
             # Инициализация начального контекста выполнения
@@ -744,20 +897,31 @@ class AgentRuntime:
             consecutive_error_count = 0
 
             # Цикл рассуждений
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"\n🔵 [RUNTIME] НАЧАЛО ЦИКЛА: _current_step={self._current_step}, _max_steps={self._max_steps}, _running={self._running}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [RUNTIME] state.finished={self.state.finished}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             while self._running and self._current_step < self._max_steps:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # ← НОВОЕ: Явные stop conditions
                 if self._should_stop_early():
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info("Ранняя остановка: _should_stop_early=True")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     break
 
                 if self.state.finished:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     logger.debug(f"🔴 [RUNTIME] BREAK: state.finished=True")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     break
 
                 # Получаем доступные capability
@@ -772,16 +936,22 @@ class AgentRuntime:
                 else:
                     available_caps = []
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] available_caps count={len(available_caps)}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # Получаем decision
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 decision = await self.behavior_manager.generate_next_decision(
                     session_context=self.application_context.session_context,
                     available_capabilities=available_caps
                 )
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # ← НОВОЕ: Детекция зацикливания действий
                 current_action_key = f"{decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}"
@@ -791,7 +961,10 @@ class AgentRuntime:
                     if consecutive_same_actions >= 3:
                         # ← НОВОЕ: Прерываем цикл при 3 одинаковых действиях подряд
                         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             await self.event_bus_logger.warning(
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                                 f"⚠️ Обнаружено зацикливание: действие {current_action_key} повторилось {consecutive_same_actions} раза подряд"
                             )
                         step_result = ExecutionResult.failure(
@@ -826,11 +999,15 @@ class AgentRuntime:
                                 )
 
                 # Выполняем шаг
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] Вызов _execute_single_step_internal()...")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 step_start_time = time.time()
                 step_result = await self._execute_single_step_internal(decision, available_caps)
                 step_execution_time_ms = (time.time() - step_start_time) * 1000
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] _execute_single_step_internal вернул: {type(step_result).__name__}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 
                 # ← НОВОЕ: Запись метрик шага через публикацию события EventBus
                 capability_name = getattr(decision, 'capability_name', 'unknown')
@@ -860,7 +1037,10 @@ class AgentRuntime:
                 # Проверка на завершение
                 if self._should_stop(step_result):
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.info(f"Остановка агента: _should_stop=True")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     self._result = step_result
                     self._running = False
                     break
@@ -880,7 +1060,10 @@ class AgentRuntime:
                     )
 
                     if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.error(
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             f"Ошибка на шаге {self._current_step}: {step_result.error} | "
                             f"Категория: {step_result.error_category.value} | "
                             f"AgentPolicy: {retry_decision.decision.value}"
@@ -889,7 +1072,10 @@ class AgentRuntime:
                     if retry_decision.decision == RetryDecision.RETRY:
                         consecutive_error_count += 1
                         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             await self.event_bus_logger.info(
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                                 f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
                                 f"через {retry_decision.delay_seconds:.2f} сек"
                             )
@@ -897,7 +1083,10 @@ class AgentRuntime:
                         continue
                     elif retry_decision.decision == RetryDecision.ABORT:
                         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             await self.event_bus_logger.warning(
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                                 f"Abort: {retry_decision.reason}. Пропускаем действие."
                             )
                         consecutive_error_count = 0
@@ -929,21 +1118,33 @@ class AgentRuntime:
                 previous_decision = decision
 
                 self._current_step += 1
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] === КОНЕЦ ИТЕРАЦИИ {self._current_step} ===")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Формируем результат
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"\n🔵 [RUNTIME] Цикл завершен: step={self._current_step}, running={self._running}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [RUNTIME] state.finished={self.state.finished}, result={self._result}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             if self._final_answer_result:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] Возвращаем final_answer_result")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return self._final_answer_result
 
             if self._result:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 logger.debug(f"🔵 [RUNTIME] Возвращаем _result")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return self._result
 
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [RUNTIME] Возвращаем _extract_final_result()")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             final_data = await self._extract_final_result()
             return ExecutionResult.success(
                 data=final_data,
@@ -954,9 +1155,14 @@ class AgentRuntime:
             )
 
         except Exception as e:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.exception(f"\n🔴 [RUNTIME] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.error(f"Ошибка выполнения агента: {e}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult.failure(str(e))
         finally:
             self._running = False
@@ -981,7 +1187,10 @@ class AgentRuntime:
         """Остановка выполнения агента."""
         self._running = False
         if self.event_bus_logger:
+# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self.event_bus_logger.info("Агент остановлен пользователем")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def is_running(self) -> bool:
         """Проверка, выполняется ли агент."""

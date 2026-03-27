@@ -22,6 +22,8 @@ from core.models.data.capability import Capability
 from core.models.errors.architecture_violation import ArchitectureViolationError
 from core.models.enums.common_enums import ComponentType
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 # Интерфейсы для внедрения зависимостей
 from core.infrastructure.interfaces.event_bus import EventBusInterface
@@ -146,15 +148,21 @@ class BaseService(BaseComponent):
         """
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"BaseService.initialize: начало инициализации для {self.name}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         if getattr(self, '_initialized', False):
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Сервис '{self.name}' уже инициализирован")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
 
         # 1. Загрузка зависимостей
         if not await self._resolve_dependencies():
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Загрузка зависимостей не удалась для {self.name}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         # 2. Вызов родительской инициализации (BaseComponent)
@@ -163,10 +171,14 @@ class BaseService(BaseComponent):
             if not base_result:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Инициализация BaseComponent для '{self.name}' не удалась")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.exception(f"Исключение в базовой инициализации для '{self.name}': {e}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         # 3. Специфичная инициализация потомка
@@ -174,16 +186,22 @@ class BaseService(BaseComponent):
             if not await self._custom_initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Пользовательская инициализация '{self.name}' не удалась")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.exception(f"Исключение в _custom_initialize() для '{self.name}': {e}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         # 4. Финальная проверка
         if not await self._verify_readiness():
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Проверка готовности '{self.name}' не пройдена")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         # Устанавливаем флаг инициализации
@@ -196,18 +214,26 @@ class BaseService(BaseComponent):
         """
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"_resolve_dependencies: начата обработка зависимостей для сервиса '{self.name}': {self.DEPENDENCIES}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         missing_deps = []
         for dep_name in self.DEPENDENCIES:
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"_resolve_dependencies: ищем зависимость '{dep_name}' для сервиса '{self.name}'")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             dependency = self.get_dependency(dep_name)
             if not dependency:
                 msg = f"Зависимость '{dep_name}' для сервиса '{self.name}' не найдена. Возможные причины: 1) Зависимость еще не инициализирована 2) Циклическая зависимость в графе сервисов 3) Сервис '{dep_name}' отключён в конфигурации 4) Ошибка в декларации зависимостей"
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(msg)
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"_resolve_dependencies: список всех сервисов в контексте: {list(self.application_context.components._components.get(ComponentType.SERVICE, {}).keys())}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 missing_deps.append(dep_name)
                 # Continue instead of returning False immediately
                 continue
@@ -219,11 +245,15 @@ class BaseService(BaseComponent):
                 msg = f"Зависимость '{dep_name}' для '{self.name}' ещё не инициализирована. Это допустимо при топологической сортировке, но требует осторожности."
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(msg)
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 else:
                     self._safe_log_sync("warning", msg)
             else:
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 else:
                     self._safe_log_sync("debug", f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
@@ -234,6 +264,8 @@ class BaseService(BaseComponent):
         if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self._safe_log_sync("error", f"Все зависимости для сервиса '{self.name}' отсутствуют: {missing_deps}")
             return False
@@ -242,11 +274,15 @@ class BaseService(BaseComponent):
         if missing_deps:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self._safe_log_sync("info", f"Некоторые зависимости для сервиса '{self.name}' будут загружены позже: {missing_deps}")
         else:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Все зависимости для сервиса '{self.name}' успешно разрешены")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self._safe_log_sync("info", f"Все зависимости для сервиса '{self.name}' успешно разрешены")
 
@@ -398,6 +434,8 @@ class BaseService(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.event_bus_logger.error_sync(f"Ошибка перезапуска сервиса {self.name}: {str(e)}")
             return False
@@ -413,6 +451,8 @@ class BaseService(BaseComponent):
         from core.utils.module_reloader import safe_reload_component_with_module_reload
         if self.event_bus_logger:
             await self.event_bus_logger.warning(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             self.event_bus_logger.warning_sync(f"Выполняется перезапуск с перезагрузкой модуля для сервиса {self.name}")
         return safe_reload_component_with_module_reload(self)
@@ -470,6 +510,8 @@ class BaseService(BaseComponent):
                     msg = f"{self.name}: Метод '{method_name}' не имеет input контракта"
                     if self.event_bus_logger:
                         await self.event_bus_logger.warning(msg)
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     else:
                         self.event_bus_logger.warning_sync(msg)
 
@@ -477,6 +519,8 @@ class BaseService(BaseComponent):
                     msg = f"{self.name}: Метод '{method_name}' не имеет output контракта"
                     if self.event_bus_logger:
                         await self.event_bus_logger.warning(msg)
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     else:
                         self.event_bus_logger.warning_sync(msg)
 

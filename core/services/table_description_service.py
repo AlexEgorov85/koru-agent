@@ -84,6 +84,8 @@ class TableDescriptionService(BaseService):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка инициализации сервиса описания таблицы: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     def _get_event_type_for_success(self) -> EventType:
@@ -118,12 +120,18 @@ class TableDescriptionService(BaseService):
         try:
             if self.event_bus_logger:
                 await self.event_bus_logger.info("Завершение работы сервиса описания таблицы")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # Любые необходимые действия при завершении работы
             if self.event_bus_logger:
                 await self.event_bus_logger.info("Сервис описания таблицы успешно завершил работу")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка при завершении работы сервиса описания таблицы: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             raise
 
     async def get_table_metadata(
@@ -185,6 +193,8 @@ class TableDescriptionService(BaseService):
             # 3. Выполнение запросов с параметрами для безопасности
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"Выполнение запроса для получения метаданных таблицы {schema_name}.{table_name}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Используем внедрённый DatabaseInterface из BaseComponent
             db_provider = self.db
@@ -199,6 +209,8 @@ class TableDescriptionService(BaseService):
             if not columns_result or not hasattr(columns_result, 'rows') or not columns_result.rows:
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(f"Таблица {schema_name}.{table_name} не найдена или не имеет столбцов")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return {
                     "schema_name": schema_name,
                     "table_name": table_name,
@@ -222,9 +234,13 @@ class TableDescriptionService(BaseService):
                     table_description = table_comment.strip()
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"Получено описание таблицы: {table_description}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 else:
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug("Описание таблицы отсутствует или пустое")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # 6. Преобразование результата в структурированный формат
             columns = []
@@ -317,12 +333,16 @@ class TableDescriptionService(BaseService):
             constraint_count = len(constraints)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Получены метаданные для таблицы {schema_name}.{table_name}: колонок={column_count}, ограничений={constraint_count}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             return metadata
 
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # Возвращаем базовую структуру даже при ошибке
             return {
                 "schema_name": schema_name,
@@ -362,6 +382,8 @@ class TableDescriptionService(BaseService):
             except Exception as e:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Ошибка получения метаданных для таблицы {schema_name}.{table_name}: {str(e)}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 # Добавляем базовую информацию даже при ошибке
                 result[f"{schema_name}.{table_name}"] = {
                     "schema_name": schema_name,

@@ -21,6 +21,8 @@ from core.config.component_config import ComponentConfig
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class FinalAnswerSkill(BaseSkill):
@@ -104,16 +106,22 @@ class FinalAnswerSkill(BaseSkill):
         if capability_name not in self.prompts:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Критический промпт {capability_name} не загружен")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
         if capability_name not in self.input_contracts:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Входная схема {capability_name} не загружена")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
         if capability_name not in self.output_contracts:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Выходная схема {capability_name} не загружена")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
         return True
@@ -156,6 +164,8 @@ class FinalAnswerSkill(BaseSkill):
         # ❌ Не возвращаем {} — это маскирует ошибку!
         if self.event_bus_logger:
             await self.event_bus_logger.error(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 "❌ _generate_final_answer вернул ExecutionResult с пустым data. "
                 "Это указывает на ошибку генерации финального ответа."
             )
@@ -301,6 +311,7 @@ class FinalAnswerSkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.warning(f"Не удалось получить items из контекста: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # Продолжаем с пустыми списками
 
         # Получаем шаги выполнения через executor
@@ -367,6 +378,7 @@ class FinalAnswerSkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.warning(f"Не удалось получить step history: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # Продолжаем с пустыми шагами
 
         # Получение промпта из кэша (через BaseComponent.get_prompt)
@@ -376,6 +388,7 @@ class FinalAnswerSkill(BaseSkill):
         if not prompt_obj:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return self._build_fallback_response(goal, observations, steps_taken, format_type)
 
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
@@ -401,6 +414,7 @@ class FinalAnswerSkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             rendered_prompt = self._render_prompt_fallback(
                 goal=goal,
                 observations=observations,
@@ -420,6 +434,8 @@ class FinalAnswerSkill(BaseSkill):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"FinalAnswerSkill: генерация ответа | observations={len(observations)}, steps={len(steps_taken)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
             llm_result = await self.executor.execute_action(
@@ -446,6 +462,7 @@ class FinalAnswerSkill(BaseSkill):
                 error_msg = llm_result.error
                 if self.event_bus_logger:
                     self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные
@@ -462,6 +479,8 @@ class FinalAnswerSkill(BaseSkill):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
@@ -515,6 +534,7 @@ class FinalAnswerSkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError
             from core.errors.exceptions import SkillExecutionError

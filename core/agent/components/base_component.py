@@ -180,6 +180,8 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         if self._state == ComponentState.READY:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Компонент '{self.name}' уже инициализирован")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
 
         # Переход в состояние INITIALIZING

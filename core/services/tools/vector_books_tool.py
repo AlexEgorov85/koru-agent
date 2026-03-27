@@ -364,8 +364,11 @@ class VectorBooksTool(BaseTool):
         if not prompt_template:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # Fallback шаблон
             prompt_template = "{prompt}\n\nКонтекст:\n{context}\n\nОтветь в формате JSON:\n{{\n    \"result\": {{...}},\n    \"confidence\": 0.0-1.0,\n    \"reasoning\": \"обоснование\"\n}}"
 

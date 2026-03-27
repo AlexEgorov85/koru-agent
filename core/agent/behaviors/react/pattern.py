@@ -209,7 +209,11 @@ class ReActPattern(BaseBehaviorPattern):
         if self.event_bus_logger is None:
             if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
                 from core.infrastructure.logging import EventBusLogger
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus=self.application_context.infrastructure_context.event_bus,
                     session_id="system",
                     agent_id="system",
@@ -437,15 +441,25 @@ class ReActPattern(BaseBehaviorPattern):
             )
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"reasoning_result тип={type(reasoning_result).__name__}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if hasattr(reasoning_result, 'to_dict'):
                 d = reasoning_result.to_dict()
                 if self.event_bus_logger:
                     await self.event_bus_logger.info(f"to_dict() decision={d.get('decision')}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.info(f"to_dict() stop_condition={d.get('stop_condition')}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             elif isinstance(reasoning_result, dict):
                 if self.event_bus_logger:
                     await self.event_bus_logger.info(f"reasoning_result.decision={reasoning_result.get('decision', {})}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.info(f"reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
@@ -456,6 +470,8 @@ class ReActPattern(BaseBehaviorPattern):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Логирование финального решения
             await self._log("info", f"generate_decision: decision получен",
@@ -469,6 +485,8 @@ class ReActPattern(BaseBehaviorPattern):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             return decision
             
@@ -589,6 +607,8 @@ class ReActPattern(BaseBehaviorPattern):
         try:
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"reasoning_result type={type(reasoning_result).__name__}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Определяем accessor functions в зависимости от типа
             if isinstance(reasoning_result, dict):
@@ -698,6 +718,8 @@ class ReActPattern(BaseBehaviorPattern):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
             # КРИТИЧНО: Помечаем final_answer.generate как финальный шаг
             is_final = (capability_name == "final_answer.generate")
@@ -713,6 +735,7 @@ class ReActPattern(BaseBehaviorPattern):
         except Exception as e:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"_make_decision_from_reasoning: ошибка: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             await self._log("error", f"_make_decision_from_reasoning: ошибка",
                            error=str(e),
                            exc_info=True)

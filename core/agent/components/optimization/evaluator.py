@@ -17,6 +17,8 @@ from core.services.benchmarks.benchmark_models import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 @dataclass
@@ -74,6 +76,8 @@ class Evaluator:
         self.event_bus = event_bus
         self.config = config or EvaluationConfig()
         self.event_bus_logger = EventBusLogger(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             event_bus,
             session_id="system",
             agent_id="system",

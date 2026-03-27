@@ -40,6 +40,7 @@ async def publish_book_library_metrics(
         if logger:
             # Основное сообщение метрик
             await logger.info(
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Метрика: {capability_name} | execution_type={execution_type} | "
                 f"execution_time={execution_time_ms:.2f}ms | rows={rows_returned} | "
                 f"success={success} | script={script_name}"
@@ -48,18 +49,22 @@ async def publish_book_library_metrics(
             # Детализация по типу выполнения
             if execution_type == "static" and script_name:
                 await logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Static скрипт выполнен: {script_name} | "
                     f"status={'success' if success else 'failed'}"
                 )
             elif execution_type == "dynamic":
                 await logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Dynamic поиск выполнен | status={'success' if success else 'failed'}"
                 )
             elif execution_type == "vector":
                 await logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Vector поиск выполнен | status={'success' if success else 'failed'}"
                 )
     except Exception as e:
         # Метрики не должны ломать основную логику
         if logger:
             await logger.debug(f"Ошибка публикации метрик: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()

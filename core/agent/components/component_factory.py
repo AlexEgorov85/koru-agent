@@ -29,6 +29,8 @@ from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 if TYPE_CHECKING:
     from core.application_context.application_context import ApplicationContext
@@ -53,6 +55,8 @@ class ComponentFactory:
         """Инициализация EventBusLogger."""
         if self._infrastructure_context and self._infrastructure_context.event_bus:
             self.event_bus_logger = EventBusLogger(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self._infrastructure_context.event_bus,
                 session_id="system",
                 agent_id="system",
@@ -85,11 +89,15 @@ class ComponentFactory:
         """Информационное сообщение."""
         if self.event_bus_logger:
             await self.event_bus_logger.info(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_error(self, message: str, *args, **kwargs):
         """Ошибка."""
         if self.event_bus_logger:
             await self.event_bus_logger.error(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _get_providers(self) -> dict:
         """

@@ -14,6 +14,8 @@ from abc import ABC
 from typing import List, Callable, Any
 
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
 
 
@@ -47,6 +49,8 @@ class BaseEventCollector(ABC):
         """
         self.event_bus = event_bus
         self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component=component_name)
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self._initialized = False
         self._subscriptions: List[EventType] = []
 
@@ -58,10 +62,14 @@ class BaseEventCollector(ABC):
         """
         if self._initialized:
             await self.event_bus_logger.warning(f"{self.__class__.__name__} уже инициализирован")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         self._initialized = True
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"{self.__class__.__name__} инициализирован: подписан на {len(self._subscriptions)} событий"
         )
 
@@ -76,6 +84,7 @@ class BaseEventCollector(ABC):
         self.event_bus.subscribe(event_type, handler)
         self._subscriptions.append(event_type)
         # logger.debug("%s подписан на %s", self.__class__.__name__, event_type.value)
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def shutdown(self) -> None:
         """
@@ -98,6 +107,8 @@ class BaseEventCollector(ABC):
         self._subscriptions.clear()
         self._initialized = False
         await self.event_bus_logger.info("%s завершил работу", self.__class__.__name__)
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     @property
     def is_initialized(self) -> bool:

@@ -137,8 +137,12 @@ class BaseProvider(IProvider):
             try:
                 from core.infrastructure.event_bus.unified_event_bus import get_event_bus
                 from core.infrastructure.logging import EventBusLogger
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 event_bus = get_event_bus()
                 self.event_bus_logger = EventBusLogger(event_bus, "system", "provider", self.name)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except:
                 self.event_bus_logger = type('obj', (object,), {
                     'info': lambda *args, **kwargs: None,
@@ -156,6 +160,8 @@ class BaseProvider(IProvider):
         self.is_initialized = False
         self.health_status = ProviderHealthStatus.UNKNOWN
         await self.event_bus_logger.info("Провайдер %s завершил работу", self.name)
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -184,6 +190,8 @@ class BaseProvider(IProvider):
             return await self.initialize()
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка перезапуска провайдера: {str(e)}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     def restart_with_module_reload(self):
@@ -196,6 +204,7 @@ class BaseProvider(IProvider):
         """
         from core.utils.module_reloader import safe_reload_component_with_module_reload
         self.event_bus_logger.warning(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Выполняется перезапуск с перезагрузкой модуля для провайдера {self.__class__.__name__}"
         )
         return safe_reload_component_with_module_reload(self)

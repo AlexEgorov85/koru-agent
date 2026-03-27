@@ -65,6 +65,8 @@ class LoggingMixin:
         - component_name: Имя компонента
         """
         from core.infrastructure.logging import EventBusLogger
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         # Получаем session_id и agent_id из компонента если есть
         session_id = getattr(self, 'session_id', 'system')
@@ -73,6 +75,8 @@ class LoggingMixin:
         # Создаём EventBusLogger с callback если есть
         if self._get_init_state_callback:
             self.event_bus_logger = EventBusLogger(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 event_bus=self._event_bus,
                 session_id=session_id,
                 agent_id=agent_id,
@@ -81,6 +85,8 @@ class LoggingMixin:
             )
         else:
             self.event_bus_logger = EventBusLogger(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 event_bus=self._event_bus,
                 session_id=session_id,
                 agent_id=agent_id,

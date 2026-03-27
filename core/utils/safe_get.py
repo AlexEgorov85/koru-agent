@@ -14,8 +14,10 @@ error = safe_get(metadata, 'error', default=None, location="error_handler")
 """
 import traceback
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 def safe_get(
@@ -43,6 +45,7 @@ def safe_get(
         # Логируем предупреждение с traceback
         tb = traceback.format_stack()
         logger.warning(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"⚠️ safe_get: объект не dict (тип: {type(obj).__name__}) "
             f"в {location}. Ключ: {key}. Traceback: {''.join(tb[-3:-1])}"
         )
@@ -78,6 +81,7 @@ def safe_get_nested(
         if not isinstance(current, dict):
             tb = traceback.format_stack()
             logger.warning(
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"⚠️ safe_get_nested: объект не dict (тип: {type(current).__name__}) "
                 f"в {location}. Ключи: {keys}. Traceback: {''.join(tb[-3:-1])}"
             )

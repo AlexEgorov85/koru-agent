@@ -13,6 +13,8 @@ from core.models.data.prompt import Prompt
 from core.models.data.contract import Contract
 from pydantic import BaseModel
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class ResourcePreloader:
@@ -93,6 +95,7 @@ class ResourcePreloader:
         }
 
         await self._logger.info(f"Начало предзагрузки ресурсов для {component_name}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Загрузка промптов для компонента
         prompts = await self._preload_component_prompts(component_config)
@@ -111,6 +114,7 @@ class ResourcePreloader:
         resources["output_contracts"] = output_contracts
 
         await self._logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Предзагрузка для {component_name} завершена: "
             f"промптов={len(prompts)}, input_contracts={len(input_contracts)}, "
             f"output_contracts={len(output_contracts)}"
@@ -138,6 +142,7 @@ class ResourcePreloader:
 
         if not prompt_versions:
             await self._logger.debug("Промпты не указаны в component_config")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return prompts
 
         # Загружаем каждый промпт через DataRepository
@@ -146,11 +151,13 @@ class ResourcePreloader:
             if prompt:
                 prompts[capability] = prompt
                 await self._logger.debug(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Загружен промпт '{capability}' v{version} "
                     f"(статус: {prompt.status.value})"
                 )
             else:
                 await self._logger.warning(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Не удалось загрузить промпт '{capability}' v{version}"
                 )
 
@@ -185,6 +192,7 @@ class ResourcePreloader:
 
         if not contract_versions:
             await self._logger.debug(f"{direction} контракты не указаны в component_config")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return contracts
 
         # Загружаем каждый контракт через DataRepository
@@ -193,11 +201,13 @@ class ResourcePreloader:
             if contract:
                 contracts[capability] = contract
                 await self._logger.debug(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Загружен {direction} контракт '{capability}' v{version} "
                     f"(статус: {contract.status.value})"
                 )
             else:
                 await self._logger.warning(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Не удалось загрузить {direction} контракт '{capability}' v{version}"
                 )
 
@@ -220,6 +230,7 @@ class ResourcePreloader:
         """
         if not self._data_repository:
             await self._logger.error("DataRepository не подключён")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
         try:
@@ -228,9 +239,11 @@ class ResourcePreloader:
             return prompt
         except KeyError as e:
             await self._logger.warning(f"Промпт не найден: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
         except Exception as e:
             await self._logger.error(f"Ошибка загрузки промпта {capability}@{version}: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
     async def _load_contract(
@@ -252,6 +265,7 @@ class ResourcePreloader:
         """
         if not self._data_repository:
             await self._logger.error("DataRepository не подключён")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
         try:
@@ -262,9 +276,11 @@ class ResourcePreloader:
             return contract
         except KeyError as e:
             await self._logger.warning(f"Контракт не найден: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
         except Exception as e:
             await self._logger.error(
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Ошибка загрузки контракта {capability}@{version} ({direction}): {e}"
             )
             return None

@@ -14,6 +14,8 @@ from enum import Enum
 from core.services.benchmarks.benchmark_models import EvaluationResult, PromptVersion
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class SafetyCheckType(Enum):
@@ -96,6 +98,8 @@ class SafetyLayer:
         self.event_bus = event_bus
         self.config = config or SafetyConfig()
         self.event_bus_logger = EventBusLogger(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             event_bus,
             session_id="system",
             agent_id="system",
@@ -123,6 +127,8 @@ class SafetyLayer:
         - Tuple[bool, List[SafetyCheck]]: (безопасно ли, список проверок)
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Проверка безопасности для {candidate.version_id}"
         )
 
@@ -160,6 +166,8 @@ class SafetyLayer:
         if all_passed:
             self._checks_passed += 1
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Проверка безопасности пройдена для {candidate.version_id}"
             )
         else:
@@ -167,6 +175,8 @@ class SafetyLayer:
             failed_checks = [c for c in checks if not c.passed]
             
             await self.event_bus_logger.warning(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Проверка безопасности НЕ пройдена для {candidate.version_id}. "
                 f"Провалены: {[c.check_type.value for c in failed_checks]}"
             )

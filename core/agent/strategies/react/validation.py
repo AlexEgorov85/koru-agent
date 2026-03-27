@@ -6,6 +6,7 @@
 - Dataclass для структур данных
 """
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import json
 import re
 import traceback
@@ -100,19 +101,26 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
     - Возвращает ReasoningResult объект для типизированного доступа
     """
     logger = logging.getLogger(__name__)
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     # === ДИАГНОСТИКА: Логируем что пришло ===
     logger.info(f"🔍 validate_reasoning_result: тип result = {type(result).__name__}")
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     logger.info(f"📍 Вызов из:\n{''.join(traceback.format_stack()[-3:-1])}")
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     if isinstance(result, str):
         logger.info(f"📝 result (строка, {len(result)} симв): {result[:300]}...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     elif hasattr(result, '__class__') and hasattr(result, '__dict__'):
         # Pydantic модель или dataclass
         logger.info(f"📝 result (объект {result.__class__.__name__}): {result}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     elif isinstance(result, dict):
         logger.info(f"📝 result (dict): ключи = {list(result.keys())}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     else:
         logger.info(f"📝 result: {result}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     try:
         # === 1. Извлечение данных из результата ===
@@ -127,6 +135,7 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
             # Конвертируем в dict только для валидации
             validated_dict = result.model_dump()
             logger.info(f"✅ Pydantic модель конвертирована: {list(validated_dict.keys())}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         # Если результат - StructuredLLMResponse, извлекаем parsed_content
         elif hasattr(result, 'parsed_content') and hasattr(result, 'raw_response'):
             # StructuredLLMResponse — извлекаем содержимое
@@ -148,6 +157,7 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
         # Если не удалось извлечь dict, возвращаем fallback
         if validated_dict is None:
             logger.error(f"Неподдерживаемый тип результата рассуждения: {type(result)}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return _create_fallback_result(f"Неподдерживаемый тип: {type(result)}", "validation_error")
 
         # === 2. Валидация и заполнение обязательных полей ===
@@ -155,6 +165,7 @@ def validate_reasoning_result(result: Any) -> ReasoningResult:
 
     except Exception as e:
         logger.error(f"Ошибка при валидации результата рассуждения: {str(e)}", exc_info=True)
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return _create_fallback_result(f"Ошибка валидации: {str(e)}", "validation_error")
 
 
@@ -173,6 +184,7 @@ def _parse_json_from_string(result: str, logger: logging.Logger) -> Optional[Dic
         # БЕРЁМ ПОСЛЕДНИЙ JSON блок (он обычно наиболее полный)
         cleaned = markdown_matches[-1]
         logger.info(f"Найдено {len(markdown_matches)} markdown JSON блоков, берём последний: {len(cleaned)} символов")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     else:
         # Удаляем любые ``` блоки
         cleaned = re.sub(r'```.*?```', '', cleaned, flags=re.DOTALL)
@@ -212,6 +224,7 @@ def _parse_json_from_string(result: str, logger: logging.Logger) -> Optional[Dic
     if close_braces > open_braces:
         excess = close_braces - open_braces
         logger.info(f"Найдено лишних закрывающих скобок: {excess}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         cleaned_list = list(cleaned)
         removed = 0
         i = len(cleaned_list) - 1
@@ -244,6 +257,7 @@ def _parse_json_from_string(result: str, logger: logging.Logger) -> Optional[Dic
             return json.loads(json_objects[idx])
         except json.JSONDecodeError as e:
             logger.warning(f"JSON #{idx+1} невалидный: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             continue
 
     # Пробуем исправить двойные скобки
@@ -258,6 +272,7 @@ def _parse_json_from_string(result: str, logger: logging.Logger) -> Optional[Dic
                 continue
 
     logger.warning(f"Не удалось распарсить JSON из строки: {result[:200]}...")
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     return None
 
 

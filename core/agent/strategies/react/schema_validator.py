@@ -6,6 +6,7 @@
 - Dataclass для структур данных
 """
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import re
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
@@ -169,12 +170,16 @@ class SchemaValidator:
         - Валидированные параметры или None, если валидация не удалась
         """
         logger = logging.getLogger(__name__)
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         logger.debug(f"[PARAM_DEBUG] validate_parameters: capability={capability.name}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logger.debug(f"[PARAM_DEBUG] raw_params={raw_params}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if not capability or not raw_params:
             logger.debug(f"[PARAM_DEBUG] capability или raw_params пустые")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
         # Получаем схему из кэша по имени capability
@@ -187,10 +192,12 @@ class SchemaValidator:
         elif capability.meta.get('contract_schema'):
             params_schema_dict = capability.meta.get('contract_schema', {})
             logger.debug(f"Схема не найдена в кэше, используем из meta: {params_schema_dict}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Если схема всё ещё пуста — пропускаем валидацию и возвращаем как есть
         if not params_schema_dict:
             logger.debug(f"Схема не найдена для {capability.name}, возвращаем параметры как есть")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return raw_params
 
         # УНИВЕРСАЛЬНАЯ ВАЛИДАЦИЯ:
@@ -211,6 +218,7 @@ class SchemaValidator:
                         validated_params[param_name] = converted_value
                     elif isinstance(param_info, dict) and param_info.get('required', False):
                         logger.error(f"Обязательный параметр {param_name} имеет неверный тип")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         has_error = True
                     else:
                         validated_params[param_name] = param_value
@@ -219,14 +227,17 @@ class SchemaValidator:
                     
             elif isinstance(param_info, dict) and param_info.get('required', False):
                 logger.error(f"Обязательный параметр {param_name} отсутствует")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 has_error = True
 
         logger.debug(f"[PARAM_DEBUG] validated_params={validated_params}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if has_error:
             return None
             
         logger.info(f"✅ Параметры валидированы для {capability.name}: {validated_params}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return validated_params
     
     def _validate_with_schema(

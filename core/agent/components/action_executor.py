@@ -67,6 +67,7 @@ class ActionExecutor:
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
                     asyncio.create_task(self._event_bus_logger.debug(msg, *args, **kwargs))
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 else:
                     self._event_bus_logger.debug_sync(msg, *args, **kwargs)
             except RuntimeError:
@@ -137,6 +138,7 @@ class ActionExecutor:
                     loop = asyncio.get_running_loop()
                     if loop.is_running():
                         asyncio.create_task(self._event_bus_logger.error(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True))
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     else:
                         self._event_bus_logger.error_sync(f"Ошибка выполнения действия '{action_name}': {e}", exc_info=True)
                 except RuntimeError:
@@ -248,12 +250,15 @@ class ActionExecutor:
                     if asyncio.iscoroutinefunction(self._event_bus_logger.error):
                         if threading.current_thread() == threading.main_thread():
                             asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         else:
                             loop = asyncio.new_event_loop()
                             loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             loop.close()
                     else:
                         self._event_bus_logger.error(error_msg, exc_info=True)
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception:
                     pass
             return ExecutionResult(
@@ -680,12 +685,15 @@ class ActionExecutor:
                     if asyncio.iscoroutinefunction(self._event_bus_logger.error):
                         if threading.current_thread() == threading.main_thread():
                             asyncio.create_task(self._event_bus_logger.error(error_msg, exc_info=True))
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         else:
                             loop = asyncio.new_event_loop()
                             loop.run_until_complete(self._event_bus_logger.error(error_msg, exc_info=True))
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             loop.close()
                     else:
                         self._event_bus_logger.error(error_msg, exc_info=True)
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception:
                     pass
             return ExecutionResult(
@@ -854,6 +862,7 @@ class ActionExecutor:
         except Exception as e:
             if self._event_bus_logger:
                 await self._event_bus_logger.error(f"Ошибка LLM действия '{action_name}': {e}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -1084,6 +1093,7 @@ class ActionExecutor:
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка выполнения сервиса '{service.name}': {e}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -1139,6 +1149,7 @@ class ActionExecutor:
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка выполнения инструмента '{tool.name}': {e}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -1182,6 +1193,7 @@ class ActionExecutor:
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Ошибка выполнения компонента '{component.name}': {e}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)

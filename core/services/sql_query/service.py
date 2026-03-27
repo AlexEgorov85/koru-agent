@@ -1,5 +1,6 @@
 import time
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Dict, Any, List, Optional
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.models.types.db_types import DBQueryResult
@@ -10,6 +11,7 @@ from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class SQLQueryServiceInput(ServiceInput):
@@ -82,14 +84,20 @@ class SQLQueryService(BaseService):
             if not await self.error_analyzer.initialize():
                 if self.event_bus_logger:
                     await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info("SQLQueryService успешно инициализирован")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -140,6 +148,8 @@ class SQLQueryService(BaseService):
         try:
             # [SQL_DEBUG] 2.1. Входные параметры
             await self.event_bus_logger.info(f"[SQL_DEBUG] execute_query вызван с sql={sql_query}, parameters={parameters}, max_rows={max_rows}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
             # === ЭТАП 1: Валидация входных данных через схему ===
             input_schema = self.get_input_contract("sql_query_service.execute")
@@ -153,6 +163,8 @@ class SQLQueryService(BaseService):
                 except Exception as e:
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"Валидация входных данных не пройдена: {e}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     return DBQueryResult(
                         success=False,
                         rows=[],
@@ -181,13 +193,16 @@ class SQLQueryService(BaseService):
                 params_for_validation = {}
             
             logger.debug(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}, params_for_validation={params_for_validation}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             validation_result = self.sql_validator_service_instance.validate_query(
                 sql_query,
                 params_for_validation
             )
             
             logger.debug(f"[SQL_DEBUG] validation_result: is_valid={validation_result.is_valid}, sql={validation_result.sql[:200] if validation_result.sql else 'None'}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"[SQL_DEBUG] validation_result.errors={validation_result.validation_errors if hasattr(validation_result, 'validation_errors') else 'N/A'}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             if not validation_result.is_valid:
                 return DBQueryResult(
@@ -208,6 +223,8 @@ class SQLQueryService(BaseService):
                     db_provider = infra.resource_registry.get_resource("default_db").instance if infra.resource_registry else None
             
             await self.event_bus_logger.info(f"[SQL_DEBUG] db_provider найден: {db_provider is not None}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             if not db_provider:
                 return DBQueryResult(
@@ -223,6 +240,8 @@ class SQLQueryService(BaseService):
             try:
                 # [SQL_DEBUG] 2.3. Вызов db_provider.execute
                 await self.event_bus_logger.info(f"[SQL_DEBUG] вызов db_provider.execute_query с SQL: {validation_result.sql}, params: {parameters}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 result = await db_provider.execute_query(
                     query=validation_result.sql,
@@ -232,10 +251,18 @@ class SQLQueryService(BaseService):
 
                 # [DEBUG] Отладка результата
                 await self.event_bus_logger.info(f"[DEBUG] result type={type(result).__name__}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.info(f"[DEBUG] result has rows attr={hasattr(result, 'rows')}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 if hasattr(result, 'rows'):
                     await self.event_bus_logger.info(f"[DEBUG] result.rows type={type(result.rows).__name__}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute_query: success={result.success if hasattr(result, 'success') else 'N/A'}, error={result.error if hasattr(result, 'error') else 'N/A'}, rows={len(result.rows) if hasattr(result, 'rows') and result.rows else 0}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # Преобразуем результат в DBQueryResult
                 # [SQL_DEBUG] 2.4. Возврат DBQueryResult (успех)
@@ -247,10 +274,14 @@ class SQLQueryService(BaseService):
                     execution_time=execution_time
                 )
                 await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return db_result
             except Exception as e:
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"Ошибка выполнения SQL: {e}")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 # [SQL_DEBUG] 2.4. Возврат DBQueryResult (ошибка исключения)
                 db_result = DBQueryResult(
                     success=False,
@@ -260,11 +291,15 @@ class SQLQueryService(BaseService):
                     error=f"Ошибка выполнения SQL: {str(e)}"
                 )
                 await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return db_result
 
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # [SQL_DEBUG] 2.4. Возврат DBQueryResult (общая ошибка)
             db_result = DBQueryResult(
                 success=False,
@@ -274,6 +309,8 @@ class SQLQueryService(BaseService):
                 error=str(e)
             )
             await self.event_bus_logger.info(f"[SQL_DEBUG] возвращаем DBQueryResult: success={db_result.success}, error={db_result.error}, rows={len(db_result.rows)}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return db_result
 
     async def execute_query_from_user_request(
@@ -330,6 +367,8 @@ class SQLQueryService(BaseService):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка выполнения SQL-запроса: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return DBQueryResult(
                 success=False,
                 rows=[],
@@ -373,11 +412,15 @@ class SQLQueryService(BaseService):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска SQLQueryService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
         if self.event_bus_logger:
             await self.event_bus_logger.info("Завершение работы SQLQueryService")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         # Закрытие ресурсов при необходимости
         await self.error_analyzer.shutdown()

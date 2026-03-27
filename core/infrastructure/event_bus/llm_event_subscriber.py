@@ -5,6 +5,8 @@ import json
 from typing import Optional
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Event, EventType
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class LLMEventSubscriber:
@@ -14,6 +16,8 @@ class LLMEventSubscriber:
         self.event_bus = event_bus
         self.log_full_content = log_full_content
         self.event_bus_logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component="LLMEventSubscriber")
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self._prompt_count = 0
         self._response_count = 0
 
@@ -29,14 +33,20 @@ class LLMEventSubscriber:
         # Логируем через EventBusLogger
         prompt_length = data.get('prompt_length', len(data.get('user_prompt', '')))
         await self.event_bus_logger.info(f"[LLM] Prompt #{self._prompt_count} | {component}/{phase} | {prompt_length} симв.")
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         if self.log_full_content:
             system_prompt = data.get('system_prompt', '')
             user_prompt = data.get('user_prompt', '')
             if system_prompt:
                 await self.event_bus_logger.debug(f"System prompt: {system_prompt[:500]}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if user_prompt:
                 await self.event_bus_logger.debug(f"User prompt: {user_prompt[:500]}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def on_llm_response_received(self, event: Event):
         """Обработчик события LLM_RESPONSE_RECEIVED."""
@@ -69,12 +79,16 @@ class LLMEventSubscriber:
         tokens = data.get('tokens_used', 0)
         
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"[LLM] Response #{self._response_count} | {component}/{phase} | "
             f"success={success} | duration={duration_ms:.1f}ms | tokens={tokens}"
         )
 
         if self.log_full_content and response_str:
             await self.event_bus_logger.debug(f"Response: {response_str}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def subscribe(self, event_bus: UnifiedEventBus):
         """Подписка на события LLM."""

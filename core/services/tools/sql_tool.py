@@ -97,6 +97,7 @@ class SQLTool(BaseTool):
                     self.event_bus_logger.error_sync(f"Валидация входных данных не пройдена: {e}")
                 else:
                     self.logger.error(f"Валидация входных данных не пройдена: {e}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return {
                     "rows": [],
                     "columns": [],
@@ -124,6 +125,7 @@ class SQLTool(BaseTool):
                 self.event_bus_logger.error_sync("DB провайдер не найден")
             else:
                 self.logger.error("DB провайдер не найден")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return {
                 "rows": [],
                 "columns": [],
@@ -178,6 +180,7 @@ class SQLTool(BaseTool):
                     self.event_bus_logger.error_sync(f"Валидация выходных данных не пройдена: {e}")
                 else:
                     self.logger.error(f"Валидация выходных данных не пройдена: {e}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return {
                     "rows": [],
                     "columns": [],

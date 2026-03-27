@@ -90,12 +90,16 @@ class SQLValidatorService(BaseService):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"SQLValidatorService инициализирован с разрешенными операциями: {self.allowed_operations}"
                 )
             return True
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка инициализации SQLValidatorService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     def _get_event_type_for_success(self) -> 'EventType':
@@ -293,9 +297,12 @@ class SQLValidatorService(BaseService):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка перезапуска SQLValidatorService: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
         if self.event_bus_logger:
-            await self.event_bus_logger.info("Завершение работы SQLValidatorService")
+            await self.event_bus_logger.info("Завершение работы SQLValidatorService")              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})

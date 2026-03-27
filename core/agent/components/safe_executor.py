@@ -324,10 +324,13 @@ class SafeExecutor:
             # Логирование по уровню серьезности
             if error_type == ErrorType.FATAL:
                 await self._event_bus_logger.error(log_message)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             elif error_type == ErrorType.VALIDATION:
                 await self._event_bus_logger.warning(log_message)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 await self._event_bus_logger.info(log_message)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def get_failure_memory(self) -> FailureMemory:
         """

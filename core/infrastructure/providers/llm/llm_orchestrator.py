@@ -44,6 +44,8 @@ from core.models.types.llm_types import (
     StructuredOutputConfig
 )
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.telemetry.telemetry_collector import TelemetryCollector
 from core.infrastructure.providers.llm.json_parser import (
@@ -54,9 +56,11 @@ from core.infrastructure.providers.llm.json_parser import (
 from pydantic import BaseModel, ValidationError
 import json
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from json import JSONDecodeError
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class CallStatus(str, Enum):
@@ -310,6 +314,7 @@ class LLMOrchestrator:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
             
             await self._logger.info(
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"LLMOrchestrator инициализирован: max_workers={self._max_workers}, "
                 f"cleanup_interval={self._cleanup_interval}с"
             )
@@ -319,6 +324,7 @@ class LLMOrchestrator:
         except Exception as e:
             if self._logger:
                 await self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
     
     async def shutdown(self) -> None:
@@ -345,14 +351,17 @@ class LLMOrchestrator:
             if self._logger:
                 metrics = self._metrics.to_dict()
                 await self._logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"LLMOrchestrator завершён. Метрики: {metrics}"
                 )
             
             await self._logger.info("LLMOrchestrator остановлен")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
         except Exception as e:
             if self._logger:
                 await self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     async def execute(
         self,
@@ -462,6 +471,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"🧩 LLM вызов | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -555,6 +565,7 @@ class LLMOrchestrator:
             # Если max_retries > 1, используем 1 но логируем предупреждение
             if max_retries > 1:
                 await self._logger.warning(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"⚠️ max_retries={max_retries} проигнорировано. "
                     f"Используется 1 попытка для строгой валидации структурированного вывода."
                 )
@@ -911,6 +922,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"📋 Structured LLM | call_id={call_id} | "
             f"session={session_id} | max_retries={max_retries} | "
             f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}"
@@ -928,6 +940,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"✅ Structured SUCCESS | call_id={call_id} | "
             f"session={session_id} | attempt={attempt_num} | "
             f"duration={duration:.2f}s"
@@ -947,6 +960,7 @@ class LLMOrchestrator:
 
         icon = "🔄" if will_retry else "⚠️"
         await self._logger.warning(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"{icon} Structured RETRY | call_id={call_id} | "
             f"attempt={attempt_num} | error={error_type} | "
             f"message={error_message[:100] if error_message else 'unknown'} | "
@@ -965,6 +979,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured EXHAUSTED | call_id={call_id} | "
             f"session={session_id} | total_attempts={total_attempts} | "
             f"last_error={last_error[:100] if last_error else 'unknown'}"
@@ -982,6 +997,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured FAILURE | call_id={call_id} | "
             f"attempt={attempt_num} | type={failure_type} | "
             f"message={message[:100]}"
@@ -998,6 +1014,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured EXCEPTION | call_id={call_id} | "
             f"session={session_id} | error={error[:200]}"
         )
@@ -1052,12 +1069,15 @@ class LLMOrchestrator:
 
             msg = f"✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type={type(result.parsed_content).__name__ if result.parsed_content else 'None'}"
             logger.info(msg)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self._logger:
                 await self._logger.info(msg)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 content_preview = str(result.parsed_content)[:50] if hasattr(result, 'parsed_content') and result.parsed_content else (str(result.content)[:50] if hasattr(result, 'content') and result.content else 'None')
                 msg = f"🔵 [Orchestrator] Получен LLMResponse: content[:50]={content_preview}"
                 logger.info(msg)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Логирование успешного завершения
             await self._log_call_success(record, result)
@@ -1134,6 +1154,7 @@ class LLMOrchestrator:
         # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
         tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
         await self._logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"response_len={content_length} | tokens={tokens_used} | "
@@ -1149,6 +1170,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.warning(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"⏰ LLM TIMEOUT | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -1172,6 +1194,7 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ LLM ERROR | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"{type(error).__name__}: {str(error)[:200]} | elapsed={elapsed:.2f}s"
@@ -1428,6 +1451,7 @@ class LLMOrchestrator:
             except Exception as e:
                 if self._logger:
                     await self._logger.error(f"Ошибка в cleanup loop: {e}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     async def _cleanup_old_records(self, max_age: float = 300.0) -> int:
         """
@@ -1455,6 +1479,7 @@ class LLMOrchestrator:
         
         if removed > 0 and self._logger:
             await self._logger.debug(f"Очищено {removed} старых записей")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         return removed
     

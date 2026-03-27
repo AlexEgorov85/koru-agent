@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic.config import ConfigDict
 from enum import Enum
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 # ============================================================

@@ -10,6 +10,7 @@ try:
 except Exception as e:
     error_msg = format_error_with_trace(e)
     logger.error(error_msg)
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 ```
 """
 import traceback

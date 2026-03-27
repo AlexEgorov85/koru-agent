@@ -101,10 +101,13 @@ class TelemetryCollector(BaseEventCollector):
         """
         if self._initialized:
             await self.event_bus_logger.warning("TelemetryCollector уже инициализирован")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         # Отключаем стандартный logging (оставляем только TerminalLogHandler с иконками)
         import logging
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         logging.getLogger().setLevel(logging.WARNING)  # Root logger: только WARNING+
         logging.getLogger('core').setLevel(logging.WARNING)  # Наш logger: только WARNING+
 
@@ -120,6 +123,8 @@ class TelemetryCollector(BaseEventCollector):
             )
             self.terminal_handler.subscribe()
             await self.event_bus_logger.info(f"TerminalLogHandler инициализирован (уровень: {console_level}, только иконки)")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # 2. Session handler
         if self._enable_session_logs:
@@ -128,6 +133,8 @@ class TelemetryCollector(BaseEventCollector):
                 base_log_dir=self.log_dir / "sessions"
             )
             await self.event_bus_logger.info("SessionLogHandler инициализирован")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # 3. Metrics
         if self._enable_metrics:
@@ -142,11 +149,15 @@ class TelemetryCollector(BaseEventCollector):
             self._subscribe(EventType.SESSION_COMPLETED, self._on_session_completed)
             
             await self.event_bus_logger.info("MetricsPublisher инициализирован")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # 4. Отключаем LoggingToEventBusHandler (чтобы стандартный logging не шёл в EventBus и консоль)
         # self.event_bridge_handler = LoggingToEventBusHandler(self.event_bus)
         # self.event_bridge_handler.install()
         # await self.event_bus_logger.info("LoggingToEventBusHandler инициализирован")
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         await super().initialize()
 
@@ -250,6 +261,8 @@ class TelemetryCollector(BaseEventCollector):
         """Обработка начала сессии."""
         data = event.data
         await self.event_bus_logger.debug(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             "Сессия начата: session_id=%s, goal=%s",
             data.get('session_id'), data.get('goal')
         )

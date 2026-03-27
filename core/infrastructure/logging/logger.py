@@ -620,6 +620,7 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin, 
     ```python
     logger = EventBusLogger(event_bus, session_id, agent_id, "my_component")
     await logger.info("Started")
+      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     await logger.log_self_improvement_started(goal="Learn X")
     ```
     """

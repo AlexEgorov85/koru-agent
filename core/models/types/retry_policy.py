@@ -58,6 +58,7 @@ class RetryResult:
 
     if result.decision == RetryDecision.RETRY:
         logger.info(f"Повтор через {result.delay_seconds} сек: {result.reason}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         await asyncio.sleep(result.delay_seconds)
 
     ОСОБЕННОСТИ:

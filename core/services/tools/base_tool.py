@@ -154,12 +154,14 @@ class BaseTool(BaseComponent):
                 # Проверка наличия контрактов для операции
                 if cap_name not in self.input_contracts:
                     self.logger.error(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"{self.name}: Операция '{op_name}' не имеет input контракта"
                     )
                     return False
 
                 if cap_name not in self.output_contracts:
                     self.logger.error(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"{self.name}: Операция '{op_name}' не имеет output контракта"
                     )
                     return False

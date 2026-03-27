@@ -15,6 +15,7 @@
 - ✅ Гибкие правила для разных ресурсов
 """
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -31,6 +32,7 @@ from core.security.user_context import UserContext
 
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class SecurityAction(Enum):
@@ -164,6 +166,7 @@ class SQLSecurityValidator(SecurityValidator):
             )
         
         self._logger.debug(f"SQL валидация успешна для операции: {operation}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
     
     def _detect_sql_injection(self, sql: str) -> bool:
@@ -239,6 +242,7 @@ class FileSecurityValidator(SecurityValidator):
                 )
         
         self._logger.debug(f"File валидация успешна для операции: {operation}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
     
     def _is_path_traversal(self, path: str) -> bool:
@@ -352,6 +356,7 @@ class SecurityManager:
         self._register_default_validators()
         
         self._logger.info("SecurityManager инициализирован")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def _register_default_validators(self):
         """Регистрация встроенных валидаторов."""
@@ -372,6 +377,7 @@ class SecurityManager:
         """
         self._validators[resource_type] = validator
         self._logger.debug(f"Зарегистрирован валидатор для {resource_type.value}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def get_validator(self, resource_type: SecurityResourceType) -> Optional[SecurityValidator]:
         """Получение валидатора по типу ресурса."""
@@ -401,6 +407,7 @@ class SecurityManager:
         
         if not validator:
             self._logger.warning(f"Валидатор для {resource_type.value} не найден, пропускаем")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
         
         return await validator.validate(operation, data)
@@ -480,6 +487,7 @@ class SecurityManager:
         )
         
         self._logger.debug(f"Аудит: {action} by {user_id} on {resource} - {'OK' if success else 'FAILED'}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     async def validate_and_audit(
         self,

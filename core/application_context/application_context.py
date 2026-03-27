@@ -115,6 +115,8 @@ class ApplicationContext(BaseSystemContext):
             event_bus = getattr(self.infrastructure_context, 'event_bus', None)
             if event_bus:
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus,
                     session_id=str(self.infrastructure_context.id),
                     agent_id="system",
@@ -146,26 +148,36 @@ class ApplicationContext(BaseSystemContext):
         """Отладочное сообщение."""
         if self.event_bus_logger:
             await self.event_bus_logger.debug(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_info(self, message: str, *args, **kwargs):
         """Информационное сообщение."""
         if self.event_bus_logger:
             await self.event_bus_logger.info(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_warning(self, message: str, *args, **kwargs):
         """Предупреждение."""
         if self.event_bus_logger:
             await self.event_bus_logger.warning(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_error(self, message: str, *args, **kwargs):
         """Ошибка."""
         if self.event_bus_logger:
             await self.event_bus_logger.error(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _log_critical(self, message: str, *args, **kwargs):
         """Критическая ошибка."""
         if self.event_bus_logger:
             await self.event_bus_logger.error(message, *args, **kwargs)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _get_resource_type_for_component(self, component_type: ComponentType) -> 'ResourceTypeType':
         """Преобразование ComponentType в ResourceType для LifecycleManager."""
@@ -266,8 +278,11 @@ class ApplicationContext(BaseSystemContext):
         if self.lifecycle_manager and self.lifecycle_manager.is_ready:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("ApplicationContext уже инициализирован")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.warning("ApplicationContext уже инициализирован")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
 
         # Используем общий LifecycleManager из InfrastructureContext
@@ -277,8 +292,11 @@ class ApplicationContext(BaseSystemContext):
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # === Авто-заполнение конфигурации если она была создана пустой ===
         # Это нужно для случая, когда config=None был передан в __init__
@@ -328,6 +346,7 @@ class ApplicationContext(BaseSystemContext):
             return False
 
         self.logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"✅ DataRepository инициализирован успешно:\n"
             f"{self.data_repository.get_validation_report()}"
         )
@@ -337,6 +356,7 @@ class ApplicationContext(BaseSystemContext):
         # duplicate_report = await validation_service.validate_no_duplicates()
         # if not duplicate_report['is_valid']:
         #     self.logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         #         f"❌ ОБНАРУЖЕНО ДУБЛИРОВАНИЕ РЕСУРСОВ:\n"
         #         f"- Дубли промптов: {len(duplicate_report['duplicate_prompts'])}\n"
         #         f"- Дубли контрактов: {len(duplicate_report['duplicate_contracts'])}\n"
@@ -349,6 +369,7 @@ class ApplicationContext(BaseSystemContext):
         # schema_report = await validation_service.validate_schema_integrity()
         # if not schema_report['is_valid']:
         #     self.logger.error(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         #         f"❌ НАРУШЕНА ЦЕЛОСТНОСТЬ СХЕМ:\n"
         #         f"- Missing input: {len(schema_report['missing_input'])}\n"
         #         f"- Missing output: {len(schema_report['missing_output'])}"
@@ -357,6 +378,7 @@ class ApplicationContext(BaseSystemContext):
         #         return False
 
         # self.logger.info(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         #     f"✅ Валидация целостности завершена:\n"
         #     f"- Дублирование: {'OK' if duplicate_report['is_valid'] else 'FAIL'}\n"
         #     f"- Целостность схем: {'OK' if schema_report['is_valid'] else 'FAIL'}"
@@ -382,6 +404,7 @@ class ApplicationContext(BaseSystemContext):
             )
             await self.llm_orchestrator.initialize()
             self.logger.info("✅ LLMOrchestrator инициализирован")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         except Exception as e:
             # ❌ УДАЛЕНО: Продолжение инициализации при ошибке
             # ✅ ТЕПЕРЬ: Выбрасываем ComponentInitializationError
@@ -394,21 +417,26 @@ class ApplicationContext(BaseSystemContext):
 
         # Сначала создаем и регистрируем все компоненты
         self.logger.info("Начало создания компонентов...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         component_configs = self._resolve_component_configs()
         self.logger.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         components_created = 0
         for comp_type, configs in component_configs.items():
             if not configs:
                 continue
             self.logger.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             for name, enriched_config in configs.items():
                 self.logger.info(f"Создание компонента {comp_type.value}.{name}...")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 try:
                     # ЕДИНЫЙ метод создания любого компонента с ActionExecutor
                     component = await self._create_component(comp_type, name, enriched_config, executor)
 
                     # Регистрация компонента ДО инициализации
                     self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     self.components.register(comp_type, name, component)
                     
                     # Регистрация в LifecycleManager
@@ -421,19 +449,24 @@ class ApplicationContext(BaseSystemContext):
                     
                     components_created += 1
                     self.logger.info(f"✅ Компонент {comp_type.value}.{name} создан и зарегистрирован")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 except Exception as e:
                     self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         self.logger.info(f"✅ Создано {components_created} компонентов")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # === ЭТАП 4: Инициализация компонентов с учетом зависимостей ===
         # Инициализируем компоненты в правильном порядке
         success = await self._initialize_components_with_dependencies()
         if not success:
             self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
             # === ЭТАП 5: Валидация готовности системы ===
@@ -444,6 +477,7 @@ class ApplicationContext(BaseSystemContext):
         await self.lifecycle_manager.initialize_all()
         
         self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         return True
 
@@ -474,6 +508,7 @@ class ApplicationContext(BaseSystemContext):
                 prompts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver}: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Также загружаем промпты из компонентных конфигураций в глобальный кэш
         for comp_type_attr in ['service_configs', 'skill_configs', 'tool_configs', 'behavior_configs']:
@@ -489,6 +524,7 @@ class ApplicationContext(BaseSystemContext):
                                     prompts_loaded += 1
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки промпта {cap}@{ver} из компонента {comp_name}: {e}")
+                                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Контракты — загружаем схемы в глобальный кэш для валидации
         self.input_contract_cache = {}  # Dict[(capability, version), Type[BaseModel]]
@@ -504,6 +540,7 @@ class ApplicationContext(BaseSystemContext):
                 input_contracts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки входной схемы {cap}@{ver}: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         for cap, ver in self.config.output_contract_versions.items():
             try:
@@ -512,6 +549,7 @@ class ApplicationContext(BaseSystemContext):
                 output_contracts_loaded += 1
             except Exception as e:
                 self.logger.warning(f"Ошибка загрузки выходной схемы {cap}@{ver}: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Загружаем контракты из компонентных конфигураций в глобальный кэш
         # [REFACTOR v5.4.0] НЕ заполняем comp_config.resolved_* — это делает ResourcePreloader
@@ -528,6 +566,7 @@ class ApplicationContext(BaseSystemContext):
                                     input_contracts_loaded += 1
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки входного контракта {cap}@{ver}: {e}")
+                                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                     if hasattr(comp_config, 'output_contract_versions'):
                         for cap, ver in comp_config.output_contract_versions.items():
@@ -538,9 +577,12 @@ class ApplicationContext(BaseSystemContext):
                                     output_contracts_loaded += 1
                                 except Exception as e:
                                     self.logger.warning(f"Ошибка загрузки выходного контракта {cap}@{ver}: {e}")
+                                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         self.logger.info(f"✅ Глобальный кэш ресурсов загружен: промптов={prompts_loaded}, входных контрактов={input_contracts_loaded}, выходных контрактов={output_contracts_loaded}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         self.logger.info("ℹ️ component_config.resolved_* заполняются через ResourcePreloader в ComponentFactory")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     # === Совместимые методы для компонентов ===
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
@@ -564,6 +606,7 @@ class ApplicationContext(BaseSystemContext):
                     if version is None:
                         # ❌ Не возвращаем молча "" — логируем warning
                         self.logger.warning(
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             f"⚠️ Промпт '{capability}' не найден в конфигурации (версия не указана). "
                             f"Возвращаем пустую строку."
                         )
@@ -576,6 +619,7 @@ class ApplicationContext(BaseSystemContext):
                 except Exception as e:
                     # ❌ Не возвращаем молча "" — логируем ошибку
                     self.logger.error(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"❌ Ошибка получения промпта '{capability}@{version}': {e}. "
                         f"Возвращаем пустую строку."
                     )
@@ -654,6 +698,7 @@ class ApplicationContext(BaseSystemContext):
                     unique_prompts.add((cap, ver))
 
         self.logger.info(f"Найдено {len(unique_prompts)} уникальных промптов для предзагрузки: {unique_prompts}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Загружаем ОДИН РАЗ через инфраструктурное хранилище
         for capability, version in unique_prompts:
@@ -661,12 +706,15 @@ class ApplicationContext(BaseSystemContext):
                 prompt_obj = await storage.load(capability, version)
                 prompts[(capability, version)] = prompt_obj.content
                 self.logger.debug(f"Загружен промпт {capability}@{version}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except Exception as e:
                 self.logger.warning(f"Промпт {capability}@{version} не найден или ошибка загрузки: {e}. Пропускаем.")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 # Добавляем пустую строку для отсутствующего промпта, чтобы не было KeyError позже
                 prompts[(capability, version)] = ""
 
         self.logger.info(f"Предзагружено {len(prompts)} промптов")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return prompts
 
     async def _preload_all_contracts(self) -> Dict[tuple, Dict]:
@@ -687,6 +735,7 @@ class ApplicationContext(BaseSystemContext):
                     unique_contracts.add((cap, ver, "output"))
 
         self.logger.info(f"Найдено {len(unique_contracts)} уникальных контрактов для предзагрузки")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         # Загружаем ОДИН РАЗ через инфраструктурное хранилище
         loaded_count = 0
@@ -696,12 +745,15 @@ class ApplicationContext(BaseSystemContext):
                 contracts[(capability, version, direction)] = contract_obj.schema_data
                 loaded_count += 1
                 self.logger.debug(f"Загружен контракт {capability}@{version} ({direction}) (поля: {len(contract_obj.schema_data)})")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except Exception as e:
                 self.logger.warning(f"Не удалось загрузить контракт {capability}@{version} ({direction}): {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 # Добавляем пустой словарь для отсутствующего контракта, чтобы не было KeyError позже
                 contracts[(capability, version, direction)] = {}
 
         self.logger.info(f"Предзагружено {loaded_count} из {len(unique_contracts)} контрактов успешно, {len(unique_contracts) - loaded_count} пропущено")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return contracts
 
     def _enrich_config_with_resources(
@@ -724,6 +776,7 @@ class ApplicationContext(BaseSystemContext):
                 # ❌ Не добавляем молча пустую строку — логируем ERROR
                 enriched.resolved_prompts[cap] = ""
                 self.logger.error(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"❌ Промпт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
                     f"Компонент может работать некорректно."
                 )
@@ -738,6 +791,7 @@ class ApplicationContext(BaseSystemContext):
                 # ❌ Не добавляем молча пустой dict — логируем ERROR
                 enriched.resolved_input_contracts[cap] = {}
                 self.logger.error(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"❌ Входной контракт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
                     f"Валидация входа может не работать."
                 )
@@ -751,6 +805,7 @@ class ApplicationContext(BaseSystemContext):
                 # ❌ Не добавляем молча пустой dict — логируем ERROR
                 enriched.resolved_output_contracts[cap] = {}
                 self.logger.error(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"❌ Выходной контракт {key} НЕ НАЙДЕН в предзагруженных ресурсах. "
                     f"Валидация выхода может не работать."
                 )
@@ -763,6 +818,7 @@ class ApplicationContext(BaseSystemContext):
         Использует топологическую сортировку для правильного порядка инициализации.
         """
         self.logger.info("=== НАЧАЛО _initialize_components_with_dependencies ===")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         from collections import defaultdict, deque
 
         # Получаем все компоненты
@@ -823,6 +879,7 @@ class ApplicationContext(BaseSystemContext):
             # Обнаружена циклическая зависимость
             remaining_components = set(in_degree.keys()) - set(initialization_order)
             self.logger.error(f"Обнаружена циклическая зависимость между компонентами: {remaining_components}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
             # Попробуем инициализировать оставшиеся компоненты в любом порядке
             all_initialized_names = set(initialization_order)
@@ -845,11 +902,13 @@ class ApplicationContext(BaseSystemContext):
                         initialized_components.add(component.name)
                     else:
                         self.logger.error(f"❌ Компонент {component.name} не смог инициализироваться")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         return False
                 else:
                     initialized_components.add(component.name)
             except Exception as e:
                 self.logger.error(f"❌ Ошибка при инициализации компонента {component.name}: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return False
 
         # Проверяем, все ли компоненты были инициализированы
@@ -857,6 +916,7 @@ class ApplicationContext(BaseSystemContext):
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
             self.logger.error(f"❌ Не все компоненты были инициализированы: {uninitialized}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
         return True
@@ -871,19 +931,23 @@ class ApplicationContext(BaseSystemContext):
                 component = self.components.get(comp_type, name)
                 if component is None:
                     self.logger.error(f"❌ Компонент {comp_type.value}.{name} не найден")
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     return False
                 # Проверяем, что компонент инициализирован
                 if hasattr(component, 'is_initialized') and callable(component.is_initialized):
                     if not component.is_initialized():
                         self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         return False
                 elif hasattr(component, '_initialized'):
                     if not component._initialized:
                         self.logger.error(f"❌ Компонент {comp_type.value}.{name} не инициализирован")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         return False
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
                         self.logger.error(f"❌ Компонент {component.name} не готов к работе")
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         return False
 
         return True
@@ -971,6 +1035,7 @@ class ApplicationContext(BaseSystemContext):
         health_report['metrics']['check_duration'] = time.time() - start_time
         
         self.logger.info(f"Health check completed: {health_report['overall_status']}, "
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                          f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} components healthy")
         
         return health_report
@@ -1375,22 +1440,30 @@ class ApplicationContext(BaseSystemContext):
         # Логируем все зарегистрированные компоненты
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"get_all_capabilities: Зарегистрированные компоненты: SKILL={list(self.components._components[ComponentType.SKILL].keys())}, TOOL={list(self.components._components[ComponentType.TOOL].keys())}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Получаем capability от всех навыков
         for skill in self.components.all_of_type(ComponentType.SKILL):
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"get_all_capabilities: Проверяем навык {skill.name}, hasattr get_capabilities={hasattr(skill, 'get_capabilities')}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if hasattr(skill, 'get_capabilities'):
                 try:
                     caps = skill.get_capabilities()
                     all_capabilities.extend(caps)
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception as e:
                     # ❌ УДАЛЕНО: Проглатывание ошибки
                     # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"get_all_capabilities: Критическая ошибка получения capability от навыка {skill.name}: {e}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     from core.errors.exceptions import ComponentInitializationError
                     raise ComponentInitializationError(
                         f"Навык {skill.name} не вернул capability: {str(e)}",
@@ -1401,6 +1474,8 @@ class ApplicationContext(BaseSystemContext):
                 # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 from core.errors.exceptions import ComponentInitializationError
                 raise ComponentInitializationError(
                     f"Навык {skill.name} не имеет метода get_capabilities. "
@@ -1412,17 +1487,23 @@ class ApplicationContext(BaseSystemContext):
         for tool in self.components.all_of_type(ComponentType.TOOL):
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(f"get_all_capabilities: Проверяем инструмент {tool.name}, hasattr get_capabilities={hasattr(tool, 'get_capabilities')}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if hasattr(tool, 'get_capabilities'):
                 try:
                     caps = tool.get_capabilities()
                     all_capabilities.extend(caps)
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception as e:
                     # ❌ УДАЛЕНО: Проглатывание ошибки
                     # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"get_all_capabilities: Критическая ошибка получения capability от инструмента {tool.name}: {e}")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     from core.errors.exceptions import ComponentInitializationError
                     raise ComponentInitializationError(
                         f"Инструмент {tool.name} не вернул capability: {str(e)}",
@@ -1433,6 +1514,8 @@ class ApplicationContext(BaseSystemContext):
                 # ✅ ТЕПЕРЬ: Пробрасываем ComponentInitializationError
                 if self.event_bus_logger:
                     await self.event_bus_logger.error(f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 from core.errors.exceptions import ComponentInitializationError
                 raise ComponentInitializationError(
                     f"Инструмент {tool.name} не имеет метода get_capabilities. "
@@ -1442,6 +1525,8 @@ class ApplicationContext(BaseSystemContext):
 
         if self.event_bus_logger:
             await self.event_bus_logger.debug(f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return all_capabilities
 
     def get_resource(self, name: str):
@@ -1493,6 +1578,7 @@ class ApplicationContext(BaseSystemContext):
         
         self._prompt_overrides[capability] = version
         self.logger.info(f"Установлен оверрайд: {capability}@{version} для песочницы")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def clone_with_version_override(
         self,
@@ -1540,14 +1626,17 @@ class ApplicationContext(BaseSystemContext):
         Корректное завершение работы ApplicationContext.
         """
         self.logger.info("Завершение работы ApplicationContext...")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         # LLMOrchestrator завершается (это локальный ресурс ApplicationContext)
         if self.llm_orchestrator:
             try:
                 await self.llm_orchestrator.shutdown()
                 self.logger.info("LLMOrchestrator завершён")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except Exception as e:
                 self.logger.error(f"Ошибка при завершении LLMOrchestrator: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.llm_orchestrator = None
         
         # DataRepository завершается (это локальный ресурс ApplicationContext)
@@ -1555,8 +1644,10 @@ class ApplicationContext(BaseSystemContext):
             try:
                 await self.data_repository.shutdown()
                 self.logger.info("DataRepository завершён")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             except Exception as e:
                 self.logger.error(f"Ошибка при завершении DataRepository: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         # LifecycleManager НЕ завершаем - это общий ресурс с InfrastructureContext
-        self.logger.info("ApplicationContext завершён")
+        self.logger.info("ApplicationContext завершён")          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()

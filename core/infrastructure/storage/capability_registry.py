@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class CapabilityRegistry:
@@ -22,6 +24,7 @@ class CapabilityRegistry:
             self._use_event_logging = True
         else:
             import logging
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
             self._use_event_logging = False
         
@@ -31,15 +34,19 @@ class CapabilityRegistry:
         """Информационное сообщение."""
         if self._use_event_logging:
             self.logger.info(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             self.logger.info(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_warning(self, message: str, *args, **kwargs):
         """Предупреждение."""
         if self._use_event_logging:
             self.logger.warning(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         else:
             self.logger.warning(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def initialize(self):
         """Инициализация реестра возможностей."""

@@ -29,6 +29,8 @@ from core.services.benchmarks.benchmark_models import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 from .trace_collector import TraceCollector
 from .pattern_analyzer import PatternAnalyzer
@@ -121,6 +123,8 @@ class OptimizationOrchestrator:
         self.config = config or OrchestratorV2Config()
 
         self.event_bus_logger = EventBusLogger(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             event_bus,
             session_id="system",
             agent_id="system",
@@ -162,6 +166,8 @@ class OptimizationOrchestrator:
         - Optional[OptimizationResult]: результат или None
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Запуск оптимизации v2 для {capability}"
         )
 
@@ -170,48 +176,68 @@ class OptimizationOrchestrator:
         try:
             # ЭТАП 1: Сбор traces
             await self.event_bus_logger.info("ЭТАП 1: Сбор execution traces...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             traces = await self.trace_collector.collect_traces(capability)
 
             if not traces:
                 await self.event_bus_logger.warning(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Не найдено traces для {capability}"
                 )
                 return None
 
             await self.event_bus_logger.info(f"Собрано {len(traces)} traces")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # ЭТАП 2: Анализ паттернов
             await self.event_bus_logger.info("ЭТАП 2: Анализ паттернов...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             patterns = self.pattern_analyzer.analyze(traces)
             pattern_stats = self.pattern_analyzer.get_pattern_stats(patterns)
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Найдено {pattern_stats['total_patterns']} паттернов"
             )
 
             # ЭТАП 3: Анализ промптов и ответов
             await self.event_bus_logger.info("ЭТАП 3: Анализ промптов/ответов...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             prompt_issues = self.prompt_analyzer.analyze_prompts(traces)
             response_issues = self.prompt_analyzer.analyze_responses(traces)
             analysis_stats = self.prompt_analyzer.get_analysis_stats(
                 prompt_issues, response_issues
             )
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Найдено {analysis_stats['total_prompt_issues']} проблем промптов, "
                 f"{analysis_stats['total_response_issues']} проблем ответов"
             )
 
             # ЭТАП 4: Поиск корневых причин
             await self.event_bus_logger.info("ЭТАП 4: Поиск корневых причин...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             root_causes = self.root_cause_analyzer.analyze(
                 patterns, prompt_issues, response_issues
             )
             cause_stats = self.root_cause_analyzer.get_root_cause_stats(root_causes)
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Найдено {cause_stats['total_root_causes']} корневых причин"
             )
 
             # ЭТАП 5: Извлечение примеров
             await self.event_bus_logger.info("ЭТАП 5: Извлечение примеров...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             good_examples, error_examples = self.example_extractor.extract_few_shot_examples(
                 traces,
                 capability,
@@ -219,16 +245,22 @@ class OptimizationOrchestrator:
                 num_bad=self.config.max_error_examples
             )
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Извлечено {len(good_examples)} хороших примеров, "
                 f"{len(error_examples)} примеров ошибок"
             )
 
             # ЭТАП 6: Получение baseline и генерация улучшений
             await self.event_bus_logger.info("ЭТАП 6: Генерация улучшений...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             baseline = await self.version_manager.get_active(capability)
 
             if not baseline:
                 await self.event_bus_logger.error(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Baseline версия не найдена для {capability}"
                 )
                 return None
@@ -242,14 +274,20 @@ class OptimizationOrchestrator:
 
             if not candidates:
                 await self.event_bus_logger.warning("Кандидаты не сгенерированы")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return None
 
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Сгенерировано {len(candidates)} кандидатов"
             )
 
             # ЭТАП 7: Тестирование и оценка
             await self.event_bus_logger.info("ЭТАП 7: Тестирование кандидатов...")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             result = await self._test_and_evaluate(
                 capability=capability,
                 baseline=baseline,
@@ -259,6 +297,8 @@ class OptimizationOrchestrator:
 
             elapsed = (datetime.now() - start_time).total_seconds()
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Оптимизация завершена за {elapsed:.1f}с"
             )
 
@@ -266,6 +306,8 @@ class OptimizationOrchestrator:
 
         except Exception as e:
             await self.event_bus_logger.error(f"Ошибка оптимизации: {e}")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
     async def _test_and_evaluate(
@@ -289,6 +331,8 @@ class OptimizationOrchestrator:
         """
         if not self.executor_callback:
             await self.event_bus_logger.error("Executor callback не установлен")
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return None
 
         # Оценка baseline
@@ -315,6 +359,8 @@ class OptimizationOrchestrator:
             result.iterations = iteration + 1
 
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Тестирование кандидата {iteration + 1}/{len(candidates)}"
             )
 
@@ -347,6 +393,8 @@ class OptimizationOrchestrator:
                     await self.version_manager.promote(candidate.id, capability)
 
                     await self.event_bus_logger.info(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Улучшение найдено: score {candidate_eval.score:.3f} "
                         f"(+{improvement:.3f})"
                     )
@@ -355,9 +403,13 @@ class OptimizationOrchestrator:
                     if candidate_eval.success_rate >= self.config.target_accuracy:
                         result.target_achieved = True
                         await self.event_bus_logger.info("Цель достигнута")
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         break
                 else:
                     await self.event_bus_logger.warning(
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"Кандидат {candidate.id} отклонён safety layer"
                     )
                     await self.version_manager.reject(
@@ -365,6 +417,8 @@ class OptimizationOrchestrator:
                     )
             else:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Улучшение недостаточно: {improvement:.3f}"
                 )
                 await self.version_manager.reject(

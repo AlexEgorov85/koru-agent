@@ -66,10 +66,13 @@ class VersionedStorage(ABC, Generic[T]):
         # Инициализация логгера
         if event_bus is not None:
             from core.infrastructure.logging import EventBusLogger
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.logger = EventBusLogger(event_bus, session_id="system", agent_id="system", component=self.__class__.__name__)
             self._use_event_logging = True
         else:
             import logging
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
             self._use_event_logging = False
         
@@ -81,6 +84,7 @@ class VersionedStorage(ABC, Generic[T]):
             self.logger.info_sync(message, *args, **kwargs)
         else:
             self.logger.info(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_warning(self, message: str, *args, **kwargs):
         """Предупреждение."""
@@ -88,6 +92,7 @@ class VersionedStorage(ABC, Generic[T]):
             self.logger.warning_sync(message, *args, **kwargs)
         else:
             self.logger.warning(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_error(self, message: str, *args, **kwargs):
         """Ошибка."""
@@ -95,6 +100,7 @@ class VersionedStorage(ABC, Generic[T]):
             self.logger.error_sync(message, *args, **kwargs)
         else:
             self.logger.error(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _validate_directory(self) -> None:
         """Валидация директории хранилища."""

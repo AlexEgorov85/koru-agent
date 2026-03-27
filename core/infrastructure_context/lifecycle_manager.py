@@ -24,6 +24,8 @@ from enum import Enum
 import asyncio
 
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.agent.components.lifecycle import ComponentState
 from core.models.enums.common_enums import ResourceType
@@ -139,6 +141,8 @@ class LifecycleManager:
         
         if event_bus:
             self.event_bus_logger = EventBusLogger(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 event_bus, 
                 session_id="system", 
                 agent_id="system", 
@@ -188,6 +192,8 @@ class LifecycleManager:
             
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     "Зарегистрирован ресурс '%s' типа %s", 
                     name, resource_type.value
                 )
@@ -265,10 +271,14 @@ class LifecycleManager:
             if self._initialized:
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning("LifecycleManager уже инициализирован")
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 return {name: True for name in self._resources}
 
             if self.event_bus_logger is None and self.event_bus:
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     self.event_bus, 
                     session_id="system", 
                     agent_id="system", 
@@ -277,6 +287,8 @@ class LifecycleManager:
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     "Начало инициализации %d инфраструктурных ресурсов",
                     len(self._resources)
                 )
@@ -304,6 +316,8 @@ class LifecycleManager:
                     results[name] = False
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             "Ресурс '%s' не инициализирован:_failed зависимости %s",
                             name, failed_deps
                         )
@@ -324,12 +338,16 @@ class LifecycleManager:
                         results[name] = True
                         if self.event_bus_logger:
                             await self.event_bus_logger.debug("Ресурс '%s' успешно инициализирован", name)
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     else:
                         record.status = ComponentState.FAILED
                         record.init_error = "initialize returned False"
                         results[name] = False
                         if self.event_bus_logger:
                             await self.event_bus_logger.error("Ресурс '%s' вернул False при инициализации", name)
+                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             
                 except Exception as e:
                     record.status = ComponentState.FAILED
@@ -337,6 +355,8 @@ class LifecycleManager:
                     results[name] = False
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             "Ошибка инициализации ресурса '%s': %s", 
                             name, str(e), exc_info=True
                         )
@@ -351,6 +371,8 @@ class LifecycleManager:
             success_count = sum(1 for v in results.values() if v)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     "Все инфраструктурные ресурсы инициализированы: %d/%d успешно",
                     success_count, len(results)
                 )
@@ -420,6 +442,8 @@ class LifecycleManager:
 
             if self.event_bus_logger:
                 await self.event_bus_logger.info("Завершение работы инфраструктурных ресурсов")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Обратный порядок инициализации
             graph = {name: set(record.dependencies) for name, record in self._resources.items()}
@@ -445,11 +469,15 @@ class LifecycleManager:
                     
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug("Ресурс '%s' завершён", name)
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         
                 except Exception as e:
                     results[name] = False
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(
+                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                             "Ошибка при завершении ресурса '%s': %s", 
                             name, str(e), exc_info=True
                         )
@@ -460,6 +488,8 @@ class LifecycleManager:
             success_count = sum(1 for v in results.values() if v)
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     "Все инфраструктурные ресурсы завершены: %d/%d успешно",
                     success_count, len(results)
                 )
@@ -668,3 +698,5 @@ class LifecycleManager:
             except Exception as e:
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug("Ошибка публикации события: %s", e)
+                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()

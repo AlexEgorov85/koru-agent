@@ -21,6 +21,8 @@ from core.services.benchmarks.benchmark_models import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 @dataclass
@@ -81,6 +83,8 @@ class BenchmarkRunner:
         self.executor_callback = executor_callback
         self.config = config or BenchmarkRunConfig()
         self.event_bus_logger = EventBusLogger(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             event_bus,
             session_id="system",
             agent_id="system",
@@ -106,6 +110,8 @@ class BenchmarkRunner:
         - List[BenchmarkRunResult]: результаты запусков
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Запуск бенчмарка для версии {version.id} "
             f"({len(scenarios)} сценариев)"
         )
@@ -120,6 +126,8 @@ class BenchmarkRunner:
         variance = self._calculate_variance(results)
         if variance > 0.05:
             await self.event_bus_logger.warning(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Высокая вариативность результатов: {variance:.3f}"
             )
 
@@ -163,6 +171,8 @@ class BenchmarkRunner:
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
 
             await self.event_bus_logger.error(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Ошибка выполнения сценария {scenario.id}: {e}"
             )
 

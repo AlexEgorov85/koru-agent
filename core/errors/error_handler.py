@@ -18,6 +18,7 @@
 import asyncio
 import inspect
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import random
 import traceback
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ from core.infrastructure.event_bus import (
 
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 # ============================================================
@@ -333,6 +335,7 @@ class ErrorHandler:
     # Регистрация обработчика для типа ошибки
     async def handle_validation_error(error, context):
         logger.warning(f"Validation failed: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True  # Ошибка обработана
 
     error_handler.register_handler(
@@ -385,6 +388,7 @@ class ErrorHandler:
         self._register_default_handlers()
 
         self._logger.info("ErrorHandler инициализирован")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _register_default_handlers(self):
         """Регистрация обработчиков по умолчанию."""
@@ -433,26 +437,31 @@ class ErrorHandler:
     async def _handle_generic_error(self, error: Exception, context: ErrorContext) -> bool:
         """Базовый обработчик для всех ошибок."""
         self._logger.info(f"Error in {context.component}.{context.operation}: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True  # Считаем обработанным
 
     async def _handle_validation_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок валидации по умолчанию."""
         self._logger.warning(f"Validation error in {context.component}.{context.operation}: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
 
     async def _handle_file_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок файла по умолчанию."""
         self._logger.warning(f"File error in {context.component}.{context.operation}: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
 
     async def _handle_timeout_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок таймаута по умолчанию."""
         self._logger.error(f"Timeout error in {context.component}.{context.operation}: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
 
     async def _handle_connection_error(self, error: Exception, context: ErrorContext) -> bool:
         """Обработчик ошибок соединения по умолчанию."""
         self._logger.error(f"Connection error in {context.component}.{context.operation}: {error}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return True
 
     def register_handler(
@@ -475,6 +484,7 @@ class ErrorHandler:
         ```python
         async def my_handler(error, context):
             logger.error(f"Error: {error}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return True
 
         error_handler.register_handler(
@@ -490,6 +500,7 @@ class ErrorHandler:
         self._handler_category[error_type] = category
 
         self._logger.debug(f"Зарегистрирован обработчик для {error_type.__name__}")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def classify(
         self,
@@ -611,6 +622,7 @@ class ErrorHandler:
         - None если retry успешен (вызывающий код должен handle)
         """
         self._logger.warning(
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Retry возможен для {type(error).__name__} в {context.component}.{context.operation}"
         )
         error_info.recovery_action = "retry_recommended"
@@ -649,6 +661,7 @@ class ErrorHandler:
                         handled = handler(error, context)
             except Exception as handler_error:
                 self._logger.error(f"Ошибка в обработчике ошибки: {handler_error}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         error_info.handled = handled
         error_info.handled_at = datetime.now()
@@ -769,6 +782,7 @@ class ErrorHandler:
         """Публикация события об ошибке в Event Bus."""
         if not self._event_bus:
             self._logger.debug("Event bus не доступен, пропускаем публикацию события об ошибке")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         event_data = error_info.to_dict()

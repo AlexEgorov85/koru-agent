@@ -12,6 +12,8 @@ from core.application_context.application_context import ApplicationContext
 from core.agent.runtime import AgentRuntime
 from core.application_context.agent_config import AgentConfig
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class ProfileType(Enum):
@@ -46,6 +48,8 @@ class AgentFactory:
             event_bus = getattr(self.application_context.infrastructure_context, 'event_bus', None)
             if event_bus:
                 self.event_bus_logger = EventBusLogger(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     event_bus, 
                     session_id="system", 
                     agent_id="system",
@@ -87,6 +91,8 @@ class AgentFactory:
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Создан агент с ID {app_context.id}. "
                 f"Версии: из конфигурации"
             )

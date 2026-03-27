@@ -21,8 +21,10 @@ class ValidationResult:
     if not result.is_valid:
         for error in result.errors:
             logger.error(error)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         for warning in result.warnings:
             logger.warning(warning)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     ```
     """
     

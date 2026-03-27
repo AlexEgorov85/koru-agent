@@ -9,6 +9,7 @@ BenchmarkDataLoader — загрузка тестовых данных из БД
 """
 import asyncio
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -16,6 +17,7 @@ from datetime import datetime
 from core.infrastructure.providers.database.base_db import BaseDBProvider
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 @dataclass
@@ -69,6 +71,7 @@ class BenchmarkDataLoader:
             return True
         except Exception as e:
             logger.error(f"❌ Ошибка подключения к БД: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
     async def load_test_cases(
@@ -95,6 +98,7 @@ class BenchmarkDataLoader:
             return await self._load_sql_generation_test_cases(limit)
         else:
             logger.warning(f"⚠️  Нет тестовых данных для {capability}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return []
 
     async def _load_book_library_test_cases(
@@ -312,12 +316,14 @@ class BenchmarkDataLoader:
 
         except Exception as e:
             logger.error(f"❌ Ошибка загрузки тестовых данных: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Ограничение количества
         if limit:
             test_cases = test_cases[:limit]
 
         logger.info(f"✅ Загружено {len(test_cases)} тестовых кейсов для book_library")
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return test_cases
 
     async def _load_sql_generation_test_cases(
@@ -399,5 +405,6 @@ class BenchmarkDataLoader:
 
         except Exception as e:
             logger.warning(f"⚠️  Ошибка получения статистики: {e}")
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         return stats

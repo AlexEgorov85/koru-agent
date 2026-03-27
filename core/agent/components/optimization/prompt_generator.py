@@ -21,6 +21,8 @@ from core.services.benchmarks.benchmark_models import (
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 from .root_cause_analyzer import RootCause
 from .example_extractor import Example, ErrorExample
@@ -77,6 +79,8 @@ class PromptGenerator:
         self.llm_callback = llm_callback
         self.config = config or GenerationConfig()
         self.event_bus_logger = EventBusLogger(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             event_bus,
             session_id="system",
             agent_id="system",
@@ -102,6 +106,8 @@ class PromptGenerator:
         - List[PromptVersion]: список кандидатов
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Генерация кандидатов на основе {parent.id}"
         )
 
@@ -124,6 +130,8 @@ class PromptGenerator:
         candidates = self._ensure_diversity(candidates)
 
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Сгенерировано {len(candidates)} кандидатов"
         )
 
@@ -214,6 +222,8 @@ class PromptGenerator:
 
         except Exception as e:
             await self.event_bus_logger.error(
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Ошибка генерации кандидата: {e}"
             )
             return None
@@ -503,6 +513,8 @@ class PromptGenerator:
         - List[PromptVersion]: список улучшенных кандидатов
         """
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Генерация улучшений на основе {len(root_causes)} root causes"
         )
 
@@ -535,6 +547,8 @@ class PromptGenerator:
         candidates = self._ensure_diversity(candidates)
 
         await self.event_bus_logger.info(
+          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"Сгенерировано {len(candidates)} улучшенных кандидатов"
         )
 

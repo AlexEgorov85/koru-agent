@@ -23,6 +23,8 @@ from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 if TYPE_CHECKING:
     from core.services.skills.base_skill import BaseSkill
@@ -135,21 +137,29 @@ class BaseSkillHandler(ABC):
         """Логирование информационного сообщения"""
         if self.event_bus_logger:
             await self.event_bus_logger.info(message)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def log_warning(self, message: str) -> None:
         """Логирование предупреждения"""
         if self.event_bus_logger:
             await self.event_bus_logger.warning(message)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def log_error(self, message: str) -> None:
         """Логирование ошибки"""
         if self.event_bus_logger:
             await self.event_bus_logger.error(message)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def log_debug(self, message: str) -> None:
         """Логирование отладочного сообщения"""
         if self.event_bus_logger:
             await self.event_bus_logger.debug(message)
+              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _validate_input(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """

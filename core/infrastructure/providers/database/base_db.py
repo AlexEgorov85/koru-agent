@@ -5,11 +5,13 @@
 
 import time
 import logging
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 from core.models.types.db_types import DBConnectionConfig, DBHealthStatus, DBQueryResult

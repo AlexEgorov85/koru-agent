@@ -10,6 +10,8 @@ from core.models.data.capability import Capability
 from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class PlanningSkill(BaseComponent):
@@ -143,11 +145,16 @@ class PlanningSkill(BaseComponent):
             # Используем event_bus_logger для публикации событий
             if self.event_bus_logger:
                 await self.event_bus_logger.info(f"Событие {event_type}: {data}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.warning(f"Не удалось опубликовать событие {event_type}: {str(e)}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     async def _create_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
         try:
@@ -205,10 +212,13 @@ class PlanningSkill(BaseComponent):
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Plan создан с structured output (попыток: {parsing_attempts})"
                 )
             else:
                 self.logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Plan создан с structured output (попыток: {parsing_attempts})"
                 )
 
@@ -254,8 +264,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка создания плана: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось создать план: {str(e)[:100]}"
@@ -352,10 +365,13 @@ class PlanningSkill(BaseComponent):
             parsing_attempts = llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Plan обновлён с structured output (попыток: {parsing_attempts})"
                 )
             else:
                 self.logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Plan обновлён с structured output (попыток: {parsing_attempts})"
                 )
 
@@ -401,8 +417,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка обновления плана: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить план: {str(e)[:100]}"
@@ -463,8 +482,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка получения следующего шага: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось получить следующего шага: {str(e)[:100]}"
@@ -639,8 +661,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка обновления статуса шага: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось обновить статус шага: {str(e)[:100]}"
@@ -704,10 +729,13 @@ class PlanningSkill(BaseComponent):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Коррекция плана выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
@@ -735,8 +763,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка коррекции плана: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка коррекции плана: {str(e)[:100]}"
@@ -794,10 +825,13 @@ class PlanningSkill(BaseComponent):
             # Логирование успешного structured output
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
             else:
                 self.logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Декомпозиция выполнена с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
@@ -863,8 +897,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка декомпозиции задачи: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось декомпозировать задачу: {str(e)[:100]}"
@@ -1008,8 +1045,11 @@ class PlanningSkill(BaseComponent):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка отметки задачи как завершенной: {str(e)}", exc_info=True)
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Не удалось отметить задачу как завершенную: {str(e)[:100]}"

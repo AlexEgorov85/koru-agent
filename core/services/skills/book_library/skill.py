@@ -155,8 +155,11 @@ class BookLibrarySkill(BaseSkill):
         except Exception as e:
             if self.event_bus_logger:
                 await self.event_bus_logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 self.logger.error(f"Ошибка загрузки реестра скриптов: {e}")
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self._scripts_registry = {}
 
         # Инициализация обработчиков

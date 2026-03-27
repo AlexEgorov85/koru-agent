@@ -17,6 +17,8 @@ from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
 from core.models.enums.common_enums import ComponentType, ComponentStatus
 from core.infrastructure.logging import EventBusLogger
+  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
+  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class ResourceDiscovery:
@@ -79,6 +81,7 @@ class ResourceDiscovery:
             self._use_event_logging = True
         else:
             import logging
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.logger = logging.getLogger(__name__)
             self._use_event_logging = False
 
@@ -90,6 +93,7 @@ class ResourceDiscovery:
             self.logger.info_sync(message, *args, **kwargs)
         else:
             self.logger.info(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_debug(self, message: str, *args, **kwargs):
         """Отладочное сообщение."""
@@ -97,6 +101,7 @@ class ResourceDiscovery:
             self.logger.debug_sync(message, *args, **kwargs)
         else:
             self.logger.debug(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_warning(self, message: str, *args, **kwargs):
         """Предупреждение."""
@@ -104,6 +109,7 @@ class ResourceDiscovery:
             self.logger.warning_sync(message, *args, **kwargs)
         else:
             self.logger.warning(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def _log_error(self, message: str, *args, **kwargs):
         """Ошибка."""
@@ -111,6 +117,7 @@ class ResourceDiscovery:
             self.logger.error_sync(message, *args, **kwargs)
         else:
             self.logger.error(message, *args, **kwargs)
+              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     def _should_load_resource(self, status: str, resource_type: str = 'prompt') -> bool:
         """

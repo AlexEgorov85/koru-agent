@@ -85,6 +85,7 @@ class BaseSkill(BaseComponent):
         if success:
             if hasattr(self.application_context, 'logger'):
                 self.application_context.logger.info(
+                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"Навык '{self.name}' инициализирован с вариантом '{getattr(self.component_config, 'variant_key', 'default')}'. "
                     f"Загружено: промпты={len(self.prompts)}, "
                     f"input-контракты={len(self.input_contracts)}, "
@@ -139,17 +140,20 @@ class BaseSkill(BaseComponent):
                 # Проверка наличия промпта для capability
                 if cap_name not in self.prompts:
                     self.logger.warning(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"{self.name}: Capability '{cap.name}' не имеет промпта"
                     )
 
                 # Проверка наличия контрактов для capability
                 if cap_name not in self.input_contracts:
                     self.logger.warning(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"{self.name}: Capability '{cap.name}' не имеет input контракта"
                     )
 
                 if cap_name not in self.output_contracts:
                     self.logger.warning(
+                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         f"{self.name}: Capability '{cap.name}' не имеет output контракта"
                     )
 
