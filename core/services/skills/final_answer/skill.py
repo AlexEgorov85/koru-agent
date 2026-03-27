@@ -506,23 +506,30 @@ class FinalAnswerSkill(BaseSkill):
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
             if not final_answer_val and sources_val:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}")
                 # Извлекаем названия книг из sources
                 book_titles = []
                 for source in sources_val:
                     # Формат: "'Название' (Автор, Год)" или просто "Название"
-                    if source.startswith("'") and ")" in source:
+                    if isinstance(source, str) and source.startswith("'") and ")" in source:
                         # Извлекаем название между кавычками
                         end_quote = source.find("'", 1)
                         if end_quote > 0:
                             book_titles.append(source[1:end_quote])
                     elif source:
-                        book_titles.append(source)
+                        book_titles.append(str(source))
                 
                 # Генерируем ответ из списка книг
                 if book_titles:
                     count = len(book_titles)
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val[:100]}")
+            elif not final_answer_val:
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
 
             result_data = {
                 "final_answer": final_answer_val,
