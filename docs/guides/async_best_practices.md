@@ -295,7 +295,7 @@ async def shutdown(self):
 - [ ] Есть обработка `CancelledError`
 - [ ] Реализован graceful shutdown
 - [ ] Таймауты на длительных операциях
-- [ ] Логирование через `EventBusLogger`
+- [ ] Логирование через `event_bus.publish()` (миграция с EventBusLogger)
 
 ---
 

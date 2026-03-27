@@ -22,9 +22,12 @@
 
 ## 💡 Использование
 
+> ⚠️ **Миграция:** Сейчас используется `EventBusLogger`. В будущем будет заменено на прямые вызовы `event_bus.publish()` с EventType `USER_MESSAGE`, `USER_PROGRESS`, `USER_RESULT`.
+
 ### 1. Базовые сообщения
 
 ```python
+# Текущий способ (через EventBusLogger):
 from core.infrastructure.logging import EventBusLogger
 
 class MyComponent:
@@ -32,20 +35,17 @@ class MyComponent:
         self.event_bus_logger = event_bus_logger
     
     async def run(self):
-        # Сообщение с иконкой по умолчанию
         await self.event_bus_logger.user_message("Агент запущен")
-        
-        # Сообщение с кастомной иконкой
-        await self.event_bus_logger.user_message(
-            "Найдено 5 книг",
-            icon="📚"
-        )
-        
-        # Прогресс
-        await self.event_bus_logger.user_progress("Генерация SQL запроса...")
-        
-        # Результат
-        await self.event_bus_logger.user_result("Запрос выполнен успешно")
+
+# Будущий способ ( напрямую через event_bus):
+from core.infrastructure.event_bus import get_event_bus, EventType
+
+async def run(event_bus, session_id):
+    await event_bus.publish(
+        EventType.USER_MESSAGE,
+        data={"message": "Агент запущен"},
+        session_id=session_id
+    )
 ```
 
 ### 2. Примеры для разных сценариев

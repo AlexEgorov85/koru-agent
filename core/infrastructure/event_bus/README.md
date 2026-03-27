@@ -80,7 +80,9 @@ event_bus.subscribe_all(
 )
 ```
 
-### 3. Логирование через EventBusLogger
+### 3. Логирование через EventBusLogger (deprecated)
+
+> ⚠️ **Рекомендуется использовать прямые вызовы `event_bus.publish()` вместо EventBusLogger**
 
 ```python
 from core.infrastructure.event_bus.unified_logger import EventBusLogger
@@ -97,6 +99,18 @@ await logger.info("Компонент инициализирован")
 await logger.debug("Детали: %s", details)
 await logger.warning("Предупреждение")
 await logger.error("Ошибка: %s", error)
+```
+
+### 4. Рекомендуемый способ логирования
+
+```python
+# Вместо EventBusLogger используйте:
+await event_bus.publish(
+    EventType.AGENT_STARTED,
+    data={"agent_id": "123", "message": "Агент запущен"},
+    session_id="session_123",
+    domain=EventDomain.AGENT
+)
 ```
 
 ## 🏷️ Домены событий

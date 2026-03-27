@@ -40,6 +40,52 @@ core/infrastructure/logging/
 └── log_indexer.py       # Индексация сессий
 ```
 
+## ⚠️ Миграция на Event Bus (в процессе)
+
+> **Текущий статус:** В проекте добавлены TODO-комментарии для постепенной миграции. Полный переход на `event_bus.publish()` вместо `EventBusLogger` запланирован на будущее.
+
+### Цель миграции
+
+Убрать промежуточный слой `EventBusLogger` и публиковать события напрямую через `event_bus.publish()`:
+
+```python
+# Было (через EventBusLogger):
+await logger.info("Агент запущен")
+
+# Станет (напрямую через event_bus):
+await event_bus.publish(
+    EventType.AGENT_STARTED,
+    data={"message": "Агент запущен"},
+    session_id=session_id
+)
+```
+
+### Преимущества
+
+- Единый интерфейс для всех событий
+- Семантические типы событий (EventType) вместо generic логов
+- Возможность подписываться на конкретные типы событий
+- Архитектура становится более event-driven
+
+### Скрипты для миграции
+
+В проекте есть скрипты для помощи миграции:
+
+```bash
+# Найти все места с логированием
+python scripts/find_logging_issues.py
+
+# Добавить TODO-комментарии (уже выполнено)
+python scripts/add_logging_todos.py
+python scripts/add_eventbuslogger_todos.py
+```
+
+### Результаты
+
+- ✅ Добавлено **1300+ TODO-комментариев** в **65+ файлах**
+- ⏳ Миграция в процессе (ручная замена по TODO)
+- 📊 Все изменения закоммичены в `f17cbc2`
+
 ## Удалённые файлы (рефакторинг)
 
 - ❌ `core/infrastructure/logging/event_bus_log_handler.py` - дублировал функциональность
