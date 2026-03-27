@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 from core.application_context.application_context import ApplicationContext
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput
-from core.models.schemas.sql_generation_schemas import SQLCorrectionInput, SQLCorrectionOutput
+from core.models.sql_schemas import SQLCorrectionInput, SQLCorrectionOutput
 from core.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 
 class SQLCorrectionEngine(BaseService):

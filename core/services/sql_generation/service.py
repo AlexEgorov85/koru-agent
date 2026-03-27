@@ -12,9 +12,8 @@ class SQLGenerationServiceOutput(BaseServiceOutput):
         self.data = data
 from core.services.sql_generation.error_analyzer import SQLErrorAnalyzer, ExecutionError
 from core.services.sql_generation.correction import SQLCorrectionEngine
-from core.models.schemas.sql_generation_schemas import (
+from core.models.sql_schemas import (
     SQLGenerationInput, SQLGenerationOutput,
-    SQLCorrectionInput, SQLCorrectionOutput
 )
 from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult

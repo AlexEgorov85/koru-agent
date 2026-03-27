@@ -1,17 +1,19 @@
 """
-Валидация результатов рассуждения для ReAct стратегии в новой архитектуре
+Валидация результатов рассуждения для ReAct стратегии
 
 АРХИТЕКТУРА:
-- Типизированные объекты вместо dict
-- Dataclass для структур данных
+- Валидация выполняется через Pydantic модель из контракта
+- Контракт загружается при инициализации: behavior.react.think_output_v1.0.0
+- Использует contract.pydantic_schema для валидации
 """
 import logging
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import json
 import re
 import traceback
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
+
+from pydantic import BaseModel, ValidationError
 
 
 @dataclass

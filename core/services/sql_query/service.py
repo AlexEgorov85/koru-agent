@@ -2,11 +2,13 @@ import time
 import logging
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Dict, Any, List, Optional
+from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.data.capability import Capability
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.models.types.db_types import DBQueryResult
 from core.services.sql_generation.error_analyzer import SQLErrorAnalyzer
 from core.application_context.base_system_context import BaseSystemContext
-from core.models.schemas.sql_query_schemas import SQLQueryInput, SQLQueryOutput
+from core.models.sql_schemas import SQLGenerationInput, SQLQueryInput, SQLQueryOutput
 from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
 
@@ -100,14 +102,13 @@ class SQLQueryService(BaseService):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения сервиса SQL-запросов."""
-        from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.PROVIDER_REGISTERED
 
     def _execute_impl(
         self,
-        capability: 'Capability',
+        capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
@@ -249,21 +250,6 @@ class SQLQueryService(BaseService):
                 )
                 execution_time = time.time() - start_exec_time
 
-                # [DEBUG] Отладка результата
-                await self.event_bus_logger.info(f"[DEBUG] result type={type(result).__name__}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.info(f"[DEBUG] result has rows attr={hasattr(result, 'rows')}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                if hasattr(result, 'rows'):
-                    await self.event_bus_logger.info(f"[DEBUG] result.rows type={type(result.rows).__name__}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.info(f"[SQL_DEBUG] результат db_provider.execute_query: success={result.success if hasattr(result, 'success') else 'N/A'}, error={result.error if hasattr(result, 'error') else 'N/A'}, rows={len(result.rows) if hasattr(result, 'rows') and result.rows else 0}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
                 # Преобразуем результат в DBQueryResult
                 # [SQL_DEBUG] 2.4. Возврат DBQueryResult (успех)
                 db_result = DBQueryResult(
@@ -348,7 +334,6 @@ class SQLQueryService(BaseService):
                 )
 
             # Подготовка входных данных для SQLGenerationService
-            from core.models.schemas.sql_generation_schemas import SQLGenerationInput
             generation_input = SQLGenerationInput(
                 user_question=user_question,
                 tables=tables,

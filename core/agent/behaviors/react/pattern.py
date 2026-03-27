@@ -8,21 +8,17 @@
 - ИСПОЛЬЗОВАНИЕ PromptService и ContractService для загрузки промптов и контрактов
 - НЕ ЗНАЕТ о версиях — версии управляются через ComponentConfig в ApplicationContext
 """
-import json
-import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+
+from typing import Any, Dict, List
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
 from core.agent.strategies.react.schema_validator import SchemaValidator
 from core.agent.strategies.react.utils import analyze_context
-from core.models.schemas.react_models import ReasoningResult
-from core.agent.strategies.react.validation import validate_reasoning_result
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
-from core.models.types.llm_types import LLMRequest, StructuredOutputConfig, LLMResponse
-from core.models.errors import InfrastructureError
-from core.agent.components.action_executor import ExecutionContext
+from core.models.types.llm_types import LLMRequest
 from core.agent.behaviors.services import FallbackStrategyService
+from core.session_context.session_context import SessionContext
 
 
 # ============================================================================
@@ -115,7 +111,7 @@ class ReActPattern(BaseBehaviorPattern):
         llm_request: LLMRequest,
         llm_provider: Any,
         timeout: float,
-        session_context: 'SessionContext'
+        session_context: SessionContext
     ) -> tuple[bool, Any, str]:
         """
         Выполнение LLM вызова через LLMOrchestrator.
@@ -290,9 +286,12 @@ class ReActPattern(BaseBehaviorPattern):
                                 self.reasoning_schema = schema_cls
                             break
 
-            # Fallback на модель если контракт не найден
+            # Если контракт не найден - это ошибка инициализации
             if not self.reasoning_schema:
-                self.reasoning_schema = ReasoningResult.model_json_schema()
+                raise RuntimeError(
+                    f"[ReAct] Критическая ошибка: контракт output для 'behavior.react.think' не загружен. "
+                    f"Проверьте что контракт 'behavior.react.think_output_v1.0.0' существует и загружается при инициализации."
+                )
 
             # === КРИТИЧНАЯ ВАЛИДАЦИЯ РЕСУРСОВ ===
             # Проверяем что все критические ресурсы загружены
@@ -367,7 +366,7 @@ class ReActPattern(BaseBehaviorPattern):
 
     async def analyze_context(
         self,
-        session_context: 'SessionContext',
+        session_context: SessionContext,
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -419,7 +418,7 @@ class ReActPattern(BaseBehaviorPattern):
 
     async def generate_decision(
         self,
-        session_context: 'SessionContext',
+        session_context: SessionContext,
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any],
         execution_context=None
@@ -439,27 +438,13 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities,
                 execution_context=execution_context
             )
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"reasoning_result тип={type(reasoning_result).__name__}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            if hasattr(reasoning_result, 'to_dict'):
-                d = reasoning_result.to_dict()
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"to_dict() decision={d.get('decision')}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.info(f"to_dict() stop_condition={d.get('stop_condition')}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            elif isinstance(reasoning_result, dict):
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"reasoning_result.decision={reasoning_result.get('decision', {})}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.info(f"reasoning_result.stop_condition={reasoning_result.get('stop_condition', False)}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+            # Сохраняем размышление в session_context для использования в final_answer
+            thought_text = reasoning_result.thought if hasattr(reasoning_result, 'thought') else ""
+            session_context.record_decision(
+                decision_data="reasoning",
+                reasoning=thought_text
+            )
 
             # 2. Принятие решения на основе рассуждения
             decision = await self._make_decision_from_reasoning(
@@ -468,25 +453,8 @@ class ReActPattern(BaseBehaviorPattern):
                 available_capabilities=available_capabilities  # КРИТИЧНО: передаём available_capabilities
             )
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"decision от _make_decision_from_reasoning: action={decision.action.value}, capability_name={decision.capability_name}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-            # Логирование финального решения
-            await self._log("info", f"generate_decision: decision получен",
-                           action=decision.action.value,
-                           capability_name=decision.capability_name)
-
-            await self._log("info", f"  decision.action={decision.action}, decision.capability_name={decision.capability_name}")
-
             # 3. Сброс счётчика ошибок при успешном решении
             self.error_count = 0
-
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Возвращаем decision: action={decision.action.value}, capability_name={decision.capability_name}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             return decision
             
