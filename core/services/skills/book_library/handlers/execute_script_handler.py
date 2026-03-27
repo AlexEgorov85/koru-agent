@@ -6,6 +6,64 @@ from core.models.data.execution import ExecutionStatus
 from core.services.skills.handlers.base_handler import BaseSkillHandler
 
 
+def levenshtein_distance(s1: str, s2: str) -> int:
+    """
+    Вычисляет расстояние Левенштейна между двумя строками.
+    
+    ARGS:
+    - s1: первая строка
+    - s2: вторая строка
+    
+    RETURNS:
+    - Количество операций вставки/удаления/замены для превращения s1 в s2
+    """
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
+
+
+def fuzzy_match(value: str, candidates: List[str], max_distance: int = 2) -> Optional[str]:
+    """
+    Нечёткое совпадение значения со списком кандидатов.
+    
+    ARGS:
+    - value: искомое значение (возможно с опечаткой)
+    - candidates: список корректных значений
+    - max_distance: максимальное расстояние Левенштейна для совпадения
+    
+    RETURNS:
+    - Наиболее близкое значение или None, если совпадение не найдено
+    """
+    if not value or not candidates:
+        return None
+    
+    value_lower = value.lower()
+    best_match = None
+    best_distance = max_distance + 1
+    
+    for candidate in candidates:
+        distance = levenshtein_distance(value_lower, candidate.lower())
+        if distance <= max_distance and distance < best_distance:
+            best_distance = distance
+            best_match = candidate
+    
+    return best_match
+
+
 class ExecuteScriptHandler(BaseSkillHandler):
     """
     Обработчик выполнения заготовленных SQL-скриптов.
@@ -56,6 +114,15 @@ class ExecuteScriptHandler(BaseSkillHandler):
                 raise ValueError(f"Параметры невалидны: {warning}. Возможно вы имели в виду: {', '.join(suggestions)}")
             else:
                 raise ValueError(f"Параметры невалидны: {warning}")
+
+        # 4.1 Применение автокоррекции параметров
+        corrected_params = validation_result.get("corrected_params", {})
+        if corrected_params:
+            # Обновляем params исправленными значениями
+            params = {**params, **corrected_params}
+            warning = validation_result.get("warning")
+            if warning:
+                await self.log_info(warning)
 
         # 5. Подготовка параметров для SQL
         script_params = self._prepare_script_params(params, script_config, max_rows)
@@ -207,9 +274,9 @@ class ExecuteScriptHandler(BaseSkillHandler):
         для поиска похожих значений и предотвращения ошибок.
 
         RETURNS:
-        - Dict с ключами: valid (bool), warning (str), suggestions (list)
+        - Dict с ключами: valid (bool), warning (str), suggestions (list), corrected_params (dict)
         """
-        validation_result = {"valid": True, "warning": None, "suggestions": []}
+        validation_result = {"valid": True, "warning": None, "suggestions": [], "corrected_params": {}}
 
         required_params = self._get_validation_params(script_name)
         if not required_params:
@@ -230,6 +297,11 @@ class ExecuteScriptHandler(BaseSkillHandler):
                     validation_result["warning"] = f"Автор '{param_value}' не найден"
                     validation_result["suggestions"] = result.get("suggestions", [])
                     return validation_result
+                # Автокоррекция опечатки
+                corrected = result.get("corrected_value")
+                if corrected:
+                    validation_result["corrected_params"][param_name] = corrected
+                    validation_result["warning"] = f"✏️ Исправлена опечатка: '{param_value}' → '{corrected}'"
             elif param_type == "genre":
                 result = await self._validate_genre(param_value)
                 if not result["valid"]:
@@ -251,7 +323,7 @@ class ExecuteScriptHandler(BaseSkillHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Двухступенчатая валидация автора: SQL LIKE + векторная БД"""
+        """Двухступенчатая валидация автора: SQL LIKE + векторная БД + fuzzy matching"""
         try:
             exec_context = ExecutionContext()
 
@@ -268,11 +340,11 @@ class ExecuteScriptHandler(BaseSkillHandler):
             if sql_result.status == ExecutionStatus.COMPLETED and sql_result.data:
                 rows = sql_result.data.rows if hasattr(sql_result.data, 'rows') else []
                 if rows:
-                    return {"valid": True, "suggestions": []}
+                    return {"valid": True, "suggestions": [], "corrected_value": None}
 
             # Ступень 2: Векторная БД (семантический поиск)
             await self.log_debug(f"Author '{author_name}' not found via SQL, trying vector search...")
-            
+
             vector_result = await self.executor.execute_action(
                 action_name="vector_books.search",
                 parameters={
@@ -285,34 +357,42 @@ class ExecuteScriptHandler(BaseSkillHandler):
             )
 
             await self.log_debug(f"Vector search result: status={vector_result.status}, data={vector_result.data}")
-            
+
             if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
-                # ExecutionResult.data is another ExecutionResult with the actual data
                 inner_data = vector_result.data
                 if hasattr(inner_data, 'data'):
                     actual_data = inner_data.data
                 else:
                     actual_data = inner_data
-                
-                # Get results from the actual data object
+
                 if hasattr(actual_data, 'results'):
                     results = actual_data.results
                 elif isinstance(actual_data, dict):
                     results = actual_data.get('results', [])
                 else:
                     results = []
-                
-                await self.log_debug(f"Vector results: {len(results)} found")
-                
-                if results:
-                    return {"valid": True, "suggestions": []}
 
+                await self.log_debug(f"Vector results: {len(results)} found")
+
+                if results:
+                    return {"valid": True, "suggestions": [], "corrected_value": None}
+
+            # Ступень 3: Fuzzy matching для исправления опечаток
+            await self.log_debug(f"Trying fuzzy matching for author '{author_name}'...")
+            all_authors = await self._get_all_authors()
+            corrected = fuzzy_match(author_name, all_authors, max_distance=2)
+            
+            if corrected:
+                await self.log_info(f"✏️ Найдена опечатка: '{author_name}' → '{corrected}'")
+                return {"valid": True, "suggestions": [], "corrected_value": corrected}
+
+            # Не найдено совпадений
             suggestions = await self._get_author_suggestions(author_name)
-            return {"valid": False, "suggestions": suggestions}
+            return {"valid": False, "suggestions": suggestions, "corrected_value": None}
 
         except Exception as e:
             await self.log_warning(f"Author validation failed: {e}")
-            return {"valid": True, "suggestions": []}
+            return {"valid": True, "suggestions": [], "corrected_value": None}
 
     async def _validate_genre(self, genre: str) -> Dict[str, Any]:
         """Валидация жанра - точное совпадение"""
@@ -338,6 +418,25 @@ class ExecuteScriptHandler(BaseSkillHandler):
         except Exception as e:
             await self.log_warning(f"Genre validation failed: {e}")
             return {"valid": True, "suggestions": []}
+
+    async def _get_all_authors(self) -> List[str]:
+        """Получение полного списка авторов для fuzzy matching"""
+        try:
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="sql_query.execute",
+                parameters={
+                    "sql": "SELECT DISTINCT a.first_name || ' ' || a.last_name FROM \"Lib\".books b JOIN \"Lib\".authors a ON b.author_id = a.id ORDER BY a.last_name",
+                    "parameters": []
+                },
+                context=exec_context
+            )
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                rows = result.data.rows if hasattr(result.data, 'rows') else []
+                return [row[0] if hasattr(row, '__getitem__') else str(row) for row in rows]
+        except Exception as e:
+            await self.log_debug(f"Failed to get all authors: {e}")
+        return []
 
     async def _get_author_suggestions(self, author_name: str) -> List[str]:
         """Получение списка авторов для подсказок"""
