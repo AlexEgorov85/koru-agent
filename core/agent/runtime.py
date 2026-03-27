@@ -663,6 +663,8 @@ class AgentRuntime:
                     # Также помечаем в data если есть
                     if execution_result.data and isinstance(execution_result.data, dict):
                         execution_result.data['is_final_answer'] = True
+                    # 🔧 Останавливаем агента после final_answer
+                    self.state.finished = True
 
                 return execution_result
 
