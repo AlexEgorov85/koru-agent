@@ -504,6 +504,26 @@ class FinalAnswerSkill(BaseSkill):
                 remaining_questions_val = parsed_response.get("remaining_questions", [])
                 metadata_val = parsed_response.get("metadata", {})
 
+            # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
+            if not final_answer_val and sources_val:
+                # Извлекаем названия книг из sources
+                book_titles = []
+                for source in sources_val:
+                    # Формат: "'Название' (Автор, Год)" или просто "Название"
+                    if source.startswith("'") and ")" in source:
+                        # Извлекаем название между кавычками
+                        end_quote = source.find("'", 1)
+                        if end_quote > 0:
+                            book_titles.append(source[1:end_quote])
+                    elif source:
+                        book_titles.append(source)
+                
+                # Генерируем ответ из списка книг
+                if book_titles:
+                    count = len(book_titles)
+                    count_word = self._declension(count, ['книга', 'книги', 'книг'])
+                    final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
+
             result_data = {
                 "final_answer": final_answer_val,
                 "sources": sources_val if sources_val else (observations[-max_sources:] if include_evidence else []),
@@ -584,6 +604,22 @@ class FinalAnswerSkill(BaseSkill):
         ]
 
         return "\n".join(prompt_parts)
+
+    def _declension(self, number: int, words: List[str]) -> str:
+        """
+        Склонение слов по числу (для русского языка).
+        
+        ARGS:
+        - number: число
+        - words: три формы слова [один, два, пять] например ['книга', 'книги', 'книг']
+        
+        RETURNS:
+        - Правильная форма слова
+        """
+        cases = [2, 0, 1, 1, 1, 2]
+        if number % 100 in [11, 12, 13, 14]:
+            return words[2]
+        return words[cases[number % 10]]
 
     def _build_steps_summary(self, steps_taken: List[Dict]) -> str:
         """
