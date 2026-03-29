@@ -1535,7 +1535,7 @@ class LLMOrchestrator:
         # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет finish_reason напрямую
         finish_reason = result.raw_response.finish_reason if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'finish_reason', 'unknown')
         await self._event_bus.publish(
-            event_type=EventType.LLM_CALL_COMPLETED,
+            EventType.LLM_CALL_COMPLETED,
             data={
                 "call_id": call_id,
                 "success": finish_reason != "error",
@@ -1555,7 +1555,7 @@ class LLMOrchestrator:
     ) -> None:
         """Публикация события таймаута."""
         await self._event_bus.publish(
-            event_type=EventType.LLM_CALL_FAILED,
+            EventType.LLM_CALL_FAILED,
             data={
                 "call_id": call_id,
                 "error_type": "timeout",
@@ -1565,16 +1565,16 @@ class LLMOrchestrator:
             source="LLMOrchestrator",
             correlation_id=call_id
         )
-    
+
     async def _publish_call_failed(
         self,
         call_id: str,
         error: Exception,
         elapsed: float
     ) -> None:
-        """Пу��ликация события ошибки."""
+        """Публикация события ошибки."""
         await self._event_bus.publish(
-            event_type=EventType.ERROR_OCCURRED,
+            EventType.ERROR_OCCURRED,
             data={
                 "call_id": call_id,
                 "error_type": type(error).__name__,
@@ -1584,7 +1584,7 @@ class LLMOrchestrator:
             source="LLMOrchestrator",
             correlation_id=call_id
         )
-    
+
     def get_metrics(self) -> LLMMetrics:
         """Получение текущих метрик."""
         return self._metrics
