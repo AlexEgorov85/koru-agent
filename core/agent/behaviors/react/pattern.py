@@ -487,7 +487,7 @@ class ReActPattern(BaseBehaviorPattern):
         context_analysis: Dict[str, Any],
         available_capabilities: List[Capability],
         execution_context=None
-    ) -> ReasoningResult:
+    ) -> Any:
         """
         Выполняет структурированное рассуждение через LLM.
 
@@ -495,7 +495,7 @@ class ReActPattern(BaseBehaviorPattern):
         1. Проверка загрузки ресурсов
         2. Рендеринг промпта
         3. Вызов LLM через LLMOrchestrator (structured output)
-        4. Валидация и возврат ReasoningResult
+        4. Возврат результата (dict или Pydantic модель из контракта)
         """
         # === 1. ПРОВЕРКА ЗАГРУЗКИ РЕСУРСОВ ===
         if not self._load_reasoning_resources():
@@ -555,9 +555,9 @@ class ReActPattern(BaseBehaviorPattern):
         await self._log("info", f"Запуск рассуждения ReAct | Цель: {goal_value}")
         await self._log("info", f"Длина промпта: {len(reasoning_prompt)} символов")
 
-        # === 4. ВАЛИДАЦИЯ И ВОЗВРАТ РЕЗУЛЬТАТА ===
-        # reasoning_result уже валидирован как ReasoningResult
-        # available_capabilities передаётся отдельно в _make_decision_from_reasoning
+        # === 4. ВОЗВРАТ РЕЗУЛЬТАТА ===
+        # Результат уже валидирован через Pydantic модель контракта в LLM провайдере
+        # или возвращается как dict для дальнейшей обработки
 
         return reasoning_result
 
@@ -567,7 +567,7 @@ class ReActPattern(BaseBehaviorPattern):
     async def _make_decision_from_reasoning(
         self,
         session_context,
-        reasoning_result: ReasoningResult,  # ReasoningResult объект или dict
+        reasoning_result: Any,  # Результат от LLM - dict или Pydantic модель
         available_capabilities: List[Capability]
     ) -> BehaviorDecision:
         """Принимает решение о следующем действии на основе анализа контекста."""
