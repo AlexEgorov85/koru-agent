@@ -400,7 +400,8 @@ class ExecuteScriptHandler(BaseSkillHandler):
             
             if corrected:
                 await self.log_info(f"✏️ Найдена опечатка: '{author_name}' → '{corrected}'")
-                return {"valid": True, "suggestions": [], "corrected_value": corrected}
+                await self.user_message(f"✏️ Исправлена опечатка: '{author_name}' → '{corrected}'", icon="✏️")
+                return {"valid": True, "warning": f"✏️ Исправлена опечатка: '{author_name}' → '{corrected}'", "suggestions": [], "corrected_value": corrected}
 
             # Не найдено совпадений
             suggestions = await self._get_author_suggestions(author_name)

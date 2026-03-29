@@ -1,0 +1,58 @@
+[
+  {
+    "agent_id": "unknown",
+    "capability": "books_db",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-27T09:43:31.811392",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "db_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "books_db",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-27T09:43:31.818851",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "db_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "books_db",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-27T09:45:19.541720",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "db_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "books_db",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-27T09:45:19.547694",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "db_registration_failed"
+    }
+  }
+]

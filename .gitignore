@@ -186,3 +186,4 @@ config/database.yaml
 *.secrets
 secret_token.rb
 nul  
+data/metrics/default_llm/latest/metrics.json

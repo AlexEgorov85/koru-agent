@@ -1,0 +1,58 @@
+[
+  {
+    "agent_id": "unknown",
+    "capability": "default_llm",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-27T09:43:31.789493",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "llm_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "default_llm",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-27T09:43:31.801988",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "llm_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "default_llm",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-03-27T09:45:19.526163",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "llm_registration_failed"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "default_llm",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-03-27T09:45:19.534483",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "llm_registration_failed"
+    }
+  }
+]

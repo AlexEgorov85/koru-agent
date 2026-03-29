@@ -158,8 +158,11 @@ class BaseSkillHandler(ABC):
         """Логирование отладочного сообщения"""
         if self.event_bus_logger:
             await self.event_bus_logger.debug(message)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+    async def user_message(self, message: str, icon: str = "ℹ️") -> None:
+        """Сообщение пользователю (выводится в терминал)"""
+        if self.event_bus_logger:
+            await self.event_bus_logger.user_message(message, icon=icon)
 
     def _validate_input(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
