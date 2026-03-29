@@ -42,7 +42,7 @@ def fuzzy_match(value: str, candidates: List[str], max_distance: int = 2) -> Opt
     
     ARGS:
     - value: искомое значение (возможно с опечаткой)
-    - candidates: список корректных значений
+    - candidates: список корректных значений (полные имена "Имя Фамилия")
     - max_distance: максимальное расстояние Левенштейна для совпадения
     
     RETURNS:
@@ -51,15 +51,31 @@ def fuzzy_match(value: str, candidates: List[str], max_distance: int = 2) -> Opt
     if not value or not candidates:
         return None
     
-    value_lower = value.lower()
+    value_lower = value.lower().strip()
+    value_words = value_lower.split()
+    value_last = value_words[-1] if value_words else value_lower
+    
     best_match = None
     best_distance = max_distance + 1
     
     for candidate in candidates:
-        distance = levenshtein_distance(value_lower, candidate.lower())
-        if distance <= max_distance and distance < best_distance:
-            best_distance = distance
-            best_match = candidate
+        if not candidate:
+            continue
+        candidate_lower = candidate.lower().strip()
+        candidate_words = candidate_lower.split()
+        
+        for word in candidate_words:
+            dist = levenshtein_distance(value_lower, word)
+            if dist <= max_distance and dist < best_distance:
+                best_distance = dist
+                best_match = candidate
+                break
+            
+            dist_last = levenshtein_distance(value_last, word)
+            if dist_last <= max_distance and dist_last < best_distance:
+                best_distance = dist_last
+                best_match = candidate
+                break
     
     return best_match
 
