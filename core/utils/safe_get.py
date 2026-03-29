@@ -13,18 +13,22 @@ error = safe_get(metadata, 'error', default=None, location="error_handler")
 ```
 """
 import traceback
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from typing import Any, Optional, TYPE_CHECKING
 
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
+
+if TYPE_CHECKING:
+    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 
 
-def safe_get(
-    obj,
-    key,
-    default=None,
-    location: str = "unknown"
+async def safe_get(
+    obj: Any,
+    key: str,
+    default: Any = None,
+    location: str = "unknown",
+    event_bus: Optional["UnifiedEventBus"] = None,
+    session_id: Optional[str] = None,
+    agent_id: Optional[str] = None
 ):
     """
     Безопасный доступ к .get() с диагностикой.
@@ -34,6 +38,9 @@ def safe_get(
     - key: Ключ для получения
     - default: Значение по умолчанию
     - location: Место вызова для логирования
+    - event_bus: опциональная шина событий для логирования
+    - session_id: опциональный ID сессии
+    - agent_id: опциональный ID агента
     
     RETURNS:
     - Результат obj.get(key, default) или default если obj не dict
@@ -42,23 +49,30 @@ def safe_get(
         return default
     
     if not isinstance(obj, dict):
-        # Логируем предупреждение с traceback
         tb = traceback.format_stack()
-        logger.warning(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"⚠️ safe_get: объект не dict (тип: {type(obj).__name__}) "
-            f"в {location}. Ключ: {key}. Traceback: {''.join(tb[-3:-1])}"
-        )
+        if event_bus:
+            await event_bus.publish(
+                EventType.LOG_WARNING,
+                data={
+                    "message": f"safe_get: объект не dict (тип: {type(obj).__name__}) в {location}. Ключ: {key}",
+                    "traceback": "".join(tb[-3:-1])
+                },
+                session_id=session_id,
+                domain=EventDomain.COMMON
+            )
         return default
     
     return obj.get(key, default)
 
 
-def safe_get_nested(
-    obj,
-    *keys,
-    default=None,
-    location: str = "unknown"
+async def safe_get_nested(
+    obj: Any,
+    *keys: str,
+    default: Any = None,
+    location: str = "unknown",
+    event_bus: Optional["UnifiedEventBus"] = None,
+    session_id: Optional[str] = None,
+    agent_id: Optional[str] = None
 ):
     """
     Безопасный доступ к вложенным ключам.
@@ -68,6 +82,9 @@ def safe_get_nested(
     - *keys: Последовательность ключей
     - default: Значение по умолчанию
     - location: Место вызова для логирования
+    - event_bus: опциональная шина событий для логирования
+    - session_id: опциональный ID сессии
+    - agent_id: опциональный ID агента
     
     RETURNS:
     - Результат obj.get(k1, {}).get(k2, {})... или default
@@ -80,11 +97,16 @@ def safe_get_nested(
         
         if not isinstance(current, dict):
             tb = traceback.format_stack()
-            logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"⚠️ safe_get_nested: объект не dict (тип: {type(current).__name__}) "
-                f"в {location}. Ключи: {keys}. Traceback: {''.join(tb[-3:-1])}"
-            )
+            if event_bus:
+                await event_bus.publish(
+                    EventType.LOG_WARNING,
+                    data={
+                        "message": f"safe_get_nested: объект не dict (тип: {type(current).__name__}) в {location}. Ключи: {keys}",
+                        "traceback": "".join(tb[-3:-1])
+                    },
+                    session_id=session_id,
+                    domain=EventDomain.COMMON
+                )
             return default
         
         current = current.get(key)

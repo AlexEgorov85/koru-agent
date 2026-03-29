@@ -4,13 +4,18 @@
 USAGE:
 ```python
 from core.utils.error_trace import format_error_with_trace
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
 
 try:
     result = risky_operation()
 except Exception as e:
     error_msg = format_error_with_trace(e)
-    logger.error(error_msg)
-      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+    await event_bus.publish(
+        EventType.LOG_ERROR,
+        data={"message": error_msg},
+        session_id=session_id,
+        domain=EventDomain.COMMON
+    )
 ```
 """
 import traceback

@@ -6,13 +6,8 @@ import asyncio
 import time
 import json
 import re
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Dict, Any, Optional, Type, List
 from contextlib import asynccontextmanager
-
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
@@ -365,44 +360,30 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         if hasattr(request, 'structured_output') and request.structured_output:
             max_tokens = min(request.max_tokens, 1000)
             msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
-            logger.info(msg)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self.event_bus_logger:
                 await self.event_bus_logger.info(msg)
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
             system_prompt = system_prompt + "\n\n" + schema_prompt
 
             msg = f"🔵 [LLM] Схема добавлена в system_prompt (длина: {len(schema_prompt)} символов)"
-            logger.info(msg)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            
-            logger.debug("\n" + "=" * 80)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug("=" * 80)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug("\n=== SYSTEM (со схемой) ===")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug(system_prompt)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug("\n=== USER ===")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug(prompt)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug("\n" + "=" * 80)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(msg)
+                await self.event_bus_logger.debug("\n" + "=" * 80)
+                await self.event_bus_logger.debug("📋 PROMPT WITH JSON SCHEMA (LlamaCppProvider)")
+                await self.event_bus_logger.debug("=" * 80)
+                await self.event_bus_logger.debug("\n=== SYSTEM (со схемой) ===")
+                await self.event_bus_logger.debug(system_prompt)
+                await self.event_bus_logger.debug("\n=== USER ===")
+                await self.event_bus_logger.debug(prompt)
+                await self.event_bus_logger.debug("\n" + "=" * 80)
         else:
             max_tokens = request.max_tokens
 
         # Проверка что модель инициализирована
         if not self.llm:
-            await self.event_bus_logger.warning("⚠️ [LLM] Модель не инициализирована! Вызываем initialize()...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.warning("⚠️ [LLM] Модель не инициализирована! Вызываем initialize()...")
             await self.initialize()
 
         # Создаем executor если не создан
@@ -461,52 +442,45 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             usage = response.get('usage', {})
 
             msg = f"🔵 [LLM] Получен ответ: choices={len(choices)}"
-            logger.info(msg)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(msg)
 
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
                 
-                logger.debug("\n" + "=" * 80)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug("💬 RESPONSE (LlamaCppProvider)")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug("=" * 80)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug(generated_text)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug("\n" + "=" * 80)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                
-                logger.info(f"🔵 [LLM] generated_text: {len(generated_text)} символов")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.info(f"🔵 [LLM] finish_reason: {finish_reason}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug("\n" + "=" * 80)
+                    await self.event_bus_logger.debug("💬 RESPONSE (LlamaCppProvider)")
+                    await self.event_bus_logger.debug("=" * 80)
+                    await self.event_bus_logger.debug(generated_text)
+                    await self.event_bus_logger.debug("\n" + "=" * 80)
+                    await self.event_bus_logger.info(f"🔵 [LLM] generated_text: {len(generated_text)} символов")
+                    await self.event_bus_logger.info(f"🔵 [LLM] finish_reason: {finish_reason}")
             else:
                 generated_text = ''
                 finish_reason = 'error'
-                logger.warning("⚠️ [LLM] choices пуст!")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning("⚠️ [LLM] choices пуст!")
 
             # === ОБРАБОТКА STRUCTURED OUTPUT ===
             if hasattr(request, 'structured_output') and request.structured_output:
                 msg = f"🔵 Structured output запрошен: {request.structured_output.output_model}"
-                logger.info(msg)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(msg)
                 try:
                     json_content = self._extract_json_from_response(generated_text)
-                    logger.debug(f"🔵 JSON извлечён: {json_content[:80]}...")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.debug(f"🔵 JSON извлечён: {json_content[:80]}...")
                     parsed_json = json.loads(json_content)
-                    logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
                     
                     parsed_content = None
                     if request.structured_output.output_model:
-                        # Провайдер только парсит JSON, валидация - ответственность оркестратора
                         parsed_content = parsed_json
-                        logger.info(f"✅ JSON распарсен, валидация - ответственность оркестратора")
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.info(f"✅ JSON распарсен, валидация - ответственность оркестратора")
                     else:
                         parsed_content = parsed_json
                     
@@ -523,22 +497,22 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                         validation_errors=[]
                     )
                     
-                    logger.info(f"✅ StructuredLLMResponse создан (success={structured_response.success})")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.info(f"✅ StructuredLLMResponse создан (success={structured_response.success})")
                     
                     self._update_metrics(structured_response.raw_response.generation_time)
                     
                     return structured_response
                     
                 except json.JSONDecodeError as json_err:
-                    logger.error(f"❌ Structured output JSON parse error: {json_err}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"❌ Structured output JSON parse error: {json_err}")
                 except Exception as struct_err:
-                    logger.error(f"❌ Structured output error: {struct_err}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.error(f"❌ Structured output error: {struct_err}")
 
-            logger.info(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.info(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)")
 
             # Создаем обычный результат
             llm_response = LLMResponse(

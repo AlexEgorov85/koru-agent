@@ -505,7 +505,9 @@ class FinalAnswerSkill(BaseSkill):
                 metadata_val = parsed_response.get("metadata", {})
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
+            print(f"[FINAL_ANSWER_DEBUG] final_answer_val='{final_answer_val}', sources_val={len(sources_val) if sources_val else 0}")
             if not final_answer_val and sources_val:
+                print(f"[FINAL_ANSWER_DEBUG] FALLBACK triggered! Generating answer from sources...")
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}")
                 # Извлекаем названия книг из sources
@@ -520,14 +522,18 @@ class FinalAnswerSkill(BaseSkill):
                     elif source:
                         book_titles.append(str(source))
                 
+                print(f"[FINAL_ANSWER_DEBUG] book_titles={book_titles}")
+                
                 # Генерируем ответ из списка книг
                 if book_titles:
                     count = len(book_titles)
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
+                    print(f"[FINAL_ANSWER_DEBUG] Generated answer: {final_answer_val}")
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val[:100]}")
             elif not final_answer_val:
+                print(f"[FINAL_ANSWER_DEBUG] FALLBACK NOT triggered - final_answer='{final_answer_val}', sources={sources_val}")
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
 

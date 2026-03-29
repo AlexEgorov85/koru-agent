@@ -9,24 +9,34 @@
 NOTE: Валидация происходит на уровне LLM провайдера (через .validate() на Pydantic модели)
 или в ReActPattern при извлечении результата.
 """
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import json
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
+
+if TYPE_CHECKING:
+    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 
 
-def parse_llm_json_response(result: str) -> Optional[Dict[str, Any]]:
+async def parse_llm_json_response(
+    result: str,
+    event_bus: Optional["UnifiedEventBus"] = None,
+    session_id: Optional[str] = None,
+    agent_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
     Парсинг JSON из строки ответа LLM.
     
     ARGS:
         result: строка ответа LLM (может содержать markdown, несколько JSON блоков)
+        event_bus: опциональная шина событий для логирования
+        session_id: опциональный ID сессии
+        agent_id: опциональный ID агента
     
     RETURNS:
         распарсенный dict или None если не удалось распарсить
     """
-    logger = logging.getLogger(__name__)
     
     cleaned = result
     
@@ -85,5 +95,11 @@ def parse_llm_json_response(result: str) -> Optional[Dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     
-    logger.warning(f"Не удалось распарсить JSON из строки: {result[:200]}...")
+    if event_bus:
+        await event_bus.publish(
+            EventType.LOG_WARNING,
+            data={"message": f"Не удалось распарсить JSON из строки: {result[:200]}..."},
+            session_id=session_id,
+            domain=EventDomain.AGENT
+        )
     return None

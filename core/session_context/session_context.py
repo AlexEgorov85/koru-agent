@@ -4,8 +4,6 @@
 - Нет лишних зависимостей и сложной логики
 - Легко понять и использовать
 """
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -18,9 +16,6 @@ from core.session_context.model import (
 )
 from core.session_context.step_context import StepContext
 from core.models.enums.common_enums import ExecutionStatus
-
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 class SessionContext(BaseSessionContext):
     """

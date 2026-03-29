@@ -55,12 +55,7 @@ from core.infrastructure.providers.llm.json_parser import (
 )
 from pydantic import BaseModel, ValidationError
 import json
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from json import JSONDecodeError
-
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class CallStatus(str, Enum):
@@ -1068,16 +1063,13 @@ class LLMOrchestrator:
             self._metrics.total_generation_time += record.duration or 0
 
             msg = f"✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type={type(result.parsed_content).__name__ if result.parsed_content else 'None'}"
-            logger.info(msg)
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if self._logger:
                 await self._logger.info(msg)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             else:
                 content_preview = str(result.parsed_content)[:50] if hasattr(result, 'parsed_content') and result.parsed_content else (str(result.content)[:50] if hasattr(result, 'content') and result.content else 'None')
                 msg = f"🔵 [Orchestrator] Получен LLMResponse: content[:50]={content_preview}"
-                logger.info(msg)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                if self._logger:
+                    await self._logger.info(msg)
 
             # Логирование успешного завершения
             await self._log_call_success(record, result)

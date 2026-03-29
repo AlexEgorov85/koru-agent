@@ -14,8 +14,6 @@
 - ✅ Аудит всех действий
 - ✅ Гибкие правила для разных ресурсов
 """
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,10 +27,6 @@ from core.infrastructure.event_bus import (
 )
 from core.security.authorizer import RoleBasedAuthorizer, PermissionDeniedError
 from core.security.user_context import UserContext
-
-
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class SecurityAction(Enum):

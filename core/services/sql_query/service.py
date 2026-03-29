@@ -1,6 +1,4 @@
 import time
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from typing import Dict, Any, List, Optional
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
@@ -11,9 +9,6 @@ from core.application_context.base_system_context import BaseSystemContext
 from core.models.sql_schemas import SQLGenerationInput, SQLQueryInput, SQLQueryOutput
 from core.application_context.application_context import ApplicationContext
 from core.utils.async_utils import safe_async_call
-
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 
 class SQLQueryServiceInput(ServiceInput):
@@ -193,17 +188,16 @@ class SQLQueryService(BaseService):
             elif parameters is None:
                 params_for_validation = {}
             
-            logger.debug(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}, params_for_validation={params_for_validation}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"[SQL_DEBUG] validate_query: sql={sql_query[:200]}, parameters={parameters}, params_for_validation={params_for_validation}")
             validation_result = self.sql_validator_service_instance.validate_query(
                 sql_query,
                 params_for_validation
             )
             
-            logger.debug(f"[SQL_DEBUG] validation_result: is_valid={validation_result.is_valid}, sql={validation_result.sql[:200] if validation_result.sql else 'None'}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            logger.debug(f"[SQL_DEBUG] validation_result.errors={validation_result.validation_errors if hasattr(validation_result, 'validation_errors') else 'N/A'}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(f"[SQL_DEBUG] validation_result: is_valid={validation_result.is_valid}, sql={validation_result.sql[:200] if validation_result.sql else 'None'}")
+                await self.event_bus_logger.debug(f"[SQL_DEBUG] validation_result.errors={validation_result.validation_errors if hasattr(validation_result, 'validation_errors') else 'N/A'}")
 
             if not validation_result.is_valid:
                 return DBQueryResult(

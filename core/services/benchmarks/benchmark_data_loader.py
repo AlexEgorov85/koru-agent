@@ -8,16 +8,15 @@ BenchmarkDataLoader — загрузка тестовых данных из БД
 - Валидация данных
 """
 import asyncio
-import logging
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from core.infrastructure.providers.database.base_db import BaseDBProvider
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
 
-logger = logging.getLogger(__name__)
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+if TYPE_CHECKING:
+    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 
 
 @dataclass
@@ -40,21 +39,33 @@ class BenchmarkDataLoader:
 
     USAGE:
     ```python
-    loader = BenchmarkDataLoader(db_provider)
+    loader = BenchmarkDataLoader(db_provider, event_bus=event_bus)
     await loader.initialize()
     
     test_cases = await loader.load_test_cases('book_library')
     ```
     """
 
-    def __init__(self, db_provider: BaseDBProvider):
+    def __init__(
+        self,
+        db_provider: BaseDBProvider,
+        event_bus: Optional["UnifiedEventBus"] = None,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None
+    ):
         """
         Инициализация.
 
         ARGS:
         - db_provider: провайдер БД
+        - event_bus: шина событий для логирования
+        - session_id: ID сессии
+        - agent_id: ID агента
         """
         self.db_provider = db_provider
+        self.event_bus = event_bus
+        self.session_id = session_id
+        self.agent_id = agent_id
         self.initialized = False
 
     async def initialize(self) -> bool:
@@ -65,13 +76,17 @@ class BenchmarkDataLoader:
         - bool: успешно ли
         """
         try:
-            # Проверка подключения
             await self.db_provider.execute("SELECT 1")
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"❌ Ошибка подключения к БД: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus:
+                await self.event_bus.publish(
+                    EventType.LOG_ERROR,
+                    data={"message": f"Ошибка подключения к БД: {str(e)}"},
+                    session_id=self.session_id,
+                    domain=EventDomain.BENCHMARK
+                )
             return False
 
     async def load_test_cases(
@@ -97,8 +112,13 @@ class BenchmarkDataLoader:
         elif capability == 'sql_generation':
             return await self._load_sql_generation_test_cases(limit)
         else:
-            logger.warning(f"⚠️  Нет тестовых данных для {capability}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus:
+                await self.event_bus.publish(
+                    EventType.LOG_WARNING,
+                    data={"message": f"Нет тестовых данных для {capability}"},
+                    session_id=self.session_id,
+                    domain=EventDomain.BENCHMARK
+                )
             return []
 
     async def _load_book_library_test_cases(
@@ -315,15 +335,24 @@ class BenchmarkDataLoader:
             ))
 
         except Exception as e:
-            logger.error(f"❌ Ошибка загрузки тестовых данных: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus:
+                await self.event_bus.publish(
+                    EventType.LOG_ERROR,
+                    data={"message": f"Ошибка загрузки тестовых данных: {str(e)}"},
+                    session_id=self.session_id,
+                    domain=EventDomain.BENCHMARK
+                )
 
-        # Ограничение количества
         if limit:
             test_cases = test_cases[:limit]
 
-        logger.info(f"✅ Загружено {len(test_cases)} тестовых кейсов для book_library")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self.event_bus:
+            await self.event_bus.publish(
+                EventType.LOG_INFO,
+                data={"message": f"Загружено {len(test_cases)} тестовых кейсов для book_library"},
+                session_id=self.session_id,
+                domain=EventDomain.BENCHMARK
+            )
         return test_cases
 
     async def _load_sql_generation_test_cases(
@@ -404,7 +433,12 @@ class BenchmarkDataLoader:
                 }
 
         except Exception as e:
-            logger.warning(f"⚠️  Ошибка получения статистики: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus:
+                await self.event_bus.publish(
+                    EventType.LOG_WARNING,
+                    data={"message": f"Ошибка получения статистики: {str(e)}"},
+                    session_id=self.session_id,
+                    domain=EventDomain.BENCHMARK
+                )
 
         return stats
