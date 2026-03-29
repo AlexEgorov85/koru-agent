@@ -1301,7 +1301,7 @@ class LLMOrchestrator:
             return
 
         await self._event_bus.publish(
-            event_type=EventType.LLM_PROMPT_GENERATED,
+            EventType.LLM_PROMPT_GENERATED,
             data={
                 "call_id": record.call_id,
                 "session_id": record.session_id,
@@ -1391,7 +1391,7 @@ class LLMOrchestrator:
             })
 
         await self._event_bus.publish(
-            event_type=EventType.LLM_RESPONSE_RECEIVED,
+            EventType.LLM_RESPONSE_RECEIVED,
             data=data,
             source="LLMOrchestrator",
             correlation_id=record.call_id
@@ -1432,7 +1432,7 @@ class LLMOrchestrator:
                 data["response_preview"] = response_content[:500]
 
         await self._event_bus.publish(
-            event_type=EventType.LLM_RESPONSE_RECEIVED,
+            EventType.LLM_RESPONSE_RECEIVED,
             data=data,
             source="LLMOrchestrator",
             correlation_id=record.call_id
@@ -1511,7 +1511,7 @@ class LLMOrchestrator:
     async def _publish_call_started(self, call_id: str, request: LLMRequest) -> None:
         """Публикация события начала вызова."""
         await self._event_bus.publish(
-            event_type=EventType.LLM_CALL_STARTED,
+            EventType.LLM_CALL_STARTED,
             data={
                 "call_id": call_id,
                 "capability_name": request.capability_name,

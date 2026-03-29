@@ -168,11 +168,10 @@ class AsyncLoggerMixin:
         event_bus = getattr(self, 'event_bus', None)
         if event_bus:
             await event_bus.publish(
-                event_type=event_type,
+                event_type,
                 data=data,
                 source=getattr(self, 'component', 'unknown'),
-                session_id=getattr(self, 'session_id', 'unknown'),
-                agent_id=getattr(self, 'agent_id', 'unknown')
+                correlation_id=getattr(self, 'session_id', '')
             )
 
     def _publish_sync(self, event_type: EventType, message: str, level: str, **extra_data):
@@ -190,11 +189,10 @@ class AsyncLoggerMixin:
         event_bus = getattr(self, 'event_bus', None)
         if event_bus:
             event_bus.publish_sync(
-                event_type=event_type,
+                event_type,
                 data=data,
                 source=getattr(self, 'component', 'unknown'),
-                session_id=getattr(self, 'session_id', 'unknown'),
-                agent_id=getattr(self, 'agent_id', 'unknown')
+                correlation_id=getattr(self, 'session_id', '')
             )
 
     # === PUBLIC ASYNC METHODS ===
@@ -299,6 +297,69 @@ class AsyncLoggerMixin:
             message,
             "USER",
             icon="✅",
+            **extra_data
+        )
+
+    async def agent_thinking(self, reasoning: str, capability_name: str = None, parameters: dict = None, decision_action: str = "act", **extra_data):
+        """
+        Рассуждение агента (выводится в терминал).
+
+        ARGS:
+        - reasoning: Текст рассуждения
+        - capability_name: Название capability
+        - parameters: Параметры вызова
+        - decision_action: Тип действия
+        """
+        await self._publish(
+            EventType.AGENT_THINKING,
+            reasoning,
+            "INFO",
+            icon="🧠",
+            capability_name=capability_name,
+            parameters=parameters,
+            decision_action=decision_action,
+            **extra_data
+        )
+
+    async def tool_call(self, capability_name: str, parameters: dict = None, **extra_data):
+        """
+        Вызов инструмента (выводится в терминал).
+
+        ARGS:
+        - capability_name: Название вызываемого инструмента
+        - parameters: Параметры вызова
+        """
+        params_str = str(parameters) if parameters else "{}"
+        message = f"{capability_name} ({params_str})"
+        await self._publish(
+            EventType.TOOL_CALL,
+            message,
+            "INFO",
+            icon="🔧",
+            capability_name=capability_name,
+            parameters=parameters,
+            **extra_data
+        )
+
+    async def tool_result(self, capability_name: str, result: Any, status: str = "completed", has_result: bool = True, **extra_data):
+        """
+        Результат работы инструмента (выводится в терминал).
+
+        ARGS:
+        - capability_name: Название инструмента
+        - result: Результат выполнения
+        - status: Статус (completed, failed)
+        - has_result: Есть ли результат
+        """
+        await self._publish(
+            EventType.TOOL_RESULT,
+            f"{capability_name}: {status}",
+            "INFO",
+            icon="📊",
+            capability_name=capability_name,
+            result=result,
+            status=status,
+            has_result=has_result,
             **extra_data
         )
 
@@ -613,7 +674,7 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin, 
     - SyncLoggerMixin — синхронный вывод
     - AsyncLoggerMixin — асинхронная публикация
     - LLMMixin — LLM логирование
-    - SessionMixin — управление сессиями
+    - SessionMixin — управление сессиями и пользовательские сообщения
     - SelfImprovementMixin — логирование самообучения
     
     USAGE:
@@ -622,6 +683,7 @@ class EventBusLogger(SyncLoggerMixin, AsyncLoggerMixin, LLMMixin, SessionMixin, 
     await logger.info("Started")
       # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     await logger.log_self_improvement_started(goal="Learn X")
+    await logger.agent_thinking("Analyzing the situation...")
     ```
     """
 

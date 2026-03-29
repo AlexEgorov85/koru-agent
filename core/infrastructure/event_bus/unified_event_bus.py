@@ -171,9 +171,17 @@ class EventType(Enum):
     LOG_ERROR = "log.error"
 
     # === Пользовательские сообщения (вывод в терминал) ===
-    USER_MESSAGE = "user.message"  # Важные сообщения для пользователя
-    USER_PROGRESS = "user.progress"  # Прогресс выполнения
-    USER_RESULT = "user.result"  # Результаты выполнения
+    USER_MESSAGE = "user.message"
+    USER_PROGRESS = "user.progress"
+    USER_RESULT = "user.result"
+
+    # === События агента для вывода пользователю ===
+    AGENT_THINKING = "agent.thinking"
+    TOOL_CALL = "tool.call"
+    TOOL_RESULT = "tool.result"
+
+    # === События сессии ===
+    SESSION_STEP = "session.step"
 
     # === Telemetry события ===
     WORKER_CREATED = "worker.created"

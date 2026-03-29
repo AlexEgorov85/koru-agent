@@ -782,7 +782,6 @@ class ErrorHandler:
         """Публикация события об ошибке в Event Bus."""
         if not self._event_bus:
             self._logger.debug("Event bus не доступен, пропускаем публикацию события об ошибке")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return
 
         event_data = error_info.to_dict()
@@ -790,7 +789,7 @@ class ErrorHandler:
         await self._event_bus.publish(
             EventType.ERROR_OCCURRED,
             data=event_data,
-            domain=EventDomain.COMMON,
+            source="ErrorHandler"
         )
 
     def handle_errors(

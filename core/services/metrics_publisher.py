@@ -268,7 +268,7 @@ class MetricsPublisher:
         if publish_event and self.event_bus:
             try:
                 await self.event_bus.publish(
-                    event=EventType.METRIC_COLLECTED,
+                    EventType.METRIC_COLLECTED,
                     data={
                         "agent_id": metric.agent_id,
                         "session_id": metric.session_id,
@@ -284,7 +284,6 @@ class MetricsPublisher:
                 )
             except Exception as e:
                 # Не прерываем выполнение при ошибке публикации события
-                # Логирование ошибки можно добавить при необходимости
                 pass
 
 

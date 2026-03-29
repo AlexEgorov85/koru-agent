@@ -193,7 +193,7 @@ class MockLLMProvider(BaseLLMProvider):
         if hasattr(self, '_event_bus') and self._event_bus:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._event_bus.publish(
-                event=EventType.LLM_CALL_STARTED,
+                EventType.LLM_CALL_STARTED,
                 data={
                     "agent_id": getattr(self, '_agent_id', 'mock'),
                     "session_id": getattr(self, '_session_id', 'mock'),
@@ -257,7 +257,7 @@ class MockLLMProvider(BaseLLMProvider):
         if hasattr(self, '_event_bus') and self._event_bus:
             from core.infrastructure.event_bus.unified_event_bus import EventType
             await self._event_bus.publish(
-                event=EventType.LLM_CALL_COMPLETED,
+                EventType.LLM_CALL_COMPLETED,
                 data={
                     "agent_id": getattr(self, '_agent_id', 'mock'),
                     "session_id": getattr(self, '_session_id', 'mock'),
