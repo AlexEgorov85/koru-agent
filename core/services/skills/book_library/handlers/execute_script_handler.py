@@ -339,28 +339,41 @@ class ExecuteScriptHandler(BaseSkillHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Двухступенчатая валидация автора: SQL LIKE + векторная БД + fuzzy matching"""
+        """Валидация автора с автокоррекцией опечаток."""
         try:
             exec_context = ExecutionContext()
 
-            # Ступень 1: SQL LIKE (быстро, точное совпадение)
+            print(f"[DEBUG _validate_author] Checking author: '{author_name}'")
+
+            # Ступень 1: SQL LIKE с подстановочными символами
             sql_result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
-                    "sql": 'SELECT DISTINCT a.first_name || \' \' || a.last_name as author_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.first_name ILIKE $1 OR a.last_name ILIKE $1 OR a.first_name || \' \' || a.last_name ILIKE $1 LIMIT 3',
-                    "parameters": [f"%{author_name}%"]
+                    "sql": 'SELECT DISTINCT a.first_name || \' \' || a.last_name as author_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.first_name ILIKE \'%\' || $1 || \'%\' OR a.last_name ILIKE \'%\' || $1 || \'%\' OR a.first_name || \' \' || a.last_name ILIKE \'%\' || $1 || \'%\' LIMIT 3',
+                    "parameters": [author_name]
                 },
                 context=exec_context
             )
 
+            print(f"[DEBUG _validate_author] Step 1 SQL LIKE: status={sql_result.status}, data={sql_result.data}")
+
             if sql_result.status == ExecutionStatus.COMPLETED and sql_result.data:
                 rows = sql_result.data.rows if hasattr(sql_result.data, 'rows') else []
+                print(f"[DEBUG _validate_author] Step 1 SQL LIKE: found {len(rows)} rows")
                 if rows:
-                    return {"valid": True, "suggestions": [], "corrected_value": None}
+                    for row in rows:
+                        full_name = row[0] if hasattr(row, '__getitem__') else str(row)
+                        print(f"[DEBUG _validate_author] Step 1: comparing '{author_name}' with '{full_name}'")
+                        if author_name.lower() in full_name.lower() or full_name.lower() in author_name.lower():
+                            print(f"[DEBUG _validate_author] Step 1: MATCH! Returning valid")
+                            return {"valid": True, "suggestions": [], "corrected_value": None}
+                else:
+                    print(f"[DEBUG _validate_author] Step 1 SQL LIKE: no rows found")
+            else:
+                print(f"[DEBUG _validate_author] Step 1 SQL LIKE: FAILED - status={sql_result.status}, error={sql_result.error if hasattr(sql_result, 'error') else 'N/A'}")
 
-            # Ступень 2: Векторная БД (семантический поиск)
-            await self.log_debug(f"Author '{author_name}' not found via SQL, trying vector search...")
-
+            # Ступень 2: Векторный поиск для автокоррекции
+            print(f"[DEBUG _validate_author] Step 2: Vector search for '{author_name}'")
             vector_result = await self.executor.execute_action(
                 action_name="vector_books.search",
                 parameters={
@@ -372,7 +385,7 @@ class ExecuteScriptHandler(BaseSkillHandler):
                 context=exec_context
             )
 
-            await self.log_debug(f"Vector search result: status={vector_result.status}, data={vector_result.data}")
+            print(f"[DEBUG _validate_author] Step 2: Vector search status={vector_result.status}")
 
             if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
                 inner_data = vector_result.data
@@ -388,26 +401,39 @@ class ExecuteScriptHandler(BaseSkillHandler):
                 else:
                     results = []
 
-                await self.log_debug(f"Vector results: {len(results)} found")
-
+                print(f"[DEBUG _validate_author] Step 2: found {len(results)} vector results")
                 if results:
-                    return {"valid": True, "suggestions": [], "corrected_value": None}
+                    best_result = results[0]
+                    author_from_vector = best_result.get('metadata', {}).get('author')
+                    print(f"[DEBUG _validate_author] Step 2: best result = '{author_from_vector}' (score={best_result.get('score')})")
+                    # Если вектор нашел автора - всегда используем (для автокоррекции)
+                    if author_from_vector and author_from_vector.lower() != author_name.lower():
+                        print(f"[DEBUG _validate_author] Step 2: CORRECTION! '{author_name}' -> '{author_from_vector}'")
+                        return {"valid": True, "warning": f"✏️ Исправлена опечатка: '{author_name}' → '{author_from_vector}'", "suggestions": [], "corrected_value": author_from_vector}
+                    elif author_from_vector:
+                        # Автор тот же самый - проверяем что он полный
+                        print(f"[DEBUG _validate_author] Step 2: Vector found same author '{author_from_vector}'")
+                        return {"valid": True, "suggestions": [], "corrected_value": None}
 
-            # Ступень 3: Fuzzy matching для исправления опечаток
-            await self.log_debug(f"Trying fuzzy matching for author '{author_name}'...")
+            # Ступень 3: Fuzzy matching
+            print(f"[DEBUG _validate_author] Step 3: Fuzzy matching")
             all_authors = await self._get_all_authors()
+            print(f"[DEBUG _validate_author] Step 3: got {len(all_authors)} authors: {all_authors}")
+            
             corrected = fuzzy_match(author_name, all_authors, max_distance=2)
+            print(f"[DEBUG _validate_author] Step 3: fuzzy result = {corrected}")
             
             if corrected:
-                await self.log_info(f"✏️ Найдена опечатка: '{author_name}' → '{corrected}'")
-                await self.user_message(f"✏️ Исправлена опечатка: '{author_name}' → '{corrected}'", icon="✏️")
+                print(f"[DEBUG _validate_author] Step 3: CORRECTION! '{author_name}' -> '{corrected}'")
                 return {"valid": True, "warning": f"✏️ Исправлена опечатка: '{author_name}' → '{corrected}'", "suggestions": [], "corrected_value": corrected}
 
-            # Не найдено совпадений
+            # Не найдено
+            print(f"[DEBUG _validate_author] NOT FOUND! Returning valid=False")
             suggestions = await self._get_author_suggestions(author_name)
             return {"valid": False, "suggestions": suggestions, "corrected_value": None}
 
         except Exception as e:
+            print(f"[DEBUG _validate_author] EXCEPTION: {e}")
             await self.log_warning(f"Author validation failed: {e}")
             return {"valid": True, "suggestions": [], "corrected_value": None}
 
