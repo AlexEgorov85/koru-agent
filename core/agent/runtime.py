@@ -35,13 +35,14 @@ class AgentRuntime:
         application_context: ApplicationContext,
         goal: str,
         max_steps: int = 10,
-        user_context=None
+        user_context=None,
+        correlation_id: Optional[str] = None  # Для обратной совместимости
     ):
         self.application_context = application_context
         self.goal = goal
         self.max_steps = max_steps
         self.user_context = user_context
-        self.correlation_id = str(uuid.uuid4())
+        self.correlation_id = correlation_id or str(uuid.uuid4())
 
         # Компоненты
         self.executor = ActionExecutor(application_context)
