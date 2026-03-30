@@ -545,6 +545,8 @@ class ReActPattern(BaseBehaviorPattern):
         # === 3. ВЫЗОВ LLM ЧЕРЕЗ LLMOrchestrator (напрямую!) ===
         from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
         
+        await self._log("info", f"Начало LLM вызова | prompt length: {len(reasoning_prompt)}")
+        
         llm_request = LLMRequest(
             prompt=reasoning_prompt,
             system_prompt=self.system_prompt_template,
@@ -559,10 +561,20 @@ class ReActPattern(BaseBehaviorPattern):
         )
         
         # Прямой вызов LLMOrchestrator (без ActionExecutor!)
-        llm_result = await self.llm_orchestrator.generate_structured(
-            request=llm_request,
-            session_id=session_context.session_id if session_context else "unknown"
-        )
+        try:
+            llm_result = await self.llm_orchestrator.generate_structured(
+                request=llm_request,
+                session_id=session_context.session_id if session_context else "unknown"
+            )
+            
+            await self._log("info", f"LLM вызов завершён | result type: {type(llm_result).__name__}")
+        except Exception as e:
+            await self._log("error", f"LLM вызов упал с исключением: {e}")
+            return self.fallback_strategy.create_reasoning_fallback(
+                context_analysis=context_analysis,
+                available_capabilities=available_capabilities,
+                reason=f"llm_exception:{str(e)}"
+            )
         
         if not llm_result or not hasattr(llm_result, 'parsed_content') or llm_result.parsed_content is None:
             await self._log("warning", f"LLM вызов не удался: {llm_result}, используем fallback")
@@ -573,6 +585,7 @@ class ReActPattern(BaseBehaviorPattern):
             )
         
         reasoning_result = llm_result.parsed_content
+        await self._log("info", f"reasoning_result: {reasoning_result}")
 
         # Получаем цель из session_context
         goal_value = session_context.get_goal() if session_context else "unknown"
