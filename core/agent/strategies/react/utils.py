@@ -56,7 +56,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
         # Получаем историю последних шагов
         last_steps = []
         if hasattr(session_context, 'get_last_steps'):
-            last_steps = session_context.get_last_steps(limit=5)
+            last_steps = session_context.get_last_steps(n=5)
             logger.info(f"analyze_context: get_last_steps() вернул {len(last_steps)} шагов")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         elif hasattr(session_context, 'step_context') and hasattr(session_context.step_context, 'get_last_steps'):
