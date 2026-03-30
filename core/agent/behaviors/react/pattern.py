@@ -380,12 +380,7 @@ class ReActPattern(BaseBehaviorPattern):
             await self._log("debug", f"[ReAct] analyze_context: получено {len(available_capabilities)} capability")
 
         # Регистрируем схемы через CapabilityResolverService
-        self.capability_resolver.register_capability_schemas(
-            available_capabilities=available_capabilities,
-            schema_validator=self.schema_validator,
-            input_contracts=getattr(self, 'input_contracts', {}),
-            data_repository=getattr(self.application_context, 'data_repository', None) if self.application_context else None
-        )
+        # Удалено: register_capability_schemas — не используется
 
         # Выполняем анализ контекста сессии
         analysis_obj = analyze_context(session_context)
@@ -564,8 +559,9 @@ class ReActPattern(BaseBehaviorPattern):
         
         # Прямой вызов LLMOrchestrator (без ActionExecutor!)
         try:
-            llm_result = await self.llm_orchestrator.generate_structured(
+            llm_result = await self.llm_orchestrator.execute_structured(
                 request=llm_request,
+                provider=None,
                 session_id=session_context.session_id if session_context else "unknown"
             )
             
