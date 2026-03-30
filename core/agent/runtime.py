@@ -131,15 +131,26 @@ class AgentRuntime:
 
         # Получаем доступные capability
         available_caps = await self._get_available_capabilities()
+        print(f"📦 Доступно capability: {len(available_caps)}")
 
         # Цикл выполнения
         executed_steps = 0
         for step in range(self.max_steps):
+            print(f"\n{'='*60}")
+            print(f"📍 ШАГ {step + 1}/{self.max_steps}")
+            print(f"{'='*60}")
+            
             # Pattern решает
+            print(f"🧠 Pattern.decide()...")
             decision = await pattern.decide(
                 session_context=self.session_context,
                 available_capabilities=available_caps
             )
+            print(f"✅ Pattern вернул: type={decision.type.value}")
+            if decision.action:
+                print(f"   action: {decision.action}")
+            if decision.reasoning:
+                print(f"   reasoning: {decision.reasoning[:150]}...")
 
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
@@ -151,6 +162,7 @@ class AgentRuntime:
 
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
+                print(f"⚙️ Executor.execute({decision.action})...")
                 result = await self.safe_executor.execute(
                     capability_name=decision.action,
                     parameters=decision.parameters or {},
@@ -168,10 +180,20 @@ class AgentRuntime:
                     summary=decision.reasoning,
                     status=result.status
                 )
+                print(f"✅ Executor завершил: status={result.status.value}")
+                if result.error:
+                    print(f"   ❌ Error: {result.error[:100] if result.error else 'N/A'}...")
 
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:
+                print(f"🔄 SWITCH STRATEGY: {decision.next_pattern}")
                 pattern = self._load_pattern(decision.next_pattern)
+            
+            # Pattern решил FINISH/FAIL?
+            if decision.type == DecisionType.FINISH:
+                print(f"✅ FINISH: {decision.reasoning[:100] if decision.reasoning else 'Done'}...")
+            if decision.type == DecisionType.FAIL:
+                print(f"❌ FAIL: {decision.error or 'Unknown error'}")
 
         # Max steps exceeded
         return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")
