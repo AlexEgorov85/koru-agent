@@ -34,7 +34,6 @@ from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.types.retry_policy import ExecutionErrorInfo
 
 from core.agent.behaviors.base import DecisionType, Decision
-from core.agent.behaviors.base import BehaviorDecisionType, BehaviorDecision  # DEPRECATED
 from core.models.errors import AgentStuckError, InfrastructureError
 
 # Определяем ProgressMetrics локально
@@ -212,7 +211,7 @@ class AgentRuntime:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Публикуем событие progress для отображения шага
-        if self.event_bus_logger and decision.action == BehaviorDecisionType.ACT:
+        if self.event_bus_logger and decision.action == DecisionType.ACT:
             step_num = self._current_step + 1
             cap_name = getattr(decision, 'capability_name', 'unknown')
             await self.event_bus_logger.user_progress(
@@ -233,7 +232,7 @@ class AgentRuntime:
         # Предотвращает преждевременную остановку агента
         if (
             self._current_step == 0
-            and decision.action == BehaviorDecisionType.STOP
+            and decision.action == DecisionType.STOP
         ):
             if self.event_bus_logger:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -266,13 +265,13 @@ class AgentRuntime:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат SWITCH (safeguard)")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return BehaviorDecision(
-                action=BehaviorDecisionType.SWITCH,
+            return Decision(
+                action=DecisionType.SWITCH,
                 next_pattern="fallback_pattern",
                 reason="stop_on_first_step"
             )
 
-        if decision.action == BehaviorDecisionType.STOP:
+        if decision.action == DecisionType.STOP:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] decision.action=STOP")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -288,7 +287,7 @@ class AgentRuntime:
             return decision
 
         # Публикуем событие рассуждения агента для вывода пользователю
-        if decision.action == BehaviorDecisionType.ACT and self.event_bus_logger:
+        if decision.action == DecisionType.ACT and self.event_bus_logger:
             reasoning_text = decision.reason or "Принято решение о действии"
             await self.event_bus_logger.agent_thinking(
                 reasoning=reasoning_text,
@@ -298,7 +297,7 @@ class AgentRuntime:
                 step_number=self._current_step + 1
             )
 
-        if decision.action == BehaviorDecisionType.ACT:
+        if decision.action == DecisionType.ACT:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔵 [_execute_single_step_internal] decision.action=ACT")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
