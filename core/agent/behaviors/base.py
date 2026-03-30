@@ -38,6 +38,15 @@ class Decision:
     
     # Мета
     confidence: float = 1.0
+    
+    # ← НОВОЕ: capability_name как алиас на action (для обратной совместимости)
+    @property
+    def capability_name(self) -> Optional[str]:
+        return self.action
+    
+    @capability_name.setter
+    def capability_name(self, value: Optional[str]):
+        self.action = value
 
 
 # ============================================================================
