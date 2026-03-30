@@ -500,9 +500,9 @@ class ReActPattern(BaseBehaviorPattern):
             # Fallback при множественных ошибках
             if self.error_count >= self.max_consecutive_errors:
                 return Decision(
-                    action=DecisionType.SWITCH,
+                    type=DecisionType.SWITCH_STRATEGY,
                     next_pattern="fallback.v1.0.0",
-                    reason=f"too_many_errors:{self.error_count}"
+                    error=f"too_many_errors:{self.error_count}"
                 )
             
             # Базовый fallback
@@ -663,11 +663,11 @@ class ReActPattern(BaseBehaviorPattern):
                 )
                 # КРИТИЧНО: Помечаем как финальное решение
                 return Decision(
-                    action=DecisionType.ACT,
-                    capability_name="final_answer.generate",
+                    type=DecisionType.ACT,
+                    action="final_answer.generate",
                     parameters=validated_params,
-                    reason="final_answer_before_stop",
-                    is_final=True  # ← Явно помечаем что это финальный шаг
+                    reasoning="final_answer_before_stop",
+                    is_final=True
                 )
 
             if stop_condition:
@@ -677,16 +677,16 @@ class ReActPattern(BaseBehaviorPattern):
                 if capability_name and capability_name != "final_answer.generate":
                     await self._log("info", "STOP без final_answer — добавляем вызов final_answer.generate")
                     return Decision(
-                        action=DecisionType.ACT,
-                        capability_name="final_answer.generate",
+                        type=DecisionType.ACT,
+                        action="final_answer.generate",
                         parameters={"input": f"Цель достигнута: {stop_reason or 'goal_achieved'}"},
-                        reason="final_answer_on_stop",
+                        reasoning="final_answer_on_stop",
                         is_final=True
                     )
 
                 return Decision(
-                    action=DecisionType.STOP,
-                    reason=stop_reason or "goal_achieved"
+                    type=DecisionType.FAIL,
+                    error=stop_reason or "goal_achieved"
                 )
 
             # КРИТИЧЕСКАЯ ПРОВЕРКА: capability_name должен быть указан
@@ -694,8 +694,8 @@ class ReActPattern(BaseBehaviorPattern):
                 await self._log("error", "LLM не вернул next_action в decision",
                                reasoning_result=reasoning_result)
                 return Decision(
-                    action=DecisionType.RETRY,
-                    reason="LLM не вернул корректное действие"
+                    type=DecisionType.FAIL,
+                    error="LLM не вернул корректное действие"
                 )
             
             # 3. Поиск capability через сервис
@@ -714,8 +714,8 @@ class ReActPattern(BaseBehaviorPattern):
                 
                 if not capability:
                     return Decision(
-                        action=DecisionType.STOP,
-                        reason="no_available_capabilities"
+                        type=DecisionType.FAIL,
+                        error="no_available_capabilities"
                     )
             
             # 4. Валидация и корректировка параметров через SchemaValidator

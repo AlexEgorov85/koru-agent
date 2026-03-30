@@ -81,11 +81,6 @@ class PromptBuilderService:
             f"Шагов без прогресса: {context_analysis.get('no_progress_steps', 0)}",
             f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
         ]
-        # ❌ УБРАНО: Детали шагов — они теперь только в step_history
-        # if last_steps:
-        #     parts.append("\nПОСЛЕДНИЕ ШАГИ:")
-        #     for i, step in enumerate(last_steps[-3:], 1):
-        #         parts.append(f"  {i}. {step}")
         return "\n".join(parts)
     
     def _build_step_history(
@@ -146,20 +141,6 @@ class PromptBuilderService:
             step_lines.append(step_text)
         
         return "\n\n".join(step_lines)
-    
-    def _extract_last_observation(
-        self,
-        last_steps: list,
-        session_context=None
-    ) -> str:
-        """
-        ⚠️ ДЕПРЕКЕЙТЕД — не используется чтобы избежать дублирования.
-        Оставлен для обратной совместимости но возвращает пустую строку.
-        
-        Данные наблюдений теперь извлекаются только в _build_step_history через
-        _extract_observations_from_step и включаются напрямую в историю шагов.
-        """
-        return ""  # ← ПУСТАЯ СТРОКА чтобы не дублировать в промпте
 
     def _extract_observations_from_step(
         self, 
@@ -506,7 +487,7 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         session_context: SessionContext,
         available_capabilities: list[Capability],
         context_analysis: Dict[str, Any]
-    ) -> BehaviorDecision:
+    ) -> Decision:
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
 
