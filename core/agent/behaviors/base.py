@@ -38,6 +38,7 @@ class Decision:
     
     # Мета
     confidence: float = 1.0
+    is_final: bool = False  # ← Помечает финальный шаг
     
     # ← НОВОЕ: capability_name как алиас на action (для обратной совместимости)
     @property
