@@ -4,23 +4,48 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class BehaviorDecisionType(Enum):
-    ACT = "act"      # Выполнить действие
-    STOP = "stop"    # Завершить выполнение
-    SWITCH = "switch"  # Переключить паттерн
-    RETRY = "retry"  # Повторить шаг
+class DecisionType(Enum):
+    """Типы решений Pattern."""
+    ACT = "act"                    # Выполнить действие
+    FINISH = "finish"              # Завершить успешно
+    FAIL = "fail"                  # Завершить с ошибкой
+    SWITCH_STRATEGY = "switch"     # Переключить стратегию
+    # RETRY удалён — это ACT с тем же действием
 
 
 @dataclass
-class BehaviorDecision:
-    action: BehaviorDecisionType
-    capability_name: Optional[str] = None
+class Decision:
+    """
+    Решение Pattern.
+    
+    ЕДИНСТВЕННЫЙ способ принятия решений в системе.
+    """
+    type: DecisionType
+    
+    # Для ACT
+    action: Optional[str] = None           # capability_name
     parameters: Optional[Dict[str, Any]] = None
-    next_pattern: Optional[str] = None  # Для SWITCH
-    reason: str = ""
+    reasoning: str = ""
+    
+    # Для FINISH
+    result: Optional[Any] = None
+    
+    # Для SWITCH_STRATEGY
+    next_pattern: Optional[str] = None
+    
+    # Для FAIL
+    error: Optional[str] = None
+    
+    # Мета
     confidence: float = 1.0
-    requires_llm: bool = False  # Флаг что decision требует вызова LLM
-    is_final: bool = False  # Флаг финального шага (для final_answer.generate)
+
+
+# ============================================================================
+# DEPRECATED: старые имена для обратной совместимости (удалить в Этапе 8)
+# ============================================================================
+
+BehaviorDecisionType = DecisionType  # TODO: удалить после миграции
+BehaviorDecision = Decision  # TODO: удалить после миграции
 
 
 # ============================================================================
@@ -75,27 +100,63 @@ class PlanningOutput(BehaviorOutput):
 
 
 class BehaviorPatternInterface(ABC):
-    pattern_id: str  # e.g., "react.v1.0.0"
+    """
+    Интерфейс Pattern — ЕДИНСТВЕННОЕ место принятия решений.
+    
+    Pattern отвечает за:
+    - анализ контекста
+    - принятие решений (ACT/FINISH/FAIL/SWITCH_STRATEGY)
+    - выбор стратегии
+    """
+    pattern_id: str  # e.g., "react_pattern"
     
     @abstractmethod
+    async def decide(
+        self,
+        session_context: 'SessionContext',
+        available_capabilities: List['Capability']
+    ) -> Decision:
+        """
+        ЕДИНСТВЕННОЕ место принятия решений.
+        
+        ПАРАМЕТРЫ:
+        - session_context: контекст сессии
+        - available_capabilities: доступные capability
+        
+        ВОЗВРАЩАЕТ:
+        - Decision с типом и параметрами
+        
+        ОТВЕЧАЕТ ЗА:
+        - что делать (ACT)
+        - завершить успешно (FINISH)
+        - завершить с ошибкой (FAIL)
+        - сменить стратегию (SWITCH_STRATEGY)
+        """
+        pass
+    
+    # ========================================================================
+    # DEPRECATED: старые методы (удалить после миграции)
+    # ========================================================================
+    
     async def analyze_context(
         self,
         session_context: 'SessionContext',
         available_capabilities: List['Capability'],
         context_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Анализ контекста без принятия решений"""
-        pass
+        """⚠️ DEPRECATED: использовать напрямую decide()."""
+        # Для обратной совместимости
+        return context_analysis or {}
     
-    @abstractmethod
     async def generate_decision(
         self,
         session_context: 'SessionContext',
         available_capabilities: List['Capability'],
         context_analysis: Dict[str, Any]
-    ) -> BehaviorDecision:
-        """Генерация решения на основе анализа"""
-        pass
+    ) -> Decision:
+        """⚠️ DEPRECATED: использовать напрямую decide()."""
+        # Для обратной совместимости — делегирование decide()
+        return await self.decide(session_context, available_capabilities)
     
     def _filter_capabilities(
         self,

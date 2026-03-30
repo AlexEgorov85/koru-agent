@@ -11,7 +11,8 @@
 
 from typing import Any, Dict, List
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
-from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import Decision, DecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType  # DEPRECATED
 from core.agent.strategies.react.schema_validator import SchemaValidator
 from core.agent.strategies.react.utils import analyze_context
 from core.infrastructure.event_bus.unified_event_bus import EventType
@@ -416,13 +417,42 @@ class ReActPattern(BaseBehaviorPattern):
     # === МЕТОД ДЕЛЕГИРОВАН CapabilityResolverService ===
     # _register_capability_schemas теперь в self.capability_resolver.register_capability_schemas
 
+    async def decide(
+        self,
+        session_context: SessionContext,
+        available_capabilities: List[Capability]
+    ) -> Decision:
+        """
+        ЕДИНСТВЕННОЕ место принятия решений.
+        
+        ПАРАМЕТРЫ:
+        - session_context: контекст сессии
+        - available_capabilities: доступные capability
+        
+        ВОЗВРАЩАЕТ:
+        - Decision с типом и параметрами
+        """
+        # 1. Анализ контекста
+        context_analysis = await self.analyze_context(
+            session_context=session_context,
+            available_capabilities=available_capabilities,
+            context_analysis={}
+        )
+        
+        # 2. Генерация решения
+        return await self.generate_decision(
+            session_context=session_context,
+            available_capabilities=available_capabilities,
+            context_analysis=context_analysis
+        )
+
     async def generate_decision(
         self,
         session_context: SessionContext,
         available_capabilities: List[Capability],
         context_analysis: Dict[str, Any],
         execution_context=None
-    ) -> BehaviorDecision:
+    ) -> Decision:
         """Генерация решения на основе анализа."""
         # Логирование начала через EventBusLogger
         await self._log("info", "generate_decision: started",

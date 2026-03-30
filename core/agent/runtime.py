@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 from core.agent.components.action_executor import ActionExecutor
-from core.agent.components.behavior_manager import BehaviorManager
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import AgentPolicy
 from core.agent.components.progress import ProgressScorer
@@ -34,7 +33,8 @@ from core.infrastructure.logging import EventBusLogger
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.types.retry_policy import ExecutionErrorInfo
 
-from core.agent.behaviors.base import BehaviorDecisionType, BehaviorDecision
+from core.agent.behaviors.base import DecisionType, Decision
+from core.agent.behaviors.base import BehaviorDecisionType, BehaviorDecision  # DEPRECATED
 from core.models.errors import AgentStuckError, InfrastructureError
 
 # Определяем ProgressMetrics локально
@@ -125,12 +125,8 @@ class AgentRuntime:
             max_delay=self.policy.max_delay
         )
 
-        # Инициализация менеджера поведения с executor и failure_memory
-        self.behavior_manager = BehaviorManager(
-            application_context=application_context,
-            executor=self.executor,  # ← Передаём executor
-            failure_memory=self.failure_memory  # ← НОВОЕ: Передаём failure_memory
-        )
+        # ← НОВОЕ: Pattern напрямую (без BehaviorManager)
+        self.pattern = None  # Инициализируется в run()
         self.progress_metrics = ProgressMetrics()
 
         # Создаем session_context как атрибут агента (не в application_context!)
@@ -810,8 +806,15 @@ class AgentRuntime:
                     "goal": self.goal
                 }, step_number=0)
 
-            # Инициализация менеджера поведения
-            await self.behavior_manager.initialize(component_name="react_pattern")
+            # ← НОВОЕ: Инициализация Pattern напрямую (без BehaviorManager)
+            from core.agent.behaviors.react.pattern import ReActPattern
+            self.pattern = ReActPattern(
+                application_context=self.application_context,
+                executor=self.executor
+            )
+            # Инициализация паттерна (загрузка промптов если кэши пустые)
+            if hasattr(self.pattern, 'initialize'):
+                await self.pattern.initialize()
 
             # Публикация события начала сессии для MetricsCollector
             event_bus = self.application_context.infrastructure_context.event_bus
@@ -881,17 +884,17 @@ class AgentRuntime:
 
                 print(f"  available_caps: {[c.name for c in available_caps[:5]]}")
 
-                # Получаем decision
-                decision = await self.behavior_manager.generate_next_decision(
+                # ← НОВОЕ: Получаем decision напрямую от Pattern (без BehaviorManager)
+                decision = await self.pattern.decide(
                     session_context=self.session_context,
                     available_capabilities=available_caps
                 )
 
-                print(f"  -> DECISION: action={decision.action.value}, capability={getattr(decision, 'capability_name', 'N/A')}")
-                print(f"  -> DECISION reason: {decision.reason[:100] if decision.reason else 'N/A'}")
+                print(f"  -> DECISION: type={decision.type.value}, action={getattr(decision, 'action', 'N/A')}")
+                print(f"  -> DECISION reason: {decision.reasoning[:100] if decision.reasoning else 'N/A'}")
 
                 # ← НОВОЕ: Детекция зацикливания действий
-                current_action_key = f"{decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}"
+                current_action_key = f"{decision.type.value}:{getattr(decision, 'action', 'N/A')}"
                 
                 if current_action_key == last_action_key:
                     consecutive_same_actions += 1
