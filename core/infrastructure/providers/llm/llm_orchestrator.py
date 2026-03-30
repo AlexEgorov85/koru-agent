@@ -29,33 +29,22 @@ LLMOrchestrator - централизованное управление вызо
 """
 import asyncio
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 
 from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
     StructuredLLMResponse,
-    RawLLMResponse,
-    StructuredOutputConfig
+    RawLLMResponse
 )
 from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.telemetry.telemetry_collector import TelemetryCollector
 from core.infrastructure.providers.llm.json_parser import (
-    validate_structured_response,
-    schema_to_pydantic_model,
-    extract_json_from_response
+    validate_structured_response
 )
-from pydantic import BaseModel, ValidationError
-import json
-from json import JSONDecodeError
 
 
 class CallStatus(str, Enum):
@@ -309,7 +298,6 @@ class LLMOrchestrator:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
             
             await self._logger.info(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"LLMOrchestrator инициализирован: max_workers={self._max_workers}, "
                 f"cleanup_interval={self._cleanup_interval}с"
             )
@@ -319,7 +307,6 @@ class LLMOrchestrator:
         except Exception as e:
             if self._logger:
                 await self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
     
     async def shutdown(self) -> None:
@@ -346,17 +333,14 @@ class LLMOrchestrator:
             if self._logger:
                 metrics = self._metrics.to_dict()
                 await self._logger.info(
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"LLMOrchestrator завершён. Метрики: {metrics}"
                 )
             
             await self._logger.info("LLMOrchestrator остановлен")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
         except Exception as e:
             if self._logger:
                 await self._logger.error(f"Ошибка при shutdown LLMOrchestrator: {e}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     async def execute(
         self,
@@ -466,7 +450,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"🧩 LLM вызов | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -544,22 +527,6 @@ class LLMOrchestrator:
         call_id = self._generate_call_id()
         start_time = time.time()
 
-        # DEBUG: print request details
-        print(f"[LLM DEBUG] === EXECUTE_STRUCTURED ===")
-        print(f"[LLM DEBUG] request.prompt: {len(request.prompt) if request.prompt else 0} chars")
-        print(f"[LLM DEBUG] request.system_prompt: {len(request.system_prompt) if request.system_prompt else 0} chars")
-        print(f"[LLM DEBUG] request.model_name: {getattr(request, 'model_name', 'NOT SET')}")
-        print(f"[LLM DEBUG] request.temperature: {getattr(request, 'temperature', 'NOT SET')}")
-        print(f"[LLM DEBUG] request.max_tokens: {getattr(request, 'max_tokens', 'NOT SET')}")
-        print(f"[LLM DEBUG] structured_output: {request.structured_output}")
-        if request.structured_output:
-            print(f"[LLM DEBUG]   output_model: {request.structured_output.output_model}")
-            print(f"[LLM DEBUG]   schema_def: {type(request.structured_output.schema_def)}")
-            print(f"[LLM DEBUG]   max_retries: {request.structured_output.max_retries}")
-            print(f"[LLM DEBUG]   strict_mode: {request.structured_output.strict_mode}")
-        print(f"[LLM DEBUG] provider: {provider}")
-        print(f"[LLM DEBUG] use_native_structured_output: {use_native_structured_output}")
-
         # Обновление метрик
         self._metrics.structured_calls += 1
 
@@ -576,7 +543,6 @@ class LLMOrchestrator:
             # Если max_retries > 1, используем 1 но логируем предупреждение
             if max_retries > 1:
                 await self._logger.warning(
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     f"⚠️ max_retries={max_retries} проигнорировано. "
                     f"Используется 1 попытка для строгой валидации структурированного вывода."
                 )
@@ -836,91 +802,6 @@ class LLMOrchestrator:
         # Делегируем логику в json_parser
         return validate_structured_response(raw_content, schema)
 
-    def _build_corrective_prompt(
-        self,
-        original_request: LLMRequest,
-        current_request: LLMRequest,
-        failed_response: Optional[str],
-        error_type: Optional[str],
-        error_message: Optional[str]
-    ) -> LLMRequest:
-        """
-        Формирование corrective prompt с обратной связью.
-
-        ВКЛЮЧАЕТ:
-        - Исходный запрос
-        - JSON схему (явно!)
-        - Неудачный ответ (если есть)
-        - Описание ошибки
-        - Инструкцию исправить
-
-        ВОЗВРАЩАЕТ:
-        - Новый LLMRequest с обновлённым промптом
-        """
-        import json
-        
-        error_descriptions = {
-            "json_error": "Ваш ответ не является валидным JSON. Пожалуйста, исправьте синтаксис JSON.",
-            "validation_error": "Ваш ответ не соответствует ожидаемой схеме. Проверьте наличие всех обязательных полей и типов данных.",
-            "incomplete": "Ваш ответ был обрезан. Пожалуйста, предоставьте полный ответ.",
-            "timeout": "Предыдущая попытка превысила время ожидания. Пожалуйста, предоставьте более краткий ответ."
-        }
-
-        base_error = error_descriptions.get(error_type, f"Произошла ошибка: {error_message}")
-        
-        # Получаем схему для добавления в промпт
-        schema_def = current_request.structured_output.schema_def if current_request.structured_output else None
-
-        # Формируем corrective prompt с ЯВНЫМ указанием схемы
-        schema_section = ""
-        if schema_def:
-            schema_section = f"""
-### ТРЕБУЕМЫЙ ФОРМАТ ОТВЕТА (JSON Schema) ###
-Твой ответ ДОЛЖЕН быть валидным JSON, соответствующим этой схеме:
-
-{json.dumps(schema_def, indent=2, ensure_ascii=False)}
-
-⚠️ **ВАЖНО:**
-- ОТВЕТЬ ТОЛЬКО JSON
-- Не добавляй markdown разметку (```json)
-- Не добавляй никаких объяснений
-- Все поля из "required" обязательны
-- Соблюдай типы данных
-
-"""
-
-        # Формируем основной corrective prompt
-        corrective_prompt = f"""{original_request.prompt}
-
-{schema_section}---
-ПРЕДЫДУЩАЯ ПОПЫТКА НЕ УДАЛАСЬ
----
-
-Ошибка: {base_error}
-
-{f'Ваш ответ: {failed_response[:500]}...' if failed_response and len(failed_response) > 500 else f'Ваш ответ: {failed_response}' if failed_response else ''}
-
----
-ИНСТРУКЦИЯ
----
-Пожалуйста, исправьте ответ и верните ТОЛЬКО валидный JSON, соответствующий ожидаемой схеме выше.
-Не добавляйте никаких пояснений, только JSON."""
-
-        return LLMRequest(
-            prompt=corrective_prompt,
-            system_prompt=current_request.system_prompt,
-            temperature=0.1,  # Снижаем температуру для точности
-            max_tokens=min(current_request.max_tokens * 1.5, 2000),  # Увеличиваем max_tokens
-            top_p=current_request.top_p,
-            frequency_penalty=current_request.frequency_penalty,
-            presence_penalty=current_request.presence_penalty,
-            stop_sequences=current_request.stop_sequences,
-            structured_output=current_request.structured_output,
-            metadata=current_request.metadata,
-            correlation_id=current_request.correlation_id,
-            capability_name=current_request.capability_name
-        )
-
     async def _log_structured_start(
         self,
         call_id: str,
@@ -933,7 +814,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"📋 Structured LLM | call_id={call_id} | "
             f"session={session_id} | max_retries={max_retries} | "
             f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}"
@@ -951,7 +831,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.info(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"✅ Structured SUCCESS | call_id={call_id} | "
             f"session={session_id} | attempt={attempt_num} | "
             f"duration={duration:.2f}s"
@@ -971,7 +850,6 @@ class LLMOrchestrator:
 
         icon = "🔄" if will_retry else "⚠️"
         await self._logger.warning(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"{icon} Structured RETRY | call_id={call_id} | "
             f"attempt={attempt_num} | error={error_type} | "
             f"message={error_message[:100] if error_message else 'unknown'} | "
@@ -990,7 +868,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured EXHAUSTED | call_id={call_id} | "
             f"session={session_id} | total_attempts={total_attempts} | "
             f"last_error={last_error[:100] if last_error else 'unknown'}"
@@ -1008,7 +885,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured FAILURE | call_id={call_id} | "
             f"attempt={attempt_num} | type={failure_type} | "
             f"message={message[:100]}"
@@ -1025,7 +901,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ Structured EXCEPTION | call_id={call_id} | "
             f"session={session_id} | error={error[:200]}"
         )
@@ -1073,18 +948,6 @@ class LLMOrchestrator:
                 record.status = CallStatus.COMPLETED
                 record.end_time = time.time()
                 record.result = result
-
-            # DEBUG: print result
-            print(f"[LLM DEBUG] === EXECUTE RESULT ===")
-            print(f"[LLM DEBUG] result type: {type(result)}")
-            print(f"[LLM DEBUG] result.content: {result.content[:500] if result.content else 'EMPTY'}")
-            print(f"[LLM DEBUG] result.finish_reason: {result.finish_reason}")
-            print(f"[LLM DEBUG] result.tokens_used: {result.tokens_used}")
-            print(f"[LLM DEBUG] result.model: {result.model}")
-            print(f"[LLM DEBUG] result.metadata: {result.metadata}")
-            if hasattr(result, 'parsed_content'):
-                print(f"[LLM DEBUG] result.parsed_content: {result.parsed_content}")
-            print(f"[LLM DEBUG] ===================")
 
             # Обновление метрик
             self._metrics.completed_calls += 1
@@ -1174,7 +1037,6 @@ class LLMOrchestrator:
         # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
         tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
         await self._logger.info(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"response_len={content_length} | tokens={tokens_used} | "
@@ -1190,7 +1052,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.warning(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"⏰ LLM TIMEOUT | call_id={record.call_id} | "
             f"session={record.session_id} | agent={record.agent_id} | "
             f"step={record.step_number} | phase={record.phase} | "
@@ -1214,7 +1075,6 @@ class LLMOrchestrator:
             return
 
         await self._logger.error(
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ LLM ERROR | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
             f"{type(error).__name__}: {str(error)[:200]} | elapsed={elapsed:.2f}s"
@@ -1471,7 +1331,6 @@ class LLMOrchestrator:
             except Exception as e:
                 if self._logger:
                     await self._logger.error(f"Ошибка в cleanup loop: {e}")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
     
     async def _cleanup_old_records(self, max_age: float = 300.0) -> int:
         """
@@ -1499,7 +1358,6 @@ class LLMOrchestrator:
         
         if removed > 0 and self._logger:
             await self._logger.debug(f"Очищено {removed} старых записей")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         
         return removed
     
@@ -1636,6 +1494,3 @@ class LLMOrchestrator:
             "metrics": metrics,
             "recent_calls": pending[:10]  # Последние 10
         }
-
-    # ✅ Методы _print_prompt и _print_response удалены
-    # Логирование теперь осуществляется в Provider (LlamaCppProvider._generate_impl)
