@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 from core.agent.components.action_executor import ActionExecutor
 from core.agent.components.failure_memory import FailureMemory
-from core.agent.components.policy import AgentPolicy
+from core.agent.components.policy import RetryPolicy
 from core.agent.components.progress import ProgressScorer
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.state import AgentState
@@ -107,7 +107,7 @@ class AgentRuntime:
         # ===================================
 
         # Инициализация компонентов
-        self.policy = policy or AgentPolicy()  # ← Единая политика агента
+        self.policy = policy or RetryPolicy()  # ← ТОЛЬКО параметры retry
         self.state = AgentState()
         self.progress = ProgressScorer()
 
@@ -311,26 +311,8 @@ class AgentRuntime:
                       # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 self.state.register_error()
 
-                # ПРОВЕРКА: Превышен ли лимит ошибок
-                if self.policy.should_fallback(self.state):
-                    if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.error(
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
-                            f"Агент переходит в режим завершения."
-                        )
-                    return ExecutionResult(
-                        status=ExecutionStatus.FAILED,
-                        data=None,
-                        error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
-                        metadata={
-                            "error_count": self.state.error_count,
-                            "max_errors": self.policy.max_errors,
-                            "failed_at_step": self._current_step + 1
-                        }
-                    )
+                # ⚠️ Этап 4: Pattern сам решает об остановке через DecisionType.FAIL
+                # Удалена проверка: if self.policy.should_fallback(self.state):
 
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             logger.debug(f"🔴 [_execute_single_step_internal] Возврат None (capability_name не указан)")
@@ -421,26 +403,8 @@ class AgentRuntime:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.state.register_error()
 
-            # ПРОВЕРКА: Превышен ли лимит ошибок
-            if self.policy.should_fallback(self.state):
-                if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.error(
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
-                        f"Агент переходит в режим завершения."
-                    )
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    data=None,
-                    error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
-                    metadata={
-                        "error_count": self.state.error_count,
-                        "max_errors": self.policy.max_errors,
-                        "failed_at_step": self._current_step + 1
-                    }
-                )
+            # ⚠️ Этап 4: Pattern сам решает об остановке через DecisionType.FAIL
+            # Удалена проверка: if self.policy.should_fallback(self.state):
 
             return None
 
@@ -654,27 +618,8 @@ class AgentRuntime:
                 step_number=self._current_step + 1
             )
 
-            # ПРОВЕРКА: Превышен ли лимит ошибок
-            if self.policy.should_fallback(self.state):
-                if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.error(
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        f"Превышен лимит ошибок ({self.state.error_count}/{self.policy.max_errors}). "
-                        f"Агент переходит в режим завершения."
-                    )
-                # Возвращаем специальный маркер для прерывания цикла
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    data=None,
-                    error=f"Превышен лимит ошибок: {self.state.error_count}/{self.policy.max_errors}",
-                    metadata={
-                        "error_count": self.state.error_count,
-                        "max_errors": self.policy.max_errors,
-                        "failed_at_step": self._current_step + 1
-                    }
-                )
+            # ⚠️ Этап 4: Pattern сам решает об остановке через DecisionType.FAIL
+            # Удалена проверка: if self.policy.should_fallback(self.state):
 
             return None
 
@@ -985,57 +930,22 @@ class AgentRuntime:
                     self._running = False
                     break
 
-                # ОБРАБОТКА ОШИБОК
+                # ОБРАБОТКА ОШИБОК (Этап 4)
+                # ⚠️ SafeExecutor уже сделал network retry для TRANSIENT ошибок
+                # Pattern сам решит что делать через DecisionType.FAIL/SWITCH
                 if isinstance(step_result, ExecutionResult) and step_result.status == ExecutionStatus.FAILED:
-                    from core.models.types.retry_policy import ExecutionErrorInfo
-                    error_info = ExecutionErrorInfo(
-                        category=step_result.error_category,
-                        message=step_result.error or "Неизвестная ошибка",
-                        raw_error=step_result.error
-                    )
-
-                    retry_decision = self.policy.evaluate(
-                        error=error_info,
-                        attempt=consecutive_error_count
-                    )
+                    # Просто продолжаем цикл — Pattern сам решит на следующем шаге
+                    last_step_failed = True
+                    last_error_message = step_result.error or "Неизвестная ошибка"
+                    consecutive_error_count += 1
 
                     if self.event_bus_logger:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         await self.event_bus_logger.error(
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            f"Ошибка на шаге {self._current_step}: {step_result.error} | "
-                            f"Категория: {step_result.error_category.value} | "
-                            f"AgentPolicy: {retry_decision.decision.value}"
+                            f"Ошибка на шаге {self._current_step}: {step_result.error}"
                         )
-
-                    if retry_decision.decision == RetryDecision.RETRY:
-                        consecutive_error_count += 1
-                        if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            await self.event_bus_logger.info(
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                                f"Повторная попытка {consecutive_error_count}/{self.policy.max_retries} "
-                                f"через {retry_decision.delay_seconds:.2f} сек"
-                            )
-                        await asyncio.sleep(retry_decision.delay_seconds)
-                        continue
-                    elif retry_decision.decision == RetryDecision.ABORT:
-                        if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                            await self.event_bus_logger.warning(
-                              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                                f"Abort: {retry_decision.reason}. Пропускаем действие."
-                            )
-                        consecutive_error_count = 0
-                    else:
-                        last_step_failed = True
-                        last_error_message = f"{retry_decision.reason}: {step_result.error}"
-                        self._result = step_result
-                        self._running = False
-                        break
 
                 # ПРОВЕРКА 2: Изменился ли state
                 current_snapshot = self.state.snapshot()

@@ -33,7 +33,7 @@ from core.models.types.retry_policy import ExecutionErrorInfo, RetryResult, Retr
 from core.agent.components.error_classifier import ErrorClassifier
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
-from core.agent.components.policy import AgentPolicy
+from core.agent.components.policy import RetryPolicy
 
 
 class SafeExecutor:
