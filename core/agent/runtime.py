@@ -57,31 +57,6 @@ class ProgressMetrics:
     last_strategy_switch_step: Optional[int] = None
     strategy_confidence: float = 1.0
 
-    def update_strategy_effectiveness(self, strategy_name: str, success: bool):
-        """Обновление метрик эффективности стратегии"""
-        if strategy_name not in self.strategy_effectiveness:
-            self.strategy_effectiveness[strategy_name] = 0.5
-
-        # Экспоненциальное сглаживание
-        alpha = 0.3
-        current = self.strategy_effectiveness[strategy_name]
-        self.strategy_effectiveness[strategy_name] = (
-            alpha * (1.0 if success else 0.0) + (1 - alpha) * current
-        )
-
-    def get_state_metrics(self) -> Dict[str, Any]:
-        """Получить словарь с текущими метриками состояния"""
-        return {
-            "step": self.step,
-            "error_count": self.error_count,
-            "consecutive_errors": self.consecutive_errors,
-            "no_progress_steps": self.no_progress_steps,
-            "strategy_switches": self.strategy_switches,
-            "plan_corrections": self.plan_corrections,
-            "strategy_effectiveness": self.strategy_effectiveness.copy(),
-            "last_strategy_switch_step": self.last_strategy_switch_step,
-            "strategy_confidence": self.strategy_confidence
-        }
 
 
 class AgentRuntime:
@@ -715,88 +690,6 @@ class AgentRuntime:
           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
         return None
 
-    async def _execute_single_step(self) -> Any:
-        """Выполнение одного шага рассуждений."""
-        if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.debug(f"Выполнение шага {self._current_step + 1}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-        # Получаем доступные capability для использования в паттернах поведения
-        # Агент использует ТОЛЬКО навыки (SKILL), не инструменты (TOOL)
-        if hasattr(self.application_context, 'get_all_skills'):
-            available_caps = self.application_context.get_all_skills()
-        elif hasattr(self.application_context, 'get_all_capabilities'):
-            all_caps = await self.application_context.get_all_capabilities()
-            # Фильтр: только SKILL capability (не TOOL, не planning)
-            available_caps = [
-                cap for cap in all_caps
-                if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
-            ]
-        else:
-            available_caps = []
-
-        if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.debug(f"RUNTIME: Получено {len(available_caps)} доступных capability: {[c.name for c in available_caps]}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-        # Получаем решение от менеджера поведения
-        decision = await self.behavior_manager.generate_next_decision(
-            session_context=self.session_context,
-            available_capabilities=available_caps
-        )
-
-        # Делегируем выполнение внутреннему методу
-        return await self._execute_single_step_internal(decision, available_caps)
-
-    def _is_final_result(self, step_result: Any) -> bool:
-        """
-        Проверка, является ли результат финальным.
-
-        ФИНАЛЬНЫЙ РЕЗУЛЬТАТ — это выполнение final_answer.generate,
-        которое содержит итоговый ответ агента.
-        
-        КРИТИЧНО: Метод должен корректно распознавать ExecutionResult от final_answer.generate
-        ДО того, как будет установлен metadata['is_final_answer'].
-        """
-        from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
-        
-        # Проверка 1: ExecutionResult от final_answer.generate
-        if isinstance(step_result, ExecutionResult):
-            # Проверяем metadata на наличие признака is_final_answer
-            if step_result.metadata and step_result.metadata.get('is_final_answer'):
-                return True
-            # Проверяем metadata на наличие capability_name или capability
-            if step_result.metadata:
-                cap_name = step_result.metadata.get('capability_name') or step_result.metadata.get('capability')
-                if cap_name == "final_answer.generate":
-                    return True
-            # Проверяем данные на наличие final_answer ключа (результат генерации)
-            if step_result.data and isinstance(step_result.data, dict):
-                if 'final_answer' in step_result.data:
-                    return True
-            # Проверяем result на наличие final_answer ключа
-            if step_result.result and isinstance(step_result.result, dict):
-                if 'final_answer' in step_result.result:
-                    return True
-
-        # Проверка 2: BehaviorDecision с флагом is_final
-        if isinstance(step_result, BehaviorDecision):
-            if getattr(step_result, 'is_final', False):
-                return True
-            # STOP decision тоже считается финальным
-            if step_result.action == BehaviorDecisionType.STOP:
-                return True
-
-        # Проверка 3: dict с action_type (для обратной совместимости)
-        if isinstance(step_result, dict) and step_result.get("action_type") == "final_answer":
-            return True
-
-        return False
-
     async def _extract_final_result(self) -> Any:
         """
         Извлечение финального результата.
@@ -1244,10 +1137,6 @@ class AgentRuntime:
             await self.event_bus_logger.info("Агент остановлен пользователем")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-    def is_running(self) -> bool:
-        """Проверка, выполняется ли агент."""
-        return self._running
 
     def _update_state(self, result: ExecutionResult):
         """Обновление состояния агента."""
