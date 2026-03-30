@@ -398,13 +398,10 @@ class ReActPattern(BaseBehaviorPattern):
             "summary": analysis_obj.summary,
         }
 
-        # Фильтрация capability через CapabilityResolverService
-        filtered_caps = self._filter_capabilities(available_capabilities, self.pattern_id)
-        # Удалено: exclude_capability — не используется
+        # Не фильтруем capability — это задача AgentRuntime
+        analysis["available_capabilities"] = available_capabilities
 
-        analysis["available_capabilities"] = filtered_caps
-
-        await self._log("debug", f"[ReAct] analyze_context: after filtering available_capabilities count={len(analysis['available_capabilities'])}")
+        await self._log("debug", f"[ReAct] analyze_context: available_capabilities count={len(analysis['available_capabilities'])}")
 
         return analysis
 

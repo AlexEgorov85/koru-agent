@@ -188,8 +188,17 @@ class AgentRuntime:
     def _load_pattern(self, pattern_name: str):
         """Загрузить другой паттерн."""
         from core.agent.behaviors.react.pattern import ReActPattern
-        # TODO: добавить factory для других паттернов
+        from core.config.component_config import ComponentConfig
+        
+        # Создаём простой ComponentConfig
+        component_config = ComponentConfig(
+            name=pattern_name or "react_pattern",
+            variant_id="default"
+        )
+        
         return ReActPattern(
+            component_name=pattern_name or "react_pattern",
+            component_config=component_config,
             application_context=self.application_context,
             executor=self.executor
         )
