@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, List, Type
 from pydantic import BaseModel
 
 from core.agent.behaviors.base import BehaviorPatternInterface, Decision, DecisionType
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext
@@ -279,16 +280,30 @@ class PromptBuilderService:
             rendered = rendered.replace(f"{{{key}}}", str(value))
         return rendered
 
+    # ========================================================================
+    # МЕТОДЫ ДЛЯ РАБОТЫ С CAPABILITY (вместо CapabilityResolverService)
+    # ========================================================================
 
-class CapabilityResolverService:
-    """Сервис для разрешения и валидации capability."""
-    
-    def find_capability(self, available_capabilities: List[Capability], capability_name: str) -> Optional[Capability]:
-        """Ищет capability по имени."""
+    def _find_capability(
+        self,
+        available_capabilities: List[Capability],
+        capability_name: str
+    ) -> Optional[Capability]:
+        """
+        Ищет capability по имени.
+        
+        ПАРАМЕТРЫ:
+        - available_capabilities: список доступных capability
+        - capability_name: имя для поиска
+        
+        ВОЗВРАЩАЕТ:
+        - Capability или None если не найдено
+        """
         # 1. Прямое совпадение
         for cap in available_capabilities:
             if cap.name == capability_name:
                 return cap
+        
         # 2. Совпадение по префиксу
         if '.' in capability_name:
             prefix = capability_name.split('.')[0]
@@ -298,82 +313,59 @@ class CapabilityResolverService:
                 if hasattr(cap, 'skill_name') and cap.skill_name:
                     if cap.skill_name == prefix:
                         return cap
-                    if '.' in cap.skill_name and cap.skill_name.split('.')[0] == prefix:
-                        return cap
+        
         # 3. Частичное совпадение
         for cap in available_capabilities:
             if capability_name.lower() in cap.name.lower():
                 return cap
-        # 4. Поиск по supported_strategies
-        for cap in available_capabilities:
-            supported = [s.lower() for s in (cap.supported_strategies or [])]
-            if 'react' in supported or 'planning' in supported:
-                return cap
+        
         return None
-    
-    def validate_parameters(self, capability: Capability, parameters: Dict[str, Any], schema_validator: Any, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Валидирует параметры capability."""
-        if not schema_validator:
+
+    def _validate_capability_parameters(
+        self,
+        capability: Capability,
+        parameters: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Валидирует параметры capability.
+        
+        ПАРАМЕТРЫ:
+        - capability: capability для валидации
+        - parameters: параметры для валидации
+        - context: контекст выполнения
+        
+        ВОЗВРАЩАЕТ:
+        - validated параметры или оригинальные если валидация не удалась
+        """
+        # Упрощённая валидация — если нет schema_validator, возвращаем как есть
+        if not hasattr(self, 'schema_validator') or self.schema_validator is None:
             return parameters
+        
         try:
-            validated = schema_validator.validate_parameters(
+            validated = self.schema_validator.validate_parameters(
                 capability=capability,
                 raw_params=parameters,
                 context=str(context)
             )
             return validated if validated else parameters
         except Exception:
+            # Fallback: возвращаем input или оригинальные параметры
             return {"input": parameters.get("input", "Продолжить выполнение задачи")}
-    
-    def register_capability_schemas(
+
+    def _filter_capabilities(
         self,
-        available_capabilities: List[Capability],
-        schema_validator: Any,
-        input_contracts: Dict[str, Any],
-        data_repository: Optional[Any] = None
-    ) -> None:
-        """Регистрирует схемы входных параметров для всех capability."""
-        for cap in available_capabilities:
-            schema = None
-            if input_contracts and cap.name in input_contracts:
-                schema = input_contracts[cap.name]
-            elif data_repository:
-                try:
-                    contract_version = cap.meta.get('contract_version', 'v1.0.0')
-                    schema = data_repository.get_contract_schema(cap.name, contract_version, "input")
-                except Exception:
-                    pass
-            if schema:
-                params_schema = {}
-                if hasattr(schema, 'to_dict'):
-                    to_dict_result = schema.to_dict()
-                    if isinstance(to_dict_result, dict):
-                        params_schema = to_dict_result
-                elif hasattr(schema, 'model_json_schema'):
-                    schema_dict = schema.model_json_schema()
-                    properties = schema_dict.get('properties', {})
-                    required = schema_dict.get('required', [])
-                    for prop_name, prop_info in properties.items():
-                        params_schema[prop_name] = {'type': prop_info.get('type', 'string'), 'required': prop_name in required}
-                elif isinstance(schema, dict):
-                    properties = schema.get('properties', {})
-                    required = schema.get('required', [])
-                    if isinstance(properties, dict):
-                        for prop_name, prop_info in properties.items():
-                            params_schema[prop_name] = {'type': prop_info.get('type', 'string') if isinstance(prop_info, dict) else 'string', 'required': prop_name in required}
-                if params_schema:
-                    schema_validator.register_capability_schema(cap.name, params_schema)
-    
-    def filter_capabilities(self, capabilities: List[Capability], pattern_id: str) -> List[Capability]:
+        capabilities: List[Capability],
+        pattern_id: str
+    ) -> List[Capability]:
         """Фильтрует capability по supported_strategies."""
         pattern_prefix = pattern_id.split('.')[0]
         if "_pattern" in pattern_prefix:
             pattern_prefix = pattern_prefix.replace("_pattern", "")
-        return [cap for cap in capabilities if pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]]
-    
-    def exclude_capability(self, capabilities: List[Capability], exclude_name: str) -> List[Capability]:
-        """Исключает capability по имени."""
-        return [cap for cap in capabilities if cap.name != exclude_name]
+        return [
+            cap for cap in capabilities
+            if pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
+        ]
 
 
 class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
@@ -418,10 +410,10 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         # pattern_id для совместимости
         self.pattern_id = component_name
         self.component_name = component_name
-        
+
         # === ОБЩИЕ СЕРВИСЫ ===
         self.prompt_builder = PromptBuilderService()
-        self.capability_resolver = CapabilityResolverService()
+        # capability_resolver удалён — методы перенесены в BaseBehaviorPattern
     
     def get_prompt(self, key: str) -> Prompt:
         """
@@ -491,7 +483,7 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         """Генерация решения на основе анализа."""
         raise NotImplementedError("Subclasses must implement generate_decision")
 
-    def _get_event_type_for_success(self) -> 'EventType':
+    def _get_event_type_for_success(self) -> EventType:
         """Возвращает тип события для успешного выполнения паттерна."""
         from core.infrastructure.event_bus.unified_event_bus import EventType
         return EventType.AGENT_STARTED

@@ -18,28 +18,29 @@ class FallbackStrategyService:
             "emergency_stop": True
         }
 
-    def create_retry(self, reason: str, max_retries: Optional[int] = None) -> BehaviorDecision:
-        """Создаёт решение для повторной попытки."""
-        return BehaviorDecision(
-            action=BehaviorDecisionType.RETRY,
-            reason=reason,
+    def create_retry(self, reason: str, max_retries: Optional[int] = None) -> Decision:
+        """Создаёт решение для повторной попытки (теперь это ACT)."""
+        return Decision(
+            type=DecisionType.ACT,
+            action="retry",
+            reasoning=reason,
             confidence=0.5
         )
 
-    def create_switch(self, next_pattern: str, reason: str) -> BehaviorDecision:
+    def create_switch(self, next_pattern: str, reason: str) -> Decision:
         """Создаёт решение для переключения паттерна."""
-        return BehaviorDecision(
-            action=BehaviorDecisionType.SWITCH,
+        return Decision(
+            type=DecisionType.SWITCH_STRATEGY,
             next_pattern=next_pattern,
-            reason=reason,
+            error=reason,
             confidence=0.7
         )
 
-    def create_stop(self, reason: str, final_answer: Optional[str] = None) -> BehaviorDecision:
+    def create_stop(self, reason: str, final_answer: Optional[str] = None) -> Decision:
         """Создаёт решение для остановки."""
-        return BehaviorDecision(
-            action=BehaviorDecisionType.STOP,
-            reason=reason,
+        return Decision(
+            type=DecisionType.FAIL,
+            error=reason,
             confidence=0.9
         )
 
@@ -47,20 +48,20 @@ class FallbackStrategyService:
         self,
         reason: str,
         available_capabilities: List[Capability]
-    ) -> BehaviorDecision:
+    ) -> Decision:
         """Создаёт решение при ошибке."""
         if available_capabilities:
             cap = available_capabilities[0]
-            return BehaviorDecision(
-                action=BehaviorDecisionType.ACT,
-                capability_name=cap.name,
+            return Decision(
+                type=DecisionType.ACT,
+                action=cap.name,
                 parameters={},
-                reason=f"fallback_{reason}",
+                reasoning=f"fallback_{reason}",
                 confidence=0.3
             )
-        return BehaviorDecision(
-            action=BehaviorDecisionType.STOP,
-            reason=f"emergency_stop_no_capabilities_{reason}",
+        return Decision(
+            type=DecisionType.FAIL,
+            error=f"emergency_stop_no_capabilities_{reason}",
             confidence=0.1
         )
 
