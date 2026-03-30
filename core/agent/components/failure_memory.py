@@ -211,54 +211,64 @@ class FailureMemory:
     def get_count(self, capability: str, error_type: Optional[ErrorType] = None) -> int:
         """
         Получить количество ошибок для capability.
-        
+
         ПАРАМЕТРЫ:
         - capability: имя capability
         - error_type: тип ошибки (опционально, если None — суммарно)
-        
+
         ВОЗВРАЩАЕТ:
         - int: количество ошибок
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
         """
         self._cleanup()
-        
+
         total = 0
         for key, record in self._failures.items():
             if capability in key:
                 if error_type is None or record.error_type == error_type:
                     total += record.count
-        
+
         return total
-    
-    def get_recommendation(self, capability: str) -> Optional[str]:
+
+    def get_failures(self, capability: str) -> List[FailureRecord]:
         """
-        Получить рекомендацию на основе истории ошибок.
-        
+        Получить все записи об ошибках для capability.
+
         ПАРАМЕТРЫ:
         - capability: имя capability
-        
+
         ВОЗВРАЩАЕТ:
-        - str или None: рекомендация или None если записей нет
-        
-        ТАБЛИЦА СООТВЕТСТВИЯ:
-        - TRANSIENT → "retry_with_backoff"
-        - LOGIC → "switch_pattern"
-        - VALIDATION → "abort_and_log"
-        - FATAL → "fail_immediately"
+        - List[FailureRecord]: список записей
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
+        Pattern сам анализирует failures и принимает решения.
         """
         self._cleanup()
-        
-        for key, record in self._failures.items():
-            if capability in key:
-                recommendations = {
-                    ErrorType.TRANSIENT: "retry_with_backoff",
-                    ErrorType.LOGIC: "switch_pattern",
-                    ErrorType.VALIDATION: "abort_and_log",
-                    ErrorType.FATAL: "fail_immediately"
-                }
-                return recommendations.get(record.error_type)
-        
-        return None
-    
+
+        return [
+            record for key, record in self._failures.items()
+            if capability in key
+        ]
+
+    # ========================================================================
+    # DEPRECATED: decision logic удалена (Этап 2)
+    # ========================================================================
+
+    # def should_switch_pattern(self, capability: str) -> bool:
+    #     """⚠️ DEPRECATED: Pattern сам решает когда переключаться."""
+    #     raise NotImplementedError(
+    #         "should_switch_pattern() удалён в Этапе 2. "
+    #         "Pattern сам анализирует failures через context.get_failures()."
+    #     )
+
+    # def get_recommendation(self, capability: str) -> Optional[str]:
+    #     """⚠️ DEPRECATED: Pattern сам принимает решения."""
+    #     raise NotImplementedError(
+    #         "get_recommendation() удалён в Этапе 2. "
+    #         "Pattern сам решает как обрабатывать ошибки."
+    #     )
+
     def get_recent_errors(self, capability: str, limit: int = 5) -> List[FailureRecord]:
         """
         Получить последние ошибки для capability.

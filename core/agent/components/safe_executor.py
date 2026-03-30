@@ -1,32 +1,26 @@
 """
-Безопасный исполнитель действий с обработкой ошибок.
+Безопасный исполнитель действий с network retry.
 
-АРХИТЕКТУРА:
-- Обёртка над ActionExecutor для обработки ошибок
-- Классификация ошибок через ErrorClassifier
-- Запись ошибок в FailureMemory
-- Принятие решений о retry/switch/abort/fail
-- Экспоненциальная задержка с jitter для retry
+АРХИТЕКТУРА (Этап 2):
+- Обёртка над ActionExecutor для network retry
+- ТОЛЬКО retry для TRANSIENT ошибок (timeout, connection)
+- НЕ принимает решений о switch/abort/fail
+- Запись ошибок в FailureMemory для Pattern
 
 ОТВЕТСТВЕННОСТЬ:
 - Выполнение действий через ActionExecutor
-- Обработка исключений и классификация ошибок
-- Retry logic для TRANSIENT ошибок
-- Запись в FailureMemory для принятия решений о паттернах
+- Retry для временных ошибок (TRANSIENT)
+- Запись в FailureMemory
 
 ПРИМЕР ИСПОЛЬЗОВАНИЯ:
 safe_executor = SafeExecutor(
     executor=action_executor,
     failure_memory=FailureMemory(),
-    max_retries=3,
-    base_delay=0.5
+    max_retries=3
 )
 
-result = await safe_executor.execute(
-    capability_name="search.database",
-    parameters={"query": "test"},
-    context=execution_context
-)
+# Pattern сам читает failures и решает что делать
+result = await safe_executor.execute(...)
 """
 import asyncio
 import random
@@ -110,27 +104,25 @@ class SafeExecutor:
         context: ExecutionContext
     ) -> ExecutionResult:
         """
-        Выполнить действие с обработкой ошибок.
-        
+        Выполнить действие с network retry.
+
         ПАРАМЕТРЫ:
-        - capability_name: имя capability для выполнения
-        - parameters: параметры выполнения
-        - context: контекст выполнения
-        
+        - capability_name: имя capability
+        - parameters: параметры
+        - context: контекст
+
         ВОЗВРАЩАЕТ:
         - ExecutionResult: результат выполнения
-        
-        АЛГОРИТМ:
+
+        АЛГОРИТМ (Этап 2):
         1. Попытка выполнения через executor
-        2. При ошибке — классификация типа ошибки
-        3. Запись в FailureMemory
-        4. Принятие решения (retry/switch/abort/fail)
-        5. Для TRANSIENT — retry с экспоненциальной задержкой
-        6. Для остальных — возврат с рекомендацией
+        2. При TRANSIENT ошибке — retry с задержкой
+        3. При других ошибках — запись в FailureMemory и возврат failure
+        4. Pattern сам читает failures и принимает решения
         """
         last_error: Optional[Exception] = None
         retry_count = 0
-        
+
         for attempt in range(self.max_retries):
             try:
                 # Попытка выполнения
@@ -139,86 +131,51 @@ class SafeExecutor:
                     parameters=parameters,
                     context=context
                 )
-                
+
                 # Успех — сброс failure memory
                 self.failure_memory.reset(capability_name)
-                
+
                 # Добавляем информацию о retry в metadata
                 if retry_count > 0:
                     result.metadata["retry_count"] = retry_count
-                
+
                 return result
-                
+
             except Exception as e:
                 last_error = e
                 retry_count = attempt + 1
 
                 # Классификация ошибки
-                error_type, recommendation = self.error_classifier.classify(e, capability_name)
+                error_type, _ = self.error_classifier.classify(e, capability_name)
 
-                # ← НОВОЕ: Логирование ошибки
-                await self._log_error(capability_name, e, error_type, attempt)
-
-                # Запись в FailureMemory (ЕДИНЫЙ источник!)
+                # Запись в FailureMemory
                 self.failure_memory.record(
                     capability=capability_name,
                     error_type=error_type,
                     timestamp=datetime.now()
                 )
-                
-                # Принятие решения на основе типа ошибки
+
+                # Retry ТОЛЬКО для TRANSIENT ошибок
                 if error_type == ErrorType.TRANSIENT:
-                    # Временная ошибка — retry с задержкой
                     if attempt < self.max_retries - 1:
                         delay = self._calculate_delay(attempt)
                         await asyncio.sleep(delay)
                         continue  # Следующая попытка
-                    else:
-                        # Лимит retry исчерпан
-                        return self._create_failure_result(
-                            capability_name=capability_name,
-                            error=e,
-                            error_type=error_type,
-                            recommendation="max_retries_exceeded",
-                            retry_count=retry_count
-                        )
                 
-                elif error_type == ErrorType.LOGIC:
-                    # Логическая ошибка — switch pattern
-                    return self._create_failure_result(
-                        capability_name=capability_name,
-                        error=e,
-                        error_type=error_type,
-                        recommendation=recommendation,
-                        retry_count=retry_count
-                    )
-                
-                elif error_type == ErrorType.VALIDATION:
-                    # Ошибка валидации — abort
-                    return self._create_failure_result(
-                        capability_name=capability_name,
-                        error=e,
-                        error_type=error_type,
-                        recommendation=recommendation,
-                        retry_count=retry_count
-                    )
-                
-                elif error_type == ErrorType.FATAL:
-                    # Критическая ошибка — fail immediately
-                    return self._create_failure_result(
-                        capability_name=capability_name,
-                        error=e,
-                        error_type=error_type,
-                        recommendation=recommendation,
-                        retry_count=retry_count
-                    )
-        
+                # Для всех остальных ошибок — возврат failure
+                # Pattern сам прочитает failures и решит что делать
+                return self._create_failure_result(
+                    capability_name=capability_name,
+                    error=e,
+                    error_type=error_type,
+                    retry_count=retry_count
+                )
+
         # Достижение сюда означает что все retry исчерпаны
         return self._create_failure_result(
             capability_name=capability_name,
             error=last_error or Exception("Unknown error"),
             error_type=ErrorType.TRANSIENT,
-            recommendation="max_retries_exceeded",
             retry_count=retry_count
         )
     
@@ -248,21 +205,21 @@ class SafeExecutor:
         capability_name: str,
         error: Exception,
         error_type: ErrorType,
-        recommendation: str,
         retry_count: int
     ) -> ExecutionResult:
         """
         Создать результат неудачного выполнения.
-        
+
         ПАРАМЕТРЫ:
         - capability_name: имя capability
         - error: исключение
         - error_type: тип ошибки
-        - recommendation: рекомендация по обработке
         - retry_count: количество попыток
-        
+
         ВОЗВРАЩАЕТ:
         - ExecutionResult: результат с metadata
+
+        ⚠️ БЕЗ decision logic: Pattern сам решает что делать
         """
         # Маппинг ErrorType → ErrorCategory для совместимости
         error_category_map = {
@@ -271,28 +228,20 @@ class SafeExecutor:
             ErrorType.VALIDATION: ErrorCategory.INVALID_INPUT,
             ErrorType.FATAL: ErrorCategory.FATAL
         }
-        
+
         error_category = error_category_map.get(error_type, ErrorCategory.UNKNOWN)
-        
+
         # Получаем количество ошибок из FailureMemory
         failure_count = self.failure_memory.get_count(capability_name)
-        
-        # Проверяем необходимость переключения паттерна
-        should_switch = self.failure_memory.should_switch_pattern(capability_name)
-        
+
         metadata = {
             "error_type": error_type.value,
-            "recommendation": recommendation,
             "failure_count": failure_count,
-            "retry_count": retry_count,
-            "should_switch_pattern": should_switch
+            "retry_count": retry_count
+            # ⚠️ БЕЗ recommendation — Pattern сам решает
+            # ⚠️ БЕЗ should_switch_pattern — Pattern сам анализирует failures
         }
-        
-        # Добавляем рекомендацию из FailureMemory если есть
-        fm_recommendation = self.failure_memory.get_recommendation(capability_name)
-        if fm_recommendation and fm_recommendation != recommendation:
-            metadata["failure_memory_recommendation"] = fm_recommendation
-        
+
         return ExecutionResult.failure(
             error=str(error),
             metadata=metadata,
