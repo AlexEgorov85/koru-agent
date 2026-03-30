@@ -166,31 +166,3 @@ class BehaviorPatternInterface(ABC):
         """⚠️ DEPRECATED: использовать напрямую decide()."""
         # Для обратной совместимости — делегирование decide()
         return await self.decide(session_context, available_capabilities)
-    
-    def _filter_capabilities(
-        self,
-        capabilities: List['Capability']
-    ) -> List['Capability']:
-        """
-        Фильтрация capability по supported_strategies.
-
-        Разрешает capability, если:
-        1. Pattern (react/planning/etc) указан в supported_strategies capability
-        2. ИЛИ это инструмент (tool)
-        """
-        # pattern_id может быть "react_pattern" или "react.v1.0.0"
-        # Нам нужно извлечь "react" для сравнения со supported_strategies
-        pattern_prefix = self.pattern_id.split('.')[0]  # "react_pattern" или "react"
-        # Если pattern_prefix содержит "_pattern", извлекаем часть до "_"
-        if "_pattern" in pattern_prefix:
-            pattern_prefix = pattern_prefix.replace("_pattern", "")  # "react"
-
-        filtered = [
-            cap for cap in capabilities
-            if (
-                # Pattern должен быть в supported_strategies
-                pattern_prefix.lower() in [s.lower() for s in (cap.supported_strategies or [])]
-            )
-        ]
-
-        return filtered
