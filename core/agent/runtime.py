@@ -96,11 +96,17 @@ class AgentRuntime:
         """
         # Инициализация Pattern
         from core.agent.behaviors.react.pattern import ReActPattern
+        from core.config.component_config import ComponentConfig
         
-        # component_config=None — Pattern загрузит конфиг по умолчанию
+        # Создаём простой ComponentConfig для react_pattern
+        component_config = ComponentConfig(
+            name="react_pattern",
+            variant_id="default"
+        )
+        
         pattern = ReActPattern(
             component_name="react_pattern",
-            component_config=None,
+            component_config=component_config,
             application_context=self.application_context,
             executor=self.executor
         )
