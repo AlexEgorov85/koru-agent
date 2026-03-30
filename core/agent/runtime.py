@@ -806,10 +806,8 @@ class AgentRuntime:
                 print(f"  summary.step_count: {summary.get('step_count', 0)}")
                 print(f"  summary.last_steps: {len(summary.get('last_steps', []))}")
 
-                # ← НОВОЕ: Явные stop conditions
-                if self._should_stop_early():
-                    print(f"  -> ОСТАНОВКА: _should_stop_early()")
-                    break
+                # ⚠️ Этап 5: Pattern сам решает когда остановиться через DecisionType.FINISH
+                # Удалена проверка: if self._should_stop_early():
 
                 if self.state.finished:
                     print(f"  -> ОСТАНОВКА: state.finished=True")
@@ -919,16 +917,8 @@ class AgentRuntime:
                 # Обновление состояния
                 self._update_state(step_result)
 
-                # Проверка на завершение
-                if self._should_stop(step_result):
-                    if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.info(f"Остановка агента: _should_stop=True")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    self._result = step_result
-                    self._running = False
-                    break
+                # ⚠️ Этап 5: Pattern сам решает когда остановиться через DecisionType.FINISH
+                # Удалена проверка: if self._should_stop(step_result):
 
                 # ОБРАБОТКА ОШИБОК (Этап 4)
                 # ⚠️ SafeExecutor уже сделал network retry для TRANSIENT ошибок
@@ -1068,52 +1058,20 @@ class AgentRuntime:
             self.progress_metrics.consecutive_errors += 1
             self.progress_metrics.no_progress_steps += 1
 
-    def _should_stop(self, result: ExecutionResult) -> bool:
-        """Проверка необходимости остановки."""
-        if result is None:
-            return False
-        
-        # Проверка на финальный результат
-        if isinstance(result, ExecutionResult):
-            if result.metadata and isinstance(result.metadata, dict):
-                if result.metadata.get('is_final_answer', False):
-                    return True
-            if hasattr(result, 'data') and result.data:
-                if isinstance(result.data, dict) and 'final_answer' in result.data:
-                    return True
+    # ========================================================================
+    # DEPRECATED: decision logic удалена (Этап 5)
+    # ========================================================================
 
-        # Проверка на превышение лимитов ошибок
-        if self.progress_metrics.consecutive_errors >= self.policy.max_errors:
-            return True
+    # def _should_stop(self, result: ExecutionResult) -> bool:
+    #     """⚠️ DEPRECATED: Pattern сам решает через DecisionType.FINISH."""
+    #     raise NotImplementedError(
+    #         "_should_stop() удалён в Этапе 5. "
+    #         "Pattern сам решает через DecisionType.FINISH."
+    #     )
 
-        # Проверка на отсутствие прогресса
-        if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
-            return True
-
-        return False
-
-    def _should_stop_early(self) -> bool:
-        """
-        ← НОВОЕ: Явные условия ранней остановки.
-        
-        КРИТЕРИИ:
-        1. Цель достигнута (state.finished=True)
-        2. Confidence высокий (если есть оценка > 0.95)
-        3. Пустые действия (no-op) — лимит no_progress_steps
-        
-        ВОЗВРАЩАЕТ:
-        - bool: True если нужно остановиться досрочно
-        """
-        # 1. Цель достигнута
-        if self.state.finished:
-            return True
-        
-        # 2. Confidence высокий (если есть оценка)
-        if hasattr(self.state, 'confidence') and getattr(self.state, 'confidence', 0) > 0.95:
-            return True
-        
-        # 3. Проверка лимита no-progress шагов
-        if self.progress_metrics.no_progress_steps >= self.policy.max_no_progress_steps:
-            return True
-        
-        return False
+    # def _should_stop_early(self) -> bool:
+    #     """⚠️ DEPRECATED: Pattern сам решает через DecisionType.FINISH."""
+    #     raise NotImplementedError(
+    #         "_should_stop_early() удалён в Этапе 5. "
+    #         "Pattern сам решает через DecisionType.FINISH."
+    #     )
