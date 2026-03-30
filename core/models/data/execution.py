@@ -91,6 +91,36 @@ class ExecutionResult:
             side_effect=False
         )
 
+    # ========================================================================
+    # Helper методы (Этап 7)
+    # ========================================================================
+
+    def is_failure(self) -> bool:
+        """
+        Проверка: результат является неудачей.
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если status == FAILED
+
+        ПРИМЕР:
+        if result.is_failure():
+            # Обработать ошибку
+        """
+        return self.status == ExecutionStatus.FAILED
+
+    def is_empty(self) -> bool:
+        """
+        Проверка: результат пустой (для has_no_progress).
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если data is None или data == {}
+
+        ПРИМЕР:
+        if result.is_empty():
+            # Нет полезных данных
+        """
+        return self.data is None or self.data == {}
+
     # Алиасы для обратной совместимости
     @property
     def result(self) -> Optional[Any]:
