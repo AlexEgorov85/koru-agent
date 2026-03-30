@@ -368,6 +368,7 @@ class ActionExecutor:
                 for item in all_items:
                     item_id = item.item_id if hasattr(item, 'item_id') else str(item)
                     items_dict[item_id] = item
+                print(f"[DEBUG _context_get_all_items] session_id={getattr(session_context, 'session_id', 'unknown')}, items_count={len(items_dict)}")
                 return ExecutionResult(
                     status=ExecutionStatus.COMPLETED,
                     data={"items": items_dict},

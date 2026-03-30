@@ -398,10 +398,14 @@ class AnswerValidator:
         
         # 9. Сверка с ожидаемыми книгами
         if expected_books:
-            books_match = self._check_books_match(answer, expected_books)
+            print(f"\n[ВАЛИДАЦИЯ] Проверка книг:")
+            print(f"  Expected books: {[b.get('title', '') for b in expected_books]}")
+            print(f"  Answer: {answer[:200]}...")
+            books_match, missing_books = self._check_books_match_detailed(answer, expected_books)
             checks['books_match'] = books_match
+            checks['missing_books'] = missing_books
             if not books_match:
-                errors.append('Не все ожидаемые книги упомянуты')
+                errors.append(f'Не все ожидаемые книги упомянуты: не найдены {missing_books}')
         
         return {
             'passed': len(errors) == 0,
@@ -573,18 +577,38 @@ class AnswerValidator:
         """
         return bool(re.search(r'\d+', answer))
     
+    def _normalize_russian(self, text: str) -> str:
+        """Нормализация русского текста: ё -> е"""
+        text = text.lower()
+        text = text.replace('ё', 'е')
+        text = text.replace('Ё', 'Е')
+        return text
+
+    def _check_books_match_detailed(self, answer: str, expected_books: List[Dict[str, Any]]) -> tuple[bool, List[str]]:
+        """
+        Проверка, что все ожидаемые книги упомянуты в ответе.
+        Возвращает (match, missing_books)
+        """
+        answer_normalized = self._normalize_russian(answer)
+        missing = []
+        
+        for book in expected_books:
+            title = book.get('title', '')
+            if title:
+                title_normalized = self._normalize_russian(title)
+                found = title_normalized in answer_normalized
+                print(f"    Проверка '{title}' -> нормализовано: '{title_normalized}' -> найдено: {found}")
+                if not found:
+                    missing.append(title)
+        
+        return len(missing) == 0, missing
+
     def _check_books_match(self, answer: str, expected_books: List[Dict[str, Any]]) -> bool:
         """
         Проверка, что все ожидаемые книги упомянуты в ответе.
         """
-        answer_lower = answer.lower()
-        
-        for book in expected_books:
-            title = book.get('title', '')
-            if title and title.lower() not in answer_lower:
-                return False
-        
-        return True
+        match, _ = self._check_books_match_detailed(answer, expected_books)
+        return match
 
 
 # ============================================================================

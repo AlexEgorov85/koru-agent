@@ -207,7 +207,7 @@ class BookLibrarySkill(BaseSkill):
         else:
             params_dict = {}
 
-        return await handler.execute(params_dict)
+        return await handler.execute(params_dict, execution_context)
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """

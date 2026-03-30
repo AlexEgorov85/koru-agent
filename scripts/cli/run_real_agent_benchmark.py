@@ -18,6 +18,14 @@
     # Запустить один конкретный вопрос
     py -m scripts.cli.run_real_agent_benchmark -g "Какие книги написал Пушкин?"
 """
+
+import sys
+import asyncio
+
+def log_print(*args, **kwargs):
+    """Печать с flush для немедленного вывода"""
+    print(*args, **kwargs)
+    sys.stdout.flush()
 import asyncio
 import json
 import argparse
@@ -131,19 +139,24 @@ async def main():
     }
 
     for i, test in enumerate(test_cases, 1):
-        print(f"\n{'='*60}")
-        print(f"ТЕСТ {i}/{len(test_cases)}: {test.get('name', test['input'][:50])}...")
-        print(f"{'='*60}\n")
+        log_print(f"\n{'='*60}")
+        log_print(f"ТЕСТ {i}/{len(test_cases)}: {test.get('name', test['input'][:50])}...")
+        log_print(f"{'='*60}\n")
 
         # Создание и запуск агента
         agent_config = AgentConfig(max_steps=10, temperature=0.2)
         agent = await agent_factory.create_agent(goal=test['input'], config=agent_config)
         
-        print("🚀 Агент запущен...\n")
+        log_print("🚀 Агент запущен...\n")
+        sys.stdout.flush()
         result = await agent.run(test['input'])
+        sys.stdout.flush()
+        
+        # Очистка буфера между тестами
+        await asyncio.sleep(0.1)
 
         # Вывод результата
-        print(f"\n📊 Результат:")
+        log_print(f"\n📊 Результат:")
         
         if hasattr(result, 'data') and result.data:
             if isinstance(result.data, dict):

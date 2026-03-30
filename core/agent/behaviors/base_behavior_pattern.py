@@ -97,6 +97,8 @@ class PromptBuilderService:
         if not last_steps:
             return "Шаги не выполнены"
         
+        print(f"[DEBUG _build_step_history] last_steps count: {len(last_steps)}")
+        
         step_lines = []
         for i, step in enumerate(last_steps[-5:], 1):  # Последние 5 шагов
             if hasattr(step, 'capability_name'):
@@ -173,6 +175,7 @@ class PromptBuilderService:
         - 500-1000 строк: только статистика + 3 примера
         - > 1000 строк: только мета + рекомендация использовать data_analysis
         """
+        print(f"[DEBUG _extract_observations_from_step] observation_item_ids={observation_item_ids}")
         if not observation_item_ids:
             return "Нет наблюдений"
         

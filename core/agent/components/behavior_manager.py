@@ -103,18 +103,22 @@ class BehaviorManager:
             )
 
         # Единая точка анализа контекста
+        print(f"[DEBUG behavior_manager] BEFORE analyze_context, session_id={session_context.session_id}")
         context_analysis = await self._current_pattern.analyze_context(
             session_context,
             available_capabilities,
             {}  # Доп. анализ можно расширить
         )
+        print(f"[DEBUG behavior_manager] AFTER analyze_context, BEFORE generate_decision, session_id={session_context.session_id}")
 
         # Генерация решения
+        print(f"[DEBUG behavior_manager] Calling generate_decision...")
         decision = await self._current_pattern.generate_decision(
             session_context,
             available_capabilities,
             context_analysis
         )
+        print(f"[DEBUG behavior_manager] AFTER generate_decision, decision={decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}")
 
         if self.event_bus_logger:
             await self.event_bus_logger.info(f"Получен decision: action={decision.action.value}, capability_name={decision.capability_name}")

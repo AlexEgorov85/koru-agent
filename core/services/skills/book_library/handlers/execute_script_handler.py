@@ -95,12 +95,13 @@ class ExecuteScriptHandler(BaseSkillHandler):
 
     capability_name = "book_library.execute_script"
 
-    async def execute(self, params: Dict[str, Any]) -> Any:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
         """
         Выполнение статического скрипта.
 
         ARGS:
         - params: входные параметры (script_name, ...)
+        - execution_context: контекст выполнения (переданный агентом)
 
         RETURNS:
         - Pydantic модель или dict с результатами выполнения

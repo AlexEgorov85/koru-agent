@@ -16,12 +16,13 @@ class ListScriptsHandler(BaseSkillHandler):
 
     capability_name = "book_library.list_scripts"
 
-    async def execute(self, params: Dict[str, Any] = None) -> Any:
+    async def execute(self, params: Dict[str, Any] = None, execution_context: Any = None) -> Any:
         """
         Получение списка доступных скриптов.
 
         ARGS:
         - params: не используется (информационная capability)
+        - execution_context: контекст выполнения (переданный агентом)
 
         RETURNS:
         - ExecutionResult со списком скриптов

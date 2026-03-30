@@ -21,12 +21,13 @@ class SemanticSearchHandler(BaseSkillHandler):
 
     capability_name = "book_library.semantic_search"
 
-    async def execute(self, params: Dict[str, Any]) -> Any:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
         """
         Выполнение семантического поиска.
 
         ARGS:
         - params: входные параметры (query, top_k, min_score)
+        - execution_context: контекст выполнения (переданный агентом)
 
         RETURNS:
         - Pydantic модель или dict с результатами поиска
@@ -38,10 +39,10 @@ class SemanticSearchHandler(BaseSkillHandler):
         query, top_k, min_score = self._extract_params(params)
 
         # 2. Проверка доступности векторного поиска
-        await self._check_vector_search_ready()
+        await self._check_vector_search_ready(execution_context)
 
         # 3. Выполнение векторного поиска
-        search_data = await self._execute_vector_search(query, top_k, min_score)
+        search_data = await self._execute_vector_search(query, top_k, min_score, execution_context)
 
         # 4. Форматирование результата
         total_time = time.time() - start_time
@@ -82,18 +83,22 @@ class SemanticSearchHandler(BaseSkillHandler):
 
         return query, top_k, min_score
 
-    async def _check_vector_search_ready(self) -> None:
+    async def _check_vector_search_ready(self, execution_context: Any = None) -> None:
         """
         Проверка доступности векторного поиска.
+
+        ARGS:
+        - execution_context: контекст выполнения
 
         RAISES:
         - InfrastructureError: если векторный поиск не инициализирован
         """
         try:
+            exec_ctx = execution_context if execution_context else ExecutionContext()
             test_result = await self.executor.execute_action(
                 action_name="vector_books.search",
                 parameters={"query": "test", "top_k": 1},
-                context=ExecutionContext()
+                context=exec_ctx
             )
             if test_result.status != ExecutionStatus.COMPLETED:
                 raise InfrastructureError(
@@ -114,7 +119,8 @@ class SemanticSearchHandler(BaseSkillHandler):
         self,
         query: str,
         top_k: int,
-        min_score: float
+        min_score: float,
+        execution_context: Any = None
     ) -> Dict[str, Any]:
         """
         Выполнение векторного поиска.
@@ -123,6 +129,7 @@ class SemanticSearchHandler(BaseSkillHandler):
         - query: поисковый запрос
         - top_k: количество результатов
         - min_score: минимальный порог релевантности
+        - execution_context: контекст выполнения
 
         RETURNS:
         - dict: данные поиска
@@ -131,10 +138,7 @@ class SemanticSearchHandler(BaseSkillHandler):
         - VectorSearchError: если поиск не удался
         """
         try:
-            exec_context = ExecutionContext(
-                session_context=self.application_context.session_context,
-                user_context=None
-            )
+            exec_ctx = execution_context if execution_context else ExecutionContext()
 
             result = await self.executor.execute_action(
                 action_name="vector_books.search",

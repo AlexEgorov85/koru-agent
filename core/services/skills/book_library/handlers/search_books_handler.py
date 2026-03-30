@@ -25,12 +25,13 @@ class SearchBooksHandler(BaseSkillHandler):
     DEFAULT_SCHEMA = "Lib"
     TABLES = ["books", "authors"]
 
-    async def execute(self, params: Dict[str, Any]) -> Any:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
         """
         Выполнение динамического поиска книг.
 
         ARGS:
         - params: входные параметры (query, max_results)
+        - execution_context: контекст выполнения (переданный агентом)
 
         RETURNS:
         - Pydantic модель или dict с результатами поиска

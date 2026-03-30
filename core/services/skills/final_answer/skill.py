@@ -266,6 +266,12 @@ class FinalAnswerSkill(BaseSkill):
                 context=execution_context
             )
 
+            # DEBUG: check what's in execution_context
+            print(f"[DEBUG final_answer] execution_context.session_context={getattr(execution_context, 'session_context', 'None')}")
+            if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
+                sc = execution_context.session_context
+                print(f"[DEBUG final_answer] sc.session_id={getattr(sc, 'session_id', 'unknown')}, items={sc.data_context.count() if hasattr(sc, 'data_context') else 'N/A'}")
+
             if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
                 all_items = all_items_result.result.get("items", {})
 
@@ -466,13 +472,18 @@ class FinalAnswerSkill(BaseSkill):
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
             # Получаем структурированные данные
-            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
-            llm_result_data = llm_result.result
+            llm_result_data = llm_result.data
+            
+            # Пытаемся извлечь parsed_content
             if hasattr(llm_result_data, 'parsed_content'):
-                # StructuredLLMResponse — извлекаем parsed_content
                 parsed_response = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
-                parsed_response = llm_result_data.get("parsed_content", {})
+                # Если есть ключ 'parsed_content' - используем его
+                if "parsed_content" in llm_result_data:
+                    parsed_response = llm_result_data.get("parsed_content", {})
+                else:
+                    # Данные уже в корне dict - используем сам dict
+                    parsed_response = llm_result_data
             else:
                 parsed_response = llm_result_data if llm_result_data else {}
 
@@ -505,9 +516,7 @@ class FinalAnswerSkill(BaseSkill):
                 metadata_val = parsed_response.get("metadata", {})
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
-            print(f"[FINAL_ANSWER_DEBUG] final_answer_val='{final_answer_val}', sources_val={len(sources_val) if sources_val else 0}")
             if not final_answer_val and sources_val:
-                print(f"[FINAL_ANSWER_DEBUG] FALLBACK triggered! Generating answer from sources...")
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug(f"FALLBACK: final_answer пустой, sources={len(sources_val)}")
                 # Извлекаем названия книг из sources
@@ -522,18 +531,14 @@ class FinalAnswerSkill(BaseSkill):
                     elif source:
                         book_titles.append(str(source))
                 
-                print(f"[FINAL_ANSWER_DEBUG] book_titles={book_titles}")
-                
                 # Генерируем ответ из списка книг
                 if book_titles:
                     count = len(book_titles)
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
-                    print(f"[FINAL_ANSWER_DEBUG] Generated answer: {final_answer_val}")
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val[:100]}")
             elif not final_answer_val:
-                print(f"[FINAL_ANSWER_DEBUG] FALLBACK NOT triggered - final_answer='{final_answer_val}', sources={sources_val}")
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
 

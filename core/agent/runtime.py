@@ -158,13 +158,11 @@ class AgentRuntime:
         )
         self.progress_metrics = ProgressMetrics()
 
-        # Создаем session_context, если он не существует в application_context
-        if not hasattr(application_context, 'session_context') or application_context.session_context is None:
-            from core.session_context.session_context import SessionContext
-            # Используем session_id из infrastructure_context если доступен
-            session_id = getattr(application_context.infrastructure_context, 'id', None)
-            application_context.session_context = SessionContext(session_id=str(session_id))
-            application_context.session_context.set_goal(goal)
+        # Создаем session_context как атрибут агента (не в application_context!)
+        from core.session_context.session_context import SessionContext
+        self.session_context = SessionContext(session_id=str(uuid.uuid4()))
+        self.session_context.set_goal(goal)
+        print(f"[DEBUG] Agent created with NEW session_context: {self.session_context.session_id}, goal: {goal[:50]}")
 
         # Настройка логирования через EventBus (стандартное logging НЕ используется)
         self.event_bus_logger = None
@@ -255,7 +253,7 @@ class AgentRuntime:
 
         # Запись решения паттерна поведения
         if decision:
-            self.application_context.session_context.record_decision(
+            self.session_context.record_decision(
                 decision.action.value,
                 reasoning=decision.reason
             )
@@ -309,7 +307,7 @@ class AgentRuntime:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.state.finished = True
             # Регистрируем финальное решение
-            self.application_context.session_context.record_decision(
+            self.session_context.record_decision(
                 decision_data="STOP",
                 reasoning="goal_achieved"
             )
@@ -495,7 +493,7 @@ class AgentRuntime:
             execution_result = await self.safe_executor.execute(
                 capability_name=decision.capability_name,
                 parameters=decision.parameters,
-                context=self.application_context.session_context
+                context=self.session_context
             )
 
             # Публикуем результат выполнения
@@ -531,9 +529,8 @@ class AgentRuntime:
                     )
 
             # Обновление контекста выполнения
-            if (hasattr(self.application_context, 'session_context') and
-                self.application_context.session_context):
-                action_id = self.application_context.session_context.record_action({
+            if self.session_context:
+                action_id = self.session_context.record_action({
                     "step": self._current_step + 1,
                     "action": decision.capability_name,
                     "result": execution_result,
@@ -583,7 +580,7 @@ class AgentRuntime:
                         self.state.register_error()  # увеличиваем счётчик ошибок
 
                     if obs_data:
-                        observation_id = self.application_context.session_context.record_observation(
+                        observation_id = self.session_context.record_observation(
                             observation_data=obs_data,
                             source=decision.capability_name,
                             step_number=self._current_step + 1
@@ -621,11 +618,11 @@ class AgentRuntime:
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.application_context.session_context.step_context.count()}")
+                        await self.event_bus_logger.info(f"🔵 step_context до register_step: count={self.session_context.step_context.count()}")
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
-                    self.application_context.session_context.register_step(
+                    self.session_context.register_step(
                         step_number=self._current_step + 1,
                         capability_name=decision.capability_name,
                         skill_name=decision.capability_name.split('.')[0] if '.' in decision.capability_name else decision.capability_name,
@@ -641,7 +638,7 @@ class AgentRuntime:
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.application_context.session_context.step_context.count()}")
+                        await self.event_bus_logger.info(f"✅ step_context.count() после register_step = {self.session_context.step_context.count()}")
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 except Exception as e:
@@ -652,7 +649,7 @@ class AgentRuntime:
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
                 # Оценка прогресса и обновление состояния
-                progressed = self.progress.evaluate(self.application_context.session_context)
+                progressed = self.progress.evaluate(self.session_context)
                 self.state.register_progress(progressed)
 
                 # КРИТИЧНО: Помечаем результат final_answer.generate как финальный
@@ -680,7 +677,7 @@ class AgentRuntime:
             self.state.register_error()
 
             # Регистрация ошибки в контексте
-            self.application_context.session_context.record_error(
+            self.session_context.record_error(
                 error_data=str(e),
                 error_type="execution_error",
                 step_number=self._current_step + 1
@@ -748,7 +745,7 @@ class AgentRuntime:
 
         # Получаем решение от менеджера поведения
         decision = await self.behavior_manager.generate_next_decision(
-            session_context=self.application_context.session_context,
+            session_context=self.session_context,
             available_capabilities=available_caps
         )
 
@@ -831,8 +828,8 @@ class AgentRuntime:
                     )
 
         # Приоритет 2: Пытаемся извлечь из контекста сессии
-        if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
-            session_ctx = self.application_context.session_context
+        if self.session_context:
+            session_ctx = self.session_context
 
             # Пытаемся получить последний final_answer из контекста
             try:
@@ -900,6 +897,8 @@ class AgentRuntime:
         self._current_step = 0
         self._max_steps = max_steps or self._max_steps
 
+        print(f"[DEBUG] Agent run started, session_context id: {self.session_context.session_id}, data_context items: {self.session_context.data_context.count()}")
+
         # Логирование
         if self.event_bus_logger:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -909,8 +908,8 @@ class AgentRuntime:
 
         try:
             # Инициализация начального контекста выполнения
-            if hasattr(self.application_context, 'session_context') and self.application_context.session_context:
-                initial_context = self.application_context.session_context
+            if self.session_context:
+                initial_context = self.session_context
                 initial_context.record_action({
                     "step": 0,
                     "action": "initialization",
@@ -923,7 +922,7 @@ class AgentRuntime:
 
             # Публикация события начала сессии для MetricsCollector
             event_bus = self.application_context.infrastructure_context.event_bus
-            session_id = self.application_context.session_context.session_id
+            session_id = self.session_context.session_id
             await event_bus._publish_internal(
                 EventType.SESSION_STARTED,
                 {
@@ -955,23 +954,24 @@ class AgentRuntime:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             while self._running and self._current_step < self._max_steps:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug(f"\n🔵 [RUNTIME] === ИТЕРАЦИЯ {self._current_step} ===")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                print(f"\n=== ШАГ {self._current_step} ===")
+                print(f"  session_id: {self.session_context.session_id}")
+                print(f"  GOAL: {self.goal}")
+                print(f"  data_context.items: {self.session_context.data_context.count()}")
+                print(f"  state.finished: {self.state.finished}")
+                
+                # Получаем summary для понимания что LLM видит
+                summary = self.session_context.get_summary() if hasattr(self.session_context, 'get_summary') else {}
+                print(f"  summary.step_count: {summary.get('step_count', 0)}")
+                print(f"  summary.last_steps: {len(summary.get('last_steps', []))}")
 
                 # ← НОВОЕ: Явные stop conditions
                 if self._should_stop_early():
-                    if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.info("Ранняя остановка: _should_stop_early=True")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    print(f"  -> ОСТАНОВКА: _should_stop_early()")
                     break
 
                 if self.state.finished:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    logger.debug(f"🔴 [RUNTIME] BREAK: state.finished=True")
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    print(f"  -> ОСТАНОВКА: state.finished=True")
                     break
 
                 # Получаем доступные capability
@@ -986,22 +986,16 @@ class AgentRuntime:
                 else:
                     available_caps = []
 
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug(f"🔵 [RUNTIME] available_caps count={len(available_caps)}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                print(f"  available_caps: {[c.name for c in available_caps[:5]]}")
 
                 # Получаем decision
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug(f"🔵 [RUNTIME] Вызов behavior_manager.generate_next_decision()...")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 decision = await self.behavior_manager.generate_next_decision(
-                    session_context=self.application_context.session_context,
+                    session_context=self.session_context,
                     available_capabilities=available_caps
                 )
 
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                logger.debug(f"🔵 [RUNTIME] Получен decision: action={decision.action.value}, capability_name={getattr(decision, 'capability_name', 'N/A')}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                print(f"  -> DECISION: action={decision.action.value}, capability={getattr(decision, 'capability_name', 'N/A')}")
+                print(f"  -> DECISION reason: {decision.reason[:100] if decision.reason else 'N/A'}")
 
                 # ← НОВОЕ: Детекция зацикливания действий
                 current_action_key = f"{decision.action.value}:{getattr(decision, 'capability_name', 'N/A')}"
@@ -1067,7 +1061,7 @@ class AgentRuntime:
                     error_type = step_result.metadata.get('error_type')
 
                 # Публикация события выполнения шага для MetricsCollector
-                session_id = self.application_context.session_context.session_id
+                session_id = self.session_context.session_id
                 await self.application_context.infrastructure_context.event_bus._publish_internal(
                     EventType.SKILL_EXECUTED,
                     {
@@ -1152,10 +1146,19 @@ class AgentRuntime:
                 if previous_snapshot and current_snapshot == previous_snapshot:
                     no_progress_counter += 1
                     if no_progress_counter >= 2:
-                        from core.models.errors import AgentStuckError
-                        raise AgentStuckError(
-                            "State did not mutate after observe() for 2 consecutive steps"
-                        )
+                        # Вместо ошибки - принудительно вызываем final_answer
+                        print(f"[RUNTIME] No progress for 2 steps, forcing final_answer")
+                        try:
+                            step_result = await self.safe_executor.execute(
+                                capability_name="final_answer.generate",
+                                parameters={"include_steps": True, "include_evidence": True, "format_type": "number"},
+                                context=self.session_context
+                            )
+                            self._result = step_result
+                        except Exception as e:
+                            self._result = ExecutionResult.failure(error=f"Stuck: {str(e)}")
+                        self._running = False
+                        break
                 else:
                     no_progress_counter = 0
 
@@ -1221,8 +1224,8 @@ class AgentRuntime:
             if hasattr(self, 'application_context') and self.application_context:
                 if hasattr(self.application_context, 'infrastructure_context'):
                     event_bus = self.application_context.infrastructure_context.event_bus
-                    if event_bus and hasattr(self.application_context, 'session_context'):
-                        session_id = self.application_context.session_context.session_id
+                    if event_bus and self.session_context:
+                        session_id = self.session_context.session_id
                         await event_bus._publish_internal(
                             EventType.SESSION_COMPLETED,
                             {
@@ -1248,6 +1251,12 @@ class AgentRuntime:
 
     def _update_state(self, result: ExecutionResult):
         """Обновление состояния агента."""
+        if result is None:
+            self.progress_metrics.error_count += 1
+            self.progress_metrics.consecutive_errors += 1
+            self.progress_metrics.no_progress_steps += 1
+            return
+        
         if result.status == ExecutionStatus.COMPLETED:
             self.progress_metrics.error_count = 0
             self.progress_metrics.consecutive_errors = 0
@@ -1259,6 +1268,9 @@ class AgentRuntime:
 
     def _should_stop(self, result: ExecutionResult) -> bool:
         """Проверка необходимости остановки."""
+        if result is None:
+            return False
+        
         # Проверка на финальный результат
         if isinstance(result, ExecutionResult):
             if result.metadata and isinstance(result.metadata, dict):

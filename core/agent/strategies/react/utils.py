@@ -69,6 +69,7 @@ def analyze_context(session_context: 'SessionContext') -> ContextAnalysis:
 
         # Получаем цель сессии
         goal = session_context.goal if hasattr(session_context, 'goal') else "Неизвестная цель"
+        print(f"[DEBUG analyze_context] session_id={getattr(session_context, 'session_id', 'unknown')}, goal={goal[:50] if goal else 'None'}")
         
         # Получаем текущий прогресс
         progress = session_context.get_progress() if hasattr(session_context, 'get_progress') else {}
