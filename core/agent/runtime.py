@@ -96,8 +96,15 @@ class AgentRuntime:
         """
         # Инициализация Pattern
         from core.agent.behaviors.react.pattern import ReActPattern
+        
+        # Получаем component_config из application_context
+        component_config = None
+        if hasattr(self.application_context, 'config'):
+            component_config = self.application_context.config.get_component_config("react_pattern")
+        
         pattern = ReActPattern(
             component_name="react_pattern",
+            component_config=component_config,
             application_context=self.application_context,
             executor=self.executor
         )
