@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List, Type
 
 from pydantic import BaseModel
 
-from core.agent.behaviors.base import BehaviorPatternInterface, BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorPatternInterface, Decision, DecisionType
 from core.models.data.capability import Capability
 from core.models.data.prompt import Prompt
 from core.session_context.session_context import SessionContext

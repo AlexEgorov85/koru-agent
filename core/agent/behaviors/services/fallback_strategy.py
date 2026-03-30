@@ -4,7 +4,7 @@ Fallback Strategy Service - стратегии fallback для behavior патт
 Используется для обработки ошибок и переключения между паттернами.
 """
 from typing import Dict, Any, List, Optional
-from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import Decision, DecisionType
 from core.models.data.capability import Capability
 
 

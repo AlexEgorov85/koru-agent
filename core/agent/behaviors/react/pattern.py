@@ -12,7 +12,6 @@
 from typing import Any, Dict, List
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
-from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType  # DEPRECATED
 from core.agent.strategies.react.schema_validator import SchemaValidator
 from core.agent.strategies.react.utils import analyze_context
 from core.infrastructure.event_bus.unified_event_bus import EventType
