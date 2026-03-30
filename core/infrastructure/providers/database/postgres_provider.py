@@ -359,12 +359,12 @@ class PostgreSQLProvider(BaseDBProvider):
             await self.event_bus_logger.error(f"[DB_DEBUG] исключение при выполнении запроса: {e}")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
+            await self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.event_bus_logger.error(f"Query was: {query}")
+            await self.event_bus_logger.error(f"Query was: {query}")
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if params:
-                self.event_bus_logger.error(f"Params were: {params}")
+                await self.event_bus_logger.error(f"Params were: {params}")
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             self._update_metrics(time.time() - start_time, success=False)
