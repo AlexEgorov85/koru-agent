@@ -97,6 +97,7 @@ class AgentRuntime:
         # Инициализация Pattern
         from core.agent.behaviors.react.pattern import ReActPattern
         pattern = ReActPattern(
+            component_name="react_pattern",
             application_context=self.application_context,
             executor=self.executor
         )
