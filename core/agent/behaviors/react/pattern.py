@@ -33,10 +33,6 @@ class ReActPattern(BaseBehaviorPattern):
     ):
         super().__init__(component_name, component_config, application_context, executor, event_bus)
         
-        self.reasoning_schema = None
-        self.reasoning_prompt_template = None
-        self.system_prompt_template = None
-        
         self.error_count = 0
         self.max_consecutive_errors = 3
         
@@ -93,21 +89,21 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Decision:
         """Генерация решения через LLM."""
-        # Проверка ресурсов
-        if not self._ensure_resources_loaded():
-            return self._handle_error("resources_not_loaded", available_capabilities)
-        
         try:
-            # Рендеринг промпта
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
             
-            prompt = self.prompt_builder.build_reasoning_prompt(
+            # Берём промпт и контракт (загружены в initialize())
+            prompt = self.get_prompt("behavior.react.think")
+            output_contract = self.get_output_contract("behavior.react.think")
+            
+            # Schema из контракта
+            schema = output_contract.model_json_schema() if output_contract else None
+            
+            # Рендеринг
+            full_prompt = self.prompt_builder.build_reasoning_prompt(
                 context_analysis=context,
                 available_capabilities=available_capabilities,
-                templates={
-                    "system": self.system_prompt_template,
-                    "user": self.reasoning_prompt_template
-                },
+                templates={"system": prompt, "user": prompt},
                 schema_validator=self.schema_validator,
                 session_context=session_context
             )
@@ -120,13 +116,13 @@ class ReActPattern(BaseBehaviorPattern):
                 )
             
             llm_request = LLMRequest(
-                prompt=prompt,
-                system_prompt=self.system_prompt_template,
+                prompt=full_prompt,
+                system_prompt=prompt,
                 temperature=0.3,
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
                     output_model="ReasoningResult",
-                    schema_def=self.reasoning_schema,
+                    schema_def=schema,
                     max_retries=3,
                     strict_mode=False
                 )
@@ -146,11 +142,7 @@ class ReActPattern(BaseBehaviorPattern):
             reasoning_result = result.parsed_content
             
             # Сохраняем размышление
-            thought = ""
-            if isinstance(reasoning_result, dict):
-                thought = reasoning_result.get("thought", "")
-            elif hasattr(reasoning_result, "thought"):
-                thought = reasoning_result.thought
+            thought = getattr(reasoning_result, "thought", "") or ""
             session_context.record_decision(decision_data="reasoning", reasoning=thought)
             
             # Принятие решения
@@ -168,31 +160,20 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Decision:
         """Преобразовать результат LLM в Decision."""
+        stop_condition = getattr(reasoning_result, "stop_condition", False)
+        stop_reason = getattr(reasoning_result, "stop_reason", None)
         
-        # Извлечение данных
-        if isinstance(reasoning_result, dict):
-            stop_condition = reasoning_result.get("stop_condition", False)
-            stop_reason = reasoning_result.get("stop_reason")
-            decision = reasoning_result.get("decision", {})
-            capability_name = decision.get("next_action") if isinstance(decision, dict) else None
-            parameters = decision.get("parameters", {}) if isinstance(decision, dict) else {}
-            reasoning = decision.get("reasoning", "") if isinstance(decision, dict) else ""
-        else:
-            stop_condition = getattr(reasoning_result, "stop_condition", False)
-            stop_reason = getattr(reasoning_result, "stop_reason", None)
-            decision = getattr(reasoning_result, "decision", None)
-            capability_name = getattr(decision, "next_action", None) if decision else None
-            parameters = getattr(decision, "parameters", {}) if decision else {}
-            reasoning = getattr(decision, "reasoning", "") if decision else ""
+        decision = getattr(reasoning_result, "decision", None)
+        capability_name = getattr(decision, "next_action", None) if decision else None
+        parameters = getattr(decision, "parameters", {}) if decision else {}
+        reasoning = getattr(decision, "reasoning", "") if decision else ""
         
-        # Обработка stop_condition
         if stop_condition:
             return self._handle_stop_condition(capability_name, parameters, stop_reason)
         
         if not capability_name:
             return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action")
         
-        # Поиск capability
         capability = self._find_capability(available_capabilities, capability_name)
         
         if not capability:
@@ -252,44 +233,3 @@ class ReActPattern(BaseBehaviorPattern):
                 error=f"too_many_errors:{self.error_count}"
             )
         return self.fallback_strategy.create_error(reason, capabilities)
-
-    def _ensure_resources_loaded(self) -> bool:
-        """Загрузить ресурсы если нужно."""
-        if self.reasoning_prompt_template and self.reasoning_schema and self.system_prompt_template:
-            return True
-        
-        # system_prompt
-        if 'behavior.react.think' in self.system_prompts:
-            obj = self.system_prompts['behavior.react.think']
-            if hasattr(obj, 'content') and obj.content:
-                self.system_prompt_template = obj.content
-        
-        if not self.system_prompt_template and self.prompts:
-            if "behavior.react.think.system" in self.prompts:
-                obj = self.prompts["behavior.react.think.system"]
-                if hasattr(obj, 'content') and obj.content:
-                    self.system_prompt_template = obj.content
-        
-        # user_prompt
-        if 'behavior.react.think' in self.user_prompts:
-            obj = self.user_prompts['behavior.react.think']
-            if hasattr(obj, 'content') and obj.content:
-                self.reasoning_prompt_template = obj.content
-        
-        if not self.reasoning_prompt_template and self.prompts:
-            if "behavior.react.think.user" in self.prompts:
-                obj = self.prompts["behavior.react.think.user"]
-                if hasattr(obj, 'content') and obj.content:
-                    self.reasoning_prompt_template = obj.content
-        
-        # schema
-        if self.output_contracts and "behavior.react.think" in self.output_contracts:
-            schema_cls = self.output_contracts["behavior.react.think"]
-            if schema_cls:
-                self.reasoning_schema = (
-                    schema_cls.model_json_schema() 
-                    if hasattr(schema_cls, 'model_json_schema') 
-                    else schema_cls
-                )
-        
-        return bool(self.reasoning_prompt_template and self.reasoning_schema and self.system_prompt_template)
