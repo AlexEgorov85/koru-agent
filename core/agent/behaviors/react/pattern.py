@@ -542,41 +542,37 @@ class ReActPattern(BaseBehaviorPattern):
             session_context=session_context
         )
 
-        # === 3. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR ===
-        # Получаем LLM результат через executor
-        llm_result = await self.executor.execute_action(
-            action_name="llm.generate_structured",
-            parameters={
-                "prompt": reasoning_prompt,
-                "system_prompt": self.system_prompt_template,
-                "temperature": 0.3,
-                "max_tokens": 1000,
-                "structured_output": {
-                    "output_model": "ReasoningResult",
-                    "schema_def": self.reasoning_schema,
-                    "max_retries": 3,
-                    "strict_mode": False
-                }
-            },
-            context=execution_context
+        # === 3. ВЫЗОВ LLM ЧЕРЕЗ LLMOrchestrator (напрямую!) ===
+        from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
+        
+        llm_request = LLMRequest(
+            prompt=reasoning_prompt,
+            system_prompt=self.system_prompt_template,
+            temperature=0.3,
+            max_tokens=1000,
+            structured_output=StructuredOutputConfig(
+                output_model="ReasoningResult",
+                schema_def=self.reasoning_schema,
+                max_retries=3,
+                strict_mode=False
+            )
         )
-
-        if not llm_result.status.name == "COMPLETED":
-            await self._log("warning", f"LLM вызов не удался: {llm_result.error}, используем fallback")
+        
+        # Прямой вызов LLMOrchestrator (без ActionExecutor!)
+        llm_result = await self.llm_orchestrator.generate_structured(
+            request=llm_request,
+            session_id=session_context.session_id if session_context else "unknown"
+        )
+        
+        if not llm_result or not hasattr(llm_result, 'parsed_content') or llm_result.parsed_content is None:
+            await self._log("warning", f"LLM вызов не удался: {llm_result}, используем fallback")
             return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
                 reason="llm_call_failed"
             )
-
-        # Извлекаем результат
-        result = llm_result.result
-        if hasattr(result, 'parsed_content'):
-            reasoning_result = result.parsed_content
-        elif isinstance(result, dict):
-            reasoning_result = result.get('parsed_content', result)
-        else:
-            reasoning_result = result
+        
+        reasoning_result = llm_result.parsed_content
 
         # Получаем цель из session_context
         goal_value = session_context.get_goal() if session_context else "unknown"
