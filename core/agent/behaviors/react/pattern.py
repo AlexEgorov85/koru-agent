@@ -44,6 +44,13 @@ class ReActPattern(BaseBehaviorPattern):
         if self.application_context and hasattr(self.application_context, 'llm_orchestrator'):
             return self.application_context.llm_orchestrator
         return None
+    
+    @property
+    def llm_provider(self):
+        """Получить LLM провайдер из инфраструктурного контекста."""
+        if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+            return self.application_context.infrastructure_context.get_provider("default")
+        return None
 
     # =========================================================================
     # ПУБЛИЧНЫЙ ИНТЕРФЕЙС
@@ -145,15 +152,30 @@ class ReActPattern(BaseBehaviorPattern):
                 )
             )
             
-            result = await orchestrator.execute_structured(
-                request=llm_request,
-                provider=None,
-                session_id=session_context.session_id
-            )
+            # Получаем провайдер из инфраструктурного контекста
+            provider = self.llm_provider
+            print(f"[DEBUG] LLM provider: {provider}")
+            print(f"[DEBUG] LLM provider type: {type(provider)}")
+            
+            try:
+                print(f"[DEBUG] Calling orchestrator.execute_structured...")
+                result = await orchestrator.execute_structured(
+                    request=llm_request,
+                    provider=provider,
+                    session_id=session_context.session_id
+                )
+                print(f"[DEBUG] LLM result: {type(result)}")
+                print(f"[DEBUG] LLM result: {result}")
+            except Exception as e:
+                print(f"[DEBUG] LLM EXCEPTION: {type(e).__name__}: {e}")
+                return self.fallback_strategy.create_error(
+                    f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
+                )
             
             if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
-                return self.fallback_strategy.create_reasoning_fallback(
-                    context, available_capabilities, "llm_call_failed"
+                print(f"[DEBUG] LLM FAILED - result: {result}")
+                return self.fallback_strategy.create_error(
+                    "llm_call_failed", available_capabilities
                 )
             
             reasoning_result = result.parsed_content

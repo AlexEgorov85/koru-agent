@@ -84,6 +84,9 @@ class EventType(Enum):
     SYSTEM_INITIALIZED = "system.initialized"
     SYSTEM_SHUTDOWN = "system.shutdown"
     SYSTEM_ERROR = "system.error"
+    DEBUG = "debug"
+    WARNING = "warning"
+    INFO = "info"
 
     # === События жизненного цикла сессии ===
     SESSION_CREATED = "session.created"

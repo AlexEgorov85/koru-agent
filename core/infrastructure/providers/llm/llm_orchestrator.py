@@ -544,6 +544,22 @@ class LLMOrchestrator:
         call_id = self._generate_call_id()
         start_time = time.time()
 
+        # DEBUG: print request details
+        print(f"[LLM DEBUG] === EXECUTE_STRUCTURED ===")
+        print(f"[LLM DEBUG] request.prompt: {len(request.prompt) if request.prompt else 0} chars")
+        print(f"[LLM DEBUG] request.system_prompt: {len(request.system_prompt) if request.system_prompt else 0} chars")
+        print(f"[LLM DEBUG] request.model_name: {getattr(request, 'model_name', 'NOT SET')}")
+        print(f"[LLM DEBUG] request.temperature: {getattr(request, 'temperature', 'NOT SET')}")
+        print(f"[LLM DEBUG] request.max_tokens: {getattr(request, 'max_tokens', 'NOT SET')}")
+        print(f"[LLM DEBUG] structured_output: {request.structured_output}")
+        if request.structured_output:
+            print(f"[LLM DEBUG]   output_model: {request.structured_output.output_model}")
+            print(f"[LLM DEBUG]   schema_def: {type(request.structured_output.schema_def)}")
+            print(f"[LLM DEBUG]   max_retries: {request.structured_output.max_retries}")
+            print(f"[LLM DEBUG]   strict_mode: {request.structured_output.strict_mode}")
+        print(f"[LLM DEBUG] provider: {provider}")
+        print(f"[LLM DEBUG] use_native_structured_output: {use_native_structured_output}")
+
         # Обновление метрик
         self._metrics.structured_calls += 1
 
@@ -1057,6 +1073,18 @@ class LLMOrchestrator:
                 record.status = CallStatus.COMPLETED
                 record.end_time = time.time()
                 record.result = result
+
+            # DEBUG: print result
+            print(f"[LLM DEBUG] === EXECUTE RESULT ===")
+            print(f"[LLM DEBUG] result type: {type(result)}")
+            print(f"[LLM DEBUG] result.content: {result.content[:200] if result.content else 'EMPTY'}")
+            print(f"[LLM DEBUG] result.finish_reason: {result.finish_reason}")
+            print(f"[LLM DEBUG] result.tokens_used: {result.tokens_used}")
+            print(f"[LLM DEBUG] result.model: {result.model}")
+            print(f"[LLM DEBUG] result.metadata: {result.metadata}")
+            if hasattr(result, 'parsed_content'):
+                print(f"[LLM DEBUG] result.parsed_content: {result.parsed_content}")
+            print(f"[LLM DEBUG] ===================")
 
             # Обновление метрик
             self._metrics.completed_calls += 1

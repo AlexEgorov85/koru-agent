@@ -96,7 +96,8 @@ class AgentRuntime:
         3. Запись в context
         """
         # Создаём Pattern через ComponentFactory (загружает ресурсы автоматически)
-        print(f"🏭 Создание Pattern через ComponentFactory...")
+        event_bus = self.application_context.infrastructure_context.event_bus
+        await event_bus.publish(EventType.DEBUG, {"message": "🏭 Создание Pattern через ComponentFactory..."})
         
         from core.agent.components.component_factory import ComponentFactory
         from core.agent.behaviors.react.pattern import ReActPattern
@@ -104,15 +105,15 @@ class AgentRuntime:
         
         # Получаем component_config из application_context.config
         behavior_configs = getattr(self.application_context.config, 'behavior_configs', {})
-        print(f"🔍 behavior_configs: {list(behavior_configs.keys())}")
+        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 behavior_configs: {list(behavior_configs.keys())}"})
         
         component_config = behavior_configs.get('react_pattern')
         if not component_config:
-            print(f"⚠️ react_pattern не найден в behavior_configs, создаём новый")
+            await event_bus.publish(EventType.WARNING, {"message": "⚠️ react_pattern не найден в behavior_configs, создаём новый"})
             component_config = ComponentConfig(name="react_pattern", variant_id="default")
         else:
-            print(f"✅ Получен component_config из application_context")
-            print(f"   prompt_versions: {getattr(component_config, 'prompt_versions', {})}")
+            await event_bus.publish(EventType.INFO, {"message": "✅ Получен component_config из application_context"})
+            await event_bus.publish(EventType.DEBUG, {"message": f"   prompt_versions: {getattr(component_config, 'prompt_versions', {})}"})
         
         factory = ComponentFactory(
             infrastructure_context=self.application_context.infrastructure_context
@@ -125,24 +126,24 @@ class AgentRuntime:
             component_config=component_config,
             executor=self.executor
         )
-        print(f"✅ Pattern создан (state={pattern._state})")
-        print(f"🔍 pattern.prompts: {len(pattern.prompts)}")
-        print(f"🔍 pattern.input_contracts: {len(pattern.input_contracts)}")
-        print(f"🔍 pattern.output_contracts: {len(pattern.output_contracts)}")
+        await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern создан (state={pattern._state})"})
+        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.prompts: {len(pattern.prompts)}"})
+        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.input_contracts: {len(pattern.input_contracts)}"})
+        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.output_contracts: {len(pattern.output_contracts)}"})
         
         # Pattern создан но state=CREATED - ресурсы ещё не скопированы
         # Нужно вызвать initialize() чтобы BaseComponent._preload_resources() скопировал ресурсы
         if str(pattern._state) == "ComponentState.CREATED":
-            print(f"🔄 Pattern ещё не инициализирован, вызываем initialize()...")
+            await event_bus.publish(EventType.INFO, {"message": "🔄 Pattern ещё не инициализирован, вызываем initialize()..."})
             init_success = await pattern.initialize()
-            print(f"✅ Pattern.initialize() вернул: {init_success}")
-            print(f"🔍 pattern.prompts после init: {len(pattern.prompts)}")
-            print(f"🔍 pattern.input_contracts после init: {len(pattern.input_contracts)}")
-            print(f"🔍 pattern.output_contracts после init: {len(pattern.output_contracts)}")
+            await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern.initialize() вернул: {init_success}"})
+            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.prompts после init: {len(pattern.prompts)}"})
+            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.input_contracts после init: {len(pattern.input_contracts)}"})
+            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.output_contracts после init: {len(pattern.output_contracts)}"})
             # Debug: проверяем что в промптах
             for key, prompt in pattern.prompts.items():
                 content = getattr(prompt, 'content', None)
-                print(f"   📄 Prompt '{key}': content={type(content).__name__}, len={len(content) if content else 'None'}")
+                await event_bus.publish(EventType.DEBUG, {"message": f"   📄 Prompt '{key}': content len={len(content) if content else 'None'}"})
 
         # Начало сессии
         if self.event_bus_logger:

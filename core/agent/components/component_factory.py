@@ -28,6 +28,7 @@ from typing import Type, Any, Optional, TYPE_CHECKING
 from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.logging import EventBusLogger
   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -164,9 +165,16 @@ class ComponentFactory:
 
         # [REFACTOR v5.4.0] 1. Загружаем ресурсы ДО создания компонента
         preloader = self._get_resource_preloader(application_context)
-        print(f"🏭 ComponentFactory: preload_for_component({name})...")
+        
+        # Логирование через event_bus
+        event_bus = self._infrastructure_context.event_bus
+        await event_bus.publish(EventType.DEBUG, {"message": f"🏭 ComponentFactory: preload_for_component({name})..."})
+        
         resources = await preloader.preload_for_component(name, component_config)
-        print(f"🏭 ComponentFactory: resources: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}")
+        
+        await event_bus.publish(EventType.DEBUG, {
+            "message": f"🏭 ComponentFactory: resources: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}"
+        })
 
         # 2. Заполняем component_config.resolved_* загруженными ресурсами
         component_config.resolved_prompts = resources["prompts"]
