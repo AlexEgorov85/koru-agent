@@ -92,9 +92,7 @@ class PromptBuilderService:
         """Формирует читаемую историю шагов с реальными данными."""
         if not last_steps:
             return "Шаги не выполнены"
-        
-        print(f"[DEBUG _build_step_history] last_steps count: {len(last_steps)}")
-        
+
         step_lines = []
         for i, step in enumerate(last_steps[-5:], 1):  # Последние 5 шагов
             if hasattr(step, 'capability_name'):
@@ -102,17 +100,12 @@ class PromptBuilderService:
                 capability = step.capability_name
                 summary = step.summary or "Без описания"
                 status = step.status.value if hasattr(step.status, 'value') else str(step.status)
-                
+
                 # КРИТИЧНО: Получаем реальные данные из observation_item_ids
                 observation_text = self._extract_observations_from_step(
-                    session_context, 
+                    session_context,
                     step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
                 )
-                
-                # Формируем читаемую строку
-                step_text = f"{i}. {capability}\n"
-                step_text += f"   Результат: {observation_text}\n"
-                step_text += f"   Статус: {status}"
                 
             elif isinstance(step, dict):
                 # Это словарь (новый формат)
@@ -157,7 +150,6 @@ class PromptBuilderService:
         - 500-1000 строк: только статистика + 3 примера
         - > 1000 строк: только мета + рекомендация использовать data_analysis
         """
-        print(f"[DEBUG _extract_observations_from_step] observation_item_ids={observation_item_ids}")
         if not observation_item_ids:
             return "Нет наблюдений"
         

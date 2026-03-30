@@ -12,6 +12,7 @@ from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
 from core.agent.behaviors.base import Decision, DecisionType
 from core.agent.strategies.react.schema_validator import SchemaValidator
 from core.agent.strategies.react.utils import analyze_context
+from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
 from core.models.types.llm_types import LLMRequest
 from core.agent.behaviors.services import FallbackStrategyService
@@ -49,7 +50,11 @@ class ReActPattern(BaseBehaviorPattern):
     def llm_provider(self):
         """Получить LLM провайдер из инфраструктурного контекста."""
         if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
-            return self.application_context.infrastructure_context.get_provider("default")
+            infra = self.application_context.infrastructure_context
+            if infra.resource_registry:
+                resource = infra.resource_registry.get_resource("default_llm")
+                if resource:
+                    return resource.instance
         return None
 
     # =========================================================================
@@ -107,10 +112,15 @@ class ReActPattern(BaseBehaviorPattern):
             # Извлекаем content из Prompt объекта
             system = system_prompt.content if system_prompt else ""
             user = user_prompt.content if user_prompt else ""
-            
-            print(f"[DEBUG] system_prompt: {len(system)} chars")
-            print(f"[DEBUG] user_prompt: {len(user)} chars")
-            print(f"[DEBUG] output_contract: {output_contract}")
+
+            # Debug logging через event_bus
+            event_bus = self.application_context.infrastructure_context.event_bus
+            await event_bus.publish(EventType.DEBUG, {
+                "message": f"[DEBUG] system_prompt: {len(system)} chars, user_prompt: {len(user)} chars"
+            })
+            await event_bus.publish(EventType.DEBUG, {
+                "message": f"[DEBUG] output_contract: {output_contract}"
+            })
             
             # Schema из контракта (model_json_schema - метод класса, не экземпляра)
             schema = None
@@ -154,26 +164,26 @@ class ReActPattern(BaseBehaviorPattern):
             
             # Получаем провайдер из инфраструктурного контекста
             provider = self.llm_provider
-            print(f"[DEBUG] LLM provider: {provider}")
-            print(f"[DEBUG] LLM provider type: {type(provider)}")
             
             try:
-                print(f"[DEBUG] Calling orchestrator.execute_structured...")
                 result = await orchestrator.execute_structured(
                     request=llm_request,
                     provider=provider,
-                    session_id=session_context.session_id
+                    session_id=session_context.session_id,
+                    use_native_structured_output=False  # LlamaCpp не поддерживает нативный structured output
                 )
-                print(f"[DEBUG] LLM result: {type(result)}")
-                print(f"[DEBUG] LLM result: {result}")
             except Exception as e:
-                print(f"[DEBUG] LLM EXCEPTION: {type(e).__name__}: {e}")
+                await event_bus.publish(EventType.ERROR, {
+                    "message": f"[DEBUG] LLM EXCEPTION: {type(e).__name__}: {e}"
+                })
                 return self.fallback_strategy.create_error(
                     f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
                 )
             
             if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
-                print(f"[DEBUG] LLM FAILED - result: {result}")
+                await event_bus.publish(EventType.WARNING, {
+                    "message": f"[DEBUG] LLM FAILED - result: {result}"
+                })
                 return self.fallback_strategy.create_error(
                     "llm_call_failed", available_capabilities
                 )

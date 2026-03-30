@@ -1077,7 +1077,7 @@ class LLMOrchestrator:
             # DEBUG: print result
             print(f"[LLM DEBUG] === EXECUTE RESULT ===")
             print(f"[LLM DEBUG] result type: {type(result)}")
-            print(f"[LLM DEBUG] result.content: {result.content[:200] if result.content else 'EMPTY'}")
+            print(f"[LLM DEBUG] result.content: {result.content[:500] if result.content else 'EMPTY'}")
             print(f"[LLM DEBUG] result.finish_reason: {result.finish_reason}")
             print(f"[LLM DEBUG] result.tokens_used: {result.tokens_used}")
             print(f"[LLM DEBUG] result.model: {result.model}")
@@ -1090,7 +1090,7 @@ class LLMOrchestrator:
             self._metrics.completed_calls += 1
             self._metrics.total_generation_time += record.duration or 0
 
-            msg = f"✅ [Orchestrator] Получен StructuredLLMResponse: parsed_content type={type(result.parsed_content).__name__ if result.parsed_content else 'None'}"
+            msg = f"✅ [Orchestrator] Получен LLMResponse: content={result.content[:100] if result.content else 'EMPTY'}"
             if self._logger:
                 await self._logger.info(msg)
             else:
