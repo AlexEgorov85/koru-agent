@@ -399,8 +399,8 @@ class ReActPattern(BaseBehaviorPattern):
         }
 
         # Фильтрация capability через CapabilityResolverService
-        filtered_caps = self.capability_resolver.filter_capabilities(available_capabilities, self.pattern_id)
-        filtered_caps = self.capability_resolver.exclude_capability(filtered_caps, "final_answer.generate")
+        filtered_caps = self._filter_capabilities(available_capabilities, self.pattern_id)
+        # Удалено: exclude_capability — не используется
 
         analysis["available_capabilities"] = filtered_caps
 
