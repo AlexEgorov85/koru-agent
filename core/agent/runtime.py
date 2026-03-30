@@ -11,13 +11,14 @@ import uuid
 from typing import Optional
 
 from core.application_context.application_context import ApplicationContext
-from core.models.data.execution import ExecutionResult
+from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.agent.components.safe_executor import SafeExecutor
 from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
 from core.infrastructure.event_bus.unified_event_bus import EventType
+from core.models.enums.common_enums import ExecutionStatus
 
 
 class AgentRuntime:
@@ -164,6 +165,19 @@ class AgentRuntime:
                     observation_item_ids=[],
                     summary=decision.reasoning,
                     status=result.status
+                )
+            
+            # Pattern решил FINISH/FAIL/SWITCH?
+            else:
+                # Записываем шаг с решением Pattern
+                self.session_context.register_step(
+                    step_number=step + 1,
+                    capability_name=decision.type.value,
+                    skill_name='pattern',
+                    action_item_id='',
+                    observation_item_ids=[],
+                    summary=decision.reasoning,
+                    status=ExecutionStatus.COMPLETED if decision.type == DecisionType.FINISH else ExecutionStatus.FAILED
                 )
 
             # Pattern решил SWITCH?
