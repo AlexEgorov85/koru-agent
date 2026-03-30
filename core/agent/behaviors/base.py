@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -50,64 +50,6 @@ class Decision:
         self.action = value
 
 
-# ============================================================================
-# УДАЛЕНО в Этапе 8: deprecated алиасы
-# ============================================================================
-# BehaviorDecisionType = DecisionType  # ← Удалено
-# BehaviorDecision = Decision  # ← Удалено
-
-
-# ============================================================================
-# КЛАССЫ ВХОДА/ВЫХОДА ДЛЯ ПАТТЕРНОВ (для совместимости с тестами)
-# ============================================================================
-
-class BehaviorInput:
-    """Базовый класс для входных данных поведенческого паттерна."""
-    pass
-
-
-class BehaviorOutput:
-    """Базовый класс для выходных данных поведенческого паттерна."""
-    pass
-
-
-class ReActInput(BehaviorInput):
-    """Входные данные для ReAct паттерна."""
-    def __init__(self, goal: str, context: Dict[str, Any] = None, history: list = None, available_tools: list = None):
-        self.goal = goal
-        self.context = context or {}
-        self.history = history or []
-        self.available_tools = available_tools or []
-
-
-class ReActOutput(BehaviorOutput):
-    """Выходные данные для ReAct паттерна."""
-    def __init__(self, thought: str = None, action: Dict[str, Any] = None, observation: str = None, is_final: bool = False, updated_context: Dict[str, Any] = None):
-        self.thought = thought
-        self.action = action
-        self.observation = observation
-        self.is_final = is_final
-        self.updated_context = updated_context or {}
-
-
-class PlanningInput(BehaviorInput):
-    """Входные данные для Planning паттерна."""
-    def __init__(self, goal: str, context: Dict[str, Any] = None, available_tools: list = None, constraints: list = None):
-        self.goal = goal
-        self.context = context or {}
-        self.available_tools = available_tools or []
-        self.constraints = constraints or []
-
-
-class PlanningOutput(BehaviorOutput):
-    """Выходные данные для Planning паттерна."""
-    def __init__(self, plan: list = None, decomposition_reasoning: str = None, sequence_reasoning: str = None, is_complete: bool = False):
-        self.plan = plan or []
-        self.decomposition_reasoning = decomposition_reasoning
-        self.sequence_reasoning = sequence_reasoning
-        self.is_complete = is_complete
-
-
 class BehaviorPatternInterface(ABC):
     """
     Интерфейс Pattern — ЕДИНСТВЕННОЕ место принятия решений.
@@ -142,27 +84,3 @@ class BehaviorPatternInterface(ABC):
         - сменить стратегию (SWITCH_STRATEGY)
         """
         pass
-    
-    # ========================================================================
-    # DEPRECATED: старые методы (удалить после миграции)
-    # ========================================================================
-    
-    async def analyze_context(
-        self,
-        session_context: 'SessionContext',
-        available_capabilities: List['Capability'],
-        context_analysis: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """⚠️ DEPRECATED: использовать напрямую decide()."""
-        # Для обратной совместимости
-        return context_analysis or {}
-    
-    async def generate_decision(
-        self,
-        session_context: 'SessionContext',
-        available_capabilities: List['Capability'],
-        context_analysis: Dict[str, Any]
-    ) -> Decision:
-        """⚠️ DEPRECATED: использовать напрямую decide()."""
-        # Для обратной совместимости — делегирование decide()
-        return await self.decide(session_context, available_capabilities)

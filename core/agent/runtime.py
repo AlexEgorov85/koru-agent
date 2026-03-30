@@ -133,6 +133,7 @@ class AgentRuntime:
         available_caps = await self._get_available_capabilities()
 
         # Цикл выполнения
+        executed_steps = 0
         for step in range(self.max_steps):
             # Pattern решает
             decision = await pattern.decide(
@@ -156,28 +157,16 @@ class AgentRuntime:
                     context=ExecutionContext(session_context=self.session_context)
                 )
 
-                # Запись шага
+                # Запись шага только после выполнения ACT
+                executed_steps += 1
                 self.session_context.register_step(
-                    step_number=step + 1,
+                    step_number=executed_steps,
                     capability_name=decision.action or "unknown",
                     skill_name=(decision.action or "unknown").split('.')[0],
                     action_item_id='',
                     observation_item_ids=[],
                     summary=decision.reasoning,
                     status=result.status
-                )
-            
-            # Pattern решил FINISH/FAIL/SWITCH?
-            else:
-                # Записываем шаг с решением Pattern
-                self.session_context.register_step(
-                    step_number=step + 1,
-                    capability_name=decision.type.value,
-                    skill_name='pattern',
-                    action_item_id='',
-                    observation_item_ids=[],
-                    summary=decision.reasoning,
-                    status=ExecutionStatus.COMPLETED if decision.type == DecisionType.FINISH else ExecutionStatus.FAILED
                 )
 
             # Pattern решил SWITCH?

@@ -556,19 +556,22 @@ class ReActPattern(BaseBehaviorPattern):
         
         # Прямой вызов LLMOrchestrator (без ActionExecutor!)
         try:
+            print(f"[LLM] Вызов execute_structured...")
             llm_result = await self.llm_orchestrator.execute_structured(
                 request=llm_request,
                 provider=None,
                 session_id=session_context.session_id if session_context else "unknown"
             )
-            
+
+            print(f"[LLM] Результат: {type(llm_result).__name__}")
             await self._log("info", f"LLM вызов завершён | result type: {type(llm_result).__name__}")
         except Exception as e:
-            await self._log("error", f"LLM вызов упал с исключением: {e}")
+            print(f"[LLM] ИСКЛЮЧЕНИЕ: {type(e).__name__}: {e}")
+            await self._log("error", f"LLM вызов упал с исключением: {type(e).__name__}: {e}")
             return self.fallback_strategy.create_reasoning_fallback(
                 context_analysis=context_analysis,
                 available_capabilities=available_capabilities,
-                reason=f"llm_exception:{str(e)}"
+                reason=f"llm_exception:{type(e).__name__}:{str(e)}"
             )
         
         if not llm_result or not hasattr(llm_result, 'parsed_content') or llm_result.parsed_content is None:
