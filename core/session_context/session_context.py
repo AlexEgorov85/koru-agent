@@ -186,7 +186,7 @@ class SessionContext(BaseSessionContext):
     def get_summary(self) -> Dict[str, Any]:
         """
         Получение сводной информации о сессии.
-        
+
         ВОЗВРАЩАЕТ:
         - Словарь с информацией о сессии
         """
@@ -199,7 +199,7 @@ class SessionContext(BaseSessionContext):
             "item_count": self.data_context.count(),
             "has_plan": self.current_plan_item_id is not None
         }
-        
+
         # Добавляем информацию о последних шагах
         if self.step_context.steps:
             summary_dict["last_steps"] = []
@@ -211,7 +211,7 @@ class SessionContext(BaseSessionContext):
                     "parameters": self.get_context_item(step.action_item_id).content.get("parameters") if self.get_context_item(step.action_item_id) else {},
                     "summary": step.summary
                 }
-                
+
                 # Добавляем observation если есть
                 if step.observation_item_ids:
                     observations = []
@@ -238,10 +238,78 @@ class SessionContext(BaseSessionContext):
                                 observations.append(str(obs_content)[:300])
                     if observations:
                         step_data["observation"] = "\n".join(observations)
-                
+
                 summary_dict["last_steps"].append(step_data)
-        
+
         return summary_dict
+
+    # ========================================================================
+    # QUERY HELPERS для Pattern (Этап 6)
+    # ========================================================================
+
+    def get_last_steps(self, n: int = 5) -> List[AgentStep]:
+        """
+        Получить последние n шагов.
+
+        ПАРАМЕТРЫ:
+        - n: количество шагов
+
+        ВОЗВРАЩАЕТ:
+        - List[AgentStep]: последние шаги
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
+        Pattern сам анализирует шаги.
+        """
+        return list(self.step_context.steps[-n:])
+
+    def get_consecutive_failures(self) -> int:
+        """
+        Получить счётчик последовательных ошибок.
+
+        ВОЗВРАЩАЕТ:
+        - int: количество последовательных failed шагов
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
+        Pattern сам решает что делать с ошибками.
+        """
+        count = 0
+        for step in reversed(self.step_context.steps):
+            if step.status == ExecutionStatus.FAILED:
+                count += 1
+            else:
+                break
+        return count
+
+    def has_no_progress(self, n_steps: int = 3) -> bool:
+        """
+        Проверка: были ли изменения за последние n шагов.
+
+        ПАРАМЕТРЫ:
+        - n_steps: количество шагов для проверки
+
+        ВОЗВРАЩАЕТ:
+        - bool: True если не было прогресса
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
+        Pattern сам решает что делать при отсутствии прогресса.
+        """
+        if len(self.step_context.steps) < n_steps:
+            return False
+        
+        recent_steps = list(self.step_context.steps[-n_steps:])
+        # Проверяем были ли успешные действия
+        return all(step.status == ExecutionStatus.FAILED for step in recent_steps)
+
+    def get_errors_count(self) -> int:
+        """
+        Получить общее количество ошибок.
+
+        ВОЗВРАЩАЕТ:
+        - int: количество failed шагов
+
+        ⚠️ ТОЛЬКО ЧТЕНИЕ: не принимает решений!
+        """
+        return sum(1 for step in self.step_context.steps if step.status == ExecutionStatus.FAILED)
 
     def record_action(self, action_data, step_number=None, metadata=None):
         """Запись действия агента в контекст"""
