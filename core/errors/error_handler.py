@@ -6,13 +6,11 @@
 - Регистрация обработчиков по типам ошибок
 - Публикация событий об ошибках в Event Bus
 - Контекст ошибки для отладки
-- RetryPolicy для повторных попыток
 
 ПРЕИМУЩЕСТВА:
 - ✅ Единая точка обработки ошибок
 - ✅ Согласованное логирование
 - ✅ Аудит всех ошибок через Event Bus
-- ✅ Гибкие стратегии восстановления
 - ✅ Упрощенная отладка
 """
 import asyncio
@@ -27,6 +25,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
+from core.agent.components.policy import RetryPolicy
 from core.infrastructure.event_bus import (
     EventDomain,
     EventType,
@@ -180,136 +179,6 @@ class ErrorInfo:
             "context": self.context.to_dict(),
             "recovery_action": self.recovery_action,
         }
-
-
-# ============================================================
-# Retry Policy
-# ============================================================
-
-@dataclass
-class RetryPolicy:
-    """
-    Политика повторных попыток.
-
-    СТРАТЕГИЯ:
-    - Экспоненциальная задержка: delay = base_delay * (2 ^ attempt)
-    - Джиттер: случайная добавка для предотвращения thundering herd
-    - Максимальная задержка: cap для предотвращения слишком долгих ожиданий
-
-    USAGE:
-    ```python
-    policy = RetryPolicy(
-        max_retries=3,
-        base_delay=1.0,
-        max_delay=30.0,
-        jitter=0.5
-    )
-
-    for attempt in range(policy.max_retries):
-        try:
-            return await operation()
-        except Exception as e:
-            if not policy.should_retry(e, attempt):
-                raise
-            await asyncio.sleep(policy.get_delay(attempt))
-    ```
-    """
-
-    max_retries: int = 3
-    base_delay: float = 1.0
-    max_delay: float = 30.0
-    jitter: float = 0.5
-    exponential_base: float = 2.0
-
-    # Категории которые можно retry
-    retryable_categories: List[ErrorCategory] = field(
-        default_factory=lambda: [
-            ErrorCategory.TRANSIENT,
-            ErrorCategory.CONFLICT,
-            ErrorCategory.TIMEOUT,
-            ErrorCategory.DEPENDENCY,
-        ]
-    )
-
-    def should_retry(
-        self,
-        error: Exception,
-        attempt: int,
-        category: Optional[ErrorCategory] = None,
-        severity: Optional[ErrorSeverity] = None
-    ) -> bool:
-        """
-        Проверить нужно ли retry.
-
-        ARGS:
-        - error: Исключение
-        - attempt: Номер попытки (0-based)
-        - category: Категория ошибки (опционально)
-        - severity: Серьезность (опционально)
-
-        RETURNS:
-        - True если можно retry
-        """
-        # Проверка количества попыток
-        if attempt >= self.max_retries:
-            return False
-
-        # Проверка категории
-        if category and category not in self.retryable_categories:
-            return False
-
-        # Проверка серьезности
-        if severity == ErrorSeverity.CRITICAL:
-            return False
-
-        # Проверка на fatal ошибки
-        if isinstance(error, (SystemError, MemoryError, RecursionError)):
-            return False
-
-        return True
-
-    def get_delay(self, attempt: int) -> float:
-        """
-        Вычислить задержку перед retry.
-
-        ФОРМУЛА:
-        delay = min(base_delay * (exponential_base ^ attempt), max_delay) + jitter
-
-        ARGS:
-        - attempt: Номер попытки (0-based)
-
-        RETURNS:
-        - Задержка в секундах
-        """
-        # Экспоненциальная задержка
-        exponential_delay = self.base_delay * (self.exponential_base ** attempt)
-
-        # Cap на максимальную задержку
-        capped_delay = min(exponential_delay, self.max_delay)
-
-        # Добавляем джиттер
-        jitter_value = random.uniform(0, self.jitter)
-
-        return capped_delay + jitter_value
-
-    def get_total_max_delay(self) -> float:
-        """
-        Максимальная общая задержка всех retry.
-
-        RETURNS:
-        - Суммарная задержка в секундах
-        """
-        total = 0.0
-        for attempt in range(self.max_retries):
-            total += self.get_delay(attempt)
-        return total
-
-    def __repr__(self) -> str:
-        return (
-            f"RetryPolicy(max_retries={self.max_retries}, "
-            f"base_delay={self.base_delay}s, "
-            f"max_delay={self.max_delay}s)"
-        )
 
 
 # ============================================================

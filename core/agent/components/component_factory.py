@@ -164,7 +164,9 @@ class ComponentFactory:
 
         # [REFACTOR v5.4.0] 1. Загружаем ресурсы ДО создания компонента
         preloader = self._get_resource_preloader(application_context)
+        print(f"🏭 ComponentFactory: preload_for_component({name})...")
         resources = await preloader.preload_for_component(name, component_config)
+        print(f"🏭 ComponentFactory: resources: prompts={len(resources['prompts'])}, input={len(resources['input_contracts'])}, output={len(resources['output_contracts'])}")
 
         # 2. Заполняем component_config.resolved_* загруженными ресурсами
         component_config.resolved_prompts = resources["prompts"]

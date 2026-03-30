@@ -54,8 +54,8 @@ class AgentRuntime:
             executor=self.executor,
             failure_memory=self.failure_memory,
             max_retries=self.policy.max_retries,
-            base_delay=self.policy.base_delay,
-            max_delay=self.policy.max_delay
+            base_delay=self.policy.retry_base_delay,
+            max_delay=self.policy.retry_max_delay
         )
 
         # Session context
@@ -95,24 +95,54 @@ class AgentRuntime:
         2. Executor.execute()
         3. Запись в context
         """
-        # Инициализация Pattern
+        # Создаём Pattern через ComponentFactory (загружает ресурсы автоматически)
+        print(f"🏭 Создание Pattern через ComponentFactory...")
+        
+        from core.agent.components.component_factory import ComponentFactory
         from core.agent.behaviors.react.pattern import ReActPattern
         from core.config.component_config import ComponentConfig
         
-        # Создаём простой ComponentConfig для react_pattern
-        component_config = ComponentConfig(
-            name="react_pattern",
-            variant_id="default"
+        # Получаем component_config из application_context.config
+        behavior_configs = getattr(self.application_context.config, 'behavior_configs', {})
+        print(f"🔍 behavior_configs: {list(behavior_configs.keys())}")
+        
+        component_config = behavior_configs.get('react_pattern')
+        if not component_config:
+            print(f"⚠️ react_pattern не найден в behavior_configs, создаём новый")
+            component_config = ComponentConfig(name="react_pattern", variant_id="default")
+        else:
+            print(f"✅ Получен component_config из application_context")
+            print(f"   prompt_versions: {getattr(component_config, 'prompt_versions', {})}")
+        
+        factory = ComponentFactory(
+            infrastructure_context=self.application_context.infrastructure_context
         )
         
-        pattern = ReActPattern(
-            component_name="react_pattern",
-            component_config=component_config,
+        pattern = await factory.create_and_initialize(
+            component_class=ReActPattern,
+            name="react_pattern",
             application_context=self.application_context,
+            component_config=component_config,
             executor=self.executor
         )
-        if hasattr(pattern, 'initialize'):
-            await pattern.initialize()
+        print(f"✅ Pattern создан (state={pattern._state})")
+        print(f"🔍 pattern.prompts: {len(pattern.prompts)}")
+        print(f"🔍 pattern.input_contracts: {len(pattern.input_contracts)}")
+        print(f"🔍 pattern.output_contracts: {len(pattern.output_contracts)}")
+        
+        # Pattern создан но state=CREATED - ресурсы ещё не скопированы
+        # Нужно вызвать initialize() чтобы BaseComponent._preload_resources() скопировал ресурсы
+        if str(pattern._state) == "ComponentState.CREATED":
+            print(f"🔄 Pattern ещё не инициализирован, вызываем initialize()...")
+            init_success = await pattern.initialize()
+            print(f"✅ Pattern.initialize() вернул: {init_success}")
+            print(f"🔍 pattern.prompts после init: {len(pattern.prompts)}")
+            print(f"🔍 pattern.input_contracts после init: {len(pattern.input_contracts)}")
+            print(f"🔍 pattern.output_contracts после init: {len(pattern.output_contracts)}")
+            # Debug: проверяем что в промптах
+            for key, prompt in pattern.prompts.items():
+                content = getattr(prompt, 'content', None)
+                print(f"   📄 Prompt '{key}': content={type(content).__name__}, len={len(content) if content else 'None'}")
 
         # Начало сессии
         if self.event_bus_logger:

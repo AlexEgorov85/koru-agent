@@ -93,22 +93,34 @@ class ReActPattern(BaseBehaviorPattern):
             from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
             
             # Берём промпт и контракт (загружены в initialize())
-            prompt = self.get_prompt("behavior.react.think")
+            system_prompt = self.get_prompt("behavior.react.think.system")
+            user_prompt = self.get_prompt("behavior.react.think.user")
             output_contract = self.get_output_contract("behavior.react.think")
+            
+            # Извлекаем content из Prompt объекта
+            system = system_prompt.content if system_prompt else ""
+            user = user_prompt.content if user_prompt else ""
+            
+            print(f"[DEBUG] system_prompt: {len(system)} chars")
+            print(f"[DEBUG] user_prompt: {len(user)} chars")
+            print(f"[DEBUG] output_contract: {output_contract}")
             
             # Schema из контракта (model_json_schema - метод класса, не экземпляра)
             schema = None
             if output_contract:
                 if hasattr(output_contract, 'model_json_schema'):
-                    schema = output_contract.model_json_schema
+                    schema = output_contract.model_json_schema()
                 elif hasattr(output_contract, 'model_schema'):
                     schema = output_contract.model_schema
+            
+            if not system or not user:
+                return self._handle_error("prompts_not_loaded", available_capabilities)
             
             # Рендеринг
             full_prompt = self.prompt_builder.build_reasoning_prompt(
                 context_analysis=context,
                 available_capabilities=available_capabilities,
-                templates={"system": prompt, "user": prompt},
+                templates={"system": system, "user": user},
                 schema_validator=self.schema_validator,
                 session_context=session_context
             )
@@ -122,7 +134,7 @@ class ReActPattern(BaseBehaviorPattern):
             
             llm_request = LLMRequest(
                 prompt=full_prompt,
-                system_prompt=prompt,
+                system_prompt=system,
                 temperature=0.3,
                 max_tokens=1000,
                 structured_output=StructuredOutputConfig(
