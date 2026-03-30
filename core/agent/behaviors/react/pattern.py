@@ -722,11 +722,11 @@ class ReActPattern(BaseBehaviorPattern):
             is_final = (capability_name == "final_answer.generate")
             
             return Decision(
-                action=DecisionType.ACT,
-                capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
+                type=DecisionType.ACT,
+                action=capability_name,
                 parameters=validated_params,
-                reason=reasoning,
-                is_final=is_final  # ← Помечаем финальный шаг
+                reasoning=reasoning,
+                is_final=is_final
             )
 
         except Exception as e:
