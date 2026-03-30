@@ -96,8 +96,13 @@ class ReActPattern(BaseBehaviorPattern):
             prompt = self.get_prompt("behavior.react.think")
             output_contract = self.get_output_contract("behavior.react.think")
             
-            # Schema из контракта
-            schema = output_contract.model_json_schema() if output_contract else None
+            # Schema из контракта (model_json_schema - метод класса, не экземпляра)
+            schema = None
+            if output_contract:
+                if hasattr(output_contract, 'model_json_schema'):
+                    schema = output_contract.model_json_schema
+                elif hasattr(output_contract, 'model_schema'):
+                    schema = output_contract.model_schema
             
             # Рендеринг
             full_prompt = self.prompt_builder.build_reasoning_prompt(

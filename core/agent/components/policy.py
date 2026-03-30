@@ -1,27 +1,36 @@
 """
-RetryPolicy — параметры для network retry.
+Политики агента.
 
-АРХИТЕКТУРА (Этап 4):
-- ТОЛЬКО параметры: max_retries, delays
-- БЕЗ decision logic: evaluate(), should_fallback(), detect_loop()
-- Pattern сам решает когда retry/stop/fail
-
-ОТВЕТСТВЕННОСТЬ:
-- Хранение параметров retry
-- Расчёт задержки между попытками
-
-ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-policy = RetryPolicy(
-    max_retries=3,
-    base_delay=0.5,
-    max_delay=5.0
-)
-
-# SafeExecutor использует для network retry
-delay = policy.get_delay(attempt=0)  # → 0.5 сек
+СОДЕРЖИТ:
+- AgentPolicy: параметры ограничения агента
+- RetryPolicy: параметры для network retry
 """
 import random
 from typing import Optional
+
+
+class AgentPolicy:
+    """
+    Политика ограничения агента.
+    
+    ОТВЕТСТВЕННОСТЬ:
+    - max_steps: максимальное количество шагов
+    - max_errors: максимальное количество ошибок
+    - max_consecutive_errors: максимум последовательных ошибок
+    - max_no_progress_steps: максимум шагов без прогресса
+    """
+    
+    def __init__(
+        self,
+        max_steps: int = 10,
+        max_errors: int = 10,
+        max_consecutive_errors: int = 3,
+        max_no_progress_steps: int = 5
+    ):
+        self.max_steps = max_steps
+        self.max_errors = max_errors
+        self.max_consecutive_errors = max_consecutive_errors
+        self.max_no_progress_steps = max_no_progress_steps
 
 
 class RetryPolicy:
