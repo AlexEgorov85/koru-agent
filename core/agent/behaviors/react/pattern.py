@@ -454,13 +454,13 @@ class ReActPattern(BaseBehaviorPattern):
     ) -> Decision:
         """Генерация решения на основе анализа."""
         # Логирование начала через EventBusLogger
-        await self._log("info", "generate_decision: started",
-                       step=session_context.current_step if hasattr(session_context, 'current_step') else 0)
-        
+        await self._log("info", "generate_decision: STARTED")
+        await self._log("info", f"generate_decision: session_id={session_context.session_id}")
         await self._log("info", f"generate_decision: context_analysis.last_steps={len(context_analysis.get('last_steps', []))}")
-
+        
         try:
             # 1. Структурированное рассуждение через LLM
+            await self._log("info", "generate_decision: calling _perform_structured_reasoning")
             reasoning_result = await self._perform_structured_reasoning(
                 session_context=session_context,
                 context_analysis=context_analysis,
