@@ -497,8 +497,8 @@ class ReActPattern(BaseBehaviorPattern):
             
             # Fallback при множественных ошибках
             if self.error_count >= self.max_consecutive_errors:
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.SWITCH,
+                return Decision(
+                    action=DecisionType.SWITCH,
                     next_pattern="fallback.v1.0.0",
                     reason=f"too_many_errors:{self.error_count}"
                 )
@@ -598,7 +598,7 @@ class ReActPattern(BaseBehaviorPattern):
         session_context,
         reasoning_result: Any,  # Результат от LLM - dict или Pydantic модель
         available_capabilities: List[Capability]
-    ) -> BehaviorDecision:
+    ) -> Decision:
         """Принимает решение о следующем действии на основе анализа контекста."""
 
         try:
@@ -651,8 +651,8 @@ class ReActPattern(BaseBehaviorPattern):
                     model_dump if isinstance(model_dump, dict) else {}
                 )
                 # КРИТИЧНО: Помечаем как финальное решение
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.ACT,
+                return Decision(
+                    action=DecisionType.ACT,
                     capability_name="final_answer.generate",
                     parameters=validated_params,
                     reason="final_answer_before_stop",
@@ -665,16 +665,16 @@ class ReActPattern(BaseBehaviorPattern):
                 # всё равно вызываем final_answer.generate для формирования ответа
                 if capability_name and capability_name != "final_answer.generate":
                     await self._log("info", "STOP без final_answer — добавляем вызов final_answer.generate")
-                    return BehaviorDecision(
-                        action=BehaviorDecisionType.ACT,
+                    return Decision(
+                        action=DecisionType.ACT,
                         capability_name="final_answer.generate",
                         parameters={"input": f"Цель достигнута: {stop_reason or 'goal_achieved'}"},
                         reason="final_answer_on_stop",
                         is_final=True
                     )
 
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.STOP,
+                return Decision(
+                    action=DecisionType.STOP,
                     reason=stop_reason or "goal_achieved"
                 )
 
@@ -682,8 +682,8 @@ class ReActPattern(BaseBehaviorPattern):
             if not capability_name:
                 await self._log("error", "LLM не вернул next_action в decision",
                                reasoning_result=reasoning_result)
-                return BehaviorDecision(
-                    action=BehaviorDecisionType.RETRY,
+                return Decision(
+                    action=DecisionType.RETRY,
                     reason="LLM не вернул корректное действие"
                 )
             
@@ -702,8 +702,8 @@ class ReActPattern(BaseBehaviorPattern):
                         break
                 
                 if not capability:
-                    return BehaviorDecision(
-                        action=BehaviorDecisionType.STOP,
+                    return Decision(
+                        action=DecisionType.STOP,
                         reason="no_available_capabilities"
                     )
             
@@ -714,15 +714,15 @@ class ReActPattern(BaseBehaviorPattern):
             )
 
             if self.event_bus_logger:
-                await self.event_bus_logger.info(f"Возвращаем BehaviorDecision: action={BehaviorDecisionType.ACT.value}, capability_name={capability_name}")
+                await self.event_bus_logger.info(f"Возвращаем Decision: action={DecisionType.ACT.value}, capability_name={capability_name}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             
             # КРИТИЧНО: Помечаем final_answer.generate как финальный шаг
             is_final = (capability_name == "final_answer.generate")
             
-            return BehaviorDecision(
-                action=BehaviorDecisionType.ACT,
+            return Decision(
+                action=DecisionType.ACT,
                 capability_name=capability_name,  # ОБЯЗАТЕЛЬНО должно быть заполнено
                 parameters=validated_params,
                 reason=reasoning,
@@ -743,6 +743,6 @@ class ReActPattern(BaseBehaviorPattern):
         session_context,
         reason: str,
         available_capabilities: List[Capability]
-    ) -> BehaviorDecision:
+    ) -> Decision:
         """Создает fallback-решение при ошибках через FallbackStrategyService."""
         return self.fallback_strategy.create_error(reason, available_capabilities)
