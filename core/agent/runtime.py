@@ -157,7 +157,7 @@ class AgentRuntime:
 
                 # Запись шага
                 self.session_context.register_step(
-                    step_number=self._current_step + 1,
+                    step_number=step + 1,
                     capability_name=decision.action or "unknown",
                     skill_name=(decision.action or "unknown").split('.')[0],
                     action_item_id='',
