@@ -33,25 +33,26 @@ class SessionContext(BaseSessionContext):
     - current_plan_item_id: ID текущего плана в контексте
     """
     
-    def __init__(self, session_id: Optional[str] = None):
+    def __init__(self, session_id: Optional[str] = None, agent_id: Optional[str] = None):
         """
         Создание контекста сессии.
         
         ПАРАМЕТРЫ:
         - session_id: Уникальный идентификатор сессии (опционально)
+        - agent_id: Идентификатор агента (опционально)
         
         ПРИМЕЧАНИЕ:
         Если session_id не указан, генерируется автоматически
         """
         self.session_id = session_id or str(uuid.uuid4())
+        self.agent_id = agent_id or "agent_001"
         self.created_at = datetime.now()
         self.last_activity = datetime.now()
         self.goal = None
-        self.current_plan_item_id: Optional[str] = None # Атрибут для хранения ID текущего плана
-        self.current_plan_step_id: Optional[str] = None # Атрибут для хранения ID текущего шага плана
-        self.final_answer = None  # Атрибут для хранения финального ответа
+        self.current_plan_item_id: Optional[str] = None
+        self.current_plan_step_id: Optional[str] = None
+        self.final_answer = None
 
-        # Контексты
         self.data_context = DataContext()
         self.step_context = StepContext()
     

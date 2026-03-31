@@ -918,12 +918,26 @@ class ActionExecutor:
 
         # Вызов через оркестратор если доступен
         if orchestrator:
+            # Извлекаем контекстные данные для трассировки
+            session_id = None
+            agent_id = None
+            step_number = None
+            goal = None
+            
+            if context and context.session_context:
+                session_id = getattr(context.session_context, 'session_id', None)
+                agent_id = getattr(context.session_context, 'agent_id', None)
+                goal = getattr(context.session_context, 'goal', None)
+                if hasattr(context.session_context, 'step_context') and context.session_context.step_context:
+                    step_number = context.session_context.step_context.get_last_step_number()
+            
             response = await orchestrator.execute(
                 request=request,
                 provider=llm_provider,
-                session_id=getattr(context, 'session_id', None) if context else None,
-                agent_id=getattr(context, 'agent_id', None) if context else None,
-                step_number=getattr(context, 'step_number', None) if context else None,
+                session_id=session_id,
+                agent_id=agent_id,
+                step_number=step_number,
+                goal=goal,
                 phase=parameters.get('phase', 'unknown')
             )
         else:
@@ -993,6 +1007,35 @@ class ActionExecutor:
                 status=ExecutionStatus.FAILED,
                 error="LLMOrchestrator недоступен — требуется для структурированной генерации"
             )
+
+        # Извлекаем контекстные данные для трассировки (приоритет у параметров)
+        session_id = parameters.get('session_id')
+        agent_id = parameters.get('agent_id')
+        step_number = parameters.get('step_number')
+        goal = parameters.get('goal')
+        
+        if context and context.session_context:
+            if session_id is None:
+                session_id = getattr(context.session_context, 'session_id', None)
+            if agent_id is None:
+                agent_id = getattr(context.session_context, 'agent_id', None)
+            if goal is None:
+                goal = getattr(context.session_context, 'goal', None)
+            if step_number is None and hasattr(context.session_context, 'step_context') and context.session_context.step_context:
+                step_number = context.session_context.step_context.get_last_step_number()
+
+        response = await orchestrator.execute_structured(
+            request=request,
+            provider=llm_provider,
+            max_retries=parameters.get("max_retries", 3),
+            attempt_timeout=attempt_timeout,
+            total_timeout=total_timeout,
+            session_id=session_id,
+            agent_id=agent_id,
+            step_number=step_number,
+            goal=goal,
+            phase=parameters.get('phase', 'unknown')
+        )
 
         # Получаем таймауты из централизованной конфигурации
         from core.config.timeout_config import get_timeout_config

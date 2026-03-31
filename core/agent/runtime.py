@@ -36,13 +36,15 @@ class AgentRuntime:
         goal: str,
         max_steps: int = 10,
         user_context=None,
-        correlation_id: Optional[str] = None  # Для обратной совместимости
+        correlation_id: Optional[str] = None,
+        agent_id: Optional[str] = "agent_001"
     ):
         self.application_context = application_context
         self.goal = goal
         self.max_steps = max_steps
         self.user_context = user_context
         self.correlation_id = correlation_id or str(uuid.uuid4())
+        self.agent_id = agent_id
 
         # Компоненты
         self.executor = ActionExecutor(application_context)
@@ -57,9 +59,11 @@ class AgentRuntime:
             max_delay=self.policy.retry_max_delay
         )
 
+        self._pattern = None
+
         # Session context
         from core.session_context.session_context import SessionContext
-        self.session_context = SessionContext(session_id=str(uuid.uuid4()))
+        self.session_context = SessionContext(session_id=str(uuid.uuid4()), agent_id=self.agent_id)
         self.session_context.set_goal(goal)
 
         # Event bus logger
@@ -73,8 +77,8 @@ class AgentRuntime:
             from core.infrastructure.logging import EventBusLogger
             self.event_bus_logger = EventBusLogger(
                 event_bus=event_bus,
-                session_id="system",
-                agent_id="system",
+                session_id=self.session_context.session_id,
+                agent_id=self.agent_id,
                 component=self.__class__.__name__
             )
 
@@ -87,14 +91,27 @@ class AgentRuntime:
         
         return await self._run_async()
 
-    async def _run_async(self) -> ExecutionResult:
+    async def _get_pattern(self):
         """
-        Простой цикл:
-        1. Pattern.decide()
-        2. Executor.execute()
-        3. Запись в context
+        Получение кэшированного Pattern.
+        
+        Pattern является READONLY — содержит только промпты и контракты,
+        загруженные один раз при инициализации. Данные сессии (шаги, observations)
+        хранятся в session_context и передаются как параметр в decide().
         """
-        # Создаём Pattern через ComponentFactory (загружает ресурсы автоматически)
+        if self._pattern is None:
+            await self._init_pattern()
+        return self._pattern
+
+    async def _init_pattern(self):
+        """
+        Инициализация Pattern (вызывается один раз за сессию).
+        
+        Промпты и контракты загружаются из хранилища и НЕ модифицируются.
+        """
+        if self._pattern is not None:
+            return
+            
         event_bus = self.application_context.infrastructure_context.event_bus
         await event_bus.publish(EventType.DEBUG, {"message": "🏭 Создание Pattern через ComponentFactory..."})
         
@@ -102,9 +119,7 @@ class AgentRuntime:
         from core.agent.behaviors.react.pattern import ReActPattern
         from core.config.component_config import ComponentConfig
         
-        # Получаем component_config из application_context.config
         behavior_configs = getattr(self.application_context.config, 'behavior_configs', {})
-        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 behavior_configs: {list(behavior_configs.keys())}"})
         
         component_config = behavior_configs.get('react_pattern')
         if not component_config:
@@ -112,37 +127,34 @@ class AgentRuntime:
             component_config = ComponentConfig(name="react_pattern", variant_id="default")
         else:
             await event_bus.publish(EventType.INFO, {"message": "✅ Получен component_config из application_context"})
-            await event_bus.publish(EventType.DEBUG, {"message": f"   prompt_versions: {getattr(component_config, 'prompt_versions', {})}"})
         
         factory = ComponentFactory(
             infrastructure_context=self.application_context.infrastructure_context
         )
         
-        pattern = await factory.create_and_initialize(
+        self._pattern = await factory.create_and_initialize(
             component_class=ReActPattern,
             name="react_pattern",
             application_context=self.application_context,
             component_config=component_config,
             executor=self.executor
         )
-        await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern создан (state={pattern._state})"})
-        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.prompts: {len(pattern.prompts)}"})
-        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.input_contracts: {len(pattern.input_contracts)}"})
-        await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.output_contracts: {len(pattern.output_contracts)}"})
         
-        # Pattern создан но state=CREATED - ресурсы ещё не скопированы
-        # Нужно вызвать initialize() чтобы BaseComponent._preload_resources() скопировал ресурсы
-        if str(pattern._state) == "ComponentState.CREATED":
-            await event_bus.publish(EventType.INFO, {"message": "🔄 Pattern ещё не инициализирован, вызываем initialize()..."})
-            init_success = await pattern.initialize()
-            await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern.initialize() вернул: {init_success}"})
-            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.prompts после init: {len(pattern.prompts)}"})
-            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.input_contracts после init: {len(pattern.input_contracts)}"})
-            await event_bus.publish(EventType.DEBUG, {"message": f"🔍 pattern.output_contracts после init: {len(pattern.output_contracts)}"})
-            # Debug: проверяем что в промптах
-            for key, prompt in pattern.prompts.items():
-                content = getattr(prompt, 'content', None)
-                await event_bus.publish(EventType.DEBUG, {"message": f"   📄 Prompt '{key}': content len={len(content) if content else 'None'}"})
+        if str(self._pattern._state) == "ComponentState.CREATED":
+            await self._pattern.initialize()
+        
+        await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern инициализирован (state={self._pattern._state})"})
+
+    async def _run_async(self) -> ExecutionResult:
+        """
+        Простой цикл:
+        1. Pattern.decide()
+        2. Executor.execute()
+        3. Запись в context
+        """
+        # Получаем кэшированный Pattern
+        event_bus = self.application_context.infrastructure_context.event_bus
+        pattern = await self._get_pattern()
 
         # Начало сессии
         if self.event_bus_logger:
@@ -156,7 +168,7 @@ class AgentRuntime:
         event_bus = self.application_context.infrastructure_context.event_bus
         await event_bus._publish_internal(
             EventType.SESSION_STARTED,
-            {"session_id": self.session_context.session_id, "goal": self.goal}
+            {"session_id": self.session_context.session_id, "agent_id": self.agent_id, "goal": self.goal}
         )
 
         # Получаем доступные capability

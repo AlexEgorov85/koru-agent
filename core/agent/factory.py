@@ -60,7 +60,8 @@ class AgentFactory:
         self,
         goal: str,
         config: Optional[AgentConfig] = None,
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
+        agent_id: Optional[str] = "agent_001"
     ) -> AgentRuntime:
         """
         Создание изолированного агента с валидацией версий.
@@ -69,6 +70,7 @@ class AgentFactory:
         - goal: Цель агента
         - config: Конфигурация агента с версиями компонентов
         - correlation_id: ID для отслеживания сессии
+        - agent_id: ID агента для логирования
 
         ВОЗВРАЩАЕТ:
         - AgentRuntime: Созданный агент
@@ -86,7 +88,8 @@ class AgentFactory:
         agent = AgentRuntime(
             application_context=app_context,
             goal=goal,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
+            agent_id=agent_id
         )
 
         if self.event_bus_logger:

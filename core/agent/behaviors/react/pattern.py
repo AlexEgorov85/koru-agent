@@ -165,12 +165,21 @@ class ReActPattern(BaseBehaviorPattern):
             )
             
             try:
+                # Извлекаем данные для трассировки из session_context
+                step_number = None
+                if hasattr(session_context, 'step_context') and session_context.step_context:
+                    step_number = session_context.step_context.get_last_step_number()
+                
                 result = await orchestrator.execute_structured(
                     request=llm_request,
                     provider=provider,
                     session_id=session_context.session_id,
-                    use_native_structured_output=False,  # LlamaCpp не поддерживает нативный structured output
-                    attempt_timeout=300.0  # 5 минут на попытку
+                    agent_id=getattr(session_context, 'agent_id', None),
+                    step_number=step_number,
+                    goal=session_context.goal,
+                    phase='think',
+                    use_native_structured_output=False,
+                    attempt_timeout=300.0
                 )
                 # Логирование результата
                 await event_bus.publish(EventType.INFO, {
