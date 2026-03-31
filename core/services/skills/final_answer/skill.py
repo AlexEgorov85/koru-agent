@@ -149,8 +149,17 @@ class FinalAnswerSkill(BaseSkill):
         if capability.name != "final_answer.generate":
             raise ValueError(f"Неподдерживаемая capability: {capability.name}")
 
-        # Извлечение контекста сессии
-        session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
+        # Извлечение контекста сессии с защитой от неправильных типов
+        raw_session_context = execution_context.session_context if hasattr(execution_context, 'session_context') else execution_context
+        # Проверяем что это действительно SessionContext
+        from core.session_context.session_context import SessionContext
+        if isinstance(raw_session_context, SessionContext):
+            session_context = raw_session_context
+        elif hasattr(raw_session_context, 'session_context'):
+            # Вложенный ExecutionContext - извлекаем дальше
+            session_context = getattr(raw_session_context, 'session_context', raw_session_context)
+        else:
+            session_context = raw_session_context
 
         # Генерация финального ответа (async вызов)
         result = await self._generate_final_answer(session_context, parameters, execution_context)
@@ -194,8 +203,16 @@ class FinalAnswerSkill(BaseSkill):
         ВОЗВРАЩАЕТ:
         - ExecutionResult: результат генерации
         """
-        # Извлечение цели
-        goal = context.get_goal() or "Не указана цель"
+        # Извлечение цели с защитой
+        from core.session_context.session_context import SessionContext
+        raw_context = context.session_context if hasattr(context, 'session_context') else context
+        if isinstance(raw_context, SessionContext):
+            session_context = raw_context
+        elif hasattr(raw_context, 'session_context'):
+            session_context = getattr(raw_context, 'session_context', raw_context)
+        else:
+            session_context = raw_context
+        goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
 
         # Обработка параметров (могут быть Pydantic моделью или dict)
         from pydantic import BaseModel
@@ -267,13 +284,25 @@ class FinalAnswerSkill(BaseSkill):
             )
 
             # DEBUG: check what's in execution_context
-            print(f"[DEBUG final_answer] execution_context.session_context={getattr(execution_context, 'session_context', 'None')}")
-            if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
-                sc = execution_context.session_context
-                print(f"[DEBUG final_answer] sc.session_id={getattr(sc, 'session_id', 'unknown')}, items={sc.data_context.count() if hasattr(sc, 'data_context') else 'N/A'}")
+            from core.agent.components.action_executor import ExecutionContext as ExecCtx
+            from core.session_context.session_context import SessionContext as SessCtx
+            sc = getattr(execution_context, 'session_context', None)
+            debug_msg = f"[DEBUG final_answer] session_context type: {type(sc).__name__ if sc else 'None'}"
+            if sc is None:
+                debug_msg += " - IS NONE"
+            elif isinstance(sc, ExecCtx):
+                debug_msg += " - IS NESTED ExecutionContext!"
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(debug_msg)
+                if execution_context and hasattr(execution_context, 'session_context') and execution_context.session_context:
+                    sc = execution_context.session_context
+                    await self.event_bus_logger.debug(
+                        f"session_id={getattr(sc, 'session_id', 'unknown')}, "
+                        f"items={sc.data_context.count() if hasattr(sc, 'data_context') else 'N/A'}"
+                    )
 
-            if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
-                all_items = all_items_result.result.get("items", {})
+            if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.data:
+                all_items = all_items_result.data.get("items", {})
 
                 # Классификация элементов контекста
                 for item_id, item in all_items.items():
@@ -467,7 +496,7 @@ class FinalAnswerSkill(BaseSkill):
             if llm_result.status != ExecutionStatus.COMPLETED:
                 error_msg = llm_result.error
                 if self.event_bus_logger:
-                    self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg}")
+                    await self.event_bus_logger.error(f"LLM structured output ошибка: {error_msg}")
                       # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 raise RuntimeError(f"Ошибка LLM: {error_msg}")
 
@@ -571,7 +600,7 @@ class FinalAnswerSkill(BaseSkill):
 
         except Exception as e:
             if self.event_bus_logger:
-                self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
+                await self.event_bus_logger.error(f"Ошибка вызова LLM: {str(e)}")
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             # ❌ УДАЛЕНО: Fallback ответ при ошибке генерации
             # ✅ ТЕПЕРЬ: Выбрасываем SkillExecutionError

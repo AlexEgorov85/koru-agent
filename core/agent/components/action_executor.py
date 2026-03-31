@@ -206,7 +206,16 @@ class ActionExecutor:
         - context.record_action: запись действия в контекст
         - context.record_observation: запись наблюдения в контекст
         """
-        session_context = context.session_context
+        # Извлекаем session_context с защитой от вложенного ExecutionContext
+        from core.session_context.session_context import SessionContext
+        raw_sc = context.session_context
+        if isinstance(raw_sc, ExecutionContext):
+            # Вложенный ExecutionContext - извлекаем его session_context
+            session_context = getattr(raw_sc, 'session_context', raw_sc)
+        elif isinstance(raw_sc, SessionContext):
+            session_context = raw_sc
+        else:
+            session_context = raw_sc
 
         if not session_context:
             return ExecutionResult(
@@ -360,8 +369,12 @@ class ActionExecutor:
     ) -> ExecutionResult:
         """Получение всех элементов контекста"""
         try:
+            # Проверяем тип session_context для отладки
+            has_data_context = hasattr(session_context, 'data_context')
+            self._log_debug(f"_context_get_all_items: session_context type={type(session_context).__name__}, has_data_context={has_data_context}")
+            
             # Получаем все items из data_context
-            if hasattr(session_context, 'data_context') and hasattr(session_context.data_context, 'get_all_items'):
+            if has_data_context and hasattr(session_context.data_context, 'get_all_items'):
                 all_items = session_context.data_context.get_all_items()
                 # Конвертируем в dict по item_id
                 items_dict = {}
@@ -374,12 +387,14 @@ class ActionExecutor:
                     metadata={"count": len(items_dict)}
                 )
             else:
+                self._log_debug(f"_context_get_all_items: session_context не имеет data_context. Тип: {type(session_context).__name__}")
                 return ExecutionResult(
                     status=ExecutionStatus.COMPLETED,
                     data={"items": {}},
                     metadata={"count": 0, "message": "data_context не доступен"}
                 )
         except Exception as e:
+            self._log_debug(f"_context_get_all_items: Exception: {e}")
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=f"Ошибка получения всех items: {str(e)}"

@@ -202,6 +202,7 @@ class AgentRuntime:
 
                 # Сохранение данных результата в data_context
                 observation_item_ids = []
+                items_count_before = self.session_context.data_context.count() if hasattr(self.session_context, 'data_context') else -1
                 if result.data is not None:
                     from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
                     observation_item = ContextItem(
@@ -218,6 +219,10 @@ class AgentRuntime:
                     )
                     observation_item_id = self.session_context.data_context.add_item(observation_item)
                     observation_item_ids = [observation_item_id]
+                    items_count_after = self.session_context.data_context.count()
+                    await event_bus.publish(EventType.INFO, {
+                        "message": f"📝 Сохранено observation: item_id={observation_item_id}, items_before={items_count_before}, items_after={items_count_after}"
+                    })
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
