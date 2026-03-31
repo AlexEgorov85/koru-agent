@@ -200,6 +200,25 @@ class AgentRuntime:
                     context=ExecutionContext(session_context=self.session_context)
                 )
 
+                # Сохранение данных результата в data_context
+                observation_item_ids = []
+                if result.data is not None:
+                    from core.session_context.model import ContextItem, ContextItemType, ContextItemMetadata
+                    observation_item = ContextItem(
+                        item_id='',
+                        session_id=self.session_context.session_id,
+                        item_type=ContextItemType.OBSERVATION,
+                        content=result.data,
+                        quick_content=str(result.data)[:500] if result.data else None,
+                        metadata=ContextItemMetadata(
+                            source=decision.action,
+                            step_number=executed_steps + 1,
+                            capability_name=decision.action
+                        )
+                    )
+                    observation_item_id = self.session_context.data_context.add_item(observation_item)
+                    observation_item_ids = [observation_item_id]
+
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
                 self.session_context.register_step(
@@ -207,7 +226,7 @@ class AgentRuntime:
                     capability_name=decision.action or "unknown",
                     skill_name=(decision.action or "unknown").split('.')[0],
                     action_item_id='',
-                    observation_item_ids=[],
+                    observation_item_ids=observation_item_ids,
                     summary=decision.reasoning,
                     status=result.status
                 )
@@ -225,7 +244,7 @@ class AgentRuntime:
             if decision.type == DecisionType.FINISH:
                 await event_bus.publish(EventType.INFO, {"message": f"✅ FINISH: {decision.reasoning[:100] if decision.reasoning else 'Done'}..."})
             if decision.type == DecisionType.FAIL:
-                await event_bus.publish(EventType.ERROR, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"})
+                await event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"})
 
         # Max steps exceeded
         return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")

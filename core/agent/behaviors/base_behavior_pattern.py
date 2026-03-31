@@ -101,11 +101,14 @@ class PromptBuilderService:
                 summary = step.summary or "Без описания"
                 status = step.status.value if hasattr(step.status, 'value') else str(step.status)
 
-                # КРИТИЧНО: Получаем реальные данные из observation_item_ids
                 observation_text = self._extract_observations_from_step(
                     session_context,
                     step.observation_item_ids if hasattr(step, 'observation_item_ids') else []
                 )
+                
+                step_text = f"{i}. {capability}\n"
+                step_text += f"   Результат: {observation_text[:500] if observation_text else 'Нет данных'}\n"
+                step_text += f"   Статус: {status}"
                 
             elif isinstance(step, dict):
                 # Это словарь (новый формат)
@@ -129,7 +132,7 @@ class PromptBuilderService:
                 step_text += f"   Результат: {observation[:500] if observation else 'Нет данных'}\n"
                 step_text += f"   Статус: {status}"
             else:
-                # Fallback для строки
+                # Fallback для строки или другого типа
                 step_text = f"{i}. {str(step)[:200]}"
             
             step_lines.append(step_text)
@@ -170,33 +173,15 @@ class PromptBuilderService:
                     content = item.content
                     
                     # Извлекаем полезную информацию
-                    if isinstance(content, dict):
-                        # Для book_library и подобных: извлекаем rows
+                    rows = None
+                    
+                    # DBQueryResult object
+                    if hasattr(content, 'rows') and hasattr(content, 'success'):
+                        rows = content.rows
+                    # Dict format
+                    elif isinstance(content, dict):
                         if 'rows' in content:
                             rows = content['rows']
-                            total_rows += len(rows)
-                            
-                            # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
-                            if len(rows) <= self.DATA_SIZE_LIMITS['small']:
-                                # Маленькие данные → показываем всё
-                                observations.extend(self._format_small_data(rows))
-                            elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
-                                # Средние данные → статистика + первые N
-                                observations.append(f"📊 Найдено {len(rows)} записей")
-                                observations.append("📋 Первые 5:")
-                                observations.extend(self._format_small_data(rows[:5]))
-                                observations.append(f"... и ещё {len(rows) - 5} записей")
-                            elif len(rows) <= self.DATA_SIZE_LIMITS['large']:
-                                # Большие данные → только статистика
-                                observations.append(f"📊 Найдено {len(rows)} записей (большие данные)")
-                                observations.append("⚠️ Для полного анализа используйте data_analysis.analyze_step_data")
-                                observations.append("📋 Пример (3 записи):")
-                                observations.extend(self._format_small_data(rows[:3]))
-                            else:
-                                # Очень большие данные → только мета
-                                observations.append(f"📊 Найдено {len(rows)} записей (очень большие данные)")
-                                observations.append("💡 Вызовите data_analysis.analyze_step_data для суммаризации")
-                        
                         elif 'result' in content:
                             result_str = str(content['result'])[:self.DISPLAY_LIMITS['max_chars_display']]
                             observations.append(f"- {result_str}")
@@ -206,7 +191,33 @@ class PromptBuilderService:
                         else:
                             content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
                             observations.append(f"- {content_str}")
-                    else:
+                    
+                    # Обработка rows
+                    if rows is not None:
+                        total_rows += len(rows)
+                        
+                        # УМНАЯ ОБРАБОТКА ПО РАЗМЕРУ
+                        if len(rows) <= self.DATA_SIZE_LIMITS['small']:
+                            # Маленькие данные → показываем всё
+                            observations.extend(self._format_small_data(rows))
+                        elif len(rows) <= self.DATA_SIZE_LIMITS['medium']:
+                            # Средние данные → статистика + первые N
+                            observations.append(f"📊 Найдено {len(rows)} записей")
+                            observations.append("📋 Первые 5:")
+                            observations.extend(self._format_small_data(rows[:5]))
+                            observations.append(f"... и ещё {len(rows) - 5} записей")
+                        elif len(rows) <= self.DATA_SIZE_LIMITS['large']:
+                            # Большие данные → только статистика
+                            observations.append(f"📊 Найдено {len(rows)} записей (большие данные)")
+                            observations.append("⚠️ Для полного анализа используйте data_analysis.analyze_step_data")
+                            observations.append("📋 Пример (3 записи):")
+                            observations.extend(self._format_small_data(rows[:3]))
+                        else:
+                            # Очень большие данные → только мета
+                            observations.append(f"📊 Найдено {len(rows)} записей (очень большие данные)")
+                            observations.append("💡 Вызовите data_analysis.analyze_step_data для суммаризации")
+                    elif not observations:
+                        # Fallback для других типов
                         content_str = str(content)[:self.DISPLAY_LIMITS['max_chars_display']]
                         observations.append(f"- {content_str}")
                         

@@ -66,6 +66,11 @@ class SessionLogHandler:
             EventType.LOG_DEBUG,
             EventType.LOG_WARNING,
             EventType.LOG_ERROR,
+            # Прямые события (для совместимости)
+            EventType.INFO,
+            EventType.DEBUG,
+            EventType.WARNING,
+            EventType.ERROR_OCCURRED,
             # LLM
             EventType.LLM_CALL_STARTED,
             EventType.LLM_CALL_COMPLETED,

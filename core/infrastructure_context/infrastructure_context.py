@@ -15,6 +15,7 @@ from datetime import datetime
 
 from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
 from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
+from core.infrastructure_context.lifecycle_manager import LifecycleManager
 from core.infrastructure_context.resource_registry import ResourceRegistry
 from core.services.metrics_publisher import MetricsPublisher
 

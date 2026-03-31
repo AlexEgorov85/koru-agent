@@ -112,15 +112,6 @@ class ReActPattern(BaseBehaviorPattern):
             # Извлекаем content из Prompt объекта
             system = system_prompt.content if system_prompt else ""
             user = user_prompt.content if user_prompt else ""
-
-            # Debug logging через event_bus
-            event_bus = self.application_context.infrastructure_context.event_bus
-            await event_bus.publish(EventType.DEBUG, {
-                "message": f"[DEBUG] system_prompt: {len(system)} chars, user_prompt: {len(user)} chars"
-            })
-            await event_bus.publish(EventType.DEBUG, {
-                "message": f"[DEBUG] output_contract: {output_contract}"
-            })
             
             # Schema из контракта (model_json_schema - метод класса, не экземпляра)
             schema = None
@@ -148,12 +139,23 @@ class ReActPattern(BaseBehaviorPattern):
                 return self.fallback_strategy.create_reasoning_fallback(
                     context, available_capabilities, "orchestrator_not_available"
                 )
-            
+
+            # Получаем event_bus для логирования
+            event_bus = self.application_context.infrastructure_context.event_bus
+
+            # Получаем провайдер из инфраструктурного контекста
+            provider = self.llm_provider
+
+            # Логирование перед вызовом LLM
+            await event_bus.publish(EventType.INFO, {
+                "message": f"[DEBUG] LLM CALL STARTED: prompt_len={len(full_prompt)}, model={provider.model_name if hasattr(provider, 'model_name') else 'unknown'}"
+            })
+
             llm_request = LLMRequest(
                 prompt=full_prompt,
                 system_prompt=system,
                 temperature=0.3,
-                max_tokens=1000,
+                max_tokens=2000,  # Увеличено для полного JSON ответа
                 structured_output=StructuredOutputConfig(
                     output_model="ReasoningResult",
                     schema_def=schema,
@@ -162,27 +164,29 @@ class ReActPattern(BaseBehaviorPattern):
                 )
             )
             
-            # Получаем провайдер из инфраструктурного контекста
-            provider = self.llm_provider
-            
             try:
                 result = await orchestrator.execute_structured(
                     request=llm_request,
                     provider=provider,
                     session_id=session_context.session_id,
-                    use_native_structured_output=False  # LlamaCpp не поддерживает нативный structured output
+                    use_native_structured_output=False,  # LlamaCpp не поддерживает нативный structured output
+                    attempt_timeout=300.0  # 5 минут на попытку
                 )
+                # Логирование результата
+                await event_bus.publish(EventType.INFO, {
+                    "message": f"[DEBUG] LLM RESULT: type={type(result).__name__}, has_parsed={hasattr(result, 'parsed_content')}, parsed_content={result.parsed_content if hasattr(result, 'parsed_content') else 'N/A'}"
+                })
             except Exception as e:
-                await event_bus.publish(EventType.ERROR, {
+                await event_bus.publish(EventType.ERROR_OCCURRED, {
                     "message": f"[DEBUG] LLM EXCEPTION: {type(e).__name__}: {e}"
                 })
                 return self.fallback_strategy.create_error(
                     f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
                 )
-            
+
             if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
                 await event_bus.publish(EventType.WARNING, {
-                    "message": f"[DEBUG] LLM FAILED - result: {result}"
+                    "message": f"[DEBUG] LLM FAILED - result type: {type(result).__name__}, has_parsed_content: {hasattr(result, 'parsed_content')}, parsed_content: {getattr(result, 'parsed_content', 'N/A')}, raw_response: {getattr(result, 'raw_response', 'N/A')}"
                 })
                 return self.fallback_strategy.create_error(
                     "llm_call_failed", available_capabilities
@@ -209,21 +213,43 @@ class ReActPattern(BaseBehaviorPattern):
         available_capabilities: List[Capability]
     ) -> Decision:
         """Преобразовать результат LLM в Decision."""
-        stop_condition = getattr(reasoning_result, "stop_condition", False)
-        stop_reason = getattr(reasoning_result, "stop_reason", None)
-        
-        decision = getattr(reasoning_result, "decision", None)
-        capability_name = getattr(decision, "next_action", None) if decision else None
-        parameters = getattr(decision, "parameters", {}) if decision else {}
-        reasoning = getattr(decision, "reasoning", "") if decision else ""
-        
+        # reasoning_result может быть dict или объектом
+        if isinstance(reasoning_result, dict):
+            stop_condition = reasoning_result.get("stop_condition", False)
+            stop_reason = reasoning_result.get("stop_reason", None)
+            decision = reasoning_result.get("decision", None)
+            capability_name = decision.get("next_action", None) if isinstance(decision, dict) else None
+            parameters = decision.get("parameters", {}) if isinstance(decision, dict) else {}
+            reasoning = decision.get("reasoning", "") if isinstance(decision, dict) else ""
+        else:
+            stop_condition = getattr(reasoning_result, "stop_condition", False)
+            stop_reason = getattr(reasoning_result, "stop_reason", None)
+            decision = getattr(reasoning_result, "decision", None)
+            capability_name = getattr(decision, "next_action", None) if decision else None
+            parameters = getattr(decision, "parameters", {}) if decision else {}
+            reasoning = getattr(decision, "reasoning", "") if decision else ""
+
         if stop_condition:
             return self._handle_stop_condition(capability_name, parameters, stop_reason)
-        
+
         if not capability_name:
             return Decision(type=DecisionType.FAIL, error="LLM не вернул next_action")
         
-        capability = self._find_capability(available_capabilities, capability_name)
+        # Поиск capability (inline реализация вместо _find_capability)
+        capability = None
+        # 1. Прямое совпадение
+        for cap in available_capabilities:
+            if cap.name == capability_name:
+                capability = cap
+                break
+        
+        # 2. Совпадение по префиксу
+        if not capability and '.' in capability_name:
+            prefix = capability_name.split('.')[0]
+            for cap in available_capabilities:
+                if cap.name == prefix:
+                    capability = cap
+                    break
         
         if not capability:
             for cap in available_capabilities:
@@ -234,9 +260,20 @@ class ReActPattern(BaseBehaviorPattern):
             
             if not capability:
                 return Decision(type=DecisionType.FAIL, error="no_available_capabilities")
-        
-        validated_params = self._validate_capability_parameters(capability, parameters, {})
-        
+
+        # Валидация параметров (inline реализация вместо _validate_capability_parameters)
+        validated_params = parameters
+        if hasattr(self, 'schema_validator') and self.schema_validator is not None:
+            try:
+                validated = self.schema_validator.validate_parameters(
+                    capability=capability,
+                    raw_params=parameters,
+                    context=str({})
+                )
+                validated_params = validated if validated else parameters
+            except Exception:
+                validated_params = {"input": parameters.get("input", "Продолжить выполнение задачи")}
+
         return Decision(
             type=DecisionType.ACT,
             action=capability_name,

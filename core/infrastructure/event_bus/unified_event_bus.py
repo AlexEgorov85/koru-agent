@@ -87,6 +87,7 @@ class EventType(Enum):
     DEBUG = "debug"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
     # === События жизненного цикла сессии ===
     SESSION_CREATED = "session.created"

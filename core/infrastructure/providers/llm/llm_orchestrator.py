@@ -302,6 +302,14 @@ class LLMOrchestrator:
                 f"cleanup_interval={self._cleanup_interval}с"
             )
             
+            # Event bus publish
+            if self._event_bus:
+                await self._event_bus.publish(
+                    EventType.DEBUG,
+                    {"message": f"LLMOrchestrator initialized: max_workers={self._max_workers}"},
+                    source="LLMOrchestrator"
+                )
+            
             return True
             
         except Exception as e:
@@ -337,6 +345,14 @@ class LLMOrchestrator:
                 )
             
             await self._logger.info("LLMOrchestrator остановлен")
+            
+            # Event bus publish
+            if self._event_bus:
+                await self._event_bus.publish(
+                    EventType.DEBUG,
+                    {"message": "LLMOrchestrator shutdown", "metrics": self._metrics.to_dict()},
+                    source="LLMOrchestrator"
+                )
             
         except Exception as e:
             if self._logger:
@@ -568,6 +584,14 @@ class LLMOrchestrator:
                     )
 
             # Выполнение единственной попытки
+            if self._logger:
+                await self._logger.info(
+                    f"🔵 [STRUCTURED] Выполнение попытки {attempt_num} | "
+                    f"prompt_len={len(request.prompt)} | "
+                    f"timeout={attempt_timeout}s | "
+                    f"use_native_structured_output={use_native_structured_output}"
+                )
+
             attempt = await self._execute_structured_attempt(
                 call_id=call_id,
                 request=request,
@@ -583,6 +607,14 @@ class LLMOrchestrator:
 
             attempts.append(attempt)
             self._metrics.total_retry_attempts += 1
+
+            if self._logger:
+                await self._logger.info(
+                    f"🔵 [STRUCTURED] Результат попытки {attempt_num} | "
+                    f"success={attempt.success} | "
+                    f"error_type={attempt.error_type} | "
+                    f"error_message={attempt.error_message[:100] if attempt.error_message else 'None'}"
+                )
 
             if attempt.success:
                 # Успех!
@@ -683,6 +715,15 @@ class LLMOrchestrator:
                 step_number=step_number,
                 phase=phase
             )
+
+            # Логирование ответа
+            if self._logger:
+                await self._logger.info(
+                    f"🔵 [STRUCTURED] LLM response: type={type(response).__name__}, "
+                    f"content_len={len(response.content) if hasattr(response, 'content') and response.content else 0}, "
+                    f"has_parsed={hasattr(response, 'parsed_content')}, "
+                    f"finish_reason={getattr(response, 'finish_reason', 'N/A')}"
+                )
 
             duration = time.time() - start_time
 
@@ -914,7 +955,11 @@ class LLMOrchestrator:
         call_record: CallRecord
     ) -> LLMResponse:
         """
-        Выполнение вызова с таймаутом и полным логированием.
+        Выполнение вызова LLM.
+        
+        ВАЖНО: Не используем asyncio.wait_for - результат теряется при таймауте.
+        Просто ждём результат бесконечно (поток в executor не блокирует event loop).
+        Таймаут обрабатывается на уровне выше если нужно.
 
         ВОЗВРАЩАЕТ:
         - LLMResponse: Результат вызова
@@ -928,7 +973,8 @@ class LLMOrchestrator:
             record.start_time = start_time
 
         try:
-            # Запуск в executor
+            # Запуск в executor (синхронный LLM вызов в отдельном потоке)
+            # run_in_executor не блокирует event loop
             future = asyncio.get_event_loop().run_in_executor(
                 self._executor,
                 self._sync_call_wrapper,
@@ -938,9 +984,9 @@ class LLMOrchestrator:
                 call_record
             )
 
-            # Ожидание с таймаутом
-            effective_timeout = timeout or self._get_default_timeout(request)
-            result = await asyncio.wait_for(future, timeout=effective_timeout)
+            # Ждём результат БЕЗ таймаута - поток работает в фоне
+            # asyncio.wait_for НЕ используется - при таймауте результат теряется!
+            result = await future
 
             # Успешное завершение
             async with self._lock:
@@ -953,14 +999,9 @@ class LLMOrchestrator:
             self._metrics.completed_calls += 1
             self._metrics.total_generation_time += record.duration or 0
 
-            msg = f"✅ [Orchestrator] Получен LLMResponse: content={result.content[:100] if result.content else 'EMPTY'}"
+            msg = f"✅ [Orchestrator] Получен LLMResponse: content={result.content[:100] if hasattr(result, 'content') and result.content else 'EMPTY'}"
             if self._logger:
                 await self._logger.info(msg)
-            else:
-                content_preview = str(result.parsed_content)[:50] if hasattr(result, 'parsed_content') and result.parsed_content else (str(result.content)[:50] if hasattr(result, 'content') and result.content else 'None')
-                msg = f"🔵 [Orchestrator] Получен LLMResponse: content[:50]={content_preview}"
-                if self._logger:
-                    await self._logger.info(msg)
 
             # Логирование успешного завершения
             await self._log_call_success(record, result)
@@ -969,36 +1010,6 @@ class LLMOrchestrator:
             # self._print_response(result, call_id, record.duration or 0)  ← Удалено: дублирование с Provider
 
             return result
-
-        except asyncio.TimeoutError:
-            elapsed = time.time() - start_time
-
-            # Помечаем как timed_out (но поток продолжает работу!)
-            async with self._lock:
-                record = self._pending_calls[call_id]
-                record.status = CallStatus.TIMED_OUT
-                record.error = f"Timeout after {elapsed:.2f}s"
-
-            # Обновление метрик
-            self._metrics.timed_out_calls += 1
-            self._metrics.total_wait_time += elapsed
-
-            # Логирование таймаута
-            await self._log_call_timeout(record, elapsed, effective_timeout)
-
-            # Возвращаем ошибку вместо исключения
-            return LLMResponse(
-                content="",
-                model="timeout",
-                tokens_used=0,
-                generation_time=elapsed,
-                finish_reason="error",
-                metadata={
-                    "error": f"LLM timeout после {elapsed:.2f}с (лимит: {effective_timeout}с)",
-                    "call_id": call_id,
-                    "timeout": True
-                }
-            )
 
         except Exception as e:
             elapsed = time.time() - start_time

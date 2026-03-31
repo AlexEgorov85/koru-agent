@@ -30,3 +30,17 @@ class FallbackStrategyService:
             reasoning=f"Ошибка при генерации решения: {reason}",
             confidence=0.0
         )
+
+    def create_reasoning_fallback(
+        self,
+        context: Dict[str, Any],
+        available_capabilities: List[Capability],
+        reason: str
+    ) -> Decision:
+        """Fallback для генерации решения через LLM."""
+        return Decision(
+            type=DecisionType.FAIL,
+            error=f"llm_reasoning_error: {reason}",
+            reasoning=f"Не удалось сгенерировать решение: {reason}",
+            confidence=0.0
+        )

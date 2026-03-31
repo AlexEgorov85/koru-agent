@@ -338,12 +338,15 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         - НЕ публикует события (это делает LLMOrchestrator)
         - НЕ логирует (это делает LLMOrchestrator через события)
         - Возвращает LLMResponse или бросает исключение
-        
+
         STRUCTURED OUTPUT:
         - Если request.structured_output — добавляет схему в промпт
         - Схема добавляется в system_prompt или user prompt
         - Provider сам решает формат промпта
         """
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(f"🔵 [LLM] _generate_impl started: prompt_len={len(request.prompt)}, structured_output={hasattr(request, 'structured_output') and request.structured_output is not None}")
+
         if not self.is_initialized or not self.llm:
             await self.event_bus_logger.warning("LLM не инициализирован! Вызываем initialize()...")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
@@ -448,7 +451,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
             if choices:
                 generated_text = choices[0].get('text', '')
                 finish_reason = choices[0].get('finish_reason', 'stop')
-                
+
                 if self.event_bus_logger:
                     await self.event_bus_logger.debug("\n" + "=" * 80)
                     await self.event_bus_logger.debug("💬 RESPONSE (LlamaCppProvider)")
@@ -468,8 +471,14 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 msg = f"🔵 Structured output запрошен: {request.structured_output.output_model}"
                 if self.event_bus_logger:
                     await self.event_bus_logger.info(msg)
+                
+                # Логирование сырого ответа
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(f"🔵 [LLM] Raw response: {generated_text[:500]}...")
+
                 try:
                     json_content = self._extract_json_from_response(generated_text)
+
                     if self.event_bus_logger:
                         await self.event_bus_logger.debug(f"🔵 JSON извлечён: {json_content[:80]}...")
                     parsed_json = json.loads(json_content)
@@ -496,12 +505,12 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                         parsing_attempts=1,
                         validation_errors=[]
                     )
-                    
+
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"✅ StructuredLLMResponse создан (success={structured_response.success})")
-                    
+
                     self._update_metrics(structured_response.raw_response.generation_time)
-                    
+
                     return structured_response
                     
                 except json.JSONDecodeError as json_err:

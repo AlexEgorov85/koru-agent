@@ -56,6 +56,45 @@ class TerminalLogFormatter:
         if not message or message == self._last_message:
             return None
 
+        # ФИЛЬТРАЦИЯ ШУМА — сообщения только в лог-файл
+        noise_patterns = [
+            "ComponentFactory",
+            "resources: prompts=",
+            "preload_for_component",
+            "prompt_versions",
+            "pattern.prompts",
+            "pattern.output_contracts",
+            "pattern.input_contracts",
+            "Prompt '",
+            "content len=",
+            "behavior_configs",
+            "Получен component_config",
+            "Pattern создан",
+            "Pattern ещё не инициализирован",
+            "Pattern.initialize()",
+            "после init",
+            "LLMOrchestrator initialized",
+            "LLM CALL STARTED",
+            "LLM RESULT",
+            "StructuredLLMResponse",
+            "has_parsed",
+            "parsed_content",
+            "JSON извлечён",
+            "JSON распарсен",
+            "LLM response:",
+            "LLM response received",
+            "choices[0]",
+            "FULL RESPONSE",
+            "Extracting JSON",
+            "_generate_impl started",
+            "Calling LLM",
+            "is_executor_thread",
+        ]
+        
+        for pattern in noise_patterns:
+            if pattern in message:
+                return None
+
         self._last_message = message
 
         # Классификация
@@ -130,12 +169,18 @@ class TerminalLogHandler:
         self.event_bus.subscribe(EventType.LOG_DEBUG, self._on_log)
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_error)
-        
+
+        # Подписка на прямые события (для совместимости)
+        self.event_bus.subscribe(EventType.INFO, self._on_log)
+        self.event_bus.subscribe(EventType.DEBUG, self._on_log)
+        self.event_bus.subscribe(EventType.WARNING, self._on_log)
+        self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error)
+
         # Подписка на пользовательские сообщения (всегда выводятся)
         self.event_bus.subscribe(EventType.USER_MESSAGE, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_PROGRESS, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_RESULT, self._on_user_message)
-        
+
         # Подписка на события агента для вывода рассуждений
         self.event_bus.subscribe(EventType.AGENT_THINKING, self._on_agent_thinking)
         self.event_bus.subscribe(EventType.TOOL_CALL, self._on_tool_call)
@@ -153,12 +198,26 @@ class TerminalLogHandler:
             return
 
         data = event.data or {}
-        level = data.get("level", "INFO")
         
+        # Определение уровня из события или data
+        level = data.get("level")
+        if not level:
+            # Определяем по типу события
+            if event.event_type in (EventType.INFO, EventType.LOG_INFO):
+                level = "INFO"
+            elif event.event_type in (EventType.DEBUG, EventType.LOG_DEBUG):
+                level = "DEBUG"
+            elif event.event_type in (EventType.WARNING, EventType.LOG_WARNING):
+                level = "WARNING"
+            elif event.event_type in (EventType.ERROR_OCCURRED, EventType.LOG_ERROR):
+                level = "ERROR"
+            else:
+                level = "INFO"  # По умолчанию
+
         # Фильтрация по уровню
         if not self._should_log(level):
             return
-        
+
         message = self.formatter.format(event, level)
 
         # Фильтрация: только сообщения с иконками
