@@ -689,14 +689,58 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         """
         Извлечь JSON из ответа LLM.
 
-        LLM часто добавляют текст до/после JSON.
+        LLM часто добавляют текст до/после JSON или оборачивают в markdown блоки.
         """
-        # Пытаемся найти JSON по скобкам
+        import re
+        
+        # 1. Сначала ищем JSON внутри markdown блока ```json ... ```
+        json_block_pattern = r'```json\s*\n?(.*?)\n?```'
+        matches = re.findall(json_block_pattern, content, re.DOTALL)
+        if matches:
+            # Берём последний блок (обычно там самый полный JSON)
+            return matches[-1].strip()
+        
+        # 2. Ищем JSON внутри обычного markdown блока ``` ... ```
+        code_block_pattern = r'```\s*\n?(.*?)\n?```'
+        matches = re.findall(code_block_pattern, content, re.DOTALL)
+        if matches:
+            for block in reversed(matches):
+                block = block.strip()
+                if block.startswith('{') and block.endswith('}'):
+                    try:
+                        json.loads(block)
+                        return block
+                    except json.JSONDecodeError:
+                        continue
+        
+        # 3. Ищем JSON по скобкам
         start = content.find('{')
         end = content.rfind('}') + 1
 
         if start != -1 and end > start:
-            return content[start:end]
+            candidate = content[start:end]
+            # Проверяем что это валидный JSON
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                # Ищем следующий JSON объект
+                pos = start + 1
+                while pos < len(content):
+                    next_start = content.find('{', pos)
+                    if next_start == -1:
+                        break
+                    next_end = content.rfind('}', pos) + 1
+                    if next_end <= next_start:
+                        break
+                    candidate = content[next_start:next_end]
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except json.JSONDecodeError:
+                        pos = next_start + 1
+                # Если ничего не найдено, возвращаем первый кандидат
+                return candidate
 
-        # Если не найдено, возвращаем как есть (возможно, это чистый JSON)
+        # 4. Если не найдено, возвращаем как есть
         return content.strip()

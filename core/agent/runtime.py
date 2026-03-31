@@ -18,7 +18,6 @@ from core.agent.components.failure_memory import FailureMemory
 from core.agent.components.policy import RetryPolicy
 from core.agent.behaviors.base import DecisionType
 from core.infrastructure.event_bus.unified_event_bus import EventType
-from core.models.enums.common_enums import ExecutionStatus
 
 
 class AgentRuntime:
@@ -239,6 +238,11 @@ class AgentRuntime:
                     "message": f"✅ Executor завершил: status={result.status.value}" +
                               (f"\n   ❌ Error: {result.error[:100]}..." if result.error else "")
                 })
+
+                # Если это был final_answer.generate и результат успешный - завершаем
+                if decision.action == "final_answer.generate" and result.status == ExecutionStatus.COMPLETED and result.data:
+                    await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"})
+                    return result
 
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:
