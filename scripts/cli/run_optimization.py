@@ -94,6 +94,18 @@ def parse_args() -> argparse.Namespace:
         help='Тестовый запуск без реальных изменений'
     )
 
+    parser.add_argument(
+        '--session-log',
+        type=str,
+        help='Путь к файлу session.jsonl для анализа и оптимизации на основе лога'
+    )
+
+    parser.add_argument(
+        '--analyze-only',
+        action='store_true',
+        help='Только анализ лога без запуска оптимизации'
+    )
+
     return parser.parse_args()
 
 
@@ -489,6 +501,94 @@ async def run_optimization_v2(
         }
 
 
+async def analyze_session_log(log_path: str, verbose: bool = False):
+    """
+    Анализ лога сессии и генерация рекомендаций по оптимизации.
+    
+    ARGS:
+        log_path: путь к session.jsonl
+        verbose: подробный вывод
+    
+    RETURNS:
+        dict: результат анализа
+    """
+    print("\n" + "="*60)
+    print("Session Log Analyzer")
+    print("="*60)
+    
+    try:
+        from core.agent.components.optimization.session_log_parser import SessionLogParser
+        from core.agent.components.optimization.prompt_analyzer import analyze_prompts_from_session
+        
+        parser = SessionLogParser()
+        session = parser.parse_file(Path(log_path))
+        session_report = parser.generate_analysis_report(session)
+        prompt_report = analyze_prompts_from_session(session_report)
+        
+        print(f"\n[ANALYSIS] ANALIZ SESII")
+        print("="*60)
+        print(f"Path: {log_path}")
+        print(f"Duration: {session_report['summary']['duration_seconds']:.1f} sec")
+        print(f"LLM calls: {session_report['summary']['total_llm_calls']}")
+        print(f"Actions: {session_report['summary']['total_actions']}")
+        print(f"Failed actions: {session_report['summary']['actions_with_errors']}")
+        
+        if session_report['goals']:
+            print(f"\n[G] Goals ({len(session_report['goals'])}):")
+            for i, goal in enumerate(session_report['goals'][:3], 1):
+                print(f"  {i}. {goal[:80]}...")
+        
+        print(f"\n[P] Patterns:")
+        for pattern, count in session_report['patterns'].items():
+            print(f"  - {pattern}: {count}")
+        
+        if session_report['failed_actions']:
+            print(f"\n[!] Errors ({len(session_report['failed_actions'])}):")
+            for err in session_report['failed_actions'][:5]:
+                print(f"  - [{err['action']}] {err.get('error', 'N/A')[:60]}...")
+        
+        # Вывод конкретных рекомендаций по промптам
+        if prompt_report['issues']:
+            print(f"\n[PROMPT ISSUES] Found {len(prompt_report['issues'])} prompt issues:")
+            for issue in prompt_report['issues']:
+                print(f"\n  [{issue['severity'].upper()}] {issue['type']}")
+                print(f"  File: {issue['file']}")
+                print(f"  Section: {issue['section']}")
+                print(f"  Problem: {issue['description'][:80]}...")
+                if issue['suggested_fix']:
+                    print(f"\n  Suggested fix:")
+                    for line in issue['suggested_fix'].split('\n')[:8]:
+                        print(f"    {line}")
+        
+        if verbose:
+            print(f"\n[F] Session report:")
+            print(json.dumps(session_report, indent=2, ensure_ascii=False))
+            print(f"\n[F] Prompt report:")
+            print(json.dumps(prompt_report, indent=2, ensure_ascii=False))
+        
+        # Объединяем результаты
+        result = {
+            'session': session_report,
+            'prompts': prompt_report,
+        }
+        
+        return result
+        
+    except Exception as e:
+        print(f"\n[!] Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'status': 'failed', 'error': str(e)}
+        
+        return report
+        
+    except Exception as e:
+        print(f"\n[!] Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'status': 'failed', 'error': str(e)}
+
+
 async def main():
     """Основная функция"""
     args = parse_args()
@@ -505,6 +605,24 @@ async def main():
     except Exception:
         data_dir = Path('data')
 
+    # Анализ лога сессии
+    if args.session_log:
+        result = await analyze_session_log(args.session_log, args.verbose)
+        
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"\n✅ Результаты сохранены в {args.output}")
+        
+        if args.analyze_only:
+            sys.exit(0)
+        
+        # Если указана capability, продолжаем оптимизацию
+        if not args.capability:
+            sys.exit(0)
+    
     # Список способностей
     if args.list_capabilities:
         capabilities = list_capabilities(data_dir)
@@ -516,7 +634,7 @@ async def main():
 
     # Проверка capability
     if not args.capability:
-        print("❌ Укажите --capability или --list-capabilities")
+        print("❌ Укажите --capability, --list-capabilities или --session-log")
         sys.exit(1)
 
     print(f"Конфигурация: registry.yaml")

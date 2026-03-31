@@ -107,7 +107,7 @@ class BookLibrarySkill(BaseSkill):
             ),
             Capability(
                 name="book_library.execute_script",
-                description="Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author (поиск по фамилии), get_books_by_genre, get_books_by_year_range, get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Нормализованная схема: Lib.books JOIN Lib.authors. Быстро ~100мс.",
+                description="Выполнение заготовленного SQL-скрипта по имени. 10 скриптов: get_all_books, get_books_by_author (поиск по фамилии), get_books_by_genre, get_books_by_year_range (параметры year_from и year_to опциональны), get_book_by_id, count_books_by_author, get_books_by_title_pattern, get_distinct_authors, get_distinct_genres, get_genre_statistics. Нормализованная схема: Lib.books JOIN Lib.authors. Быстро ~100мс.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
                 visiable=True,

@@ -219,9 +219,9 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
             ORDER BY b.publication_date
             LIMIT %s
         """,
-        description="Получить книги по диапазону лет публикации",
+        description="Получить книги по диапазону лет публикации (year_from и year_to опциональны)",
         parameters=["year_from", "year_to", "max_rows"],
-        required_parameters=["year_from", "year_to"],
+        required_parameters=[],
         max_rows=100,
         output_contract="book_library.execute_script_output"
     ),

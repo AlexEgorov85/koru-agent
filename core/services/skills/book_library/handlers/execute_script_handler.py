@@ -217,6 +217,13 @@ class ExecuteScriptHandler(BaseSkillHandler):
         """
         script_params = {}
 
+        # Специальная обработка для get_books_by_year_range
+        if script_config.get('name') == 'get_books_by_year_range':
+            # Год "от" - по умолчанию 0 (все книги с года)
+            script_params['year_from'] = params.get('year_from', 0)
+            # Год "до" - по умолчанию 9999 (до бесконечности)
+            script_params['year_to'] = params.get('year_to', 9999)
+
         if isinstance(params, dict):
             script_params = params.copy()
             script_params.pop('script_name', None)

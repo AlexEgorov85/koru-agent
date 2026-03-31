@@ -3,13 +3,16 @@ PromptResponseAnalyzer — анализ промптов и ответов LLM.
 
 КОМПОНЕНТЫ:
 - PromptResponseAnalyzer: анализ качества промптов и ответов
+- SessionPromptAnalyzer: анализ промптов на основе лога сессии
 
 FEATURES:
 - Поиск проблем в промптах (missing examples, ambiguous, no constraints)
 - Поиск проблем в ответах (schema violations, verbose, off-topic)
 - Рекомендации по улучшению
+- Session-based prompt analysis
 """
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 
@@ -460,3 +463,191 @@ class PromptResponseAnalyzer:
             'by_severity': by_severity,
             'critical_high_count': by_severity['critical'] + by_severity['high']
         }
+
+
+# === Session Log Analysis ===
+
+@dataclass
+class SessionBasedIssue:
+    """Проблема обнаруженная через анализ лога сессии"""
+    capability: str
+    prompt_file: str
+    issue_type: str
+    severity: str
+    description: str
+    section: Optional[str] = None
+    suggested_fix: Optional[str] = None
+
+
+class SessionPromptAnalyzer:
+    """
+    Анализатор промптов на основе лога сессии.
+    
+    АНАЛИЗИРУЕТ:
+    - Какие capability используются в сессии
+    - Какие промпты соответствуют этим capability
+    - Конкретные проблемы и рекомендации
+    """
+    
+    ACTION_TO_CAPABILITY = {
+        'book_library.execute_script': 'behavior.react.act',
+        'book_library.search_books': 'behavior.react.think',
+        'final_answer.generate': 'final_answer.generate',
+        'data_analysis.analyze_step_data': 'data_analysis',
+        'planning.create_plan': 'planning',
+        'planning.update_plan': 'planning',
+    }
+    
+    def __init__(self, data_dir: Path = None):
+        self.data_dir = data_dir or Path('data')
+        self.issues: List[SessionBasedIssue] = []
+    
+    def analyze_from_session(
+        self,
+        actions: List[Dict],
+        patterns: Dict[str, int],
+        failed_actions: List[Dict]
+    ) -> List[SessionBasedIssue]:
+        """Анализ сессии и генерация проблем с промптами."""
+        self.issues = []
+        
+        # 1. Проверяем паттерны
+        
+        # Агент предпочитает execute_script вместо search_books
+        execute_count = patterns.get('uses_execute_script', 0)
+        search_count = patterns.get('uses_search_books', 0)
+        
+        if execute_count > search_count * 1.5 and search_count > 0:
+            self.issues.append(SessionBasedIssue(
+                capability='behavior.react.think',
+                prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
+                issue_type='wrong_tool_selection',
+                severity='high',
+                description=(
+                    f"Agent uses execute_script ({execute_count} times) "
+                    f"more often than search_books ({search_count} times). "
+                    f"Need clear rules for tool selection."
+                ),
+                section='ПРАВИЛА ВЫБОРА',
+                suggested_fix=self._tool_selection_fix()
+            ))
+        
+        # Зацикливание
+        loops = patterns.get('loops', 0)
+        if loops >= 2:
+            self.issues.append(SessionBasedIssue(
+                capability='behavior.react.think',
+                prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
+                issue_type='looping',
+                severity='high',
+                description=f"Agent loops {loops} times. Need clear stop rules.",
+                section='ПРИМЕР',
+                suggested_fix=self._looping_fix()
+            ))
+        
+        # 2. Проверяем ошибки
+        for failed in failed_actions:
+            error = failed.get('error', '')
+            reasoning = failed.get('reasoning', '')
+            action = failed.get('action', '')
+            error_text = error + reasoning  # Проверяем и то и другое
+            
+            if 'Input validation failed' in error_text:
+                if 'get_books_by_year_range' in error_text:
+                    self.issues.append(SessionBasedIssue(
+                        capability='behavior.react.act',
+                        prompt_file='data/prompts/behavior/behavior/behavior.react.act.user_v1.0.0.yaml',
+                        issue_type='incorrect_parameters',
+                        severity='high',
+                        description="Agent calls get_books_by_year_range with incomplete parameters.",
+                        section='ДОСТУПНЫЕ СКРИПТЫ',
+                        suggested_fix=self._parameters_fix()
+                    ))
+        
+        return self.issues
+    
+    def _tool_selection_fix(self) -> str:
+        return """Add to 'ПРАВИЛА ВЫБОРА ИНСТРУМЕНТА' section:
+
+1. book_library.execute_script - for SIMPLE queries:
+   - Search by author (get_books_by_author)
+   - Search by genre (get_books_by_genre)
+   - Search by title (get_books_by_title_pattern)
+   - Get all books (get_all_books)
+
+2. book_library.search_books - for COMPLEX queries:
+   - Queries with one parameter (e.g. "books after 1850")
+   - Queries with multiple conditions
+   - Queries not covered by ready scripts
+
+IMPORTANT: If ready script requires parameters not in query - use search_books"""
+    
+    def _looping_fix(self) -> str:
+        return """Add stop example to 'ПРИМЕР' section:
+
+=== STOP EXAMPLE ===
+{
+  "thought": "Data already received in step 1. Task complete.",
+  "decision": {
+    "next_action": "final_answer.generate",
+    "stop_condition": true
+  }
+}
+
+STOP CRITERIA: If data matches goal -> immediately call final_answer.generate"""
+    
+    def _parameters_fix(self) -> str:
+        return """Update get_books_by_year_range in 'ДОСТУПНЫЕ СКРИПТЫ':
+
+- get_books_by_year_range - books by year range
+  (parameters year_from and year_to are OPTIONAL!
+   year_from=0 default, year_to=9999 default)"""
+    
+    def get_report(self) -> Dict[str, Any]:
+        """Получить отчёт анализа."""
+        return {
+            'issues': [
+                {
+                    'capability': issue.capability,
+                    'file': issue.prompt_file,
+                    'type': issue.issue_type,
+                    'severity': issue.severity,
+                    'description': issue.description,
+                    'section': issue.section,
+                    'suggested_fix': issue.suggested_fix,
+                }
+                for issue in self.issues
+            ],
+            'summary': {
+                'total': len(self.issues),
+                'high': len([i for i in self.issues if i.severity == 'high']),
+                'medium': len([i for i in self.issues if i.severity == 'medium']),
+                'low': len([i for i in self.issues if i.severity == 'low']),
+            }
+        }
+
+
+def analyze_prompts_from_session(session_report: Dict, data_dir: Path = None) -> Dict[str, Any]:
+    """
+    Анализ промптов на основе отчёта сессии.
+    
+    ARGS:
+        session_report: отчёт от SessionLogParser
+        data_dir: директория с данными
+    
+    RETURNS:
+        Dict с детальным анализом и рекомендациями
+    """
+    analyzer = SessionPromptAnalyzer(data_dir)
+    
+    patterns = session_report.get('patterns', {})
+    failed_actions = session_report.get('failed_actions', [])
+    
+    analyzer.analyze_from_session(
+        actions=[{'action': a.get('action', ''), 'error': a.get('error', '')} 
+                 for a in failed_actions],
+        patterns=patterns,
+        failed_actions=failed_actions
+    )
+    
+    return analyzer.get_report()
