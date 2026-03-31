@@ -11,9 +11,10 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
 
     capability_name = "final_answer.generate"
 
-    async def execute(self, context: BaseSessionContext, params: Dict[str, Any], exec_context: Any) -> ExecutionResult:
+    async def execute(self, params: Dict[str, Any], exec_context: Any = None) -> ExecutionResult:
         try:
-            goal = context.get_goal() or "Не указана цель"
+            session_context = exec_context.session_context if hasattr(exec_context, 'session_context') else exec_context
+            goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
 
             include_steps = self._extract_param(params, 'include_steps', True)
             include_evidence = self._extract_param(params, 'include_evidence', True)
@@ -89,23 +90,30 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
             context=exec_context
         )
 
-        if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.result:
-            all_items = all_items_result.result.get("items", {})
+        if all_items_result.status == ExecutionStatus.COMPLETED and all_items_result.data:
+            all_items = all_items_result.data.get("items", {})
 
             for item_id, item in all_items.items():
+                # ContextItem object -> dict
                 if hasattr(item, 'model_dump'):
                     item = item.model_dump()
-                item_type = item.get("type", "unknown") if isinstance(item, dict) else "unknown"
-
-                if item_type == "observation":
-                    content = item.get("content", item.get("text", "")) if isinstance(item, dict) else str(item)
+                
+                # ContextItem uses item_type (uppercase), check both formats
+                if isinstance(item, dict):
+                    item_type = item.get("item_type", item.get("type", "unknown")).lower()
+                    if item_type == "observation":
+                        content = item.get("content", item.get("quick_content", ""))
+                        observations.append(content)
+                    elif item_type == "thought":
+                        content = item.get("content", item.get("quick_content", ""))
+                        thoughts.append(content)
+                    elif item_type in ("action", "action_result", "tool_result"):
+                        content = item.get("content", item.get("quick_content", ""))
+                        actions.append(content)
+                else:
+                    # Fallback for unknown types
+                    content = str(item)
                     observations.append(content)
-                elif item_type == "thought":
-                    content = item.get("content", item.get("text", "")) if isinstance(item, dict) else str(item)
-                    thoughts.append(content)
-                elif item_type == "action_result":
-                    content = item.get("content", item.get("result", "")) if isinstance(item, dict) else str(item)
-                    actions.append(content)
 
         return observations, thoughts, actions
 

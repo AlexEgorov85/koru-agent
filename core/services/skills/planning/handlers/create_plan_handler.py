@@ -1,6 +1,5 @@
 from typing import Dict, Any, List
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
 from core.services.skills.handlers.base_handler import BaseSkillHandler
 
 
@@ -9,7 +8,7 @@ class CreatePlanHandler(BaseSkillHandler):
 
     capability_name = "planning.create_plan"
 
-    async def execute(self, params: Dict[str, Any], context: ExecutionContext) -> ExecutionResult:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> ExecutionResult:
         try:
             input_contract = self.get_input_schema()
             prompt_obj = self.get_prompt()
@@ -29,7 +28,7 @@ class CreatePlanHandler(BaseSkillHandler):
                     },
                     "temperature": 0.1
                 },
-                context=context
+                context=execution_context
             )
 
             if not llm_result.status == ExecutionStatus.COMPLETED:
@@ -54,7 +53,7 @@ class CreatePlanHandler(BaseSkillHandler):
             save_result = await self.executor.execute_action(
                 action_name="context.record_plan",
                 parameters={"plan_data": plan_data, "plan_type": "initial"},
-                context=context
+                context=execution_context
             )
 
             if not save_result.status == ExecutionStatus.COMPLETED:

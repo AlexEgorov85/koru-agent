@@ -11,7 +11,7 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
 
     capability_name = "data_analysis.analyze_step_data"
 
-    async def execute(self, params: Dict[str, Any]) -> ExecutionResult:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> ExecutionResult:
         start_time = time.time()
 
         query, data_key, aggregation = self._extract_params(params)
@@ -19,7 +19,7 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
         data_result = await self.executor.execute_action(
             action_name="context.get_step_data",
             parameters={"data_key": data_key},
-            context=None
+            context=execution_context
         )
 
         if data_result.status != ExecutionStatus.COMPLETED:
@@ -34,7 +34,7 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
         elif hasattr(raw_data, 'data'):
             raw_data = raw_data.data
 
-        analyzed = await self._perform_analysis(raw_data, aggregation)
+        analyzed = await self._perform_analysis(raw_data, aggregation, execution_context)
 
         execution_time = (time.time() - start_time) * 1000
 
@@ -64,14 +64,14 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
             aggregation = params.get('aggregation', 'summary')
         return query, data_key, aggregation
 
-    async def _perform_analysis(self, data: Any, aggregation: str) -> Dict[str, Any]:
+    async def _perform_analysis(self, data: Any, aggregation: str, execution_context: Any = None) -> Dict[str, Any]:
         """Выполнение анализа данных."""
         if aggregation == "summary":
             return self._summarize(data)
         elif aggregation == "statistical":
             return self._statistical_analysis(data)
         elif aggregation == "generative":
-            return await self._generative_analysis(data)
+            return await self._generative_analysis(data, execution_context)
         return self._summarize(data)
 
     def _summarize(self, data: Any) -> Dict[str, Any]:
@@ -103,12 +103,12 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
             return {"statistics": stats}
         return {"statistics": {}}
 
-    async def _generative_analysis(self, data: Any) -> Dict[str, Any]:
+    async def _generative_analysis(self, data: Any, execution_context: Any = None) -> Dict[str, Any]:
         prompt = f"Проанализируй данные и дай краткое резюме: {str(data)[:500]}"
         result = await self.executor.execute_action(
             action_name="llm.generate",
             parameters={"prompt": prompt, "temperature": 0.3},
-            context=None
+            context=execution_context
         )
         if result.status == ExecutionStatus.COMPLETED:
             return {"summary": result.data.get("text", "") if hasattr(result.data, 'get') else str(result.data)}

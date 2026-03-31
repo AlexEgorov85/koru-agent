@@ -66,15 +66,20 @@ class BaseSkillHandler(ABC):
         self.event_bus_logger: EventBusLogger = skill.event_bus_logger
 
     @abstractmethod
-    async def execute(self, params: Dict[str, Any]) -> Any:
+    async def execute(
+        self,
+        params: Dict[str, Any],
+        execution_context: Any = None
+    ) -> ExecutionResult:
         """
         Выполнение логики хендлера.
         
-        ARGS:
+        СТАНДАРТНАЯ СИГНАТУРА:
         - params: входные параметры (валидированные)
+        - execution_context: ExecutionContext для доступа к session_context
         
         RETURNS:
-        - Any: результат выполнения (Pydantic модель или dict)
+        - ExecutionResult: результат выполнения
         """
         pass
 

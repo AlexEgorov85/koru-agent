@@ -1,6 +1,5 @@
 from typing import Dict, Any
 from core.models.data.execution import ExecutionResult, ExecutionStatus
-from core.agent.components.action_executor import ExecutionContext
 from core.services.skills.handlers.base_handler import BaseSkillHandler
 
 
@@ -9,7 +8,7 @@ class UpdatePlanHandler(BaseSkillHandler):
 
     capability_name = "planning.update_plan"
 
-    async def execute(self, params: Dict[str, Any], context: ExecutionContext) -> ExecutionResult:
+    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> ExecutionResult:
         try:
             plan_id = params.get("plan_id", "")
             updates = params.get("updates", {})
@@ -19,7 +18,7 @@ class UpdatePlanHandler(BaseSkillHandler):
                 plan_result = await self.executor.execute_action(
                     action_name="context.get_context_item",
                     parameters={"item_id": plan_id},
-                    context=context
+                    context=execution_context
                 )
                 if not plan_result.status == ExecutionStatus.COMPLETED:
                     return ExecutionResult(status=ExecutionStatus.FAILED, error=f"План с ID {plan_id} не найден")
@@ -28,7 +27,7 @@ class UpdatePlanHandler(BaseSkillHandler):
                 plan_result = await self.executor.execute_action(
                     action_name="context.get_current_plan",
                     parameters={},
-                    context=context
+                    context=execution_context
                 )
                 if not plan_result.status == ExecutionStatus.COMPLETED:
                     return ExecutionResult(status=ExecutionStatus.FAILED, error="Нет текущего плана для обновления")
@@ -51,7 +50,7 @@ class UpdatePlanHandler(BaseSkillHandler):
                     },
                     "temperature": 0.1
                 },
-                context=context
+                context=execution_context
             )
 
             if not llm_result.status == ExecutionStatus.COMPLETED:
@@ -66,7 +65,7 @@ class UpdatePlanHandler(BaseSkillHandler):
             save_result = await self.executor.execute_action(
                 action_name="context.record_plan",
                 parameters={"plan_data": updated_plan, "plan_type": "update"},
-                context=context
+                context=execution_context
             )
 
             if not save_result.status == ExecutionStatus.COMPLETED:
