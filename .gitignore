@@ -164,6 +164,9 @@ output/
 results/
 export/
 
+# Agent configuration (local instructions)
+AGENTS.md
+
 # Architecture documents (if sensitive)
 ARCHITECTURE.md
 ARCHITECTURE_DECISIONS.md
