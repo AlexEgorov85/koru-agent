@@ -142,8 +142,6 @@ class AgentRuntime:
         
         if str(self._pattern._state) == "ComponentState.CREATED":
             await self._pattern.initialize()
-        
-        await event_bus.publish(EventType.INFO, {"message": f"✅ Pattern инициализирован (state={self._pattern._state})"})
 
     async def _run_async(self) -> ExecutionResult:
         """

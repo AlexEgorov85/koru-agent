@@ -109,5 +109,6 @@ class LoggingMixin:
             try:
                 getattr(self.event_bus_logger, f'{level}_sync')(message, *args, **kwargs)
             except Exception:
-                # Fallback на print если логгер недоступен
-                print(f"[{level.upper()}] {message}", flush=True)
+                import sys
+                sys.stdout.buffer.write(f"[{level.upper()}] {message}\n".encode('utf-8'))
+                sys.stdout.flush()

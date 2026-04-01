@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -11,6 +11,18 @@ class DecisionType(Enum):
     FAIL = "fail"                  # Завершить с ошибкой
     SWITCH_STRATEGY = "switch"     # Переключить стратегию
     # RETRY удалён — это ACT с тем же действием
+
+
+# Алиасы для обратной совместимости
+class BehaviorDecisionType(Enum):
+    ACT = "act"
+    FINISH = "finish"
+    FAIL = "fail"
+    SWITCH = "switch"
+    SWITCH_STRATEGY = "switch"
+    CONTINUE = "act"
+    STOP = "finish"
+    ERROR = "fail"
 
 
 @dataclass
@@ -48,6 +60,10 @@ class Decision:
     @capability_name.setter
     def capability_name(self, value: Optional[str]):
         self.action = value
+
+
+# Алиас для обратной совместимости
+BehaviorDecision = Decision
 
 
 class BehaviorPatternInterface(ABC):

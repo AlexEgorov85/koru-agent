@@ -146,6 +146,16 @@ class ReActPattern(BaseBehaviorPattern):
             # Получаем провайдер из инфраструктурного контекста
             provider = self.llm_provider
 
+            if provider is None:
+                print("❌ [ReActPattern] LLM provider is None! Available resources:")
+                if self.application_context and hasattr(self.application_context, 'infrastructure_context'):
+                    infra = self.application_context.infrastructure_context
+                    if hasattr(infra, 'resource_registry'):
+                        print(f"   Registry keys: {infra.resource_registry.get_all_names()}")
+                    if hasattr(infra, 'lifecycle_manager'):
+                        print(f"   Lifecycle resources: {list(infra.lifecycle_manager._resources.keys())}")
+                return self._handle_error("llm_provider_not_available", available_capabilities)
+
             # Логирование перед вызовом LLM
             await event_bus.publish(EventType.INFO, {
                 "message": f"[DEBUG] LLM CALL STARTED: prompt_len={len(full_prompt)}, model={provider.model_name if hasattr(provider, 'model_name') else 'unknown'}"
@@ -168,8 +178,8 @@ class ReActPattern(BaseBehaviorPattern):
                 # Извлекаем данные для трассировки из session_context
                 step_number = None
                 if hasattr(session_context, 'step_context') and session_context.step_context:
-                    step_number = session_context.step_context.get_last_step_number()
-                
+                    step_number = session_context.step_context.get_current_step_number()
+
                 result = await orchestrator.execute_structured(
                     request=llm_request,
                     provider=provider,
@@ -178,8 +188,7 @@ class ReActPattern(BaseBehaviorPattern):
                     step_number=step_number,
                     goal=session_context.goal,
                     phase='think',
-                    use_native_structured_output=False,
-                    attempt_timeout=300.0
+                    use_native_structured_output=False
                 )
                 # Логирование результата
                 await event_bus.publish(EventType.INFO, {

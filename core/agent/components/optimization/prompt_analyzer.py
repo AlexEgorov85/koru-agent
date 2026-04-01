@@ -3,14 +3,16 @@ PromptResponseAnalyzer — анализ промптов и ответов LLM.
 
 КОМПОНЕНТЫ:
 - PromptResponseAnalyzer: анализ качества промптов и ответов
-- SessionPromptAnalyzer: анализ промптов на основе лога сессии
+- SessionPromptAnalyzer: анализ промптов на основе лога сессии с LLM-генерацией
 
 FEATURES:
 - Поиск проблем в промптах (missing examples, ambiguous, no constraints)
 - Поиск проблем в ответах (schema violations, verbose, off-topic)
 - Рекомендации по улучшению
-- Session-based prompt analysis
+- Session-based prompt analysis с LLM-генерацией рекомендаций
 """
+import asyncio
+import concurrent.futures
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -481,12 +483,13 @@ class SessionBasedIssue:
 
 class SessionPromptAnalyzer:
     """
-    Анализатор промптов на основе лога сессии.
+    Анализатор промптов на основе лога сессии с LLM-генерацией рекомендаций.
     
     АНАЛИЗИРУЕТ:
     - Какие capability используются в сессии
     - Какие промпты соответствуют этим capability
-    - Конкретные проблемы и рекомендации
+    - Конкретные проблемы
+    - Генерирует рекомендации через LLM
     """
     
     ACTION_TO_CAPABILITY = {
@@ -502,7 +505,7 @@ class SessionPromptAnalyzer:
         self.data_dir = data_dir or Path('data')
         self.issues: List[SessionBasedIssue] = []
     
-    def analyze_from_session(
+    async def analyze_from_session(
         self,
         actions: List[Dict],
         patterns: Dict[str, int],
@@ -510,10 +513,9 @@ class SessionPromptAnalyzer:
     ) -> List[SessionBasedIssue]:
         """Анализ сессии и генерация проблем с промптами."""
         self.issues = []
+        session_context = {'patterns': patterns, 'failed_actions': failed_actions}
         
         # 1. Проверяем паттерны
-        
-        # Агент предпочитает execute_script вместо search_books
         execute_count = patterns.get('uses_execute_script', 0)
         search_count = patterns.get('uses_search_books', 0)
         
@@ -523,16 +525,10 @@ class SessionPromptAnalyzer:
                 prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
                 issue_type='wrong_tool_selection',
                 severity='high',
-                description=(
-                    f"Agent uses execute_script ({execute_count} times) "
-                    f"more often than search_books ({search_count} times). "
-                    f"Need clear rules for tool selection."
-                ),
-                section='ПРАВИЛА ВЫБОРА',
-                suggested_fix=self._tool_selection_fix()
+                description=f"Agent uses execute_script ({execute_count}) more than search_books ({search_count})",
+                section='ПРАВИЛА ВЫБОРА'
             ))
         
-        # Зацикливание
         loops = patterns.get('loops', 0)
         if loops >= 2:
             self.issues.append(SessionBasedIssue(
@@ -540,68 +536,175 @@ class SessionPromptAnalyzer:
                 prompt_file='data/prompts/behavior/behavior/behavior.react.think.user_v1.0.0.yaml',
                 issue_type='looping',
                 severity='high',
-                description=f"Agent loops {loops} times. Need clear stop rules.",
-                section='ПРИМЕР',
-                suggested_fix=self._looping_fix()
+                description=f"Agent loops {loops} times",
+                section='ПРИМЕР'
             ))
         
-        # 2. Проверяем ошибки
         for failed in failed_actions:
             error = failed.get('error', '')
             reasoning = failed.get('reasoning', '')
-            action = failed.get('action', '')
-            error_text = error + reasoning  # Проверяем и то и другое
+            error_text = error + reasoning
             
-            if 'Input validation failed' in error_text:
-                if 'get_books_by_year_range' in error_text:
-                    self.issues.append(SessionBasedIssue(
-                        capability='behavior.react.act',
-                        prompt_file='data/prompts/behavior/behavior/behavior.react.act.user_v1.0.0.yaml',
-                        issue_type='incorrect_parameters',
-                        severity='high',
-                        description="Agent calls get_books_by_year_range with incomplete parameters.",
-                        section='ДОСТУПНЫЕ СКРИПТЫ',
-                        suggested_fix=self._parameters_fix()
-                    ))
+            if 'Input validation failed' in error_text and 'get_books_by_year_range' in error_text:
+                self.issues.append(SessionBasedIssue(
+                    capability='behavior.react.act',
+                    prompt_file='data/prompts/behavior/behavior/behavior.react.act.user_v1.0.0.yaml',
+                    issue_type='incorrect_parameters',
+                    severity='high',
+                    description="Agent calls get_books_by_year_range with incomplete parameters",
+                    section='ДОСТУПНЫЕ СКРИПТЫ'
+                ))
+        
+        # 2. Генерируем рекомендации через LLM одним запросом
+        llm_recommendations = await self._generate_all_fixes_with_llm(session_context)
+        
+        # 3. Присваиваем рекомендации к issue
+        for i, issue in enumerate(self.issues):
+            issue.suggested_fix = llm_recommendations.get(i, "[No recommendation]")
         
         return self.issues
     
-    def _tool_selection_fix(self) -> str:
-        return """Add to 'ПРАВИЛА ВЫБОРА ИНСТРУМЕНТА' section:
-
-1. book_library.execute_script - for SIMPLE queries:
-   - Search by author (get_books_by_author)
-   - Search by genre (get_books_by_genre)
-   - Search by title (get_books_by_title_pattern)
-   - Get all books (get_all_books)
-
-2. book_library.search_books - for COMPLEX queries:
-   - Queries with one parameter (e.g. "books after 1850")
-   - Queries with multiple conditions
-   - Queries not covered by ready scripts
-
-IMPORTANT: If ready script requires parameters not in query - use search_books"""
+    async def _generate_all_fixes_with_llm(self, session_context: Dict) -> Dict[int, str]:
+        """Генерация всех исправлений одним LLM вызовом."""
+        if not self.issues:
+            return {}
+        
+        # Пытаемся использовать LLM через executor если доступен
+        try:
+            from core.agent.components.action_executor import ExecutionContext
+            from core.models.data.execution import ExecutionStatus
+            
+            exec_context = ExecutionContext()
+            result = await exec_context.executor.execute_action(
+                action_name="llm.generate",
+                parameters={
+                    "prompt": self.generate_full_llm_prompt(session_context),
+                    "system_prompt": "You are a prompt optimization expert. Return ONLY numbered YAML snippets.",
+                    "temperature": 0.3,
+                    "max_tokens": 800
+                },
+                context=exec_context
+            )
+            
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                text = result.data.get('text', str(result.data)) if isinstance(result.data, dict) else str(result.data)
+                return self._parse_llm_response(text)
+        except Exception as e:
+            pass
+        
+        return {}  # Возвращаем пустой dict - CLI покажет полный промт
     
-    def _looping_fix(self) -> str:
-        return """Add stop example to 'ПРИМЕР' section:
-
-=== STOP EXAMPLE ===
-{
-  "thought": "Data already received in step 1. Task complete.",
-  "decision": {
-    "next_action": "final_answer.generate",
-    "stop_condition": true
-  }
-}
-
-STOP CRITERIA: If data matches goal -> immediately call final_answer.generate"""
+    def _parse_llm_response(self, text: str) -> Dict[int, str]:
+        """Парсинг ответа LLM."""
+        result = {}
+        lines = text.split('\n')
+        current_num = None
+        current_content = []
+        
+        for line in lines:
+            line = line.strip()
+            if line and line[0].isdigit():
+                # Сохраняем предыдущий
+                if current_num is not None:
+                    result[current_num - 1] = '\n'.join(current_content)
+                # Новый номер
+                current_num = int(line.split('.')[0])
+                current_content = [line]
+            elif current_num is not None:
+                current_content.append(line)
+        
+        # Последний
+        if current_num is not None:
+            result[current_num - 1] = '\n'.join(current_content)
+        
+        return result
     
-    def _parameters_fix(self) -> str:
-        return """Update get_books_by_year_range in 'ДОСТУПНЫЕ СКРИПТЫ':
+    def _generate_fix_with_llm_sync(self, issue: SessionBasedIssue, session_context: Dict) -> str:
+        """Генерация промта для анализа."""
+        return f"""You are a prompt optimization expert. Analyze the following issue and generate a specific improvement.
 
-- get_books_by_year_range - books by year range
-  (parameters year_from and year_to are OPTIONAL!
-   year_from=0 default, year_to=9999 default)"""
+PROBLEM:
+- Type: {issue.issue_type}
+- Capability: {issue.capability}
+- File: {issue.prompt_file}
+- Section: {issue.section}
+- Description: {issue.description}
+
+SESSION STATISTICS:
+- Patterns: {session_context.get('patterns', {})}
+
+TASK:
+Generate a specific improvement as YAML text for the prompt file. Be concise and actionable.
+"""
+    
+    async def _generate_fix_with_llm(self, issue: SessionBasedIssue, session_context: Dict) -> str:
+        """Генерация исправления через LLM (асинхронно)."""
+        prompt = self._generate_fix_with_llm_sync(issue, session_context)
+        
+        try:
+            from core.infrastructure_context.infrastructure_context import InfrastructureContext
+            from core.config import get_config
+            
+            config = get_config(profile='dev', data_dir='data')
+            infra = InfrastructureContext(config=config)
+            
+            if await infra.initialize():
+                orchestrator = getattr(infra, 'llm_orchestrator', None)
+                if orchestrator:
+                    response = await orchestrator.generate(
+                        prompt=prompt,
+                        system_prompt="You are a prompt optimization expert. Return ONLY the YAML text to add to the prompt file.",
+                        temperature=0.3,
+                        max_tokens=500
+                    )
+                    if response and hasattr(response, 'text'):
+                        return response.text.strip()
+                    return str(response)
+        except Exception as e:
+            return f"[Error: {str(e)[:50]}]"
+        
+        return "[LLM_NOT_AVAILABLE - use full prompt above]"
+    
+    def generate_full_llm_prompt(self, session_report: Dict) -> str:
+        """Генерация полного промта для LLM анализа всех проблем."""
+        patterns = session_report.get('patterns', {})
+        failed_actions = session_report.get('failed_actions', [])
+        goals = session_report.get('goals', [])
+        
+        issues_text = []
+        for i, action in enumerate(failed_actions[:5], 1):
+            issues_text.append(f"{i}. Action: {action.get('action', 'unknown')}, Error: {action.get('error', 'N/A')[:100]}")
+        
+        return f"""You are a prompt optimization expert. Analyze this agent session log and generate improvements.
+
+SESSION SUMMARY:
+- Duration: {session_report.get('summary', {}).get('duration_seconds', 0):.0f}s
+- LLM calls: {session_report.get('summary', {}).get('total_llm_calls', 0)}
+- Failed actions: {len(failed_actions)}
+- Goals: {', '.join(goals[:2])}
+
+PATTERNS DETECTED:
+- execute_script used: {patterns.get('uses_execute_script', 0)} times
+- search_books used: {patterns.get('uses_search_books', 0)} times
+- Loops: {patterns.get('loops', 0)} times
+
+FAILED ACTIONS:
+{chr(10).join(issues_text)}
+
+TASK:
+For each issue, generate a specific YAML improvement for the corresponding prompt file.
+Return the improvements in this format:
+
+### Issue 1: [issue_type]
+File: [path]
+Section: [section]
+Improvement:
+```yaml
+[yaml content here]
+```
+
+### Issue 2: ...
+"""
     
     def get_report(self) -> Dict[str, Any]:
         """Получить отчёт анализа."""
@@ -614,7 +717,7 @@ STOP CRITERIA: If data matches goal -> immediately call final_answer.generate"""
                     'severity': issue.severity,
                     'description': issue.description,
                     'section': issue.section,
-                    'suggested_fix': issue.suggested_fix,
+                    'suggested_fix': issue.suggested_fix or '[Run with LLM to get recommendations]',
                 }
                 for issue in self.issues
             ],
@@ -627,9 +730,9 @@ STOP CRITERIA: If data matches goal -> immediately call final_answer.generate"""
         }
 
 
-def analyze_prompts_from_session(session_report: Dict, data_dir: Path = None) -> Dict[str, Any]:
+async def analyze_prompts_from_session(session_report: Dict, data_dir: Path = None) -> Dict[str, Any]:
     """
-    Анализ промптов на основе отчёта сессии.
+    Анализ промптов на основе отчёта сессии с LLM-генерацией.
     
     ARGS:
         session_report: отчёт от SessionLogParser
@@ -643,7 +746,7 @@ def analyze_prompts_from_session(session_report: Dict, data_dir: Path = None) ->
     patterns = session_report.get('patterns', {})
     failed_actions = session_report.get('failed_actions', [])
     
-    analyzer.analyze_from_session(
+    await analyzer.analyze_from_session(
         actions=[{'action': a.get('action', ''), 'error': a.get('error', '')} 
                  for a in failed_actions],
         patterns=patterns,

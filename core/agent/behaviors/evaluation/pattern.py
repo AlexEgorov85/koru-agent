@@ -1,5 +1,5 @@
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
-from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType, Decision
 from core.agent.behaviors.services import FallbackStrategyService
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
@@ -34,6 +34,15 @@ class EvaluationPattern(BaseBehaviorPattern):
         # System prompt для оценки (загружается из реестра)
         self.system_prompt_template: Optional[str] = None
         self.reasoning_schema: Optional[dict] = None
+
+    async def decide(
+        self,
+        session_context: SessionContext,
+        available_capabilities: List[Capability]
+    ) -> Decision:
+        """Единственное место принятия решений."""
+        context = await self.analyze_context(session_context, available_capabilities, {})
+        return await self.generate_decision(session_context, available_capabilities, context)
 
     @property
     def llm_orchestrator(self):

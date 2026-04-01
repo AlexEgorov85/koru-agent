@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern
-from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType
+from core.agent.behaviors.base import BehaviorDecision, BehaviorDecisionType, Decision
 from core.agent.behaviors.services import FallbackStrategyService
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult
@@ -31,6 +31,15 @@ class PlanningPattern(BaseBehaviorPattern):
         - event_bus: EventBusInterface для логирования
         """
         super().__init__(component_name, component_config, application_context, executor, event_bus)
+
+    async def decide(
+        self,
+        session_context: SessionContext,
+        available_capabilities: List[Capability]
+    ) -> Decision:
+        """Единственное место принятия решений."""
+        context = await self.analyze_context(session_context, available_capabilities, {})
+        return await self.generate_decision(session_context, available_capabilities, context)
 
     async def analyze_context(
         self,

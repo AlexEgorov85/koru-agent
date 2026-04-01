@@ -929,7 +929,7 @@ class ActionExecutor:
                 agent_id = getattr(context.session_context, 'agent_id', None)
                 goal = getattr(context.session_context, 'goal', None)
                 if hasattr(context.session_context, 'step_context') and context.session_context.step_context:
-                    step_number = context.session_context.step_context.get_last_step_number()
+                    step_number = context.session_context.step_context.get_current_step_number()
             
             response = await orchestrator.execute(
                 request=request,
@@ -948,11 +948,9 @@ class ActionExecutor:
             status=ExecutionStatus.COMPLETED,
             data={"content": response.content},
             metadata={
-                # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет model напрямую
+                # LLMResponse имеет raw_response с метаданными
                 "model": response.raw_response.model if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'model', 'unknown'),
-                # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
                 "tokens_used": response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'tokens_used', 0),
-                # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет generation_time/finish_reason напрямую
                 "generation_time": response.raw_response.generation_time if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'generation_time', 0),
                 "finish_reason": response.raw_response.finish_reason if hasattr(response, 'raw_response') and response.raw_response else getattr(response, 'finish_reason', 'unknown')
             }
@@ -997,7 +995,7 @@ class ActionExecutor:
             prompt=prompt,
             system_prompt=parameters.get("system_prompt"),
             temperature=parameters.get("temperature", 0.1),  # Низкая температура для точности
-            max_tokens=parameters.get("max_tokens", 1000),
+            max_tokens=parameters.get("max_tokens", 4000),
             structured_output=structured_output
         )
 
@@ -1007,35 +1005,6 @@ class ActionExecutor:
                 status=ExecutionStatus.FAILED,
                 error="LLMOrchestrator недоступен — требуется для структурированной генерации"
             )
-
-        # Извлекаем контекстные данные для трассировки (приоритет у параметров)
-        session_id = parameters.get('session_id')
-        agent_id = parameters.get('agent_id')
-        step_number = parameters.get('step_number')
-        goal = parameters.get('goal')
-        
-        if context and context.session_context:
-            if session_id is None:
-                session_id = getattr(context.session_context, 'session_id', None)
-            if agent_id is None:
-                agent_id = getattr(context.session_context, 'agent_id', None)
-            if goal is None:
-                goal = getattr(context.session_context, 'goal', None)
-            if step_number is None and hasattr(context.session_context, 'step_context') and context.session_context.step_context:
-                step_number = context.session_context.step_context.get_last_step_number()
-
-        response = await orchestrator.execute_structured(
-            request=request,
-            provider=llm_provider,
-            max_retries=parameters.get("max_retries", 3),
-            attempt_timeout=attempt_timeout,
-            total_timeout=total_timeout,
-            session_id=session_id,
-            agent_id=agent_id,
-            step_number=step_number,
-            goal=goal,
-            phase=parameters.get('phase', 'unknown')
-        )
 
         # Получаем таймауты из централизованной конфигурации
         from core.config.timeout_config import get_timeout_config
@@ -1060,15 +1029,30 @@ class ActionExecutor:
             )
             total_timeout = parameters.get("total_timeout", attempt_timeout)
 
+        # Извлекаем контекстные данные для трассировки (приоритет у параметров)
+        session_id = parameters.get('session_id')
+        agent_id = parameters.get('agent_id')
+        step_number = parameters.get('step_number')
+        goal = parameters.get('goal')
+        
+        if context and context.session_context:
+            if session_id is None:
+                session_id = getattr(context.session_context, 'session_id', None)
+            if agent_id is None:
+                agent_id = getattr(context.session_context, 'agent_id', None)
+            if goal is None:
+                goal = getattr(context.session_context, 'goal', None)
+            if step_number is None and hasattr(context.session_context, 'step_context') and context.session_context.step_context:
+                step_number = context.session_context.step_context.get_current_step_number()
+
         response = await orchestrator.execute_structured(
             request=request,
             provider=llm_provider,
             max_retries=parameters.get("max_retries", 3),
-            attempt_timeout=attempt_timeout,
-            total_timeout=total_timeout,
-            session_id=parameters.get('session_id'),
-            agent_id=parameters.get('agent_id'),
-            step_number=parameters.get('step_number'),
+            session_id=session_id,
+            agent_id=agent_id,
+            step_number=step_number,
+            goal=goal,
             phase=parameters.get('phase', 'unknown')
         )
 
