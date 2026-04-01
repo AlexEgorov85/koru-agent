@@ -734,8 +734,6 @@ async def init_logging_system(
     """Инициализация системы логирования."""
     global _global_event_bus, _default_logger
 
-    print("🚀 Инициализация системы логирования...", flush=True)
-
     if event_bus is not None:
         _global_event_bus = event_bus
     else:
@@ -743,8 +741,6 @@ async def init_logging_system(
         _global_event_bus = get_event_bus()
 
     _default_logger = EventBusLogger(_global_event_bus, session_id, agent_id, 'system')
-
-    print("✅ Система логирования инициализирована", flush=True)
     return _global_event_bus
 
 

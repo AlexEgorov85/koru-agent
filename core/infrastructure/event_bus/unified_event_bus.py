@@ -302,6 +302,7 @@ class Event:
     - correlation_id: идентификатор корреляции
     - sequence_number: порядковый номер в сессии
     - domain: домен события (для routing)
+    - _processed: сигнал завершения обработки (для синхронного publish)
     """
     event_type: str
     data: Dict[str, Any]
@@ -312,6 +313,7 @@ class Event:
     correlation_id: str = ""
     sequence_number: int = 0
     domain: EventDomain = EventDomain.COMMON
+    _processed: Optional[asyncio.Event] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if self.data is None:
@@ -478,6 +480,11 @@ class SessionWorker:
 
                     await self._process_event(event)
                     self._last_activity = time.time()
+                    
+                    # Сигнализируем publish() что событие обработано
+                    if hasattr(event, '_processed'):
+                        event._processed.set()
+                    
                     self._queue.task_done()
 
                 except asyncio.TimeoutError:
@@ -936,16 +943,26 @@ class UnifiedEventBus:
 
         # BackPressure — проверка размера очереди
         if queue.qsize() >= self._queue_max_size:
-            # Убрал публикацию события QUEUE_OVERFLOW чтобы избежать цикла
-            # Просто предупреждение в internal logger
             self._internal_logger.warning(
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 f"Queue overflow для сессии {event_obj.session_id}: {queue.qsize}/{self._queue_max_size} (событие не публикуется)"
             )
-            # Пропускаем событие чтобы не перегружать очередь
             return False
 
+        # Создаём сигнал завершения для этого события
+        processed = asyncio.Event()
+        event_obj._processed = processed
+
         await queue.put(event_obj)
+        
+        # Ждём пока воркер обработает именно это событие
+        try:
+            await asyncio.wait_for(processed.wait(), timeout=30.0)
+        except asyncio.TimeoutError:
+            self._internal_logger.warning(
+                f"Timeout waiting for event processing: {event_obj.event_type}"
+            )
+            return False
+        
         return True
 
     def publish_sync(

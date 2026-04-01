@@ -56,7 +56,6 @@ class TerminalLogFormatter:
         if not message or message == self._last_message:
             return None
 
-        # ФИЛЬТРАЦИЯ ШУМА — сообщения только в лог-файл
         noise_patterns = [
             "ComponentFactory",
             "resources: prompts=",
@@ -76,7 +75,7 @@ class TerminalLogFormatter:
             "LLMOrchestrator initialized",
             "LLM CALL STARTED",
             "LLM RESULT",
-            "StructuredLLMResponse",
+            "LLMResponse",
             "has_parsed",
             "parsed_content",
             "JSON извлечён",
@@ -97,13 +96,11 @@ class TerminalLogFormatter:
 
         self._last_message = message
 
-        # Классификация
         component = data.get("component", "").lower()
         msg_type = self._classify(component, message, level)
 
         icon = self.ICONS.get(msg_type, "")
 
-        # Форматирование по типу
         if msg_type == "stage":
             return f"\n{icon} {message}"
         elif msg_type == "tool":
@@ -121,16 +118,13 @@ class TerminalLogFormatter:
         """Классификация сообщения по типу."""
         msg_lower = message.lower()
 
-        # По уровню
         if level in ("ERROR", "CRITICAL"):
             return "error"
 
-        # По ключевым словам
         for msg_type, keywords in self.KEYWORDS.items():
             if any(kw in msg_lower for kw in keywords):
                 return msg_type
 
-        # По компоненту
         if "llm" in component or "provider" in component:
             return "llm"
         if "tool" in component or "skill" in component:
@@ -170,18 +164,15 @@ class TerminalLogHandler:
         self.event_bus.subscribe(EventType.LOG_WARNING, self._on_log)
         self.event_bus.subscribe(EventType.LOG_ERROR, self._on_error)
 
-        # Подписка на прямые события (для совместимости)
         self.event_bus.subscribe(EventType.INFO, self._on_log)
         self.event_bus.subscribe(EventType.DEBUG, self._on_log)
         self.event_bus.subscribe(EventType.WARNING, self._on_log)
         self.event_bus.subscribe(EventType.ERROR_OCCURRED, self._on_error)
 
-        # Подписка на пользовательские сообщения (всегда выводятся)
         self.event_bus.subscribe(EventType.USER_MESSAGE, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_PROGRESS, self._on_user_message)
         self.event_bus.subscribe(EventType.USER_RESULT, self._on_user_message)
 
-        # Подписка на события агента для вывода рассуждений
         self.event_bus.subscribe(EventType.AGENT_THINKING, self._on_agent_thinking)
         self.event_bus.subscribe(EventType.TOOL_CALL, self._on_tool_call)
         self.event_bus.subscribe(EventType.TOOL_RESULT, self._on_tool_result)
@@ -192,6 +183,11 @@ class TerminalLogHandler:
         min_priority = self._level_priority.get(self._min_level, 1)
         return level_priority >= min_priority
 
+    def _write(self, text: str):
+        """Синхронный вывод в консоль."""
+        sys.stdout.buffer.write((text + "\n").encode('utf-8'))
+        sys.stdout.flush()
+
     async def _on_log(self, event: Event):
         """Обработка INFO/DEBUG/WARNING логов."""
         if not self._enabled:
@@ -199,10 +195,8 @@ class TerminalLogHandler:
 
         data = event.data or {}
         
-        # Определение уровня из события или data
         level = data.get("level")
         if not level:
-            # Определяем по типу события
             if event.event_type in (EventType.INFO, EventType.LOG_INFO):
                 level = "INFO"
             elif event.event_type in (EventType.DEBUG, EventType.LOG_DEBUG):
@@ -212,21 +206,18 @@ class TerminalLogHandler:
             elif event.event_type in (EventType.ERROR_OCCURRED, EventType.LOG_ERROR):
                 level = "ERROR"
             else:
-                level = "INFO"  # По умолчанию
+                level = "INFO"
 
-        # Фильтрация по уровню
         if not self._should_log(level):
             return
 
         message = self.formatter.format(event, level)
 
-        # Фильтрация: только сообщения с иконками
         if self._icons_only and message and not any(char in message for char in "🧠🔧📊🤖❌ℹ️✅🚀🔄💾⏱️📋🧩"):
             return
 
         if message:
-            # Прямой вывод в консоль (минуя logging)
-            print(message, flush=True)
+            self._write(message)
 
     async def _on_user_message(self, event: Event):
         """Обработка пользовательских сообщений (всегда выводятся)."""
@@ -238,9 +229,8 @@ class TerminalLogHandler:
         icon = data.get("icon", "ℹ️")
 
         if message:
-            # Форматирование с иконкой
             formatted = f"{icon} {message}"
-            print(formatted, flush=True)
+            self._write(formatted)
 
     async def _on_agent_thinking(self, event: Event):
         """Обработка рассуждений агента."""
@@ -256,11 +246,11 @@ class TerminalLogHandler:
         if reasoning:
             step_num = data.get("step_number", "?")
             message = f"ШАГ {step_num}: {decision_action} → {capability_name}"
-            print(f"🧠 {message}", flush=True)
-            print(f"   💭 {reasoning}", flush=True)
+            self._write(f"🧠 {message}")
+            self._write(f"   💭 {reasoning}")
             if parameters:
                 params_str = str(parameters)[:100] + "..." if len(str(parameters)) > 100 else str(parameters)
-                print(f"   📋 {params_str}", flush=True)
+                self._write(f"   📋 {params_str}")
 
     async def _on_tool_call(self, event: Event):
         """Обработка вызова инструмента."""
@@ -268,7 +258,6 @@ class TerminalLogHandler:
             return
 
         data = event.data or {}
-        message = data.get("message", "")
         capability_name = data.get("capability_name", "")
         parameters = data.get("parameters", {})
 
@@ -277,7 +266,7 @@ class TerminalLogHandler:
             if parameters:
                 params_str = str(parameters)
                 params_preview = f" ({params_str[:80]}{'...' if len(params_str) > 80 else ''})"
-            print(f"🔧 TOOL вызов: {capability_name}{params_preview}", flush=True)
+            self._write(f"🔧 TOOL вызов: {capability_name}{params_preview}")
 
     async def _on_tool_result(self, event: Event):
         """Обработка результата инструмента."""
@@ -291,14 +280,13 @@ class TerminalLogHandler:
         has_result = data.get("has_result", False)
 
         icon = "✅" if status == "completed" else "❌"
-        print(f"{icon} {capability_name}: {status}", flush=True)
+        self._write(f"{icon} {capability_name}: {status}")
         
-        # Вывод результата инструмента
         if has_result and result is not None:
             result_str = str(result)
             if len(result_str) > 500:
                 result_str = result_str[:500] + "..."
-            print(f"📊 RESULT → {result_str}", flush=True)
+            self._write(f"📊 RESULT → {result_str}")
 
     async def _on_error(self, event: Event):
         """Обработка ERROR логов."""
@@ -310,8 +298,7 @@ class TerminalLogHandler:
         message = self.formatter.format(event, level)
 
         if message:
-            # Прямой вывод в консоль (минуя logging)
-            print(message, flush=True)
+            self._write(message)
 
     def disable(self):
         """Отключить вывод."""

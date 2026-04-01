@@ -160,9 +160,11 @@ class LoggingEventHandler:
         
         output = f"[{level}] {message}"
         if level == "ERROR":
-            print(output, file=sys.stderr)
+            sys.stderr.buffer.write((output + "\n").encode('utf-8'))
+            sys.stderr.flush()
         else:
-            print(output)
+            sys.stdout.buffer.write((output + "\n").encode('utf-8'))
+            sys.stdout.flush()
 
 
 import sys

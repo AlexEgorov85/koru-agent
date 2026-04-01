@@ -27,7 +27,7 @@ from core.agent.components.lifecycle import ComponentState
 from core.config.app_config import AppConfig
 from core.infrastructure.providers.llm.factory import LLMProviderFactory
 from core.infrastructure.providers.database.factory import DBProviderFactory
-from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
 from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
@@ -149,17 +149,13 @@ class InfrastructureContext:
             return False
 
         # === ЭТАП 1: Базовая инициализация ===
-        # Используем sys.stdout.buffer.write для поддержки emoji в Windows
         import sys
         sys.stdout.buffer.write("🚀 Инициализация инфраструктурного контекста...\n".encode('utf-8'))
         sys.stdout.flush()
 
         # Инициализация шины событий (ПЕРВЫЙ компонент)
-        # Используем UnifiedEventBus — единую шину событий
         self.event_bus = UnifiedEventBus()
         await self._log_event_bus_info("UnifiedEventBus")
-        sys.stdout.buffer.write("✅ InfrastructureContext инициализирован\n".encode('utf-8'))
-        sys.stdout.flush()
 
         # Инициализация телеметрии (логи + метрики)
         from pathlib import Path
@@ -262,6 +258,11 @@ class InfrastructureContext:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
+        await self.event_bus.publish(
+            EventType.USER_RESULT,
+            data={"message": "InfrastructureContext инициализирован", "icon": "✅"},
+            session_id=str(self.id),
+        )
         return True
 
     async def _register_providers_from_config(self):
@@ -310,9 +311,14 @@ class InfrastructureContext:
                         self.resource_registry.register_resource(info_llm)
 
                     except Exception as e:
+                        import traceback
+                        tb = traceback.format_exc()
                         if self.event_bus_logger:
                             await self.event_bus_logger.error(f"[LLM] Error: {str(e)}")
-                            await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {str(e)}", exc_info=True)
+                            await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {tb}")
+                        print(f"❌ [LLM] FATAL: Failed to register LLM provider '{provider_name}': {e}")
+                        print(f"   Traceback:\n{tb}")
+                        raise
 
         # Регистрация DB провайдеров
         for provider_name, provider_config in self.config.db_providers.items():
