@@ -201,7 +201,7 @@ class PlanningSkill(BaseComponent):
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
             llm_result_data = llm_result.result
             if hasattr(llm_result_data, 'parsed_content'):
-                # StructuredLLMResponse — извлекаем parsed_content
+                # LLMResponse — извлекаем parsed_content
                 plan_data = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
                 plan_data = llm_result_data.get("parsed_content", {})
@@ -354,7 +354,7 @@ class PlanningSkill(BaseComponent):
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
             llm_result_data = llm_result.result
             if hasattr(llm_result_data, 'parsed_content'):
-                # StructuredLLMResponse — извлекаем parsed_content
+                # LLMResponse — извлекаем parsed_content
                 updated_plan = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
                 updated_plan = llm_result_data.get("parsed_content", {})
@@ -719,7 +719,7 @@ class PlanningSkill(BaseComponent):
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
             llm_result_data = llm_result.result
             if hasattr(llm_result_data, 'parsed_content'):
-                # StructuredLLMResponse — извлекаем parsed_content
+                # LLMResponse — извлекаем parsed_content
                 corrected_plan = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
                 corrected_plan = llm_result_data.get("parsed_content", {})
@@ -815,7 +815,7 @@ class PlanningSkill(BaseComponent):
             # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
             llm_result_data = llm_result.result
             if hasattr(llm_result_data, 'parsed_content'):
-                # StructuredLLMResponse — извлекаем parsed_content
+                # LLMResponse — извлекаем parsed_content
                 decompose_data = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
                 decompose_data = llm_result_data.get("parsed_content", {})

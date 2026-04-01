@@ -398,9 +398,6 @@ class AnswerValidator:
         
         # 9. Сверка с ожидаемыми книгами
         if expected_books:
-            print(f"\n[ВАЛИДАЦИЯ] Проверка книг:")
-            print(f"  Expected books: {[b.get('title', '') for b in expected_books]}")
-            print(f"  Answer: {answer[:200]}...")
             books_match, missing_books = self._check_books_match_detailed(answer, expected_books)
             checks['books_match'] = books_match
             checks['missing_books'] = missing_books
@@ -597,7 +594,6 @@ class AnswerValidator:
             if title:
                 title_normalized = self._normalize_russian(title)
                 found = title_normalized in answer_normalized
-                print(f"    Проверка '{title}' -> нормализовано: '{title_normalized}' -> найдено: {found}")
                 if not found:
                     missing.append(title)
         

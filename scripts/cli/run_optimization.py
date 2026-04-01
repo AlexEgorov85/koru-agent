@@ -523,7 +523,7 @@ async def analyze_session_log(log_path: str, verbose: bool = False):
         parser = SessionLogParser()
         session = parser.parse_file(Path(log_path))
         session_report = parser.generate_analysis_report(session)
-        prompt_report = analyze_prompts_from_session(session_report)
+        prompt_report = await analyze_prompts_from_session(session_report)
         
         print(f"\n[ANALYSIS] ANALIZ SESII")
         print("="*60)
@@ -555,10 +555,16 @@ async def analyze_session_log(log_path: str, verbose: bool = False):
                 print(f"  File: {issue['file']}")
                 print(f"  Section: {issue['section']}")
                 print(f"  Problem: {issue['description'][:80]}...")
-                if issue['suggested_fix']:
-                    print(f"\n  Suggested fix:")
-                    for line in issue['suggested_fix'].split('\n')[:8]:
-                        print(f"    {line}")
+        
+        # Генерация полного промта для LLM
+        from core.agent.components.optimization.prompt_analyzer import SessionPromptAnalyzer
+        analyzer = SessionPromptAnalyzer()
+        full_prompt = analyzer.generate_full_llm_prompt(session_report)
+        
+        print(f"\n" + "="*60)
+        print("[LLM PROMPT] Copy this prompt to LLM for recommendations:")
+        print("="*60)
+        print(full_prompt)
         
         if verbose:
             print(f"\n[F] Session report:")

@@ -62,7 +62,6 @@ class ModuleReloader:
             return new_instance
 
         except Exception as e:
-            print(f"[ERROR] Ошибка перезагрузки модуля для компонента {component_instance.__class__.__name__}: {str(e)}")
             raise
     
     @staticmethod

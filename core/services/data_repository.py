@@ -20,9 +20,10 @@ class DataRepository:
     Все ресурсы хранятся как полноценные объекты классов (не словари!).
     """
 
-    def __init__(self, data_source: ResourceDataSource, profile: str = "prod", event_bus=None):
+    def __init__(self, data_source: ResourceDataSource, profile: str = "prod", event_bus=None, prompt_loading_config: Optional[Dict[str, str]] = None):
         self.data_source = data_source
         self.profile = profile
+        self.prompt_loading_config = prompt_loading_config or {}
         self._initialized = False
         
         # Инициализация логгера
@@ -101,8 +102,12 @@ class DataRepository:
         
         # 4. Валидация статусов версий против профиля
         await self._validate_status_by_profile()
-        
-        # 5. Финальная проверка критических ошибок
+
+        # 5. В sandbox: оставляем одну версию на capability (draft если в конфиге, иначе active)
+        if self.profile == "sandbox":
+            self._filter_to_single_version()
+
+        # 6. Финальная проверка критических ошибок
         if self._validation_errors:
             self._initialized = False
             return False
@@ -200,9 +205,75 @@ class DataRepository:
             if contract.status not in allowed_statuses:
                 if self.profile == "prod":
                     self._validation_errors.append(
-                        f"Контракт {cap}@{ver} ({direction}) имеет недопасимый статус "
+                        f"Контракт {cap}@{ver} ({direction}) имеет недопустимый статус "
                         f"'{contract.status.value}' для профиля prod"
                     )
+    
+    def _filter_to_single_version(self):
+        """
+        Sandbox: для каждой capability оставляем ОДНУ версию промпта и контракта.
+        
+        Приоритет: если capability указана в prompt_loading_config со статусом 'draft' —
+        берём draft, иначе — active.
+        """
+        # Группируем промпты по capability
+        by_capability: Dict[str, List[Tuple[str, Prompt]]] = {}
+        for (cap, ver), prompt in self._prompts_index.items():
+            by_capability.setdefault(cap, []).append((ver, prompt))
+        
+        new_prompts: Dict[Tuple[str, str], Prompt] = {}
+        for cap, versions in by_capability.items():
+            desired_status = self.prompt_loading_config.get(cap, self.prompt_loading_config.get('default', 'active'))
+            
+            # Ищем версию с нужным статусом
+            chosen = None
+            for ver, prompt in versions:
+                if prompt.status.value == desired_status:
+                    chosen = (ver, prompt)
+                    break
+            
+            # Fallback на active если desired не найден
+            if chosen is None:
+                for ver, prompt in versions:
+                    if prompt.status == PromptStatus.ACTIVE:
+                        chosen = (ver, prompt)
+                        break
+            
+            # Последний fallback — берём первую попавшуюся
+            if chosen is None:
+                chosen = versions[0]
+            
+            new_prompts[(cap, chosen[0])] = chosen[1]
+        
+        self._prompts_index = new_prompts
+
+        # То же для контрактов
+        by_cap_dir: Dict[Tuple[str, str], List[Tuple[str, Contract]]] = {}
+        for (cap, ver, direction), contract in self._contracts_index.items():
+            by_cap_dir.setdefault((cap, direction), []).append((ver, contract))
+        
+        new_contracts: Dict[Tuple[str, str, str], Contract] = {}
+        for (cap, direction), versions in by_cap_dir.items():
+            desired_status = self.prompt_loading_config.get(cap, self.prompt_loading_config.get('default', 'active'))
+            
+            chosen = None
+            for ver, contract in versions:
+                if contract.status.value == desired_status:
+                    chosen = (ver, contract)
+                    break
+            
+            if chosen is None:
+                for ver, contract in versions:
+                    if contract.status == PromptStatus.ACTIVE:
+                        chosen = (ver, contract)
+                        break
+            
+            if chosen is None:
+                chosen = versions[0]
+            
+            new_contracts[(cap, chosen[0], direction)] = chosen[1]
+        
+        self._contracts_index = new_contracts
     
     def get_prompt(self, capability: str, version: str) -> Prompt:
         """Возвращает ГОТОВЫЙ объект промпта (не строку!)"""
