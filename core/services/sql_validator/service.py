@@ -177,15 +177,32 @@ class SQLValidatorService(BaseService):
             validated_params = parameters  # использовать оригинальные параметры при ошибке валидации
         
         # 6. Проверка соответствия параметров
-        param_placeholders = re.findall(r'\$(\w+)|:(\w+)|\{(\w+)\}', sql_query)
+        # Поддерживаем: $1, $2 (PostgreSQL), :name (named), {name} (template), %s (positional)
+        param_placeholders = re.findall(r'\$(\w+)|:(\w+)|\{(\w+)\}|%s', sql_query)
         flat_param_names = []
         for match in param_placeholders:
-            # Получаем имя параметра из одного из трех возможных групп
             param_name = next((x for x in match if x), None)
             if param_name:
                 flat_param_names.append(param_name)
         
-        missing_params = set(flat_param_names) - set(parameters.keys())
+        # Для позиционных параметров (%s) - НЕ добавляем '1', '2'
+        # Они сопоставляются по порядку, а не по ключу
+        # Если есть %s плейсхолдеры и параметры переданы как list/tuple - это валидно
+        positional_count = sql_query.count('%s')
+        if positional_count > 0 and isinstance(parameters, (list, tuple)):
+            # Позиционные параметры - проверяем количество
+            if len(parameters) < positional_count:
+                validation_errors.append(f"Ожидается {positional_count} параметров, получено {len(parameters)}")
+            # Не добавляем в flat_param_names - это валидно
+        elif positional_count > 0:
+            # Если есть %s но параметры не list/tuple - добавляем ключи
+            for i in range(1, positional_count + 1):
+                if str(i) not in flat_param_names:
+                    flat_param_names.append(str(i))
+        
+        # Проверяем только именованные параметры ($name, :name, {name})
+        named_params = [p for p in flat_param_names if not p.isdigit()]
+        missing_params = set(named_params) - set(parameters.keys())
         if missing_params:
             validation_errors.append(f"Отсутствующие параметры в запросе: {', '.join(missing_params)}")
         

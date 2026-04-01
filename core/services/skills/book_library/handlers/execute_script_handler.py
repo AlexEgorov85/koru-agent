@@ -107,23 +107,19 @@ class ExecuteScriptHandler(BaseSkillHandler):
         - Pydantic модель или dict с результатами выполнения
         """
         start_time = time.time()
-        await self.log_info(f"Запуск статического скрипта: {params}")
-
-        # 1. Извлечение параметров
         script_name, max_rows = self._extract_params(params)
+        await self.log_info(f"📖 execute_script: script_name={script_name}, params={params}")
 
-        # 2. Проверка что скрипт существует
+        # 1. Проверка что скрипт существует
         allowed_scripts = self._get_allowed_scripts()
         if script_name not in allowed_scripts:
             available_scripts = list(allowed_scripts.keys())
             raise ValueError(f"Скрипт '{script_name}' не найден. Доступные: {available_scripts}")
 
-        # 3. Получение конфигурации скрипта
-        script_config = allowed_scripts[script_name]
-        sql_query = script_config['sql']
-
-        # 4. Валидация параметров перед выполнением
+        # 2. Валидация параметров (может вызывать дополнительные скрипты)
         validation_result = await self._validate_parameters(params, script_name)
+        if validation_result.get("warning"):
+            await self.log_info(f"✏️ Валидация: {validation_result['warning']}")
         if not validation_result["valid"]:
             warning = validation_result.get("warning")
             suggestions = validation_result.get("suggestions", [])
@@ -132,7 +128,12 @@ class ExecuteScriptHandler(BaseSkillHandler):
             else:
                 raise ValueError(f"Параметры невалидны: {warning}")
 
-        # 4.1 Применение автокоррекции параметров
+        # 3. Получение конфигурации скрипта
+        allowed_scripts = self._get_allowed_scripts()
+        script_config = allowed_scripts[script_name]
+        sql_query = script_config['sql']
+
+        # 4. Применение автокоррекции параметров
         corrected_params = validation_result.get("corrected_params", {})
         if corrected_params:
             # Обновляем params исправленными значениями
@@ -347,76 +348,146 @@ class ExecuteScriptHandler(BaseSkillHandler):
         return validation_map.get(script_name, {})
 
     async def _validate_author(self, author_name: str) -> Dict[str, Any]:
-        """Валидация автора с автокоррекцией опечаток."""
+        """
+        Валидация автора с автокоррекцией опечаток.
+
+        Стратегия:
+        1. SQL поиск по фамилии (ILIKE) — быстрый и надёжный
+        2. Векторный поиск для семантических совпадений
+        3. Fuzzy matching через полный список авторов
+
+        RETURNS:
+        - Dict с ключами: valid (bool), suggestions (list), corrected_value (str|None)
+        """
         try:
             exec_context = ExecutionContext()
+            author_name_lower = author_name.lower().strip()
+            author_words = author_name_lower.split()
+            search_term = author_words[-1] if len(author_words) > 1 else author_name_lower
+            await self.log_debug(f"[DEBUG _validate_author] author_name='{author_name}', search_term='{search_term}'")
 
-            # Ступень 1: SQL LIKE с подстановочными символами (опционально - используем если доступно)
+            # Ступень 1: SQL LIKE поиск по имени и фамилии
             try:
+                sql_params_list = [f"%{search_term}%", f"%{search_term}%"]
+                await self.log_debug(f"[DEBUG _validate_author] SQL: ILIKE query with params={sql_params_list}")
+                
                 sql_result = await self.executor.execute_action(
                     action_name="sql_query.execute",
                     parameters={
-                        "sql": 'SELECT DISTINCT a.first_name || \' \' || a.last_name as author_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.first_name ILIKE \'%\' || $1 || \'%\' OR a.last_name ILIKE \'%\' || $1 || \'%\' OR a.first_name || \' \' || a.last_name ILIKE \'%\' || $1 || \'%\' LIMIT 3',
-                        "parameters": [author_name]
+                        "sql": '''
+                            SELECT DISTINCT 
+                                a.first_name || ' ' || a.last_name as full_name,
+                                a.last_name,
+                                a.first_name
+                            FROM "Lib".books b 
+                            JOIN "Lib".authors a ON b.author_id = a.id 
+                            WHERE a.first_name ILIKE %s OR a.last_name ILIKE %s 
+                            LIMIT 5
+                        ''',
+                        "parameters": sql_params_list
+                    },
+                    context=exec_context
+                )
+                await self.log_debug(f"[DEBUG _validate_author] SQL result: status={sql_result.status}, error={getattr(sql_result, 'error', getattr(sql_result, 'data', 'N/A'))}")
+
+                if sql_result.status == ExecutionStatus.COMPLETED and sql_result.data:
+                    rows = sql_result.data.rows if hasattr(sql_result.data, 'rows') else []
+                    await self.log_debug(f"[DEBUG _validate_author] SQL found {len(rows)} rows")
+                    if rows:
+                        for row in rows:
+                            if hasattr(row, '__getitem__'):
+                                full_name = row[0]
+                                last_name = row[1]
+                                first_name = row[2]
+                            else:
+                                full_name = str(row)
+                                last_name = ""
+                                first_name = ""
+
+                            await self.log_debug(f"[DEBUG _validate_author] Comparing: search_term='{search_term}' vs full_name='{full_name}', last_name='{last_name}', first_name='{first_name}'")
+                            
+                            if (last_name.lower() == search_term or 
+                                first_name.lower() == search_term or
+                                full_name.lower() == author_name_lower or
+                                author_name_lower in full_name.lower()):
+                                await self.log_debug(f"[DEBUG _validate_author] MATCH! returning valid with corrected_value='{full_name}'")
+                                return {"valid": True, "suggestions": [], "corrected_value": full_name}
+
+                        first_row = rows[0]
+                        if hasattr(first_row, '__getitem__'):
+                            return {"valid": True, "suggestions": [], "corrected_value": first_row[0]}
+                        else:
+                            return {"valid": True, "suggestions": [], "corrected_value": str(first_row)}
+
+            except Exception as e:
+                await self.log_debug(f"SQL author validation failed: {e}")
+
+            # Ступень 2: Векторный поиск
+            try:
+                vector_result = await self.executor.execute_action(
+                    action_name="vector_books.search",
+                    parameters={
+                        "query": author_name,
+                        "top_k": 3,
+                        "min_score": 0.5,
+                        "source": "authors"
                     },
                     context=exec_context
                 )
 
-                if sql_result.status == ExecutionStatus.COMPLETED and sql_result.data:
-                    rows = sql_result.data.rows if hasattr(sql_result.data, 'rows') else []
-                    if rows:
-                        for row in rows:
-                            full_name = row[0] if hasattr(row, '__getitem__') else str(row)
-                            if author_name.lower() in full_name.lower() or full_name.lower() in author_name.lower():
-                                return {"valid": True, "suggestions": [], "corrected_value": None}
-            except Exception:
-                pass  # SQL шаг опционален, продолжаем если не доступен
+                if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
+                    inner_data = vector_result.data
+                    if hasattr(inner_data, 'data'):
+                        actual_data = inner_data.data
+                    else:
+                        actual_data = inner_data
+                    results = actual_data if isinstance(actual_data, list) else []
+                    if results:
+                        best_result = results[0]
+                        author_from_vector = best_result.get('author_name', best_result.get('name', ''))
+                        score = best_result.get('score', 0)
+                        await self.log_debug(f"[DEBUG _validate_author] Vector found: author='{author_from_vector}', score={score}")
+                        if score >= 0.7:
+                            return {"valid": True, "suggestions": [], "corrected_value": author_from_vector}
 
-            # Ступень 2: Векторный поиск для автокоррекции
-            vector_result = await self.executor.execute_action(
-                action_name="vector_books.search",
-                parameters={
-                    "query": author_name,
-                    "top_k": 3,
-                    "min_score": 0.5,
-                    "source": "authors"
-                },
-                context=exec_context
-            )
-
-            if vector_result.status == ExecutionStatus.COMPLETED and vector_result.data:
-                inner_data = vector_result.data
-                if hasattr(inner_data, 'data'):
-                    actual_data = inner_data.data
-                else:
-                    actual_data = inner_data
-                results = actual_data if isinstance(actual_data, list) else []
-                if results:
-                    best_result = results[0]
-                    author_from_vector = best_result.get('author_name', best_result.get('name', ''))
-                    score = best_result.get('score', 0)
-                    if score >= 0.9:
-                        return {"valid": True, "suggestions": [], "corrected_value": author_from_vector}
+            except Exception as e:
+                await self.log_debug(f"Vector author validation failed: {e}")
 
             # Ступень 3: Fuzzy matching через get_distinct_authors
-            authors_result = await self.executor.execute_action(
-                action_name="book_library.execute_script",
-                parameters={"script_name": "get_distinct_authors"},
-                context=exec_context
-            )
+            try:
+                authors_result = await self.executor.execute_action(
+                    action_name="book_library.execute_script",
+                    parameters={"script_name": "get_distinct_authors", "max_rows": 100},
+                    context=exec_context
+                )
+                await self.log_debug(f"[DEBUG _validate_author] Fuzzy step: status={authors_result.status}")
 
-            if authors_result.status == ExecutionStatus.COMPLETED and authors_result.data:
-                authors_data = authors_result.data.rows if hasattr(authors_result.data, 'rows') else []
-                all_authors = [row[0] if hasattr(row, '__getitem__') else str(row) for row in authors_data]
+                if authors_result.status == ExecutionStatus.COMPLETED and authors_result.data:
+                    authors_data = authors_result.data.rows if hasattr(authors_result.data, 'rows') else []
+                    all_authors = [row[0] if hasattr(row, '__getitem__') else str(row) for row in authors_data]
+                    await self.log_debug(f"[DEBUG _validate_author] Got {len(all_authors)} authors: {all_authors[:5]}")
 
-                for author in all_authors:
-                    if self._fuzzy_match(author_name, author) > 0.8:
-                        corrected = author
-                        return {"valid": True, "suggestions": [], "corrected_value": corrected}
+                    for author in all_authors:
+                        author_parts = author.lower().split()
+                        if len(author_parts) >= 2:
+                            author_last_name = author_parts[-1]
+                            if search_term == author_last_name:
+                                await self.log_debug(f"[DEBUG _validate_author] Fuzzy MATCH: '{search_term}' == '{author_last_name}' in '{author}'")
+                                return {"valid": True, "suggestions": [], "corrected_value": author}
 
+                    for author in all_authors:
+                        if self._fuzzy_match(author_name, author) > 0.8:
+                            return {"valid": True, "suggestions": [], "corrected_value": author}
+
+            except Exception as e:
+                await self.log_debug(f"Fuzzy author validation failed: {e}")
+
+            # Если ничего не найдено
+            await self.log_debug(f"[DEBUG _validate_author] Author NOT FOUND, returning valid=False")
             return {"valid": False, "suggestions": [], "corrected_value": None}
 
-        except Exception:
+        except Exception as e:
+            await self.log_error(f"Author validation error: {e}")
             return {"valid": True, "suggestions": [], "corrected_value": None}
 
     async def _validate_genre(self, genre: str) -> Dict[str, Any]:
@@ -426,7 +497,14 @@ class ExecuteScriptHandler(BaseSkillHandler):
             result = await self.executor.execute_action(
                 action_name="sql_query.execute",
                 parameters={
-                    "sql": 'SELECT DISTINCT g.name FROM "Lib".books b JOIN "Lib".book_genres bg ON b.id = bg.book_id JOIN "Lib".genres g ON bg.genre_id = g.id WHERE g.name ILIKE $1 LIMIT 5',
+                    "sql": '''
+                        SELECT DISTINCT g.name 
+                        FROM "Lib".books b 
+                        JOIN "Lib".book_genres bg ON b.id = bg.book_id 
+                        JOIN "Lib".genres g ON bg.genre_id = g.id 
+                        WHERE g.name ILIKE %s 
+                        LIMIT 5
+                    ''',
                     "parameters": [f"%{genre}%"]
                 },
                 context=exec_context

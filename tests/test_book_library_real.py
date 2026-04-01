@@ -77,11 +77,11 @@ class BookLibraryRealTest:
         if not self.skill:
             raise RuntimeError("BookLibrarySkill не найден!")
         await self.skill.initialize()
-        
+
         capabilities = self.skill.get_capabilities()
         for cap in capabilities:
-        
-    
+            pass  # Capabilities перечислены
+
     async def test_list_scripts(self) -> TestResult:
         result = TestResult("list_scripts")
         start = time.perf_counter()
@@ -112,6 +112,7 @@ class BookLibraryRealTest:
                 if len(scripts) > 0:
                     result.success = True
                     for script in scripts[:3]:
+                        pass  # Scripts перечислены
                 else:
                     result.success = False
                     result.error = "Список скриптов пуст"
@@ -337,17 +338,18 @@ class BookLibraryRealTest:
         passed = sum(1 for r in self.results if r.success)
         failed = len(self.results) - passed
         total_time = sum(r.duration_ms for r in self.results)
-        
-        
-        
+
+        failed = sum(1 for r in self.results if not r.success)
+
         for result in self.results:
             if result.error:
-        
-        
+                pass  # Errors logged
+
         if failed == 0:
+            print(f"✅ All tests passed ({total_time:.0f}ms)")
         else:
-        
-    
+            print(f"❌ {failed} tests failed")
+
     async def shutdown(self):
         if self.app_context:
             await self.app_context.shutdown()
