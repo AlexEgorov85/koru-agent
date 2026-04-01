@@ -368,8 +368,7 @@ class MockLLMProvider(BaseLLMProvider):
                         metadata=raw_response.metadata
                     ),
                     parsing_attempts=attempt,
-                    validation_errors=[],
-                    provider_native_validation=False
+                    validation_errors=[]
                 )
                 
             except (json.JSONDecodeError, ValidationError) as e:

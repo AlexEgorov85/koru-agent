@@ -45,6 +45,7 @@ from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Eve
 from core.infrastructure.providers.llm.json_parser import (
     validate_structured_response
 )
+from core.errors.exceptions import StructuredOutputError
 
 
 class CallStatus(str, Enum):
@@ -495,7 +496,6 @@ class LLMOrchestrator:
             # Fail-fast: проверяем провайдер
             if provider is None:
                 print("❌ [LLMOrchestrator] Provider is None — модель не загружена!")
-                from core.errors.exceptions import StructuredOutputError
                 raise StructuredOutputError(
                     message="LLM провайдер не инициализирован (provider=None)",
                     model_name=getattr(request, 'model_name', self.model_name),
@@ -552,7 +552,7 @@ class LLMOrchestrator:
 
                     # Возвращаем успешный ответ с распарсенной моделью
                     return LLMResponse(
-                        parsed_content=attempt.parsed_content,  # ← Pydantic модель из LlamaCppProvider
+                        parsed_content=attempt.parsed_content,
                         raw_response=RawLLMResponse(
                             content=attempt.raw_response or "",
                             model="structured",
@@ -560,8 +560,7 @@ class LLMOrchestrator:
                             generation_time=attempt.duration
                         ),
                         parsing_attempts=attempt_num,
-                        validation_errors=[],
-                        provider_native_validation=False
+                        validation_errors=[]
                     )
                 else:
                     # Ошибка — логируем и пробуем снова
@@ -584,7 +583,6 @@ class LLMOrchestrator:
             )
 
             # Выбрасываем StructuredOutputError с деталями всех попыток
-            from core.errors.exceptions import StructuredOutputError
             raise StructuredOutputError(
                 message=f"Не удалось получить валидный структурированный ответ после {max_retries} попыток",
                 model_name=getattr(request, 'model_name', self.model_name),
@@ -599,7 +597,6 @@ class LLMOrchestrator:
             # Критическая ошибка
             await self._log_structured_error(call_id, str(e), session_id)
             # Пробрасываем StructuredOutputError
-            from core.errors.exceptions import StructuredOutputError
             raise StructuredOutputError(
                 message=f"Критическая ошибка структурированного вывода: {str(e)}",
                 model_name=getattr(request, 'model_name', self.model_name),

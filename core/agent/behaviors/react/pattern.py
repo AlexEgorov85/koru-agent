@@ -243,9 +243,14 @@ class ReActPattern(BaseBehaviorPattern):
             stop_condition = getattr(reasoning_result, "stop_condition", False)
             stop_reason = getattr(reasoning_result, "stop_reason", None)
             decision = getattr(reasoning_result, "decision", None)
-            capability_name = getattr(decision, "next_action", None) if decision else None
-            parameters = getattr(decision, "parameters", {}) if decision else {}
-            reasoning = getattr(decision, "reasoning", "") if decision else ""
+            if isinstance(decision, dict):
+                capability_name = decision.get("next_action", None)
+                parameters = decision.get("parameters", {})
+                reasoning = decision.get("reasoning", "")
+            else:
+                capability_name = getattr(decision, "next_action", None) if decision else None
+                parameters = getattr(decision, "parameters", {}) if decision else {}
+                reasoning = getattr(decision, "reasoning", "") if decision else ""
 
         if stop_condition:
             return self._handle_stop_condition(capability_name, parameters, stop_reason)
