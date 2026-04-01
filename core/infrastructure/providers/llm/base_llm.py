@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 
-from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig, StructuredLLMResponse
+from core.models.types.llm_types import LLMHealthStatus, LLMRequest, LLMResponse, StructuredOutputConfig
 from core.infrastructure.providers.base_provider import BaseProvider, ProviderHealthStatus
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 

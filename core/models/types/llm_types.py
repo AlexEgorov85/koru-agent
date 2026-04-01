@@ -142,60 +142,80 @@ class RawLLMResponse:
 T = TypeVar('T', bound=PydanticBaseModel)
 
 @dataclass
-class StructuredLLMResponse(Generic[T]):
+class LLMResponse(Generic[T]):
     """
-    Типизированный ответ с гарантией валидности.
-    Использует обобщенный тип T для строгой типизации на уровне компиляции.
-    """
-    parsed_content: T                     # Гарантированно валидная модель
-    raw_response: RawLLMResponse          # Сырой ответ для отладки/аудита
-    parsing_attempts: int                 # Количество попыток парсинга
-    validation_errors: List[Dict[str, Any]] = None  # Ошибки предыдущих попыток
-    provider_native_validation: bool = False  # Использовалась ли нативная валидация провайдера
-
-    def __post_init__(self):
-        if self.validation_errors is None:
-            self.validation_errors = []
-
-    @property
-    def success(self) -> bool:
-        return len(self.validation_errors) == 0
-
-@dataclass
-class LLMResponse:
-    """
-    Стандартизированная структура ответа от LLM.
-
-    ПРИНЦИПЫ:
-    - Единый формат для всех провайдеров
-    - Поддержка метрик и отладки
-    - Типизированное содержимое
+    УНИВЕРСАЛЬНЫЙ ответ от LLM.
+    
+    Поддерживает:
+    - Обычные текстовые ответы (content)
+    - Структурированные ответы (parsed_content)
+    - Сырой ответ для отладки (raw_response)
 
     ПОЛЯ:
-    - content: Сгенерированный текст
-    - model: Название модели, которая сгенерировала ответ
-    - tokens_used: Количество использованных токенов
-    - generation_time: Время генерации в секундах
-    - finish_reason: Причина завершения генерации
-    - metadata: Дополнительные метаданные для анализа
+    - content: Текст ответа (для простых запросов)
+    - parsed_content: Pydantic модель (для структурированных запросов)
+    - raw_response: Сырой ответ с метаданными
+    - tokens_used: Количество токенов
+    - generation_time: Время генерации
+    - finish_reason: Причина завершения
+    - validation_errors: Ошибки валидации (для структурированных)
+    - metadata: Дополнительные данные
 
-    ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-    response = await provider.generate(request)
+    ПРИМЕРЫ:
+    # Простой текстовый ответ
+    response = LLMResponse(
+        content="Привет, мир!",
+        model="llama-3.2",
+        tokens_used=50
+    )
+    
+    # Структурированный ответ
+    response = LLMResponse(
+        parsed_content=ReasoningModel(reason="...", action="..."),
+        raw_response=RawLLMResponse(content='{"reason": "..."}', ...),
+        model="llama-3.2",
+        tokens_used=150
+    )
     """
-    content: str
-    model: str
-    tokens_used: int
-    generation_time: float
+    # Контент (для простых ответов)
+    content: str = ""
+    
+    # Структурированный контент (для JSON ответов)
+    parsed_content: Optional[T] = None
+    
+    # Сырой ответ с метаданными
+    raw_response: Optional['RawLLMResponse'] = None
+    
+    # Метаданные
+    model: str = "unknown"
+    tokens_used: int = 0
+    generation_time: float = 0.0
     finish_reason: str = "stop"
     metadata: Dict[str, Any] = None
-
+    
+    # Для структурированных ответов
+    parsing_attempts: int = 0
+    validation_errors: List[Dict[str, Any]] = None
+    
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
-
+        if self.validation_errors is None:
+            self.validation_errors = []
+        
         # Валидация
         self.tokens_used = max(0, self.tokens_used)
         self.generation_time = max(0.0, self.generation_time)
+    
+    @property
+    def success(self) -> bool:
+        """True если нет ошибок валидации."""
+        return len(self.validation_errors) == 0
+    
+    @property
+    def is_structured(self) -> bool:
+        """True если это структурированный ответ."""
+        return self.parsed_content is not None
 
 class LLMProviderType(str, Enum):
     """Типы LLM провайдеров для метрик и логирования."""

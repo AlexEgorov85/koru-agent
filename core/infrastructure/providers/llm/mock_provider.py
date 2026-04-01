@@ -14,9 +14,8 @@ from typing import Dict, Any, Optional, List, Pattern, Union
 from pydantic import BaseModel, Field
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.models.types.llm_types import (
-    LLMRequest, 
-    LLMResponse, 
-    StructuredLLMResponse,
+    LLMRequest,
+    LLMResponse,
     RawLLMResponse,
     StructuredOutputConfig
 )
@@ -295,10 +294,10 @@ class MockLLMProvider(BaseLLMProvider):
     async def _generate_structured_impl(
         self,
         request: LLMRequest
-    ) -> StructuredLLMResponse:
+    ) -> LLMResponse:
         """
         Генерация структурированных данных для тестирования.
-        
+
         Логирование выполняется в базовом классе BaseLLMProvider.
 
         Поддерживает:
@@ -309,10 +308,10 @@ class MockLLMProvider(BaseLLMProvider):
 
         ARGS:
         - request: Запрос с configuration структурированного вывода
-        
+
         RETURNS:
-        - StructuredLLMResponse: Типизированный ответ
-        
+        - LLMResponse: Типизированный ответ
+
         RAISES:
         - StructuredOutputError: если не удалось получить валидный ответ
         """
@@ -358,7 +357,7 @@ class MockLLMProvider(BaseLLMProvider):
                 parsed_content = temp_model.model_validate(parsed_data)
                 
                 # Успех!
-                return StructuredLLMResponse(
+                return LLMResponse(
                     parsed_content=parsed_content,
                     raw_response=RawLLMResponse(
                         content=raw_response.content,

@@ -2,34 +2,35 @@
 LLMOrchestrator - централизованное управление вызовами LLM с расширенным логированием.
 
 АРХИТЕКТУРНАЯ РОЛЬ:
-- Инкапсулирует пул потоков/процессов для синхронных LLM вызовов
-- Управляет таймаутами и повторными попытками
+- Маршрутизирует вызовы к LLM провайдерам
 - Отслеживает активные вызовы и предотвращает утечку ресурсов
 - Предоставляет единый интерфейс для всех компонентов
-- Возвращает структурированные ответы с полем error вместо исключений
 - Централизованное логирование всех вызовов LLM
 - Публикация событий для интеграции с системой мониторинга
+- Сбор метрик производительности
 
-ПРОБЛЕМА КОТОРУЮ РЕШАЕТ:
-При использовании asyncio.wait_for с run_in_executor:
-1. При таймауте исключение пробрасывается вверх
-2. Фоновый поток продолжает выполнение и потребляет ресурсы
-3. Результат вызова теряется
-4. Пул потоков может переполниться "висячими" задачами
-5. Нет наблюдаемости и возможности отладки
+АРХИТЕКТУРА:
+- Провайдеры сами управляют потоками (run_in_executor внутри провайдера)
+- Оркестратор только маршрутизирует, логирует и собирает метрики
+- Таймауты обрабатываются на уровне провайдера (где есть контекст модели)
 
-РЕШЕНИЕ:
-1. Реестр активных вызовов с отслеживанием статуса
-2. При таймауте вызов помечается как "timed_out", но поток завершается
-3. Когда поток завершается, проверяем статус и логируем опоздание
-4. Агент получает StructuredLLMResponse с error вместо исключения
-5. Полное логирование всех вызовов с correlation_id
-6. Интеграция с EventBus для событий LLM_PROMPT_GENERATED и LLM_RESPONSE_RECEIVED
-7. Метрики для мониторинга производительности
+ПРИМЕР ИСПОЛЬЗОВАНИЯ:
+orchestrator = LLMOrchestrator(event_bus)
+await orchestrator.initialize()
+
+response = await orchestrator.execute(
+    request=request,
+    provider=llm_provider,
+    session_id="session_123",
+    agent_id="agent_001",
+    step_number=5,
+    phase="think"
+)
+
+await orchestrator.shutdown()
 """
 import asyncio
 import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Any, Optional, List
@@ -37,7 +38,6 @@ from typing import Dict, Any, Optional, List
 from core.models.types.llm_types import (
     LLMRequest,
     LLMResponse,
-    StructuredLLMResponse,
     RawLLMResponse
 )
 from core.infrastructure.logging import EventBusLogger
@@ -52,7 +52,6 @@ class CallStatus(str, Enum):
     PENDING = "pending"           # Ожидает запуска
     RUNNING = "running"           # Выполняется
     COMPLETED = "completed"       # Успешно завершён
-    TIMED_OUT = "timed_out"       # Превышен таймаут (но поток ещё работает)
     FAILED = "failed"             # Ошибка выполнения
     CANCELLED = "cancelled"       # Отменён пользователем
 
@@ -76,16 +75,12 @@ class LLMMetrics:
     """Метрики LLM вызовов."""
     total_calls: int = 0
     completed_calls: int = 0
-    timed_out_calls: int = 0
     failed_calls: int = 0
-    orphaned_calls: int = 0  # Вызовы завершившиеся после таймаута
     total_generation_time: float = 0.0
-    total_wait_time: float = 0.0  # Время ожидания в таймаутах
-    
+
     # Метрики для структурированного вывода
     structured_calls: int = 0
     structured_success: int = 0
-    structured_retries: int = 0  # Общее количество повторных попыток
     total_retry_attempts: int = 0  # Сумма всех попыток по всем вызовам
 
     @property
@@ -94,20 +89,6 @@ class LLMMetrics:
         if self.completed_calls == 0:
             return 0.0
         return self.total_generation_time / self.completed_calls
-
-    @property
-    def timeout_rate(self) -> float:
-        """Процент таймаутов."""
-        if self.total_calls == 0:
-            return 0.0
-        return self.timed_out_calls / self.total_calls
-
-    @property
-    def orphan_rate(self) -> float:
-        """Процент "брошенных" вызовов."""
-        if self.total_calls == 0:
-            return 0.0
-        return self.orphaned_calls / self.total_calls
 
     @property
     def structured_success_rate(self) -> float:
@@ -128,12 +109,8 @@ class LLMMetrics:
         return {
             "total_calls": self.total_calls,
             "completed_calls": self.completed_calls,
-            "timed_out_calls": self.timed_out_calls,
             "failed_calls": self.failed_calls,
-            "orphaned_calls": self.orphaned_calls,
             "avg_generation_time": round(self.avg_generation_time, 3),
-            "timeout_rate": round(self.timeout_rate, 3),
-            "orphan_rate": round(self.orphan_rate, 3),
             # Метрики структурированного вывода
             "structured_calls": self.structured_calls,
             "structured_success": self.structured_success,
@@ -203,13 +180,12 @@ class LLMOrchestrator:
     6. Полное логирование с трассировкой по сессиям и шагам агента
 
     ПРИМЕР ИСПОЛЬЗОВАНИЯ:
-    orchestrator = LLMOrchestrator(event_bus, max_workers=4)
+    orchestrator = LLMOrchestrator(event_bus)
     await orchestrator.initialize()
 
-    # Вызов с таймаутом и контекстом
+    # Вызов с контекстом для трассировки
     response = await orchestrator.execute(
         request=request,
-        timeout=60.0,
         provider=llm_provider,
         session_id="session_123",
         agent_id="agent_001",
@@ -226,7 +202,6 @@ class LLMOrchestrator:
     def __init__(
         self,
         event_bus: UnifiedEventBus,
-        max_workers: int = 4,
         cleanup_interval: float = 600.0,
         max_pending_calls: int = 100
     ):
@@ -235,20 +210,19 @@ class LLMOrchestrator:
 
         ПАРАМЕТРЫ:
         - event_bus: Шина событий для логирования
-        - max_workers: Максимальное количество потоков в пуле
         - cleanup_interval: Интервал очистки старых записей (секунды)
         - max_pending_calls: Максимальное количество ожидающих вызовов
+
+        АРХИТЕКТУРА (Вариант A):
+        - executor НЕ создаётся — провайдеры сами управляют потоками
+        - Оркестратор только маршрутизирует, логирует и собирает метрики
         """
         self._event_bus = event_bus
-        self._max_workers = max_workers
         self._cleanup_interval = cleanup_interval
         self._max_pending_calls = max_pending_calls
 
-        # ← НОВОЕ: model_name для обратной совместимости
+        # model_name для обратной совместимости
         self.model_name = "unknown"
-
-        # Пул потоков для синхронных LLM вызовов
-        self._executor: Optional[ThreadPoolExecutor] = None
 
         # Реестр активных вызовов
         self._pending_calls: Dict[str, CallRecord] = {}
@@ -270,21 +244,15 @@ class LLMOrchestrator:
 
         # Счётчик для генерации ID
         self._call_counter = 0
-    
+
     async def initialize(self) -> bool:
         """
         Инициализация оркестратора.
-        
+
         ВОЗВРАЩАЕТ:
         - bool: True если успешно
         """
         try:
-            # Создание пула потоков
-            self._executor = ThreadPoolExecutor(
-                max_workers=self._max_workers,
-                thread_name_prefix='llm_orchestrator'
-            )
-            
             # Создание логгера
             self._logger = EventBusLogger(
                 event_bus=self._event_bus,
@@ -292,7 +260,7 @@ class LLMOrchestrator:
                 agent_id="system",
                 component="LLMOrchestrator"
             )
-            
+
             # Запуск фоновой задачи очистки
             self._running = True
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
@@ -306,24 +274,24 @@ class LLMOrchestrator:
             if self._event_bus:
                 await self._event_bus.publish(
                     EventType.DEBUG,
-                    {"message": f"LLMOrchestrator initialized: max_workers={self._max_workers}"},
+                    {"message": "LLMOrchestrator initialized"},
                     source="LLMOrchestrator"
                 )
-            
+
             return True
-            
+
         except Exception as e:
             if self._logger:
                 await self._logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
             return False
-    
+
     async def shutdown(self) -> None:
         """
         Корректное завершение работы оркестратора.
         """
         try:
             self._running = False
-            
+
             # Остановка задачи очистки
             if self._cleanup_task:
                 self._cleanup_task.cancel()
@@ -331,21 +299,16 @@ class LLMOrchestrator:
                     await self._cleanup_task
                 except asyncio.CancelledError:
                     pass
-            
-            # Остановка пула потоков
-            if self._executor:
-                self._executor.shutdown(wait=True, cancel_futures=False)
-                self._executor = None
-            
+
             # Логируем статистику
             if self._logger:
                 metrics = self._metrics.to_dict()
                 await self._logger.info(
                     f"LLMOrchestrator завершён. Метрики: {metrics}"
                 )
-            
+
             await self._logger.info("LLMOrchestrator остановлен")
-            
+
             # Event bus publish
             if self._event_bus:
                 await self._event_bus.publish(
@@ -361,9 +324,7 @@ class LLMOrchestrator:
     async def execute(
         self,
         request: LLMRequest,
-        timeout: Optional[float] = None,
         provider: Any = None,
-        capability_name: Optional[str] = None,
         # Контекст для трассировки
         session_id: Optional[str] = None,
         agent_id: Optional[str] = None,
@@ -372,15 +333,16 @@ class LLMOrchestrator:
         goal: Optional[str] = None
     ) -> LLMResponse:
         """
-        Выполнение LLM вызова с управлением таймаутом и расширенным логированием.
+        Выполнение LLM вызова с расширенным логированием.
 
-        ВАЖНО: Не бросает исключения при таймауте! Возвращает LLMResponse с error.
+        АРХИТЕКТУРА (Вариант A):
+        - Вызываем provider._generate_impl() напрямую
+        - Провайдер сам управляет потоками и таймаутами
+        - Оркестратор только маршрутизирует, логирует и собирает метрики
 
         ПАРАМЕТРЫ:
         - request: Запрос к LLM
-        - timeout: Таймаут ожидания (секунды). Если None - используется timeout из request
         - provider: LLM провайдер для вызова
-        - capability_name: Имя capability (для логирования)
         - session_id: ID сессии для трассировки
         - agent_id: ID агента для трассировки
         - step_number: Номер шага агента
@@ -417,7 +379,6 @@ class LLMOrchestrator:
                 call_id=call_id,
                 request=request,
                 status=CallStatus.PENDING,
-                timeout=timeout,
                 session_id=session_id,
                 agent_id=agent_id,
                 step_number=step_number,
@@ -432,26 +393,22 @@ class LLMOrchestrator:
         # Логирование начала вызова
         await self._log_call_start(call_record)
 
-        # ✅ Логирование промпта осуществляется в Provider (LlamaCppProvider._generate_impl)
-        # self._print_prompt(request, call_id)  ← Удалено: дублирование с Provider
-
-        # Установка контекта в провайдере для логирования
+        # Установка контекста в провайдере для логирования
         if hasattr(provider, 'set_call_context'):
             provider.set_call_context(
                 event_bus=self._event_bus,
                 session_id=session_id or "unknown",
                 agent_id=agent_id or "system",
-                component=capability_name or "unknown",
+                component=request.capability_name or "unknown",
                 phase=phase or "unknown",
                 goal=goal or "unknown"
             )
 
         try:
-            # Запуск выполнения
-            return await self._execute_with_timeout(
+            # Вызов провайдера напрямую (он сам управляет потоками)
+            return await self._execute_call(
                 call_id=call_id,
                 request=request,
-                timeout=timeout,
                 provider=provider,
                 call_record=call_record
             )
@@ -480,54 +437,40 @@ class LLMOrchestrator:
         self,
         request: LLMRequest,
         provider: Any,
-        max_retries: int = 3,
-        attempt_timeout: Optional[float] = None,
-        total_timeout: Optional[float] = None,
-        use_native_structured_output: bool = True,  # ← НОВОЕ: Флаг нативной поддержки
+        max_retries: int = 3,  # 3 попытки для надёжности
+        use_native_structured_output: bool = True,
         # Контекст для трассировки
         session_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         step_number: Optional[int] = None,
         phase: Optional[str] = None,
         goal: Optional[str] = None
-    ) -> StructuredLLMResponse:
+    ) -> LLMResponse:
         """
-        Выполнение LLM вызова со структурированным выводом и повторными попытками.
+        Выполнение LLM вызова со структурированным выводом.
 
         АРХИТЕКТУРА:
         1. Первичный запрос с указанием JSON схемы
-        2. Парсинг и валидация ответа
-        3. При ошибке - формирование corrective prompt с обратной связью
-        4. Повтор до max_retries или успеха
-        5. Возврат StructuredLLMResponse с историей попыток
-
-        НОВОЕ: use_native_structured_output
-        - True: Схема передаётся провайдеру отдельно (нативная поддержка OpenAI/Antropic)
-        - False: Схема встраивается в промпт (для провайдеров без нативной поддержки)
+        2. Парсинг и валидация ответа (в провайдере)
+        3. При ошибке — выбрасываем StructuredOutputError
+        4. Возврат LLMResponse с типизированной моделью
 
         ПАРАМЕТРЫ:
         - request: Запрос к LLM (должен иметь structured_output)
         - provider: LLM провайдер
-        - max_retries: Максимальное количество попыток (по умолчанию 3)
-        - attempt_timeout: Таймаут на одну попытку (секунды)
-        - total_timeout: Общий таймаут на все попытки (секунды)
+        - max_retries: Максимальное количество попыток (по умолчанию 1, строгая валидация)
         - use_native_structured_output: Использовать нативную поддержку схемы (по умолчанию True)
         - session_id, agent_id, step_number, phase, goal: Контекст трассировки
 
         ВОЗВРАЩАЕТ:
-        - StructuredLLMResponse[T]: Результат с историей попыток
-          - parsed_content: Pydantic модель типа T (сохраняется типизация!)
+        - LLMResponse[T]: Результат с типизированной моделью
+          - parsed_content: Pydantic модель типа T
           - raw_response: Сырой ответ для отладки
           - parsing_attempts: Количество попыток
           - validation_errors: Ошибки валидации
-
-        ARCHITECTURE:
-        - Сохраняет Generic тип T для parsed_content
-        - Вызывающий код получает типизированный доступ к полям
-        - Сериализация (model_dump) только на границах приложения
         """
         if not request.structured_output:
-            return StructuredLLMResponse(
+            return LLMResponse(
                 parsed_content=None,  # type: ignore
                 raw_response=RawLLMResponse(
                     content="",
@@ -541,140 +484,126 @@ class LLMOrchestrator:
 
         # Генерация ID вызова
         call_id = self._generate_call_id()
-        start_time = time.time()
 
         # Обновление метрик
         self._metrics.structured_calls += 1
 
-        # История попыток
-        attempts: List[RetryAttempt] = []
-        last_error: Optional[str] = None
-        current_request = request
-
         # Логирование начала структурированного вызова
-        await self._log_structured_start(call_id, request, max_retries, session_id)
+        await self._log_structured_start(call_id, request, session_id)
 
         try:
-            # ✅ ИЗМЕНЕНО: Максимум 1 попытка (max_retries=1 для строгой валидации)
-            # Если max_retries > 1, используем 1 но логируем предупреждение
-            if max_retries > 1:
-                await self._logger.warning(
-                    f"⚠️ max_retries={max_retries} проигнорировано. "
-                    f"Используется 1 попытка для строгой валидации структурированного вывода."
-                )
-            
-            attempt_num = 1
-            
-            # Проверка общего таймаута
-            if total_timeout:
-                elapsed = time.time() - start_time
-                if elapsed >= total_timeout:
-                    await self._log_structured_failure(
-                        call_id, attempt_num, "total_timeout",
-                        f"Превышен общий таймаут {total_timeout}s"
-                    )
-                    # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
-                    # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError
-                    from core.errors.exceptions import StructuredOutputError
-                    raise StructuredOutputError(
-                        message=f"Превышен общий таймаут структурированного вывода ({total_timeout}s)",
-                        model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
-                        attempts=attempt_num,
-                        validation_errors=[{"error": "timeout", "message": f"Total timeout {total_timeout}s exceeded"}]
-                    )
-
-            # Выполнение единственной попытки
-            if self._logger:
-                await self._logger.info(
-                    f"🔵 [STRUCTURED] Выполнение попытки {attempt_num} | "
-                    f"prompt_len={len(request.prompt)} | "
-                    f"timeout={attempt_timeout}s | "
-                    f"use_native_structured_output={use_native_structured_output}"
-                )
-
-            attempt = await self._execute_structured_attempt(
-                call_id=call_id,
-                request=request,
-                provider=provider,
-                attempt_num=attempt_num,
-                attempt_timeout=attempt_timeout,
-                use_native_structured_output=use_native_structured_output,
-                session_id=session_id,
-                agent_id=agent_id,
-                step_number=step_number,
-                phase=phase
-            )
-
-            attempts.append(attempt)
-            self._metrics.total_retry_attempts += 1
-
-            if self._logger:
-                await self._logger.info(
-                    f"🔵 [STRUCTURED] Результат попытки {attempt_num} | "
-                    f"success={attempt.success} | "
-                    f"error_type={attempt.error_type} | "
-                    f"error_message={attempt.error_message[:100] if attempt.error_message else 'None'}"
-                )
-
-            if attempt.success:
-                # Успех!
-                self._metrics.structured_success += 1
-                await self._log_structured_success(
-                    call_id, attempt_num, attempt.duration, session_id
-                )
-
-                # ✅ Возвращаем успешный ответ с распарсенной моделью
-                return StructuredLLMResponse(
-                    parsed_content=attempt.parsed_content,  # ← Pydantic модель из LlamaCppProvider
-                    raw_response=RawLLMResponse(
-                        content=attempt.raw_response or "",
-                        model="structured",
-                        tokens_used=attempt.tokens_used,
-                        generation_time=attempt.duration
-                    ),
-                    parsing_attempts=attempt_num,
-                    validation_errors=[],
-                    provider_native_validation=False
-                )
-            else:
-                # ❌ УДАЛЕНО: Multiple retry attempts
-                # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError после 1 попытки
-                last_error = attempt.error_message
-                self._metrics.structured_retries += 1
-
-                await self._log_structured_retry(
-                    call_id, attempt_num, attempt.error_type,
-                    attempt.error_message, False  # Больше не будет попыток
-                )
-
-                # Все попытки исчерпаны (всего 1)
-                await self._log_structured_exhausted(
-                    call_id, len(attempts), last_error, session_id
-                )
-
-                # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
-                # ✅ ТЕПЕРЬ: Выбрасываем StructuredOutputError
+            # Fail-fast: проверяем провайдер
+            if provider is None:
+                print("❌ [LLMOrchestrator] Provider is None — модель не загружена!")
                 from core.errors.exceptions import StructuredOutputError
                 raise StructuredOutputError(
-                    message="Не удалось получить валидный структурированный ответ после 1 попытки",
-                    model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
-                    attempts=len(attempts),
-                    validation_errors=[
-                        {"attempt": i + 1, "error": a.error_type, "message": a.error_message}
-                        for i, a in enumerate(attempts)
-                    ]
+                    message="LLM провайдер не инициализирован (provider=None)",
+                    model_name=getattr(request, 'model_name', self.model_name),
+                    attempts=0,
+                    validation_errors=[{"error": "provider_not_initialized", "message": "LLM provider is None"}]
                 )
 
+            # Retry loop: до max_retries попыток
+            last_attempt = None
+
+            for attempt_num in range(1, max_retries + 1):
+
+                if self._logger:
+                    await self._logger.info(
+                        f"🔵 [STRUCTURED] Выполнение попытки {attempt_num}/{max_retries} | "
+                        f"prompt_len={len(request.prompt)} | "
+                        f"use_native_structured_output={use_native_structured_output}"
+                    )
+
+                attempt = await self._execute_structured_attempt(
+                    call_id=call_id,
+                    request=request,
+                    provider=provider,
+                    attempt_num=attempt_num,
+                    use_native_structured_output=use_native_structured_output,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    step_number=step_number,
+                    phase=phase
+                )
+
+                self._metrics.total_retry_attempts += 1
+
+                if self._logger:
+                    await self._logger.info(
+                        f"🔵 [STRUCTURED] Результат попытки {attempt_num}/{max_retries} | "
+                        f"success={attempt.success} | "
+                        f"error_type={attempt.error_type} | "
+                        f"error_message={attempt.error_message[:200] if attempt.error_message else 'None'}"
+                    )
+                    
+                    # Детальное логирование сырого ответа при ошибке
+                    if not attempt.success and attempt.raw_response:
+                        await self._logger.error(
+                            f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response[:1000]}"
+                        )
+
+                if attempt.success:
+                    # Успех!
+                    self._metrics.structured_success += 1
+                    await self._log_structured_success(
+                        call_id, attempt_num, attempt.duration, session_id
+                    )
+
+                    # Возвращаем успешный ответ с распарсенной моделью
+                    return LLMResponse(
+                        parsed_content=attempt.parsed_content,  # ← Pydantic модель из LlamaCppProvider
+                        raw_response=RawLLMResponse(
+                            content=attempt.raw_response or "",
+                            model="structured",
+                            tokens_used=attempt.tokens_used,
+                            generation_time=attempt.duration
+                        ),
+                        parsing_attempts=attempt_num,
+                        validation_errors=[],
+                        provider_native_validation=False
+                    )
+                else:
+                    # Ошибка — логируем и пробуем снова
+                    last_attempt = attempt
+                    await self._log_structured_retry(
+                        call_id, attempt_num, attempt.error_type,
+                        attempt.error_message, attempt_num < max_retries
+                    )
+
+                    if attempt_num < max_retries:
+                        if self._logger:
+                            await self._logger.warning(
+                                f"⚠️ [STRUCTURED] Retry {attempt_num}/{max_retries} failed, trying again..."
+                            )
+                    # Продолжаем цикл — следующая попытка
+
+            # Все попытки исчерпаны
+            await self._log_structured_exhausted(
+                call_id, max_retries, last_attempt.error_message if last_attempt else "No attempts made", session_id
+            )
+
+            # Выбрасываем StructuredOutputError с деталями всех попыток
+            from core.errors.exceptions import StructuredOutputError
+            raise StructuredOutputError(
+                message=f"Не удалось получить валидный структурированный ответ после {max_retries} попыток",
+                model_name=getattr(request, 'model_name', self.model_name),
+                attempts=max_retries,
+                validation_errors=[{"error": last_attempt.error_type, "message": last_attempt.error_message}] if last_attempt else []
+            )
+
+        except StructuredOutputError:
+            # Пробрасываем дальше
+            raise
         except Exception as e:
             # Критическая ошибка
             await self._log_structured_error(call_id, str(e), session_id)
-            # ❌ УДАЛЕНО: Возврат StructuredLLMResponse с error
-            # ✅ ТЕПЕРЬ: Пробрасываем StructuredOutputError
+            # Пробрасываем StructuredOutputError
             from core.errors.exceptions import StructuredOutputError
             raise StructuredOutputError(
                 message=f"Критическая ошибка структурированного вывода: {str(e)}",
-                model_name=request.model_name if hasattr(request, 'model_name') else self.model_name,
-                attempts=len(attempts),
+                model_name=getattr(request, 'model_name', self.model_name),
+                attempts=1,
                 validation_errors=[{"error": "exception", "message": str(e)}]
             )
 
@@ -684,7 +613,6 @@ class LLMOrchestrator:
         request: LLMRequest,
         provider: Any,
         attempt_num: int,
-        attempt_timeout: Optional[float],
         use_native_structured_output: bool = True,
         session_id: Optional[str] = None,
         agent_id: Optional[str] = None,
@@ -694,21 +622,15 @@ class LLMOrchestrator:
         """
         Выполнение одной попытки структурированного вывода.
 
-        НОВОЕ: use_native_structured_output
-        - True: Схема передаётся провайдеру отдельно (нативная поддержка)
-        - False: Схема уже встроена в промпт (fallback режим)
-
         ВОЗВРАЩАЕТ:
         - RetryAttempt: Результат попытки
         """
         start_time = time.time()
-        effective_timeout = attempt_timeout or 60.0  # Default 60s per attempt
 
         try:
             # Выполняем вызов через оркестратор
             response = await self.execute(
                 request=request,
-                timeout=effective_timeout,
                 provider=provider,
                 session_id=session_id,
                 agent_id=agent_id,
@@ -720,19 +642,22 @@ class LLMOrchestrator:
             if self._logger:
                 await self._logger.info(
                     f"🔵 [STRUCTURED] LLM response: type={type(response).__name__}, "
-                    f"content_len={len(response.content) if hasattr(response, 'content') and response.content else 0}, "
+                    f"content_len={self._get_content_length(response)}, "
                     f"has_parsed={hasattr(response, 'parsed_content')}, "
-                    f"finish_reason={getattr(response, 'finish_reason', 'N/A')}"
+                    f"finish_reason={self._get_finish_reason(response)}"
                 )
+                
+                # Логируем сырой ответ для отладки
+                if hasattr(response, 'raw_response') and response.raw_response:
+                    raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
+                    await self._logger.info(
+                        f"🔵 [STRUCTURED] Raw response: {raw_content[:500]}..."
+                    )
 
             duration = time.time() - start_time
 
             # Проверка на ошибку в ответе
-            # ✅ StructuredLLMResponse имеет finish_reason в raw_response
-            finish_reason = getattr(response, 'finish_reason', None)
-            if finish_reason is None and hasattr(response, 'raw_response'):
-                finish_reason = getattr(response.raw_response, 'finish_reason', None)
-            
+            finish_reason = self._get_finish_reason(response)
             if finish_reason == "error":
                 error_msg = response.metadata.get('error', 'Unknown error') if response.metadata else 'Unknown error'
                 return RetryAttempt(
@@ -745,30 +670,150 @@ class LLMOrchestrator:
                     duration=duration
                 )
 
-            # Парсинг и валидация ответа
-            # ✅ response может быть LLMResponse или StructuredLLMResponse
-            parsed_model = None  # Сохраняем распарсенную Pydantic модель
-            if hasattr(response, 'parsed_content') and response.parsed_content:
-                # StructuredLLMResponse - уже распарсен в LlamaCppProvider
-                parsed_model = response.parsed_content  # ← Pydantic модель!
-                raw_content = response.raw_response.content if hasattr(response, 'raw_response') else str(parsed_model)
+            # Проверка: LLMResponse с raw_response.content (JSON строка)
+            if hasattr(response, 'raw_response') and response.raw_response:
+                # LLMResponse от провайдера
+                raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
                 
-                # ✅ Если модель уже распарсена - не валидируем заново!
-                return RetryAttempt(
-                    attempt_number=attempt_num,
-                    prompt=request.prompt,
-                    raw_response=raw_content,
-                    parsed_content=parsed_model,  # ← Сохраняем Pydantic модель
-                    success=True,  # ← Уже валидно!
-                    error_type=None,
-                    error_message=None,
-                    duration=duration,
-                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
-                )
+                if self._logger:
+                    await self._logger.info(
+                        f"🔵 [STRUCTURED] Найден raw_response.content, len={len(raw_content) if raw_content else 0}"
+                    )
+                
+                # Проверяем есть ли уже parsed_content (Pydantic модель)
+                if hasattr(response, 'parsed_content') and response.parsed_content:
+                    # Модель уже создана провайдером (редкий случай)
+                    if self._logger:
+                        await self._logger.info(
+                            f"🔵 [STRUCTURED] parsed_content уже заполнен: {type(response.parsed_content).__name__}"
+                        )
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=raw_content,
+                        parsed_content=response.parsed_content,
+                        success=True,
+                        error_type=None,
+                        error_message=None,
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
+                
+                # parsed_content=None — создаём Pydantic модель из JSON Schema
+                if request.structured_output:
+                    try:
+                        import json
+                        from pydantic import create_model
+                        
+                        # Логируем сырой JSON для отладки
+                        if self._logger:
+                            await self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content[:300]}...")
+                        
+                        # Парсим JSON из строки
+                        json_data = json.loads(raw_content)
+                        
+                        if self._logger:
+                            await self._logger.info(f"✅ [STRUCTURED] JSON распарсен: ключи={list(json_data.keys()) if isinstance(json_data, dict) else 'not a dict'}")
+                        
+                        # Создаём динамическую Pydantic модель из JSON Schema
+                        schema = request.structured_output.schema_def
+                        model_name = request.structured_output.output_model or "DynamicModel"
+                        
+                        # Создаём модель динамически
+                        fields = {}
+                        if "properties" in schema:
+                            for field_name, field_def in schema["properties"].items():
+                                # Определяем тип из schema
+                                field_type_str = field_def.get("type", "string")
+                                field_type = {
+                                    "integer": int,
+                                    "number": float,
+                                    "boolean": bool,
+                                    "array": list,
+                                    "object": dict
+                                }.get(field_type_str, str)
+                                
+                                # Проверяем обязательность
+                                required = field_name in schema.get("required", [])
+                                fields[field_name] = (field_type, ...) if required else (field_type, None)
+                        
+                        # Создаём модель
+                        DynamicModel = create_model(model_name, **fields)
+                        parsed_content = DynamicModel(**json_data)
+                        
+                        if self._logger:
+                            await self._logger.info(
+                                f"✅ [STRUCTURED] Создана Pydantic модель {model_name} из JSON"
+                            )
+                        
+                        return RetryAttempt(
+                            attempt_number=attempt_num,
+                            prompt=request.prompt,
+                            raw_response=raw_content,
+                            parsed_content=parsed_content,  # ← Pydantic модель!
+                            success=True,
+                            error_type=None,
+                            error_message=None,
+                            duration=duration,
+                            tokens_used=self._get_tokens_used(response)
+                        )
+                        
+                    except json.JSONDecodeError as json_err:
+                        if self._logger:
+                            await self._logger.error(
+                                f"❌ [STRUCTURED] JSON parse error: {json_err}"
+                            )
+                        return RetryAttempt(
+                            attempt_number=attempt_num,
+                            prompt=request.prompt,
+                            raw_response=raw_content,
+                            parsed_content=None,
+                            success=False,
+                            error_type="json_error",
+                            error_message=str(json_err),
+                            duration=duration,
+                            tokens_used=self._get_tokens_used(response)
+                        )
+                        
+                    except Exception as model_err:
+                        if self._logger:
+                            await self._logger.warning(
+                                f"⚠️ [STRUCTURED] Не удалось создать Pydantic модель: {model_err}"
+                            )
+                        return RetryAttempt(
+                            attempt_number=attempt_num,
+                            prompt=request.prompt,
+                            raw_response=raw_content,
+                            parsed_content=None,
+                            success=False,
+                            error_type="validation_error",
+                            error_message=str(model_err),
+                            duration=duration,
+                            tokens_used=self._get_tokens_used(response)
+                        )
+                else:
+                    # Нет structured_output — не должно произойти
+                    if self._logger:
+                        await self._logger.error("❌ [STRUCTURED] Нет structured_output в запросе")
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=raw_content,
+                        parsed_content=None,
+                        success=False,
+                        error_type="exception",
+                        error_message="structured_output не указан",
+                        duration=duration,
+                        tokens_used=self._get_tokens_used(response)
+                    )
             else:
-                # LLMResponse - берём content и валидируем
+                # LLMResponse (старый формат) — берём content и валидируем
+                if self._logger:
+                    await self._logger.warning(
+                        f"⚠️ [STRUCTURED] Нет raw_response, используем LLMResponse.content"
+                    )
                 raw_content = response.content
-            
+
             validation_result = self._validate_structured_response(
                 raw_content=raw_content,
                 schema=request.structured_output.schema_def if request.structured_output else None
@@ -779,12 +824,12 @@ class LLMOrchestrator:
                     attempt_number=attempt_num,
                     prompt=request.prompt,
                     raw_response=raw_content,
-                    parsed_content=parsed_model,  # ← Сохраняем Pydantic модель
+                    parsed_content=None,
                     success=True,
                     error_type=None,
                     error_message=None,
                     duration=duration,
-                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
+                    tokens_used=self._get_tokens_used(response)
                 )
             else:
                 return RetryAttempt(
@@ -795,7 +840,7 @@ class LLMOrchestrator:
                     error_type=validation_result["error_type"],
                     error_message=validation_result["error_message"],
                     duration=duration,
-                    tokens_used=response.raw_response.tokens_used if hasattr(response, 'raw_response') and response.raw_response else response.tokens_used if hasattr(response, 'tokens_used') else 0
+                    tokens_used=self._get_tokens_used(response)
                 )
 
         except asyncio.TimeoutError:
@@ -806,7 +851,7 @@ class LLMOrchestrator:
                 raw_response=None,
                 success=False,
                 error_type="timeout",
-                error_message=f"Attempt {attempt_num} timed out after {effective_timeout}s",
+                error_message=f"Attempt {attempt_num} timed out",
                 duration=duration
             )
 
@@ -847,7 +892,6 @@ class LLMOrchestrator:
         self,
         call_id: str,
         request: LLMRequest,
-        max_retries: int,
         session_id: Optional[str]
     ) -> None:
         """Логирование начала структурированного вызова."""
@@ -856,7 +900,7 @@ class LLMOrchestrator:
 
         await self._logger.info(
             f"📋 Structured LLM | call_id={call_id} | "
-            f"session={session_id} | max_retries={max_retries} | "
+            f"session={session_id} | "
             f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}"
         )
 
@@ -946,20 +990,20 @@ class LLMOrchestrator:
             f"session={session_id} | error={error[:200]}"
         )
 
-    async def _execute_with_timeout(
+    async def _execute_call(
         self,
         call_id: str,
         request: LLMRequest,
-        timeout: Optional[float],
         provider: Any,
         call_record: CallRecord
     ) -> LLMResponse:
         """
         Выполнение вызова LLM.
-        
-        ВАЖНО: Не используем asyncio.wait_for - результат теряется при таймауте.
-        Просто ждём результат бесконечно (поток в executor не блокирует event loop).
-        Таймаут обрабатывается на уровне выше если нужно.
+
+        АРХИТЕКТУРА (Вариант A):
+        - Вызываем provider._generate_impl() напрямую
+        - Провайдер сам управляет потоками и таймаутами
+        - Оркестратор только маршрутизирует, логирует и собирает метрики
 
         ВОЗВРАЩАЕТ:
         - LLMResponse: Результат вызова
@@ -973,20 +1017,8 @@ class LLMOrchestrator:
             record.start_time = start_time
 
         try:
-            # Запуск в executor (синхронный LLM вызов в отдельном потоке)
-            # run_in_executor не блокирует event loop
-            future = asyncio.get_event_loop().run_in_executor(
-                self._executor,
-                self._sync_call_wrapper,
-                call_id,
-                request,
-                provider,
-                call_record
-            )
-
-            # Ждём результат БЕЗ таймаута - поток работает в фоне
-            # asyncio.wait_for НЕ используется - при таймауте результат теряется!
-            result = await future
+            # Вызываем провайдер напрямую — он сам управляет потоком
+            result = await provider._generate_impl(request)
 
             # Успешное завершение
             async with self._lock:
@@ -999,15 +1031,8 @@ class LLMOrchestrator:
             self._metrics.completed_calls += 1
             self._metrics.total_generation_time += record.duration or 0
 
-            msg = f"✅ [Orchestrator] Получен LLMResponse: content={result.content[:100] if hasattr(result, 'content') and result.content else 'EMPTY'}"
-            if self._logger:
-                await self._logger.info(msg)
-
             # Логирование успешного завершения
             await self._log_call_success(record, result)
-
-            # ✅ Логирование ответа осуществляется в Provider (LlamaCppProvider._generate_impl)
-            # self._print_response(result, call_id, record.duration or 0)  ← Удалено: дублирование с Provider
 
             return result
 
@@ -1044,13 +1069,10 @@ class LLMOrchestrator:
         if not self._logger:
             return
 
-        content_length = len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)
-        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
-        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
         await self._logger.info(
             f"✅ LLM ответ | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
-            f"response_len={content_length} | tokens={tokens_used} | "
+            f"response_len={self._get_content_length(result)} | tokens={self._get_tokens_used(result)} | "
             f"duration={record.duration:.2f}s"
         )
 
@@ -1101,91 +1123,6 @@ class LLMOrchestrator:
             error_message=str(error)
         )
 
-    def _sync_call_wrapper(
-        self,
-        call_id: str,
-        request: LLMRequest,
-        provider: Any,
-        call_record: CallRecord
-    ) -> Optional[LLMResponse]:
-        """
-        Обёртка для синхронного вызова LLM.
-
-        Выполняется в потоке executor'а. Проверяет статус вызова после завершения.
-
-        ПАРАМЕТРЫ:
-        - call_id: ID вызова
-        - request: Запрос к LLM
-        - provider: LLM провайдер
-        - call_record: Запись о вызове для обновления
-
-        ВОЗВРАЩАЕТ:
-        - LLMResponse или None если вызов был отменён
-        """
-        import threading
-        thread_name = threading.current_thread().name
-
-        # Сохраняем имя потока в записи
-        if call_id in self._pending_calls:
-            self._pending_calls[call_id].thread_name = thread_name
-
-        try:
-            # Синхронный вызов провайдера
-            if not provider:
-                raise ValueError("LLM provider не указан")
-
-            # Вызываем _generate_impl напрямую (синхронная версия)
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(provider._generate_impl(request))
-            finally:
-                loop.close()
-
-            # ПРОВЕРКА: не истёк ли таймаут пока мы работали
-            if call_id in self._pending_calls:
-                record = self._pending_calls[call_id]
-                if record.status == CallStatus.TIMED_OUT:
-                    # Вызов завершился после таймаута - логируем опоздание
-                    self._log_orphaned_call(record)
-                    # Возвращаем None чтобы оркестратор знал что результат не нужен
-                    return None
-
-            return result
-
-        except Exception as e:
-            # Логируем ошибку в потоке
-            if hasattr(self, '_logger') and self._logger:
-                if hasattr(self._logger, 'error_sync'):
-                    self._logger.error_sync(f"Ошибка в sync вызове {call_id}: {e}")
-            raise
-
-    def _log_orphaned_call(self, record: CallRecord) -> None:
-        """
-        Логирование "брошенного" вызова.
-
-        Вызов завершился после таймаута - его результат никому не нужен.
-        """
-        # Обновление метрик
-        self._metrics.orphaned_calls += 1
-
-        # Логирование
-        if self._logger and hasattr(self._logger, 'warning_sync'):
-            self._logger.warning_sync(
-                f"🗑️ ORPHANED CALL | call_id={record.call_id} | "
-                f"завершился через {record.duration:.2f}с после таймаута | "
-                f"session={record.session_id} | step={record.step_number} | "
-                f"capability={record.request.capability_name}"
-            )
-
-        # Публикация события о позднем ответе
-        if self._event_bus:
-            asyncio.run_coroutine_threadsafe(
-                self._publish_late_response_event(record),
-                self._event_bus._loop
-            )
-
     async def _publish_prompt_event(self, record: CallRecord) -> None:
         """Публикация события LLM_PROMPT_GENERATED."""
         if not self._event_bus:
@@ -1225,21 +1162,12 @@ class LLMOrchestrator:
         if not self._event_bus:
             return
 
-        # Извлекаем контент ответа (поддержка LLMResponse и StructuredLLMResponse)
-        response_content = ""
+        # Извлекаем контент ответа через helper-метод
+        response_content = self._get_content(result) if result else ""
         raw_response_content = ""
-        
-        if result:
-            # StructuredLLMResponse: имеет parsed_content и raw_response
-            if hasattr(result, 'parsed_content') and result.parsed_content is not None:
-                response_content = str(result.parsed_content)
-            # LLMResponse: имеет content напрямую
-            elif hasattr(result, 'content') and result.content:
-                response_content = result.content
-            
-            # Всегда извлекаем raw_response для отладки
-            if hasattr(result, 'raw_response') and result.raw_response:
-                raw_response_content = result.raw_response.content if hasattr(result.raw_response, 'content') else str(result.raw_response)
+
+        if result and hasattr(result, 'raw_response') and result.raw_response:
+            raw_response_content = result.raw_response.content if hasattr(result.raw_response, 'content') else str(result.raw_response)
 
         data = {
             "call_id": record.call_id,
@@ -1268,12 +1196,10 @@ class LLMOrchestrator:
                 except (json.JSONDecodeError, Exception):
                     data["response_preview"] = content_to_parse
 
-            # tokens_used и model
-            tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
-            model = result.raw_response.model if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'model', 'unknown')
+            # tokens_used и model через helper-методы
             data.update({
-                "tokens_used": tokens_used,
-                "model": model
+                "tokens_used": self._get_tokens_used(result),
+                "model": getattr(result.raw_response, 'model', getattr(result, 'model', 'unknown')) if hasattr(result, 'raw_response') else getattr(result, 'model', 'unknown')
             })
         else:
             data.update({
@@ -1288,47 +1214,6 @@ class LLMOrchestrator:
             correlation_id=record.call_id
         )
 
-    async def _publish_late_response_event(self, record: CallRecord) -> None:
-        """Публикация события о позднем ответе (после таймаута)."""
-        if not self._event_bus:
-            return
-
-        # Извлекаем контент ответа если доступен
-        response_content = ""
-        if record.result and hasattr(record.result, 'content'):
-            response_content = str(record.result.parsed_content) if hasattr(record.result, 'parsed_content') and record.result.parsed_content else (record.result.content or "" if hasattr(record.result, 'content') else "")
-
-        data = {
-            "call_id": record.call_id,
-            "session_id": record.session_id,
-            "agent_id": record.agent_id,
-            "step_number": record.step_number,
-            "late_response": True,
-            "duration_ms": (record.duration or 0) * 1000,
-            "capability_name": record.request.capability_name,
-            "orphaned": True,
-            # Сырой ответ (JSON строка)
-            "raw_response": response_content,
-            "response_length": len(response_content) if response_content else 0
-        }
-
-        # Пытаемся распарсить JSON для удобства чтения
-        if response_content:
-            try:
-                import json
-                parsed = json.loads(response_content)
-                data["parsed_response"] = parsed
-                data["response_preview"] = json.dumps(parsed, ensure_ascii=False, indent=2)[:500]
-            except (json.JSONDecodeError, Exception):
-                data["response_preview"] = response_content[:500]
-
-        await self._event_bus.publish(
-            EventType.LLM_RESPONSE_RECEIVED,
-            data=data,
-            source="LLMOrchestrator",
-            correlation_id=record.call_id
-        )
-    
     async def _cleanup_loop(self) -> None:
         """
         Фоновая задача периодической очистки старых записей.
@@ -1388,91 +1273,57 @@ class LLMOrchestrator:
         """Генерация уникального ID вызова."""
         self._call_counter += 1
         return f"llm_{int(time.time())}_{self._call_counter}"
-    
-    def _get_default_timeout(self, request: LLMRequest) -> float:
-        """Получение таймаута по умолчанию."""
-        # Если в request есть metadata с timeout, используем его
-        if request.metadata and 'timeout' in request.metadata:
-            return float(request.metadata['timeout'])
-        # Иначе используем дефолтное значение
-        return 120.0  # 2 минуты по умолчанию
-    
-    async def _publish_call_started(self, call_id: str, request: LLMRequest) -> None:
-        """Публикация события начала вызова."""
-        await self._event_bus.publish(
-            EventType.LLM_CALL_STARTED,
-            data={
-                "call_id": call_id,
-                "capability_name": request.capability_name,
-                "prompt_length": len(request.prompt),
-                "max_tokens": request.max_tokens,
-                "temperature": request.temperature
-            },
-            source="LLMOrchestrator",
-            correlation_id=call_id
-        )
-    
-    async def _publish_call_completed(
-        self,
-        call_id: str,
-        result: LLMResponse,
-        duration: Optional[float]
-    ) -> None:
-        """Публикация события завершения вызова."""
-        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет tokens_used напрямую
-        tokens_used = result.raw_response.tokens_used if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'tokens_used', 0)
-        # ✅ ИСПРАВЛЕНО: StructuredLLMResponse не имеет finish_reason напрямую
-        finish_reason = result.raw_response.finish_reason if hasattr(result, 'raw_response') and result.raw_response else getattr(result, 'finish_reason', 'unknown')
-        await self._event_bus.publish(
-            EventType.LLM_CALL_COMPLETED,
-            data={
-                "call_id": call_id,
-                "success": finish_reason != "error",
-                "duration": duration,
-                "tokens_used": tokens_used,
-                "content_length": (len(str(result.parsed_content)) if hasattr(result, 'parsed_content') and result.parsed_content else (len(result.content) if hasattr(result, 'content') and result.content else 0)),
-            },
-            source="LLMOrchestrator",
-            correlation_id=call_id
-        )
-    
-    async def _publish_call_timeout(
-        self,
-        call_id: str,
-        elapsed: float,
-        timeout: float
-    ) -> None:
-        """Публикация события таймаута."""
-        await self._event_bus.publish(
-            EventType.LLM_CALL_FAILED,
-            data={
-                "call_id": call_id,
-                "error_type": "timeout",
-                "elapsed": elapsed,
-                "timeout": timeout
-            },
-            source="LLMOrchestrator",
-            correlation_id=call_id
-        )
 
-    async def _publish_call_failed(
-        self,
-        call_id: str,
-        error: Exception,
-        elapsed: float
-    ) -> None:
-        """Публикация события ошибки."""
-        await self._event_bus.publish(
-            EventType.ERROR_OCCURRED,
-            data={
-                "call_id": call_id,
-                "error_type": type(error).__name__,
-                "error_message": str(error)[:500],
-                "elapsed": elapsed
-            },
-            source="LLMOrchestrator",
-            correlation_id=call_id
-        )
+    # === Helper-методы для извлечения данных из ответов ===
+
+    @staticmethod
+    def _get_tokens_used(response) -> int:
+        """
+        Извлечение tokens_used из ответа.
+
+        ПРИОРИТЕТ:
+        1. response.raw_response.tokens_used
+        2. response.tokens_used
+        3. 0 (по умолчанию)
+        """
+        if hasattr(response, 'raw_response') and response.raw_response:
+            return response.raw_response.tokens_used
+        return getattr(response, 'tokens_used', 0)
+
+    @staticmethod
+    def _get_finish_reason(response) -> str:
+        """
+        Извлечение finish_reason из ответа.
+
+        ПРИОРИТЕТ:
+        1. response.raw_response.finish_reason
+        2. response.finish_reason
+        3. 'unknown' (по умолчанию)
+        """
+        if hasattr(response, 'raw_response') and response.raw_response:
+            return response.raw_response.finish_reason
+        return getattr(response, 'finish_reason', 'unknown')
+
+    @staticmethod
+    def _get_content(response) -> str:
+        """
+        Извлечение контента из ответа.
+
+        ПРИОРИТЕТ:
+        1. str(response.parsed_content)
+        2. response.content
+        3. '' (по умолчанию)
+        """
+        if hasattr(response, 'parsed_content') and response.parsed_content:
+            return str(response.parsed_content)
+        return getattr(response, 'content', '')
+
+    @staticmethod
+    def _get_content_length(response) -> int:
+        """Получение длины контента."""
+        return len(LLMOrchestrator._get_content(response))
+
+    # === Конец helper-методов ===
 
     def get_metrics(self) -> LLMMetrics:
         """Получение текущих метрик."""
@@ -1490,17 +1341,18 @@ class LLMOrchestrator:
         """Получение статуса здоровья оркестратора."""
         metrics = self._metrics.to_dict()
         pending = self.get_pending_calls()
-        
-        # Оценка здоровья
+
+        # Оценка здоровья по проценту ошибок
         status = "healthy"
-        if metrics["timeout_rate"] > 0.5:
-            status = "degraded"
-        if metrics["timeout_rate"] > 0.8:
-            status = "unhealthy"
-        
+        if metrics["failed_calls"] > 0:
+            fail_rate = metrics["failed_calls"] / max(1, metrics["total_calls"])
+            if fail_rate > 0.5:
+                status = "degraded"
+            if fail_rate > 0.8:
+                status = "unhealthy"
+
         return {
             "status": status,
-            "executor_running": self._executor is not None,
             "pending_calls": len(pending),
             "metrics": metrics,
             "recent_calls": pending[:10]  # Последние 10

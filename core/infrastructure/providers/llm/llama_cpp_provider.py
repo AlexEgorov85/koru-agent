@@ -12,11 +12,10 @@ from contextlib import asynccontextmanager
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
 from core.models.types.llm_types import (
-    LLMRequest, 
-    LLMResponse, 
-    LLMHealthStatus, 
+    LLMRequest,
+    LLMResponse,
+    LLMHealthStatus,
     StructuredOutputConfig,
-    StructuredLLMResponse,
     RawLLMResponse
 )
 from pydantic import BaseModel, Field, ValidationError, create_model
@@ -320,11 +319,19 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         
         schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
         
-        # Формируем компактную инструкцию
+        # Формируем строгую инструкцию с акцентом на JSON-only вывод
         schema_prompt = (
             "\n=== JSON SCHEMA ===\n"
             f"{schema_json}\n"
-            "\nВерни ТОЛЬКО JSON согласно схеме выше.\n"
+            "\nКРИТИЧЕСКИ ВАЖНО:\n"
+            "1. Верни ТОЛЬКО JSON согласно схеме выше. НИЧЕГО больше.\n"
+            "2. НЕ добавляй пояснений, вступлений, заключений или markdown-обёрток.\n"
+            "3. НЕ используй triple backticks (```).\n"
+            "4. Все обязательные поля (required) должны присутствовать.\n"
+            "5. Типы данных должны точно соответствовать схеме.\n"
+            "6. Начни ответ с '{' и закончи '}'.\n"
+            "\nПример правильного ответа:\n"
+            '{"field1": "value1", "field2": 42}\n'
         )
         
         return schema_prompt
@@ -361,7 +368,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
 
         # ✅ Если есть structured_output — добавляем схему в промпт
         if hasattr(request, 'structured_output') and request.structured_output:
-            max_tokens = min(request.max_tokens, 1000)
+            max_tokens = min(request.max_tokens, 4000)
             msg = f"🔵 [LLM] Structured output активирован: model={request.structured_output.output_model}"
             if self.event_bus_logger:
                 await self.event_bus_logger.info(msg)
@@ -400,7 +407,6 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         # Выполняем вызов модели в потоке
         import threading
         import asyncio
-        from asyncio import wait_for, TimeoutError
 
         def _call_llm_sync():
             """Синхронный вызов модели."""
@@ -434,10 +440,9 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 # Уже в потоке - вызываем напрямую
                 response = _call_llm_sync()
             else:
-                # Не в потоке - используем run_in_executor
-                response = await wait_for(
-                    asyncio.get_event_loop().run_in_executor(self._executor, _call_llm_sync),
-                    timeout=self.timeout_seconds
+                # Не в потоке - используем run_in_executor (без таймаута)
+                response = await asyncio.get_event_loop().run_in_executor(
+                    self._executor, _call_llm_sync
                 )
 
             # Обрабатываем результат
@@ -484,62 +489,97 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                     parsed_json = json.loads(json_content)
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
-                    
-                    parsed_content = None
-                    if request.structured_output.output_model:
-                        parsed_content = parsed_json
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.info(f"✅ JSON распарсен, валидация - ответственность оркестратора")
-                    else:
-                        parsed_content = parsed_json
-                    
-                    structured_response = StructuredLLMResponse(
-                        parsed_content=parsed_content,
+
+                    # ✅ Сохраняем JSON в raw_response.content
+                    # ✅ parsed_content=None — оркестратор создаст Pydantic модель
+                    response = LLMResponse(
+                        parsed_content=None,  # ← Оркестратор заполнит
                         raw_response=RawLLMResponse(
-                            content=generated_text,
+                            content=json_content,  # ← JSON строка для валидации
                             model=self.model_name,
                             tokens_used=usage.get('total_tokens', 0),
                             generation_time=time.time() - start_time,
-                            finish_reason=finish_reason
+                            finish_reason=finish_reason,
+                            metadata={"parsed_json": parsed_json}  # ← dict для отладки
                         ),
+                        model=self.model_name,
+                        tokens_used=usage.get('total_tokens', 0),
+                        generation_time=time.time() - start_time,
                         parsing_attempts=1,
                         validation_errors=[]
                     )
 
                     if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"✅ StructuredLLMResponse создан (success={structured_response.success})")
+                        await self.event_bus_logger.info(f"✅ LLMResponse создан (JSON в raw_response.content)")
 
-                    self._update_metrics(structured_response.raw_response.generation_time)
+                    self._update_metrics(response.generation_time)
 
-                    return structured_response
-                    
+                    return response
+
                 except json.JSONDecodeError as json_err:
+                    # ❌ Ошибка парсинга JSON — возвращаем LLMResponse с ошибкой
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"❌ Structured output JSON parse error: {json_err}")
+                    
+                    return LLMResponse(
+                        parsed_content=None,
+                        raw_response=RawLLMResponse(
+                            content=generated_text,  # ← Сырой текст
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason="error"
+                        ),
+                        model=self.model_name,
+                        parsing_attempts=1,
+                        validation_errors=[{
+                            "error": "json_parse_error",
+                            "message": str(json_err)
+                        }]
+                    )
+                    
                 except Exception as struct_err:
+                    # ❌ Другая ошибка — возвращаем LLMResponse с ошибкой
                     if self.event_bus_logger:
                         await self.event_bus_logger.error(f"❌ Structured output error: {struct_err}")
+                    
+                    return LLMResponse(
+                        parsed_content=None,
+                        raw_response=RawLLMResponse(
+                            content=generated_text,
+                            model=self.model_name,
+                            tokens_used=usage.get('total_tokens', 0),
+                            generation_time=time.time() - start_time,
+                            finish_reason="error"
+                        ),
+                        model=self.model_name,
+                        parsing_attempts=1,
+                        validation_errors=[{
+                            "error": "exception",
+                            "message": str(struct_err)
+                        }]
+                    )
 
+            # ❌ УДАЛЕНО: Возврат LLMResponse для structured output
+            # ТЕПЕРЬ: Всегда возвращаем LLMResponse для структурированных запросов
             if self.event_bus_logger:
-                await self.event_bus_logger.info(f"🔵 [LLM] Возвращаем обычный LLMResponse (structured output не сработал)")
-
-            # Создаем обычный результат
-            llm_response = LLMResponse(
-                content=generated_text,
-                model=self.model_name,
-                tokens_used=usage.get('total_tokens', 0),
-                generation_time=time.time() - start_time,
-                finish_reason=finish_reason
+                await self.event_bus_logger.error("❌ [LLM] Structured output запрос, но не удалось сгенерировать ответ")
+            
+            return LLMResponse(
+                parsed_content=None,
+                raw_response=RawLLMResponse(
+                    content=generated_text,
+                    model=self.model_name,
+                    tokens_used=usage.get('total_tokens', 0),
+                    generation_time=time.time() - start_time,
+                    finish_reason="error"
+                ),
+                parsing_attempts=1,
+                validation_errors=[{
+                    "error": "unknown",
+                    "message": "Не удалось получить структурированный ответ"
+                }]
             )
-
-            # Обновляем метрики
-            self._update_metrics(llm_response.generation_time)
-
-            return llm_response
-
-        except TimeoutError as e:
-            # Re-raise timeout without wrapping in generic error
-            raise
 
         except Exception as e:
             # Возвращаем ошибку без логирования (это делает LLMOrchestrator)
