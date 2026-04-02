@@ -203,7 +203,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         result_preview = str(result)[:500] if len(str(result)) > 500 else str(result)
         await session_logger.end_session(success=True, result=result_preview)
         await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
-        await session_logger.info(f"📊 Результат: {result_preview}")
+        await session_logger.info(f"📊 Результат:")
+        print(f"\n{'='*60}")
+        print(f"📖 ОТВЕТ:")
+        print(f"{result_preview}")
+        print(f"{'='*60}\n")
 
         return result
 
