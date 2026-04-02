@@ -308,11 +308,7 @@ SCRIPTS_REGISTRY: Dict[str, ScriptConfig] = {
     "get_distinct_authors": ScriptConfig(
         name="get_distinct_authors",
         sql="""
-            SELECT DISTINCT
-                a.id as author_id,
-                a.first_name,
-                a.last_name,
-                a.birth_date
+            SELECT DISTINCT a.last_name
             FROM "Lib".authors a
             JOIN "Lib".books b ON a.id = b.author_id
             WHERE a.last_name IS NOT NULL
