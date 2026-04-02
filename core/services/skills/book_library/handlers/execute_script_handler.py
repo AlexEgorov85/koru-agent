@@ -461,22 +461,32 @@ class ExecuteScriptHandler(BaseSkillHandler):
                     context=exec_context
                 )
                 await self.log_debug(f"[DEBUG _validate_author] Fuzzy step: status={authors_result.status}")
+                await self.log_debug(f"[DEBUG _validate_author] authors_result.data={authors_result.data}")
 
                 if authors_result.status == ExecutionStatus.COMPLETED and authors_result.data:
                     authors_data = authors_result.data.rows if hasattr(authors_result.data, 'rows') else []
-                    all_authors = [row[0] if hasattr(row, '__getitem__') else str(row) for row in authors_data]
+                    await self.log_debug(f"[DEBUG _validate_author] authors_data type={type(authors_data)}, len={len(authors_data) if authors_data else 0}")
+                    
+                    if not authors_data:
+                        await self.log_debug(f"[DEBUG _validate_author] No authors in result")
+                        return {"valid": True, "suggestions": [], "corrected_value": author_name}
+                    
+                    # SQL returns: last_name (single column)
+                    all_authors = [row[0] for row in authors_data if row and row[0]]
                     await self.log_debug(f"[DEBUG _validate_author] Got {len(all_authors)} authors: {all_authors[:5]}")
+                    await self.log_debug(f"[DEBUG _validate_author] search_term='{search_term}', author_name_lower='{author_name_lower}'")
 
                     for author in all_authors:
-                        author_parts = author.lower().split()
-                        if len(author_parts) >= 2:
-                            author_last_name = author_parts[-1]
-                            if search_term == author_last_name:
-                                await self.log_debug(f"[DEBUG _validate_author] Fuzzy MATCH: '{search_term}' == '{author_last_name}' in '{author}'")
-                                return {"valid": True, "suggestions": [], "corrected_value": author}
+                        author_lower = author.lower()
+                        # Теперь SQL возвращает только фамилию, сравниваем напрямую
+                        if search_term == author_lower:
+                            await self.log_debug(f"[DEBUG _validate_author] Direct MATCH: '{search_term}' == '{author_lower}'")
+                            return {"valid": True, "suggestions": [], "corrected_value": author}
 
                     for author in all_authors:
-                        if self._fuzzy_match(author_name, author) > 0.8:
+                        author_lower = author.lower()
+                        if self._fuzzy_match(author_name_lower, author_lower) > 0.8:
+                            await self.log_debug(f"[DEBUG _validate_author] Fuzzy match: '{author_name_lower}' == '{author_lower}'")
                             return {"valid": True, "suggestions": [], "corrected_value": author}
 
             except Exception as e:
