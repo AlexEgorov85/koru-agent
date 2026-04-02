@@ -429,7 +429,7 @@ class SQLGenerationService(BaseService):
         if hasattr(self, '_event_bus') and self._event_bus is not None:
             await self._event_bus.publish(
                 event_type=f"sql_generation.{event_type}",
-                payload={
+                data={
                     "user_question": input_data.natural_language_query,
                     "table_schema": input_data.table_schema[:200] if input_data.table_schema else "",
                     "result": str(data)[:500],
@@ -456,7 +456,7 @@ class SQLGenerationService(BaseService):
         if hasattr(self, '_event_bus') and self._event_bus is not None:
             await self._event_bus.publish(
                 event_type=f"sql_correction.{event_type}",
-                payload={
+                data={
                     "attempt": attempt,
                     "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
                     "result": str(data)[:500]
@@ -481,7 +481,7 @@ class SQLGenerationService(BaseService):
         if hasattr(self, '_event_bus') and self._event_bus is not None:
             await self._event_bus.publish(
                 event_type=f"sql_execution.{event_type}",
-                payload={
+                data={
                     "attempt": attempt,
                     "rowcount": result.rowcount,
                     "success": result.success,

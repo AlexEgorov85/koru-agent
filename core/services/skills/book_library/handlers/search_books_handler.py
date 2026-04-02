@@ -2,6 +2,7 @@ import time
 from typing import Dict, Any
 
 from core.models.data.execution import ExecutionStatus
+from core.agent.components.action_executor import ExecutionContext
 from core.errors.exceptions import SQLGenerationError
 from core.services.skills.handlers.base_handler import BaseSkillHandler
 
@@ -43,8 +44,7 @@ class SearchBooksHandler(BaseSkillHandler):
         query_val, max_results_val = self._extract_params(params)
 
         # 2. Получение промпта для генерации SQL
-        prompt_obj = self.get_prompt()
-        prompt_text = prompt_obj.content if prompt_obj else ""
+        prompt_text = self.get_prompt()
         if not prompt_text:
             raise ValueError("Промпт для поиска книг не найден")
 

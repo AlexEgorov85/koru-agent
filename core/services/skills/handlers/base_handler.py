@@ -63,7 +63,10 @@ class BaseSkillHandler(ABC):
         self.skill = skill
         self.executor: ActionExecutor = skill.executor
         self.application_context = skill.application_context
-        self._event_bus = skill._event_bus if hasattr(skill, '_event_bus') else None
+        # Получаем event_bus от родительского компонента
+        self._event_bus = getattr(skill, '_event_bus', None)
+        # Fallback на event_bus_logger для обратной совместимости
+        self.event_bus_logger = getattr(skill, 'event_bus_logger', None)
 
     @abstractmethod
     async def execute(

@@ -465,14 +465,17 @@ class ExecuteScriptHandler(BaseSkillHandler):
 
                 if authors_result.status == ExecutionStatus.COMPLETED and authors_result.data:
                     authors_data = authors_result.data.rows if hasattr(authors_result.data, 'rows') else []
-                    await self.log_debug(f"[DEBUG _validate_author] authors_data type={type(authors_data)}, len={len(authors_data) if authors_data else 0}")
                     
                     if not authors_data:
-                        await self.log_debug(f"[DEBUG _validate_author] No authors in result")
                         return {"valid": True, "suggestions": [], "corrected_value": author_name}
                     
-                    # SQL returns: last_name (single column)
-                    all_authors = [row[0] for row in authors_data if row and row[0]]
+                    # SQL returns: last_name as dict {'last_name': 'Name'}
+                    all_authors = []
+                    for row in authors_data:
+                        if isinstance(row, dict) and 'last_name' in row:
+                            all_authors.append(row['last_name'])
+                        elif isinstance(row, (list, tuple)) and len(row) > 0:
+                            all_authors.append(row[0])
                     await self.log_debug(f"[DEBUG _validate_author] Got {len(all_authors)} authors: {all_authors[:5]}")
                     await self.log_debug(f"[DEBUG _validate_author] search_term='{search_term}', author_name_lower='{author_name_lower}'")
 
