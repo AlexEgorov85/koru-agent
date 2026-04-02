@@ -77,22 +77,32 @@ class SQLQueryService(BaseService):
             # Доступны через: self.sql_validator_service_instance, self.sql_generation_instance
 
             # Инициализация анализатора ошибок
-            self.error_analyzer = SQLErrorAnalyzer(self.application_context, executor=self.executor)
+            self.error_analyzer = SQLErrorAnalyzer(
+                self.application_context, 
+                executor=self.executor,
+                event_bus=self._event_bus
+            )
             if not await self.error_analyzer.initialize():
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                await self._event_bus.publish(
+                    event_type="sql_query.init_failed",
+                    data={"component": "SQLErrorAnalyzer"},
+                    source="sql_query"
+                )
                 return False
 
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("SQLQueryService успешно инициализирован")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            await self._event_bus.publish(
+                event_type="sql_query.initialized",
+                data={"service": "sql_query"},
+                source="sql_query"
+            )
             return True
         except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка инициализации SQLQueryService: {str(e)}")
+            await self._event_bus.publish(
+                event_type="sql_query.init_failed",
+                data={"error": str(e)},
+                source="sql_query"
+            )
+            return False
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False

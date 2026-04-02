@@ -36,7 +36,11 @@ class SQLCorrectionEngine(BaseService):
             executor=executor,
             event_bus=event_bus
         )
-        self.error_analyzer = SQLErrorAnalyzer(application_context, executor=executor)
+        self.error_analyzer = SQLErrorAnalyzer(
+            application_context, 
+            executor=executor,
+            event_bus=event_bus
+        )
     
     async def initialize(self) -> bool:
         """Инициализация движка коррекции"""

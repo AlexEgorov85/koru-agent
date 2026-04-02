@@ -84,16 +84,25 @@ class SQLGenerationService(BaseService):
 
             # Инициализация анализатора ошибок
             # В новой архитектуре SQLErrorAnalyzer может использовать application_context
-            self.error_analyzer = SQLErrorAnalyzer(self.application_context, executor=self.executor)
+            self.error_analyzer = SQLErrorAnalyzer(
+                self.application_context, 
+                executor=self.executor,
+                event_bus=self._event_bus
+            )
             if not await self.error_analyzer.initialize():
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error("Не удалось инициализировать SQLErrorAnalyzer")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                await self._event_bus.publish(
+                    event_type="sql_generation.init_failed",
+                    data={"component": "SQLErrorAnalyzer"},
+                    source="sql_generation"
+                )
                 return False
 
             # Инициализация движка коррекции
-            self.correction_engine = SQLCorrectionEngine(self.application_context, executor=self.executor)
+            self.correction_engine = SQLCorrectionEngine(
+                self.application_context, 
+                executor=self.executor,
+                event_bus=self._event_bus
+            )
 
             # Проверка критических зависимостей
             if not self.table_description_service_instance:

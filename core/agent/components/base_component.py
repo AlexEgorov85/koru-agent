@@ -94,7 +94,7 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         application_context: Optional['ApplicationContext'] = None,  # [DEPRECATED Этап 5]
         component_config: Optional[ComponentConfig] = None,
         executor: Optional['ActionExecutor'] = None,  # ← ЕДИНСТВЕННЫЙ способ взаимодействия
-        event_bus = None  # ← Только для логирования
+        event_bus: 'EventBusInterface' = None  # ← Обязательный для логирования
     ):
         # Вызов конструктора LifecycleMixin
         LifecycleMixin.__init__(self, name)
@@ -119,6 +119,9 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
 
         if executor is None:
             raise ValueError(f"Компонент '{name}' требует executor")
+
+        if event_bus is None:
+            raise ValueError(f"Компонент '{name}' требует event_bus")
 
         # Сохраняем параметры
         self._application_context = application_context  # [DEPRECATED Этап 5]

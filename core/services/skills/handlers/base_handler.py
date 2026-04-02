@@ -63,7 +63,7 @@ class BaseSkillHandler(ABC):
         self.skill = skill
         self.executor: ActionExecutor = skill.executor
         self.application_context = skill.application_context
-        self.event_bus_logger: EventBusLogger = skill.event_bus_logger
+        self._event_bus = skill._event_bus if hasattr(skill, '_event_bus') else None
 
     @abstractmethod
     async def execute(
@@ -140,29 +140,39 @@ class BaseSkillHandler(ABC):
 
     async def log_info(self, message: str) -> None:
         """Логирование информационного сообщения"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(message)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self._event_bus:
+            await self._event_bus.publish(
+                event_type="book_library.info",
+                data={"message": message},
+                source="book_library"
+            )
 
     async def log_warning(self, message: str) -> None:
         """Логирование предупреждения"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.warning(message)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self._event_bus:
+            await self._event_bus.publish(
+                event_type="book_library.warning",
+                data={"message": message},
+                source="book_library"
+            )
 
     async def log_error(self, message: str) -> None:
         """Логирование ошибки"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.error(message)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self._event_bus:
+            await self._event_bus.publish(
+                event_type="book_library.error",
+                data={"message": message},
+                source="book_library"
+            )
 
     async def log_debug(self, message: str) -> None:
         """Логирование отладочного сообщения"""
-        if self.event_bus_logger:
-            await self.event_bus_logger.debug(message)
+        if self._event_bus:
+            await self._event_bus.publish(
+                event_type="book_library.debug",
+                data={"message": message},
+                source="book_library"
+            )
 
     async def user_message(self, message: str, icon: str = "ℹ️") -> None:
         """Сообщение пользователю (выводится в терминал)"""
