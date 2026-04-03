@@ -261,7 +261,12 @@ class ComponentFactory:
         await self._log_info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
 
         discovery = self._get_discovery()
-        entry = discovery.find_component(component_type, name)
+
+        normalized_name = self._normalize_component_name(component_type, name)
+        if normalized_name != name:
+            await self._log_info(f"Нормализация имени: {name} -> {normalized_name}")
+
+        entry = discovery.find_component(component_type, normalized_name)
 
         if entry is not None:
             await self._log_info(
@@ -271,10 +276,46 @@ class ComponentFactory:
             return entry.class_ref
 
         await self._log_error(
-            f"Компонент {component_type}/{name} не найден. "
+            f"Компонент {component_type}/{name} (нормализовано: {normalized_name}) не найден. "
             f"Доступные: {discovery.get_all_names()}"
         )
         raise ValueError(f"Компонент {component_type}/{name} не найден")
+
+    def _normalize_component_name(self, component_type: str, name: str) -> str:
+        """
+        Нормализация имени компонента к формату ComponentDiscovery.
+
+        AppConfig.from_discovery() отдаёт имена с суффиксами:
+        - services: contract_service -> contract
+        - behaviors: evaluation_pattern -> evaluation
+        - tools: vector_books -> vector_books_tool
+
+        ARGS:
+        - component_type: тип компонента
+        - name: имя из AppConfig
+
+        RETURNS:
+        - str: нормализованное имя для поиска в ComponentDiscovery
+        """
+        if component_type == "service":
+            if name.endswith("_service"):
+                return name[: -len("_service")]
+            return name
+
+        if component_type == "behavior":
+            if name.endswith("_pattern"):
+                return name[: -len("_pattern")]
+            return name
+
+        if component_type == "tool":
+            if not name.endswith("_tool"):
+                candidate = f"{name}_tool"
+                discovery = self._get_discovery()
+                if discovery.find_component("tool", candidate):
+                    return candidate
+            return name
+
+        return name
 
     def _get_discovery(self) -> "ComponentDiscovery":
         """Получить или создать экземпляр ComponentDiscovery."""
