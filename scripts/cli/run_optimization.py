@@ -2,22 +2,34 @@
 """
 CLI скрипт для запуска оптимизации промптов на новой архитектуре v2.
 
-Использует компоненты:
-- TraceCollector → PatternAnalyzer → PromptResponseAnalyzer → RootCauseAnalyzer → 
-  ExampleExtractor → BenchmarkRunner → Evaluator → PromptGenerator → 
-  VersionManager → SafetyLayer → OptimizationOrchestrator
+ПЛАН РАБОТЫ:
+1. Baseline — запуск бенчмарка → текущая точность
+2. Анализ — какие тесты failed + session.jsonl (цепочка шагов)
+3. TraceCollector — читает логи → ExecutionTrace → анализаторы → root causes
+4. OptimizationOrchestrator — генерирует кандидатов (улучшенные промпты)
+5. Тестирование кандидатов — sandbox ApplicationContext с новым промптом → полный агент на тех же вопросах
+6. Промоушн — лучший кандидат → обновление промпта в data/prompts/
+7. Финальный бенчмарк — подтверждение улучшения
 
 ИСПОЛЬЗОВАНИЕ:
-    python scripts/cli/run_optimization.py --capability <capability> --mode accuracy
-    python scripts/cli/run_optimization.py --capability <capability> --dry-run --verbose
+    python scripts/cli/run_optimization.py --capability vector_books.search --mode accuracy
+    python scripts/cli/run_optimization.py --capability vector_books.search --benchmark-size 2 --dry-run
+    python scripts/cli/run_optimization.py --session-log data/logs/.../session.jsonl --analyze-only
 """
 import argparse
 import asyncio
 import json
 import sys
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Any
+
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,9 +40,9 @@ def parse_args() -> argparse.Namespace:
         epilog="""
 Примеры использования:
   %(prog)s --capability vector_books.search --mode accuracy
-  %(prog)s --capability vector_books.search --mode accuracy --target-accuracy 0.95
-  %(prog)s --capability vector_books.search --list-capabilities
-  %(prog)s --capability vector_books.search --dry-run  # Тест без реальных изменений
+  %(prog)s --capability vector_books.search --benchmark-size 2
+  %(prog)s --capability vector_books.search --dry-run --verbose
+  %(prog)s --session-log data/logs/.../session.jsonl --analyze-only
         """
     )
 
@@ -38,13 +50,13 @@ def parse_args() -> argparse.Namespace:
         '-c', '--capability',
         type=str,
         required=False,
-        help='Название способности для оптимизации (например, vector_books.search)'
+        help='Название способности для оптимизации'
     )
 
     parser.add_argument(
         '--list-capabilities',
         action='store_true',
-        help='Список доступных способностей для оптимизации'
+        help='Список доступных способностей'
     )
 
     parser.add_argument(
@@ -65,8 +77,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--max-iterations',
         type=int,
-        default=5,
-        help='Максимальное количество итераций (по умолчанию: 5)'
+        default=3,
+        help='Максимальное количество итераций (по умолчанию: 3)'
     )
 
     parser.add_argument(
@@ -77,9 +89,24 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '--benchmark-size',
+        type=int,
+        default=10,
+        help='Количество вопросов из бенчмарка для тестирования (по умолчанию: 10)'
+    )
+
+    parser.add_argument(
+        '--benchmark-level',
+        type=str,
+        choices=['all', 'sql', 'answer'],
+        default='sql',
+        help='Уровень бенчмарка (по умолчанию: sql)'
+    )
+
+    parser.add_argument(
         '-o', '--output',
         type=str,
-        help='Файл для вывода результатов в формате JSON'
+        help='Файл для вывода результатов в JSON'
     )
 
     parser.add_argument(
@@ -97,7 +124,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--session-log',
         type=str,
-        help='Путь к файлу session.jsonl для анализа и оптимизации на основе лога'
+        help='Путь к session.jsonl для анализа'
     )
 
     parser.add_argument(
@@ -110,35 +137,362 @@ def parse_args() -> argparse.Namespace:
 
 
 def list_capabilities(data_dir: Path) -> list:
-    """
-    Получение списка доступных способностей.
-
-    ARGS:
-        data_dir: директория с данными
-
-    RETURNS:
-        list: список способностей
-    """
+    """Получение списка доступных способностей."""
     capabilities = []
-
-    # Поиск в prompts
     prompts_dir = data_dir / 'prompts' / 'skill'
     if prompts_dir.exists():
         for item in prompts_dir.iterdir():
-            if item.is_dir():
-                # Проверяем есть ли промпты
-                prompt_files = list(item.glob('*.yaml')) + list(item.glob('*.json'))
-                if prompt_files:
-                    capabilities.append(item.name)
-
-    # Поиск в metrics
+            if item.is_dir() and list(item.glob('*.yaml')):
+                capabilities.append(item.name)
     metrics_dir = data_dir / 'metrics'
     if metrics_dir.exists():
         for item in metrics_dir.iterdir():
             if item.is_dir() and item.name not in capabilities:
                 capabilities.append(item.name)
-
     return sorted(set(capabilities))
+
+
+def load_benchmark_questions(benchmark_file: str, level: str = 'sql', limit: int = 10) -> List[Dict[str, Any]]:
+    """Загрузка вопросов из бенчмарка."""
+    benchmark_path = Path(benchmark_file)
+    if not benchmark_path.exists():
+        return []
+
+    with open(benchmark_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    test_cases = []
+    if level in ('sql', 'all'):
+        test_cases.extend(data.get('levels', {}).get('sql_generation', {}).get('test_cases', []))
+    if level in ('answer', 'all'):
+        test_cases.extend(data.get('levels', {}).get('final_answer', {}).get('test_cases', []))
+
+    return test_cases[:limit]
+
+
+def find_latest_session_log(logs_dir: str = "data/logs") -> Optional[Path]:
+    """Поиск последнего session.jsonl."""
+    logs_path = Path(logs_dir)
+    if not logs_path.exists():
+        return None
+
+    session_files = sorted(logs_path.rglob("session.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return session_files[0] if session_files else None
+
+
+def load_prompts_for_capability(capability: str, data_dir: str = "data") -> List[Dict[str, Any]]:
+    """Загрузка промптов для capability из data/prompts/. Приоритет: active > draft > остальные."""
+    prompts = []
+    prompts_dir = Path(data_dir) / 'prompts' / 'skill' / capability
+    if not prompts_dir.exists():
+        return prompts
+
+    import yaml
+    for prompt_file in prompts_dir.glob('*.yaml'):
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        if data and isinstance(data, dict):
+            prompts.append({
+                'file': str(prompt_file),
+                'capability': data.get('capability', ''),
+                'version': data.get('version', ''),
+                'status': data.get('status', 'draft'),
+                'content': data.get('content', ''),
+                'variables': data.get('variables', []),
+            })
+
+    # Сортировка: active primero, затем draft, остальные
+    status_priority = {'active': 0, 'draft': 1}
+    prompts.sort(key=lambda p: status_priority.get(p['status'], 2))
+    return prompts
+
+
+def save_prompt_to_file(prompt_content: str, capability: str, version: str, status: str = "candidate") -> str:
+    """Сохранение промпта кандидата в data/prompts/."""
+    import yaml
+
+    prompts_dir = Path('data') / 'prompts' / 'skill' / capability
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{capability}.system_{version}.yaml"
+    filepath = prompts_dir / filename
+
+    prompt_data = {
+        'capability': capability,
+        'component_type': 'skill',
+        'version': version,
+        'status': status,
+        'description': f"Оптимизированный промпт {version}",
+        'content': prompt_content,
+        'variables': [],
+        'metadata': {
+            'author': 'optimization_orchestrator',
+            'created': datetime.now().isoformat(),
+        },
+    }
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        yaml.dump(prompt_data, f, allow_unicode=True, default_flow_style=False)
+
+    return str(filepath)
+
+
+def analyze_session_log_for_errors(log_path: Path, failed_test_ids: List[str], verbose: bool = False) -> Dict[str, Any]:
+    """
+    Глубокий анализ session.jsonl — поиск цепочки шагов для failed тестов.
+
+    ARGS:
+    - log_path: путь к session.jsonl
+    - failed_test_ids: ID проваленных тестов (для корреляции)
+    - verbose: подробный вывод
+
+    RETURNS:
+    - Dict с анализом ошибок по шагам
+    """
+    if not log_path or not log_path.exists():
+        return {'error': 'Log file not found'}
+
+    errors_by_step = []
+    tool_calls = []
+    llm_calls = []
+
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                event_type = event.get('event_type', event.get('type', ''))
+
+                # Поиск ошибок в шагах
+                if 'error' in event or 'exception' in event:
+                    error_info = {
+                        'event_type': event_type,
+                        'error': event.get('error') or event.get('exception', ''),
+                        'timestamp': event.get('timestamp', ''),
+                        'capability': event.get('capability', ''),
+                        'step': event.get('step', ''),
+                    }
+                    errors_by_step.append(error_info)
+
+                # Сбор tool calls для понимания что делал агент
+                if 'tool' in event_type.lower() or 'tool_call' in event_type.lower():
+                    tool_calls.append({
+                        'type': event_type,
+                        'tool': event.get('tool_name', event.get('capability', '')),
+                        'success': event.get('success', True),
+                    })
+
+                # Сбор LLM calls
+                if 'llm' in event_type.lower() or 'prompt' in event_type.lower():
+                    llm_calls.append({
+                        'type': event_type,
+                        'timestamp': event.get('timestamp', ''),
+                    })
+
+    except Exception as e:
+        return {'error': f'Failed to parse log: {str(e)}'}
+
+    analysis = {
+        'log_file': str(log_path),
+        'total_errors': len(errors_by_step),
+        'total_tool_calls': len(tool_calls),
+        'total_llm_calls': len(llm_calls),
+        'errors': errors_by_step[:10],
+        'failed_tool_calls': [t for t in tool_calls if not t.get('success', True)][:5],
+    }
+
+    if verbose:
+        print(f"\n  📄 Лог: {log_path}")
+        print(f"  Ошибок в логе: {len(errors_by_step)}")
+        print(f"  Tool calls: {len(tool_calls)}")
+        print(f"  LLM calls: {len(llm_calls)}")
+
+        if errors_by_step:
+            print(f"\n  Последние ошибки:")
+            for err in errors_by_step[:5]:
+                cap = err.get('capability', '?')
+                step = err.get('step', '?')
+                error_msg = str(err.get('error', ''))[:100]
+                print(f"    [{cap}:{step}] {error_msg}")
+
+        failed_tools = [t for t in tool_calls if not t.get('success', True)]
+        if failed_tools:
+            print(f"\n  Failed tool calls:")
+            for t in failed_tools[:5]:
+                print(f"    ❌ {t.get('tool', '?')}")
+
+    return analysis
+
+
+async def run_baseline_benchmark(
+    test_cases: List[Dict[str, Any]],
+    infra_context,
+    config,
+    benchmark_level: str = 'sql',
+    verbose: bool = False,
+) -> Dict[str, Any]:
+    """
+    ЭТАП 1: Baseline бенчмарк — запуск полного агента через общий модуль.
+    """
+    from core.config.app_config import AppConfig
+    from core.application_context.application_context import ApplicationContext
+    from core.services.benchmarks.benchmark_runner_agent import run_agent_benchmark
+
+    print("\n" + "=" * 60)
+    print("ЭТАП 1: Baseline бенчмарк")
+    print("=" * 60)
+    print(f"Вопросов: {len(test_cases)}\n")
+
+    app_config = AppConfig.from_discovery(
+        profile="prod",
+        data_dir="data",
+        discovery=infra_context.resource_discovery,
+    )
+
+    prod_context = ApplicationContext(
+        infrastructure_context=infra_context,
+        config=app_config,
+        profile="prod",
+    )
+    await prod_context.initialize()
+
+    try:
+        result = await run_agent_benchmark(
+            test_cases=test_cases,
+            app_context=prod_context,
+            infra_context=infra_context,
+            verbose=verbose,
+            output_file='data/benchmarks/real_benchmark_results.json',
+        )
+        return result
+    finally:
+        await prod_context.shutdown()
+
+
+async def create_sandbox_context(
+    infra_context,
+    prompt_overrides: Dict[str, str],
+    config,
+):
+    """
+    Создание sandbox ApplicationContext с переопределёнными промптами.
+    Вынесено отдельно чтобы переиспользовать и не делать discovery каждый раз.
+    """
+    from core.config.app_config import AppConfig
+    from core.application_context.application_context import ApplicationContext
+
+    app_config = AppConfig.from_discovery(
+        profile="sandbox",
+        data_dir="data",
+        discovery=infra_context.resource_discovery,
+    )
+
+    sandbox = ApplicationContext(
+        infrastructure_context=infra_context,
+        config=app_config,
+        profile="sandbox",
+        prompt_loading_config={"default": "draft"},
+    )
+    sandbox._prompt_overrides = prompt_overrides
+    await sandbox.initialize()
+    return sandbox
+
+
+async def run_candidate_benchmark_on_sandbox(
+    test_cases: List[Dict[str, Any]],
+    sandbox,
+    verbose: bool = False,
+) -> Dict[str, Any]:
+    """
+    Запуск бенчмарка на уже созданном sandbox контексте.
+    Не создаёт новый AppConfig — переиспользует переданный sandbox.
+    """
+    from core.agent.factory import AgentFactory
+    from core.config.agent_config import AgentConfig
+    from core.services.benchmarks import BenchmarkValidator
+
+    agent_factory = AgentFactory(sandbox)
+    validator = BenchmarkValidator()
+
+    success_count = 0
+    total_steps = 0
+    results = []
+
+    for i, tc in enumerate(test_cases, 1):
+        if verbose:
+            print(f"  [{i}/{len(test_cases)}] {tc.get('name', tc['input'][:60])}...", end=" ")
+            sys.stdout.flush()
+
+        agent_config = AgentConfig(max_steps=10, temperature=0.2)
+        agent = await agent_factory.create_agent(goal=tc['input'], config=agent_config)
+
+        try:
+            result = await agent.run(tc['input'])
+            success = True
+            final_answer = ''
+            steps_count = 0
+
+            if hasattr(result, 'data') and result.data:
+                if isinstance(result.data, dict):
+                    final_answer = result.data.get('final_answer', '')
+                    steps_count = result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
+                else:
+                    final_answer = str(result.data)
+
+            if hasattr(result, 'error') and result.error:
+                success = False
+
+            validation = None
+            if tc.get('validation'):
+                validation = validator.validate_final_answer(
+                    answer=final_answer,
+                    validation_rules=tc.get('validation', {}),
+                    context={'metadata': tc.get('metadata', {})},
+                    expected_books=tc.get('expected_output', {}).get('books', []),
+                )
+                success = validation['passed']
+
+            if success:
+                success_count += 1
+                if verbose:
+                    print(f"✅")
+
+            results.append({
+                'test_id': tc.get('id', f'test_{i}'),
+                'input': tc['input'],
+                'success': success,
+                'final_answer': final_answer[:500],
+                'steps': steps_count,
+                'validation': validation,
+            })
+            total_steps += steps_count
+
+        except Exception as e:
+            if verbose:
+                print(f"❌ {e}")
+            results.append({
+                'test_id': tc.get('id', f'test_{i}'),
+                'input': tc['input'],
+                'success': False,
+                'error': str(e),
+            })
+
+    success_rate = success_count / len(test_cases) if test_cases else 0
+    avg_steps = total_steps / success_count if success_count > 0 else 0
+
+    return {
+        'success_rate': success_rate,
+        'success_count': success_count,
+        'total': len(test_cases),
+        'avg_steps': avg_steps,
+        'results': results,
+    }
 
 
 async def run_optimization_v2(
@@ -147,23 +501,13 @@ async def run_optimization_v2(
     target_accuracy: float,
     max_iterations: int,
     min_improvement: float,
+    benchmark_size: int = 10,
+    benchmark_level: str = 'sql',
     dry_run: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> dict:
     """
-    Запуск цикла оптимизации на новой архитектуре.
-
-    ARGS:
-        capability: название способности
-        mode: режим оптимизации
-        target_accuracy: целевая точность
-        max_iterations: максимальное количество итераций
-        min_improvement: минимальное улучшение
-        dry_run: тестовый запуск
-        verbose: подробный вывод
-
-    RETURNS:
-        dict: результаты оптимизации
+    Полный цикл оптимизации промптов.
     """
     print(f"\n{'='*60}")
     print(f"Оптимизация v2: {capability}")
@@ -171,17 +515,22 @@ async def run_optimization_v2(
     print(f"Режим: {mode}")
     print(f"Целевая точность: {target_accuracy}")
     print(f"Максимум итераций: {max_iterations}")
-    print(f"Минимальное улучшение: {min_improvement:.1%}")
+    print(f"Бенчмарк: {benchmark_size} вопросов ({benchmark_level})")
     print(f"Dry run: {dry_run}")
     print(f"{'='*60}\n")
 
+    infra_context = None
+    sandbox_for_callback = None
+
     try:
-        # Импорты новой архитектуры
+        # === ИМПОРТЫ ===
         from core.config import get_config
         from core.infrastructure_context.infrastructure_context import InfrastructureContext
         from core.application_context.application_context import ApplicationContext
-        from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-        from core.services.benchmarks.benchmark_models import OptimizationMode, FailureAnalysis
+        from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
+        from core.services.benchmarks.benchmark_models import (
+            OptimizationMode, PromptVersion, MutationType,
+        )
 
         from core.agent.components.optimization import (
             Evaluator,
@@ -202,137 +551,279 @@ async def run_optimization_v2(
         from core.agent.components.optimization.safety_layer import SafetyConfig
         from core.agent.components.optimization.orchestrator import OrchestratorV2Config
 
-        # Загрузка конфигурации
+        # === ЗАГРУЗКА КОНФИГУРАЦИИ ===
         config = get_config(profile='dev', data_dir='data')
         data_dir = Path(config.data_dir)
 
-        # Инициализация инфраструктуры
+        # === ЭТАП 0: Загрузка вопросов бенчмарка ===
+        test_cases = load_benchmark_questions(
+            benchmark_file='data/benchmarks/agent_benchmark.json',
+            level=benchmark_level,
+            limit=benchmark_size,
+        )
+        if not test_cases:
+            print("❌ Не найдено вопросов в бенчмарке")
+            return {'status': 'failed', 'error': 'No benchmark questions found'}
+
+        print(f"📋 Загружено {len(test_cases)} вопросов из бенчмарка\n")
+
+        # === ИНИЦИАЛИЗАЦИЯ ИНФРАСТРУКТУРЫ ===
         print("🔄 Инициализация инфраструктуры...")
         infra_context = InfrastructureContext(config)
         await infra_context.initialize()
-
-        # Создание application context
-        app_context = ApplicationContext(
-            infrastructure_context=infra_context,
-            config=config,
-            profile='sandbox'
-        )
-        await app_context.initialize()
         print("✅ Инфраструктура готова\n")
 
-        # Создание event bus
         event_bus = infra_context.event_bus
 
-        # === СОЗДАНИЕ КОМПОНЕНТОВ ===
-        print("🔧 Создание компонентов оптимизации...\n")
+        # === ЭТАП 1: Baseline бенчмарк ===
+        baseline = await run_baseline_benchmark(
+            test_cases=test_cases,
+            infra_context=infra_context,
+            config=config,
+            benchmark_level=benchmark_level,
+            verbose=verbose,
+        )
 
-        # 1. TraceCollector
+        if baseline['success_rate'] >= target_accuracy:
+            print(f"\n✅ Целевая точность уже достигнута: {baseline['success_rate']:.1%} >= {target_accuracy:.1%}")
+            await infra_context.shutdown()
+            infra_context = None
+            return {
+                'status': 'target_already_achieved',
+                'baseline': baseline,
+                'capability': capability,
+            }
+
+        # === ЭТАП 2: Анализ ошибок + session.jsonl ===
+        print("\n" + "=" * 60)
+        print("ЭТАП 2: Анализ ошибок")
+        print("=" * 60)
+
+        failed_tests = [r for r in baseline['results'] if not r['success']]
+        failed_ids = [r.get('test_id', '') for r in failed_tests]
+        print(f"Failed тестов: {len(failed_tests)}/{len(test_cases)}")
+
+        for ft in failed_tests:
+            errors = ft.get('validation', {}).get('errors', []) if ft.get('validation') else []
+            error_msg = errors[0] if errors else ft.get('error', 'unknown')
+            print(f"  ❌ {ft.get('test_id', '?')}: {error_msg[:80]}")
+
+        # Глубокий анализ session.jsonl
+        latest_log = find_latest_session_log("data/logs")
+        if latest_log:
+            print(f"\n  📄 Анализ лога: {latest_log}")
+            log_analysis = analyze_session_log_for_errors(
+                log_path=latest_log,
+                failed_test_ids=failed_ids,
+                verbose=verbose,
+            )
+            if log_analysis.get('total_errors', 0) > 0:
+                print(f"  Найдено ошибок в логе: {log_analysis['total_errors']}")
+                if log_analysis.get('failed_tool_calls'):
+                    print(f"  Failed tool calls: {len(log_analysis['failed_tool_calls'])}")
+        else:
+            print("  ⚠️ session.jsonl не найден — анализ только по результатам валидации")
+            log_analysis = {}
+
+        # === ЭТАП 3: Сбор traces ===
+        print("\n" + "=" * 60)
+        print("ЭТАП 3: Сбор traces")
+        print("=" * 60)
+
         from core.agent.components.optimization.trace_handler import TraceHandler
-        from core.agent.components.optimization.trace_collector import TraceCollector, TraceCollectionConfig
 
         trace_handler = TraceHandler(
             session_handler=infra_context.session_handler,
-            logs_dir="data/logs"
+            logs_dir="data/logs",
         )
         trace_collector = TraceCollector(
             trace_handler=trace_handler,
-            config=TraceCollectionConfig()
+            config=TraceCollectionConfig(),
         )
-        print("  ✅ TraceCollector")
 
-        # 2. BenchmarkRunner
+        traces = await trace_collector.collect_traces(capability)
+        print(f"  Trace найдено: {len(traces)}")
+
+        if not traces and latest_log:
+            print(f"  Попытка чтения из последнего лога: {latest_log.parent}")
+            trace_handler = TraceHandler(
+                session_handler=infra_context.session_handler,
+                logs_dir=str(latest_log.parent),
+            )
+            trace_collector = TraceCollector(
+                trace_handler=trace_handler,
+                config=TraceCollectionConfig(),
+            )
+            traces = await trace_collector.collect_traces(capability)
+            print(f"  Trace из лога: {len(traces)}")
+
+        if not traces:
+            print("  ⚠️ Trace не найдены — оптимизация продолжится без анализа traces")
+
+        # Анализ traces
+        pattern_analyzer = PatternAnalyzer()
+        prompt_analyzer = PromptResponseAnalyzer()
+        root_cause_analyzer = RootCauseAnalyzer()
+        example_extractor = ExampleExtractor()
+
+        patterns = pattern_analyzer.analyze(traces) if traces else []
+        prompt_issues = prompt_analyzer.analyze_prompts(traces) if traces else []
+        response_issues = prompt_analyzer.analyze_responses(traces) if traces else []
+        root_causes = root_cause_analyzer.analyze(patterns, prompt_issues, response_issues) if traces else []
+        good_examples, error_examples = example_extractor.extract_few_shot_examples(
+            traces, capability, num_good=3, num_bad=2
+        ) if traces else ([], [])
+
+        print(f"  Паттернов: {len(patterns)}")
+        print(f"  Проблем промптов: {len(prompt_issues)}")
+        print(f"  Root causes: {len(root_causes)}")
+        print(f"  Примеров: {len(good_examples)} good, {len(error_examples)} bad\n")
+
+        # === ЭТАП 4: Загрузка промптов и создание baseline версии ===
+        print("=" * 60)
+        print("ЭТАП 4: Загрузка промптов")
+        print("=" * 60)
+
+        prompts = load_prompts_for_capability(capability, 'data')
+        print(f"  Промптов найдено: {len(prompts)}")
+
+        for p in prompts:
+            marker = " ← baseline" if p['status'] == 'active' else ""
+            print(f"    {p['capability']}@{p['version']} ({p['status']}){marker}")
+
+        # Берём первый active промпт, или первый доступный
+        baseline_prompt = next((p for p in prompts if p['status'] == 'active'), prompts[0] if prompts else None)
+        baseline_prompt_content = baseline_prompt['content'] if baseline_prompt else "Default prompt"
+        baseline_prompt_file = baseline_prompt['file'] if baseline_prompt else None
+
+        baseline_version = PromptVersion(
+            id=f"{capability}_baseline",
+            parent_id=None,
+            capability=capability,
+            prompt=baseline_prompt_content,
+            status="active",
+        )
+
+        # === Создание компонентов оптимизации ===
+        print("\n🔧 Создание компонентов оптимизации...\n")
+
+        # Кэшированный sandbox для executor_callback (создаётся один раз)
+        sandbox_for_callback = await create_sandbox_context(
+            infra_context=infra_context,
+            prompt_overrides={capability: baseline_prompt_content},
+            config=config,
+        )
+
         benchmark_config = BenchmarkRunConfig(
-            temperature=0.0,  # Фиксированная для воспроизводимости
+            temperature=0.0,
             seed=42,
-            max_retries=3,
-            timeout_seconds=60
+            max_retries=1,
+            timeout_seconds=120,
         )
 
-        # Callback для выполнения промптов
         async def executor_callback(input_text: str, version_id: str) -> dict:
-            """Выполнение промпта через LLM"""
-            # TODO: Реальная интеграция с LLM
-            return {
-                'success': True,
-                'output': f'Mock output for {input_text[:50]}',
-                'execution_time_ms': 100,
-                'tokens_used': 50
-            }
+            """
+            Реальный executor_callback — запуск агента на кэшированном sandbox.
+            Обновляет prompt_overrides на лету без пересоздания контекста.
+            """
+            start = datetime.now()
+            try:
+                candidate = await version_manager.get_version(version_id)
+                if not candidate:
+                    return {
+                        'success': False,
+                        'output': None,
+                        'error': f'Version {version_id} not found',
+                        'execution_time_ms': 0,
+                        'tokens_used': 0,
+                    }
+
+                # Обновляем промпт в кэшированном sandbox
+                sandbox_for_callback._prompt_overrides = {capability: candidate.prompt}
+
+                # Запускаем один вопрос
+                result = await run_candidate_benchmark_on_sandbox(
+                    test_cases=[{'input': input_text, 'id': version_id, 'validation': None}],
+                    sandbox=sandbox_for_callback,
+                    verbose=False,
+                )
+
+                elapsed = (datetime.now() - start).total_seconds() * 1000
+                return {
+                    'success': result['success_count'] > 0,
+                    'output': result['results'][0].get('final_answer', '') if result.get('results') else '',
+                    'execution_time_ms': elapsed,
+                    'tokens_used': 0,
+                }
+
+            except Exception as e:
+                elapsed = (datetime.now() - start).total_seconds() * 1000
+                return {
+                    'success': False,
+                    'output': None,
+                    'error': str(e),
+                    'execution_time_ms': elapsed,
+                    'tokens_used': 0,
+                }
 
         benchmark_runner = BenchmarkRunner(
             event_bus=event_bus,
             executor_callback=executor_callback,
-            config=benchmark_config
+            config=benchmark_config,
         )
-        print("  ✅ BenchmarkRunner")
+        print("  ✅ BenchmarkRunner (реальный агент, кэшированный sandbox)")
 
-        # 4. Evaluator
         evaluation_config = EvaluationConfig(
             success_rate_weight=0.4,
             execution_success_weight=0.3,
             sql_validity_weight=0.2,
             latency_weight=0.1,
             min_success_rate=0.8,
-            max_latency_ms=1000.0
+            max_latency_ms=5000.0,
         )
         evaluator = Evaluator(event_bus=event_bus, config=evaluation_config)
         print("  ✅ Evaluator")
 
-        # 5. PromptGenerator
         generation_config = GenerationConfig(
             temperature=0.7,
             max_tokens=4000,
             top_p=0.9,
             diversity_threshold=0.3,
-            max_candidates=3
+            max_candidates=3,
         )
-        prompt_generator = PromptGenerator(
-            event_bus=event_bus,
-            config=generation_config
-        )
+        prompt_generator = PromptGenerator(event_bus=event_bus, config=generation_config)
         print("  ✅ PromptGenerator")
 
-        # 6. VersionManager
         version_manager = VersionManager(event_bus=event_bus)
-        print("  ✅ VersionManager")
+        await version_manager.register(baseline_version)
+        await version_manager.promote(baseline_version.id, capability)
+        print("  ✅ VersionManager (baseline зарегистрирован)")
 
-        # 7. SafetyLayer
         safety_config = SafetyConfig(
             max_success_rate_degradation=0.05,
             max_error_rate_increase=0.05,
             max_latency_increase_factor=1.5,
             min_acceptable_score=0.6,
             check_sql_injection=True,
-            check_empty_result=True
+            check_empty_result=True,
         )
         safety_layer = SafetyLayer(event_bus=event_bus, config=safety_config)
         print("  ✅ SafetyLayer")
 
-        # 3. PatternAnalyzer
-        pattern_analyzer = PatternAnalyzer()
-        print("  ✅ PatternAnalyzer")
+        # === ЭТАП 5-6: Оптимизация ===
+        print("\n" + "=" * 60)
+        print("ЭТАП 5-6: Оптимизация и тестирование кандидатов")
+        print("=" * 60)
 
-        # 4. PromptResponseAnalyzer
-        prompt_analyzer = PromptResponseAnalyzer()
-        print("  ✅ PromptResponseAnalyzer")
-
-        # 5. RootCauseAnalyzer
-        root_cause_analyzer = RootCauseAnalyzer()
-        print("  ✅ RootCauseAnalyzer")
-
-        # 6. ExampleExtractor
-        example_extractor = ExampleExtractor()
-        print("  ✅ ExampleExtractor\n")
-
-        # 7. OptimizationOrchestrator
         orchestrator_config = OrchestratorV2Config(
             max_iterations=max_iterations,
             target_accuracy=target_accuracy,
             min_improvement=min_improvement,
             timeout_seconds=600,
             max_examples=5,
-            max_error_examples=3
+            max_error_examples=3,
         )
+
         orchestrator = OptimizationOrchestrator(
             trace_collector=trace_collector,
             pattern_analyzer=pattern_analyzer,
@@ -345,253 +836,201 @@ async def run_optimization_v2(
             version_manager=version_manager,
             safety_layer=safety_layer,
             event_bus=event_bus,
-            config=orchestrator_config
+            config=orchestrator_config,
         )
         orchestrator.set_executor_callback(executor_callback)
 
-        # === ЗАПУСК ОПТИМИЗАЦИИ ===
-        print("🚀 Запуск оптимизации...\n")
-
-        # Определение режима
         mode_map = {
             'accuracy': OptimizationMode.ACCURACY,
             'speed': OptimizationMode.SPEED,
             'tokens': OptimizationMode.TOKENS,
-            'balanced': OptimizationMode.BALANCED
+            'balanced': OptimizationMode.BALANCED,
         }
         optimization_mode = mode_map.get(mode, OptimizationMode.ACCURACY)
 
         if dry_run:
             print("⚠️  DRY RUN: Тестовый запуск без реальных изменений\n")
-
-            # Тестирование TraceCollector
-            print("📊 Тестирование TraceCollector...")
-            traces = await trace_collector.collect_traces(capability)
-            print(f"  Trace найдено: {len(traces)}")
-            if traces:
-                success_count = sum(1 for t in traces if t.get('success', False))
-                print(f"  Успешных: {success_count}")
-                print(f"  Ошибок: {len(traces) - success_count}\n")
-
-            # Тестирование PatternAnalyzer
-            print("📋 Тестирование PatternAnalyzer...")
-            patterns = pattern_analyzer.analyze(traces)
-            print(f"  Паттернов найдено: {len(patterns)}\n")
-
-            # Тестирование PromptResponseAnalyzer
-            print("🔍 Тестирование PromptResponseAnalyzer...")
-            prompt_issues = prompt_analyzer.analyze_prompts(traces)
-            print(f"  Проблем с промптами: {len(prompt_issues)}\n")
-
-            # Тестирование RootCauseAnalyzer
-            print("🎯 Тестирование RootCauseAnalyzer...")
-            root_causes = root_cause_analyzer.analyze(
-                patterns=patterns,
-                prompt_issues=prompt_issues,
-                response_issues=[]
-            )
-            print(f"  Корневых причин: {len(root_causes)}\n")
-
-            # Тестирование ExampleExtractor
-            print("📚 Тестирование ExampleExtractor...")
-            examples, error_examples = example_extractor.extract_few_shot_examples(
-                traces=traces,
-                capability=capability,
-                num_good=3,
-                num_bad=2
-            )
-            print(f"  Примеров извлечено: {len(examples) + len(error_examples)}\n")
-
             result = {
                 'capability': capability,
                 'mode': mode,
                 'timestamp': datetime.now().isoformat(),
                 'status': 'dry_run',
+                'baseline': baseline,
                 'traces_count': len(traces),
                 'patterns_count': len(patterns),
-                'prompt_issues_count': len(prompt_issues),
                 'root_causes_count': len(root_causes),
-                'examples_count': len(examples)
+                'log_analysis': log_analysis,
             }
         else:
-            # Реальный запуск
-            result = await orchestrator.optimize(
+            opt_result = await orchestrator.optimize(
                 capability=capability,
-                mode=optimization_mode
+                mode=optimization_mode,
             )
 
-            if result is None:
+            if opt_result is None:
                 print("❌ Оптимизация не была запущена")
                 return {
                     'capability': capability,
                     'mode': mode,
                     'timestamp': datetime.now().isoformat(),
                     'status': 'not_started',
-                    'reason': 'Optimization not needed or not possible'
                 }
 
-            # Форматирование результатов
             result = {
                 'capability': capability,
                 'mode': mode,
-                'timestamp': result.timestamp.isoformat(),
-                'status': 'completed',
-                'from_version': result.from_version,
-                'to_version': result.to_version,
-                'iterations': result.iterations,
-                'target_achieved': result.target_achieved,
-                'initial_metrics': result.initial_metrics,
-                'final_metrics': result.final_metrics,
-                'improvements': result.improvements
+                'timestamp': opt_result.timestamp.isoformat() if hasattr(opt_result, 'timestamp') else datetime.now().isoformat(),
+                'status': opt_result.status if hasattr(opt_result, 'status') else 'completed',
+                'baseline': baseline,
+                'from_version': opt_result.from_version if hasattr(opt_result, 'from_version') else 'unknown',
+                'to_version': opt_result.to_version if hasattr(opt_result, 'to_version') else 'unknown',
+                'iterations': opt_result.iterations if hasattr(opt_result, 'iterations') else 0,
+                'target_achieved': opt_result.target_achieved if hasattr(opt_result, 'target_achieved') else False,
+                'initial_metrics': opt_result.initial_metrics if hasattr(opt_result, 'initial_metrics') else {},
+                'final_metrics': opt_result.final_metrics if hasattr(opt_result, 'final_metrics') else {},
+                'improvements': opt_result.improvements if hasattr(opt_result, 'improvements') else {},
+                'error': opt_result.error if hasattr(opt_result, 'error') else None,
             }
 
-        # Вывод результатов
+            # === ЭТАП 7: Финальный бенчмарк ===
+            if opt_result.to_version and opt_result.to_version != opt_result.from_version:
+                print("\n" + "=" * 60)
+                print("ЭТАП 7: Финальный бенчмарк (подтверждение)")
+                print("=" * 60)
+
+                new_version = await version_manager.get_version(opt_result.to_version)
+                if new_version:
+                    # Сохраняем промпт кандидата в файл
+                    saved_path = save_prompt_to_file(
+                        prompt_content=new_version.prompt,
+                        capability=capability,
+                        version=new_version.id,
+                        status="candidate",
+                    )
+                    print(f"  💾 Промпт сохранён: {saved_path}")
+
+                    # Создаём отдельный sandbox для финального бенчмарка
+                    final_sandbox = await create_sandbox_context(
+                        infra_context=infra_context,
+                        prompt_overrides={capability: new_version.prompt},
+                        config=config,
+                    )
+
+                    try:
+                        final_result = await run_candidate_benchmark_on_sandbox(
+                            test_cases=test_cases,
+                            sandbox=final_sandbox,
+                            verbose=verbose,
+                        )
+
+                        result['final_benchmark'] = final_result
+                        result['baseline_accuracy'] = baseline['success_rate']
+                        result['final_accuracy'] = final_result['success_rate']
+                        result['improvement'] = final_result['success_rate'] - baseline['success_rate']
+                        result['saved_prompt_path'] = saved_path
+
+                        print(f"\n📊 Сравнение:")
+                        print(f"  Baseline:  {baseline['success_rate']:.1%} ({baseline['success_count']}/{baseline['total']})")
+                        print(f"  Final:     {final_result['success_rate']:.1%} ({final_result['success_count']}/{final_result['total']})")
+                        improvement = final_result['success_rate'] - baseline['success_rate']
+                        sign = '+' if improvement >= 0 else ''
+                        print(f"  Изменение: {sign}{improvement:.1%}")
+
+                    finally:
+                        await final_sandbox.shutdown()
+
+        # === Вывод результатов ===
         print(f"\n{'='*60}")
         print(f"Результаты оптимизации")
         print(f"{'='*60}")
 
-        if dry_run:
-            print(f"Статус: 🔹 Dry run завершён")
-            print(f"Trace найдено: {result.get('traces_count', 0)}")
-            print(f"Паттернов: {result.get('patterns_count', 0)}")
-            print(f"Проблем с промптами: {result.get('prompt_issues_count', 0)}")
-            print(f"Корневых причин: {result.get('root_causes_count', 0)}")
-            print(f"Примеров: {result.get('examples_count', 0)}")
+        status = result.get('status', 'unknown')
+        if status == 'dry_run':
+            print(f"Статус: 🔹 Dry run")
+            print(f"Baseline: {baseline['success_rate']:.1%}")
+            print(f"Trace: {result.get('traces_count', 0)}")
+            print(f"Root causes: {result.get('root_causes_count', 0)}")
         else:
-            status_icon = '✅' if result.get('target_achieved') else '⚠️'
-            print(f"Статус: {status_icon} {'Успешно' if result.get('target_achieved') else 'Частично'}")
-            print(f"Итераций: {result.get('iterations', 0)}")
-            print(f"Версия: {result.get('from_version')} → {result.get('to_version')}")
-
-            if result.get('initial_metrics') and result.get('final_metrics'):
-                print(f"\nНачальные метрики:")
-                for metric, value in result['initial_metrics'].items():
-                    print(f"  {metric}: {value:.3f}" if isinstance(value, float) else f"  {metric}: {value}")
-
-                print(f"\nКонечные метрики:")
-                for metric, value in result['final_metrics'].items():
-                    print(f"  {metric}: {value:.3f}" if isinstance(value, float) else f"  {metric}: {value}")
-
-                if result.get('improvements'):
-                    print(f"\nУлучшения:")
-                    for metric, improvement in result['improvements'].items():
-                        sign = '+' if improvement > 0 else ''
-                        print(f"  {metric}: {sign}{improvement:.1f}%")
+            target = '✅' if result.get('target_achieved') else '⚠️'
+            print(f"Статус: {target} {status}")
+            print(f"Baseline: {baseline['success_rate']:.1%}")
+            if result.get('final_accuracy') is not None:
+                print(f"Final:    {result['final_accuracy']:.1%}")
+                sign = '+' if result.get('improvement', 0) >= 0 else ''
+                print(f"Change:   {sign}{result.get('improvement', 0):.1%}")
+            if result.get('saved_prompt_path'):
+                print(f"Prompt:   {result['saved_prompt_path']}")
 
         print(f"\n{'='*60}\n")
 
         if verbose:
             print("Полные результаты:")
-            print(json.dumps(result, indent=2, ensure_ascii=False))
+            print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
         return result
 
     except Exception as e:
-        print(f"\n❌ Ошибка выполнения оптимизации: {e}")
+        print(f"\n❌ Ошибка: {e}")
         if verbose:
             import traceback
             traceback.print_exc()
-
         return {
             'capability': capability,
             'mode': mode,
             'timestamp': datetime.now().isoformat(),
             'status': 'failed',
-            'error': str(e)
+            'error': str(e),
         }
+
+    finally:
+        # Гарантированный cleanup
+        if sandbox_for_callback:
+            try:
+                await sandbox_for_callback.shutdown()
+            except Exception:
+                pass
+        if infra_context:
+            try:
+                await infra_context.shutdown()
+            except Exception:
+                pass
 
 
 async def analyze_session_log(log_path: str, verbose: bool = False):
-    """
-    Анализ лога сессии и генерация рекомендаций по оптимизации.
-    
-    ARGS:
-        log_path: путь к session.jsonl
-        verbose: подробный вывод
-    
-    RETURNS:
-        dict: результат анализа
-    """
-    print("\n" + "="*60)
+    """Анализ лога сессии."""
+    print("\n" + "=" * 60)
     print("Session Log Analyzer")
-    print("="*60)
-    
+    print("=" * 60)
+
     try:
         from core.agent.components.optimization.session_log_parser import SessionLogParser
         from core.agent.components.optimization.prompt_analyzer import analyze_prompts_from_session
-        
+
         parser = SessionLogParser()
         session = parser.parse_file(Path(log_path))
         session_report = parser.generate_analysis_report(session)
         prompt_report = await analyze_prompts_from_session(session_report)
-        
-        print(f"\n[ANALYSIS] ANALIZ SESII")
-        print("="*60)
-        print(f"Path: {log_path}")
-        print(f"Duration: {session_report['summary']['duration_seconds']:.1f} sec")
+
+        print(f"\nPath: {log_path}")
+        print(f"Duration: {session_report['summary']['duration_seconds']:.1f}s")
         print(f"LLM calls: {session_report['summary']['total_llm_calls']}")
         print(f"Actions: {session_report['summary']['total_actions']}")
-        print(f"Failed actions: {session_report['summary']['actions_with_errors']}")
-        
-        if session_report['goals']:
-            print(f"\n[G] Goals ({len(session_report['goals'])}):")
-            for i, goal in enumerate(session_report['goals'][:3], 1):
-                print(f"  {i}. {goal[:80]}...")
-        
-        print(f"\n[P] Patterns:")
-        for pattern, count in session_report['patterns'].items():
-            print(f"  - {pattern}: {count}")
-        
-        if session_report['failed_actions']:
-            print(f"\n[!] Errors ({len(session_report['failed_actions'])}):")
+        print(f"Failed: {session_report['summary']['actions_with_errors']}")
+
+        if session_report.get('failed_actions'):
+            print(f"\nErrors ({len(session_report['failed_actions'])}):")
             for err in session_report['failed_actions'][:5]:
-                print(f"  - [{err['action']}] {err.get('error', 'N/A')[:60]}...")
-        
-        # Вывод конкретных рекомендаций по промптам
-        if prompt_report['issues']:
-            print(f"\n[PROMPT ISSUES] Found {len(prompt_report['issues'])} prompt issues:")
+                print(f"  - [{err.get('action', '?')}] {err.get('error', 'N/A')[:80]}")
+
+        if prompt_report.get('issues'):
+            print(f"\nPrompt issues ({len(prompt_report['issues'])}):")
             for issue in prompt_report['issues']:
-                print(f"\n  [{issue['severity'].upper()}] {issue['type']}")
-                print(f"  File: {issue['file']}")
-                print(f"  Section: {issue['section']}")
-                print(f"  Problem: {issue['description'][:80]}...")
-        
-        # Генерация полного промта для LLM
-        from core.agent.components.optimization.prompt_analyzer import SessionPromptAnalyzer
-        analyzer = SessionPromptAnalyzer()
-        full_prompt = analyzer.generate_full_llm_prompt(session_report)
-        
-        print(f"\n" + "="*60)
-        print("[LLM PROMPT] Copy this prompt to LLM for recommendations:")
-        print("="*60)
-        print(full_prompt)
-        
-        if verbose:
-            print(f"\n[F] Session report:")
-            print(json.dumps(session_report, indent=2, ensure_ascii=False))
-            print(f"\n[F] Prompt report:")
-            print(json.dumps(prompt_report, indent=2, ensure_ascii=False))
-        
-        # Объединяем результаты
-        result = {
-            'session': session_report,
-            'prompts': prompt_report,
-        }
-        
-        return result
-        
+                print(f"  [{issue['severity'].upper()}] {issue['type']}: {issue['description'][:80]}")
+
+        return {'session': session_report, 'prompts': prompt_report}
+
     except Exception as e:
-        print(f"\n[!] Analysis error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {'status': 'failed', 'error': str(e)}
-        
-        return report
-        
-    except Exception as e:
-        print(f"\n[!] Analysis error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"\n❌ Analysis error: {e}")
         return {'status': 'failed', 'error': str(e)}
 
 
@@ -599,11 +1038,10 @@ async def main():
     """Основная функция"""
     args = parse_args()
 
-    print("\n" + "="*60)
-    print("Optimization CLI v2 - Новая архитектура")
-    print("="*60)
+    print("\n" + "=" * 60)
+    print("Optimization CLI v2")
+    print("=" * 60)
 
-    # Загрузка конфигурации для получения data_dir
     try:
         from core.config import get_config
         config = get_config(profile='dev', data_dir='data')
@@ -611,43 +1049,29 @@ async def main():
     except Exception:
         data_dir = Path('data')
 
-    # Анализ лога сессии
+    # Анализ лога
     if args.session_log:
         result = await analyze_session_log(args.session_log, args.verbose)
-        
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
-            print(f"\n✅ Результаты сохранены в {args.output}")
-        
-        if args.analyze_only:
+            print(f"\n✅ Сохранено в {args.output}")
+        if args.analyze_only or not args.capability:
             sys.exit(0)
-        
-        # Если указана capability, продолжаем оптимизацию
-        if not args.capability:
-            sys.exit(0)
-    
+
     # Список способностей
     if args.list_capabilities:
         capabilities = list_capabilities(data_dir)
         print(f"\nДоступные способности ({len(capabilities)}):")
         for cap in capabilities:
             print(f"  - {cap}")
-        print()
         sys.exit(0)
 
-    # Проверка capability
     if not args.capability:
         print("❌ Укажите --capability, --list-capabilities или --session-log")
         sys.exit(1)
-
-    print(f"Конфигурация: registry.yaml")
-    print(f"Data dir: {data_dir}")
-    print(f"Capability: {args.capability}")
-    print(f"Режим: {args.mode}")
-    print(f"Целевая точность: {args.target_accuracy}")
 
     try:
         result = await run_optimization_v2(
@@ -656,27 +1080,24 @@ async def main():
             target_accuracy=args.target_accuracy,
             max_iterations=args.max_iterations,
             min_improvement=args.min_improvement,
+            benchmark_size=args.benchmark_size,
+            benchmark_level=args.benchmark_level,
             dry_run=args.dry_run,
-            verbose=args.verbose
+            verbose=args.verbose,
         )
 
-        # Сохранение результатов в файл
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2, ensure_ascii=False)
-            print(f"\n✅ Результаты сохранены в {args.output}")
+                json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+            print(f"\n✅ Сохранено в {args.output}")
 
-        # Выход с кодом ошибки если оптимизация не удалась
         if result.get('status') == 'failed':
             sys.exit(1)
 
-        if result.get('status') == 'not_started':
-            sys.exit(2)
-
     except KeyboardInterrupt:
-        print("\n\n⚠️  Прервано пользователем")
+        print("\n\n⚠️  Прервано")
         sys.exit(130)
     except Exception as e:
         print(f"\n❌ Критическая ошибка: {e}")
