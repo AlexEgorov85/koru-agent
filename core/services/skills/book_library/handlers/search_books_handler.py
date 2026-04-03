@@ -231,7 +231,7 @@ class SearchBooksHandler(BaseSkillHandler):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="sql_query.execute",
+            action_name="sql_query_service.execute",
             parameters={
                 "sql_query": sql_query,
                 "max_rows": max_results
