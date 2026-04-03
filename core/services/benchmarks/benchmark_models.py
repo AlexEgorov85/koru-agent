@@ -487,11 +487,13 @@ class OptimizationResult:
     - from_version: начальная версия
     - to_version: конечная версия
     - mode: режим оптимизации
+    - status: статус выполнения (completed, failed, timeout, no_traces, no_baseline, no_candidates)
     - iterations: количество итераций
     - initial_metrics: начальные метрики
     - final_metrics: конечные метрики
     - improvements: улучшения по метрикам
     - target_achieved: достигнута ли цель
+    - error: описание ошибки (если статус failed/timeout)
     - failure_analysis: анализ неудач
     - recommendations: рекомендации
     - timestamp: время завершения
@@ -500,11 +502,13 @@ class OptimizationResult:
     from_version: str
     to_version: str
     mode: OptimizationMode
+    status: str = "completed"
     iterations: int = 0
     initial_metrics: Dict[str, float] = field(default_factory=dict)
     final_metrics: Dict[str, float] = field(default_factory=dict)
     improvements: Dict[str, float] = field(default_factory=dict)
     target_achieved: bool = False
+    error: Optional[str] = None
     failure_analysis: Optional[FailureAnalysis] = None
     recommendations: List[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
@@ -531,11 +535,13 @@ class OptimizationResult:
             'from_version': self.from_version,
             'to_version': self.to_version,
             'mode': self.mode.value,
+            'status': self.status,
             'iterations': self.iterations,
             'initial_metrics': self.initial_metrics,
             'final_metrics': self.final_metrics,
             'improvements': self.improvements,
             'target_achieved': self.target_achieved,
+            'error': self.error,
             'recommendations': self.recommendations,
             'timestamp': self.timestamp.isoformat()
         }
