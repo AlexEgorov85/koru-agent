@@ -1,4 +1,4 @@
-capability: meta_skill_creator.fix
+capability: meta_component_creator.fix
 component_type: skill
 version: v1.0.0
 status: active
@@ -32,4 +32,4 @@ variables:
 metadata:
   author: system
   created: '2026-04-03'
-  description: User промпт для meta_skill_creator.fix
+  description: User промпт для meta_component_creator.fix

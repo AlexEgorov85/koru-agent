@@ -1,4 +1,4 @@
-capability: meta_skill_creator.create.system
+capability: meta_component_creator.create.system
 component_type: skill
 version: v1.0.0
 status: active

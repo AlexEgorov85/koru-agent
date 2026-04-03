@@ -1,4 +1,4 @@
-capability: meta_skill_creator.fix
+capability: meta_component_creator.fix
 component_type: skill
 description: Входной контракт для исправления существующего навыка
 direction: input

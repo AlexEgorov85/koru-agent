@@ -10,20 +10,20 @@
 - Регистрация в контексте — только после подтверждения человека
 
 CAPABILITIES:
-- meta_skill_creator.create — создать новый компонент
-- meta_skill_creator.fix — исправить существующий компонент
-- meta_skill_creator.review — код-ревью существующего компонента
+- meta_component_creator.create — создать новый компонент
+- meta_component_creator.fix — исправить существующий компонент
+- meta_component_creator.review — код-ревью существующего компонента
 """
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
 from core.services.skills.base_skill import BaseSkill
-from core.services.skills.meta_skill_creator.validator import ComponentValidator
-from core.services.skills.meta_skill_creator.dynamic_loader import (
+from core.services.skills.meta_component_creator.validator import ComponentValidator
+from core.services.skills.meta_component_creator.dynamic_loader import (
     DynamicComponentLoader,
     DeploymentManifest,
     TYPE_DIRECTORIES,
 )
-from core.services.skills.meta_skill_creator.contracts.meta_skill import (
+from core.services.skills.meta_component_creator.contracts.meta_component import (
     VALID_COMPONENT_TYPES,
     TYPE_SUFFIXES,
 )
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from core.config.component_config import ComponentConfig
 
 
-class MetaSkillCreator(BaseSkill):
+class MetaComponentCreator(BaseSkill):
     """Мета-навык для создания, исправления и ревью компонентов любого типа."""
 
     def __init__(
@@ -64,7 +64,7 @@ class MetaSkillCreator(BaseSkill):
     def get_capabilities(self) -> List[Capability]:
         return [
             Capability(
-                name="meta_skill_creator.create",
+                name="meta_component_creator.create",
                 description="Создать новый компонент (skill/tool/service/behavior): генерирует Python, YAML, валидирует и записывает. Требует подтверждения оператора.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
@@ -72,7 +72,7 @@ class MetaSkillCreator(BaseSkill):
                 meta={"requires_llm": True, "execution_type": "generation", "requires_approval": True},
             ),
             Capability(
-                name="meta_skill_creator.fix",
+                name="meta_component_creator.fix",
                 description="Исправить существующий компонент: анализирует проблему, генерирует патч, валидирует и записывает. Требует подтверждения оператора.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
@@ -80,7 +80,7 @@ class MetaSkillCreator(BaseSkill):
                 meta={"requires_llm": True, "execution_type": "refactor", "requires_approval": True},
             ),
             Capability(
-                name="meta_skill_creator.review",
+                name="meta_component_creator.review",
                 description="Код-ревью компонента: проверка безопасности, архитектуры, стиля.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
@@ -95,11 +95,11 @@ class MetaSkillCreator(BaseSkill):
         parameters: Dict[str, Any],
         execution_context: "ExecutionContext",
     ) -> Dict[str, Any]:
-        if capability.name == "meta_skill_creator.create":
+        if capability.name == "meta_component_creator.create":
             return await self._create_component(parameters, execution_context)
-        elif capability.name == "meta_skill_creator.fix":
+        elif capability.name == "meta_component_creator.fix":
             return await self._fix_component(parameters, execution_context)
-        elif capability.name == "meta_skill_creator.review":
+        elif capability.name == "meta_component_creator.review":
             return await self._review_component(parameters, execution_context)
 
         return {
@@ -130,16 +130,16 @@ class MetaSkillCreator(BaseSkill):
             }
 
         await self._publish_with_context(
-            event_type="meta_skill.creation_started",
+            event_type="meta_component.creation_started",
             data={"description": description[:100], "component_type": component_type},
             source=self.name,
             execution_context=execution_context,
         )
 
-        prompt_obj = self.get_prompt("meta_skill_creator.create")
+        prompt_obj = self.get_prompt("meta_component_creator.create")
         prompt_text = prompt_obj.content if prompt_obj else self._default_create_prompt()
 
-        output_contract = self.get_output_contract("meta_skill_creator.create")
+        output_contract = self.get_output_contract("meta_component_creator.create")
 
         llm_result = await self.executor.execute_action(
             action_name="llm.generate_structured",
@@ -202,7 +202,7 @@ class MetaSkillCreator(BaseSkill):
 
         if write_result["success"]:
             await self._publish_with_context(
-                event_type="meta_skill.files_written",
+                event_type="meta_component.files_written",
                 data={
                     "component_name": component_name,
                     "component_type": component_type,
@@ -253,16 +253,16 @@ class MetaSkillCreator(BaseSkill):
             }
 
         await self._publish_with_context(
-            event_type="meta_skill.fix_started",
+            event_type="meta_component.fix_started",
             data={"component_name": component_name, "component_type": component_type, "issue": issue_description[:100]},
             source=self.name,
             execution_context=execution_context,
         )
 
-        prompt_obj = self.get_prompt("meta_skill_creator.fix")
+        prompt_obj = self.get_prompt("meta_component_creator.fix")
         prompt_text = prompt_obj.content if prompt_obj else self._default_fix_prompt()
 
-        output_contract = self.get_output_contract("meta_skill_creator.fix")
+        output_contract = self.get_output_contract("meta_component_creator.fix")
 
         llm_result = await self.executor.execute_action(
             action_name="llm.generate_structured",
@@ -353,16 +353,16 @@ class MetaSkillCreator(BaseSkill):
             }
 
         await self._publish_with_context(
-            event_type="meta_skill.review_started",
+            event_type="meta_component.review_started",
             data={"component_name": component_name, "component_type": component_type, "focus": review_focus},
             source=self.name,
             execution_context=execution_context,
         )
 
-        prompt_obj = self.get_prompt("meta_skill_creator.review")
+        prompt_obj = self.get_prompt("meta_component_creator.review")
         prompt_text = prompt_obj.content if prompt_obj else self._default_review_prompt()
 
-        output_contract = self.get_output_contract("meta_skill_creator.review")
+        output_contract = self.get_output_contract("meta_component_creator.review")
 
         llm_result = await self.executor.execute_action(
             action_name="llm.generate_structured",

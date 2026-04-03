@@ -3,7 +3,7 @@
 """
 import pytest
 from pydantic import ValidationError
-from core.services.skills.meta_skill_creator.contracts.meta_skill import (
+from core.services.skills.meta_component_creator.contracts.meta_component import (
     MetaComponentCreateInput,
     MetaComponentCreateOutput,
     MetaComponentFixInput,

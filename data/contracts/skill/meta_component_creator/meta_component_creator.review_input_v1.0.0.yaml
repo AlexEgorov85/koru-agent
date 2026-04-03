@@ -1,4 +1,4 @@
-capability: meta_skill_creator.review
+capability: meta_component_creator.review
 component_type: skill
 description: Входной контракт для код-ревью навыка
 direction: input

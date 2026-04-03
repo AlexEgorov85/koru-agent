@@ -1,4 +1,4 @@
-capability: meta_skill_creator.create
+capability: meta_component_creator.create
 component_type: skill
 description: Выходной контракт для создания компонента
 direction: output

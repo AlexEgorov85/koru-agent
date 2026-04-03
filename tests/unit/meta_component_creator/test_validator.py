@@ -2,7 +2,7 @@
 Юнит-тесты для ComponentValidator — AST/YAML валидатора артефактов.
 """
 import pytest
-from core.services.skills.meta_skill_creator.validator import ComponentValidator, SkillValidator
+from core.services.skills.meta_component_creator.validator import ComponentValidator, SkillValidator
 
 
 @pytest.fixture

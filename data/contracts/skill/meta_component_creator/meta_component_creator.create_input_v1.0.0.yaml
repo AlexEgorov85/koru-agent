@@ -1,4 +1,4 @@
-capability: meta_skill_creator.create
+capability: meta_component_creator.create
 component_type: skill
 description: Входной контракт для создания нового компонента
 direction: input

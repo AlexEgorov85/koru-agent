@@ -19,7 +19,7 @@ class TestComponentDiscovery:
         assert "book_library" in skills
         assert "data_analysis" in skills
         assert "final_answer" in skills
-        assert "meta_skill_creator" in skills
+        assert "meta_component_creator" in skills
         assert "planning" in skills
         assert len(skills) == 5
 
@@ -29,7 +29,7 @@ class TestComponentDiscovery:
         assert skills["book_library"].class_name == "BookLibrarySkill"
         assert skills["data_analysis"].class_name == "DataAnalysisSkill"
         assert skills["final_answer"].class_name == "FinalAnswerSkill"
-        assert skills["meta_skill_creator"].class_name == "MetaSkillCreator"
+        assert skills["meta_component_creator"].class_name == "MetaComponentCreator"
         assert skills["planning"].class_name == "PlanningSkill"
 
     def test_discovers_tools(self, discovery):

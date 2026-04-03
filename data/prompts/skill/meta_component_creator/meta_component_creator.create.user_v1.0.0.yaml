@@ -1,4 +1,4 @@
-capability: meta_skill_creator.create
+capability: meta_component_creator.create
 component_type: skill
 version: v1.0.0
 status: active
@@ -38,4 +38,4 @@ variables:
 metadata:
   author: system
   created: '2026-04-03'
-  description: User промпт для meta_skill_creator.create
+  description: User промпт для meta_component_creator.create
