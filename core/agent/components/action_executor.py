@@ -639,6 +639,9 @@ class ActionExecutor:
             if component:
                 return component, type_name
 
+        # Отладка: логируем доступные сервисы
+        self._log_debug(f"Компонент '{component_name}' не найден. Доступные сервисы: {list(self.application_context.components.get_all(ComponentType.SERVICE).keys())}")
+
         return None, None
     
     def _resolve_capability(self, action_name: str) -> Optional[Capability]:

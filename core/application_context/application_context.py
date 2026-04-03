@@ -277,10 +277,33 @@ class ApplicationContext(BaseSystemContext):
                     )
                     components_created += 1
                     self.logger.info(f"Компонент {comp_type.value}.{name} создан и зарегистрирован")
+                    if self.infrastructure_context and self.infrastructure_context.event_bus:
+                        await self.infrastructure_context.event_bus.publish(
+                            event_type="component.registered",
+                            data={
+                                "component_type": comp_type.value,
+                                "name": name,
+                                "class": component.__class__.__name__
+                            },
+                            source="application_context",
+                            session_id="system"
+                        )
                 except Exception as e:
                     self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
                     import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    if self.infrastructure_context and self.infrastructure_context.event_bus:
+                        await self.infrastructure_context.event_bus.publish(
+                            event_type="component.create_failed",
+                            data={
+                                "component_type": comp_type.value,
+                                "name": name,
+                                "error": str(e),
+                                "traceback": traceback.format_exc()
+                            },
+                            source="application_context",
+                            session_id="system"
+                        )
 
         self.logger.info(f"Создано {components_created} компонентов")
 
@@ -358,19 +381,55 @@ class ApplicationContext(BaseSystemContext):
                 if hasattr(component, 'initialize') and callable(component.initialize):
                     if await component.initialize():
                         initialized_components.add(component.name)
+                        if self.infrastructure_context and self.infrastructure_context.event_bus:
+                            await self.infrastructure_context.event_bus.publish(
+                                event_type="component.initialized",
+                                data={"name": component.name, "class": component.__class__.__name__},
+                                source="application_context",
+                                session_id="system"
+                            )
                     else:
                         self.logger.error(f"Компонент {component.name} не смог инициализироваться")
+                        if self.infrastructure_context and self.infrastructure_context.event_bus:
+                            await self.infrastructure_context.event_bus.publish(
+                                event_type="component.init_failed",
+                                data={"name": component.name, "reason": "initialize() returned False"},
+                                source="application_context",
+                                session_id="system"
+                            )
                         return False
                 else:
                     initialized_components.add(component.name)
+                    if self.infrastructure_context and self.infrastructure_context.event_bus:
+                        await self.infrastructure_context.event_bus.publish(
+                            event_type="component.initialized",
+                            data={"name": component.name, "class": component.__class__.__name__, "note": "no initialize method"},
+                            source="application_context",
+                            session_id="system"
+                        )
             except Exception as e:
                 self.logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
+                import traceback
+                if self.infrastructure_context and self.infrastructure_context.event_bus:
+                    await self.infrastructure_context.event_bus.publish(
+                        event_type="component.init_failed",
+                        data={"name": component.name, "error": str(e), "traceback": traceback.format_exc()},
+                        source="application_context",
+                        session_id="system"
+                    )
                 return False
 
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
             self.logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
+            if self.infrastructure_context and self.infrastructure_context.event_bus:
+                await self.infrastructure_context.event_bus.publish(
+                    event_type="component.init_partial",
+                    data={"uninitialized": list(uninitialized)},
+                    source="application_context",
+                    session_id="system"
+                )
             return False
 
         return True

@@ -24,6 +24,7 @@ component = await factory.create_and_initialize(
 )
 ```
 """
+import sys
 from typing import Type, Any, Optional, TYPE_CHECKING
 from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
@@ -295,7 +296,7 @@ class ComponentFactory:
                     raise ValueError(f"Сервис {name} не найден")
                     
         elif component_type == "skill":
-            # Поддержка ОБОИХ вариантов структуры
+            # Поддержка ОБОИХ вариантов структуры + динамическое обнаружение
             try:
                 # Сначала пробуем поддиректорию (реальная структура)
                 module_name = f"core.services.skills.{name}.skill"
@@ -314,6 +315,11 @@ class ComponentFactory:
                     await self._log_info(f"Найден навык (старый формат): {result}")
                     return result
                 except ImportError:
+                    # Динамическое обнаружение: сканируем директорию skills
+                    result = await self._discover_dynamic_skill(name)
+                    if result:
+                        await self._log_info(f"Найден навык (динамически): {result}")
+                        return result
                     await self._log_error(f"Навык {name} не найден")
                     raise ValueError(f"Навык {name} не найден")
                     
@@ -374,6 +380,60 @@ class ComponentFactory:
         else:
             await self._log_error(f"Неизвестный тип компонента: {component_type}")
             raise ValueError(f"Неизвестный тип компонента: {component_type}")
+
+    async def _discover_dynamic_skill(self, name: str) -> Optional[Type[BaseComponent]]:
+        """
+        Динамическое обнаружение навыка через сканирование директории skills.
+        
+        Используется для навыков, созданных мета-навыком или добавленных вручную
+        без явной регистрации в ComponentFactory.
+        
+        ARGS:
+        - name: имя навыка (snake_case)
+        
+        RETURNS:
+        - Type[BaseComponent]: класс навыка или None
+        """
+        from pathlib import Path
+        from core.services.skills.base_skill import BaseSkill
+        
+        skills_dir = Path(__file__).resolve().parents[2] / "services" / "skills"
+        skill_dir = skills_dir / name
+        
+        if not skill_dir.is_dir():
+            return None
+        
+        skill_file = skill_dir / "skill.py"
+        if not skill_file.is_file():
+            return None
+        
+        module_name = f"core.services.skills.{name}.skill"
+        
+        try:
+            import importlib
+            if module_name in sys.modules:
+                module = importlib.reload(sys.modules[module_name])
+            else:
+                module = importlib.import_module(module_name)
+            
+            candidates = [
+                f"{name.title().replace('_', '').replace(' ', '')}Skill",
+            ]
+            
+            for class_name in candidates:
+                if hasattr(module, class_name):
+                    cls = getattr(module, class_name)
+                    if isinstance(cls, type) and issubclass(cls, BaseSkill):
+                        return cls
+            
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if isinstance(attr, type) and issubclass(attr, BaseSkill) and attr is not BaseSkill:
+                    return attr
+        except Exception:
+            pass
+        
+        return None
 
     async def create_by_name(
         self,
