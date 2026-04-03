@@ -6,31 +6,32 @@ OptimizationOrchestrator — оркестрация с полным анализ
 - Анализ execution traces
 - Поиск корневых причин
 - Умная генерация улучшений
+- Реальная оценка через BenchmarkRunner + Evaluator
+- Timeout enforcement
+- Mode-aware оценка (ACCURACY, SPEED, TOKENS, BALANCED)
 
 ПИПЛАЙН:
 1. traces = trace_collector.collect_traces()
-2. patterns = pattern_analyzer.analyze(traces)
-3. prompt_issues = prompt_analyzer.analyze_prompts(traces)
-4. root_causes = root_cause_analyzer.analyze(...)
-5. examples = example_extractor.extract_good_examples(traces)
-6. candidates = prompt_generator.generate_improvements(root_causes, examples)
-7. test + evaluate + safety check → promote
+2. patterns, prompt_issues, response_issues = asyncio.gather(...)
+3. root_causes = root_cause_analyzer.analyze(...)
+4. examples, error_examples = example_extractor.extract_few_shot_examples(...)
+5. candidates = prompt_generator.generate_improvements(...)
+6. test + evaluate + safety check → promote
 """
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Awaitable
-from dataclasses import dataclass
 
 from core.services.benchmarks.benchmark_models import (
     PromptVersion,
     EvaluationResult,
     OptimizationResult,
     OptimizationMode,
+    BenchmarkScenario,
+    BenchmarkRunResult,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
 
 from .trace_collector import TraceCollector
 from .pattern_analyzer import PatternAnalyzer
@@ -41,20 +42,40 @@ from .evaluator import Evaluator
 from .prompt_generator import PromptGenerator
 from .version_manager import VersionManager
 from .safety_layer import SafetyLayer
+from .scenario_builder import ScenarioBuilder
 
-# BenchmarkRunner импортируется из core.benchmarks
 from core.services.benchmarks.benchmark_runner import BenchmarkRunner
 
 
-@dataclass
 class OrchestratorV2Config:
-    """Конфигурация OptimizationOrchestrator v2"""
-    max_iterations: int = 3
-    target_accuracy: float = 0.9
-    min_improvement: float = 0.05
-    timeout_seconds: int = 600
-    max_examples: int = 5
-    max_error_examples: int = 3
+    """Конфигурация OptimizationOrchestrator v2 с валидацией"""
+
+    def __init__(
+        self,
+        max_iterations: int = 3,
+        target_accuracy: float = 0.9,
+        min_improvement: float = 0.05,
+        timeout_seconds: int = 600,
+        max_examples: int = 5,
+        max_error_examples: int = 3,
+    ):
+        if max_iterations < 1:
+            raise ValueError(f"max_iterations должен быть >= 1, получено {max_iterations}")
+        if not (0.0 < target_accuracy <= 1.0):
+            raise ValueError(f"target_accuracy должен быть в (0.0, 1.0], получено {target_accuracy}")
+        if not (0.0 <= min_improvement < 1.0):
+            raise ValueError(f"min_improvement должен быть в [0.0, 1.0), получено {min_improvement}")
+        if timeout_seconds < 10:
+            raise ValueError(f"timeout_seconds должен быть >= 10, получено {timeout_seconds}")
+        if max_examples < 1:
+            raise ValueError(f"max_examples должен быть >= 1, получено {max_examples}")
+
+        self.max_iterations = max_iterations
+        self.target_accuracy = target_accuracy
+        self.min_improvement = min_improvement
+        self.timeout_seconds = timeout_seconds
+        self.max_examples = max_examples
+        self.max_error_examples = max_error_examples
 
 
 class OptimizationOrchestrator:
@@ -66,6 +87,9 @@ class OptimizationOrchestrator:
     - Анализ execution traces
     - Поиск корневых причин проблем
     - Генерация целевых улучшений
+    - Реальная оценка через BenchmarkRunner + Evaluator
+    - Timeout enforcement
+    - Mode-aware оценка
 
     USAGE:
     ```python
@@ -122,15 +146,6 @@ class OptimizationOrchestrator:
         self.event_bus = event_bus
         self.config = config or OrchestratorV2Config()
 
-        self.event_bus_logger = EventBusLogger(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            event_bus,
-            session_id="system",
-            agent_id="system",
-            component="OptimizationOrchestrator"
-        )
-
         # Callback для выполнения промптов
         self.executor_callback: Optional[Callable[[str, str], Awaitable[Dict[str, Any]]]] = None
 
@@ -145,180 +160,247 @@ class OptimizationOrchestrator:
         self,
         capability: str,
         mode: OptimizationMode = OptimizationMode.ACCURACY
-    ) -> Optional[OptimizationResult]:
+    ) -> OptimizationResult:
         """
         Запуск цикла оптимизации.
 
         ЭТАПЫ:
         1. Сбор traces
-        2. Анализ паттернов
-        3. Анализ промптов/ответов
-        4. Поиск корневых причин
-        5. Извлечение примеров
-        6. Генерация улучшений
-        7. Тестирование и оценка
+        2. Параллельный анализ паттернов, промптов, ответов
+        3. Поиск корневых причин
+        4. Извлечение примеров
+        5. Генерация улучшений
+        6. Тестирование и оценка кандидатов
+        7. Продвижение лучшей версии
+
+        ARGS:
+        - capability: название способности
+        - mode: режим оптимизации (ACCURACY, SPEED, TOKENS, BALANCED)
+
+        RETURNS:
+        - OptimizationResult: результат оптимизации (никогда None)
+        """
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "mode": mode.value,
+                "phase": "started",
+                "timeout_seconds": self.config.timeout_seconds,
+            },
+        )
+
+        start_time = datetime.now()
+
+        try:
+            result = await asyncio.wait_for(
+                self._run_optimization_pipeline(capability, mode),
+                timeout=self.config.timeout_seconds,
+            )
+            return result
+
+        except asyncio.TimeoutError:
+            elapsed = (datetime.now() - start_time).total_seconds()
+            await self._publish_event(
+                EventType.ERROR_OCCURRED,
+                {
+                    "capability": capability,
+                    "error": f"Optimization pipeline timed out after {elapsed:.1f}s (limit: {self.config.timeout_seconds}s)",
+                    "phase": "timeout",
+                },
+            )
+            return OptimizationResult(
+                capability=capability,
+                from_version="unknown",
+                to_version="unknown",
+                mode=mode,
+                status="timeout",
+                error=f"Оптимизация превысила таймаут {self.config.timeout_seconds}с",
+            )
+
+        except Exception as e:
+            await self._publish_event(
+                EventType.ERROR_OCCURRED,
+                {
+                    "capability": capability,
+                    "error": str(e),
+                    "phase": "failed",
+                },
+            )
+            return OptimizationResult(
+                capability=capability,
+                from_version="unknown",
+                to_version="unknown",
+                mode=mode,
+                status="failed",
+                error=str(e),
+            )
+
+    async def _run_optimization_pipeline(
+        self,
+        capability: str,
+        mode: OptimizationMode,
+    ) -> OptimizationResult:
+        """
+        Внутренний пайплайн оптимизации.
 
         ARGS:
         - capability: название способности
         - mode: режим оптимизации
 
         RETURNS:
-        - Optional[OptimizationResult]: результат или None
+        - OptimizationResult: результат
         """
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            f"Запуск оптимизации v2 для {capability}"
-        )
-
         start_time = datetime.now()
 
-        try:
-            # ЭТАП 1: Сбор traces
-            await self.event_bus_logger.info("ЭТАП 1: Сбор execution traces...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            traces = await self.trace_collector.collect_traces(capability)
+        # ЭТАП 1: Сбор traces
+        traces = await self.trace_collector.collect_traces(capability)
 
-            if not traces:
-                await self.event_bus_logger.warning(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Не найдено traces для {capability}"
-                )
-                return None
-
-            await self.event_bus_logger.info(f"Собрано {len(traces)} traces")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-            # ЭТАП 2: Анализ паттернов
-            await self.event_bus_logger.info("ЭТАП 2: Анализ паттернов...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            patterns = self.pattern_analyzer.analyze(traces)
-            pattern_stats = self.pattern_analyzer.get_pattern_stats(patterns)
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Найдено {pattern_stats['total_patterns']} паттернов"
+        if not traces:
+            await self._publish_event(
+                EventType.OPTIMIZATION_CYCLE_COMPLETED,
+                {"capability": capability, "phase": "no_traces"},
             )
-
-            # ЭТАП 3: Анализ промптов и ответов
-            await self.event_bus_logger.info("ЭТАП 3: Анализ промптов/ответов...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            prompt_issues = self.prompt_analyzer.analyze_prompts(traces)
-            response_issues = self.prompt_analyzer.analyze_responses(traces)
-            analysis_stats = self.prompt_analyzer.get_analysis_stats(
-                prompt_issues, response_issues
-            )
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Найдено {analysis_stats['total_prompt_issues']} проблем промптов, "
-                f"{analysis_stats['total_response_issues']} проблем ответов"
-            )
-
-            # ЭТАП 4: Поиск корневых причин
-            await self.event_bus_logger.info("ЭТАП 4: Поиск корневых причин...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            root_causes = self.root_cause_analyzer.analyze(
-                patterns, prompt_issues, response_issues
-            )
-            cause_stats = self.root_cause_analyzer.get_root_cause_stats(root_causes)
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Найдено {cause_stats['total_root_causes']} корневых причин"
-            )
-
-            # ЭТАП 5: Извлечение примеров
-            await self.event_bus_logger.info("ЭТАП 5: Извлечение примеров...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            good_examples, error_examples = self.example_extractor.extract_few_shot_examples(
-                traces,
-                capability,
-                num_good=self.config.max_examples,
-                num_bad=self.config.max_error_examples
-            )
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Извлечено {len(good_examples)} хороших примеров, "
-                f"{len(error_examples)} примеров ошибок"
-            )
-
-            # ЭТАП 6: Получение baseline и генерация улучшений
-            await self.event_bus_logger.info("ЭТАП 6: Генерация улучшений...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            baseline = await self.version_manager.get_active(capability)
-
-            if not baseline:
-                await self.event_bus_logger.error(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Baseline версия не найдена для {capability}"
-                )
-                return None
-
-            candidates = await self.prompt_generator.generate_improvements(
-                original_prompt=baseline,
-                root_causes=root_causes,
-                good_examples=good_examples,
-                error_examples=error_examples
-            )
-
-            if not candidates:
-                await self.event_bus_logger.warning("Кандидаты не сгенерированы")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                return None
-
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Сгенерировано {len(candidates)} кандидатов"
-            )
-
-            # ЭТАП 7: Тестирование и оценка
-            await self.event_bus_logger.info("ЭТАП 7: Тестирование кандидатов...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            result = await self._test_and_evaluate(
+            return OptimizationResult(
                 capability=capability,
-                baseline=baseline,
-                candidates=candidates,
-                mode=mode
+                from_version="unknown",
+                to_version="unknown",
+                mode=mode,
+                status="no_traces",
+                error=f"Не найдено traces для {capability}",
             )
 
-            elapsed = (datetime.now() - start_time).total_seconds()
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Оптимизация завершена за {elapsed:.1f}с"
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "phase": "traces_collected",
+                "traces_count": len(traces),
+            },
+        )
+
+        # ЭТАП 2-4: Параллельный анализ
+        patterns_task = asyncio.to_thread(self.pattern_analyzer.analyze, traces)
+        prompt_issues_task = asyncio.to_thread(self.prompt_analyzer.analyze_prompts, traces)
+        response_issues_task = asyncio.to_thread(self.prompt_analyzer.analyze_responses, traces)
+
+        patterns, prompt_issues, response_issues = await asyncio.gather(
+            patterns_task,
+            prompt_issues_task,
+            response_issues_task,
+        )
+
+        pattern_stats = self.pattern_analyzer.get_pattern_stats(patterns)
+        analysis_stats = self.prompt_analyzer.get_analysis_stats(prompt_issues, response_issues)
+
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "phase": "analysis_completed",
+                "patterns": pattern_stats,
+                "analysis_stats": analysis_stats,
+            },
+        )
+
+        # ЭТАП 5: Поиск корневых причин
+        root_causes = self.root_cause_analyzer.analyze(
+            patterns, prompt_issues, response_issues
+        )
+        cause_stats = self.root_cause_analyzer.get_root_cause_stats(root_causes)
+
+        # ЭТАП 6: Извлечение примеров
+        good_examples, error_examples = self.example_extractor.extract_few_shot_examples(
+            traces,
+            capability,
+            num_good=self.config.max_examples,
+            num_bad=self.config.max_error_examples,
+        )
+
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "phase": "examples_extracted",
+                "good_examples": len(good_examples),
+                "error_examples": len(error_examples),
+                "root_causes": cause_stats,
+            },
+        )
+
+        # ЭТАП 7: Получение baseline и генерация улучшений
+        baseline = await self.version_manager.get_active(capability)
+
+        if not baseline:
+            return OptimizationResult(
+                capability=capability,
+                from_version="unknown",
+                to_version="unknown",
+                mode=mode,
+                status="no_baseline",
+                error=f"Baseline версия не найдена для {capability}",
             )
 
-            return result
+        candidates = await self.prompt_generator.generate_improvements(
+            original_prompt=baseline,
+            root_causes=root_causes,
+            good_examples=good_examples,
+            error_examples=error_examples,
+        )
 
-        except Exception as e:
-            await self.event_bus_logger.error(f"Ошибка оптимизации: {e}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return None
+        if not candidates:
+            return OptimizationResult(
+                capability=capability,
+                from_version=baseline.id,
+                to_version=baseline.id,
+                mode=mode,
+                status="no_candidates",
+                error="Кандидаты не сгенерированы",
+            )
+
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "phase": "candidates_generated",
+                "candidates_count": len(candidates),
+            },
+        )
+
+        # ЭТАП 8: Тестирование и оценка
+        result = await self._test_and_evaluate(
+            capability=capability,
+            baseline=baseline,
+            candidates=candidates,
+            mode=mode,
+        )
+
+        elapsed = (datetime.now() - start_time).total_seconds()
+        await self._publish_event(
+            EventType.OPTIMIZATION_CYCLE_COMPLETED,
+            {
+                "capability": capability,
+                "phase": "completed",
+                "elapsed_seconds": elapsed,
+                "status": result.status,
+                "target_achieved": result.target_achieved,
+            },
+        )
+
+        return result
 
     async def _test_and_evaluate(
         self,
         capability: str,
         baseline: PromptVersion,
         candidates: List[PromptVersion],
-        mode: OptimizationMode
-    ) -> Optional[OptimizationResult]:
+        mode: OptimizationMode,
+    ) -> OptimizationResult:
         """
-        Тестирование и оценка кандидатов.
+        Тестирование и оценка кандидатов с учётом режима оптимизации.
+
+        Все кандидаты тестируются, лучший выбирается по mode-specific метрике.
+        Продвижение происходит только один раз — для лучшего кандидата.
 
         ARGS:
         - capability: название способности
@@ -327,16 +409,20 @@ class OptimizationOrchestrator:
         - mode: режим оптимизации
 
         RETURNS:
-        - Optional[OptimizationResult]: результат
+        - OptimizationResult: результат
         """
         if not self.executor_callback:
-            await self.event_bus_logger.error("Executor callback не установлен")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return None
+            return OptimizationResult(
+                capability=capability,
+                from_version=baseline.id,
+                to_version=baseline.id,
+                mode=mode,
+                status="failed",
+                error="Executor callback не установлен",
+            )
 
         # Оценка baseline
-        baseline_eval = await self._evaluate_version(baseline)
+        baseline_eval = await self._evaluate_version(baseline, capability)
 
         # Инициализация результата
         result = OptimizationResult(
@@ -346,126 +432,192 @@ class OptimizationOrchestrator:
             mode=mode,
             iterations=0,
             initial_metrics={
-                'success_rate': baseline_eval.success_rate,
-                'score': baseline_eval.score
-            }
+                "success_rate": baseline_eval.success_rate,
+                "score": baseline_eval.score,
+                "latency": baseline_eval.latency,
+            },
         )
 
-        current_best = baseline
-        current_best_eval = baseline_eval
+        # Тестируем всех кандидатов, запоминаем лучшего
+        best_candidate: Optional[PromptVersion] = None
+        best_eval: Optional[EvaluationResult] = None
+        best_improvement = 0.0
 
-        # Тестирование кандидатов
-        for iteration, candidate in enumerate(candidates[:self.config.max_iterations]):
+        evaluated_candidates: List[tuple] = []
+
+        for iteration, candidate in enumerate(candidates[: self.config.max_iterations]):
             result.iterations = iteration + 1
-
-            await self.event_bus_logger.info(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                f"Тестирование кандидата {iteration + 1}/{len(candidates)}"
-            )
 
             # Регистрация кандидата
             await self.version_manager.register(candidate)
 
             # Оценка кандидата
-            candidate_eval = await self._evaluate_version(candidate)
+            candidate_eval = await self._evaluate_version(candidate, capability)
 
-            # Проверка улучшения
-            improvement = candidate_eval.score - current_best_eval.score
+            # Расчёт улучшения по mode-specific метрике
+            improvement = self._calculate_improvement(
+                candidate_eval, baseline_eval, mode
+            )
+
+            evaluated_candidates.append((candidate, candidate_eval, improvement))
 
             if improvement >= self.config.min_improvement:
                 # Проверка безопасности
                 is_safe, checks = await self.safety_layer.check(
-                    candidate_eval, current_best_eval
+                    candidate_eval, baseline_eval
                 )
 
-                if is_safe:
-                    # Улучшение найдено и безопасно
-                    current_best = candidate
-                    current_best_eval = candidate_eval
-                    result.to_version = candidate.id
-                    result.final_metrics = {
-                        'success_rate': candidate_eval.success_rate,
-                        'score': candidate_eval.score
-                    }
+                if is_safe and improvement > best_improvement:
+                    best_candidate = candidate
+                    best_eval = candidate_eval
+                    best_improvement = improvement
 
-                    # Продвижение версии
-                    await self.version_manager.promote(candidate.id, capability)
-
-                    await self.event_bus_logger.info(
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        f"Улучшение найдено: score {candidate_eval.score:.3f} "
-                        f"(+{improvement:.3f})"
+                    await self._publish_event(
+                        EventType.OPTIMIZATION_CYCLE_COMPLETED,
+                        {
+                            "capability": capability,
+                            "phase": "candidate_evaluated",
+                            "iteration": iteration + 1,
+                            "improvement": improvement,
+                            "score": candidate_eval.score,
+                            "is_best": True,
+                        },
                     )
-
-                    # Проверка достижения цели
-                    if candidate_eval.success_rate >= self.config.target_accuracy:
-                        result.target_achieved = True
-                        await self.event_bus_logger.info("Цель достигнута")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        break
                 else:
-                    await self.event_bus_logger.warning(
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        f"Кандидат {candidate.id} отклонён safety layer"
-                    )
                     await self.version_manager.reject(
-                        candidate.id, capability, "Safety check failed"
+                        candidate.id,
+                        capability,
+                        "Safety check failed" if not is_safe else "Not better than current best",
                     )
             else:
-                await self.event_bus_logger.info(
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Улучшение недостаточно: {improvement:.3f}"
-                )
                 await self.version_manager.reject(
                     candidate.id, capability, "Insufficient improvement"
                 )
 
-        # Расчёт улучшений
+        # Продвижение лучшего кандидата (один раз)
+        if best_candidate and best_eval:
+            # Откат предыдущей active версии (если была продвинута ранее в цикле)
+            current_active = await self.version_manager.get_active(capability)
+            if current_active and current_active.id != baseline.id:
+                await self.version_manager.rollback(capability, baseline.id)
+
+            # Продвижение лучшего
+            await self.version_manager.promote(best_candidate.id, capability)
+
+            result.to_version = best_candidate.id
+            result.final_metrics = {
+                "success_rate": best_eval.success_rate,
+                "score": best_eval.score,
+                "latency": best_eval.latency,
+            }
+            result.target_achieved = best_eval.success_rate >= self.config.target_accuracy
+
+        else:
+            # Улучшений не найдено — остаёмся на baseline
+            result.final_metrics = {
+                "success_rate": baseline_eval.success_rate,
+                "score": baseline_eval.score,
+                "latency": baseline_eval.latency,
+            }
+
         result.calculate_improvements()
 
         return result
 
+    def _calculate_improvement(
+        self,
+        candidate_eval: EvaluationResult,
+        baseline_eval: EvaluationResult,
+        mode: OptimizationMode,
+    ) -> float:
+        """
+        Расчёт улучшения с учётом режима оптимизации.
+
+        ARGS:
+        - candidate_eval: оценка кандидата
+        - baseline_eval: оценка baseline
+        - mode: режим оптимизации
+
+        RETURNS:
+        - float: величина улучшения (положительная = улучшение)
+        """
+        if mode == OptimizationMode.SPEED:
+            if baseline_eval.latency <= 0:
+                return 0.0
+            improvement = (baseline_eval.latency - candidate_eval.latency) / baseline_eval.latency
+        elif mode == OptimizationMode.TOKENS:
+            if baseline_eval.latency <= 0:
+                return 0.0
+            improvement = (baseline_eval.latency - candidate_eval.latency) / baseline_eval.latency
+        elif mode == OptimizationMode.BALANCED:
+            accuracy_improvement = candidate_eval.score - baseline_eval.score
+            latency_norm = 0.0
+            if baseline_eval.latency > 0:
+                latency_norm = (baseline_eval.latency - candidate_eval.latency) / baseline_eval.latency
+            improvement = 0.7 * accuracy_improvement + 0.3 * max(latency_norm, 0)
+        else:
+            improvement = candidate_eval.score - baseline_eval.score
+
+        return improvement
+
     async def _evaluate_version(
         self,
-        version: PromptVersion
+        version: PromptVersion,
+        capability: str,
     ) -> EvaluationResult:
         """
-        Оценка версии.
+        Оценка версии через реальный бенчмарк.
 
         ARGS:
         - version: версия для оценки
+        - capability: название способности
 
         RETURNS:
         - EvaluationResult: оценка
         """
         if not self.executor_callback:
-            return EvaluationResult(
-                version_id=version.id,
-                success_rate=0.8,
-                score=0.7
-            )
+            return EvaluationResult(version_id=version.id, success_rate=0.0, score=0.0)
 
-        # Запуск бенчмарка (упрощённо)
-        # В реальной реализации нужно загружать сценарии
-        from core.services.benchmarks.benchmark_models import BenchmarkRunResult
+        # Загрузка сценариев для capability
+        scenarios = await self._load_scenarios_for_version(version, capability)
 
-        # Mock результаты для примера
-        mock_results = [
-            BenchmarkRunResult(
-                version_id=version.id,
-                scenario_id=f"s{i}",
-                success=True,
-                execution_time_ms=100
-            )
-            for i in range(5)
-        ]
+        if not scenarios:
+            return EvaluationResult(version_id=version.id, success_rate=0.0, score=0.0)
 
-        return self.evaluator.evaluate(version.id, mock_results)
+        # Запуск бенчмарка
+        benchmark_results = await self.benchmark_runner.run(version, scenarios)
+
+        # Оценка через Evaluator
+        evaluation = self.evaluator.evaluate(version.id, benchmark_results)
+
+        return evaluation
+
+    async def _load_scenarios_for_version(
+        self,
+        version: PromptVersion,
+        capability: str,
+    ) -> List[BenchmarkScenario]:
+        """
+        Загрузка сценариев бенчмарка для capability.
+
+        ARGS:
+        - version: версия промпта
+        - capability: название способности
+
+        RETURNS:
+        - List[BenchmarkScenario]: список сценариев
+        """
+        try:
+            traces = await self.trace_collector.collect_traces(capability)
+            if not traces:
+                return []
+
+            dataset = await self.trace_collector.build_dataset(capability)
+            scenario_builder = ScenarioBuilder(self.event_bus)
+            scenarios = await scenario_builder.build(dataset)
+            return scenarios
+        except Exception:
+            return []
 
     def get_optimization_report(self, result: Optional[OptimizationResult]) -> Dict[str, Any]:
         """
@@ -478,17 +630,36 @@ class OptimizationOrchestrator:
         - Dict[str, Any]: отчёт
         """
         if not result:
-            return {'status': 'failed'}
+            return {"status": "failed"}
 
         return {
-            'status': 'completed',
-            'capability': result.capability,
-            'from_version': result.from_version,
-            'to_version': result.to_version,
-            'iterations': result.iterations,
-            'target_achieved': result.target_achieved,
-            'initial_metrics': result.initial_metrics,
-            'final_metrics': result.final_metrics,
-            'improvements': result.improvements,
-            'timestamp': result.timestamp.isoformat()
+            "status": result.status,
+            "capability": result.capability,
+            "from_version": result.from_version,
+            "to_version": result.to_version,
+            "iterations": result.iterations,
+            "target_achieved": result.target_achieved,
+            "initial_metrics": result.initial_metrics,
+            "final_metrics": result.final_metrics,
+            "improvements": result.improvements,
+            "error": result.error,
+            "timestamp": result.timestamp.isoformat(),
         }
+
+    async def _publish_event(
+        self,
+        event_type: EventType,
+        data: Dict[str, Any],
+    ) -> None:
+        """
+        Публикация события через event_bus.
+
+        ARGS:
+        - event_type: тип события
+        - data: данные события
+        """
+        await self.event_bus.publish(
+            event_type,
+            data=data,
+            source="OptimizationOrchestrator",
+        )
