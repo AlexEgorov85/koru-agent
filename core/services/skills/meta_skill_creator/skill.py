@@ -59,27 +59,27 @@ class MetaSkillCreator(BaseSkill):
         return [
             Capability(
                 name="meta_skill_creator.create",
-                description="Создать новый навык по описанию: генерирует Python, YAML, валидирует и записывает на диск.",
+                description="Создать новый навык по описанию: генерирует Python, YAML, валидирует и записывает на диск. Требует подтверждения оператора.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
-                visiable=True,
-                meta={"requires_llm": True, "execution_type": "generation"},
+                visiable=False,
+                meta={"requires_llm": True, "execution_type": "generation", "requires_approval": True},
             ),
             Capability(
                 name="meta_skill_creator.fix",
-                description="Исправить существующий навык: анализирует проблему, генерирует патч, валидирует и записывает.",
+                description="Исправить существующий навык: анализирует проблему, генерирует патч, валидирует и записывает. Требует подтверждения оператора.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
-                visiable=True,
-                meta={"requires_llm": True, "execution_type": "refactor"},
+                visiable=False,
+                meta={"requires_llm": True, "execution_type": "refactor", "requires_approval": True},
             ),
             Capability(
                 name="meta_skill_creator.review",
                 description="Код-ревью существующего навыка: проверка безопасности, архитектуры, стиля.",
                 skill_name=self.name,
                 supported_strategies=["react", "planning"],
-                visiable=True,
-                meta={"requires_llm": True, "execution_type": "review"},
+                visiable=False,
+                meta={"requires_llm": True, "execution_type": "review", "requires_approval": True},
             ),
         ]
 
