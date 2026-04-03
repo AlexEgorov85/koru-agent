@@ -1,0 +1,40 @@
+capability: meta_skill_creator.fix
+component_type: skill
+description: Выходной контракт для исправления навыка
+direction: output
+schema_data:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: Успешно ли выполнена операция
+    skill_name:
+      type: string
+      description: Имя исправляемого навыка
+    validation:
+      type: object
+      description: Результат валидации исправленных файлов
+    deployment:
+      type: object
+      description: Результат записи файлов
+    change_summary:
+      type: string
+      description: Краткое описание внесённых изменений
+    files_written:
+      type: array
+      items:
+        type: string
+      description: Список записанных файлов
+    message:
+      type: string
+      description: Информационное сообщение
+    error:
+      type: string
+      description: Текст ошибки
+  required:
+    - success
+    - skill_name
+    - message
+  additionalProperties: false
+status: active
+version: v1.0.0

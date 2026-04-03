@@ -1,0 +1,29 @@
+capability: meta_skill_creator.review
+component_type: skill
+description: Входной контракт для код-ревью навыка
+direction: input
+schema_data:
+  type: object
+  properties:
+    skill_name:
+      type: string
+      description: Имя навыка для код-ревью
+    review_focus:
+      type: array
+      items:
+        type: string
+        enum:
+          - security
+          - architecture
+          - style
+          - performance
+      description: Фокус ревью
+      default:
+        - security
+        - architecture
+        - style
+  required:
+    - skill_name
+  additionalProperties: false
+status: active
+version: v1.0.0

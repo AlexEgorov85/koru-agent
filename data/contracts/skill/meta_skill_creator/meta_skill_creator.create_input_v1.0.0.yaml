@@ -1,0 +1,29 @@
+capability: meta_skill_creator.create
+component_type: skill
+description: Входной контракт для создания нового навыка
+direction: input
+schema_data:
+  type: object
+  properties:
+    description:
+      type: string
+      description: Подробное описание логики навыка, его назначения и ожидаемого поведения
+    capabilities:
+      type: array
+      items:
+        type: string
+      description: Список имён capabilities, которые должен поддерживать навык
+      default: []
+    dry_run:
+      type: boolean
+      description: Если True — только генерация и валидация без записи файлов
+      default: true
+    register_after:
+      type: boolean
+      description: Зарегистрировать навык в контексте после записи (требует подтверждения)
+      default: false
+  required:
+    - description
+  additionalProperties: false
+status: active
+version: v1.0.0

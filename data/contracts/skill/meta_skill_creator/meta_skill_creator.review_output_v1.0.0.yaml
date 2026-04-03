@@ -1,0 +1,56 @@
+capability: meta_skill_creator.review
+component_type: skill
+description: Выходной контракт для код-ревью навыка
+direction: output
+schema_data:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: Успешно ли выполнена операция
+    skill_name:
+      type: string
+      description: Имя просмотренного навыка
+    review:
+      type: object
+      description: Результат ревью
+      properties:
+        overall_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Общая оценка качества кода
+        findings:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              severity:
+                type: string
+              file:
+                type: string
+              description:
+                type: string
+              suggestion:
+                type: string
+        summary:
+          type: string
+          description: Общее резюме ревью
+        passed:
+          type: boolean
+          description: Прошёл ли навык ревью
+    message:
+      type: string
+      description: Информационное сообщение
+    error:
+      type: string
+      description: Текст ошибки
+  required:
+    - success
+    - skill_name
+    - message
+  additionalProperties: false
+status: active
+version: v1.0.0

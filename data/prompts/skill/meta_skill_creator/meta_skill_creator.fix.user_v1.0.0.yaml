@@ -1,0 +1,31 @@
+capability: meta_skill_creator.fix
+component_type: skill
+version: v1.0.0
+status: active
+description: User промпт для исправления навыка
+content: |
+  Исправь навык '{skill_name}'.
+
+  Описание проблемы:
+  {issue_description}
+
+  Ниже представлены оригинальные файлы навыка. Проанализируй их и верни исправленные версии.
+
+  {original_files}
+
+  Верни только исправленные файлы с кратким описанием изменений.
+variables:
+  - name: skill_name
+    description: Имя навыка для исправления
+    required: true
+  - name: issue_description
+    description: Описание проблемы
+    required: true
+  - name: original_files
+    description: Содержимое оригинальных файлов
+    required: false
+    default_value: ""
+metadata:
+  author: system
+  created: '2026-04-03'
+  description: User промпт для meta_skill_creator.fix

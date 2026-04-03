@@ -1,0 +1,23 @@
+capability: meta_skill_creator.fix
+component_type: skill
+description: Входной контракт для исправления существующего навыка
+direction: input
+schema_data:
+  type: object
+  properties:
+    skill_name:
+      type: string
+      description: Имя существующего навыка для исправления
+    issue_description:
+      type: string
+      description: Описание проблемы или желаемого улучшения
+    dry_run:
+      type: boolean
+      description: Если True — только генерация исправления без записи
+      default: true
+  required:
+    - skill_name
+    - issue_description
+  additionalProperties: false
+status: active
+version: v1.0.0

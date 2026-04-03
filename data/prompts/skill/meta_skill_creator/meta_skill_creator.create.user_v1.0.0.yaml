@@ -1,0 +1,31 @@
+capability: meta_skill_creator.create
+component_type: skill
+version: v1.0.0
+status: active
+description: User промпт для создания нового навыка
+content: |
+  Создай новый навык для koru-agent по следующему описанию:
+
+  {description}
+
+  {capabilities_hint}
+
+  Сгенерируй полный набор файлов:
+  1. skill.py — основной класс с наследованием BaseSkill
+  2. Промпты (system и user) для каждой capability
+  3. Контракты (input и output) для каждой capability
+
+  Следуй архитектурным правилам из системного промпта.
+  Убедись, что все импорты безопасны, код валиден, YAML корректен.
+variables:
+  - name: description
+    description: Подробное описание логики навыка
+    required: true
+  - name: capabilities_hint
+    description: Подсказка о требуемых capabilities
+    required: false
+    default_value: ""
+metadata:
+  author: system
+  created: '2026-04-03'
+  description: User промпт для meta_skill_creator.create

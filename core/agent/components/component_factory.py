@@ -24,7 +24,6 @@ component = await factory.create_and_initialize(
 )
 ```
 """
-import sys
 from typing import Type, Any, Optional, TYPE_CHECKING
 from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
@@ -247,193 +246,42 @@ class ComponentFactory:
 
     async def _resolve_component_class(self, component_type: str, name: str) -> Type[BaseComponent]:
         """
-        Разрешение класса компонента по имени и типу.
-        
+        Разрешение класса компонента через динамическое обнаружение.
+
+        Все компоненты обнаружаются автоматически через сканирование файловой системы.
+        Никакого хардкода — ComponentDiscovery находит классы по структуре директорий.
+
         ARGS:
         - component_type: тип компонента ('skill', 'tool', 'service', 'behavior')
         - name: имя компонента
-        
+
         RETURNS:
         - Type[BaseComponent]: класс компонента
         """
         await self._log_info(f"Разрешение класса компонента: тип={component_type}, имя={name}")
-        
-        import importlib
-        
-        if component_type == "service":
-            await self._log_info(f"Поиск сервиса: {name}")
-            if name == "prompt_service":
-                await self._log_info("Найден PromptService")
-                from core.services.prompt_service import PromptService
-                return PromptService
-            elif name == "contract_service":
-                await self._log_info("Найден ContractService")
-                from core.services.contract_service import ContractService
-                return ContractService
-            elif name == "table_description_service":
-                from core.services.table_description_service import TableDescriptionService
-                return TableDescriptionService
-            elif name == "sql_generation":
-                from core.services.sql_generation.service import SQLGenerationService
-                return SQLGenerationService
-            elif name == "sql_query_service":
-                from core.services.sql_query.service import SQLQueryService
-                return SQLQueryService
-            elif name == "sql_validator_service":
-                from core.services.sql_validator.service import SQLValidatorService
-                return SQLValidatorService
-            else:
-                # Попробуем динамический импорт
-                module_name = f"core.services.{name.replace('_', '')}_service"
-                class_name = f"{name.title().replace('_', '')}Service"
-                try:
-                    module = importlib.import_module(module_name)
-                    result = getattr(module, class_name)
-                    await self._log_info(f"Динамически найден сервис: {result}")
-                    return result
-                except ImportError:
-                    await self._log_error(f"Сервис {name} не найден")
-                    raise ValueError(f"Сервис {name} не найден")
-                    
-        elif component_type == "skill":
-            # Поддержка ОБОИХ вариантов структуры + динамическое обнаружение
-            try:
-                # Сначала пробуем поддиректорию (реальная структура)
-                module_name = f"core.services.skills.{name}.skill"
-                class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
-                module = importlib.import_module(module_name)
-                result = getattr(module, class_name)
-                await self._log_info(f"Найден навык: {result}")
-                return result
-            except ImportError:
-                # Fallback на старый формат
-                try:
-                    module_name = f"core.services.skills.{name}_skill"
-                    module = importlib.import_module(module_name)
-                    class_name = f"{name.title().replace('_', '').replace(' ', '')}Skill"
-                    result = getattr(module, class_name)
-                    await self._log_info(f"Найден навык (старый формат): {result}")
-                    return result
-                except ImportError:
-                    # Динамическое обнаружение: сканируем директорию skills
-                    result = await self._discover_dynamic_skill(name)
-                    if result:
-                        await self._log_info(f"Найден навык (динамически): {result}")
-                        return result
-                    await self._log_error(f"Навык {name} не найден")
-                    raise ValueError(f"Навык {name} не найден")
-                    
-        elif component_type == "tool":
-            # Проверяем специфичные инструменты
-            if name == "sql_tool":
-                from core.services.tools.sql_tool import SQLTool
-                return SQLTool
-            elif name == "file_tool":
-                from core.services.tools.file_tool import FileTool
-                return FileTool
-            elif name == "vector_books" or name == "vector_books_tool":
-                # vector_books — основное имя, vector_books_tool — устаревшее
-                from core.services.tools.vector_books_tool import VectorBooksTool
-                return VectorBooksTool
-            elif name == "book_library":
-                from core.services.skills.book_library.skill import BookLibrarySkill
-                return BookLibrarySkill
-            else:
-                # Попробуем стандартный путь
-                module_name = f"core.services.tools.{name}_tool"
-                class_name = f"{name.title().replace('_', '')}Tool"
-                try:
-                    module = importlib.import_module(module_name)
-                    result = getattr(module, class_name)
-                    await self._log_info(f"Найден инструмент: {result}")
-                    return result
-                except ImportError:
-                    await self._log_error(f"Инструмент {name} не найден")
-                    raise ValueError(f"Инструмент {name} не найден")
-                    
-        elif component_type == "behavior":
-            # Обработка паттернов поведения
-            if name == "react_pattern":
-                from core.agent.behaviors.react.pattern import ReActPattern
-                return ReActPattern
-            elif name == "planning_pattern":
-                from core.agent.behaviors.planning.pattern import PlanningPattern
-                return PlanningPattern
-            elif name == "fallback_pattern":
-                from core.agent.behaviors.fallback.pattern import FallbackPattern
-                return FallbackPattern
-            elif name == "evaluation_pattern":
-                from core.agent.behaviors.evaluation.pattern import EvaluationPattern
-                return EvaluationPattern
-            else:
-                # Попробуем стандартный путь
-                module_name = f"core.agent.behaviors.{name}_pattern"
-                class_name = f"{name.title().replace('_', '')}Pattern"
-                try:
-                    module = importlib.import_module(module_name)
-                    result = getattr(module, class_name)
-                    await self._log_info(f"Найден паттерн поведения: {result}")
-                    return result
-                except ImportError:
-                    await self._log_error(f"Паттерн поведения {name} не найден")
-                    raise ValueError(f"Паттерн поведения {name} не найден")
-        else:
-            await self._log_error(f"Неизвестный тип компонента: {component_type}")
-            raise ValueError(f"Неизвестный тип компонента: {component_type}")
 
-    async def _discover_dynamic_skill(self, name: str) -> Optional[Type[BaseComponent]]:
-        """
-        Динамическое обнаружение навыка через сканирование директории skills.
-        
-        Используется для навыков, созданных мета-навыком или добавленных вручную
-        без явной регистрации в ComponentFactory.
-        
-        ARGS:
-        - name: имя навыка (snake_case)
-        
-        RETURNS:
-        - Type[BaseComponent]: класс навыка или None
-        """
-        from pathlib import Path
-        from core.services.skills.base_skill import BaseSkill
-        
-        skills_dir = Path(__file__).resolve().parents[2] / "services" / "skills"
-        skill_dir = skills_dir / name
-        
-        if not skill_dir.is_dir():
-            return None
-        
-        skill_file = skill_dir / "skill.py"
-        if not skill_file.is_file():
-            return None
-        
-        module_name = f"core.services.skills.{name}.skill"
-        
-        try:
-            import importlib
-            if module_name in sys.modules:
-                module = importlib.reload(sys.modules[module_name])
-            else:
-                module = importlib.import_module(module_name)
-            
-            candidates = [
-                f"{name.title().replace('_', '').replace(' ', '')}Skill",
-            ]
-            
-            for class_name in candidates:
-                if hasattr(module, class_name):
-                    cls = getattr(module, class_name)
-                    if isinstance(cls, type) and issubclass(cls, BaseSkill):
-                        return cls
-            
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if isinstance(attr, type) and issubclass(attr, BaseSkill) and attr is not BaseSkill:
-                    return attr
-        except Exception:
-            pass
-        
-        return None
+        discovery = self._get_discovery()
+        entry = discovery.find_component(component_type, name)
+
+        if entry is not None:
+            await self._log_info(
+                f"Найден компонент (динамически): {entry.class_name} "
+                f"в {entry.file_path}"
+            )
+            return entry.class_ref
+
+        await self._log_error(
+            f"Компонент {component_type}/{name} не найден. "
+            f"Доступные: {discovery.get_all_names()}"
+        )
+        raise ValueError(f"Компонент {component_type}/{name} не найден")
+
+    def _get_discovery(self) -> "ComponentDiscovery":
+        """Получить или создать экземпляр ComponentDiscovery."""
+        if not hasattr(self, "_component_discovery"):
+            from core.agent.components.component_discovery import ComponentDiscovery
+            self._component_discovery = ComponentDiscovery()
+        return self._component_discovery
 
     async def create_by_name(
         self,

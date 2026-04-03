@@ -1,0 +1,65 @@
+capability: meta_skill_creator.create
+component_type: skill
+description: Выходной контракт для создания нового навыка
+direction: output
+schema_data:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: Успешно ли выполнена операция
+    skill_name:
+      type: string
+      description: Уникальное имя навыка (snake_case)
+    skill_class_name:
+      type: string
+      description: Имя класса навыка (PascalCase + Skill)
+    validation:
+      type: object
+      description: Результат валидации артефактов
+      properties:
+        is_valid:
+          type: boolean
+        error_count:
+          type: integer
+        warning_count:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: object
+    deployment:
+      type: object
+      description: Результат записи файлов
+      properties:
+        success:
+          type: boolean
+        written_files:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+    files_written:
+      type: array
+      items:
+        type: string
+      description: Список записанных файлов
+    register_after:
+      type: boolean
+      description: Требуется ли регистрация в контексте
+    message:
+      type: string
+      description: Информационное сообщение для оператора
+    error:
+      type: string
+      description: Текст ошибки (если success=False)
+  required:
+    - success
+    - skill_name
+    - message
+  additionalProperties: false
+status: active
+version: v1.0.0
