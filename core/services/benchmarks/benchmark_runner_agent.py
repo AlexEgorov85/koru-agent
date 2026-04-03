@@ -90,12 +90,16 @@ async def run_agent_benchmark(
                 success_count += 1
                 if verbose:
                     log_print(f"\n    ✅ ВАЛИДАЦИЯ: PASS")
+                    if final_answer:
+                        log_print(f"\n    Ответ: {final_answer[:2000]}{'...' if len(final_answer) > 2000 else ''}")
                 else:
                     print(f"✅")
             else:
                 errors = validation.get('errors', []) if validation else []
                 if verbose:
                     log_print(f"\n    ❌ ВАЛИДАЦИЯ: FAIL - {', '.join(errors[:3])}")
+                    if final_answer:
+                        log_print(f"\n    Ответ: {final_answer[:2000]}{'...' if len(final_answer) > 2000 else ''}")
                 else:
                     print(f"❌ {errors[0] if errors else 'failed'}")
 
