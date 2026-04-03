@@ -17,6 +17,7 @@ from core.models.data.prompt import Prompt, PromptStatus
 from core.models.data.contract import Contract, ContractDirection
 from core.models.enums.common_enums import ComponentType, ComponentStatus
 from core.infrastructure.logging import EventBusLogger
+from core.errors.exceptions import ResourceLoadError
   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
@@ -244,12 +245,8 @@ class ResourceDiscovery:
             return prompt
 
         except ResourceLoadError:
-            # Пробрасываем ResourceLoadError дальше
             raise
         except Exception as e:
-            # ❌ УДАЛЕНО: Пропуск файлов с ошибками
-            # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-            from core.errors.exceptions import ResourceLoadError
             raise ResourceLoadError(
                 f"Критическая ошибка загрузки ресурса {file_path}: {e}",
                 resource_path=str(file_path)
