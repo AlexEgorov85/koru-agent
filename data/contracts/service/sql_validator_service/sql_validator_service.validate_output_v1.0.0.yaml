@@ -7,16 +7,22 @@ description: Output contract for SQL validator service
 schema_data:
   type: object
   properties:
-    valid:
+    sql:
+      type: string
+      description: Original or sanitized SQL query
+    parameters:
+      type: object
+      description: Query parameters
+    is_valid:
       type: boolean
       description: Whether the SQL query is valid
-    errors:
+    validation_errors:
       type: array
       description: List of validation errors
       items:
         type: string
-    query_type:
-      type: string
-      description: Type of SQL query (SELECT, INSERT, etc.)
+    safety_score:
+      type: number
+      description: Safety score 0.0-1.0
   required:
-    - valid
+    - is_valid

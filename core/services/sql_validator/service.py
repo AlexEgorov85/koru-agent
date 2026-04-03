@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput
 from core.application_context.application_context import ApplicationContext
 import re
@@ -21,14 +22,13 @@ class SQLValidatorServiceOutput(ServiceOutput):
         self.parameters = parameters or {}
 
 
-class ValidatedSQL:
+class ValidatedSQL(BaseModel):
     """Результат валидации SQL-запроса"""
-    def __init__(self, sql: str, parameters: Dict[str, Any], is_valid: bool, validation_errors: List[str] = None, safety_score: float = 0.0):
-        self.sql = sql
-        self.parameters = parameters
-        self.is_valid = is_valid
-        self.validation_errors = validation_errors or []
-        self.safety_score = safety_score  # 0.0-1.0 оценка безопасности
+    sql: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    is_valid: bool
+    validation_errors: List[str] = Field(default_factory=list)
+    safety_score: float = 0.0
 
 
 class SQLValidatorService(BaseService):
@@ -109,10 +109,10 @@ class SQLValidatorService(BaseService):
 
     def _execute_impl(
         self,
-        capability: 'Capability',
+        capability: Capability,
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
-    ) -> Dict[str, Any]:
+    ) -> 'ValidatedSQL':
         """
         Реализация бизнес-логики сервиса валидации SQL (СИНХРОННАЯ).
 
@@ -121,16 +121,11 @@ class SQLValidatorService(BaseService):
         """
         # Валидация SQL-запроса (синхронный вызов)
         result = self.validate_query(parameters.get("sql", ""), parameters.get("parameters"))
-        return {
-            "is_valid": result.is_valid,
-            "validation_errors": result.validation_errors,
-            "sanitized_sql": result.sanitized_sql,
-            "capability": capability.name
-        }
+        return result
 
-    def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> ValidatedSQL:
+    async def validate_query(self, sql_query: str, parameters: Dict[str, Any] = None) -> 'ValidatedSQL':
         """
-        Валидация SQL-запроса на безопасность и корректность (СИНХРОННАЯ).
+        Валидация SQL-запроса на безопасность и корректность.
 
         ARGS:
         - sql_query: строка SQL-запроса для валидации

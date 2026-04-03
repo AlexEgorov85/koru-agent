@@ -89,7 +89,7 @@ class SQLGenerationService(BaseService):
                 event_bus=self._event_bus
             )
             if not await self.error_analyzer.initialize():
-                await self._event_bus.publish(
+                await self._publish_with_context(
                     event_type="sql_generation.init_failed",
                     data={"component": "SQLErrorAnalyzer"},
                     source="sql_generation"
@@ -275,7 +275,7 @@ class SQLGenerationService(BaseService):
             validated = await self._validate_sql_safely(output.generated_sql, {})
 
             # Проверяем что запрос валиден
-            if not validated.is_safe or not validated.sql:
+            if not validated.is_valid or not validated.sql:
                 error_msg = "; ".join(validated.validation_errors) if hasattr(validated, 'validation_errors') else "Validation failed"
                 raise RuntimeError(f"SQL validation failed: {error_msg}")
 
@@ -429,7 +429,7 @@ class SQLGenerationService(BaseService):
         """Публикация события генерации через EventBus"""
         # Используем внедрённый event_bus из BaseComponent
         if hasattr(self, '_event_bus') and self._event_bus is not None:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type=f"sql_generation.{event_type}",
                 data={
                     "user_question": input_data.natural_language_query,
@@ -456,7 +456,7 @@ class SQLGenerationService(BaseService):
     async def _publish_correction_event(self, event_type: str, data: Any, attempt: int, error_analysis: Any):
         """Публикация события коррекции"""
         if hasattr(self, '_event_bus') and self._event_bus is not None:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type=f"sql_correction.{event_type}",
                 data={
                     "attempt": attempt,
@@ -481,7 +481,7 @@ class SQLGenerationService(BaseService):
         """Публикация события выполнения"""
         # Используем внедрённый event_bus из BaseComponent
         if hasattr(self, '_event_bus') and self._event_bus is not None:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type=f"sql_execution.{event_type}",
                 data={
                     "attempt": attempt,
@@ -534,9 +534,9 @@ class SQLGenerationService(BaseService):
         exec_context = ExecutionContext()
 
         result = await self.executor.execute_action(
-            action_name="sql_validator_service.validate",
+            action_name="sql_validator_service.validate_query",
             parameters={
-                "sql": sql,
+                "sql_query": sql,
                 "parameters": parameters
             },
             context=exec_context

@@ -114,7 +114,7 @@ class SearchBooksHandler(BaseSkillHandler):
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
             data_dict = result.data.model_dump() if hasattr(result.data, 'model_dump') else result.data
-            sql_query = data_dict.get('generated_sql', '') if isinstance(data_dict, dict) else getattr(result.data, 'generated_sql', '')
+            sql_query = data_dict.get('sql', '') if isinstance(data_dict, dict) else getattr(result.data, 'sql', '')
             await self.log_info(f"Сгенерированный SQL: {sql_query}")
         else:
             raise SQLGenerationError(
@@ -216,3 +216,36 @@ class SearchBooksHandler(BaseSkillHandler):
                 schema_parts.append(f'"{schema}"."{table}" (\n    {schema_map[table]}\n)')
 
         return ",\n\n".join(schema_parts)
+
+    async def _execute_sql(self, sql_query: str, max_results: int = 100):
+        """
+        Выполнение сгенерированного SQL запроса.
+
+        ARGS:
+        - sql_query: SQL запрос для выполнения
+        - max_results: максимальное количество результатов
+
+        RETURNS:
+        - tuple: (rows, execution_time)
+        """
+        exec_context = ExecutionContext()
+
+        result = await self.executor.execute_action(
+            action_name="sql_query.execute",
+            parameters={
+                "sql_query": sql_query,
+                "max_rows": max_results
+            },
+            context=exec_context
+        )
+
+        if result.status == ExecutionStatus.COMPLETED and result.data:
+            data = result.data
+            rows = data.get("rows", []) if isinstance(data, dict) else getattr(data, "rows", [])
+            exec_time = data.get("execution_time", 0) if isinstance(data, dict) else getattr(data, "execution_time", 0)
+            return rows, exec_time
+        else:
+            raise SQLGenerationError(
+                f"Ошибка выполнения SQL запроса: {result.error}",
+                request=sql_query
+            )

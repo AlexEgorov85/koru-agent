@@ -22,31 +22,18 @@
 
 ## 💡 Использование
 
-> ⚠️ **Миграция:** Сейчас используется `EventBusLogger`. В будущем будет заменено на прямые вызовы `event_bus.publish()` с EventType `USER_MESSAGE`, `USER_PROGRESS`, `USER_RESULT`.
-
 ### 1. Базовые сообщения
 
 ```python
-# Текущий способ (через EventBusLogger):
-from core.infrastructure.logging import EventBusLogger
-
-class MyComponent:
-    def __init__(self, event_bus_logger: EventBusLogger):
-        self.event_bus_logger = event_bus_logger
-    
-    async def run(self):
-        await self.event_bus_logger.user_message("Агент запущен")
-
-# Будущий способ ( напрямую через event_bus):
-from core.infrastructure.event_bus import get_event_bus, EventType
-
-async def run(event_bus, session_id):
-    await event_bus.publish(
-        EventType.USER_MESSAGE,
-        data={"message": "Агент запущен"},
-        session_id=session_id
-    )
+# Используйте _publish_with_context() в компонентах:
+await self._publish_with_context(
+    event_type=EventType.USER_MESSAGE,
+    data={"message": "Агент запущен"},
+    source="my_component"
+)
 ```
+
+Контекст session_id/agent_id автоматически устанавливается в `BaseComponent.execute()`.
 
 ### 2. Примеры для разных сценариев
 

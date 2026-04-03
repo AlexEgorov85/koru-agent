@@ -143,8 +143,8 @@ class BaseSkillHandler(ABC):
 
     async def log_info(self, message: str) -> None:
         """Логирование информационного сообщения"""
-        if self._event_bus:
-            await self._event_bus.publish(
+        if hasattr(self.skill, '_publish_with_context'):
+            await self.skill._publish_with_context(
                 event_type="book_library.info",
                 data={"message": message},
                 source="book_library"
@@ -152,8 +152,8 @@ class BaseSkillHandler(ABC):
 
     async def log_warning(self, message: str) -> None:
         """Логирование предупреждения"""
-        if self._event_bus:
-            await self._event_bus.publish(
+        if hasattr(self.skill, '_publish_with_context'):
+            await self.skill._publish_with_context(
                 event_type="book_library.warning",
                 data={"message": message},
                 source="book_library"
@@ -161,8 +161,8 @@ class BaseSkillHandler(ABC):
 
     async def log_error(self, message: str) -> None:
         """Логирование ошибки"""
-        if self._event_bus:
-            await self._event_bus.publish(
+        if hasattr(self.skill, '_publish_with_context'):
+            await self.skill._publish_with_context(
                 event_type="book_library.error",
                 data={"message": message},
                 source="book_library"
@@ -170,8 +170,8 @@ class BaseSkillHandler(ABC):
 
     async def log_debug(self, message: str) -> None:
         """Логирование отладочного сообщения"""
-        if self._event_bus:
-            await self._event_bus.publish(
+        if hasattr(self.skill, '_publish_with_context'):
+            await self.skill._publish_with_context(
                 event_type="book_library.debug",
                 data={"message": message},
                 source="book_library"

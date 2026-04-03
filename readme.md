@@ -112,7 +112,7 @@
 - ✅ **Гарантия вызова LLM** — `InfrastructureError` если `requires_llm=True` но LLM не вызван
 - ✅ **Валидация ACT decision** — проверка capability_name в `BehaviorManager`
 - ✅ **ReActPattern инварианты** — гарантия что observe() мутирует state
-- ✅ **Логирование через EventBus** — полная миграция с `logging` на `EventBusLogger` (в процессе перехода на `event_bus.publish()`)
+- ✅ **Логирование через EventBus** — используется `_publish_with_context()` с автоматическим session_id/agent_id
 
 ### Новые исключения
 - `AgentStuckError` — агент зациклился

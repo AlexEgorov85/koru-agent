@@ -144,6 +144,27 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     # ЛОГИРОВАНИЕ
     # ========================================================================
 
+    # Контекстные переменные для хранения session_id/agent_id между вызовами
+    _session_id_context = None
+    _agent_id_context = None
+
+    @classmethod
+    def set_execution_context(cls, session_id: str, agent_id: str):
+        """Установить контекст выполнения для текущей операции."""
+        cls._session_id_context = session_id
+        cls._agent_id_context = agent_id
+
+    @classmethod
+    def get_execution_context(cls) -> tuple:
+        """Получить текущий контекст выполнения."""
+        return cls._session_id_context, cls._agent_id_context
+
+    @classmethod
+    def clear_execution_context(cls):
+        """Очистить контекст выполнения."""
+        cls._session_id_context = None
+        cls._agent_id_context = None
+
     def _get_logger_init_state(self):
         """Callback для LoggingMixin: получение текущего состояния инициализации."""
         from core.infrastructure.logging.logger import LoggerInitializationState
@@ -153,6 +174,43 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         elif self._state == ComponentState.INITIALIZING:
             return LoggerInitializationState.INITIALIZING
         return LoggerInitializationState.NOT_INITIALIZED
+
+    async def _publish_with_context(
+        self,
+        event_type,
+        data: Dict[str, Any],
+        source: str = None,
+        execution_context: Optional['ExecutionContext'] = None
+    ):
+        """
+        Публикация события с правильным session_id/agent_id из execution_context.
+
+        ARGS:
+        - event_type: тип события
+        - data: данные события
+        - source: источник события
+        - execution_context: контекст выполнения (если None - использует class variables)
+
+        Приоритет: execution_context > class variables > "system"
+        """
+        if execution_context is not None:
+            session_id = getattr(execution_context, 'session_id', None)
+            agent_id = getattr(execution_context, 'agent_id', None)
+        else:
+            session_id, agent_id = self.get_execution_context()
+
+        if session_id is None:
+            session_id = 'system'
+        if agent_id is None:
+            agent_id = 'system'
+
+        await self._event_bus.publish(
+            event_type=event_type,
+            data=data,
+            source=source,
+            session_id=session_id,
+            agent_id=agent_id
+        )
 
     @property
     def application_context(self) -> Optional['ApplicationContext']:
@@ -507,8 +565,17 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
                     metadata={"capability": capability.name, "execution_time_ms": execution_time_ms}
                 )
 
-            # Выполнение бизнес-логики
-            result = await self._execute_impl(capability, validated_input, execution_context)
+            # Установка контекста для доступа в любом месте вызова
+            self.set_execution_context(
+                session_id=getattr(execution_context, 'session_id', 'system'),
+                agent_id=getattr(execution_context, 'agent_id', 'system')
+            )
+
+            try:
+                # Выполнение бизнес-логики
+                result = await self._execute_impl(capability, validated_input, execution_context)
+            finally:
+                self.clear_execution_context()
 
             # Валидация выходных данных
             validated_output = self.validate_output_typed(capability.name, result)
@@ -532,6 +599,18 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
 
         except Exception as e:
             execution_time_ms = (time.time() - start_time) * 1000
+            await self._publish_with_context(
+                event_type="component.execution_error",
+                data={
+                    "component": self.name,
+                    "capability": capability.name,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "execution_time_ms": execution_time_ms
+                },
+                source=self.name,
+                execution_context=execution_context
+            )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e),

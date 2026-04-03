@@ -28,10 +28,19 @@ if TYPE_CHECKING:
 
 class ExecutionContext:
     """Контекст выполнения для компонентов"""
-    def __init__(self, session_context: Any = None, user_context: Any = None, available_capabilities: list = None):
+    def __init__(
+        self,
+        session_context: Any = None,
+        user_context: Any = None,
+        available_capabilities: list = None,
+        session_id: str = "system",
+        agent_id: str = "system"
+    ):
         self.session_context = session_context
         self.user_context = user_context
         self.available_capabilities = available_capabilities or []
+        self.session_id = session_id
+        self.agent_id = agent_id
 
 
 class ActionExecutor:
@@ -1138,7 +1147,9 @@ class ActionExecutor:
                 await self._event_bus.publish(
                     event_type="executor.service_error",
                     data={"action_name": action_name, "service": service.name, "error": str(e)},
-                    source="action_executor"
+                    source="action_executor",
+                    session_id=context.session_id,
+                    agent_id=context.agent_id
                 )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
@@ -1197,7 +1208,9 @@ class ActionExecutor:
                 await self._event_bus.publish(
                     event_type="executor.tool_error",
                     data={"action_name": action_name, "tool": tool.name, "error": str(e)},
-                    source="action_executor"
+                    source="action_executor",
+                    session_id=context.session_id,
+                    agent_id=context.agent_id
                 )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
@@ -1244,7 +1257,9 @@ class ActionExecutor:
                 await self._event_bus.publish(
                     event_type="executor.component_error",
                     data={"action_name": action_name, "component": component.name, "error": str(e)},
-                    source="action_executor"
+                    source="action_executor",
+                    session_id=context.session_id,
+                    agent_id=context.agent_id
                 )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,

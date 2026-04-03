@@ -113,7 +113,7 @@ class AgentRuntime:
             return
             
         event_bus = self.application_context.infrastructure_context.event_bus
-        await event_bus.publish(EventType.DEBUG, {"message": "🏭 Создание Pattern через ComponentFactory..."})
+        await event_bus.publish(EventType.DEBUG, {"message": "🏭 Создание Pattern через ComponentFactory..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
         
         from core.agent.components.component_factory import ComponentFactory
         from core.agent.behaviors.react.pattern import ReActPattern
@@ -123,10 +123,10 @@ class AgentRuntime:
         
         component_config = behavior_configs.get('react_pattern')
         if not component_config:
-            await event_bus.publish(EventType.WARNING, {"message": "⚠️ react_pattern не найден в behavior_configs, создаём новый"})
+            await event_bus.publish(EventType.WARNING, {"message": "⚠️ react_pattern не найден в behavior_configs, создаём новый"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
             component_config = ComponentConfig(name="react_pattern", variant_id="default")
         else:
-            await event_bus.publish(EventType.INFO, {"message": "✅ Получен component_config из application_context"})
+            await event_bus.publish(EventType.INFO, {"message": "✅ Получен component_config из application_context"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
         
         factory = ComponentFactory(
             infrastructure_context=self.application_context.infrastructure_context
@@ -164,24 +164,26 @@ class AgentRuntime:
 
         # Публикация события
         event_bus = self.application_context.infrastructure_context.event_bus
-        await event_bus._publish_internal(
+        await event_bus.publish(
             EventType.SESSION_STARTED,
-            {"session_id": self.session_context.session_id, "agent_id": self.agent_id, "goal": self.goal}
+            {"session_id": self.session_context.session_id, "agent_id": self.agent_id, "goal": self.goal},
+            session_id=self.session_context.session_id,
+            agent_id=self.agent_id
         )
 
         # Получаем доступные capability
         available_caps = await self._get_available_capabilities()
-        await event_bus.publish(EventType.INFO, {"message": f"📦 Доступно capability: {len(available_caps)}"})
+        await event_bus.publish(EventType.INFO, {"message": f"📦 Доступно capability: {len(available_caps)}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
         # Цикл выполнения
         executed_steps = 0
         for step in range(self.max_steps):
             await event_bus.publish(EventType.INFO, {
                 "message": f"{'='*60}\n📍 ШАГ {step + 1}/{self.max_steps}\n{'='*60}"
-            })
+            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
             
             # Pattern решает
-            await event_bus.publish(EventType.INFO, {"message": "🧠 Pattern.decide()..."})
+            await event_bus.publish(EventType.INFO, {"message": "🧠 Pattern.decide()..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
             decision = await pattern.decide(
                 session_context=self.session_context,
                 available_capabilities=available_caps
@@ -190,7 +192,7 @@ class AgentRuntime:
                 "message": f"✅ Pattern вернул: type={decision.type.value}" +
                           (f", action={decision.action}" if decision.action else "") +
                           (f"\n   reasoning: {decision.reasoning[:150]}..." if decision.reasoning else "")
-            })
+            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
@@ -202,11 +204,15 @@ class AgentRuntime:
 
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
-                await event_bus.publish(EventType.INFO, {"message": f"⚙️ Executor.execute({decision.action})..."})
+                await event_bus.publish(EventType.INFO, {"message": f"⚙️ Executor.execute({decision.action})..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
                 result = await self.safe_executor.execute(
                     capability_name=decision.action,
                     parameters=decision.parameters or {},
-                    context=ExecutionContext(session_context=self.session_context)
+                    context=ExecutionContext(
+                        session_context=self.session_context,
+                        session_id=self.session_context.session_id,
+                        agent_id=self.agent_id
+                    )
                 )
 
                 # Сохранение данных результата в data_context
@@ -231,7 +237,7 @@ class AgentRuntime:
                     items_count_after = self.session_context.data_context.count()
                     await event_bus.publish(EventType.INFO, {
                         "message": f"📝 Сохранено observation: item_id={observation_item_id}, items_before={items_count_before}, items_after={items_count_after}"
-                    })
+                    }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
                 # Запись шага только после выполнения ACT
                 executed_steps += 1
@@ -247,23 +253,23 @@ class AgentRuntime:
                 await event_bus.publish(EventType.INFO, {
                     "message": f"✅ Executor завершил: status={result.status.value}" +
                               (f"\n   ❌ Error: {result.error[:100]}..." if result.error else "")
-                })
+                }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
                 # Если это был final_answer.generate и результат успешный - завершаем
                 if decision.action == "final_answer.generate" and result.status == ExecutionStatus.COMPLETED and result.data:
-                    await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"})
+                    await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
                     return result
 
             # Pattern решил SWITCH?
             if decision.type == DecisionType.SWITCH_STRATEGY:
-                await event_bus.publish(EventType.INFO, {"message": f"🔄 SWITCH STRATEGY: {decision.next_pattern}"})
+                await event_bus.publish(EventType.INFO, {"message": f"🔄 SWITCH STRATEGY: {decision.next_pattern}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
                 pattern = self._load_pattern(decision.next_pattern)
             
             # Pattern решил FINISH/FAIL?
             if decision.type == DecisionType.FINISH:
-                await event_bus.publish(EventType.INFO, {"message": f"✅ FINISH: {decision.reasoning[:100] if decision.reasoning else 'Done'}..."})
+                await event_bus.publish(EventType.INFO, {"message": f"✅ FINISH: {decision.reasoning[:100] if decision.reasoning else 'Done'}..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
             if decision.type == DecisionType.FAIL:
-                await event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"})
+                await event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
         # Max steps exceeded
         return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")

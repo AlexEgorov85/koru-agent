@@ -40,25 +40,24 @@ core/infrastructure/logging/
 └── log_indexer.py       # Индексация сессий
 ```
 
-## ⚠️ Миграция на Event Bus (в процессе)
+## ✅ Архитектура логирования через Event Bus
 
-> **Текущий статус:** В проекте добавлены TODO-комментарии для постепенной миграции. Полный переход на `event_bus.publish()` вместо `EventBusLogger` запланирован на будущее.
+> **Статус:** Миграция завершена. Все компоненты используют `_publish_with_context()`.
 
-### Цель миграции
+### Использование
 
-Убрать промежуточный слой `EventBusLogger` и публиковать события напрямую через `event_bus.publish()`:
+Все компоненты публикуют события через `_publish_with_context()`:
 
 ```python
-# Было (через EventBusLogger):
-await logger.info("Агент запущен")
-
-# Станет (напрямую через event_bus):
-await event_bus.publish(
-    EventType.AGENT_STARTED,
-    data={"message": "Агент запущен"},
-    session_id=session_id
+# В компонентах (BaseComponent):
+await self._publish_with_context(
+    event_type="component.event_name",
+    data={"key": "value"},
+    source="component_name"
 )
 ```
+
+Контекст session_id/agent_id автоматически устанавливается в `BaseComponent.execute()`.
 
 ### Преимущества
 

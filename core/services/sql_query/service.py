@@ -83,21 +83,21 @@ class SQLQueryService(BaseService):
                 event_bus=self._event_bus
             )
             if not await self.error_analyzer.initialize():
-                await self._event_bus.publish(
+                await self._publish_with_context(
                     event_type="sql_query.init_failed",
                     data={"component": "SQLErrorAnalyzer"},
                     source="sql_query"
                 )
                 return False
 
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.initialized",
                 data={"service": "sql_query"},
                 source="sql_query"
             )
             return True
         except Exception as e:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.init_failed",
                 data={"error": str(e)},
                 source="sql_query"
@@ -123,11 +123,11 @@ class SQLQueryService(BaseService):
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
-        # Выполнение безопасного SQL-запроса (синхронное ожидание async метода)
         result = safe_async_call(self.execute_query_from_user_request(
             user_question=parameters.get("user_question", ""),
             tables=parameters.get("tables", []),
-            max_rows=parameters.get("max_rows", 50)
+            max_rows=parameters.get("max_rows", 50),
+            execution_context=execution_context
         ))
         return {"query_result": result, "capability": capability.name}
 
@@ -152,7 +152,7 @@ class SQLQueryService(BaseService):
         from core.services.tools.sql_tool import SQLToolInput
 
         try:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.execute_called",
                 data={"sql": sql_query[:100], "max_rows": max_rows},
                 source="sql_query"
@@ -168,7 +168,7 @@ class SQLQueryService(BaseService):
                         "max_rows": max_rows
                     })
                 except Exception as e:
-                    await self._event_bus.publish(
+                    await self._publish_with_context(
                         event_type="sql_query.validation_error",
                         data={"error": str(e)},
                         source="sql_query"
@@ -190,7 +190,7 @@ class SQLQueryService(BaseService):
             elif parameters is None:
                 params_for_validation = {}
             
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.validating",
                 data={"sql": sql_query[:100]},
                 source="sql_query"
@@ -201,9 +201,9 @@ class SQLQueryService(BaseService):
 
             exec_context = ExecutionContext()
             validation_result_exec = await self.executor.execute_action(
-                action_name="sql_validator_service.validate",
+                action_name="sql_validator_service.validate_query",
                 parameters={
-                    "sql": sql_query,
+                    "sql_query": sql_query,
                     "parameters": params_for_validation
                 },
                 context=exec_context
@@ -220,7 +220,7 @@ class SQLQueryService(BaseService):
 
             validation_result = validation_result_exec.data
             
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.validated",
                 data={"is_valid": validation_result.is_valid},
                 source="sql_query"
@@ -242,7 +242,7 @@ class SQLQueryService(BaseService):
                     infra = self.application_context.infrastructure_context
                     db_provider = infra.resource_registry.get_resource("default_db").instance if infra.resource_registry else None
             
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.db_provider_found",
                 data={"found": db_provider is not None},
                 source="sql_query"
@@ -260,7 +260,7 @@ class SQLQueryService(BaseService):
             # Выполняем запрос напрямую через db_provider
             start_exec_time = time.time()
             try:
-                await self._event_bus.publish(
+                await self._publish_with_context(
                     event_type="sql_query.executing",
                     data={"sql": validation_result.sql[:100]},
                     source="sql_query"
@@ -279,14 +279,14 @@ class SQLQueryService(BaseService):
                     rowcount=result.rowcount if hasattr(result, 'rowcount') else len(result.rows) if hasattr(result, 'rows') else 0,
                     execution_time=execution_time
                 )
-                await self._event_bus.publish(
+                await self._publish_with_context(
                     event_type="sql_query.executed",
                     data={"success": db_result.success, "rows": len(db_result.rows)},
                     source="sql_query"
                 )
                 return db_result
             except Exception as e:
-                await self._event_bus.publish(
+                await self._publish_with_context(
                     event_type="sql_query.execution_error",
                     data={"error": str(e)},
                     source="sql_query"
@@ -301,7 +301,7 @@ class SQLQueryService(BaseService):
                 return db_result
 
         except Exception as e:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.error",
                 data={"error": str(e)},
                 source="sql_query"
@@ -319,7 +319,8 @@ class SQLQueryService(BaseService):
         self,
         user_question: str,
         tables: List[str],
-        max_rows: int = 50
+        max_rows: int = 50,
+        execution_context: 'ExecutionContext' = None
     ) -> DBQueryResult:
         """
         Выполнение SQL-запроса на основе пользовательского вопроса через интеграцию с SQLGenerationservices.
@@ -329,11 +330,18 @@ class SQLQueryService(BaseService):
         - user_question: текст вопроса пользователя
         - tables: список таблиц, к которым разрешен доступ
         - max_rows: максимальное количество возвращаемых строк
+        - execution_context: контекст выполнения для логирования
 
         ВОЗВРАЩАЕТ:
         - DBQueryResult: результат выполнения запроса
         """
         try:
+            await self._publish_with_context(
+                event_type="sql_query.execute_from_request",
+                data={"user_question": user_question[:100], "tables": tables, "max_rows": max_rows},
+                source="sql_query",
+                execution_context=execution_context
+            )
             # Получаем SQLGenerationService для генерации безопасного запроса
             # Используем components.get() напрямую вместо get_service()
             sql_gen_service = None
@@ -366,7 +374,7 @@ class SQLQueryService(BaseService):
             return result
 
         except Exception as e:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.user_request_error",
                 data={"error": str(e)},
                 source="sql_query"
@@ -409,7 +417,7 @@ class SQLQueryService(BaseService):
             await self.shutdown()
             return await self.initialize()
         except Exception as e:
-            await self._event_bus.publish(
+            await self._publish_with_context(
                 event_type="sql_query.restart_failed",
                 data={"error": str(e)},
                 source="sql_query"
@@ -418,7 +426,7 @@ class SQLQueryService(BaseService):
 
     async def shutdown(self) -> None:
         """Завершение работы сервиса"""
-        await self._event_bus.publish(
+        await self._publish_with_context(
             event_type="sql_query.shutdown",
             data={"service": "sql_query"},
             source="sql_query"
