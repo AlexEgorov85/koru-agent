@@ -2,27 +2,31 @@ capability: meta_skill_creator.review
 component_type: skill
 version: v1.0.0
 status: active
-description: User промпт для код-ревью навыка
+description: User промпт для код-ревью компонента
 content: |
-  Проведи код-ревью навыка '{skill_name}'.
+  Проведи код-ревью компонента '{component_name}' (тип: {component_type}).
 
   Фокус ревью: {review_focus}
 
-  Ниже представлены файлы навыка для анализа:
+  Ниже представлены файлы компонента для анализа:
 
-  {skill_files}
+  {component_files}
 
   Оцени код по критериям из системного промпта и верни структурированный отчёт.
 variables:
-  - name: skill_name
-    description: Имя навыка для ревью
+  - name: component_name
+    description: Имя компонента для ревью
     required: true
+  - name: component_type
+    description: Тип компонента (skill/tool/service/behavior)
+    required: false
+    default_value: "skill"
   - name: review_focus
     description: Фокус ревью (security, architecture, style, performance)
     required: false
     default_value: "security, architecture, style"
-  - name: skill_files
-    description: Содержимое файлов навыка
+  - name: component_files
+    description: Содержимое файлов компонента
     required: false
     default_value: ""
 metadata:

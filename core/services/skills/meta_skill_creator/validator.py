@@ -1,10 +1,11 @@
 """
-AST/YAML валидатор для сгенерированных артефактов навыков.
+AST/YAML валидатор для сгенерированных артефактов компонентов.
 
 АРХИТЕКТУРА:
-- SkillValidator: проверяет Python-файлы через AST и YAML через safe_load
+- ComponentValidator: проверяет Python-файлы через AST и YAML через safe_load
+- Поддержка всех типов: skill, tool, service, behavior
 - Запрещённые импорты и вызовы блокируются
-- Обязательные паттерны (наследование BaseSkill, _execute_impl) проверяются
+- Обязательные паттерны (наследование, _execute_impl) проверяются по типу
 """
 import ast
 import yaml
@@ -28,7 +29,20 @@ SAFE_IMPORTS_PREFIXES = {
     "uuid", "copy", "io", "contextlib",
 }
 
-REQUIRED_BASE_CLASS = "BaseSkill"
+TYPE_BASE_CLASSES = {
+    "skill": "BaseSkill",
+    "tool": "BaseTool",
+    "service": "BaseService",
+    "behavior": "BaseBehaviorPattern",
+}
+
+TYPE_MAIN_FILES = {
+    "skill": "skill.py",
+    "tool": None,
+    "service": "service.py",
+    "behavior": "pattern.py",
+}
+
 REQUIRED_METHODS = {"_execute_impl", "get_capabilities"}
 
 
@@ -50,35 +64,40 @@ class ValidationFinding:
         }
 
 
-class SkillValidator:
-    """Валидатор сгенерированных артефактов навыков."""
+class ComponentValidator:
+    """Валидатор сгенерированных артефактов любого типа компонента."""
 
     def validate_artifacts(
         self,
         python_files: Dict[str, str],
         yaml_files: Dict[str, str],
-        skill_name: str = "",
+        component_name: str = "",
+        component_type: str = "skill",
     ) -> Dict[str, Any]:
         """
-        Комплексная валидация всех артефактов навыка.
+        Комплексная валидация всех артефактов компонента.
 
         ARGS:
         - python_files: dict {filename: content}
         - yaml_files: dict {filename: content}
-        - skill_name: ожидаемое имя навыка для проверок
+        - component_name: ожидаемое имя компонента
+        - component_type: тип — 'skill', 'tool', 'service', 'behavior'
 
         RETURNS:
         - dict с полями: is_valid, errors, warnings, findings
         """
         findings: List[ValidationFinding] = []
 
+        main_file = self._get_main_file(component_type)
+
         for filename, content in python_files.items():
-            findings.extend(self._validate_python_file(filename, content, skill_name))
+            is_main = (filename == main_file) if main_file else (component_name and component_name in filename)
+            findings.extend(self._validate_python_file(filename, content, component_name, component_type, is_main))
 
         for filename, content in yaml_files.items():
             findings.extend(self._validate_yaml_file(filename, content))
 
-        findings.extend(self._validate_cross_artifacts(python_files, yaml_files, skill_name))
+        findings.extend(self._validate_cross_artifacts(python_files, yaml_files, component_name, component_type))
 
         errors = [f for f in findings if f.level == "error"]
         warnings = [f for f in findings if f.level == "warning"]
@@ -92,11 +111,16 @@ class SkillValidator:
             "warning_count": len(warnings),
         }
 
+    def _get_main_file(self, component_type: str) -> Optional[str]:
+        return TYPE_MAIN_FILES.get(component_type)
+
     def _validate_python_file(
         self,
         filename: str,
         content: str,
-        skill_name: str = "",
+        component_name: str = "",
+        component_type: str = "skill",
+        is_main: bool = False,
     ) -> List[ValidationFinding]:
         """Валидация одного Python-файла через AST."""
         findings: List[ValidationFinding] = []
@@ -118,8 +142,8 @@ class SkillValidator:
         findings.extend(self._check_imports(tree, filename))
         findings.extend(self._check_dangerous_calls(tree, filename))
 
-        if "skill.py" in filename and skill_name:
-            findings.extend(self._check_skill_structure(tree, filename, skill_name))
+        if is_main and component_name:
+            findings.extend(self._check_component_structure(tree, filename, component_name, component_type))
 
         return findings
 
@@ -196,31 +220,33 @@ class SkillValidator:
 
         return findings
 
-    def _check_skill_structure(
-        self, tree: ast.AST, filename: str, skill_name: str
+    def _check_component_structure(
+        self, tree: ast.AST, filename: str, component_name: str, component_type: str
     ) -> List[ValidationFinding]:
-        """Проверка структуры skill.py: наследование BaseSkill, обязательные методы."""
+        """Проверка структуры: наследование правильного базового класса, обязательные методы."""
         findings: List[ValidationFinding] = []
-        has_base_skill = False
-        found_methods: set = set()
-        expected_class = f"{skill_name.title().replace('_', '')}Skill"
+        expected_base = TYPE_BASE_CLASSES.get(component_type, "BaseSkill")
+        suffix = {"skill": "Skill", "tool": "Tool", "service": "Service", "behavior": "Pattern"}.get(component_type, "Skill")
+        expected_class = f"{component_name.title().replace('_', '')}{suffix}"
         found_class = ""
+        has_correct_base = False
+        found_methods: set = set()
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
                 for base in node.bases:
-                    if isinstance(base, ast.Name) and base.id == REQUIRED_BASE_CLASS:
-                        has_base_skill = True
+                    if isinstance(base, ast.Name) and base.id == expected_base:
+                        has_correct_base = True
                         found_class = node.name
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         if item.name in REQUIRED_METHODS:
                             found_methods.add(item.name)
 
-        if not has_base_skill:
+        if not has_correct_base:
             findings.append(ValidationFinding(
                 level="error",
-                message=f"Класс навыка должен наследовать {REQUIRED_BASE_CLASS}",
+                message=f"Класс должен наследовать {expected_base} (тип: {component_type})",
                 file=filename,
             ))
 
@@ -316,9 +342,10 @@ class SkillValidator:
         self,
         python_files: Dict[str, str],
         yaml_files: Dict[str, str],
-        skill_name: str,
+        component_name: str,
+        component_type: str,
     ) -> List[ValidationFinding]:
-        """Кросс-проверки между Python и YAML артефактами."""
+        """Кросс-проверки между артефактами."""
         findings: List[ValidationFinding] = []
 
         if not python_files:
@@ -327,18 +354,16 @@ class SkillValidator:
                 message="Отсутствуют Python-файлы",
             ))
 
-        if not yaml_files:
-            findings.append(ValidationFinding(
-                level="warning",
-                message="Отсутствуют YAML-файлы (промпты/контракты)",
-            ))
-
-        if skill_name:
-            has_skill_py = any("skill.py" in fn for fn in python_files)
-            if not has_skill_py:
+        main_file = self._get_main_file(component_type)
+        if main_file and component_name:
+            has_main = any(fn == main_file for fn in python_files)
+            if not has_main:
                 findings.append(ValidationFinding(
                     level="error",
-                    message="Отсутствует основной файл skill.py",
+                    message=f"Отсутствует основной файл {main_file}",
                 ))
 
         return findings
+
+
+SkillValidator = ComponentValidator

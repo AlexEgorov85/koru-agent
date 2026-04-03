@@ -2,22 +2,26 @@ capability: meta_skill_creator.fix
 component_type: skill
 version: v1.0.0
 status: active
-description: User промпт для исправления навыка
+description: User промпт для исправления компонента
 content: |
-  Исправь навык '{skill_name}'.
+  Исправь компонент '{component_name}' (тип: {component_type}).
 
   Описание проблемы:
   {issue_description}
 
-  Ниже представлены оригинальные файлы навыка. Проанализируй их и верни исправленные версии.
+  Ниже представлены оригинальные файлы компонента. Проанализируй их и верни исправленные версии.
 
   {original_files}
 
   Верни только исправленные файлы с кратким описанием изменений.
 variables:
-  - name: skill_name
-    description: Имя навыка для исправления
+  - name: component_name
+    description: Имя компонента для исправления
     required: true
+  - name: component_type
+    description: Тип компонента (skill/tool/service/behavior)
+    required: false
+    default_value: "skill"
   - name: issue_description
     description: Описание проблемы
     required: true

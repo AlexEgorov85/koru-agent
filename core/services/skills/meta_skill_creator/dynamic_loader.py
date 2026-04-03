@@ -1,8 +1,8 @@
 """
-Динамический загрузчик навыков: запись файлов на диск и регистрация в рантайме.
+Динамический загрузчик компонентов: запись файлов на диск и регистрация в рантайме.
 
 АРХИТЕКТУРА:
-- DynamicSkillLoader записывает сгенерированные артефакты в файловую систему
+- Записывает артефакты в правильные директории в зависимости от типа
 - Регистрация в ApplicationContext — отдельный шаг, требует подтверждения человека
 - Поддержка hot-reload через importlib.reload
 """
@@ -16,39 +16,78 @@ if TYPE_CHECKING:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-SKILLS_DIR = PROJECT_ROOT / "core" / "services" / "skills"
-PROMPTS_DIR = PROJECT_ROOT / "data" / "prompts" / "skill"
-CONTRACTS_DIR = PROJECT_ROOT / "data" / "contracts" / "skill"
+
+TYPE_DIRECTORIES = {
+    "skill": {
+        "python": PROJECT_ROOT / "core" / "services" / "skills",
+        "prompts": PROJECT_ROOT / "data" / "prompts" / "skill",
+        "contracts": PROJECT_ROOT / "data" / "contracts" / "skill",
+        "main_file": "skill.py",
+        "module_template": "core.services.skills.{name}.skill",
+    },
+    "tool": {
+        "python": PROJECT_ROOT / "core" / "services" / "tools",
+        "prompts": None,
+        "contracts": PROJECT_ROOT / "data" / "contracts" / "tool",
+        "main_file": None,
+        "module_template": "core.services.tools.{name}",
+    },
+    "service": {
+        "python": PROJECT_ROOT / "core" / "services",
+        "prompts": PROJECT_ROOT / "data" / "prompts" / "service",
+        "contracts": PROJECT_ROOT / "data" / "contracts" / "service",
+        "main_file": "service.py",
+        "module_template": "core.services.{name}.service",
+    },
+    "behavior": {
+        "python": PROJECT_ROOT / "core" / "agent" / "behaviors",
+        "prompts": PROJECT_ROOT / "data" / "prompts" / "behavior",
+        "contracts": PROJECT_ROOT / "data" / "contracts" / "behavior",
+        "main_file": "pattern.py",
+        "module_template": "core.agent.behaviors.{name}.pattern",
+    },
+}
+
+TYPE_REGISTRY_MAP = {
+    "skill": "SKILL",
+    "tool": "TOOL",
+    "service": "SERVICE",
+    "behavior": "BEHAVIOR",
+}
 
 
 class DeploymentManifest:
-    """Манифест развёртывания навыка."""
+    """Манифест развёртывания компонента."""
 
     def __init__(
         self,
-        skill_name: str,
-        skill_class_name: str,
+        component_name: str,
+        component_type: str,
+        class_name: str,
         python_files: Dict[str, str],
         yaml_files: Dict[str, str],
     ):
-        self.skill_name = skill_name
-        self.skill_class_name = skill_class_name
+        self.component_name = component_name
+        self.component_type = component_type
+        self.class_name = class_name
         self.python_files = python_files
         self.yaml_files = yaml_files
         self.written_files: List[str] = []
-        self.module_name = f"core.services.skills.{skill_name}.skill"
+        dir_info = TYPE_DIRECTORIES.get(component_type, TYPE_DIRECTORIES["skill"])
+        self.module_name = dir_info["module_template"].format(name=component_name)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "skill_name": self.skill_name,
-            "skill_class_name": self.skill_class_name,
+            "component_name": self.component_name,
+            "component_type": self.component_type,
+            "class_name": self.class_name,
             "module_name": self.module_name,
             "written_files": self.written_files,
         }
 
 
-class DynamicSkillLoader:
-    """Запись артефактов на диск и регистрация навыка в рантайме."""
+class DynamicComponentLoader:
+    """Запись артефактов на диск и регистрация компонента в рантайме."""
 
     def __init__(self, application_context: Optional["ApplicationContext"] = None):
         self.application_context = application_context
@@ -81,31 +120,61 @@ class DynamicSkillLoader:
         }
 
     def _write_python_files(self, manifest: DeploymentManifest) -> List[str]:
-        """Запись Python-файлов навыка."""
+        """Запись Python-файлов компонента."""
         written: List[str] = []
-        skill_dir = SKILLS_DIR / manifest.skill_name
-        skill_dir.mkdir(parents=True, exist_ok=True)
+        dir_info = TYPE_DIRECTORIES.get(manifest.component_type, TYPE_DIRECTORIES["skill"])
+        base_dir = dir_info["python"]
 
-        for filename, content in manifest.python_files.items():
-            target = skill_dir / filename
-            target.write_text(content, encoding="utf-8")
-            written.append(str(target))
+        if manifest.component_type == "tool":
+            for filename, content in manifest.python_files.items():
+                target = base_dir / filename
+                target.write_text(content, encoding="utf-8")
+                written.append(str(target))
+        elif manifest.component_type == "service":
+            if "service.py" in manifest.python_files:
+                target_dir = base_dir / manifest.component_name
+                target_dir.mkdir(parents=True, exist_ok=True)
+                for filename, content in manifest.python_files.items():
+                    target = target_dir / filename
+                    target.write_text(content, encoding="utf-8")
+                    written.append(str(target))
+            else:
+                for filename, content in manifest.python_files.items():
+                    target = base_dir / filename
+                    target.write_text(content, encoding="utf-8")
+                    written.append(str(target))
+        else:
+            target_dir = base_dir / manifest.component_name
+            target_dir.mkdir(parents=True, exist_ok=True)
+            for filename, content in manifest.python_files.items():
+                target = target_dir / filename
+                target.write_text(content, encoding="utf-8")
+                written.append(str(target))
 
         return written
 
     def _write_yaml_files(self, manifest: DeploymentManifest) -> List[str]:
         """Запись YAML-файлов (промпты и контракты)."""
         written: List[str] = []
-        skill_name = manifest.skill_name
+        dir_info = TYPE_DIRECTORIES.get(manifest.component_type, TYPE_DIRECTORIES["skill"])
+        name = manifest.component_name
 
         for filename, content in manifest.yaml_files.items():
-            is_contract = "contract" in filename.lower() or "_input_" in filename.lower() or "_output_" in filename.lower()
+            is_contract = (
+                "contract" in filename.lower()
+                or "_input_" in filename.lower()
+                or "_output_" in filename.lower()
+            )
 
             if is_contract:
-                target_dir = CONTRACTS_DIR / skill_name
+                target_dir = dir_info["contracts"]
             else:
-                target_dir = PROMPTS_DIR / skill_name
+                target_dir = dir_info["prompts"]
 
+            if target_dir is None:
+                continue
+
+            target_dir = target_dir / name
             target_dir.mkdir(parents=True, exist_ok=True)
             target = target_dir / filename
             target.write_text(content, encoding="utf-8")
@@ -113,12 +182,12 @@ class DynamicSkillLoader:
 
         return written
 
-    async def register_skill(self, manifest: DeploymentManifest) -> Dict[str, Any]:
+    async def register_component(self, manifest: DeploymentManifest) -> Dict[str, Any]:
         """
-        Регистрация навыка в рантайме: hot-reload + обновление реестра.
+        Регистрация компонента в рантайме: hot-reload + обновление реестра.
 
         ТРЕБУЕТ: чтобы файлы уже были записаны через write_artifacts().
-        ТРЕБУЕТ: подтверждения оператора (вызывается только после одобрения).
+        ТРЕБУЕТ: подтверждения оператора.
 
         ARGS:
         - manifest: манифест развёртывания
@@ -136,26 +205,26 @@ class DynamicSkillLoader:
 
         try:
             module = self._hot_reload_module(manifest)
-            skill_class = self._resolve_skill_class(module, manifest)
-            component = await self._register_in_context(skill_class, manifest)
+            component_class = self._resolve_component_class(module, manifest)
+            component = await self._register_in_context(component_class, manifest)
 
             return {
                 "success": True,
-                "component_id": component.name if hasattr(component, "name") else manifest.skill_name,
+                "component_id": component.name if hasattr(component, "name") else manifest.component_name,
                 "errors": [],
             }
 
         except ImportError as e:
             errors.append(f"Ошибка импорта модуля: {e}")
         except AttributeError as e:
-            errors.append(f"Класс навыка не найден: {e}")
+            errors.append(f"Класс компонента не найден: {e}")
         except Exception as e:
             errors.append(f"Ошибка регистрации: {e}")
 
         return {"success": False, "errors": errors}
 
     def _hot_reload_module(self, manifest: DeploymentManifest):
-        """Hot-reload модуля навыка."""
+        """Hot-reload модуля компонента."""
         module_name = manifest.module_name
 
         if module_name in sys.modules:
@@ -165,29 +234,34 @@ class DynamicSkillLoader:
 
         return module
 
-    def _resolve_skill_class(self, module, manifest: DeploymentManifest):
-        """Поиск класса навыка в модуле."""
+    def _resolve_component_class(self, module, manifest: DeploymentManifest):
+        """Поиск класса компонента в модуле."""
         candidates = [
-            manifest.skill_class_name,
-            f"{manifest.skill_name.title().replace('_', '')}Skill",
+            manifest.class_name,
         ]
 
         for class_name in candidates:
             if hasattr(module, class_name):
                 return getattr(module, class_name)
 
+        suffix = {"skill": "Skill", "tool": "Tool", "service": "Service", "behavior": "Pattern"}.get(
+            manifest.component_type, "Component"
+        )
+
         for attr_name in dir(module):
+            if attr_name.startswith("_"):
+                continue
             attr = getattr(module, attr_name)
-            if isinstance(attr, type) and attr_name.endswith("Skill"):
+            if isinstance(attr, type) and attr_name.endswith(suffix):
                 return attr
 
         raise AttributeError(
-            f"Не удалось найти класс навыка в модуле {manifest.module_name}. "
-            f"Ожидался один из: {candidates}"
+            f"Не удалось найти класс компонента в модуле {manifest.module_name}. "
+            f"Ожидался: {manifest.class_name}"
         )
 
-    async def _register_in_context(self, skill_class, manifest: DeploymentManifest):
-        """Регистрация навыка в ApplicationContext."""
+    async def _register_in_context(self, component_class, manifest: DeploymentManifest):
+        """Регистрация компонента в ApplicationContext."""
         from core.agent.components.component_factory import ComponentFactory
         from core.config.component_config import ComponentConfig
         from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
@@ -209,20 +283,30 @@ class DynamicSkillLoader:
             prompt_versions={},
             input_contract_versions={},
             output_contract_versions={},
-            variant_id=f"{manifest.skill_name}@dynamic",
+            variant_id=f"{manifest.component_name}@dynamic",
         )
 
         component = await factory.create_and_initialize(
-            component_class=skill_class,
-            name=manifest.skill_name,
+            component_class=component_class,
+            name=manifest.component_name,
             application_context=app_ctx,
             component_config=component_config,
             executor=app_ctx.executor,
         )
 
         from core.application_context.application_context import ComponentType
-        app_ctx.components.register(ComponentType.SKILL, manifest.skill_name, component)
+        type_map = {
+            "skill": ComponentType.SKILL,
+            "tool": ComponentType.TOOL,
+            "service": ComponentType.SERVICE,
+            "behavior": ComponentType.BEHAVIOR,
+        }
+        comp_type = type_map.get(manifest.component_type, ComponentType.SKILL)
+        app_ctx.components.register(comp_type, manifest.component_name, component)
 
         await component.initialize()
 
         return component
+
+
+DynamicSkillLoader = DynamicComponentLoader

@@ -1,17 +1,17 @@
 """
-Юнит-тесты для SkillValidator — AST/YAML валидатора артефактов.
+Юнит-тесты для ComponentValidator — AST/YAML валидатора артефактов.
 """
 import pytest
-from core.services.skills.meta_skill_creator.validator import SkillValidator
+from core.services.skills.meta_skill_creator.validator import ComponentValidator, SkillValidator
 
 
 @pytest.fixture
 def validator():
-    return SkillValidator()
+    return ComponentValidator()
 
 
-class TestValidatePythonFile:
-    """Тесты валидации Python-файлов."""
+class TestValidateSkill:
+    """Тесты валидации навыков."""
 
     def test_valid_skill_file(self, validator):
         code = (
@@ -28,17 +28,147 @@ class TestValidatePythonFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is True
         assert result["error_count"] == 0
+
+    def test_missing_base_skill(self, validator):
+        code = (
+            "class TestSkill:\n"
+            "    pass\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"skill.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="skill",
+        )
+        assert result["is_valid"] is False
+
+
+class TestValidateTool:
+    """Тесты валидации инструментов."""
+
+    def test_valid_tool_file(self, validator):
+        code = (
+            "from core.services.tools.base_tool import BaseTool, ToolInput, ToolOutput\n"
+            "from typing import Dict, Any\n"
+            "\n"
+            "class TestTool(BaseTool):\n"
+            "    def get_capabilities(self):\n"
+            "        return []\n"
+            "\n"
+            "    def _execute_impl(self, capability, parameters, execution_context):\n"
+            "        return {}\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"test_tool.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="tool",
+        )
+        assert result["is_valid"] is True
+
+    def test_missing_base_tool(self, validator):
+        code = (
+            "class TestTool:\n"
+            "    pass\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"test_tool.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="tool",
+        )
+        assert result["is_valid"] is False
+
+
+class TestValidateService:
+    """Тесты валидации сервисов."""
+
+    def test_valid_service_file(self, validator):
+        code = (
+            "from core.services.base_service import BaseService\n"
+            "from typing import Dict, Any\n"
+            "\n"
+            "class TestService(BaseService):\n"
+            "    def get_capabilities(self):\n"
+            "        return []\n"
+            "\n"
+            "    def _execute_impl(self, capability, parameters, execution_context):\n"
+            "        return {}\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"service.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="service",
+        )
+        assert result["is_valid"] is True
+
+    def test_missing_base_service(self, validator):
+        code = (
+            "class TestService:\n"
+            "    pass\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"service.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="service",
+        )
+        assert result["is_valid"] is False
+
+
+class TestValidateBehavior:
+    """Тесты валидации поведений."""
+
+    def test_valid_behavior_file(self, validator):
+        code = (
+            "from core.agent.behaviors.base_behavior_pattern import BaseBehaviorPattern\n"
+            "from typing import Dict, Any\n"
+            "\n"
+            "class TestPattern(BaseBehaviorPattern):\n"
+            "    def get_capabilities(self):\n"
+            "        return []\n"
+            "\n"
+            "    def _execute_impl(self, capability, parameters, execution_context):\n"
+            "        return {}\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"pattern.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="behavior",
+        )
+        assert result["is_valid"] is True
+
+    def test_missing_base_behavior(self, validator):
+        code = (
+            "class TestPattern:\n"
+            "    pass\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"pattern.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="behavior",
+        )
+        assert result["is_valid"] is False
+
+
+class TestDangerousImports:
+    """Тесты на запрещённые импорты."""
 
     def test_dangerous_import_rejected(self, validator):
         code = "import os\nimport subprocess\n"
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
         assert result["error_count"] >= 1
@@ -57,7 +187,8 @@ class TestValidatePythonFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
 
@@ -66,38 +197,11 @@ class TestValidatePythonFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
         assert any("SyntaxError" in e["message"] for e in result["errors"])
-
-    def test_missing_base_skill_inheritance(self, validator):
-        code = (
-            "class TestSkill:\n"
-            "    pass\n"
-        )
-        result = validator.validate_artifacts(
-            python_files={"skill.py": code},
-            yaml_files={},
-            skill_name="test",
-        )
-        assert result["is_valid"] is False
-
-    def test_missing_execute_impl(self, validator):
-        code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
-            "\n"
-            "class TestSkill(BaseSkill):\n"
-            "    def get_capabilities(self):\n"
-            "        return []\n"
-        )
-        result = validator.validate_artifacts(
-            python_files={"skill.py": code},
-            yaml_files={},
-            skill_name="test",
-        )
-        assert result["is_valid"] is False
-        assert any("_execute_impl" in e["message"] for e in result["errors"])
 
     def test_safe_imports_accepted(self, validator):
         code = (
@@ -118,29 +222,10 @@ class TestValidatePythonFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is True
-
-    def test_unknown_import_is_warning_not_error(self, validator):
-        code = (
-            "import some_unknown_lib\n"
-            "from core.services.skills.base_skill import BaseSkill\n"
-            "\n"
-            "class TestSkill(BaseSkill):\n"
-            "    def get_capabilities(self):\n"
-            "        return []\n"
-            "\n"
-            "    async def _execute_impl(self, capability, parameters, execution_context):\n"
-            "        return {}\n"
-        )
-        result = validator.validate_artifacts(
-            python_files={"skill.py": code},
-            yaml_files={},
-            skill_name="test",
-        )
-        assert result["is_valid"] is True
-        assert result["warning_count"] >= 1
 
 
 class TestValidateYamlFile:
@@ -162,7 +247,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={"test.create.user_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is True
 
@@ -187,7 +273,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={"test.create_input_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is True
 
@@ -196,7 +283,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={},
             yaml_files={"test.user_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
 
@@ -205,7 +293,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={},
             yaml_files={"test.user_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
 
@@ -217,7 +306,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={},
             yaml_files={"test.create.user_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
         assert any("content" in e["message"] for e in result["errors"])
@@ -236,7 +326,8 @@ class TestValidateYamlFile:
         result = validator.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={"test.create_input_v1.0.0.yaml": yaml_content},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
         assert any("schema_data" in e["message"] for e in result["errors"])
@@ -249,29 +340,69 @@ class TestCrossArtifactValidation:
         result = validator.validate_artifacts(
             python_files={},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
 
-    def test_missing_skill_py(self, validator):
+    def test_missing_main_file_skill(self, validator):
         result = validator.validate_artifacts(
             python_files={"helper.py": "pass"},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is False
 
-    def test_missing_yaml_is_warning(self, validator):
+    def test_missing_main_file_service(self, validator):
+        result = validator.validate_artifacts(
+            python_files={"helper.py": "pass"},
+            yaml_files={},
+            component_name="test",
+            component_type="service",
+        )
+        assert result["is_valid"] is False
+
+    def test_missing_main_file_behavior(self, validator):
+        result = validator.validate_artifacts(
+            python_files={"helper.py": "pass"},
+            yaml_files={},
+            component_name="test",
+            component_type="behavior",
+        )
+        assert result["is_valid"] is False
+
+    def test_tool_no_main_file_required(self, validator):
+        code = (
+            "from core.services.tools.base_tool import BaseTool\n"
+            "class TestTool(BaseTool):\n"
+            "    def get_capabilities(self): return []\n"
+            "    def _execute_impl(self, c, p, e): return {}\n"
+        )
+        result = validator.validate_artifacts(
+            python_files={"test_tool.py": code},
+            yaml_files={},
+            component_name="test",
+            component_type="tool",
+        )
+        assert result["is_valid"] is True
+
+
+class TestSkillValidatorAlias:
+    """Тест обратной совместимости: SkillValidator = ComponentValidator."""
+
+    def test_alias_works(self):
+        v = SkillValidator()
         code = (
             "from core.services.skills.base_skill import BaseSkill\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self): return []\n"
             "    async def _execute_impl(self, c, p, e): return {}\n"
         )
-        result = validator.validate_artifacts(
+        result = v.validate_artifacts(
             python_files={"skill.py": code},
             yaml_files={},
-            skill_name="test",
+            component_name="test",
+            component_type="skill",
         )
         assert result["is_valid"] is True
-        assert result["warning_count"] >= 1

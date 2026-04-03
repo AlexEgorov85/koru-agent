@@ -1,6 +1,6 @@
 capability: meta_skill_creator.create
 component_type: skill
-description: Выходной контракт для создания нового навыка
+description: Выходной контракт для создания компонента
 direction: output
 schema_data:
   type: object
@@ -8,12 +8,15 @@ schema_data:
     success:
       type: boolean
       description: Успешно ли выполнена операция
-    skill_name:
+    component_name:
       type: string
-      description: Уникальное имя навыка (snake_case)
-    skill_class_name:
+      description: Уникальное имя компонента (snake_case)
+    component_type:
       type: string
-      description: Имя класса навыка (PascalCase + Skill)
+      description: Тип компонента (skill/tool/service/behavior)
+    class_name:
+      type: string
+      description: Имя класса (PascalCase + суффикс типа)
     validation:
       type: object
       description: Результат валидации артефактов
@@ -58,7 +61,8 @@ schema_data:
       description: Текст ошибки (если success=False)
   required:
     - success
-    - skill_name
+    - component_name
+    - component_type
     - message
   additionalProperties: false
 status: active
