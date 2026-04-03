@@ -1,6 +1,5 @@
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from core.models.enums.common_enums import ComponentType
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
 from abc import ABC
 from core.utils.async_utils import safe_async_call
@@ -209,14 +208,14 @@ class SQLGenerationService(BaseService):
 
         # 2. Формирование промпта через централизованный сервис
         prompt_vars = {
-            "user_question": natural_language_query,
-            "table_descriptions": table_schema if isinstance(table_schema, str) else str(table_schema),
+            "natural_language_request": natural_language_query,
+            "table_schema": table_schema if isinstance(table_schema, str) else str(table_schema),
             "allowed_operations": ", ".join(self.allowed_operations),
             "max_rows": self.max_result_rows
         }
 
         # Используем кэшированный промпт из компонента
-        prompt_key = "sql_generation.generate_safe_query"
+        prompt_key = "sql_generation.generate_query"
         prompt_obj = self.get_prompt(prompt_key)
         prompt = prompt_obj.content if prompt_obj else ""
 
@@ -387,30 +386,33 @@ class SQLGenerationService(BaseService):
 
     # Вспомогательные методы (приватные)
     async def _get_table_metadata(self, table_names: List[str]) -> Dict[str, Any]:
-        """Получение метаданных таблиц через существующий сервис"""
-        # Используем components.get() напрямую вместо get_service()
-        if hasattr(self, '_application_context') and self._application_context:
-            table_service = self._application_context.components.get(ComponentType.SERVICE, "table_description_service")
-        else:
-            table_service = None
-            
-        if not table_service:
-            raise RuntimeError("table_description_service не зарегистрирован в прикладном контексте")
+        """Получение метаданных таблиц через executor"""
+        from core.agent.components.action_executor import ExecutionContext
+        from core.models.data.execution import ExecutionStatus
 
         metadata_list = []
+        exec_context = ExecutionContext()
+
         for table_name in table_names:
-            # Извлекаем схему и имя таблицы (поддержка "schema.table")
             parts = table_name.split(".")
             schema_name = parts[0] if len(parts) > 1 else "public"
             actual_table_name = parts[-1]
 
-            metadata = await table_service.get_table_metadata(
-                schema_name=schema_name,
-                table_name=actual_table_name,
-                context=None,  # Контекст будет передан извне при необходимости
-                step_number=0
+            result = await self.executor.execute_action(
+                action_name="table_description_service.get_table",
+                parameters={
+                    "schema_name": schema_name,
+                    "table_name": actual_table_name,
+                    "context": None,
+                    "step_number": 0
+                },
+                context=exec_context
             )
-            metadata_list.append(metadata)
+
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                metadata_list.append(result.data)
+            else:
+                raise RuntimeError(f"Не удалось получить метаданные таблицы {table_name}: {result.error}")
 
         return {"tables": metadata_list}
 
@@ -518,3 +520,36 @@ class SQLGenerationService(BaseService):
         elif "timeout" in error_lower:
             return "timeout_error"
         return "other_error"
+
+    async def _validate_sql_safely(self, sql: str, parameters: Dict[str, Any]) -> 'ValidatedSQL':
+        """
+        Безопасная обёртка для валидации SQL через SQLValidatorService.
+
+        Вызов осуществляется через executor согласно архитектурным правилам.
+        """
+        from core.services.sql_validator.service import ValidatedSQL
+        from core.agent.components.action_executor import ExecutionContext
+        from core.models.data.execution import ExecutionStatus
+
+        exec_context = ExecutionContext()
+
+        result = await self.executor.execute_action(
+            action_name="sql_validator_service.validate",
+            parameters={
+                "sql": sql,
+                "parameters": parameters
+            },
+            context=exec_context
+        )
+
+        if result.status == ExecutionStatus.COMPLETED and result.data:
+            return result.data
+
+        # Fallback при ошибке валидации
+        return ValidatedSQL(
+            sql=sql,
+            parameters=parameters,
+            is_valid=False,
+            validation_errors=[result.error] if result.error else ["Validation failed"],
+            safety_score=0.0
+        )

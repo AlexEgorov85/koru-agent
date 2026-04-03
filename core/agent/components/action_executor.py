@@ -47,10 +47,11 @@ class ActionExecutor:
 
     def __init__(self, application_context: 'ApplicationContext'):
         self.application_context = application_context
-        # Используем event_bus_logger из infrastructure_context если доступен
+        self._event_bus = None
         self._event_bus_logger = None
         try:
             if hasattr(application_context, 'infrastructure_context'):
+                self._event_bus = getattr(application_context.infrastructure_context, 'event_bus', None)
                 self._event_bus_logger = getattr(application_context.infrastructure_context, 'event_bus_logger', None)
         except Exception:
             pass
@@ -1133,9 +1134,12 @@ class ActionExecutor:
             )
 
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка выполнения сервиса '{service.name}': {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self._event_bus:
+                await self._event_bus.publish(
+                    event_type="executor.service_error",
+                    data={"action_name": action_name, "service": service.name, "error": str(e)},
+                    source="action_executor"
+                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -1189,9 +1193,12 @@ class ActionExecutor:
             )
 
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка выполнения инструмента '{tool.name}': {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self._event_bus:
+                await self._event_bus.publish(
+                    event_type="executor.tool_error",
+                    data={"action_name": action_name, "tool": tool.name, "error": str(e)},
+                    source="action_executor"
+                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)
@@ -1233,9 +1240,12 @@ class ActionExecutor:
             return result
 
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Ошибка выполнения компонента '{component.name}': {e}", exc_info=True)
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self._event_bus:
+                await self._event_bus.publish(
+                    event_type="executor.component_error",
+                    data={"action_name": action_name, "component": component.name, "error": str(e)},
+                    source="action_executor"
+                )
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e)

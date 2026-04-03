@@ -142,13 +142,21 @@ class SearchBooksHandler(BaseSkillHandler):
         tables = self.TABLES
 
         try:
-            table_service = self.skill.table_description_service_instance
-            if table_service:
-                tables_metadata = await table_service.get_tables_structure(
-                    table_list=tables,
-                    schema_name=schema_name
-                )
+            from core.agent.components.action_executor import ExecutionContext
+            from core.models.data.execution import ExecutionStatus
 
+            exec_context = ExecutionContext()
+            result = await self.executor.execute_action(
+                action_name="table_description_service.execute",
+                parameters={
+                    "table_list": tables,
+                    "schema_name": schema_name
+                },
+                context=exec_context
+            )
+
+            if result.status == ExecutionStatus.COMPLETED and result.data:
+                tables_metadata = result.data
                 if tables_metadata:
                     schema_parts = []
                     for key, metadata in tables_metadata.items():
