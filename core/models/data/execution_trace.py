@@ -26,6 +26,31 @@ class ErrorType(Enum):
     UNKNOWN = "unknown"
 
 
+class ActionType(Enum):
+    """Типы действий"""
+    TOOL_CALL = "tool_call"
+    LLM_CALL = "llm_call"
+    DECISION = "decision"
+    NONE = "none"
+
+
+@dataclass
+class Action:
+    """Действие агента"""
+    action_type: ActionType
+    name: str
+    input_data: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ActionResult:
+    """Результат действия"""
+    success: bool
+    output_data: Optional[Any] = None
+    execution_time_ms: float = 0.0
+    error: Optional[str] = None
+
+
 @dataclass
 class StepTrace:
     """
