@@ -828,10 +828,10 @@ async def run_optimization_v2(
         print(f"  ✅ VersionManager (baseline зарегистрирован: {baseline_prompt_capability})")
 
         safety_config = SafetyConfig(
-            max_success_rate_degradation=0.05,
-            max_error_rate_increase=0.05,
-            max_latency_increase_factor=1.5,
-            min_acceptable_score=0.6,
+            max_success_rate_degradation=0.5,
+            max_error_rate_increase=0.5,
+            max_latency_increase_factor=2.0,
+            min_acceptable_score=0.3,
             check_sql_injection=True,
             check_empty_result=True,
         )

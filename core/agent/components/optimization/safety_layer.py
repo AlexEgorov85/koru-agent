@@ -25,6 +25,7 @@ class SafetyCheckType(Enum):
     SQL_INJECTION = "sql_injection"
     EMPTY_RESULT = "empty_result"
     LATENCY_SPIKE = "latency_spike"
+    SCORE_MINIMUM = "score_minimum"
 
 
 @dataclass
@@ -197,14 +198,16 @@ class SafetyLayer:
         Проверка деградации success_rate.
 
         RULE: new.success_rate не должен быть меньше old.success_rate
+        Допускается улучшение (degradation может быть отрицательной).
         """
         degradation = baseline.success_rate - candidate.success_rate
 
-        if degradation > self.config.max_success_rate_degradation:
+        # Если degradation отрицательная - это улучшение, проверка проходит
+        if degradation <= self.config.max_success_rate_degradation:
             return SafetyCheck(
                 check_type=SafetyCheckType.SUCCESS_RATE,
-                passed=False,
-                message=f"Success rate ухудшился на {degradation:.2%}",
+                passed=True,
+                message=f"Success rate в норме (деградация {degradation:.2%})",
                 details={
                     'baseline': baseline.success_rate,
                     'candidate': candidate.success_rate,
@@ -215,12 +218,13 @@ class SafetyLayer:
 
         return SafetyCheck(
             check_type=SafetyCheckType.SUCCESS_RATE,
-            passed=True,
-            message=f"Success rate в норме (ухудшение {degradation:.2%})",
+            passed=False,
+            message=f"Success rate ухудшился на {abs(degradation):.2%}",
             details={
                 'baseline': baseline.success_rate,
                 'candidate': candidate.success_rate,
-                'degradation': degradation
+                'degradation': degradation,
+                'threshold': self.config.max_success_rate_degradation
             }
         )
 
@@ -360,7 +364,7 @@ class SafetyLayer:
         """
         if candidate.score < self.config.min_acceptable_score:
             return SafetyCheck(
-                check_type=SafetyCheckType.SUCCESS_RATE,  # Используем общий тип
+                check_type=SafetyCheckType.SCORE_MINIMUM,
                 passed=False,
                 message=f"Score ниже минимума: {candidate.score:.3f}",
                 details={
@@ -370,7 +374,7 @@ class SafetyLayer:
             )
 
         return SafetyCheck(
-            check_type=SafetyCheckType.SUCCESS_RATE,
+            check_type=SafetyCheckType.SCORE_MINIMUM,
             passed=True,
             message=f"Score выше минимума: {candidate.score:.3f}",
             details={

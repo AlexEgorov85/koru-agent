@@ -478,16 +478,21 @@ class OptimizationOrchestrator:
 
             evaluated_candidates.append((candidate, candidate_eval, improvement))
 
+            print(f"\n  🔍 [Evaluate] Кандидат: {candidate.id}")
+            print(f"     improvement: {improvement:.4f} (min: {self.config.min_improvement})")
+            
             if improvement >= self.config.min_improvement:
                 # Проверка безопасности
                 is_safe, checks = await self.safety_layer.check(
                     candidate_eval, baseline_eval
                 )
+                print(f"     is_safe: {is_safe}, checks: {[c.check_type.value for c in checks]}")
 
                 if is_safe and improvement > best_improvement:
                     best_candidate = candidate
                     best_eval = candidate_eval
                     best_improvement = improvement
+                    print(f"     ★ НОВЫЙ ЛУЧШИЙ! best_improvement={best_improvement:.4f}")
 
                     await self._publish_event(
                         EventType.OPTIMIZATION_CYCLE_COMPLETED,
@@ -501,25 +506,44 @@ class OptimizationOrchestrator:
                         },
                     )
                 else:
+                    reason = "Safety check failed" if not is_safe else "Not better than current best"
+                    print(f"     → Rejected: {reason}")
                     await self.version_manager.reject(
                         candidate.id,
                         capability,
-                        "Safety check failed" if not is_safe else "Not better than current best",
+                        reason,
                     )
             else:
+                print(f"     → Rejected: Insufficient improvement")
                 await self.version_manager.reject(
                     candidate.id, capability, "Insufficient improvement"
                 )
 
         # Продвижение лучшего кандидата (один раз)
-        if best_candidate and best_eval:
+        if best_candidate and best_eval and best_improvement > 0:
+            print(f"\n  🎯 ПРОМОУЖН: Лучший кандидент найден!")
+            print(f"     best_candidate: {best_candidate.id}")
+            print(f"     best_eval.score: {best_eval.score}")
+            print(f"     best_improvement: {best_improvement:.4f}")
+            print(f"     baseline.id: {baseline.id}")
+            print(f"\n  🎯 ПРОМОУЖН: Лучший кандидент найден!")
+            print(f"     best_candidate: {best_candidate.id}")
+            print(f"     best_eval.score: {best_eval.score}")
+            print(f"     best_improvement: {best_improvement:.4f}")
+            print(f"     min_improvement: {self.config.min_improvement}")
+            print(f"     baseline.id: {baseline.id}")
+
             # Откат предыдущей active версии (если была продвинута ранее в цикле)
             current_active = await self.version_manager.get_active(capability)
+            print(f"     current_active: {current_active.id if current_active else None}")
+            
             if current_active and current_active.id != baseline.id:
                 await self.version_manager.rollback(capability, baseline.id)
+                print(f"     → Rollback выполнен")
 
             # Продвижение лучшего
             await self.version_manager.promote(best_candidate.id, capability)
+            print(f"     → Promote выполнен для {best_candidate.id}")
 
             result.to_version = best_candidate.id
             result.final_metrics = {
@@ -528,8 +552,12 @@ class OptimizationOrchestrator:
                 "latency": best_eval.latency,
             }
             result.target_achieved = best_eval.success_rate >= self.config.target_accuracy
-
+            print(f"     → to_version: {result.to_version}")
         else:
+            print(f"\n  ⚠️ ПРОМОУЖН: Лучший кандидент НЕ найден")
+            print(f"     best_candidate: {best_candidate}")
+            print(f"     best_eval: {best_eval}")
+            print(f"     best_improvement: {best_improvement:.4f}")
             # Улучшений не найдено — остаёмся на baseline
             result.final_metrics = {
                 "success_rate": baseline_eval.success_rate,
