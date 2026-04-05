@@ -170,7 +170,7 @@ class LLMProviderConfig(BaseModel):
     @field_validator('provider_type')
     @classmethod
     def validate_provider_type(cls, v):
-        valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini']
+        valid_types = ['vllm', 'llama_cpp', 'openai', 'anthropic', 'gemini', 'openrouter', 'mock']
         if v.lower() not in valid_types:
             raise ValueError(f"Неподдерживаемый тип: {v}. Допустимые: {valid_types}")
         return v.lower()

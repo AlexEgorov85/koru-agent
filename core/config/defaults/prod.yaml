@@ -29,7 +29,12 @@ db_providers:
 debug: false
 llm_providers:
   default_llm:
-    enabled: true
+    provider_type: openrouter
+    model_name: qwen/qwen3.6-plus:free
+    parameters:
+      api_key: "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"
+  default_llm_2:
+    enabled: false
     fallback_providers: []
     model_name: qwen-4b
     parameters:

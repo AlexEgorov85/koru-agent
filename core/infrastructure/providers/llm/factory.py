@@ -5,6 +5,7 @@ from typing import Dict, Type
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.llm.mock_provider import MockProvider
+from core.infrastructure.providers.llm.openrouter_provider import OpenRouterProvider
 
 
 class LLMProviderFactory:
@@ -15,6 +16,7 @@ class LLMProviderFactory:
     PROVIDER_CLASSES = {
         'llama_cpp': LlamaCppProvider,
         'mock': MockProvider,
+        'openrouter': OpenRouterProvider,
     }
 
     _providers: Dict[str, Type[BaseLLMProvider]] = PROVIDER_CLASSES

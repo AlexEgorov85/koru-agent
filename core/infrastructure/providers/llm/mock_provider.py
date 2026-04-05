@@ -63,8 +63,8 @@ class MockLLMProvider(BaseLLMProvider):
             response: Ответ, который будет возвращен при совпадении
         """
         self._prompt_responses[prompt_pattern] = response
-        self.event_bus_logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self.event_bus_logger is not None:
+            self.event_bus_logger.debug(f"Зарегистрирован ответ для паттерна: {prompt_pattern[:50]}...")
     
     def register_regex_response(self, pattern: str, response: str):
         """
@@ -76,8 +76,8 @@ class MockLLMProvider(BaseLLMProvider):
         """
         compiled_pattern = re.compile(pattern, re.IGNORECASE | re.DOTALL)
         self._prompt_responses[compiled_pattern] = response
-        self.event_bus_logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self.event_bus_logger is not None:
+            self.event_bus_logger.debug(f"Зарегистрирован regex-ответ для паттерна: {pattern}")
     
     def set_default_response(self, response: str):
         """
@@ -152,15 +152,17 @@ class MockLLMProvider(BaseLLMProvider):
     async def initialize(self) -> bool:
         """Инициализация провайдера."""
         try:
+            if self.event_bus_logger is None:
+                from core.infrastructure.logging import EventBusLogger
+                self.event_bus_logger = EventBusLogger(event_bus=None, component_name="mock_llm")
             self.event_bus_logger.info(f"Mock LLM провайдер инициализирован для модели: {self.model_name}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             self.initialized = True
             self.is_initialized = True
             self._set_healthy_status()
             return True
         except Exception as e:
-            self.event_bus_logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if self.event_bus_logger is not None:
+                self.event_bus_logger.error(f"Ошибка инициализации MockLLMProvider: {str(e)}")
             return False
 
     async def health_check(self) -> Dict[str, Any]:

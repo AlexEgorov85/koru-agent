@@ -164,7 +164,6 @@ class ResourceDiscovery:
             if not isinstance(data, dict):
                 # ❌ УДАЛЕНО: Пропуск файлов с ошибками
                 # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                from core.errors.exceptions import ResourceLoadError
                 raise ResourceLoadError(
                     f"Файл промпта {file_path} не содержит словарь. "
                     f"Проверьте корректность YAML формата.",
@@ -184,7 +183,6 @@ class ResourceDiscovery:
             if not capability or not version:
                 # ❌ УДАЛЕНО: Пропуск файлов
                 # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                from core.errors.exceptions import ResourceLoadError
                 raise ResourceLoadError(
                     f"Файл {file_path} не содержит capability или version. "
                     f"Это обязательные поля для промпта.",
@@ -205,9 +203,6 @@ class ResourceDiscovery:
                     try:
                         parsed_variables.append(PromptVariable(**var))
                     except Exception as e:
-                        # ❌ УДАЛЕНО: Пропуск ошибок парсинга переменных
-                        # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                        from core.errors.exceptions import ResourceLoadError
                         raise ResourceLoadError(
                             f"Ошибка парсинга переменной в {file_path}: {e}",
                             resource_path=str(file_path)
@@ -220,7 +215,6 @@ class ResourceDiscovery:
                 except ValueError:
                     # ❌ УДАЛЕНО: Default на SKILL
                     # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                    from core.errors.exceptions import ResourceLoadError
                     raise ResourceLoadError(
                         f"Неизвестный тип компонента '{component_type}' в {file_path}. "
                         f"Допустимые значения: skill, service, tool, behavior",
@@ -272,7 +266,6 @@ class ResourceDiscovery:
             if not isinstance(data, dict):
                 # ❌ УДАЛЕНО: Пропуск файлов с ошибками
                 # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                from core.errors.exceptions import ResourceLoadError
                 raise ResourceLoadError(
                     f"Файл контракта {file_path} не содержит словарь. "
                     f"Проверьте корректность YAML формата.",
@@ -295,7 +288,6 @@ class ResourceDiscovery:
             if not capability or not version:
                 # ❌ УДАЛЕНО: Пропуск файлов
                 # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                from core.errors.exceptions import ResourceLoadError
                 raise ResourceLoadError(
                     f"Не удалось определить capability/version для {file_path}. "
                     f"Укажите их в файле или используйте формат имени файла {{capability}}_{{direction}}_{{version}}.yaml",
@@ -315,7 +307,6 @@ class ResourceDiscovery:
             if not direction:
                 # ❌ УДАЛЕНО: Пропуск файлов
                 # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                from core.errors.exceptions import ResourceLoadError
                 raise ResourceLoadError(
                     f"Не удалось определить направление контракта для {file_path}. "
                     f"Используйте формат имени файла {{capability}}_{{direction}}_{{version}}.yaml "
@@ -330,7 +321,6 @@ class ResourceDiscovery:
                 except ValueError:
                     # ❌ УДАЛЕНО: Default на SKILL
                     # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-                    from core.errors.exceptions import ResourceLoadError
                     raise ResourceLoadError(
                         f"Неизвестный тип компонента '{component_type}' в {file_path}. "
                         f"Допустимые значения: skill, service, tool, behavior",
@@ -359,7 +349,6 @@ class ResourceDiscovery:
         except Exception as e:
             # ❌ УДАЛЕНО: Пропуск файлов с ошибками
             # ✅ ТЕПЕРЬ: Выбрасываем ResourceLoadError
-            from core.errors.exceptions import ResourceLoadError
             raise ResourceLoadError(
                 f"Критическая ошибка загрузки ресурса {file_path}: {e}",
                 resource_path=str(file_path)
