@@ -114,7 +114,7 @@ class SearchBooksHandler(BaseSkillHandler):
 
         if result.status == ExecutionStatus.COMPLETED and result.data:
             data_dict = result.data.model_dump() if hasattr(result.data, 'model_dump') else result.data
-            sql_query = data_dict.get('sql', '') if isinstance(data_dict, dict) else getattr(result.data, 'sql', '')
+            sql_query = data_dict.get('generated_sql', '') if isinstance(data_dict, dict) else getattr(result.data, 'generated_sql', '')
             await self.log_info(f"Сгенерированный SQL: {sql_query}")
         else:
             raise SQLGenerationError(

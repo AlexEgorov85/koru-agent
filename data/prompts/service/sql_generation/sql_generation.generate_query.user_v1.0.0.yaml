@@ -1,26 +1,26 @@
 capability: sql_generation.generate_query
 component_type: service
-content: 'Generate a SQL query for the following request:
+version: v1.0.0
+status: active
+description: Генерация SQL запроса из естественного языка
+content: |
+  {natural_language_request}
 
-  {{ natural_language_request }}
+  Используя схему базы данных:
 
+  {table_schema}
 
-  Using the database schema:
+  Верни ТОЛЬКО JSON объект:
 
-  {{ table_schema }}
-
-
-  Return only the SQL query without any explanation.'
+  {"generated_sql": "...", "confidence_score": 0.9, "explanation": "...", "potential_issues": []}
+variables:
+  - name: natural_language_request
+    description: Запрос на естественном языке
+    required: true
+  - name: table_schema
+    description: Схема базы данных
+    required: true
 metadata:
   author: system
   created: '2026-02-15'
   description: Prompt for sql_generation.generate_query
-status: active
-variables:
-- description: Request in natural language
-  name: natural_language_request
-  required: true
-- description: Database schema
-  name: table_schema
-  required: true
-version: v1.0.0

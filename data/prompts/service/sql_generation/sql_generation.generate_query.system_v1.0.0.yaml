@@ -7,13 +7,13 @@ content: |
   Ты — сервис генерации SQL-запросов. Твоя задача — создать SQL-запрос на основе вопроса пользователя и схемы базы данных.
 
   === ВХОДНЫЕ ДАННЫЕ ===
-  Вопрос пользователя: {user_question}
+  Вопрос пользователя: {natural_language_request}
   
   Схема базы данных:
-  {table_descriptions}
+  {table_schema}
 
   === ПРАВИЛА ===
-  1. SQL должен быть безопасным (только SELECT операции)
+  1. SQL должен быть безопасным (только SELECT, без INSERT/UPDATE/DELETE)
   2. Используй параметризованные запросы где возможно
   3. Оптимизируй запросы для производительности
   4. Разрешённые операции: {allowed_operations}
@@ -21,22 +21,17 @@ content: |
 
   === ФОРМАТ ОТВЕТА ===
   Верни ТОЛЬКО JSON объект со следующей структурой:
-  {{
-    "generated_sql": "текст SQL запроса",
-    "confidence_score": 0.0-1.0 (уверенность в запросе),
-    "explanation": "объяснение выбранного подхода",
-    "potential_issues": [] (список потенциальных проблем или пустой список)
-  }}
+  {"generated_sql": "...", "confidence_score": 0.9, "explanation": "...", "potential_issues": []}
 
   === ВАЖНО ===
   - Никакого текста до или после JSON
   - Только один JSON объект
   - Убедись, что SQL синтаксически корректен
 variables:
-  - name: user_question
+  - name: natural_language_request
     description: Вопрос пользователя на естественном языке
-  - name: table_descriptions
-    description: Описание таблиц базы данных
+  - name: table_schema
+    description: Схема базы данных
   - name: allowed_operations
     description: Разрешённые SQL операции
   - name: max_rows

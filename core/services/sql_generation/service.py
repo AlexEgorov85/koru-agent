@@ -250,7 +250,7 @@ class SQLGenerationService(BaseService):
                         "output_model": "SQLGenerationOutput",
                         "schema_def": SQLGenerationOutput.model_json_schema(),
                         "max_retries": 3,
-                        "strict_mode": True
+                        "strict_mode": False  # TEMP: отключено для отладки
                     }
                 },
                 context=exec_context

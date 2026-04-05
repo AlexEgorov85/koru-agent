@@ -9,8 +9,6 @@ import asyncio
 import time
 import json
 import re
-import os
-from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 import aiohttp
@@ -25,26 +23,6 @@ from core.models.types.llm_types import (
     RawLLMResponse
 )
 from pydantic import BaseModel, Field
-
-
-# Глобальный файл для debug логов
-_DEBUG_LOG_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "data", "logs", "debug_openrouter.jsonl"
-)
-
-
-def _write_debug_log(message: str) -> None:
-    """Запись debug логов в файл"""
-    try:
-        os.makedirs(os.path.dirname(_DEBUG_LOG_FILE), exist_ok=True)
-        with open(_DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps({
-                "timestamp": datetime.now().isoformat(),
-                "message": message
-            }) + "\n")
-    except Exception:
-        pass  # Игнорируем ошибки записи
 
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -80,19 +58,6 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
     await provider.initialize()
     response = await provider.generate(request)
     """
-
-    @staticmethod
-    def _write_debug_log(message: str) -> None:
-        """Запись debug логов в файл"""
-        try:
-            os.makedirs(os.path.dirname(_DEBUG_LOG_FILE), exist_ok=True)
-            with open(_DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(json.dumps({
-                    "timestamp": datetime.now().isoformat(),
-                    "message": message
-                }) + "\n")
-        except Exception:
-            pass  # Игнорируем ошибки записи
 
     def __init__(self, config, model_name: str = None):
         if isinstance(config, dict):
@@ -213,20 +178,12 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             }
 
     def _build_schema_prompt(self, schema_def: Dict[str, Any]) -> str:
-        """Формирование промпта с JSON схемой для structured output."""
-        simplified_schema = {
-            "type": "object",
-            "properties": {},
-            "required": schema_def.get("required", [])
-        }
+        """Формирование промпта с JSON схемой для structured output.
 
-        for prop_name, prop_def in schema_def.get("properties", {}).items():
-            simplified_schema["properties"][prop_name] = {
-                "type": prop_def.get("type", "string"),
-                "description": prop_def.get("description", "")[:100]
-            }
-
-        schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
+        Схема передаётся целиком — без упрощения, чтобы сохранить
+        enum-ы, вложенные объекты, массивы и другие конструкции.
+        """
+        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
 
         schema_prompt = (
             "\n=== JSON SCHEMA ===\n"
@@ -298,24 +255,52 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         - ТОЛЬКО выполняет HTTP вызов к API
         - НЕ публикует события (это делает LLMOrchestrator)
         - Возвращает LLMResponse или бросает исключение
+
+        RETRY для free-моделей:
+        - OpenRouter free возвращает пустые ответы при rate limit (HTTP 200, но content="")
+        - Делаем до 3 попыток с экспоненциальным backoff
         """
         if not self.is_initialized or not self._session:
             await self.initialize()
 
+        max_retries = 3
+        last_result = None
+
+        for attempt in range(1, max_retries + 1):
+            result = await self._execute_single_attempt(request)
+            last_result = result
+
+            # Detect empty response — признак rate limiting free-модели
+            is_empty = (
+                not result.content
+                and (result.raw_response is None or not result.raw_response.content)
+            )
+
+            if is_empty and attempt < max_retries:
+                wait_time = 20 + (attempt * 10)  # 30s, 40s, 50s — total ~120s max
+                print(f"⚠️ [OPENROUTER] Empty response (attempt {attempt}/{max_retries}), "
+                      f"rate limit? Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+                continue
+
+            return result
+
+        return last_result  # type: ignore
+
+    async def _execute_single_attempt(self, request: LLMRequest) -> LLMResponse:
+        """Одна попытка HTTP запроса."""
         start_time = time.time()
 
         messages = self._build_messages(request)
 
-        payload = {
+        # Минимальный payload — ТОЧНО как OpenAI client.
+        # OpenRouter free-модели могут возвращать пустые ответы при любых параметрах.
+        payload: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
-            "top_p": request.top_p,
-            "frequency_penalty": request.frequency_penalty,
-            "presence_penalty": request.presence_penalty,
         }
 
+        # Добавляем ТОЛЬКО stop_sequences (если есть)
         if request.stop_sequences:
             payload["stop"] = request.stop_sequences
 
@@ -327,23 +312,11 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 messages.insert(0, {"role": "system", "content": schema_prompt})
             payload["messages"] = messages
 
-        # DEBUG: Логирование исходящего запроса в файл
-        debug_messages = [{"role": m["role"], "content": m["content"][:500] + "..." if len(m.get("content", "")) > 500 else m.get("content", "")} for m in messages]
-        debug_log = f"""
-🔵 [OPENROUTER] DEBUG REQUEST:
-  model: {self.model_name}
-  messages: {debug_messages}
-  temperature: {request.temperature}, max_tokens: {request.max_tokens}
-  has_structured_output: {hasattr(request, 'structured_output') and request.structured_output is not None}
-"""
-        if hasattr(request, 'structured_output') and request.structured_output:
-            debug_log += f"  output_model: {request.structured_output.output_model}\n"
-        debug_log += "\n"
-        self._write_debug_log(debug_log)
-
         try:
             async with self._session.post(self.config_obj.base_url, json=payload) as response:
-                if response.status != 200:
+                response_status = response.status
+
+                if response_status != 200:
                     error_body = await response.text()
                     self._update_metrics(time.time() - start_time, success=False)
                     return LLMResponse(
@@ -353,8 +326,8 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                         generation_time=time.time() - start_time,
                         finish_reason="error",
                         metadata={
-                            "error": f"HTTP {response.status}: {error_body[:500]}",
-                            "status_code": response.status
+                            "error": f"HTTP {response_status}: {error_body[:500]}",
+                            "status_code": response_status
                         }
                     )
 
@@ -396,27 +369,39 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             )
 
         message = choices[0].get("message", {})
-        generated_text = message.get("content", "")
+        raw_content = message.get("content")
+        generated_text = raw_content if raw_content is not None else ""
         finish_reason = choices[0].get("finish_reason", "stop")
         tokens_used = usage.get("total_tokens", 0)
         generation_time = time.time() - start_time
 
-        # DEBUG: Логирование ответа в файл
-        content_preview = generated_text[:300] + "..." if len(generated_text) > 300 else generated_text
-        debug_log = f"""🟢 [OPENROUTER] DEBUG RESPONSE:
-  model: {self.model_name}
-  finish_reason: {finish_reason}
-  tokens_used: {tokens_used}
-  generation_time: {generation_time:.2f}s
-  content length: {len(generated_text)}
-  content preview: {content_preview}
-
-"""
-        self._write_debug_log(debug_log)
-
         if hasattr(request, 'structured_output') and request.structured_output is not None and isinstance(request.structured_output, StructuredOutputConfig):
+            # Для structured output пустой ответ — это ошибка, не пытаемся парсить
+            if not generated_text or not generated_text.strip():
+                return LLMResponse(
+                    parsed_content=None,
+                    raw_response=RawLLMResponse(
+                        content="",
+                        model=self.model_name,
+                        tokens_used=tokens_used,
+                        generation_time=generation_time,
+                        finish_reason="stop",
+                        metadata={"error": "empty_response", "warning": "LLM вернул пустой ответ для structured output запроса"}
+                    ),
+                    model=self.model_name,
+                    tokens_used=tokens_used,
+                    generation_time=generation_time,
+                    parsing_attempts=1,
+                    validation_errors=[{
+                        "error": "empty_response",
+                        "message": "LLM вернул пустой ответ — невозможно распарсить JSON"
+                    }]
+                )
+
+            # Всегда извлекаем JSON — даже если модель вернула markdown-обёртку
+            json_content = self._extract_json_from_response(generated_text)
+
             try:
-                json_content = self._extract_json_from_response(generated_text)
                 parsed_json = json.loads(json_content)
 
                 return LLMResponse(
@@ -436,6 +421,8 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                     validation_errors=[]
                 )
             except (json.JSONDecodeError, Exception) as err:
+                # При ошибке парсинга — возвращаем сырой ответ с finish_reason=stop,
+                # чтобы LLMOrchestrator мог попытаться распарсить сам (extract_json)
                 return LLMResponse(
                     parsed_content=None,
                     raw_response=RawLLMResponse(
@@ -443,9 +430,12 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                         model=self.model_name,
                         tokens_used=tokens_used,
                         generation_time=generation_time,
-                        finish_reason="error"
+                        finish_reason="stop",
+                        metadata={"parse_error": str(err)}
                     ),
                     model=self.model_name,
+                    tokens_used=tokens_used,
+                    generation_time=generation_time,
                     parsing_attempts=1,
                     validation_errors=[{
                         "error": "json_parse_error" if isinstance(err, json.JSONDecodeError) else "exception",
@@ -464,7 +454,17 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         )
 
     def _build_messages(self, request: LLMRequest) -> List[Dict[str, str]]:
-        """Построение списка сообщений из запроса."""
+        """Построение списка сообщений из запроса.
+
+        Поддерживает два режима:
+        1. Multi-turn: если передан request.messages — используется он напрямую
+        2. Single-turn: если request.prompt — создаётся одно user-сообщение
+        """
+        # Режим 1: Multi-turn — messages уже содержит полную историю
+        if request.messages:
+            return list(request.messages)
+
+        # Режим 2: Single-turn — классический prompt/system_prompt
         messages = []
 
         if request.system_prompt:
@@ -482,26 +482,17 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         max_tokens: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None
     ) -> str:
-        """Генерация текста (для совместимости с LLMInterface)."""
+        """Генерация текста (для совместимости с LLMInterface).
+
+        Поддерживает multi-turn диалоги — messages передаётся напрямую
+        без склеивания, сохраняя роли system/user/assistant.
+        """
         if not self.is_initialized:
             await self.initialize()
 
-        system_prompt = ""
-        user_prompt = ""
-
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "system":
-                system_prompt = content
-            elif role == "user":
-                user_prompt = content
-            elif role == "assistant":
-                user_prompt += f"\n\nAssistant: {content}"
-
         request = LLMRequest(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
+            prompt="",  # Не используется, т.к. есть messages
+            messages=messages,
             temperature=temperature,
             max_tokens=max_tokens or self.config_obj.max_tokens,
             stop_sequences=stop_sequences
@@ -516,27 +507,52 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         response_schema: Dict[str, Any],
         temperature: float = 0.7
     ) -> Dict[str, Any]:
-        """Генерация структурированного ответа (для совместимости с LLMInterface)."""
+        """Генерация структурированного ответа (для совместимости с LLMInterface).
+
+        messages передаётся напрямую без склеивания system-сообщений.
+        Schema-инструкция добавляется как отдельный system-message в начало.
+        """
         if not self.is_initialized:
             await self.initialize()
 
-        schema_json = json.dumps(response_schema, ensure_ascii=False)
-        system_message = {
+        # Формируем schema-инструкцию
+        schema_instruction = {
             "role": "system",
-            "content": f"Ответь ТОЛЬКО валидным JSON согласно этой схеме:\n{schema_json}"
+            "content": (
+                "Ответь ТОЛЬКО валидным JSON согласно предоставленной схеме.\n"
+                "НЕ добавляй пояснений, вступлений или markdown-обёрток.\n"
+                "НЕ используй triple backticks (```)."
+            )
         }
 
-        all_messages = [system_message] + messages
+        # Проверяем, есть ли уже system message в messages
+        has_system = any(msg.get("role") == "system" for msg in messages)
+
+        if has_system:
+            # Если system уже есть — добавляем schema-инструкцию в конец user сообщений
+            all_messages = list(messages) + [schema_instruction]
+        else:
+            # Если system нет — добавляем в начало
+            all_messages = [schema_instruction] + list(messages)
 
         request = LLMRequest(
-            prompt=all_messages[-1]["content"],
-            system_prompt="\n".join([m["content"] for m in all_messages[:-1]]),
+            prompt="",  # Не используется, т.к. есть messages
+            messages=all_messages,
+            structured_output=StructuredOutputConfig(
+                output_model="dynamic",
+                schema_def=response_schema
+            ),
             temperature=temperature,
             max_tokens=4096
         )
 
         response = await self._generate_impl(request)
 
+        # Если structured output сработал — parsed_json уже есть в metadata
+        if response.raw_response and response.raw_response.metadata and "parsed_json" in response.raw_response.metadata:
+            return response.raw_response.metadata["parsed_json"]
+
+        # Fallback: парсим JSON из текста
         json_content = self._extract_json_from_response(response.content)
         return json.loads(json_content)
 

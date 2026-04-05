@@ -25,12 +25,12 @@
   data_analysis.analyze_step_data@v1.0.0 (skill) - output
   final_answer.generate@v1.0.0 (skill) - input
   final_answer.generate@v1.0.0 (skill) - output
-  meta_skill_creator.create@v1.0.0 (skill) - input
-  meta_skill_creator.create@v1.0.0 (skill) - output
-  meta_skill_creator.fix@v1.0.0 (skill) - input
-  meta_skill_creator.fix@v1.0.0 (skill) - output
-  meta_skill_creator.review@v1.0.0 (skill) - input
-  meta_skill_creator.review@v1.0.0 (skill) - output
+  meta_component_creator.create@v1.0.0 (skill) - input
+  meta_component_creator.create@v1.0.0 (skill) - output
+  meta_component_creator.fix@v1.0.0 (skill) - input
+  meta_component_creator.fix@v1.0.0 (skill) - output
+  meta_component_creator.review@v1.0.0 (skill) - input
+  meta_component_creator.review@v1.0.0 (skill) - output
   planning.create_plan@v1.0.0 (skill) - input
   planning.create_plan@v1.0.0 (skill) - output
   planning.decompose_task@v1.0.0 (skill) - input

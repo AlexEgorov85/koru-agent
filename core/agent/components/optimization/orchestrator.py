@@ -62,6 +62,7 @@ class OrchestratorV2Config:
         max_examples: int = 5,
         max_error_examples: int = 3,
         benchmark_size: int = 2,
+        baseline_results: Optional[Dict[str, Any]] = None,
     ):
         if max_iterations < 1:
             raise ValueError(f"max_iterations должен быть >= 1, получено {max_iterations}")
@@ -83,6 +84,7 @@ class OrchestratorV2Config:
         self.max_examples = max_examples
         self.max_error_examples = max_error_examples
         self.benchmark_size = benchmark_size
+        self.baseline_results = baseline_results
 
 
 class OptimizationOrchestrator:
@@ -435,7 +437,9 @@ class OptimizationOrchestrator:
 
         # Оценка baseline
         print(f"\n  📊 [Evaluate] Оценка baseline: {baseline.id}")
-        baseline_eval = await self._evaluate_version(baseline, capability)
+        baseline_eval = await self._evaluate_version_with_baseline(
+            baseline, capability, self.config.baseline_results
+        )
         print(f"  📊 [Evaluate] Baseline eval: success_rate={baseline_eval.success_rate}, score={baseline_eval.score}")
 
         # Инициализация результата
@@ -636,6 +640,54 @@ class OptimizationOrchestrator:
         evaluation = self.evaluator.evaluate(version.id, benchmark_results)
 
         return evaluation
+
+    async def _evaluate_version_with_baseline(
+        self,
+        version: PromptVersion,
+        capability: str,
+        baseline_results: Optional[Dict[str, Any]] = None,
+    ) -> EvaluationResult:
+        """
+        Оценка версии с использованием предварительных результатов baseline.
+
+        Если version.id содержит 'baseline', используем предварительно
+        рассчитанные результаты из baseline_results вместо запуска бенчмарка.
+
+        ARGS:
+        - version: версия для оценки
+        - capability: название способности
+        - baseline_results: предварительные результаты baseline из CLI
+
+        RETURNS:
+        - EvaluationResult: оценка
+        """
+        # Если это baseline версия и есть предварительные результаты — используем их
+        if baseline_results and 'baseline' in version.id.lower():
+            print(f"  📊 [Evaluate] Используем предварительные baseline результаты")
+
+            # Маппим результаты из baseline benchmark в EvaluationResult
+            success_rate = baseline_results.get('success_rate', 0.0)
+            latency = baseline_results.get('latency', 0.0)
+            # Если есть avg_steps, используем как latency (мс)
+            if latency == 0 and 'avg_steps' in baseline_results:
+                latency = baseline_results.get('avg_steps', 0)
+
+            # Вычисляем score по формуле evaluator
+            # score = success_rate * 0.4 + execution_success * 0.3 + sql_validity * 0.2 - latency * 0.1
+            score = success_rate * 0.4  # execution_success=0.0 (нет успешных), sql_validity=1.0, latency=0
+
+            return EvaluationResult(
+                version_id=version.id,
+                success_rate=success_rate,
+                score=score,
+                latency=latency,
+                execution_success=1.0 if success_rate > 0 else 0.0,
+                sql_validity=1.0,
+                error_rate=1.0 - success_rate,
+            )
+
+        # Для остальных версий — стандартная оценка через бенчмарк
+        return await self._evaluate_version(version, capability)
 
     async def _load_scenarios_for_version(
         self,

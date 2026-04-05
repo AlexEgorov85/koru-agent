@@ -1,11 +1,11 @@
 {
-  "run_at": "2026-04-05T18:03:59.129839",
+  "run_at": "2026-04-05T22:27:28.233149",
   "test_results": [
     {
       "test_id": "sql_filter_by_year",
       "input": "Найти книги изданные после 1850 года",
       "success": false,
-      "final_answer": "ExecutionResult(status=<ExecutionStatus.FAILED: 'failed'>, data=None, error='llm_error: llm_exception:StructuredOutputError:Не удалось получить валидный структурированный ответ после 3 попыток', error_category=<ErrorCategory.UNKNOWN: 'unknown'>, metadata={}, side_effect=False, llm_called=False)",
+      "final_answer": "final_answer='1. Записки охотника (1852) — Иван Тургенев\\n2. Рассказы для детей (1860) — Лев Толстой\\n3. Отцы и дети (1862) — Иван Тургенев\\n4. Мороз, Красный нос (1863) — Николай Некрасов\\n5. Кому на Руси жить хорошо (1863) — Николай Некрасов\\n6. Преступление и наказание (1866) — Фёдор Достоевский\\n7. Война и мир (1869) — Лев Толстой\\n8. Идиот (1869) — Фёдор Достоевский\\n9. История одного города (1870) — Михаил Салтыков-Щедрин\\n10. Анна Каренина (1877) — Лев Толстой\\n11. Братья Карамазовы (1880) — Фёдор Достоевский\\n12. Левша (1885) — Николай Лесков\\n13. Человек в футляре (1898) — Антон Чехов\\n14. Дама с собачкой (1899) — Антон Чехов\\n15. Воскресение (1899) — Лев Толстой\\n16. Вишневый сад (1904) — Антон Чехов\\n17. Двенадцать стульев (1928) — Илья Ильф\\n18. Золотой телёнок (1931) — Евгений Петров' sources=['book_library.execute_script: get_books_by_year_range'] confidence_score=1.0 remaining_questions=[] summary_of_steps='' metadata={'total_observations': 2, 'total_steps': 5, 'generati",
       "steps": 0,
       "validation": {
         "passed": false,
@@ -15,7 +15,10 @@
         "sql_validation": null,
         "answer_validation": null
       },
-      "metadata": {}
+      "metadata": {
+        "capability": "final_answer.generate",
+        "execution_time_ms": 228034.38901901245
+      }
     }
   ],
   "metrics": {

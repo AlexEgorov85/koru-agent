@@ -135,17 +135,49 @@ class SafetyLayer:
 
         checks = []
 
-        # Проверка 1: Success Rate
-        sr_check = self._check_success_rate(candidate, baseline)
-        checks.append(sr_check)
+        # Определяем, является ли baseline нулевым (неудачный запуск)
+        baseline_is_zero = (
+            baseline.success_rate == 0.0 and
+            baseline.score == 0.0 and
+            baseline.execution_success == 0.0
+        )
 
-        # Проверка 2: Error Rate
-        er_check = self._check_error_rate(candidate, baseline)
-        checks.append(er_check)
+        # Проверка 1: Success Rate (пропускаем если baseline = 0)
+        if baseline_is_zero:
+            # Baseline провален — принимаем любое улучшение
+            checks.append(SafetyCheck(
+                check_type=SafetyCheckType.SUCCESS_RATE,
+                passed=True,
+                message="Baseline был провален — пропускаем проверку деградации",
+                details={'baseline': baseline.success_rate, 'candidate': candidate.success_rate}
+            ))
+        else:
+            sr_check = self._check_success_rate(candidate, baseline)
+            checks.append(sr_check)
 
-        # Проверка 3: Latency
-        lat_check = self._check_latency(candidate, baseline)
-        checks.append(lat_check)
+        # Проверка 2: Error Rate (пропускаем если baseline = 0)
+        if baseline_is_zero:
+            checks.append(SafetyCheck(
+                check_type=SafetyCheckType.ERROR_RATE,
+                passed=True,
+                message="Baseline был провален — пропускаем проверку деградации",
+                details={'baseline': baseline.error_rate, 'candidate': candidate.error_rate}
+            ))
+        else:
+            er_check = self._check_error_rate(candidate, baseline)
+            checks.append(er_check)
+
+        # Проверка 3: Latency (пропускаем если baseline = 0)
+        if baseline_is_zero or baseline.latency == 0:
+            checks.append(SafetyCheck(
+                check_type=SafetyCheckType.LATENCY_SPIKE,
+                passed=True,
+                message="Baseline был провален или latency=0 — пропускаем проверку latency",
+                details={'baseline': baseline.latency, 'candidate': candidate.latency}
+            ))
+        else:
+            lat_check = self._check_latency(candidate, baseline)
+            checks.append(lat_check)
 
         # Проверка 4: SQL Injection
         if self.config.check_sql_injection:

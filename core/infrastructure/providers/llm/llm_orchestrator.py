@@ -657,26 +657,40 @@ class LLMOrchestrator:
             finish_reason = self._get_finish_reason(response)
             if finish_reason == "error":
                 error_msg = response.metadata.get('error', 'Unknown error') if response.metadata else 'Unknown error'
-                return RetryAttempt(
-                    attempt_number=attempt_num,
-                    prompt=request.prompt,
-                    raw_response=None,
-                    success=False,
-                    error_type="llm_error",
-                    error_message=error_msg,
-                    duration=duration
-                )
+
+                # Для structured output — всё равно пробуем распарсить raw_response
+                # (провайдер мог вернуть сырой ответ с markdown-обёрткой)
+                if hasattr(response, 'raw_response') and response.raw_response:
+                    raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
+                    if self._logger:
+                        await self._logger.warning(
+                            f"⚠️ [STRUCTURED] finish_reason=error, но пробуем распарсить raw_response (len={len(raw_content)})"
+                        )
+                    # Продолжаем обработку ниже
+                else:
+                    return RetryAttempt(
+                        attempt_number=attempt_num,
+                        prompt=request.prompt,
+                        raw_response=None,
+                        success=False,
+                        error_type="llm_error",
+                        error_message=error_msg,
+                        duration=duration
+                    )
+            else:
+                # Нормальный finish_reason (stop/length) — продолжаем
+                pass
 
             # Проверка: LLMResponse с raw_response.content (JSON строка)
             if hasattr(response, 'raw_response') and response.raw_response:
                 # LLMResponse от провайдера
                 raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
-                
+
                 if self._logger:
                     await self._logger.info(
                         f"🔵 [STRUCTURED] Найден raw_response.content, len={len(raw_content) if raw_content else 0}"
                     )
-                
+
                 # Проверяем есть ли уже parsed_content (Pydantic модель)
                 if hasattr(response, 'parsed_content') and response.parsed_content:
                     # Модель уже создана провайдером (редкий случай)
@@ -695,19 +709,23 @@ class LLMOrchestrator:
                         duration=duration,
                         tokens_used=self._get_tokens_used(response)
                     )
-                
+
                 # parsed_content=None — создаём Pydantic модель из JSON Schema
                 if request.structured_output:
                     try:
                         import json
                         from pydantic import create_model
-                        
+                        from core.infrastructure.providers.llm.json_parser import extract_json_from_response
+
                         # Логируем сырой JSON для отладки
                         if self._logger:
                             await self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content[:300]}...")
-                        
+
+                        # Извлекаем JSON из markdown-обёртки (если есть)
+                        cleaned_json = extract_json_from_response(raw_content)
+
                         # Парсим JSON из строки
-                        json_data = json.loads(raw_content)
+                        json_data = json.loads(cleaned_json)
                         
                         if self._logger:
                             await self._logger.info(f"✅ [STRUCTURED] JSON распарсен: ключи={list(json_data.keys()) if isinstance(json_data, dict) else 'not a dict'}")
