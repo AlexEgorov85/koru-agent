@@ -9,6 +9,8 @@ import asyncio
 import time
 import json
 import re
+import os
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 import aiohttp
@@ -23,6 +25,26 @@ from core.models.types.llm_types import (
     RawLLMResponse
 )
 from pydantic import BaseModel, Field
+
+
+# Глобальный файл для debug логов
+_DEBUG_LOG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "data", "logs", "debug_openrouter.jsonl"
+)
+
+
+def _write_debug_log(message: str) -> None:
+    """Запись debug логов в файл"""
+    try:
+        os.makedirs(os.path.dirname(_DEBUG_LOG_FILE), exist_ok=True)
+        with open(_DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "timestamp": datetime.now().isoformat(),
+                "message": message
+            }) + "\n")
+    except Exception:
+        pass  # Игнорируем ошибки записи
 
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -58,6 +80,19 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
     await provider.initialize()
     response = await provider.generate(request)
     """
+
+    @staticmethod
+    def _write_debug_log(message: str) -> None:
+        """Запись debug логов в файл"""
+        try:
+            os.makedirs(os.path.dirname(_DEBUG_LOG_FILE), exist_ok=True)
+            with open(_DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "timestamp": datetime.now().isoformat(),
+                    "message": message
+                }) + "\n")
+        except Exception:
+            pass  # Игнорируем ошибки записи
 
     def __init__(self, config, model_name: str = None):
         if isinstance(config, dict):
@@ -292,6 +327,20 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 messages.insert(0, {"role": "system", "content": schema_prompt})
             payload["messages"] = messages
 
+        # DEBUG: Логирование исходящего запроса в файл
+        debug_messages = [{"role": m["role"], "content": m["content"][:500] + "..." if len(m.get("content", "")) > 500 else m.get("content", "")} for m in messages]
+        debug_log = f"""
+🔵 [OPENROUTER] DEBUG REQUEST:
+  model: {self.model_name}
+  messages: {debug_messages}
+  temperature: {request.temperature}, max_tokens: {request.max_tokens}
+  has_structured_output: {hasattr(request, 'structured_output') and request.structured_output is not None}
+"""
+        if hasattr(request, 'structured_output') and request.structured_output:
+            debug_log += f"  output_model: {request.structured_output.output_model}\n"
+        debug_log += "\n"
+        self._write_debug_log(debug_log)
+
         try:
             async with self._session.post(self.config_obj.base_url, json=payload) as response:
                 if response.status != 200:
@@ -351,6 +400,19 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         finish_reason = choices[0].get("finish_reason", "stop")
         tokens_used = usage.get("total_tokens", 0)
         generation_time = time.time() - start_time
+
+        # DEBUG: Логирование ответа в файл
+        content_preview = generated_text[:300] + "..." if len(generated_text) > 300 else generated_text
+        debug_log = f"""🟢 [OPENROUTER] DEBUG RESPONSE:
+  model: {self.model_name}
+  finish_reason: {finish_reason}
+  tokens_used: {tokens_used}
+  generation_time: {generation_time:.2f}s
+  content length: {len(generated_text)}
+  content preview: {content_preview}
+
+"""
+        self._write_debug_log(debug_log)
 
         if hasattr(request, 'structured_output') and request.structured_output is not None and isinstance(request.structured_output, StructuredOutputConfig):
             try:
