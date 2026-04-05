@@ -26,7 +26,11 @@ content: |
   - patched_files: dict {filename: исправленный content}
   - change_summary: краткое описание изменений
   - validation_errors: список ошибок (пустой = всё ок)
-variables: []
+variables:
+  - name: name
+    description: Имя компонента
+    required: false
+    default_value: "component"
 metadata:
   author: system
   created: '2026-04-03'

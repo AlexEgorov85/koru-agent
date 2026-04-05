@@ -35,6 +35,10 @@ variables:
     description: Подсказка о зависимостях
     required: false
     default_value: ""
+  - name: name
+    description: Имя компонента
+    required: false
+    default_value: "component"
 metadata:
   author: system
   created: '2026-04-03'

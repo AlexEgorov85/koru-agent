@@ -57,7 +57,16 @@ content: |
   - class_name (PascalCase + суффикс типа)
   - python_files: dict с именами файлов и содержимым
   - yaml_files: dict с именами файлов и содержимым (если нужны)
-variables: []
+variables:
+  - name: Name
+    description: PascalCase имя компонента
+    required: false
+  - name: name
+    description: snake_case имя компонента
+    required: false
+  - name: action
+    description: Название действия (capability action)
+    required: false
 metadata:
   author: system
   created: '2026-04-03'
