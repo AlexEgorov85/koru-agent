@@ -16,6 +16,7 @@ from datetime import datetime
 from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig
 from core.infrastructure.providers.llm.mock_provider import MockLLMConfig
 from core.infrastructure.providers.llm.openrouter_provider import OpenRouterConfig
+from core.infrastructure.providers.llm.vllm_provider import VLLMConfig
 from core.infrastructure_context.lifecycle_manager import LifecycleManager
 from core.infrastructure_context.resource_registry import ResourceRegistry
 from core.services.metrics_publisher import MetricsPublisher
@@ -293,6 +294,13 @@ class InfrastructureContext:
                             if 'timeout_seconds' not in params and hasattr(provider_config, 'timeout_seconds'):
                                 params['timeout_seconds'] = provider_config.timeout_seconds
                             config_obj = OpenRouterConfig(**params)
+                        elif provider_type == "vllm":
+                            params = dict(provider_config.parameters)
+                            if 'model_name' not in params:
+                                params['model_name'] = provider_config.model_name
+                            if 'timeout_seconds' not in params and hasattr(provider_config, 'timeout_seconds'):
+                                params['timeout_seconds'] = provider_config.timeout_seconds
+                            config_obj = VLLMConfig(**params)
                         else:
                             config_obj = MockLLMConfig(**provider_config.parameters)
 

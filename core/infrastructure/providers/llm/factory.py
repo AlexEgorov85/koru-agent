@@ -6,6 +6,7 @@ from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.providers.llm.llama_cpp_provider import LlamaCppProvider
 from core.infrastructure.providers.llm.mock_provider import MockProvider
 from core.infrastructure.providers.llm.openrouter_provider import OpenRouterProvider
+from core.infrastructure.providers.llm.vllm_provider import VLLMProvider
 
 
 class LLMProviderFactory:
@@ -17,6 +18,7 @@ class LLMProviderFactory:
         'llama_cpp': LlamaCppProvider,
         'mock': MockProvider,
         'openrouter': OpenRouterProvider,
+        'vllm': VLLMProvider,
     }
 
     _providers: Dict[str, Type[BaseLLMProvider]] = PROVIDER_CLASSES

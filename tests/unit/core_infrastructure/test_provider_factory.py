@@ -41,6 +41,18 @@ def test_llm_provider_factory_creates_llama_cpp_provider():
     assert isinstance(provider, BaseLLMProvider)
 
 
+def test_llm_provider_factory_creates_vllm_provider():
+    """Проверка: фабрика LLM создает vllm провайдер"""
+    factory = LLMProviderFactory()
+    
+    from core.infrastructure.providers.llm.vllm_provider import VLLMConfig
+    config = VLLMConfig(model_name='test-model', base_url='http://localhost:8000/v1')
+    provider = factory.create_provider('vllm', config=config)
+    
+    from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
+    assert isinstance(provider, BaseLLMProvider)
+
+
 def test_llm_provider_factory_raises_error_for_invalid_type():
     """Проверка: фабрика LLM выбрасывает ошибку для неверного типа"""
     factory = LLMProviderFactory()

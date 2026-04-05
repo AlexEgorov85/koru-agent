@@ -97,6 +97,7 @@ class LLMRequest:
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     stop_sequences: Optional[List[str]] = None  # Последовательности для остановки генерации
+    messages: Optional[List[Dict[str, str]]] = None  # Multi-turn диалог (альтернатива prompt)
     stream: bool = False
     structured_output: Optional[StructuredOutputConfig] = Field(
         default=None,
@@ -120,7 +121,7 @@ class LLMRequest:
 
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация в словарь."""
-        return {
+        result = {
             'prompt': self.prompt[:500] if self.prompt else '',
             'system_prompt': self.system_prompt[:500] if self.system_prompt else '',
             'temperature': self.temperature,
@@ -133,6 +134,9 @@ class LLMRequest:
             'correlation_id': self.correlation_id,
             'capability_name': self.capability_name,
         }
+        if self.messages is not None:
+            result['messages'] = self.messages
+        return result
 
 @dataclass
 class RawLLMResponse:
