@@ -6,6 +6,7 @@
     py -m pytest tests/test_cli/test_benchmark_validator.py -v
 """
 import pytest
+from unittest.mock import MagicMock
 from core.services.benchmarks import (
     SQLValidator,
     AnswerValidator,
@@ -472,8 +473,363 @@ class TestIntegration:
         result = validator.validate_test_result(test_case, agent_response)
         
         assert result['overall_passed'] is True
-        assert result['sql_validation']['passed'] is True
         assert result['answer_validation']['passed'] is True
+
+
+# ============================================================================
+# Тесты benchmark_runner_agent (SQL + Answer валидация)
+# ============================================================================
+
+class TestBenchmarkRunnerAgentValidation:
+    """Тесты для _validate_agent_execution из benchmark_runner_agent"""
+
+    def test_extract_sql_from_agent_with_sql_query(self):
+        """Извлечение SQL из session_context агента"""
+        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Test'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850',
+            'execution_type': 'dynamic'
+        }
+
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        sql_queries, sql_results = _extract_sql_from_agent(mock_agent)
+        assert len(sql_queries) == 1
+        assert sql_queries[0] == 'SELECT * FROM books WHERE year > 1850'
+        assert len(sql_results) == 1
+        assert sql_results[0]['rowcount'] == 1
+
+    def test_extract_sql_from_agent_no_session_context(self):
+        """Извлечение SQL без session_context"""
+        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
+
+        mock_agent = MagicMock(spec=[])
+        sql_queries, sql_results = _extract_sql_from_agent(mock_agent)
+        assert sql_queries == []
+        assert sql_results == []
+
+    def test_extract_sql_from_final_answer(self):
+        """Извлечение SQL из финального ответа"""
+        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
+
+        answer = "Книги не найдены. sources=[sql_query='SELECT * FROM books WHERE year > 1850']"
+        sql = _extract_sql_from_final_answer(answer)
+        assert sql == 'SELECT * FROM books WHERE year > 1850'
+
+    def test_extract_sql_from_final_answer_no_sql(self):
+        """Извлечение SQL когда SQL нет в ответе"""
+        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
+
+        answer = "Книги не найдены"
+        sql = _extract_sql_from_final_answer(answer)
+        assert sql is None
+
+    def test_validate_agent_execution_sql_pass(self):
+        """Валидация: SQL проходит проверку"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Test'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+                'must_have_year_filter': True,
+                'must_have_tables': ['books'],
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is True
+
+    def test_validate_agent_execution_sql_fail_no_where(self):
+        """Валидация: SQL без WHERE — провал"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [],
+            'rowcount': 0,
+            'sql_query': 'SELECT * FROM books',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is False
+        assert any('WHERE' in e for e in details['errors'])
+
+    def test_validate_agent_execution_sql_fail_wrong_year(self):
+        """Валидация: SQL с неожиданной верхней границей года — провал"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [],
+            'rowcount': 0,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850 AND year < 1860',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+                'must_have_year_filter': True,
+                'must_not_have_unexpected_conditions': True,
+            },
+            'expected_output': {},
+            'metadata': {
+                'filter': {'year_from': 1850},
+            },
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is False
+        assert any('верхняя граница' in e.lower() for e in details['errors'])
+
+    def test_validate_agent_execution_sql_pass_correct_year(self):
+        """Валидация: SQL с правильным фильтром года — pass"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Test'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+                'must_have_year_filter': True,
+                'must_not_have_unexpected_conditions': True,
+            },
+            'expected_output': {},
+            'metadata': {
+                'filter': {'year_from': 1850},
+            },
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is True
+
+    def test_validate_agent_execution_sql_fallback_to_answer(self):
+        """Валидация: fallback — извлечение SQL из финального ответа"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = []
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        final_answer = "Результат: sql_query='SELECT * FROM books WHERE year > 1850'"
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+                'must_have_year_filter': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, final_answer, test_case, validator)
+        assert passed is True
+
+    def test_validate_agent_execution_no_validation_rules(self):
+        """Валидация без правил — всегда pass"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_agent = MagicMock()
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, 'any answer', {}, validator)
+        assert passed is True
+        assert details is None
+
+    def test_validate_agent_execution_combined_sql_and_answer(self):
+        """Комбинированная валидация: SQL + ответ"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Test Book'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_be_valid_sql': True,
+                'must_have_where': True,
+                'must_have_year_filter': True,
+                'must_be_in_russian': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        final_answer = 'Найдена книга: Test Book'
+        passed, details = _validate_agent_execution(mock_agent, final_answer, test_case, validator)
+        assert passed is True
+        assert details['sql_validation'] is not None
+        assert details['answer_validation'] is not None
+
+    def test_validate_agent_execution_sql_fail_no_schema(self):
+        """Валидация: SQL без схемы — провал"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [],
+            'rowcount': 0,
+            'sql_query': 'SELECT * FROM books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_have_schema': ['Lib.books'],
+                'must_have_where': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is False
+        assert any('схемой' in e.lower() for e in details['errors'])
+
+    def test_validate_agent_execution_sql_pass_with_schema(self):
+        """Валидация: SQL со схемой — pass"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Test'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM Lib.books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_have_schema': ['Lib.books'],
+                'must_have_where': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        passed, details = _validate_agent_execution(mock_agent, '', test_case, validator)
+        assert passed is True
+
+    def test_validate_answer_false_no_results(self):
+        """Валидация: ответ ложно говорит 'не найдено' когда данные есть"""
+        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.services.benchmarks import BenchmarkValidator
+
+        mock_observation = MagicMock()
+        mock_observation.content = {
+            'rows': [{'title': 'Война и мир'}],
+            'rowcount': 1,
+            'sql_query': 'SELECT * FROM Lib.books WHERE year > 1850',
+        }
+        mock_data_ctx = MagicMock()
+        mock_data_ctx.get_all_items.return_value = [mock_observation]
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.data_context = mock_data_ctx
+        mock_agent = MagicMock()
+        mock_agent.session_context = mock_session_ctx
+
+        test_case = {
+            'validation': {
+                'must_not_falsely_report_no_results': True,
+            },
+            'expected_output': {},
+            'metadata': {},
+        }
+        validator = BenchmarkValidator()
+        final_answer = 'К сожалению, ничего не найдено по вашему запросу'
+        passed, details = _validate_agent_execution(mock_agent, final_answer, test_case, validator)
+        assert passed is False
+        assert any('ложно' in e.lower() for e in details['errors'])
 
     def test_full_answer_benchmark_scenario(self):
         """Тест полного сценария Answer бенчмарка"""

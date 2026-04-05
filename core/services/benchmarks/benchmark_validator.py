@@ -81,6 +81,16 @@ class SQLValidator:
             if missing_tables:
                 errors.append(f'Нет таблиц: {missing_tables}')
         
+        # 2.1. Проверка схемы таблиц (например Lib.books)
+        if validation_rules.get('must_have_schema'):
+            required_schema_tables = validation_rules['must_have_schema']
+            schema_found = self._extract_tables_with_schema(sql)
+            missing_schema = [t for t in required_schema_tables if t.lower() not in [tf.lower() for tf in schema_found]]
+            checks['has_schema'] = len(missing_schema) == 0
+            checks['schema_found'] = list(schema_found)
+            if missing_schema:
+                errors.append(f'Нет таблиц со схемой: {missing_schema}')
+        
         # 3. Проверка WHERE
         if validation_rules.get('must_have_where', False):
             has_where = 'WHERE' in sql_upper
@@ -138,6 +148,14 @@ class SQLValidator:
             checks['has_multiple_authors'] = has_multiple
             if not has_multiple:
                 errors.append('Запрос не поддерживает нескольких авторов')
+        
+        # 11. Проверка на отсутствие неожиданных условий (по metadata.filter)
+        if validation_rules.get('must_not_have_unexpected_conditions', False):
+            metadata = validation_rules.get('_metadata', {})
+            unexpected = self._check_unexpected_conditions(sql, metadata)
+            checks['no_unexpected_conditions'] = len(unexpected) == 0
+            if unexpected:
+                errors.extend(unexpected)
         
         return {
             'passed': len(errors) == 0,
@@ -212,6 +230,29 @@ class SQLValidator:
         
         return tables
     
+    def _extract_tables_with_schema(self, sql: str) -> Set[str]:
+        """
+        Извлечение имён таблиц СО схемой из SQL запроса.
+        
+        RETURNS:
+        - Set[str]: имена таблиц в формате schema.table
+        """
+        tables = set()
+        
+        patterns = [
+            r'FROM\s+([^\s,(]+)',
+            r'JOIN\s+([^\s,]+)',
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, sql, re.IGNORECASE)
+            for match in matches:
+                table_name = match.strip('"\'`[]')
+                if '.' in table_name and table_name.upper() not in self.sql_keywords:
+                    tables.add(table_name)
+        
+        return tables
+    
     def _check_year_filter(self, sql: str) -> bool:
         """
         Проверка наличия фильтра по году.
@@ -271,6 +312,72 @@ class SQLValidator:
                 return True
         
         return False
+    
+    def _check_unexpected_conditions(self, sql: str, metadata: Dict[str, Any]) -> List[str]:
+        """
+        Проверка, что SQL не содержит неожиданных условий,
+        не соответствующих ожидаемым фильтрам из metadata.
+        
+        ARGS:
+        - sql: SQL запрос
+        - metadata: метаданные тест-кейса с ожидаемыми фильтрами
+        
+        RETURNS:
+        - List[str]: список ошибок (пустой если всё ок)
+        """
+        errors = []
+        expected_filter = metadata.get('filter', {})
+        
+        if not expected_filter:
+            return errors
+        
+        sql_upper = sql.upper()
+        
+        # Проверяем year_from: если указан, не должно быть year < X или year <= X
+        if 'year_from' in expected_filter:
+            year_from = expected_filter['year_from']
+            # Ищем паттерны year < N или year <= N где N != year_from
+            upper_bound_patterns = re.findall(r'year\s*<\s*(\d+)', sql, re.IGNORECASE)
+            for bound in upper_bound_patterns:
+                if int(bound) != year_from:
+                    errors.append(
+                        f'Неожиданная верхняя граница года: year < {bound}. '
+                        f'Запрос требует только year > {year_from}'
+                    )
+        
+        # Проверяем year_to: если указан, не должно быть year > X где X != year_to
+        if 'year_to' in expected_filter:
+            year_to = expected_filter['year_to']
+            lower_bound_patterns = re.findall(r'year\s*>\s*(\d+)', sql, re.IGNORECASE)
+            for bound in lower_bound_patterns:
+                if int(bound) != year_to:
+                    errors.append(
+                        f'Неожиданная нижняя граница года: year > {bound}. '
+                        f'Запрос требует только year < {year_to}'
+                    )
+        
+        # Проверяем author: если указан конкретный автор, не должно быть других авторов
+        if 'author' in expected_filter:
+            expected_author = expected_filter['author'].lower()
+            # Ищем все упоминания авторов в WHERE
+            author_patterns = re.findall(r"author\s*=\s*['\"]([^'\"]+)['\"]", sql, re.IGNORECASE)
+            for found_author in author_patterns:
+                if found_author.lower() != expected_author:
+                    errors.append(
+                        f'Неожиданный автор: {found_author}. Ожидался: {expected_author}'
+                    )
+        
+        # Проверяем genre: если указан конкретный жанр, не должно быть других
+        if 'genre' in expected_filter:
+            expected_genre = expected_filter['genre'].lower()
+            genre_patterns = re.findall(r"genre\s*=\s*['\"]([^'\"]+)['\"]", sql, re.IGNORECASE)
+            for found_genre in genre_patterns:
+                if found_genre.lower() != expected_genre:
+                    errors.append(
+                        f'Неожиданный жанр: {found_genre}. Ожидался: {expected_genre}'
+                    )
+        
+        return errors
 
 
 # ============================================================================
@@ -403,6 +510,13 @@ class AnswerValidator:
             checks['missing_books'] = missing_books
             if not books_match:
                 errors.append(f'Не все ожидаемые книги упомянуты: не найдены {missing_books}')
+        
+        # 10. Проверка: ответ не должен ложно сообщать об отсутствии результатов
+        if validation_rules.get('must_not_falsely_report_no_results', False):
+            falsely_no_results = self._check_false_no_results(answer, context)
+            checks['no_false_no_results'] = not falsely_no_results
+            if falsely_no_results:
+                errors.append(falsely_no_results)
         
         return {
             'passed': len(errors) == 0,
@@ -548,6 +662,38 @@ class AnswerValidator:
                 return True
         
         return False
+    
+    def _check_false_no_results(self, answer: str, context: Optional[Dict[str, Any]]) -> Optional[str]:
+        """
+        Проверка, что ответ не сообщает об отсутствии результатов,
+        когда данные на самом деле есть.
+        
+        ARGS:
+        - answer: текст ответа
+        - context: контекст с sql_result
+        
+        RETURNS:
+        - str с ошибкой или None
+        """
+        if not context:
+            return None
+        
+        sql_result = context.get('sql_result', {})
+        rows = sql_result.get('rows', [])
+        rowcount = sql_result.get('rowcount', 0)
+        
+        if not rows and rowcount == 0:
+            return None
+        
+        answer_lower = answer.lower()
+        for phrase in self.no_result_words:
+            if phrase in answer_lower:
+                return (
+                    f'Ответ ложно сообщает об отсутствии результатов '
+                    f'(найдено {rowcount} записей, но ответ говорит "{phrase}")'
+                )
+        
+        return None
     
     def _check_politeness(self, answer: str) -> Tuple[bool, Set[str]]:
         """
