@@ -40,8 +40,8 @@ os.environ["TQDM_DISABLE"] = "1"
 # ============================================================================
 
 GOAL = "Книги после 1850 года?"
-MAX_STEPS = 10
-TEMPERATURE = 0.7
+MAX_STEPS = 5
+TEMPERATURE = 0.3
 
 
 async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
