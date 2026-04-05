@@ -749,6 +749,7 @@ class PromptVersion:
     - status: статус версии
     - mutation_type: тип применённой мутации
     - created_at: время создания
+    - metadata: дополнительные метаданные
     """
     id: str
     parent_id: Optional[str]
@@ -759,6 +760,7 @@ class PromptVersion:
     status: str = "candidate"  # candidate, active, rejected
     mutation_type: Optional[MutationType] = None
     created_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Валидация статуса"""
@@ -785,7 +787,8 @@ class PromptVersion:
             'score': self.score,
             'status': self.status,
             'mutation_type': self.mutation_type.value if self.mutation_type else None,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'metadata': self.metadata,
         }
 
 

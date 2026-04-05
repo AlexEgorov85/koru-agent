@@ -676,6 +676,11 @@ class ApplicationContext(BaseSystemContext):
 
     def get_prompt(self, capability: str, version: Optional[str] = None) -> str:
         """Получение текста промпта через DataRepository."""
+        # Проверяем переопределённые промпты (из optimize)
+        content_overrides = getattr(self.config, '_prompt_content_overrides', {})
+        if capability in content_overrides:
+            return content_overrides[capability]
+
         if self.data_repository:
             if version is None:
                 version = self.config.prompt_versions.get(capability)
@@ -761,6 +766,54 @@ class ApplicationContext(BaseSystemContext):
 
         self._prompt_overrides[capability] = version
         self.logger.info(f"Установлен оверрайд: {capability}@{version} для песочницы")
+
+    async def clone_with_prompt_content_override(
+        self,
+        capability: str,
+        prompt_content: str,
+    ) -> 'ApplicationContext':
+        """
+        Создание нового контекста с переопределённым содержанием промпта.
+
+        Используется при оптимизации: для каждого кандидата создаётся
+        отдельный sandbox контекст с модифицированным промптом.
+
+        ARGS:
+        - capability: имя capability (например 'book_library.search_books')
+        - prompt_content: новое содержание промпта
+
+        RETURNS:
+        - ApplicationContext: новый контекст с переопределённым промптом
+        """
+        from copy import deepcopy
+
+        new_config = deepcopy(self.config)
+
+        content_overrides = getattr(new_config, '_prompt_content_overrides', {})
+        content_overrides[capability] = prompt_content
+        new_config._prompt_content_overrides = content_overrides
+
+        new_ctx = ApplicationContext(
+            infrastructure_context=self.infrastructure_context,
+            config=new_config,
+            profile=self.profile,
+            lifecycle_manager=self.lifecycle_manager,
+        )
+
+        await new_ctx.initialize()
+
+        for comp in new_ctx.components.all_components():
+            if hasattr(comp, 'component_config') and hasattr(comp.component_config, 'resolved_prompts'):
+                if capability in comp.component_config.resolved_prompts:
+                    old_prompt = comp.component_config.resolved_prompts[capability]
+                    new_prompt = old_prompt.model_copy(
+                        update={'content': prompt_content},
+                        deep=False,
+                    )
+                    comp.component_config.resolved_prompts[capability] = new_prompt
+                    comp.prompts[capability] = new_prompt
+
+        return new_ctx
 
     async def clone_with_version_override(
         self,
@@ -894,5 +947,13 @@ class ApplicationContext(BaseSystemContext):
                 self.logger.info("DataRepository завершён")
             except Exception as e:
                 self.logger.error(f"Ошибка при завершении DataRepository: {e}")
+
+        # Очистка ресурсов из LifecycleManager для возможности повторной регистрации
+        if hasattr(self, 'lifecycle_manager') and self.lifecycle_manager:
+            try:
+                await self.lifecycle_manager.clear_resources()
+                self.logger.info("LifecycleManager очищен")
+            except Exception as e:
+                self.logger.error(f"Ошибка при очистке LifecycleManager: {e}")
 
         self.logger.info("ApplicationContext завершён")

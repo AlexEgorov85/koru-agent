@@ -118,6 +118,22 @@ class LLMRequest:
         self.frequency_penalty = max(0.0, min(2.0, self.frequency_penalty))
         self.presence_penalty = max(0.0, min(2.0, self.presence_penalty))
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь."""
+        return {
+            'prompt': self.prompt[:500] if self.prompt else '',
+            'system_prompt': self.system_prompt[:500] if self.system_prompt else '',
+            'temperature': self.temperature,
+            'max_tokens': self.max_tokens,
+            'top_p': self.top_p,
+            'frequency_penalty': self.frequency_penalty,
+            'presence_penalty': self.presence_penalty,
+            'stream': self.stream,
+            'metadata': self.metadata,
+            'correlation_id': self.correlation_id,
+            'capability_name': self.capability_name,
+        }
+
 @dataclass
 class RawLLMResponse:
     """
@@ -206,6 +222,19 @@ class LLMResponse(Generic[T]):
         # Валидация
         self.tokens_used = max(0, self.tokens_used)
         self.generation_time = max(0.0, self.generation_time)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация в словарь."""
+        return {
+            'content': self.content[:500] if self.content else '',
+            'model': self.model,
+            'tokens_used': self.tokens_used,
+            'generation_time': self.generation_time,
+            'finish_reason': self.finish_reason,
+            'is_structured': self.is_structured,
+            'parsing_attempts': self.parsing_attempts,
+            'metadata': self.metadata,
+        }
     
     @property
     def success(self) -> bool:

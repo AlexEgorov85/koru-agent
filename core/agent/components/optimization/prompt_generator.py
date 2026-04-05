@@ -392,27 +392,46 @@ class PromptGenerator:
         """
         Обеспечение разнообразия кандидатов.
 
-        ARGS:
-        - candidates: список кандидатов
-
-        RETURNS:
-        - List[PromptVersion]: отфильтрованные кандидаты
+        Каждый кандидат создан от одного baseline, но добавляет уникальные
+        улучшения для разных capabilities. Сравниваем только capability names
+        в добавленном тексте.
         """
         if len(candidates) <= 1:
             return candidates
 
+        baseline_len = len(candidates[0].prompt)
         diverse = [candidates[0]]
 
         for candidate in candidates[1:]:
-            # Проверка diversity с уже отобранными
             is_diverse = True
             for selected in diverse:
-                similarity = self._calculate_similarity(
-                    selected.prompt,
-                    candidate.prompt
-                )
-                if similarity > (1 - self.config.diversity_threshold):
+                diff_a = selected.prompt[baseline_len:]
+                diff_b = candidate.prompt[baseline_len:]
+
+                if not diff_a or not diff_b:
                     is_diverse = False
+                    break
+
+                # Извлекаем capability names из diff
+                caps_a = set()
+                caps_b = set()
+                for cap_marker in ['book_library.', 'execute_script', 'search_books', 'unknown', 'semantic_search']:
+                    if cap_marker in diff_a:
+                        caps_a.add(cap_marker)
+                    if cap_marker in diff_b:
+                        caps_b.add(cap_marker)
+
+                # Если capabilities разные — кандидаты diverse
+                if caps_a != caps_b:
+                    is_diverse = True
+                else:
+                    # Fallback: сравниваем первые 30 символов
+                    prefix_a = diff_a[:30].lower()
+                    prefix_b = diff_b[:30].lower()
+                    similarity = self._calculate_similarity(prefix_a, prefix_b)
+                    is_diverse = similarity <= 0.5
+
+                if not is_diverse:
                     break
 
             if is_diverse:
@@ -522,17 +541,24 @@ class PromptGenerator:
 
         # Группировка root causes по типу проблемы
         causes_by_type = self._group_causes_by_type(root_causes)
+        print(f"  🔍 [PromptGen] Groups: {len(causes_by_type)}")
 
         # Генерация кандидатов для каждого типа проблемы
         for cause_type, causes in causes_by_type.items():
-            candidate = await self._generate_targeted_improvement(
-                parent=original_prompt,
-                causes=causes,
-                good_examples=good_examples,
-                error_examples=error_examples
-            )
-            if candidate:
-                candidates.append(candidate)
+            try:
+                candidate = await self._generate_targeted_improvement(
+                    parent=original_prompt,
+                    causes=causes,
+                    good_examples=good_examples,
+                    error_examples=error_examples
+                )
+                if candidate:
+                    candidates.append(candidate)
+                    print(f"  ✅ [PromptGen] Candidate created for group: {cause_type}")
+                else:
+                    print(f"  ❌ [PromptGen] _generate_targeted_improvement returned None for: {cause_type}")
+            except Exception as e:
+                print(f"  ❌ [PromptGen] Exception for group '{cause_type}': {e}")
 
         # Если нет root causes, используем примеры
         if not candidates and good_examples:
@@ -544,7 +570,15 @@ class PromptGenerator:
                 candidates.append(candidate)
 
         # Обеспечение diversity
-        candidates = self._ensure_diversity(candidates)
+        print(f"  🔍 [PromptGen] Before diversity: {len(candidates)} candidates")
+        # Когда все кандидаты созданы от одного baseline с разными capabilities,
+        # diversity filter слишком агрессивен. Пропускаем его если кандидатов > 1
+        # и все они имеют разные cause_type keys
+        if len(causes_by_type) > 1 and len(candidates) > 1:
+            print(f"  🔍 [PromptGen] Skipping diversity — {len(causes_by_type)} distinct cause types")
+        else:
+            candidates = self._ensure_diversity(candidates)
+        print(f"  🔍 [PromptGen] After diversity: {len(candidates)} candidates")
 
         await self.event_bus_logger.info(
           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
@@ -561,10 +595,12 @@ class PromptGenerator:
         """Группировка root causes по типу причины"""
         grouped = {}
         for cause in root_causes:
-            # Используем cause как ключ
-            if cause.cause not in grouped:
-                grouped[cause.cause] = []
-            grouped[cause.cause].append(cause)
+            # Используем cause + affected_capabilities как ключ для более детальной группировки
+            cap_key = cause.affected_capabilities[0] if cause.affected_capabilities else 'unknown'
+            group_key = f"{cap_key}:{cause.cause}"
+            if group_key not in grouped:
+                grouped[group_key] = []
+            grouped[group_key].append(cause)
         return grouped
 
     async def _generate_targeted_improvement(
@@ -589,11 +625,25 @@ class PromptGenerator:
         # Определение типа мутации на основе причины
         mutation_type = self._select_mutation_type(causes)
 
-        # Формирование улучшений
+        # Формирование улучшений — делаем их уникальными для каждой группы
         improvements = []
 
+        # Добавляем capability-specific контекст
+        caps = set()
         for cause in causes:
-            improvements.append(f"# FIX: {cause.fix}")
+            caps.update(cause.affected_capabilities)
+
+        cap_context = ", ".join(c for c in caps if c != 'unknown') or "все компоненты"
+
+        improvements.append(f"# IMPROVEMENT FOR: {cap_context}")
+        improvements.append(f"# Problem type: {mutation_type.value}")
+
+        for cause in causes:
+            # Делаем каждый фикс уникальным, добавляя контекст
+            cap_context_for_cause = ", ".join(cause.affected_capabilities) if cause.affected_capabilities else "общий"
+            improvements.append(f"## FIX ({cap_context_for_cause}): {cause.fix}")
+            if cause.related_issues:
+                improvements.append(f"   Related issues: {', '.join(cause.related_issues)}")
 
         # Добавление примеров если есть
         if good_examples:

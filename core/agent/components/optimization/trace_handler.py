@@ -272,7 +272,7 @@ class TraceHandler:
         {"timestamp": ..., "event_type": "log.info", "message": "Метрика: ..."}
 
         ARGS:
-        - session_id: идентификатор сессии
+        - session_id: идентификатор сессии (имя директории)
 
         RETURNS:
         - ExecutionTrace или None
@@ -300,8 +300,16 @@ class TraceHandler:
         if not events:
             return None
 
+        # Извлечение реального session_id из событий
+        real_session_id = session_id
+        for event in events:
+            sid = event.get('session_id')
+            if sid and sid != 'system':
+                real_session_id = sid
+                break
+
         # Парсинг событий в trace
-        return self._parse_events_to_trace(events, session_id)
+        return self._parse_events_to_trace(events, real_session_id)
 
     def _parse_events_to_trace(
         self,
@@ -354,9 +362,10 @@ class TraceHandler:
         """
         Парсинг событий в список шагов.
         
-        НОВАЯ ЛОГИКА (2 прохода):
-        - Проход 1: Собираем все metric.collected в буфер
-        - Проход 2: Создаём шаги из llm.* событий и привязываем метрики
+        НОВАЯ ЛОГИКА (3 прохода):
+        - Проход 1: Собираем метрики из metric.collected И log.info
+        - Проход 2: Создаём шаги из llm.* событий
+        - Проход 3: Привязываем метрики к шагам
         """
         # === ПРОХОД 1: Собираем метрики ===
         metrics_by_capability: Dict[str, Dict] = {}
@@ -374,13 +383,26 @@ class TraceHandler:
                 
                 metrics_by_capability[capability]['count'] = metrics_by_capability[capability].get('count', 0) + 1
                 
-                # Сохраняем последнюю метрику каждого типа
                 if metric_name == 'execution_time_ms':
                     metrics_by_capability[capability]['execution_time_ms'] = float(metric_value)
                 elif metric_name == 'tokens_used':
                     metrics_by_capability[capability]['tokens_used'] = int(metric_value)
                 elif metric_name == 'success':
                     metrics_by_capability[capability]['success'] = float(metric_value) == 1.0
+            
+            elif event_type in ('log.info', 'log.debug', 'info'):
+                message = event.get('message', '')
+                if 'Метрика:' in message:
+                    capability = self._extract_capability_from_event(event)
+                    metric_info = self._parse_metric_message(message)
+                    
+                    if capability not in metrics_by_capability:
+                        metrics_by_capability[capability] = {'count': 0}
+                    
+                    metrics_by_capability[capability]['count'] += 1
+                    metrics_by_capability[capability]['execution_time_ms'] = metric_info['execution_time_ms']
+                    metrics_by_capability[capability]['success'] = metric_info['success']
+                    metrics_by_capability[capability]['rows'] = metric_info['rows']
         
         # === ПРОХОД 2: Создаём шаги ===
         steps = []
@@ -446,30 +468,23 @@ class TraceHandler:
 
     def _parse_llm_request(self, event: Dict[str, Any]) -> Optional[LLMRequest]:
         """Парсинг LLM запроса из события"""
-        # В логах может не быть полного промпта
         return LLMRequest(
             prompt=event.get('message', '') or 'Prompt generated',
             system_prompt='',
             temperature=0.7,
             max_tokens=2048,
-            timestamp=self._parse_timestamp(event.get('timestamp'))
         )
 
     def _parse_llm_response(self, event: Dict[str, Any]) -> Optional[LLMResponse]:
         """Парсинг LLM ответа"""
-        
-        # В реальных логах message = null, используем placeholder
         content = event.get('message', '')
-        
         if not content:
-            # Создаём маркер что ответ был получен
             content = f"[LLM response received at {event.get('timestamp', 'unknown')}]"
         
         return LLMResponse(
             content=content,
-            tokens_used=0,  # Будет заполнено из метрик
-            latency_ms=0,   # Будет заполнено из метрик
-            timestamp=self._parse_timestamp(event.get('timestamp'))
+            tokens_used=0,
+            generation_time=0,
         )
 
     def _parse_metric_message(self, message: str) -> Dict[str, Any]:
@@ -554,10 +569,16 @@ class TraceHandler:
     def _extract_goal_from_events(self, events: List[Dict[str, Any]]) -> str:
         """Извлечение цели из событий"""
         for event in events:
+            event_type = event.get('event_type', '')
+            if event_type == 'session.started':
+                goal = event.get('goal', '')
+                if goal:
+                    return goal
             message = event.get('message', '')
-            # Поиск цели в логах
-            if 'запрос:' in message.lower() or 'goal:' in message.lower():
-                return message.split(':')[1].strip()[:200]
+            if 'ЦЕЛЬ:' in message:
+                parts = message.split('ЦЕЛЬ:', 1)
+                if len(parts) > 1:
+                    return parts[1].strip().split('\n')[0][:200]
 
         return "Session goal"
 
@@ -596,6 +617,10 @@ class TraceHandler:
         """
         Поиск traces по capability.
 
+        СТРАТЕГИИ:
+        1. Поиск *_trace.json файлов (готовые traces)
+        2. Fallback: сканирование session.jsonl в директориях сессий
+
         ARGS:
         - capability: название способности
         - limit: максимум результатов
@@ -611,6 +636,7 @@ class TraceHandler:
         if not sessions_dir.exists():
             return []
 
+        # Стратегия 1: Поиск *_trace.json файлов
         for trace_file in sessions_dir.glob("*_trace.json"):
             if len(traces) >= limit:
                 break
@@ -634,7 +660,63 @@ class TraceHandler:
             except Exception:
                 continue
 
+        # Стратегия 2 (fallback): Сканирование session.jsonl
+        if len(traces) < limit:
+            for session_dir in sorted(sessions_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+                if len(traces) >= limit:
+                    break
+
+                if not session_dir.is_dir():
+                    continue
+
+                jsonl_file = session_dir / "session.jsonl"
+                if not jsonl_file.exists():
+                    continue
+
+                try:
+                    trace = await self._load_trace_from_jsonl(session_dir.name)
+                    if trace is None:
+                        continue
+
+                    # Проверка capability в trace
+                    caps_used = trace.get_capabilities_used()
+                    if not self._trace_matches_capability(trace, capability):
+                        continue
+
+                    # Проверка success filter
+                    if success_filter is not None:
+                        if trace.success != success_filter:
+                            continue
+
+                    traces.append(trace)
+
+                except Exception as e:
+                    continue
+
         return traces
+
+    def _trace_matches_capability(
+        self,
+        trace: ExecutionTrace,
+        capability: str
+    ) -> bool:
+        """Проверка наличия capability в ExecutionTrace"""
+        # Проверка по шагам
+        for step in trace.steps:
+            if step.capability == capability or capability in step.capability:
+                return True
+
+        # Проверка по goal (если capability упоминается в цели)
+        if capability in trace.goal:
+            return True
+
+        # Проверка capabilities_used
+        caps = trace.get_capabilities_used()
+        for cap in caps:
+            if cap == capability or capability in cap or cap in capability:
+                return True
+
+        return False
 
     # === Helper методы для извлечения данных ===
 

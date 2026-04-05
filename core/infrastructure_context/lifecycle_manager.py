@@ -505,6 +505,20 @@ class LifecycleManager:
         """Завершение работы всех ресурсов (алиас для shutdown_all)."""
         await self.shutdown_all()
 
+    async def clear_resources(self) -> None:
+        """
+        Очистка всех зарегистрированных ресурсов.
+        
+        Вызывается после shutdown_all() для подготовки менеджера
+        к повторной регистрации ресурсов (например, при создании
+        нового ApplicationContext).
+        
+        NOTE: Безопасно вызывать только после shutdown_all().
+        """
+        async with self._lock:
+            self._resources.clear()
+            await self._publish_event("resources_cleared", {})
+
     # ==================== ПРОВЕРКА ЗДОРОВЬЯ ====================
 
     async def health_check_all(self) -> Dict[str, Dict[str, Any]]:

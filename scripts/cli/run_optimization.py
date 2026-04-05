@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI скрипт для запуска оптимизации промптов на новой архитектуре v2.
+CLI скрипт для запуска оптимизации промптов на новой архитектуре.
 
 ПЛАН РАБОТЫ:
 1. Baseline — запуск бенчмарка → текущая точность
@@ -377,12 +377,11 @@ async def run_baseline_benchmark(
 
 async def create_sandbox_context(
     infra_context,
-    prompt_overrides: Dict[str, str],
     config,
 ):
     """
-    Создание sandbox ApplicationContext с переопределёнными промптами.
-    Вынесено отдельно чтобы переиспользовать и не делать discovery каждый раз.
+    Создание sandbox ApplicationContext.
+    Промпты загружаются из data/prompts/ при инициализации.
     """
     from core.config.app_config import AppConfig
     from core.application_context.application_context import ApplicationContext
@@ -399,7 +398,6 @@ async def create_sandbox_context(
         profile="sandbox",
         prompt_loading_config={"default": "draft"},
     )
-    sandbox._prompt_overrides = prompt_overrides
     await sandbox.initialize()
     return sandbox
 
@@ -416,6 +414,7 @@ async def run_candidate_benchmark_on_sandbox(
     from core.agent.factory import AgentFactory
     from core.config.agent_config import AgentConfig
     from core.services.benchmarks import BenchmarkValidator
+    from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
 
     agent_factory = AgentFactory(sandbox)
     validator = BenchmarkValidator()
@@ -450,13 +449,12 @@ async def run_candidate_benchmark_on_sandbox(
 
             validation = None
             if tc.get('validation'):
-                validation = validator.validate_final_answer(
-                    answer=final_answer,
-                    validation_rules=tc.get('validation', {}),
-                    context={'metadata': tc.get('metadata', {})},
-                    expected_books=tc.get('expected_output', {}).get('books', []),
+                success, validation = _validate_agent_execution(
+                    agent=agent,
+                    final_answer=final_answer,
+                    test_case=tc,
+                    validator=validator,
                 )
-                success = validation['passed']
 
             if success:
                 success_count += 1
@@ -510,7 +508,7 @@ async def run_optimization_v2(
     Полный цикл оптимизации промптов.
     """
     print(f"\n{'='*60}")
-    print(f"Оптимизация v2: {capability}")
+    print(f"Оптимизация: {capability}")
     print(f"{'='*60}")
     print(f"Режим: {mode}")
     print(f"Целевая точность: {target_accuracy}")
@@ -691,15 +689,31 @@ async def run_optimization_v2(
             marker = " ← baseline" if p['status'] == 'active' else ""
             print(f"    {p['capability']}@{p['version']} ({p['status']}){marker}")
 
-        # Берём первый active промпт, или первый доступный
-        baseline_prompt = next((p for p in prompts if p['status'] == 'active'), prompts[0] if prompts else None)
-        baseline_prompt_content = baseline_prompt['content'] if baseline_prompt else "Default prompt"
-        baseline_prompt_file = baseline_prompt['file'] if baseline_prompt else None
+        # Определяем основной метод skill для оптимизации (тот что использует LLM)
+        # Для book_library это search_books (dynamic, требует LLM для генерации SQL)
+        # Ищем system промпт — он содержит инструкции для LLM
+        system_prompts = [p for p in prompts if '.system' in p['capability'] and p['status'] == 'active']
+        if not system_prompts:
+            system_prompts = [p for p in prompts if '.system' in p['capability']]
+        if not system_prompts:
+            system_prompts = prompts  # fallback: все промпты
+
+        # Берём первый active system промпт как baseline
+        baseline_prompt = system_prompts[0] if system_prompts else None
+        baseline_prompt_content = baseline_prompt['content'] if baseline_prompt else ""
+        baseline_prompt_capability = baseline_prompt['capability'] if baseline_prompt else capability
+
+        if not baseline_prompt_content:
+            print(f"  ⚠️ Промпт не найден, оптимизация невозможна")
+            return
+
+        print(f"\n  📝 Базовый промпт: {baseline_prompt_capability}@{baseline_prompt['version']}")
+        print(f"  📝 Длина промпта: {len(baseline_prompt_content)} символов")
 
         baseline_version = PromptVersion(
-            id=f"{capability}_baseline",
+            id=f"{baseline_prompt_capability}_baseline",
             parent_id=None,
-            capability=capability,
+            capability=baseline_prompt_capability,
             prompt=baseline_prompt_content,
             status="active",
         )
@@ -707,12 +721,13 @@ async def run_optimization_v2(
         # === Создание компонентов оптимизации ===
         print("\n🔧 Создание компонентов оптимизации...\n")
 
-        # Кэшированный sandbox для executor_callback (создаётся один раз)
-        sandbox_for_callback = await create_sandbox_context(
+        # Базовый sandbox для получения baseline
+        base_sandbox = await create_sandbox_context(
             infra_context=infra_context,
-            prompt_overrides={capability: baseline_prompt_content},
             config=config,
         )
+        print(f"  📦 Sandbox контекст создан (profile={base_sandbox.profile})")
+        print(f"  🎯 Оптимизируемый метод: {baseline_prompt_capability}")
 
         benchmark_config = BenchmarkRunConfig(
             temperature=0.0,
@@ -723,12 +738,14 @@ async def run_optimization_v2(
 
         async def executor_callback(input_text: str, version_id: str) -> dict:
             """
-            Реальный executor_callback — запуск агента на кэшированном sandbox.
-            Обновляет prompt_overrides на лету без пересоздания контекста.
+            executor_callback — для каждого кандидата создаём новый контекст.
             """
             start = datetime.now()
             try:
-                candidate = await version_manager.get_version(version_id)
+                candidate = await version_manager.get_version(
+                    capability=baseline_prompt_capability,
+                    version_id=version_id,
+                )
                 if not candidate:
                     return {
                         'success': False,
@@ -738,15 +755,22 @@ async def run_optimization_v2(
                         'tokens_used': 0,
                     }
 
-                # Обновляем промпт в кэшированном sandbox
-                sandbox_for_callback._prompt_overrides = {capability: candidate.prompt}
+                # Создаём новый контекст с промптом кандидата
+                sandbox_for_test = await base_sandbox.clone_with_prompt_content_override(
+                    capability=baseline_prompt_capability,
+                    prompt_content=candidate.prompt,
+                )
+                print(f"  📦 Новый контекст создан для версии {version_id}")
 
-                # Запускаем один вопрос
+                # Запускаем один вопрос на новом контексте
                 result = await run_candidate_benchmark_on_sandbox(
                     test_cases=[{'input': input_text, 'id': version_id, 'validation': None}],
-                    sandbox=sandbox_for_callback,
+                    sandbox=sandbox_for_test,
                     verbose=False,
                 )
+
+                # Очищаем контекст
+                await sandbox_for_test.shutdown()
 
                 elapsed = (datetime.now() - start).total_seconds() * 1000
                 return {
@@ -754,10 +778,14 @@ async def run_optimization_v2(
                     'output': result['results'][0].get('final_answer', '') if result.get('results') else '',
                     'execution_time_ms': elapsed,
                     'tokens_used': 0,
+                    'candidate_prompt_length': len(candidate.prompt),
                 }
 
             except Exception as e:
                 elapsed = (datetime.now() - start).total_seconds() * 1000
+                import traceback
+                print(f"  ❌ executor_callback exception: {e}")
+                print(f"  Traceback: {traceback.format_exc()}")
                 return {
                     'success': False,
                     'output': None,
@@ -796,8 +824,8 @@ async def run_optimization_v2(
 
         version_manager = VersionManager(event_bus=event_bus)
         await version_manager.register(baseline_version)
-        await version_manager.promote(baseline_version.id, capability)
-        print("  ✅ VersionManager (baseline зарегистрирован)")
+        await version_manager.promote(baseline_version.id, baseline_prompt_capability)
+        print(f"  ✅ VersionManager (baseline зарегистрирован: {baseline_prompt_capability})")
 
         safety_config = SafetyConfig(
             max_success_rate_degradation=0.05,
@@ -822,6 +850,7 @@ async def run_optimization_v2(
             timeout_seconds=600,
             max_examples=5,
             max_error_examples=3,
+            benchmark_size=benchmark_size,
         )
 
         orchestrator = OptimizationOrchestrator(
@@ -862,8 +891,11 @@ async def run_optimization_v2(
                 'log_analysis': log_analysis,
             }
         else:
+            # Используем конкретный метод (не общую capability) для оптимизации
+            opt_capability = baseline_prompt_capability if baseline_prompt_capability else capability
+            print(f"  🎯 Запуск оптимизации для: {opt_capability}")
             opt_result = await orchestrator.optimize(
-                capability=capability,
+                capability=opt_capability,
                 mode=optimization_mode,
             )
 
@@ -1039,7 +1071,7 @@ async def main():
     args = parse_args()
 
     print("\n" + "=" * 60)
-    print("Optimization CLI v2")
+    print("Optimization CLI")
     print("=" * 60)
 
     try:

@@ -29,6 +29,9 @@ from core.services.benchmarks.benchmark_models import (
     OptimizationMode,
     BenchmarkScenario,
     BenchmarkRunResult,
+    ExpectedOutput,
+    EvaluationCriterion,
+    EvaluationType,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 
@@ -58,6 +61,7 @@ class OrchestratorV2Config:
         timeout_seconds: int = 600,
         max_examples: int = 5,
         max_error_examples: int = 3,
+        benchmark_size: int = 2,
     ):
         if max_iterations < 1:
             raise ValueError(f"max_iterations должен быть >= 1, получено {max_iterations}")
@@ -69,6 +73,8 @@ class OrchestratorV2Config:
             raise ValueError(f"timeout_seconds должен быть >= 10, получено {timeout_seconds}")
         if max_examples < 1:
             raise ValueError(f"max_examples должен быть >= 1, получено {max_examples}")
+        if benchmark_size < 1:
+            raise ValueError(f"benchmark_size должен быть >= 1, получено {benchmark_size}")
 
         self.max_iterations = max_iterations
         self.target_accuracy = target_accuracy
@@ -76,6 +82,7 @@ class OrchestratorV2Config:
         self.timeout_seconds = timeout_seconds
         self.max_examples = max_examples
         self.max_error_examples = max_error_examples
+        self.benchmark_size = benchmark_size
 
 
 class OptimizationOrchestrator:
@@ -328,6 +335,11 @@ class OptimizationOrchestrator:
             },
         )
 
+        # DEBUG: Показать root causes
+        print(f"\n  🔍 [Debug] Root causes ({len(root_causes)}):")
+        for i, rc in enumerate(root_causes):
+            print(f"    {i+1}. cause='{rc.cause}' fix='{rc.fix}' caps={rc.affected_capabilities} related={rc.related_issues}")
+
         # ЭТАП 7: Получение baseline и генерация улучшений
         baseline = await self.version_manager.get_active(capability)
 
@@ -422,7 +434,9 @@ class OptimizationOrchestrator:
             )
 
         # Оценка baseline
+        print(f"\n  📊 [Evaluate] Оценка baseline: {baseline.id}")
         baseline_eval = await self._evaluate_version(baseline, capability)
+        print(f"  📊 [Evaluate] Baseline eval: success_rate={baseline_eval.success_rate}, score={baseline_eval.score}")
 
         # Инициализация результата
         result = OptimizationResult(
@@ -452,12 +466,15 @@ class OptimizationOrchestrator:
             await self.version_manager.register(candidate)
 
             # Оценка кандидата
+            print(f"  📊 [Evaluate] Оценка кандидата: {candidate.id}")
             candidate_eval = await self._evaluate_version(candidate, capability)
+            print(f"  📊 [Evaluate] Candidate eval: success_rate={candidate_eval.success_rate}, score={candidate_eval.score}")
 
             # Расчёт улучшения по mode-specific метрике
             improvement = self._calculate_improvement(
                 candidate_eval, baseline_eval, mode
             )
+            print(f"  📊 [Evaluate] Improvement: {improvement:.4f} (min: {self.config.min_improvement})")
 
             evaluated_candidates.append((candidate, candidate_eval, improvement))
 
@@ -600,6 +617,9 @@ class OptimizationOrchestrator:
         """
         Загрузка сценариев бенчмарка для capability.
 
+        ИСПОЛЬЗУЕТ реальные benchmark questions из data/benchmarks/agent_benchmark.json,
+        а не traces — чтобы оценивать на НЕЗАВИСИМЫХ данных.
+
         ARGS:
         - version: версия промпта
         - capability: название способности
@@ -608,16 +628,95 @@ class OptimizationOrchestrator:
         - List[BenchmarkScenario]: список сценариев
         """
         try:
+            # Попытка загрузить реальные benchmark questions
+            scenarios = await self._load_real_benchmark_scenarios(capability)
+            if scenarios:
+                print(f"  📊 [Scenarios] Загружено {len(scenarios)} реальных benchmark сценариев")
+                return scenarios
+
+            # Fallback: строим из traces
+            print(f"  ⚠️ [Scenarios] Benchmark не найден, строим из traces...")
             traces = await self.trace_collector.collect_traces(capability)
             if not traces:
+                print(f"  ⚠️ [Scenarios] Нет traces для {capability}")
                 return []
 
+            print(f"  📊 [Scenarios] Traces собрано: {len(traces)}, строим dataset...")
             dataset = await self.trace_collector.build_dataset(capability)
-            scenario_builder = ScenarioBuilder(self.event_bus)
+            print(f"  📊 [Scenarios] Dataset samples: {len(dataset.samples)}")
+
+            scenario_builder = ScenarioBuilder()
             scenarios = await scenario_builder.build(dataset)
+            print(f"  📊 [Scenarios] Сценариев построено: {len(scenarios)}")
             return scenarios
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"  ❌ [Scenarios] Ошибка: {e}")
+            print(f"  Traceback: {traceback.format_exc()}")
             return []
+
+    async def _load_real_benchmark_scenarios(
+        self,
+        capability: str,
+    ) -> List[BenchmarkScenario]:
+        """
+        Загрузка реальных benchmark сценариев из JSON файла.
+
+        ARGS:
+        - capability: название способности
+
+        RETURNS:
+        - List[BenchmarkScenario]: список сценариев или []
+        """
+        import json
+        from pathlib import Path
+
+        benchmark_file = Path('data/benchmarks/agent_benchmark.json')
+        if not benchmark_file.exists():
+            return []
+
+        with open(benchmark_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        test_cases = data.get('levels', {}).get('sql_generation', {}).get('test_cases', [])
+        if not test_cases:
+            return []
+
+        scenarios = []
+        limit = self.config.benchmark_size
+        for tc in test_cases[:limit]:
+            scenario = BenchmarkScenario(
+                id=f"bench_{tc.get('id', 'unknown')}",
+                name=f"{capability}_bench_{tc.get('id', 'unknown')}",
+                description=tc.get('description', tc.get('input', '')[:100]),
+                goal=tc['input'],
+                expected_output=ExpectedOutput(
+                    content=tc.get('expected_sql', tc.get('expected_answer', '')),
+                    criteria=[
+                        EvaluationCriterion(
+                            name='sql_match',
+                            evaluation_type=EvaluationType.EXACT_MATCH,
+                            weight=0.7,
+                            description='SQL-запрос должен совпадать с ожидаемым',
+                        ),
+                        EvaluationCriterion(
+                            name='answer_validity',
+                            evaluation_type=EvaluationType.COVERAGE,
+                            weight=0.3,
+                            description='Ответ должен содержать релевантную информацию',
+                        ),
+                    ],
+                ),
+                timeout_seconds=120,
+                metadata={
+                    'source': 'benchmark',
+                    'expected_sql': tc.get('expected_sql'),
+                    'validation': tc.get('validation'),
+                },
+            )
+            scenarios.append(scenario)
+
+        return scenarios
 
     def get_optimization_report(self, result: Optional[OptimizationResult]) -> Dict[str, Any]:
         """
