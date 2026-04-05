@@ -6,6 +6,29 @@
     "sql_generation": {
       "description": "Проверка качества генерации SQL запросов",
       "test_cases": [
+                {
+          "id": "sql_filter_by_year",
+          "name": "SQL: Книги после 1850 года",
+          "input": "Найти книги изданные после 1850 года",
+          "expected_output": {
+            "success": true,
+            "query_type": "filtered_search"
+          },
+          "validation": {
+            "must_have_tables": [
+              "books"
+            ],
+            "must_have_where": true,
+            "must_have_year_filter": true,
+            "must_be_valid_sql": true
+          },
+          "metadata": {
+            "filter": {
+              "year_from": 1850
+            },
+            "difficulty": "medium"
+          }
+        },
         {
           "id": "sql_гоголь_515",
           "name": "SQL: Какие книги написал Николай Гоголь?",
@@ -153,29 +176,6 @@
           "metadata": {
             "query_type": "aggregation",
             "difficulty": "easy"
-          }
-        },
-        {
-          "id": "sql_filter_by_year",
-          "name": "SQL: Книги после 1850 года",
-          "input": "Найти книги изданные после 1850 года",
-          "expected_output": {
-            "success": true,
-            "query_type": "filtered_search"
-          },
-          "validation": {
-            "must_have_tables": [
-              "books"
-            ],
-            "must_have_where": true,
-            "must_have_year_filter": true,
-            "must_be_valid_sql": true
-          },
-          "metadata": {
-            "filter": {
-              "year_from": 1850
-            },
-            "difficulty": "medium"
           }
         },
         {

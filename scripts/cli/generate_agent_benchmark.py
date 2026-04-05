@@ -233,10 +233,12 @@ async def generate_sql_generation_tests(db_provider) -> List[Dict[str, Any]]:
             'query_type': 'filtered_search'
         },
         'validation': {
-            'must_have_tables': ['books'],
+            'must_have_schema': ['Lib.books'],
             'must_have_where': True,
             'must_have_year_filter': True,
-            'must_be_valid_sql': True
+            'must_be_valid_sql': True,
+            'must_not_have_unexpected_conditions': True,
+            'must_not_falsely_report_no_results': True,
         },
         'metadata': {
             'filter': {'year_from': 1850},

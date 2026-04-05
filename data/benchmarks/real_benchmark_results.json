@@ -1,42 +1,29 @@
 {
-  "run_at": "2026-03-25T16:26:51.035387",
-  "benchmark": "data/benchmarks/agent_benchmark.json",
-  "mode": "full",
+  "run_at": "2026-04-05T18:03:59.129839",
   "test_results": [
     {
-      "test_id": "sql_гоголь_515",
-      "input": "Какие книги написал Николай Гоголь?",
-      "success": true,
-      "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
-      "metadata": {
-        "capability": "final_answer.generate",
-        "execution_time_ms": 244315.29235839844,
-        "is_final_answer": true
+      "test_id": "sql_filter_by_year",
+      "input": "Найти книги изданные после 1850 года",
+      "success": false,
+      "final_answer": "ExecutionResult(status=<ExecutionStatus.FAILED: 'failed'>, data=None, error='llm_error: llm_exception:StructuredOutputError:Не удалось получить валидный структурированный ответ после 3 попыток', error_category=<ErrorCategory.UNKNOWN: 'unknown'>, metadata={}, side_effect=False, llm_called=False)",
+      "steps": 0,
+      "validation": {
+        "passed": false,
+        "errors": [
+          "SQL-запрос не найден в результатах агента"
+        ],
+        "sql_validation": null,
+        "answer_validation": null
       },
-      "steps": 0
-    },
-    {
-      "test_id": "sql_грибоедов_640",
-      "input": "Найти все книги автора Грибоедов",
-      "success": true,
-      "final_answer": "Николай Гоголь написал следующие книги: 'Мёртвые души' (1842), 'Ревизор' (1836), 'Тарас Бульба' (1835) и 'Шинель' (1842).",
-      "metadata": {
-        "capability": "final_answer.generate",
-        "execution_time_ms": 100435.59193611145,
-        "is_final_answer": true
-      },
-      "steps": 0
+      "metadata": {}
     }
   ],
   "metrics": {
-    "total": 2,
-    "successful": 2,
-    "failed": 0,
-    "success_rate": 100.0,
+    "total": 1,
+    "successful": 0,
+    "failed": 1,
+    "success_rate": 0.0,
     "total_steps": 0,
-    "avg_steps": 0.0,
-    "efficiency_score": 0,
-    "overall_score": 70.0,
-    "grade": "УДОВЛЕТВОРИТЕЛЬНО"
+    "avg_steps": 0
   }
 }
