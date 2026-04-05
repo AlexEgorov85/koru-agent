@@ -793,6 +793,10 @@ class ApplicationContext(BaseSystemContext):
         content_overrides[capability] = prompt_content
         new_config._prompt_content_overrides = content_overrides
 
+        # Очищаем ресурсы перед созданием нового контекста
+        if self.lifecycle_manager:
+            await self.lifecycle_manager.clear_resources()
+
         new_ctx = ApplicationContext(
             infrastructure_context=self.infrastructure_context,
             config=new_config,
