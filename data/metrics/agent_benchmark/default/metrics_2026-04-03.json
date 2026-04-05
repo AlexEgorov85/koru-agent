@@ -1,0 +1,38 @@
+[
+  {
+    "agent_id": "unknown",
+    "capability": "agent_benchmark",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-03T16:13:58.566787",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "agent_benchmark",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-03T16:15:09.074012",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "agent_benchmark",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-03T18:59:14.534419",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  }
+]

@@ -1,0 +1,986 @@
+[
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:15:20.839326",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:23:23.509553",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:28:23.532745",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:38:56.330645",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:51:34.351629",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T13:55:47.313791",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:04:26.269033",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:04:26.856556",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:04:27.211010",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:04:27.213538",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:09:06.007392",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:09:06.629738",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:09:07.046056",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:09:07.048594",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:13:17.923708",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:13:18.466079",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:13:18.826012",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:13:18.831488",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:26:56.732120",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:26:57.380133",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:26:57.809313",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:26:57.816837",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:35:10.547777",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:35:11.176681",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:35:11.576901",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:35:11.583139",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:38:27.636172",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:38:28.199763",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:38:28.557696",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:38:28.566680",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:44:53.429898",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:44:53.683480",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:44:53.700858",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:44:53.712199",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:46:30.366806",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:46:30.564234",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:46:30.569658",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:46:30.572914",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:52:57.573245",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:52:57.778787",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:52:57.789425",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:52:57.794034",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:59:42.953806",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:59:43.178902",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T14:59:43.187461",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T14:59:43.192988",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:04:13.750561",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:04:14.024476",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:04:14.034937",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:04:14.041520",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:10:28.737711",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:10:29.041370",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:10:29.077309",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:10:29.084927",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:14:44.997341",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:14:45.257180",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:14:45.268307",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:14:45.276229",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:18:25.336372",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:18:25.610547",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:18:25.621456",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:18:25.632518",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:22:30.277429",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:22:30.518930",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:22:30.525350",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:22:30.529877",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:09.881115",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.139338",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:28:10.144802",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.148560",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.154529",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:28:10.160463",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.164816",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "selection_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.171157",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {}
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "gauge",
+    "name": "success",
+    "value": 0.0,
+    "timestamp": "2026-04-05T15:28:10.177860",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  },
+  {
+    "agent_id": "unknown",
+    "capability": "book_library",
+    "metric_type": "counter",
+    "name": "error_count",
+    "value": 1.0,
+    "timestamp": "2026-04-05T15:28:10.181727",
+    "session_id": null,
+    "correlation_id": "",
+    "version": null,
+    "tags": {
+      "error": "unknown"
+    }
+  }
+]
