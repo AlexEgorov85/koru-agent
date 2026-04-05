@@ -416,7 +416,9 @@ async def run_candidate_benchmark_on_sandbox(
     from core.services.benchmarks import BenchmarkValidator
     from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
 
+    print(f"  🔄 [run_candidate_benchmark] Создаю AgentFactory...")
     agent_factory = AgentFactory(sandbox)
+    print(f"  🔄 [run_candidate_benchmark] AgentFactory создан")
     validator = BenchmarkValidator()
 
     success_count = 0
@@ -424,21 +426,25 @@ async def run_candidate_benchmark_on_sandbox(
     results = []
 
     for i, tc in enumerate(test_cases, 1):
-        if verbose:
-            print(f"  [{i}/{len(test_cases)}] {tc.get('name', tc['input'][:60])}...", end=" ")
-            sys.stdout.flush()
-
+        print(f"  🔄 [run_candidate_benchmark] Тест {i}/{len(test_cases)}: {tc.get('input', '')[:50]}...")
         agent_config = AgentConfig(max_steps=10, temperature=0.2)
+        print(f"  🔄 [run_candidate_benchmark] Создаю агента...")
         agent = await agent_factory.create_agent(goal=tc['input'], config=agent_config)
+        print(f"  🔄 [run_candidate_benchmark] Агент создан, запускаю...")
 
         try:
             result = await agent.run(tc['input'])
+            print(f"  🔄 [run_candidate_benchmark] Агент завершил")
             success = True
             final_answer = ''
             steps_count = 0
 
             if hasattr(result, 'data') and result.data:
-                if isinstance(result.data, dict):
+                from pydantic import BaseModel
+                if isinstance(result.data, BaseModel):
+                    final_answer = result.data.final_answer
+                    steps_count = result.data.metadata.total_steps if hasattr(result.data, 'metadata') else 0
+                elif isinstance(result.data, dict):
                     final_answer = result.data.get('final_answer', '')
                     steps_count = result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
                 else:
@@ -742,6 +748,7 @@ async def run_optimization_v2(
             """
             start = datetime.now()
             try:
+                print(f"  🔄 [executor_callback] Начало для {version_id}")
                 candidate = await version_manager.get_version(
                     capability=baseline_prompt_capability,
                     version_id=version_id,
@@ -754,6 +761,7 @@ async def run_optimization_v2(
                         'execution_time_ms': 0,
                         'tokens_used': 0,
                     }
+                print(f"  🔄 [executor_callback] Найден кандидат, создаю контекст...")
 
                 # Создаём новый контекст с промптом кандидата
                 sandbox_for_test = await base_sandbox.clone_with_prompt_content_override(
@@ -763,13 +771,16 @@ async def run_optimization_v2(
                 print(f"  📦 Новый контекст создан для версии {version_id}")
 
                 # Запускаем один вопрос на новом контексте
+                print(f"  🔄 [executor_callback] Запускаю benchmark...")
                 result = await run_candidate_benchmark_on_sandbox(
                     test_cases=[{'input': input_text, 'id': version_id, 'validation': None}],
                     sandbox=sandbox_for_test,
                     verbose=False,
                 )
+                print(f"  🔄 [executor_callback] Benchmark завершён")
 
                 # Очищаем контекст
+                print(f"  🔄 [executor_callback] Очищаю контекст...")
                 await sandbox_for_test.shutdown()
 
                 elapsed = (datetime.now() - start).total_seconds() * 1000
@@ -851,6 +862,7 @@ async def run_optimization_v2(
             max_examples=5,
             max_error_examples=3,
             benchmark_size=benchmark_size,
+            baseline_results=baseline,
         )
 
         orchestrator = OptimizationOrchestrator(

@@ -258,7 +258,23 @@ async def main_async() -> int:
             )
 
             if hasattr(result, 'data') and result.data:
-                if isinstance(result.data, dict):
+                from pydantic import BaseModel
+                if isinstance(result.data, BaseModel):
+                    final_answer = result.data.final_answer
+                    if final_answer:
+                        await event_bus.publish(
+                            EventType.USER_RESULT,
+                            data={"message": final_answer},
+                            session_id="system",
+                        )
+                    else:
+                        summary = result.data.summary_of_steps
+                        await event_bus.publish(
+                            EventType.USER_RESULT,
+                            data={"message": summary or str(result.data)},
+                            session_id="system",
+                        )
+                elif isinstance(result.data, dict):
                     final_answer = result.data.get('final_answer', '')
                     if final_answer:
                         await event_bus.publish(
@@ -287,11 +303,16 @@ async def main_async() -> int:
                 )
 
             if hasattr(result, 'metadata') and result.metadata:
-                data_dict = result.data.model_dump() if hasattr(result, 'data') and result.data else {}
-                steps = result.metadata.get('total_steps') or \
-                        result.metadata.get('steps_count') or \
-                        (data_dict.get('metadata', {}).get('total_steps') if data_dict else None) or \
-                        'N/A'
+                from pydantic import BaseModel
+                if isinstance(result.data, BaseModel):
+                    data_dict = result.data.model_dump()
+                    steps = result.data.metadata.total_steps if hasattr(result.data, 'metadata') else 'N/A'
+                else:
+                    data_dict = result.data if isinstance(result.data, dict) else {}
+                    steps = result.metadata.get('total_steps') or \
+                            result.metadata.get('steps_count') or \
+                            (data_dict.get('metadata', {}).get('total_steps') if data_dict else None) or \
+                            'N/A'
                 errors = result.metadata.get('error_count', 0)
                 await event_bus.publish(
                     EventType.USER_RESULT,

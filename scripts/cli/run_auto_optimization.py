@@ -114,7 +114,11 @@ async def run_agent_on_task(goal: str, app_context, timeout: int = 600) -> Dict[
         output = None
         
         if hasattr(result, 'data') and result.data:
-            if isinstance(result.data, dict):
+            from pydantic import BaseModel
+            if isinstance(result.data, BaseModel):
+                output = result.data.final_answer or str(result.data)
+                success = True
+            elif isinstance(result.data, dict):
                 output = result.data.get('final_answer', str(result.data))
                 success = result.data.get('success', output is not None)
             else:

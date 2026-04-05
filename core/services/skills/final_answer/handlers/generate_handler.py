@@ -48,14 +48,36 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
                     error=f"Ошибка генерации: {llm_result.error}"
                 )
 
-            generated_answer = llm_result.data.get("text", "") if hasattr(llm_result.data, 'get') else str(llm_result.data)
+            if llm_result.data is None:
+                generated_answer = ""
+            elif hasattr(llm_result.data, 'get'):
+                generated_answer = llm_result.data.get("text", "")
+            else:
+                generated_answer = str(llm_result.data) if llm_result.data else ""
 
-            result_data = {
+            result_dict = {
                 "final_answer": generated_answer,
-                "goal": goal,
-                "format": format_type,
-                "sources_count": len(actions)
+                "sources": actions[:max_sources],
+                "confidence_score": 0.8,
+                "remaining_questions": [],
+                "summary_of_steps": "",
+                "metadata": {
+                    "total_observations": len(observations),
+                    "total_steps": len(actions),
+                    "format_type": format_type
+                }
             }
+            
+            output_schema = self.get_output_schema()
+            from pydantic import BaseModel
+            if output_schema and output_schema != BaseModel:
+                try:
+                    result_data = output_schema(**result_dict)
+                except Exception as e:
+                    await self.log_warning(f"Ошибка создания Pydantic модели: {e}, используем dict")
+                    result_data = result_dict
+            else:
+                result_data = result_dict
 
             await self.log_info(f"Финальный ответ сгенерирован ({len(generated_answer)} символов)")
 

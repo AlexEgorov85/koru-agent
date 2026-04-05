@@ -504,14 +504,14 @@ class FinalAnswerSkill(BaseSkill):
             llm_result_data = llm_result.data
             
             # Пытаемся извлечь parsed_content
-            if hasattr(llm_result_data, 'parsed_content'):
+            if llm_result_data is None:
+                parsed_response = {}
+            elif hasattr(llm_result_data, 'parsed_content'):
                 parsed_response = llm_result_data.parsed_content
             elif isinstance(llm_result_data, dict):
-                # Если есть ключ 'parsed_content' - используем его
                 if "parsed_content" in llm_result_data:
                     parsed_response = llm_result_data.get("parsed_content", {})
                 else:
-                    # Данные уже в корне dict - используем сам dict
                     parsed_response = llm_result_data
             else:
                 parsed_response = llm_result_data if llm_result_data else {}
@@ -524,25 +524,22 @@ class FinalAnswerSkill(BaseSkill):
                     f"Финальный ответ сгенерирован с structured output (попыток: {llm_result.metadata.get('parsing_attempts', 1) if isinstance(llm_result.metadata, dict) else 1})"
                 )
 
-            # Формирование финального результата
-            # ✅ ИСПРАВЛЕНО: Работаем с Pydantic моделью или dict
+            # Формирование финального результата через динамическую Pydantic модель из контракта
             from pydantic import BaseModel
+            output_schema = self.get_output_contract("final_answer.generate")
+            
             if isinstance(parsed_response, BaseModel):
-                # Pydantic модель — используем атрибуты согласно контракту
                 final_answer_val = getattr(parsed_response, 'final_answer', '')
                 confidence_val = getattr(parsed_response, 'confidence_score', 0.8)
                 sources_val = getattr(parsed_response, 'sources', [])
                 summary_val = getattr(parsed_response, 'summary_of_steps', '')
                 remaining_questions_val = getattr(parsed_response, 'remaining_questions', [])
-                metadata_val = getattr(parsed_response, 'metadata', {})
             else:
-                # dict — используем .get() согласно контракту
                 final_answer_val = parsed_response.get("final_answer", "")
                 confidence_val = parsed_response.get("confidence_score", 0.8)
                 sources_val = parsed_response.get("sources", [])
                 summary_val = parsed_response.get("summary_of_steps", "")
                 remaining_questions_val = parsed_response.get("remaining_questions", [])
-                metadata_val = parsed_response.get("metadata", {})
 
             # 🔧 FALLBACK: Если final_answer пустой, но sources есть — генерируем ответ
             if not final_answer_val and sources_val:
@@ -571,21 +568,30 @@ class FinalAnswerSkill(BaseSkill):
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
 
-            result_data = {
+            # Формируем результат через динамическую Pydantic модель из контракта
+            result_dict = {
                 "final_answer": final_answer_val,
                 "sources": sources_val if sources_val else (observations[-max_sources:] if include_evidence else []),
                 "confidence_score": confidence_val,
                 "remaining_questions": remaining_questions_val,
                 "summary_of_steps": summary_val if summary_val else (self._build_steps_summary(steps_taken) if include_steps else ""),
                 "metadata": {
-                    **metadata_val,
                     "total_observations": len(observations),
                     "total_steps": len(steps_taken),
                     "generation_time_ms": 0,
-                    "format_type": format_type,
-                    "structured_output": True
+                    "format_type": format_type
                 }
             }
+            
+            if output_schema and output_schema != BaseModel:
+                try:
+                    result_data = output_schema(**result_dict)
+                except Exception as e:
+                    if self.event_bus_logger:
+                        await self.event_bus_logger.warning(f"Ошибка создания Pydantic модели: {e}, используем dict")
+                    result_data = result_dict
+            else:
+                result_data = result_dict
 
             return ExecutionResult.success(
                 data=result_data,

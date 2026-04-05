@@ -226,7 +226,11 @@ async def run_agent_benchmark(
             steps_count = 0
 
             if hasattr(result, 'data') and result.data:
-                if isinstance(result.data, dict):
+                from pydantic import BaseModel
+                if isinstance(result.data, BaseModel):
+                    final_answer = result.data.final_answer
+                    steps_count = result.data.metadata.total_steps if hasattr(result.data, 'metadata') else 0
+                elif isinstance(result.data, dict):
                     final_answer = result.data.get('final_answer', '')
                     steps_count = result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
                 else:

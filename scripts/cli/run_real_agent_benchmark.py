@@ -159,7 +159,12 @@ async def main():
         log_print(f"\n📊 Результат:")
         
         if hasattr(result, 'data') and result.data:
-            if isinstance(result.data, dict):
+            from pydantic import BaseModel
+            if isinstance(result.data, BaseModel):
+                final_answer = result.data.final_answer
+                if final_answer:
+                    print(f"\n{final_answer[:500]}{'...' if len(final_answer) > 500 else ''}")
+            elif isinstance(result.data, dict):
                 final_answer = result.data.get('final_answer', '')
                 if final_answer:
                     print(f"\n{final_answer[:500]}{'...' if len(final_answer) > 500 else ''}")
@@ -188,13 +193,13 @@ async def main():
         success = True
         
         if hasattr(result, 'data') and result.data:
-            if isinstance(result.data, dict):
+            from pydantic import BaseModel
+            if isinstance(result.data, BaseModel):
+                final_answer = result.data.final_answer
+                steps_count = result.data.metadata.total_steps if hasattr(result.data, 'metadata') else 0
+            elif isinstance(result.data, dict):
                 final_answer = result.data.get('final_answer', '')
                 steps_count = result.metadata.get('total_steps', 0) if hasattr(result, 'metadata') else 0
-            elif hasattr(result.data, '__dict__'):
-                # Pydantic модель
-                final_answer = getattr(result.data, 'final_answer', str(result.data))
-                steps_count = getattr(result, 'metadata', {}).get('total_steps', 0) if hasattr(result, 'metadata') else 0
             else:
                 final_answer = str(result.data)
         else:
