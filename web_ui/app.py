@@ -77,6 +77,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = 0
+if "processing" not in st.session_state:
+    st.session_state.processing = False
 
 # Навигация через tabs
 tab1, tab2 = st.tabs(["💬 Агент", "⚙️ Управление"])
@@ -99,7 +101,8 @@ with tab1:
         duration = msg.get("duration_ms", 0)
         is_html = msg.get("is_html", False)
 
-        with st.chat_message(role):
+        avatar = "👨‍💻" if role == "user" else "🤖"
+        with st.chat_message(role, avatar=avatar):
             if is_html:
                 st.markdown(content, unsafe_allow_html=True)
             else:
@@ -129,9 +132,10 @@ with tab1:
 
     # Поле ввода как в классических LLM-чатах
     if is_ready():
-        if prompt := st.chat_input("Введите ваш вопрос...", max_chars=2000):
+        if prompt := st.chat_input("Введите ваш вопрос...", max_chars=2000, disabled=st.session_state.processing):
             # Сохраняем вопрос в session_state для обработки
             st.session_state.pending_question = prompt
+            st.session_state.processing = True
             st.session_state.messages.append({
                 "role": "user",
                 "content": prompt,
@@ -147,21 +151,79 @@ with tab1:
             import asyncio
             clear_logs()
 
-            with st.spinner("Думаю..."):
-                start = time.time()
-                app_ctx = get_app_context()
-                factory = AgentFactory(app_ctx)
+            # === НОВОЕ: Отображение мыслей агента в реальном времени ===
+            start_time = time.time()
+            
+            # Контейнер для мыслей (одна строка которая меняется)
+            thinking_placeholder = st.empty()
+            
+            # Функция для запуска агента в отдельном потоке
+            import threading
+            
+            result_holder = [None]
+            error_holder = [None]
+            
+            def run_agent_thread():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        app_ctx = get_app_context()
+                        factory = AgentFactory(app_ctx)
+                        shared_dialogue_history = get_shared_dialogue_history()
+                        
+                        async def run():
+                            agent = await factory.create_agent(goal=pending, dialogue_history=shared_dialogue_history)
+                            return await agent.run(pending)
+                        
+                        result_holder[0] = loop.run_until_complete(run())
+                    finally:
+                        loop.close()
+                except Exception as e:
+                    error_holder[0] = e
+            
+            # Запускаем агента в отдельном потоке
+            agent_thread = threading.Thread(target=run_agent_thread)
+            agent_thread.start()
+            
+            # Пока агент работает - показываем мысли в реальном времени
+            last_log_count = 0
+            while agent_thread.is_alive():
+                # Получаем свежие логи
+                logs = get_logs()
                 
-                # Получаем общую историю диалога (сохраняется между запросами)
-                shared_dialogue_history = get_shared_dialogue_history()
-
-                async def run():
-                    # Новый SessionContext, но с копией истории диалога
-                    agent = await factory.create_agent(goal=pending, dialogue_history=shared_dialogue_history)
-                    return await agent.run(pending)
-
-                result = asyncio.run(run())
-                duration_ms = int((time.time() - start) * 1000)
+                # Ищем последнее сообщение "thinking"
+                thinking_msg = None
+                for log in reversed(logs):
+                    if log.get("level") == "thinking":
+                        thinking_msg = log.get("message", "")
+                        break
+                
+                if thinking_msg:
+                    # Одна строка которая меняется
+                    thinking_placeholder.markdown(
+                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>🧠 {thinking_msg}</div>",
+                        unsafe_allow_html=True
+                    )
+                    last_log_count = len(logs)
+                
+                # Небольшая пауза чтобы UI успевал обновляться
+                time.sleep(0.3)
+            
+            # Дожидаемся завершения
+            agent_thread.join()
+            
+            # Очищаем контейнер мыслей
+            thinking_placeholder.empty()
+            
+            # Проверяем результат
+            if error_holder[0]:
+                thinking_placeholder.empty()
+                raise error_holder[0]
+            
+            result = result_holder[0]
+            duration_ms = int((time.time() - start_time) * 1000)
+            # === КОНЕЦ НОВОЕ ===
 
             st.session_state.last_request_time = time.time()
 
@@ -189,8 +251,11 @@ with tab1:
                 summary = answer_data.get("summary_of_steps", "")
                 metadata = answer_data.get("metadata", {})
 
-                # Основной ответ — чистый текст
+                # Основной ответ — чистый текст с выделением
                 answer = final_answer if final_answer else str(result.data)
+                
+                # Выделяем ответ визуально
+                answer = f"<div style='font-size: 16px; font-weight: 600; color: #1a1a1a; padding: 10px; background: #f5f5f5; border-radius: 8px; border-left: 4px solid #007AFF;'>{answer}</div>"
 
                 # Получаем историю шагов агента
                 agent_steps = get_agent_steps()
@@ -264,7 +329,8 @@ with tab1:
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": answer,
-                "duration_ms": duration_ms
+                "duration_ms": duration_ms,
+                "is_html": True
             })
 
             if result.error:
@@ -274,11 +340,13 @@ with tab1:
                     "duration_ms": 0
                 })
 
+            # Очищаем флаг обработки и контейнер мыслей
+            st.session_state.processing = False
+            thinking_placeholder.empty()
+
             # Технические логи больше не показываем пользователю
 
             st.rerun()
-    else:
-        st.info("Система не инициализирована — перейдите в Управление")
 
 # === TAB 2: УПРАВЛЕНИЕ ===
 with tab2:
