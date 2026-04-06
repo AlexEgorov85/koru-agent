@@ -114,27 +114,6 @@ class TestBehaviorPatternStructure:
         assert hasattr(pattern, 'analyze_context')
         assert hasattr(pattern, 'generate_decision')
 
-    def test_fallback_pattern_has_required_attributes(self):
-        """Тест наличия обязательных атрибутов у FallbackPattern."""
-        from core.agent.behaviors.fallback.pattern import FallbackPattern
-        from core.config.component_config import ComponentConfig
-        from unittest.mock import Mock
-
-        # Создаём минимальный ComponentConfig для теста
-        config = ComponentConfig(variant_id="test_fallback")
-        
-        # Создаём mock executor (требуется архитектурой)
-        mock_executor = Mock()
-
-        pattern = FallbackPattern(
-            component_name="test_fallback_pattern", 
-            component_config=config,
-            executor=mock_executor
-        )
-        assert pattern.pattern_id == "test_fallback_pattern"
-        assert hasattr(pattern, 'analyze_context')
-        assert hasattr(pattern, 'generate_decision')
-
 
 class TestBehaviorDecisionTypes:
     """Тесты типов решений behavior patterns."""

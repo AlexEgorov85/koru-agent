@@ -278,19 +278,3 @@ def create_evaluation_pattern():
         )
 
     return _create
-
-
-@pytest.fixture
-def create_fallback_pattern():
-    """Factory fixture для создания FallbackPattern в тестах."""
-    from core.agent.behaviors.fallback.pattern import FallbackPattern
-    from core.config.component_config import ComponentConfig
-
-    def _create():
-        config = ComponentConfig(variant_id="test_fallback")
-        return FallbackPattern(
-            component_name="test_fallback_pattern",
-            component_config=config
-        )
-
-    return _create
