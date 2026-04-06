@@ -95,13 +95,25 @@ class FinalAnswerSkill(BaseSkill):
     async def initialize(self) -> bool:
         """
         Инициализация навыка с предзагрузкой всех ресурсов.
-        
+
         ВОЗВРАЩАЕТ:
         - bool: True если инициализация успешна
         """
         success = await super().initialize()
         if not success:
             return False
+
+        # DEBUG: Логируем что загрузилось
+        if self.event_bus_logger:
+            await self.event_bus_logger.info(
+                f"[DEBUG final_answer.initialize] Загруженные промпты: {list(self.prompts.keys())}"
+            )
+            await self.event_bus_logger.info(
+                f"[DEBUG final_answer.initialize] system_prompts: {list(self.system_prompts.keys()) if hasattr(self, 'system_prompts') else 'НЕТ'}"
+            )
+            await self.event_bus_logger.info(
+                f"[DEBUG final_answer.initialize] user_prompts: {list(self.user_prompts.keys()) if hasattr(self, 'user_prompts') else 'НЕТ'}"
+            )
 
         # Проверяем наличие необходимых ресурсов для capability
         capability_name = "final_answer.generate"
@@ -337,6 +349,18 @@ class FinalAnswerSkill(BaseSkill):
                                     observations.append(json.dumps(serialized, ensure_ascii=False, indent=1))
                                 else:
                                     observations.append(str(serialized))
+                        elif hasattr(item_content, 'model_dump'):
+                            # Pydantic модель (результат _validate_output)
+                            content_dict = serialize_for_prompt(item_content)
+                            if isinstance(content_dict, dict) and 'rows' in content_dict and isinstance(content_dict['rows'], list):
+                                # book_library.execute_script — форматируем как книги
+                                for row in content_dict['rows']:
+                                    formatted = format_book_data(row)
+                                    observations.append(formatted)
+                            elif isinstance(content_dict, dict):
+                                observations.append(json.dumps(content_dict, ensure_ascii=False, indent=1))
+                            else:
+                                observations.append(str(content_dict))
                         else:
                             observations.append(str(item_content))
                     elif item_type in ["THOUGHT", "DECISION"]:
@@ -424,6 +448,30 @@ class FinalAnswerSkill(BaseSkill):
         capability_name = "final_answer.generate"
         prompt_obj = self.get_prompt(capability_name)
 
+        # Загрузка системного промпта
+        system_prompt_obj = self.get_prompt("final_answer.generate.system")
+
+        # DEBUG: Проверяем что загруено в компонент
+        if self.event_bus_logger:
+            all_prompt_keys = list(self.prompts.keys())
+            await self.event_bus_logger.debug(
+                f"[DEBUG final_answer] Загруженные промпты: {all_prompt_keys}"
+            )
+            await self.event_bus_logger.debug(
+                f"[DEBUG final_answer] prompt_obj: {'НАЙДЕН' if prompt_obj else 'НЕ НАЙДЕН'}"
+            )
+            await self.event_bus_logger.debug(
+                f"[DEBUG final_answer] system_prompt_obj: {'НАЙДЕН' if system_prompt_obj else 'НЕ НАЙДЕН'}"
+            )
+            if system_prompt_obj:
+                await self.event_bus_logger.debug(
+                    f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content[:100]}..."
+                )
+            else:
+                await self.event_bus_logger.warning(
+                    "[DEBUG final_answer] СИСТЕМНЫЙ ПРОМПТ НЕ ЗАГРУЖЕН!"
+                )
+
         if not prompt_obj:
             if self.event_bus_logger:
                 self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
@@ -477,10 +525,37 @@ class FinalAnswerSkill(BaseSkill):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
             # Вызов LLM С STRUCTURED OUTPUT через executor (напрямую, без _call_llm)
+            # Используем системный промпт из файла
+            if system_prompt_obj and system_prompt_obj.content:
+                system_prompt = system_prompt_obj.content
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(
+                        f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ системный промпт из файла (длина: {len(system_prompt)})"
+                    )
+            else:
+                import json
+                system_prompt = (
+                    "Ты — интеллектуальный ассистент. Верни ответ СТРОГО в формате JSON согласно схеме ниже.\n"
+                    "Никакого текста до или после JSON.\n"
+                    f"Ожидаемая схема: {json.dumps(output_schema, ensure_ascii=False, indent=2) if output_schema else '{}'}"
+                )
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(
+                        f"[DEBUG final_answer] ИСПОЛЬЗУЕТСЯ FALLBACK системный промпт! "
+                        f"system_prompt_obj={system_prompt_obj}, "
+                        f"has_content={bool(system_prompt_obj and system_prompt_obj.content)}"
+                    )
+
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(
+                    f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt[:100]}..."
+                )
+
             llm_result = await self.executor.execute_action(
                 action_name="llm.generate_structured",
                 parameters={
                     "prompt": rendered_prompt,
+                    "system_prompt": system_prompt,
                     "structured_output": {
                         "output_model": "final_answer.generate.output",
                         "schema_def": output_schema if output_schema else {},
