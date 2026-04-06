@@ -17,6 +17,10 @@ from core.infrastructure.logging import EventBusLogger
 class PlanningSkill(BaseComponent):
     """НАВЫК ПЛАНИРОВАНИЯ С ПОЛНОЙ ИЗОЛЯЦИЕЙ"""
 
+    @property
+    def description(self) -> str:
+        return "Навык планирования: создание, обновление и декомпозиция планов"
+
     # Явная декларация зависимостей
     DEPENDENCIES = ["prompt_service"]
 

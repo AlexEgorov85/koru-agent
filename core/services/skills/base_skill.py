@@ -40,6 +40,11 @@ class BaseSkill(BaseComponent):
     #: Человекочитаемое имя навыка
     name: str = "base_skill"
 
+    @property
+    def description(self) -> str:
+        """Описание навыка"""
+        return f"Навык {self.name}"
+
     def __init__(
         self,
         name: str,

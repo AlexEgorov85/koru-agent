@@ -27,6 +27,10 @@ from core.infrastructure.logging import EventBusLogger
 class DataAnalysisSkill(BaseSkill):
     """Навык для анализа сырых данных по шагу и ответа на вопросы."""
 
+    @property
+    def description(self) -> str:
+        return "Навык анализа сырых данных по шагу и ответа на заданный вопрос"
+
     # Зависимости не используются — BaseSkill не обрабатывает DEPENDENCIES
     # Все вызовы инструментов выполняются через executor
     # DEPENDENCIES = ["file_tool", "sql_tool"]

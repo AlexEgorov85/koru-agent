@@ -14,6 +14,9 @@ _infra_ctx: Optional[InfrastructureContext] = None
 _app_ctx: Optional[ApplicationContext] = None
 _is_ready: bool = False
 
+# НОВОЕ: Глобальный SessionContext для сохранения истории диалога между запросами
+_session_ctx: Optional[Any] = None  # SessionContext (ленивый импорт)
+
 _event_logs: List[Dict[str, Any]] = []
 _log_lock = asyncio.Lock()
 
@@ -123,7 +126,7 @@ def _subscribe_to_events():
 
 
 async def shutdown_contexts():
-    global _infra_ctx, _app_ctx, _is_ready
+    global _infra_ctx, _app_ctx, _is_ready, _session_ctx
 
     if _app_ctx:
         await _app_ctx.shutdown()
@@ -133,6 +136,8 @@ async def shutdown_contexts():
         await _infra_ctx.shutdown()
         _infra_ctx = None
 
+    # Сбрасываем session context при остановке системы
+    _session_ctx = None
     _is_ready = False
 
 
@@ -142,3 +147,37 @@ def is_ready() -> bool:
 
 def get_app_context() -> Optional[ApplicationContext]:
     return _app_ctx
+
+
+def get_or_create_session_context() -> Any:
+    """
+    Получить существующий SessionContext или создать новый.
+    
+    SessionContext хранит DialogueHistory, которая сохраняется между запросами.
+    """
+    global _session_ctx
+    if _session_ctx is None:
+        from core.session_context.session_context import SessionContext
+        _session_ctx = SessionContext(session_id="web_ui_session", agent_id="agent_001")
+    return _session_ctx
+
+
+def reset_session_context():
+    """Сбросить SessionContext (начать новый диалог с чистой историей)."""
+    global _session_ctx
+    _session_ctx = None
+
+
+def get_system_info() -> dict:
+    """Получение информации о системе для админки через LifecycleManager."""
+    if not _infra_ctx:
+        return {"error": "InfrastructureContext not initialized"}
+
+    try:
+        # Используем новый метод get_dashboard_info()
+        if hasattr(_infra_ctx, "lifecycle_manager"):
+            return _infra_ctx.lifecycle_manager.get_dashboard_info()
+        else:
+            return {"error": "LifecycleManager not available"}
+    except Exception as e:
+        return {"error": str(e)}

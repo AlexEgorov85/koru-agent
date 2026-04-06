@@ -57,6 +57,10 @@ class BookLibrarySkill(BaseSkill):
     - Никаких Pydantic моделей в коде!
     """
 
+    @property
+    def description(self) -> str:
+        return "Навык работы с библиотекой книг: поиск, выполнение скриптов, семантический поиск"
+
     DEPENDENCIES = ["sql_tool", "sql_generation", "sql_query_service", "table_description_service"]
     name: str = "book_library"
 

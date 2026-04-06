@@ -140,6 +140,11 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
         self.system_prompts: Dict[str, Prompt] = {}  # {base_capability: Prompt}
         self.user_prompts: Dict[str, Prompt] = {}    # {base_capability: Prompt}
 
+    @property
+    def description(self) -> str:
+        """Описание компонента"""
+        return f"Компонент {self.name}"
+
     # ========================================================================
     # ЛОГИРОВАНИЕ
     # ========================================================================

@@ -673,6 +673,143 @@ class LifecycleManager:
         """Готов к работе (менеджер инициализирован)."""
         return self._initialized
 
+    def get_dashboard_info(self) -> Dict[str, Any]:
+        """
+        Получение информации для дашборда админки.
+        
+        RETURNS:
+        - Dict с категориями: llm_providers, db_providers, services, skills, tools, patterns
+        """
+        result = {
+            "llm_providers": [],
+            "db_providers": [],
+            "services": [],
+            "skills": [],
+            "tools": [],
+            "patterns": []
+        }
+
+        for record in self._resources.values():
+            rtype_str = str(record.resource_type)
+            
+            # Базовая информация о компоненте
+            comp_info = {
+                "name": record.name,
+                "status": record.status.value,
+                "description": "",
+                "capabilities": [],
+                "prompts": [],
+                "contracts": [],
+                "component_type": rtype_str
+            }
+
+            # Описание из metadata или компонента
+            if record.metadata and "description" in record.metadata:
+                comp_info["description"] = record.metadata["description"]
+            elif hasattr(record.resource, "description"):
+                comp_info["description"] = record.resource.description
+
+            # Дополнительная инфо для LLM провайдеров
+            if rtype_str == str(ResourceType.LLM):
+                # Сначала пробуем из metadata
+                if record.metadata and "model_name" in record.metadata:
+                    comp_info["description"] = f"модель: {record.metadata['model_name']}"
+                # Потом из компонента
+                if not comp_info["description"] and hasattr(record.resource, "model_name"):
+                    comp_info["description"] = f"модель: {record.resource.model_name}"
+
+            # Дополнительная инфо для DB провайдеров
+            if rtype_str == str(ResourceType.DATABASE):
+                if record.metadata:
+                    if "db_path" in record.metadata:
+                        comp_info["description"] = f"путь: {record.metadata['db_path']}"
+                    elif "database" in record.metadata:
+                        host = record.metadata.get("host", "localhost")
+                        port = record.metadata.get("port", 5432)
+                        db = record.metadata.get("database", "unknown")
+                        comp_info["description"] = f"{host}:{port}/{db}"
+
+            # Capabilities
+            if hasattr(record.resource, "get_capabilities"):
+                try:
+                    caps = record.resource.get_capabilities()
+                    if caps:
+                        for c in caps:
+                            comp_info["capabilities"].append({
+                                "name": c.name,
+                                "description": getattr(c, "description", "")
+                            })
+                except:
+                    pass
+
+            # Промпты из компонента (реальные данные)
+            if hasattr(record.resource, "prompts") and record.resource.prompts:
+                for cap_name, prompt_obj in record.resource.prompts.items():
+                    stat = "active"
+                    if hasattr(prompt_obj, "status"):
+                        stat = prompt_obj.status.value if hasattr(prompt_obj.status, 'value') else str(prompt_obj.status)
+                    version = getattr(prompt_obj, "version", "unknown")
+                    comp_info["prompts"].append({
+                        "capability": cap_name,
+                        "version": version,
+                        "status": stat
+                    })
+
+            # Контракты из компонента - читаем из resolved_* в component_config
+            cfg = None
+            if hasattr(record.resource, "component_config") and record.resource.component_config:
+                cfg = record.resource.component_config
+            
+            seen_contracts = set()
+            
+            # Input contracts из resolved_input_contracts
+            if cfg and hasattr(cfg, "resolved_input_contracts") and cfg.resolved_input_contracts:
+                for cap_name, contract_obj in cfg.resolved_input_contracts.items():
+                    key = f"input:{cap_name}"
+                    if key not in seen_contracts:
+                        seen_contracts.add(key)
+                        version = getattr(contract_obj, "version", "unknown") if contract_obj else "unknown"
+                        comp_type = getattr(contract_obj, "component_type", "unknown") if contract_obj else "unknown"
+                        comp_info["contracts"].append({
+                            "capability": cap_name,
+                            "version": version,
+                            "status": "active",
+                            "direction": "input",
+                            "component_type": str(comp_type) if comp_type else "unknown"
+                        })
+            
+            # Output contracts из resolved_output_contracts
+            if cfg and hasattr(cfg, "resolved_output_contracts") and cfg.resolved_output_contracts:
+                for cap_name, contract_obj in cfg.resolved_output_contracts.items():
+                    key = f"output:{cap_name}"
+                    if key not in seen_contracts:
+                        seen_contracts.add(key)
+                        version = getattr(contract_obj, "version", "unknown") if contract_obj else "unknown"
+                        comp_type = getattr(contract_obj, "component_type", "unknown") if contract_obj else "unknown"
+                        comp_info["contracts"].append({
+                            "capability": cap_name,
+                            "version": version,
+                            "status": "active",
+                            "direction": "output",
+                            "component_type": str(comp_type) if comp_type else "unknown"
+                        })
+
+            # Группировка по типу
+            if rtype_str == str(ResourceType.LLM):
+                result["llm_providers"].append(comp_info)
+            elif rtype_str == str(ResourceType.DATABASE):
+                result["db_providers"].append(comp_info)
+            elif rtype_str == str(ResourceType.SERVICE):
+                result["services"].append(comp_info)
+            elif rtype_str == str(ResourceType.SKILL):
+                result["skills"].append(comp_info)
+            elif rtype_str == str(ResourceType.TOOL):
+                result["tools"].append(comp_info)
+            elif rtype_str == str(ResourceType.BEHAVIOR):
+                result["patterns"].append(comp_info)
+
+        return result
+
     @property
     def state(self) -> ComponentState:
         """Общее состояние менеджера."""

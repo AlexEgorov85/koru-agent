@@ -495,6 +495,8 @@ class AppConfig(BaseSettings):
 
             if comp_type == 'behavior':
                 component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
+            elif comp_type == 'service':
+                component_name = service_name_map.get(prefix, prefix)
             else:
                 component_name = prefix
 
@@ -515,6 +517,7 @@ class AppConfig(BaseSettings):
         # Создаем ComponentConfig для каждого компонента
         for component_name, resources in component_resources.items():
             comp_type = resources['type']
+            prompts_required = len(resources['prompts']) > 0
             component_config = ComponentConfig(
                 variant_id=f"{component_name}_{profile}",
                 side_effects_enabled=(profile == "prod"),
@@ -523,38 +526,39 @@ class AppConfig(BaseSettings):
                 dependencies=[],
                 prompt_versions=resources['prompts'],
                 input_contract_versions=resources['input_contracts'],
-                output_contract_versions=resources['output_contracts']
+                output_contract_versions=resources['output_contracts'],
+                prompts_required=prompts_required
             )
             component_prefixes[comp_type][component_name] = component_config
 
         # Добавляем обязательные сервисы и инструменты
+        # NO FALLBACK: Если компонент не найден в discovery → ошибка
         defaults = {
-            'service_configs': {
-                'prompt_service': {},
-                'sql_generation': {},
-                'table_description_service': {},
-                'sql_query_service': {},
-                'sql_validator_service': {},
-            },
-            'tool_configs': {
-                'file_tool': {},
-                'sql_tool': {},
-                # vector_books добавляется автоматически из контрактов
-            }
+            'service_configs': [
+                'prompt_service',
+                'sql_generation',
+                'table_description_service',
+                'sql_query_service',
+                'sql_validator_service',
+            ],
+            'tool_configs': [
+                'file_tool',
+                'sql_tool',
+            ],
         }
 
-        for comp_dict, defaults_dict in [(service_configs, defaults['service_configs']),
-                                          (tool_configs, defaults['tool_configs'])]:
-            for name, override in defaults_dict.items():
-                if name not in comp_dict:
-                    comp_dict[name] = ComponentConfig(
-                        variant_id=f"{name}_{profile}",
-                        side_effects_enabled=(profile == "prod"),
-                        detailed_metrics=False,
-                        parameters={},
-                        dependencies=[],
-                        **override
+        # Проверяем что ВСЕ обязательные компоненты найдены в discovery
+        for comp_type_name, comp_names in [('service', defaults['service_configs']), 
+                                            ('tool', defaults['tool_configs'])]:
+            for comp_name in comp_names:
+                if comp_name not in component_prefixes[comp_type_name]:
+                    raise ValueError(
+                        f"Обязательный компонент '{comp_name}' не найден в discovery! "
+                        f"Проверьте что соответствующие YAML файлы есть в data/"
                     )
+
+        # Дополняем tool_configs из discovery данными (vector_books и т.д.)
+        # component_prefixes уже содержит все компоненты из discovery
 
         return cls(
             config_id=f"app_config_{profile}_discovery",

@@ -40,6 +40,10 @@ class FinalAnswerSkill(BaseSkill):
     - Взаимодействие через ActionExecutor
     """
 
+    @property
+    def description(self) -> str:
+        return "Навык генерации финального ответа на основе контекста сессии"
+
     # Явная декларация зависимостей
     DEPENDENCIES = ["prompt_service", "contract_service"]
 
