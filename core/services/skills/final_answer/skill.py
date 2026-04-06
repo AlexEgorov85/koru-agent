@@ -230,6 +230,15 @@ class FinalAnswerSkill(BaseSkill):
             session_context = raw_context
         goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
 
+        # Получаем историю диалога из session_context (если доступна)
+        dialogue_history_str = ""
+        if session_context and hasattr(session_context, 'dialogue_history'):
+            dialogue_history_str = session_context.dialogue_history.format_for_prompt()
+            if self.event_bus_logger and dialogue_history_str:
+                await self.event_bus_logger.debug(
+                    f"[DEBUG final_answer] dialogue_history загружен: {len(dialogue_history_str)} символов"
+                )
+
         # Обработка параметров (могут быть Pydantic моделью или dict)
         from pydantic import BaseModel
         if isinstance(parameters, BaseModel):
@@ -369,7 +378,7 @@ class FinalAnswerSkill(BaseSkill):
                         if isinstance(item_content, dict):
                             actions.append({
                                 "action": item_content.get("capability", "неизвестно"),
-                                "result": str(item_content.get("result", ""))[:200] if item_content.get("result") else ""
+                                "result": str(item_content.get("result", "")) if item_content.get("result") else ""
                             })
         except Exception as e:
             if self.event_bus_logger:
@@ -465,7 +474,7 @@ class FinalAnswerSkill(BaseSkill):
             )
             if system_prompt_obj:
                 await self.event_bus_logger.debug(
-                    f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content[:100]}..."
+                    f"[DEBUG final_answer] system_prompt_obj.content (первые 100 символов): {system_prompt_obj.content}..."
                 )
             else:
                 await self.event_bus_logger.warning(
@@ -492,6 +501,7 @@ class FinalAnswerSkill(BaseSkill):
             rendered_prompt = self.render_prompt(
                 capability_name,
                 goal=goal,
+                dialogue_history=dialogue_history_str,
                 observations=observations_str,
                 steps_taken=steps_str,
                 format_type=format_type_str,
@@ -510,7 +520,8 @@ class FinalAnswerSkill(BaseSkill):
                 include_steps=include_steps,
                 include_evidence=include_evidence,
                 confidence_threshold=confidence_threshold,
-                max_sources=max_sources
+                max_sources=max_sources,
+                dialogue_history=dialogue_history_str
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
@@ -548,7 +559,7 @@ class FinalAnswerSkill(BaseSkill):
 
             if self.event_bus_logger:
                 await self.event_bus_logger.debug(
-                    f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt[:100]}..."
+                    f"[DEBUG final_answer] system_prompt передаётся в LLM (первые 100 символов): {system_prompt}..."
                 )
 
             llm_result = await self.executor.execute_action(
@@ -642,7 +653,7 @@ class FinalAnswerSkill(BaseSkill):
                     count_word = self._declension(count, ['книга', 'книги', 'книг'])
                     final_answer_val = f"Найдено {count} {count_word}: {', '.join(book_titles)}."
                     if self.event_bus_logger:
-                        await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val[:100]}")
+                        await self.event_bus_logger.info(f"FALLBACK: сгенерирован ответ: {final_answer_val}")
             elif not final_answer_val:
                 if self.event_bus_logger:
                     await self.event_bus_logger.warning(f"FALLBACK: final_answer пустой, sources={sources_val}")
@@ -705,12 +716,13 @@ class FinalAnswerSkill(BaseSkill):
         include_steps: bool,
         include_evidence: bool,
         confidence_threshold: float,
-        max_sources: int
+        max_sources: int,
+        dialogue_history: str = ""
     ) -> str:
         """Fallback-рендеринг промпта без использования сервиса."""
         # Преобразуем списки в строки
-        observations_str = "\n".join([f"{i}. {obs[:300]}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
-        
+        observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
+
         steps_parts = []
         if steps_taken:
             for i, step in enumerate(steps_taken[-10:], 1):
@@ -719,13 +731,19 @@ class FinalAnswerSkill(BaseSkill):
                     steps_parts.append(f"{i}. {summary}")
                 else:
                     action = step.get('action', 'неизвестно')
-                    result_part = f" → {step.get('result', '')[:100]}" if step.get('result') else ""
+                    result_part = f" → {step.get('result', '')}" if step.get('result') else ""
                     steps_parts.append(f"{i}. {action}{result_part}")
         steps_str = "\n".join(steps_parts) if steps_parts else "Шаги не выполнены."
-        
+
+        # История диалога
+        dialogue_section = ""
+        if dialogue_history:
+            dialogue_section = f"\n## История диалога (предыдущие вопросы и ответы)\n{dialogue_history}\n"
+
         prompt_parts = [
             "Ты — интеллектуальный ассистент, который генерирует финальный ответ на основе всего контекста сессии.",
             f"\n## Исходная цель\n{goal}",
+            dialogue_section,
             f"\n## Собранная информация (наблюдения)\n{observations_str}",
             f"\n## Выполненные шаги\n{steps_str}",
             f"\n## Требования к ответу",
@@ -774,7 +792,7 @@ class FinalAnswerSkill(BaseSkill):
                 summary_parts.append(f"{i}. {summary}")
             else:
                 action = step.get('action', 'неизвестно')
-                result_part = f" → {step.get('result', '')[:100]}" if step.get('result') else ""
+                result_part = f" → {step.get('result', '')}" if step.get('result') else ""
                 summary_parts.append(f"{i}. {action}{result_part}")
 
         return "\n".join(summary_parts)

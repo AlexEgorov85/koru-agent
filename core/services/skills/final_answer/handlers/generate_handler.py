@@ -16,6 +16,11 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
             session_context = exec_context.session_context if hasattr(exec_context, 'session_context') else exec_context
             goal = session_context.get_goal() if session_context and hasattr(session_context, 'get_goal') else "Не указана цель"
 
+            # Получаем историю диалога (если доступна)
+            dialogue_history_str = ""
+            if session_context and hasattr(session_context, 'dialogue_history'):
+                dialogue_history_str = session_context.dialogue_history.format_for_prompt()
+
             include_steps = self._extract_param(params, 'include_steps', True)
             include_evidence = self._extract_param(params, 'include_evidence', True)
             format_type = self._extract_param(params, 'format_type', 'detailed')
@@ -26,6 +31,7 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
 
             rendered_prompt = self._build_prompt(
                 goal=goal,
+                dialogue_history=dialogue_history_str,
                 observations=observations,
                 thoughts=thoughts,
                 actions=actions,
@@ -91,7 +97,7 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
             await self.log_error(f"Ошибка генерации финального ответа: {str(e)}")
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Ошибка генерации: {str(e)[:100]}"
+                error=f"Ошибка генерации: {str(e)}"
             )
 
     def _extract_param(self, params: Dict[str, Any], key: str, default: Any) -> Any:
@@ -142,6 +148,7 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
     def _build_prompt(
         self,
         goal: str,
+        dialogue_history: str,
         observations: list,
         thoughts: list,
         actions: list,
@@ -158,16 +165,21 @@ class GenerateFinalAnswerHandler(BaseSkillHandler):
         else:
             prompt_text = "Создай финальный ответ на основе предоставленных данных."
 
+        # Формируем секцию истории диалога
+        dialogue_section = ""
+        if dialogue_history:
+            dialogue_section = f"\n## История диалога\n{dialogue_history}\n"
+
         prompt_parts = [
             f"Цель: {goal}",
-            "",
-            " observations:",
+            dialogue_section,
+            "## observations:",
             "\n".join([f"- {o}" for o in observations[:20]]),
             "",
-            " thoughts:",
+            "## thoughts:",
             "\n".join([f"- {t}" for t in thoughts[:20]]),
             "",
-            " actions:",
+            "## actions:",
             "\n".join([f"- {a}" for a in actions[:max_sources]])
         ]
 

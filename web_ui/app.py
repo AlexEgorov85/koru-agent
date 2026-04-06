@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 from core.agent.factory import AgentFactory
-from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_shared_dialogue_history, reset_dialogue_history
+from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_shared_dialogue_history, reset_dialogue_history, get_agent_steps
 
 st.set_page_config(
     page_title="Агент",
@@ -97,11 +97,21 @@ with tab1:
         role = msg.get("role", "assistant")
         content = msg.get("content", "")
         duration = msg.get("duration_ms", 0)
+        is_html = msg.get("is_html", False)
 
         with st.chat_message(role):
-            st.markdown(content)
+            if is_html:
+                st.markdown(content, unsafe_allow_html=True)
+            else:
+                st.markdown(content)
             if duration > 0:
-                st.caption(f"{duration} мс")
+                # Форматируем время в удобный вид
+                if duration >= 1000:
+                    seconds = duration / 1000
+                    time_str = f"{seconds:.1f} сек"
+                else:
+                    time_str = f"{duration} мс"
+                st.caption(f"⏱️ {time_str}")
 
     # НОВОЕ: Отображение истории диалога из DialogueHistory
     if is_ready():
@@ -158,11 +168,97 @@ with tab1:
             # Извлечение ответа
             if hasattr(result, "data") and result.data:
                 if isinstance(result.data, dict):
-                    answer = result.data.get("final_answer", str(result.data))
+                    answer_data = result.data
+                elif hasattr(result.data, "model_dump"):
+                    # Pydantic v2
+                    answer_data = result.data.model_dump()
+                elif hasattr(result.data, "dict"):
+                    # Pydantic v1
+                    answer_data = result.data.dict()
                 else:
-                    answer = str(result.data)
+                    answer_data = None
             else:
-                answer = str(result)
+                answer_data = None
+
+            # Формируем ответ: чистый текст + спойлер с деталями
+            if answer_data and isinstance(answer_data, dict):
+                final_answer = answer_data.get("final_answer", "")
+                sources = answer_data.get("sources", [])
+                confidence = answer_data.get("confidence_score")
+                remaining = answer_data.get("remaining_questions", [])
+                summary = answer_data.get("summary_of_steps", "")
+                metadata = answer_data.get("metadata", {})
+
+                # Основной ответ — чистый текст
+                answer = final_answer if final_answer else str(result.data)
+
+                # Получаем историю шагов агента
+                agent_steps = get_agent_steps()
+
+                # Формируем спойлер с деталями
+                details_parts = []
+
+                # Источники
+                if sources:
+                    if isinstance(sources, list):
+                        sources_text = "\n".join(f"• {s}" for s in sources if s)
+                    else:
+                        sources_text = str(sources)
+                    details_parts.append(f"### 📚 Источники\n{sources_text}")
+
+                # Уверенность
+                if confidence is not None:
+                    conf_percent = int(confidence * 100)
+                    conf_emoji = "✅" if confidence >= 0.8 else "⚠️" if confidence >= 0.5 else "❌"
+                    details_parts.append(f"### {conf_emoji} Уверенность\n{conf_percent}%")
+
+                # Оставшиеся вопросы
+                if remaining:
+                    remaining_text = "\n".join(f"• {q}" for q in remaining if q)
+                    details_parts.append(f"### ❓ Требует уточнения\n{remaining_text}")
+
+                # Как агент думал — пошагово
+                if agent_steps:
+                    steps_parts = []
+                    for i, step in enumerate(agent_steps, 1):
+                        step_type = step.get("type", "")
+                        if step_type == "capability_selected":
+                            capability = step.get("capability", "unknown")
+                            reasoning = step.get("reasoning", "")
+                            step_num = step.get("step", i)
+                            steps_parts.append(f"**Шаг {step_num}** — Выбор действия\n- **Capability:** `{capability}`\n- **Обоснование:** {reasoning}")
+                        elif step_type == "action_performed":
+                            action = step.get("action", "unknown")
+                            params = step.get("parameters", {})
+                            status = step.get("status", "unknown")
+                            error = step.get("error")
+                            step_num = step.get("step", i)
+
+                            params_text = ""
+                            if params:
+                                import json
+                                params_text = f"\n- **Параметры:**\n```json\n{json.dumps(params, ensure_ascii=False, indent=2)}\n```"
+
+                            error_text = f"\n- **Ошибка:** {error}" if error else ""
+                            steps_parts.append(f"**Шаг {step_num}** — Выполнение\n- **Действие:** `{action}`\n- **Статус:** {status}{params_text}{error_text}")
+
+                    if steps_parts:
+                        steps_text = "\n\n".join(steps_parts)
+                        details_parts.append(f"### 🧠 Ход мышления агента\n{steps_text}")
+
+                # Собираем весь спойлер
+                if details_parts:
+                    details_content = "\n\n---\n\n".join(details_parts)
+                    # Streamlit expандер — скрытый по умолчанию
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": f"<details>\n<summary><b>📊 Подробности ответа</b> (нажмите, чтобы развернуть)</summary>\n\n{details_content}\n\n</details>",
+                        "duration_ms": 0,
+                        "is_html": True
+                    })
+            else:
+                # Fallback для нестандартных ответов
+                answer = str(result.data) if result.data else str(result)
 
             # Добавляем ответ агента
             st.session_state.messages.append({
@@ -178,16 +274,7 @@ with tab1:
                     "duration_ms": 0
                 })
 
-            # Логи (кратко)
-            logs = get_logs()
-            if logs:
-                log_text = "\n".join([log.get("message", "") for log in logs[-10:] if log.get("message")])
-                if log_text:
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"```\n{log_text}\n```",
-                        "duration_ms": 0
-                    })
+            # Технические логи больше не показываем пользователю
 
             st.rerun()
     else:

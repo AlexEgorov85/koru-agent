@@ -44,12 +44,23 @@ MAX_STEPS = 5
 TEMPERATURE = 0.3
 
 
-async def run_agent(goal: str, max_steps: int = None, temperature: float = None) -> str:
+async def run_agent(
+    goal: str,
+    max_steps: int = None,
+    temperature: float = None,
+    dialogue_history=None  # ← НОВОЕ: история диалога между запросами
+) -> str:
     """
     Запуск агента с заданной целью.
 
     ВСЁ ЛОГИРОВАНИЕ ЧЕРЕЗ EventBusLogger (шину событий).
     Логирование инициализируется внутри InfrastructureContext.initialize().
+
+    ПАРАМЕТРЫ:
+    - goal: Цель агента
+    - max_steps: Максимальное количество шагов
+    - temperature: Температура LLM
+    - dialogue_history: История диалога из предыдущих запросов (опционально)
     """
     config = get_config(profile='prod', data_dir='data')
 
@@ -99,7 +110,11 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         agent_config = AgentConfig(**agent_config_kwargs) if agent_config_kwargs else None
 
-        agent = await agent_factory.create_agent(goal=goal, config=agent_config)
+        agent = await agent_factory.create_agent(
+            goal=goal,
+            config=agent_config,
+            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
+        )
 
         await session_logger.info("🔄 Запуск выполнения агента...")
 
@@ -114,7 +129,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
 
         if isinstance(result, str):
             await session_logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: agent.run() вернул строку вместо объекта!")
-            await session_logger.error(f"📋 Значение: {result[:500] if len(result) > 500 else result}")
+            await session_logger.error(f"📋 Значение: {result}")
             raise RuntimeError(f"agent.run() вернул строку вместо ExecutionResult: {result}")
 
         if hasattr(result, 'error') and result.error:
@@ -200,7 +215,7 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
                     await session_logger.error(f"📋 Детали metadata: {metadata}")
                     raise RuntimeError(f"Ошибка агента: {error_msg} (из metadata, файл: main.py, строка: 200)")
 
-        result_preview = str(result)[:500] if len(str(result)) > 500 else str(result)
+        result_preview = str(result)
         await session_logger.end_session(success=True, result=result_preview)
         await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
         await session_logger.info(f"📊 Результат:")
@@ -240,13 +255,18 @@ async def run_agent(goal: str, max_steps: int = None, temperature: float = None)
         await shutdown_logging_system()
 
 
-async def main_async() -> int:
-    """Точка входа (async версия)."""
+async def main_async(dialogue_history=None) -> tuple:
+    """Точка входа (async версия).
+    
+    ВОЗВРАЩАЕТ:
+    - tuple: (exit_code, dialogue_history)
+    """
     try:
         result = await run_agent(
             goal=GOAL,
             max_steps=MAX_STEPS,
-            temperature=TEMPERATURE
+            temperature=TEMPERATURE,
+            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
         )
 
         event_bus = get_event_bus_from_result(result)
