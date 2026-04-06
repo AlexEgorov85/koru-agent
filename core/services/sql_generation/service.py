@@ -217,7 +217,12 @@ class SQLGenerationService(BaseService):
         # Используем кэшированный промпт из компонента
         prompt_key = "sql_generation.generate_query"
         prompt_obj = self.get_prompt(prompt_key)
-        prompt = prompt_obj.content if prompt_obj else ""
+        
+        # ПРОВЕРКА: Промпт ДОЛЖЕН быть загружен — без fallback!
+        if not prompt_obj or not prompt_obj.content:
+            raise ValueError(f"Промпт '{prompt_key}' не загружен! Проверьте контракт в registry.yaml")
+        
+        prompt = prompt_obj.content
 
         # Заменяем переменные в кэшированном промпте
         for var_name, var_value in prompt_vars.items():
