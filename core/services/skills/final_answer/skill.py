@@ -482,22 +482,14 @@ class FinalAnswerSkill(BaseSkill):
                 )
 
         if not prompt_obj:
-            if self.event_bus_logger:
-                self.event_bus_logger.error(f"Промпт для {capability_name} не найден в кэше")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return self._build_fallback_response(goal, observations, steps_taken, format_type)
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/skill/final_answer/",
+                component="final_answer"
+            )
 
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
         try:
-            # Преобразуем списки в строки для рендеринга промпта
-            observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
-            steps_str = "\n".join([f"{i}. {step.get('action', 'неизвестно')}" for i, step in enumerate(steps_taken[-10:], 1)]) if steps_taken else "Шаги не выполнены."
-
-            # Преобразуем булевы значения в строки
-            format_type_str = str(format_type)
-            include_steps_str = str(include_steps).lower()
-            include_evidence_str = str(include_evidence).lower()
-
             rendered_prompt = self.render_prompt(
                 capability_name,
                 goal=goal,
@@ -509,19 +501,10 @@ class FinalAnswerSkill(BaseSkill):
                 include_evidence=include_evidence_str
             )
         except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.warning(f"Ошибка рендеринга промпта: {e}, используем fallback")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            rendered_prompt = self._render_prompt_fallback(
-                goal=goal,
-                observations=observations,
-                steps_taken=steps_taken,
-                format_type=format_type,
-                include_steps=include_steps,
-                include_evidence=include_evidence,
-                confidence_threshold=confidence_threshold,
-                max_sources=max_sources,
-                dialogue_history=dialogue_history_str
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Ошибка рендеринга промпта {capability_name}: {e}",
+                component="final_answer"
             )
 
         # Вызов LLM для генерации ответа С STRUCTURED OUTPUT
@@ -707,53 +690,8 @@ class FinalAnswerSkill(BaseSkill):
                 component="final_answer"
             )
 
-    def _render_prompt_fallback(
-        self,
-        goal: str,
-        observations: List[str],
-        steps_taken: List[Dict],
-        format_type: str,
-        include_steps: bool,
-        include_evidence: bool,
-        confidence_threshold: float,
-        max_sources: int,
-        dialogue_history: str = ""
-    ) -> str:
-        """Fallback-рендеринг промпта без использования сервиса."""
-        # Преобразуем списки в строки
-        observations_str = "\n".join([f"{i}. {obs}" for i, obs in enumerate(observations[-max_sources:], 1)]) if observations else "Наблюдения отсутствуют."
-
-        steps_parts = []
-        if steps_taken:
-            for i, step in enumerate(steps_taken[-10:], 1):
-                summary = step.get('summary', '')
-                if summary:
-                    steps_parts.append(f"{i}. {summary}")
-                else:
-                    action = step.get('action', 'неизвестно')
-                    result_part = f" → {step.get('result', '')}" if step.get('result') else ""
-                    steps_parts.append(f"{i}. {action}{result_part}")
-        steps_str = "\n".join(steps_parts) if steps_parts else "Шаги не выполнены."
-
-        # История диалога
-        dialogue_section = ""
-        if dialogue_history:
-            dialogue_section = f"\n## История диалога (предыдущие вопросы и ответы)\n{dialogue_history}\n"
-
-        prompt_parts = [
-            "Ты — интеллектуальный ассистент, который генерирует финальный ответ на основе всего контекста сессии.",
-            f"\n## Исходная цель\n{goal}",
-            dialogue_section,
-            f"\n## Собранная информация (наблюдения)\n{observations_str}",
-            f"\n## Выполненные шаги\n{steps_str}",
-            f"\n## Требования к ответу",
-            f"- **Формат вывода**: {format_type}",
-            f"- **Включать шаги выполнения**: {include_steps}",
-            f"- **Включать источники (доказательства)**: {include_evidence}",
-            f"\nСгенерируй финальный ответ согласно требованиям."
-        ]
-
-        return "\n".join(prompt_parts)
+    # ❌ УДАЛЕНО: _render_prompt_fallback — теперь выбрасываем SkillExecutionError
+    # ❌ УДАЛЕНО: _build_fallback_response
 
     def _declension(self, number: int, words: List[str]) -> str:
         """

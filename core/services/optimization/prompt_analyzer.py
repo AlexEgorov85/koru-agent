@@ -80,7 +80,11 @@ class PromptAnalyzer(BaseService):
     async def analyze(self, input_data: PromptAnalyzerInput) -> PromptAnalyzerOutput:
         """Анализ результатов бенчмарка через LLM."""
         if not self._executor:
-            return self._fallback_analysis(input_data)
+            from core.errors.exceptions import ServiceError
+            raise ServiceError(
+                f"Executor не инициализирован для {self.component_name}",
+                service=self.component_name
+            )
 
         context = self._build_analysis_context(input_data)
         prompt = self._build_prompt(context)
@@ -129,8 +133,17 @@ class PromptAnalyzer(BaseService):
 
         except Exception as e:
             await self._log_error(f"LLM analysis failed: {e}")
+            from core.errors.exceptions import ServiceError
+            raise ServiceError(
+                f"LLM анализ не удался: {e}",
+                service=self.component_name
+            )
 
-        return self._fallback_analysis(input_data)
+        from core.errors.exceptions import ServiceError
+        raise ServiceError(
+            f"Не удалось получить результат анализа от LLM",
+            service=self.component_name
+        )
 
     def _build_analysis_context(self, input_data: PromptAnalyzerInput) -> Dict[str, Any]:
         failed = [r for r in input_data.benchmark_results if not r.get('success')]
@@ -189,43 +202,8 @@ class PromptAnalyzer(BaseService):
                 confidence=0.8,
                 analysis_text=str(data)
             )
-        return self._fallback_analysis(input_data)
-
-    def _fallback_analysis(self, input_data: PromptAnalyzerInput) -> PromptAnalyzerOutput:
-        """Fallback если LLM недоступен."""
-        failed = [r for r in input_data.benchmark_results if not r.get('success')]
-
-        root_causes = []
-        prompt_changes = []
-
-        for r in failed:
-            error = r.get('error', '').lower()
-            output = r.get('output', '').lower()
-
-            if 'timeout' in error:
-                if "LLM таймауты" not in root_causes:
-                    root_causes.append("LLM таймауты")
-                    prompt_changes.append("Упростить структуру ответа, уменьшить max_tokens")
-            elif 'json' in error or 'parse' in error:
-                if "Парсинг JSON" not in root_causes:
-                    root_causes.append("Ошибки парсинга JSON")
-                    prompt_changes.append("Добавить больше примеров JSON в промпт")
-            elif 'sql' in error:
-                if "Генерация SQL" not in root_causes:
-                    root_causes.append("Ошибки генерации SQL")
-                    prompt_changes.append("Улучшить инструкции по генерации SQL")
-            elif 'не найден' in output or 'not found' in output:
-                if "Валидация параметров" not in root_causes:
-                    root_causes.append("Валидация параметров")
-                    prompt_changes.append("Добавить правила проверки входных данных")
-
-        if not root_causes:
-            root_causes.append("Недостаточная точность ответов")
-            prompt_changes.append("Добавить примеры успешных ответов в промпт")
-
-        return PromptAnalyzerOutput(
-            root_causes=root_causes,
-            prompt_changes=prompt_changes,
-            confidence=0.5,
-            analysis_text="Fallback analysis (LLM unavailable)"
+        from core.errors.exceptions import ServiceError
+        raise ServiceError(
+            f"LLM вернул некорректный формат данных",
+            service=self.component_name
         )

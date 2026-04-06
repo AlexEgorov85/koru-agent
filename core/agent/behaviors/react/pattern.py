@@ -333,12 +333,6 @@ class ReActPattern(BaseBehaviorPattern):
         return Decision(type=DecisionType.FAIL, error=stop_reason or "goal_achieved")
 
     def _handle_error(self, reason: str, capabilities: List[Capability]) -> Decision:
-        """Обработать ошибку."""
+        """Обработать ошибку - возвращаем FAIL."""
         self.error_count += 1
-        if self.error_count >= self.max_consecutive_errors:
-            return Decision(
-                type=DecisionType.SWITCH_STRATEGY,
-                next_pattern="fallback.v1.0.0",
-                error=f"too_many_errors:{self.error_count}"
-            )
         return self.fallback_strategy.create_error(reason, capabilities)

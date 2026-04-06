@@ -238,9 +238,11 @@ class EvaluationPattern(BaseBehaviorPattern):
         assessment_prompt = prompt_obj.content if prompt_obj else ""
 
         if not assessment_prompt:
-            self.logger.warning("Промпт для оценки не загружен, используем fallback")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            assessment_prompt = "Оцени достижение цели: {goal}\nКонтекст: {context_summary}"
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Промпт для behavior.evaluation не загружен! Проверьте YAML в data/prompts/behavior/",
+                component="evaluation_behavior"
+            )
 
         # Заменяем переменные в промпте
         evaluation_prompt = self._render_prompt(assessment_prompt, {
@@ -330,8 +332,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             elif confidence < 0.3:
                 await self._log("warning", f"⚠️ Низкая уверенность: {reasoning}")
                 return BehaviorDecision(
-                    action=BehaviorDecisionType.SWITCH,
-                    next_pattern="fallback.v1.0.0",
+                    action=BehaviorDecisionType.FAIL,
                     reason=f"low_confidence: {reasoning}"
                 )
             else:
@@ -345,9 +346,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             error_msg = f"Ошибка при оценке цели: {e}"
             await self._log("error", error_msg, exc_info=True)
 
-            # Оркестратор уже опубликовал событие об ошибке
             return BehaviorDecision(
-                action=BehaviorDecisionType.SWITCH,
-                next_pattern="fallback.v1.0.0",
+                action=BehaviorDecisionType.FAIL,
                 reason=f"evaluation_error: {str(e)}"
             )

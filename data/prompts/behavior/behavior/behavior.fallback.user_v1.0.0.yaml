@@ -1,0 +1,35 @@
+capability: behavior.fallback.user
+component_type: behavior
+version: v1.0.0
+status: active
+description: User промпт для fallback behavior pattern
+content: |
+  ## Текущее состояние
+  
+  goal: {goal}
+  error_reason: {error_reason}
+  context_summary: {context_summary}
+  
+  ## Инструкции
+  
+  Верни ответ в формате JSON:
+  {
+    "error_type": "pattern_failure",
+    "reason": "описание ошибки",
+    "can_retry": false,
+    "recommended_action": "описание рекомендуемого действия"
+  }
+variables:
+  - name: goal
+    description: Цель текущего сессии
+    required: true
+  - name: error_reason
+    description: Причина ошибки
+    required: true
+  - name: context_summary
+    description: Сводка контекста выполнения
+    required: false
+metadata:
+  author: system
+  created: '2026-04-06'
+  description: User промпт для behavior.fallback

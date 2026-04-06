@@ -1,7 +1,7 @@
 """
 Fallback Strategy Service - стратегии fallback для behavior паттернов.
 
-Используется для обработки ошибок и переключения между паттернами.
+Используется для обработки ошибок. При ошибке всегда возвращаем FAIL.
 """
 from typing import Dict, Any, List, Optional
 from core.agent.behaviors.base import Decision, DecisionType
@@ -14,7 +14,6 @@ class FallbackStrategyService:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {
             "max_retries": 3,
-            "default_pattern": "fallback.v1.0.0",
             "emergency_stop": True
         }
 
@@ -23,7 +22,7 @@ class FallbackStrategyService:
         reason: str,
         available_capabilities: List[Capability]
     ) -> Decision:
-        """Создаёт решение при ошибке - всегда FAIL, не продолжаем как ни в чём не бывало."""
+        """Создаёт решение при ошибке - всегда FAIL, не пытаемся продолжить."""
         return Decision(
             type=DecisionType.FAIL,
             error=f"llm_error: {reason}",
@@ -37,7 +36,7 @@ class FallbackStrategyService:
         available_capabilities: List[Capability],
         reason: str
     ) -> Decision:
-        """Fallback для генерации решения через LLM."""
+        """Fallback для генерации решения через LLM - всегда FAIL."""
         return Decision(
             type=DecisionType.FAIL,
             error=f"llm_reasoning_error: {reason}",

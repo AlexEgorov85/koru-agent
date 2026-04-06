@@ -362,15 +362,11 @@ class VectorBooksTool(BaseTool):
         prompt_template = prompt_obj.content if prompt_obj else ""
 
         if not prompt_template:
-            if self.event_bus_logger:
-                await self.event_bus_logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            else:
-                self.logger.warning(f"Промпт {capability_name} не загружен, используем fallback")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            # Fallback шаблон
-            prompt_template = "{prompt}\n\nКонтекст:\n{context}\n\nОтветь в формате JSON:\n{{\n    \"result\": {{...}},\n    \"confidence\": 0.0-1.0,\n    \"reasoning\": \"обоснование\"\n}}"
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Промпт для {capability_name} не загружен! Проверьте YAML в data/prompts/",
+                component="vector_books_tool"
+            )
 
         # Рендерим промпт
         llm_prompt = prompt_template.format(prompt=prompt, context=context)
@@ -378,40 +374,32 @@ class VectorBooksTool(BaseTool):
         # Получаем output контракт для структурированного вывода
         output_schema = self.get_output_contract(capability_name)
         
-        if output_schema:
-            # Вызов через executor (который использует orchestrator)
-            # StructuredOutputConfig автоматически конвертирует Pydantic модель в schema_def
-            result = await self.executor.execute_action(
-                action_name="llm.generate_structured",
-                llm_provider=self._llm_provider,
-                parameters={
-                    'prompt': llm_prompt,
-                    'structured_output': {
-                        'output_model': 'VectorBooksAnalysis',
-                        'schema_def': output_schema,  # Pydantic модель - StructuredOutputConfig конвертирует
-                        'max_retries': 3,
-                        'strict_mode': False
-                    }
-                }
+        if not output_schema:
+            from core.errors.exceptions import SkillExecutionError
+            raise SkillExecutionError(
+                f"Контракт для {capability_name} не загружен! Проверьте YAML в data/contracts/",
+                component="vector_books_tool"
             )
-            
-            # Извлекаем результат
-            if result.get('success'):
-                result_data = result['data']['parsed_content']
-            else:
-                raise ValueError(f"LLM error: {result.get('error')}")
-        else:
-            # Fallback: простой JSON вывод через executor (единообразно)
-            fallback_result = await self.executor.execute_action(
-                action_name="llm.generate",
-                llm_provider=self._llm_provider,
-                parameters={
-                    'prompt': llm_prompt,
-                    'temperature': 0.1,
-                    'max_tokens': 500
+
+        # Вызов LLM через executor с structured output
+        result = await self.executor.execute_action(
+            action_name="llm.generate_structured",
+            llm_provider=self._llm_provider,
+            parameters={
+                'prompt': llm_prompt,
+                'structured_output': {
+                    'output_model': 'VectorBooksAnalysis',
+                    'schema_def': output_schema,
+                    'max_retries': 3,
+                    'strict_mode': False
                 }
-            )
-            result_data = fallback_result['data']['content']
+            }
+        )
+        
+        if not result.get('success'):
+            raise RuntimeError(f"LLM error: {result.get('error')}")
+
+        result_data = result['data']['parsed_content']
 
         # 4. Формируем результат
         analysis = AnalysisResult(

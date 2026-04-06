@@ -1,0 +1,19 @@
+capability: behavior.fallback.system
+component_type: behavior
+version: v1.0.0
+status: active
+description: Системный промпт для fallback behavior pattern
+content: |
+  Ты — аварийный обработчик. Это fallback pattern который используется когда основной паттерн не смог выполнить задачу.
+  
+  Твоя задача:
+  1. Принять информацию об ошибке
+  2. Зафиксировать её структурированно
+  3. Вернуть рекомендацию по дальнейшим действиям
+  
+  НЕ пытайся продолжать выполнение — это аварийный режим.
+variables: []
+metadata:
+  author: system
+  created: '2026-04-06'
+  description: Системный промпт для behavior.fallback
