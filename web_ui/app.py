@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 from core.agent.factory import AgentFactory
-from web_ui.agent_holder import get_status, is_ready, get_app_context
+from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs
 
 st.set_page_config(page_title="Агент", page_icon="🤖")
 
@@ -49,6 +49,8 @@ if is_ready():
     if submit and goal:
         import asyncio
 
+        clear_logs()
+
         with st.spinner("Агент работает..."):
             start = time.time()
 
@@ -62,6 +64,8 @@ if is_ready():
             result = asyncio.run(run())
 
             duration_ms = int((time.time() - start) * 1000)
+
+        logs = get_logs()
 
         st.success(f"Готово за {duration_ms} мс")
 
@@ -81,5 +85,16 @@ if is_ready():
             st.write(f"Шагов: {steps}")
             if result.error:
                 st.error(f"Ошибка: {result.error}")
+
+    logs = get_logs()
+    if logs:
+        st.write("### 📋 Лог")
+        for log in logs[-50:]:
+            if log["level"] == "error":
+                st.error(log["message"])
+            elif log["level"] == "warning":
+                st.warning(log["message"])
+            else:
+                st.text(log["message"])
 else:
     st.info("Поднимите контекст в разделе Админка")
