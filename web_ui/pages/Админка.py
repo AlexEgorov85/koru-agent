@@ -35,13 +35,12 @@ col_up, col_down = st.columns(2)
 with col_up:
     with st.form("init_form"):
         st.write("Поднять контекст")
-        profile = st.selectbox("Профиль", ["sandbox", "prod"], index=0)
         data_dir = st.text_input("Путь к данным", value="data")
         submit_init = st.form_submit_button("🚀 Поднять", type="primary")
 
         if submit_init:
             with st.spinner("Поднимаю контекст..."):
-                asyncio.run(init_contexts(profile=profile, data_dir=data_dir))
+                asyncio.run(init_contexts(profile="prod", data_dir=data_dir))
             st.success("Контекст поднят!")
             st.rerun()
 

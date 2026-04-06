@@ -49,7 +49,7 @@ def add_log(message: str, level: str = "info"):
     })
 
 
-async def init_contexts(profile: str = "sandbox", data_dir: str = "data"):
+async def init_contexts(profile: str = "prod", data_dir: str = "data"):
     global _infra_ctx, _app_ctx, _is_ready
 
     from core.config import get_config
