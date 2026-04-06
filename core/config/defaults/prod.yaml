@@ -29,6 +29,7 @@ db_providers:
 debug: false
 llm_providers:
   default_llm:
+    enabled: true
     provider_type: openrouter
     model_name: qwen/qwen3.6-plus:free
     parameters:
