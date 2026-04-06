@@ -259,6 +259,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         RETRY для free-моделей:
         - OpenRouter free возвращает пустые ответы при rate limit (HTTP 200, но content="")
         - Делаем до 3 попыток с экспоненциальным backoff
+        - Добавляем задержку перед каждым вызовом для стабильности
         """
         if not self.is_initialized or not self._session:
             await self.initialize()
@@ -267,6 +268,13 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         last_result = None
 
         for attempt in range(1, max_retries + 1):
+            # Задержка перед каждым вызовом (кроме первого)
+            if attempt > 1:
+                wait_time = 10 * attempt  # 10s, 20s, 30s
+                if self._logger:
+                    await self._logger.info(f"⏳ [OPENROUTER] Ожидаю {wait_time}s перед попыткой {attempt}...")
+                await asyncio.sleep(wait_time)
+            
             result = await self._execute_single_attempt(request)
             last_result = result
 
