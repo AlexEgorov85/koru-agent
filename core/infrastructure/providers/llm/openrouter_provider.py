@@ -276,6 +276,12 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 and (result.raw_response is None or not result.raw_response.content)
             )
 
+            # После успешного ответа (не empty) - подождать 1 минуту для избежания rate limiting
+            if not is_empty:
+                if self._logger:
+                    await self._logger.info(f"⏳ [OPENROUTER] Успешный ответ, ожидаю 60s перед следующим вызовом...")
+                await asyncio.sleep(60)
+
             if is_empty and attempt < max_retries:
                 wait_time = 20 + (attempt * 10)  # 30s, 40s, 50s — total ~120s max
                 print(f"⚠️ [OPENROUTER] Empty response (attempt {attempt}/{max_retries}), "
