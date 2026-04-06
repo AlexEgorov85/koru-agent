@@ -168,7 +168,16 @@ with tab1:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
+                        # Проверяем что контексты живы
+                        if not is_ready():
+                            error_holder[0] = RuntimeError("Система не инициализирована. Перейдите в Управление и нажмите 'Запустить систему'.")
+                            return
+                        
                         app_ctx = get_app_context()
+                        if app_ctx is None:
+                            error_holder[0] = RuntimeError("Контекст приложения упал. Попробуйте перезапустить систему в Управлении.")
+                            return
+                        
                         factory = AgentFactory(app_ctx)
                         shared_dialogue_history = get_shared_dialogue_history()
                         
@@ -188,7 +197,14 @@ with tab1:
             
             # Пока агент работает - показываем мысли в реальном времени
             last_log_count = 0
+            crash_detected = False
+            
             while agent_thread.is_alive():
+                # Проверяем что контексты живы
+                if not is_ready():
+                    crash_detected = True
+                    break
+                
                 # Получаем свежие логи
                 logs = get_logs()
                 
@@ -216,10 +232,30 @@ with tab1:
             # Очищаем контейнер мыслей
             thinking_placeholder.empty()
             
+            # Проверяем на краш
+            if crash_detected:
+                st.session_state.processing = False
+                st.error("⚠️ Система упала во время выполнения. Попробуйте перезапустить систему в Управлении.")
+                st.rerun()
+            
             # Проверяем результат
             if error_holder[0]:
                 thinking_placeholder.empty()
-                raise error_holder[0]
+                error_msg = str(error_holder[0])
+                
+                # Проверяем если это краш контекста
+                if "connection" in error_msg.lower() or "closed" in error_msg.lower() or "context" in error_msg.lower():
+                    st.session_state.processing = False
+                    # Пробуем определить живы ли контексты
+                    status = get_status()
+                    if not status["is_ready"]:
+                        st.error("⚠️ Контексты упали. Перейдите в Управление и перезапустите систему.")
+                    else:
+                        st.error(f"⚠️ Ошибка: {error_msg}")
+                else:
+                    st.error(f"⚠️ Ошибка: {error_msg}")
+                
+                st.rerun()
             
             result = result_holder[0]
             duration_ms = int((time.time() - start_time) * 1000)
