@@ -292,3 +292,7 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
     @property
     def is_available(self) -> bool:
         return self.is_initialized and self.health_status == LLMHealthStatus.HEALTHY
+
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
+        """Реализация генерации для BaseLLMProvider."""
+        return await self.generate(request)
