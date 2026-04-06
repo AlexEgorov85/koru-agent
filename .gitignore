@@ -92,6 +92,9 @@ logs/debug/
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Qwen Code
+.qwen/
+
 # JetBrains IDEs
 .idea/
 *.iml
