@@ -190,3 +190,6 @@ config/database.yaml
 secret_token.rb
 nul  
 data/metrics/default_llm/latest/metrics.json
+
+# Runtime-generated metrics (auto-generated on agent runs)
+data/metrics/
