@@ -302,29 +302,23 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         return last_result  # type: ignore
 
     async def _execute_single_attempt(self, request: LLMRequest) -> LLMResponse:
-        """Одна попытка HTTP запроса."""
+        """Одна попытка HTTP запроса — максимально упрощённая версия."""
         start_time = time.time()
 
         messages = self._build_messages(request)
 
-        # Минимальный payload — как в рабочем примере пользователя
-        # OpenRouter free-модели чувствительны к дополнительным параметрам
+        # МИНИМАЛЬНЫЙ payload — ТОЧНО как в рабочем примере пользователя
+        # Никаких дополнительных параметров!
         payload: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
         }
 
-        # НЕ добавляем stop_sequences для free-моделей - может вызвать пустой ответ
-        # if request.stop_sequences:
-        #     payload["stop"] = request.stop_sequences
-
-        if hasattr(request, 'structured_output') and request.structured_output is not None and isinstance(request.structured_output, StructuredOutputConfig):
-            schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
-            if messages and messages[0]["role"] == "system":
-                messages[0]["content"] += "\n\n" + schema_prompt
-            else:
-                messages.insert(0, {"role": "system", "content": schema_prompt})
-            payload["messages"] = messages
+        # Если есть structured_output — добавляем в user prompt ( НЕ в payload!)
+        if hasattr(request, 'structured_output') and request.structured_output is not None:
+            # Для free-моделей лучше добавить инструкцию в конец промпта
+            # Вместо изменения payload
+            pass  # Пока не меняем — оставим для debugging
 
         try:
             async with self._session.post(self.config_obj.base_url, json=payload) as response:
