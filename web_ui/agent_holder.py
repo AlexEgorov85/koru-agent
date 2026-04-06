@@ -14,8 +14,8 @@ _infra_ctx: Optional[InfrastructureContext] = None
 _app_ctx: Optional[ApplicationContext] = None
 _is_ready: bool = False
 
-# НОВОЕ: Глобальный SessionContext для сохранения истории диалога между запросами
-_session_ctx: Optional[Any] = None  # SessionContext (ленивый импорт)
+# НОВОЕ: Глобальная DialogueHistory — хранится между запросами
+_dialogue_history: Optional[Any] = None  # DialogueHistory (ленивый импорт)
 
 _event_logs: List[Dict[str, Any]] = []
 _log_lock = asyncio.Lock()
@@ -126,7 +126,7 @@ def _subscribe_to_events():
 
 
 async def shutdown_contexts():
-    global _infra_ctx, _app_ctx, _is_ready, _session_ctx
+    global _infra_ctx, _app_ctx, _is_ready, _dialogue_history
 
     if _app_ctx:
         await _app_ctx.shutdown()
@@ -136,8 +136,8 @@ async def shutdown_contexts():
         await _infra_ctx.shutdown()
         _infra_ctx = None
 
-    # Сбрасываем session context при остановке системы
-    _session_ctx = None
+    # Сбрасываем историю при остановке системы
+    _dialogue_history = None
     _is_ready = False
 
 
@@ -149,23 +149,23 @@ def get_app_context() -> Optional[ApplicationContext]:
     return _app_ctx
 
 
-def get_or_create_session_context() -> Any:
+def get_shared_dialogue_history() -> Any:
     """
-    Получить существующий SessionContext или создать новый.
+    Получить общую DialogueHistory, которая сохраняется между запросами.
     
-    SessionContext хранит DialogueHistory, которая сохраняется между запросами.
+    Каждый новый агент копирует эту историю в свой SessionContext.
     """
-    global _session_ctx
-    if _session_ctx is None:
-        from core.session_context.session_context import SessionContext
-        _session_ctx = SessionContext(session_id="web_ui_session", agent_id="agent_001")
-    return _session_ctx
+    global _dialogue_history
+    if _dialogue_history is None:
+        from core.session_context.dialogue_context import DialogueHistory
+        _dialogue_history = DialogueHistory(max_rounds=10)
+    return _dialogue_history
 
 
-def reset_session_context():
-    """Сбросить SessionContext (начать новый диалог с чистой историей)."""
-    global _session_ctx
-    _session_ctx = None
+def reset_dialogue_history():
+    """Сбросить историю диалога (начать чистый разговор)."""
+    global _dialogue_history
+    _dialogue_history = None
 
 
 def get_system_info() -> dict:

@@ -60,6 +60,7 @@ class PromptBuilderService:
         variables = {
             "input": self._build_input_context(context_analysis, available_capabilities),
             "goal": context_analysis.get("goal", "Неизвестная цель"),
+            "dialogue_history": self._build_dialogue_history(session_context),
             "step_history": self._build_step_history(
                 context_analysis.get("last_steps", []),
                 session_context=session_context
@@ -83,6 +84,20 @@ class PromptBuilderService:
             f"Ошибок подряд: {context_analysis.get('consecutive_errors', 0)}"
         ]
         return "\n".join(parts)
+
+    def _build_dialogue_history(self, session_context) -> str:
+        """
+        Формирует блок истории диалога для вставки в промпт.
+
+        ПАРАМЕТРЫ:
+        - session_context: контекст сессии
+
+        ВОЗВРАЩАЕТ:
+        - str: отформатированная история диалога или пустая строка
+        """
+        if session_context and hasattr(session_context, 'dialogue_history'):
+            return session_context.dialogue_history.format_for_prompt()
+        return ""
     
     def _build_step_history(
         self, 

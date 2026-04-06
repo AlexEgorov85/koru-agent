@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 from core.agent.factory import AgentFactory
-from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_or_create_session_context
+from web_ui.agent_holder import get_status, is_ready, get_app_context, get_logs, clear_logs, get_shared_dialogue_history, reset_dialogue_history
 
 st.set_page_config(
     page_title="Агент",
@@ -105,16 +105,15 @@ with tab1:
 
     # НОВОЕ: Отображение истории диалога из DialogueHistory
     if is_ready():
-        session_ctx = get_or_create_session_context()
-        if hasattr(session_ctx, 'dialogue_history') and session_ctx.dialogue_history.count() > 0:
+        dialogue_history = get_shared_dialogue_history()
+        if dialogue_history.count() > 0:
             with st.expander("📜 История диалога", expanded=False):
-                dialogue_text = session_ctx.dialogue_history.format_for_prompt()
+                dialogue_text = dialogue_history.format_for_prompt()
                 st.text(dialogue_text)
                 
                 # Кнопка очистки истории
                 if st.button("🗑️ Очистить историю", key="clear_history_btn"):
-                    from web_ui.agent_holder import reset_session_context
-                    reset_session_context()
+                    reset_dialogue_history()
                     st.session_state.messages = []
                     st.rerun()
 
@@ -143,12 +142,12 @@ with tab1:
                 app_ctx = get_app_context()
                 factory = AgentFactory(app_ctx)
                 
-                # Получаем существующий SessionContext (с историей диалога)
-                session_ctx = get_or_create_session_context()
+                # Получаем общую историю диалога (сохраняется между запросами)
+                shared_dialogue_history = get_shared_dialogue_history()
 
                 async def run():
-                    # Передаём session_context для сохранения истории диалога
-                    agent = await factory.create_agent(goal=pending, session_context=session_ctx)
+                    # Новый SessionContext, но с копией истории диалога
+                    agent = await factory.create_agent(goal=pending, dialogue_history=shared_dialogue_history)
                     return await agent.run(pending)
 
                 result = asyncio.run(run())

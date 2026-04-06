@@ -61,7 +61,8 @@ class AgentFactory:
         goal: str,
         config: Optional[AgentConfig] = None,
         correlation_id: Optional[str] = None,
-        agent_id: Optional[str] = "agent_001"
+        agent_id: Optional[str] = "agent_001",
+        dialogue_history=None  # ← НОВОЕ: общая история диалога для копирования
     ) -> AgentRuntime:
         """
         Создание изолированного агента с валидацией версий.
@@ -71,6 +72,7 @@ class AgentFactory:
         - config: Конфигурация агента с версиями компонентов
         - correlation_id: ID для отслеживания сессии
         - agent_id: ID агента для логирования
+        - dialogue_history: Общая история диалога (копируется в новый SessionContext)
 
         ВОЗВРАЩАЕТ:
         - AgentRuntime: Созданный агент
@@ -84,12 +86,13 @@ class AgentFactory:
         # 2. ИСПОЛЬЗУЕМ существующий application_context
         app_context = self.application_context
 
-        # 3. Создание агента с существующим контекстом
+        # 3. Создание агента — SessionContext всегда новый, но с копией истории
         agent = AgentRuntime(
             application_context=app_context,
             goal=goal,
             correlation_id=correlation_id,
-            agent_id=agent_id
+            agent_id=agent_id,
+            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
         )
 
         if self.event_bus_logger:

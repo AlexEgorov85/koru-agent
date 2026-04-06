@@ -6,6 +6,7 @@ description: User prompt для рассуждения в цикле ReAct
 content: |
   === КОНТЕКСТ ===
   {input}
+  {dialogue_history}
   Цель: {goal}
   История: {step_history}
 
@@ -98,6 +99,9 @@ variables:
   - name: input
     description: Текущий контекст задачи и состояние
     required: true
+  - name: dialogue_history
+    description: История предыдущих диалогов (вопросы и ответы)
+    required: false
   - name: goal
     description: Исходная цель задачи
     required: true
@@ -111,4 +115,4 @@ metadata:
   author: system
   created: '2026-02-19'
   description: User prompt для behavior.react.think с примерами форматов
-  version_notes: 'Удалена переменная {observation} — данные уже в step_history'
+  version_notes: 'Добавлена переменная {dialogue_history} для сохранения контекста между запросами'

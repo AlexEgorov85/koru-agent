@@ -10,8 +10,9 @@ from typing import Any, Dict, List, Optional
 
 from core.session_context.base_session_context import BaseSessionContext
 from core.session_context.data_context import DataContext
+from core.session_context.dialogue_context import DialogueHistory
 from core.session_context.model import (
-    ContextItem, ContextItemType, 
+    ContextItem, ContextItemType,
     ContextItemMetadata, AgentStep
 )
 from core.session_context.step_context import StepContext
@@ -55,6 +56,9 @@ class SessionContext(BaseSessionContext):
 
         self.data_context = DataContext()
         self.step_context = StepContext()
+        
+        # История диалога для сохранения контекста между запросами
+        self.dialogue_history = DialogueHistory(max_rounds=10)
     
     def set_goal(self, goal: str) -> None:
         """
@@ -427,18 +431,52 @@ class SessionContext(BaseSessionContext):
         """Получение текущего шага плана."""
         if not hasattr(self, 'current_plan_step_id') or not self.current_plan_step_id:
             return None
-        
+
         # Получаем текущий план
         current_plan_item = self.get_current_plan()
         if not current_plan_item:
             return None
-        
+
         plan_data = current_plan_item.content
         steps = plan_data.get("steps", [])
-        
+
         # Находим текущий шаг по ID
         for step in steps:
             if step.get("step_id") == self.current_plan_step_id:
                 return step
-        
+
         return None
+
+    def commit_turn(self, user_query: str, assistant_response: str, tools_used: Optional[List[str]] = None) -> None:
+        """
+        Сохранение обмена репликами в историю диалога.
+
+        Вызывается в конце успешного цикла (run) для сохранения
+        вопроса пользователя и ответа агента.
+
+        ПАРАМЕТРЫ:
+        - user_query: текст запроса пользователя
+        - assistant_response: текст ответа агента
+        - tools_used: список инструментов, использованных при формировании ответа
+        """
+        self.dialogue_history.add_user_message(user_query)
+        self.dialogue_history.add_assistant_message(assistant_response, tools_used)
+
+    def copy_dialogue_from(self, other_dialogue_history: 'DialogueHistory') -> None:
+        """
+        Копирование истории диалога из другого источника.
+
+        Используется при создании нового SessionContext для переноса
+        истории предыдущих диалогов.
+
+        ПАРАМЕТРЫ:
+        - other_dialogue_history: источник истории для копирования
+        """
+        if other_dialogue_history is None:
+            return
+        
+        # Копируем все сообщения
+        for msg in other_dialogue_history.messages:
+            self.dialogue_history.messages.append(
+                type(msg)(role=msg.role, content=msg.content, tools_used=list(msg.tools_used))
+            )

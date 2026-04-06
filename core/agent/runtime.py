@@ -37,7 +37,8 @@ class AgentRuntime:
         max_steps: int = 10,
         user_context=None,
         correlation_id: Optional[str] = None,
-        agent_id: Optional[str] = "agent_001"
+        agent_id: Optional[str] = "agent_001",
+        dialogue_history=None  # ← НОВОЕ: общая история диалога для копирования
     ):
         self.application_context = application_context
         self.goal = goal
@@ -50,7 +51,7 @@ class AgentRuntime:
         self.executor = ActionExecutor(application_context)
         self.failure_memory = FailureMemory()
         self.policy = RetryPolicy()
-        
+
         self.safe_executor = SafeExecutor(
             executor=self.executor,
             failure_memory=self.failure_memory,
@@ -61,14 +62,49 @@ class AgentRuntime:
 
         self._pattern = None
 
-        # Session context
+        # Session context — всегда новый, но с копией истории диалога
         from core.session_context.session_context import SessionContext
         self.session_context = SessionContext(session_id=str(uuid.uuid4()), agent_id=self.agent_id)
         self.session_context.set_goal(goal)
+        
+        # Сохраняем ссылку на глобальную историю для обратной записи
+        self._shared_dialogue_history = dialogue_history
+        
+        # Копируем историю диалога если передана
+        if dialogue_history is not None:
+            self.session_context.copy_dialogue_from(dialogue_history)
 
         # Event bus logger
         self.event_bus_logger = None
         self._init_event_bus_logger()
+
+    def _sync_dialogue_history_back(self):
+        """
+        Копирует новые сообщения из локальной истории в глобальную.
+        
+        Вызывается после commit_turn() для сохранения диалога между запросами.
+        """
+        if self._shared_dialogue_history is None:
+            return
+        
+        local_history = self.session_context.dialogue_history
+        shared_history = self._shared_dialogue_history
+        
+        # Копируем только те сообщения, которых ещё нет в глобальной истории
+        # (по количеству сообщений)
+        local_count = len(local_history.messages)
+        shared_count = len(shared_history.messages)
+        
+        if local_count > shared_count:
+            # Новые сообщения появились — копируем их
+            new_messages = local_history.messages[shared_count:]
+            for msg in new_messages:
+                from core.session_context.dialogue_context import DialogueMessage
+                shared_history.messages.append(
+                    DialogueMessage(role=msg.role, content=msg.content, tools_used=list(msg.tools_used))
+                )
+            # Обрезаем если превышен лимит
+            shared_history._trim()
 
     def _init_event_bus_logger(self):
         """Инициализация логгера."""
@@ -196,10 +232,27 @@ class AgentRuntime:
 
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
+                # Сохраняем диалог в историю
+                final_answer = decision.reasoning or ""
+                if decision.result and decision.result.data:
+                    final_answer = str(decision.result.data)
+                self.session_context.commit_turn(
+                    user_query=self.goal,
+                    assistant_response=final_answer,
+                    tools_used=[]
+                )
+                self._sync_dialogue_history_back()
                 return decision.result or ExecutionResult.success(data=decision.reasoning)
 
             # Pattern решил FAIL?
             if decision.type == DecisionType.FAIL:
+                # Сохраняем диалог даже при ошибке
+                self.session_context.commit_turn(
+                    user_query=self.goal,
+                    assistant_response=f"Ошибка выполнения: {decision.error or 'Неизвестная ошибка'}",
+                    tools_used=[]
+                )
+                self._sync_dialogue_history_back()
                 return ExecutionResult.failure(decision.error or "Unknown error")
 
             # Pattern решил ACT?
@@ -252,12 +305,19 @@ class AgentRuntime:
                 )
                 await event_bus.publish(EventType.INFO, {
                     "message": f"✅ Executor завершил: status={result.status.value}" +
-                              (f"\n   ❌ Error: {result.error[:100]}..." if result.error else "")
+                              (f"\n   ❌ Error: {result.error}" if result.error else "")
                 }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
                 # Если это был final_answer.generate и результат успешный - завершаем
                 if decision.action == "final_answer.generate" and result.status == ExecutionStatus.COMPLETED and result.data:
                     await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                    # Сохраняем диалог в историю
+                    self.session_context.commit_turn(
+                        user_query=self.goal,
+                        assistant_response=str(result.data),
+                        tools_used=[]
+                    )
+                    self._sync_dialogue_history_back()
                     return result
 
             # Pattern решил SWITCH?
@@ -271,7 +331,13 @@ class AgentRuntime:
             if decision.type == DecisionType.FAIL:
                 await event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
-        # Max steps exceeded
+        # Max steps exceeded — сохраняем диалог
+        self.session_context.commit_turn(
+            user_query=self.goal,
+            assistant_response=f"Превышено максимальное количество шагов ({self.max_steps})",
+            tools_used=[]
+        )
+        self._sync_dialogue_history_back()
         return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")
 
     async def _get_available_capabilities(self):
