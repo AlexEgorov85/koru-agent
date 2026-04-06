@@ -221,7 +221,7 @@ class SQLGenerationService(BaseService):
         # ПРОВЕРКА: Промпт ДОЛЖЕН быть загружен — без fallback!
         if not prompt_obj or not prompt_obj.content:
             raise ValueError(f"Промпт '{prompt_key}' не загружен! Проверьте что промпт указан в ComponentConfig")
-        
+
         prompt = prompt_obj.content
 
         # Заменяем переменные в кэшированном промпте
@@ -240,46 +240,92 @@ class SQLGenerationService(BaseService):
 
         try:
             # 4. ВЫЗОВ LLM ЧЕРЕЗ EXECUTOR
-            # Используем executor для вызова LLM
             from core.agent.components.action_executor import ExecutionContext
             exec_context = ExecutionContext()
-            
-            llm_result = await self.executor.execute_action(
-                action_name="llm.generate_structured",
-                parameters={
-                    "prompt": natural_language_query,
-                    "system_prompt": prompt,
-                    "temperature": 0.3,
-                    "max_tokens": 500,
-                    "structured_output": {
-                        "output_model": "SQLGenerationOutput",
-                        "schema_def": SQLGenerationOutput.model_json_schema(),
-                        "max_retries": 3,
-                        "strict_mode": False  # TEMP: отключено для отладки
-                    }
-                },
-                context=exec_context
-            )
+            output = None  # Будет заполнен structured output или fallback
+
+            try:
+                llm_result = await self.executor.execute_action(
+                    action_name="llm.generate_structured",
+                    parameters={
+                        "prompt": prompt,
+                        "system_prompt": "",
+                        "temperature": 0.3,
+                        "max_tokens": 500,
+                        "structured_output": {
+                            "output_model": "SQLGenerationOutput",
+                            "schema_def": SQLGenerationOutput.model_json_schema(),
+                            "max_retries": 3,
+                            "strict_mode": False
+                        }
+                    },
+                    context=exec_context
+                )
+            except Exception as llm_exc:
+                raise ValueError(f"LLM generate_structured failed: {llm_exc}")
 
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED or not llm_result.data:
                 errors = llm_result.error if hasattr(llm_result, 'error') else 'unknown error'
-                raise ValueError(f"SQL generation failed: {errors}")
+                
+                # FALLBACK: пробуем обычный llm.generate с ручным парсингом JSON
+                llm_result2 = await self.executor.execute_action(
+                    action_name="llm.generate",
+                    parameters={
+                        "prompt": prompt,
+                        "system_prompt": "",
+                        "temperature": 0.3,
+                        "max_tokens": 500,
+                    },
+                    context=exec_context
+                )
+                
+                if llm_result2.status != ExecutionStatus.COMPLETED or not llm_result2.data:
+                    raise ValueError(f"SQL generation failed (both structured and fallback): {errors}")
+                
+                # Парсим JSON вручную
+                if isinstance(llm_result2.data, dict):
+                    raw_text = llm_result2.data.get('content', '') or llm_result2.data.get('text', '') or llm_result2.data.get('response', '')
+                else:
+                    raw_text = llm_result2.data if isinstance(llm_result2.data, str) else str(llm_result2.data)
+                    
+                if not raw_text or len(raw_text.strip()) < 10:
+                    raise ValueError(f"LLM returned empty or too short response for SQL generation")
+                
+                # Ищем JSON в ответе
+                import json, re
+                json_match = re.search(r'\{[^}]*"generated_sql"[^}]*\}', raw_text, re.DOTALL)
+                if json_match:
+                    try:
+                        output = json.loads(json_match.group())
+                    except json.JSONDecodeError as e:
+                        raise ValueError(f"Failed to parse JSON from LLM response: {e}")
+                else:
+                    raise ValueError(f"Could not find generated_sql in LLM response: {raw_text[:200]}")
 
             # Извлекаем parsed_content из результата
             result_data = llm_result.data
-            
-            if hasattr(result_data, 'parsed_content'):
+
+            # Проверяем нужно ли использовать fallback (llm_result.failed но есть output из fallback)
+            use_fallback_output = isinstance(output, dict) and 'generated_sql' in output
+
+            if use_fallback_output:
+                pass  # Fallback уже заполнил output
+            elif hasattr(result_data, 'parsed_content'):
                 output = result_data.parsed_content
             elif isinstance(result_data, dict) and 'parsed_content' in result_data:
                 output = result_data['parsed_content']
             else:
-                # Fallback: пытаемся использовать data напрямую
                 output = result_data
-            
+
             # Валидация SQL через безопасный метод
             generated_sql = getattr(output, 'generated_sql', None) or (output.get('generated_sql') if isinstance(output, dict) else None)
-            
+
+            if self.event_bus_logger:
+                await self.event_bus_logger.debug(
+                    f"Extracted SQL: {generated_sql}"
+                )
+
             validated = await self._validate_sql_safely(generated_sql, {})
 
             # Проверяем что запрос валиден
@@ -291,7 +337,7 @@ class SQLGenerationService(BaseService):
             result = SQLGenerationResult(
                 sql=validated.sql,
                 parameters=validated.parameters,
-                reasoning=getattr(output, 'explanation', ''),
+                reasoning=getattr(output, 'explanation', '') if not isinstance(output, dict) else output.get('explanation', ''),
                 tables_used=[],
                 safety_score=validated.safety_score,
                 generation_id=f"gen_{hash(natural_language_query)}"
@@ -544,7 +590,7 @@ class SQLGenerationService(BaseService):
         result = await self.executor.execute_action(
             action_name="sql_validator_service.validate_query",
             parameters={
-                "sql": sql,
+                "sql_query": sql,
                 "parameters": parameters
             },
             context=exec_context

@@ -462,6 +462,9 @@ class AppConfig(BaseSettings):
             comp_type = prompt.component_type.value if hasattr(prompt, 'component_type') else 'skill'
 
             if comp_type in component_prefixes:
+                # Исключаем fallback - этот паттерн не существует
+                if comp_type == 'behavior' and parts[1] == 'fallback':
+                    continue
                 if comp_type == 'behavior':
                     component_name = f"{parts[1]}_pattern" if len(parts) >= 2 else f"{prefix}_pattern"
                 elif comp_type == 'service':

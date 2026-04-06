@@ -165,9 +165,6 @@ class BehaviorStorage:
         elif pattern_type == "evaluation":
             from core.agent.behaviors.evaluation.pattern import EvaluationPattern
             return EvaluationPattern
-        elif pattern_type == "fallback":
-            from core.agent.behaviors.fallback.pattern import FallbackPattern
-            return FallbackPattern
         else:
             raise ValueError(f"Unknown pattern type: {pattern_type}")
     

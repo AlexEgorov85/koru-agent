@@ -390,9 +390,6 @@ class InfrastructureContext:
 # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                     await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}", exc_info=True)
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info("🤖 LLM → _register_providers_from_config: завершено")
-
     async def _init_vector_search(self):
         """Инициализация векторного поиска с проверкой наличия индексов."""
         from core.infrastructure.providers.vector.faiss_provider import FAISSProvider

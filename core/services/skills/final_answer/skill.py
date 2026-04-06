@@ -103,18 +103,6 @@ class FinalAnswerSkill(BaseSkill):
         if not success:
             return False
 
-        # DEBUG: Логируем что загрузилось
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(
-                f"[DEBUG final_answer.initialize] Загруженные промпты: {list(self.prompts.keys())}"
-            )
-            await self.event_bus_logger.info(
-                f"[DEBUG final_answer.initialize] system_prompts: {list(self.system_prompts.keys()) if hasattr(self, 'system_prompts') else 'НЕТ'}"
-            )
-            await self.event_bus_logger.info(
-                f"[DEBUG final_answer.initialize] user_prompts: {list(self.user_prompts.keys()) if hasattr(self, 'user_prompts') else 'НЕТ'}"
-            )
-
         # Проверяем наличие необходимых ресурсов для capability
         capability_name = "final_answer.generate"
 

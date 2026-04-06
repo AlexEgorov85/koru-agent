@@ -156,11 +156,6 @@ class ReActPattern(BaseBehaviorPattern):
                         print(f"   Lifecycle resources: {list(infra.lifecycle_manager._resources.keys())}")
                 return self._handle_error("llm_provider_not_available", available_capabilities)
 
-            # Логирование перед вызовом LLM
-            await event_bus.publish(EventType.INFO, {
-                "message": f"[DEBUG] LLM CALL STARTED: prompt_len={len(full_prompt)}, model={provider.model_name if hasattr(provider, 'model_name') else 'unknown'}"
-            })
-
             llm_request = LLMRequest(
                 prompt=full_prompt,
                 system_prompt=system,
@@ -190,22 +185,12 @@ class ReActPattern(BaseBehaviorPattern):
                     phase='think',
                     use_native_structured_output=False
                 )
-                # Логирование результата
-                await event_bus.publish(EventType.INFO, {
-                    "message": f"[DEBUG] LLM RESULT: type={type(result).__name__}, has_parsed={hasattr(result, 'parsed_content')}, parsed_content={result.parsed_content if hasattr(result, 'parsed_content') else 'N/A'}"
-                })
             except Exception as e:
-                await event_bus.publish(EventType.ERROR_OCCURRED, {
-                    "message": f"[DEBUG] LLM EXCEPTION: {type(e).__name__}: {e}"
-                })
                 return self.fallback_strategy.create_error(
                     f"llm_exception:{type(e).__name__}:{str(e)}", available_capabilities
                 )
 
             if not result or not hasattr(result, 'parsed_content') or result.parsed_content is None:
-                await event_bus.publish(EventType.WARNING, {
-                    "message": f"[DEBUG] LLM FAILED - result type: {type(result).__name__}, has_parsed_content: {hasattr(result, 'parsed_content')}, parsed_content: {getattr(result, 'parsed_content', 'N/A')}, raw_response: {getattr(result, 'raw_response', 'N/A')}"
-                })
                 return self.fallback_strategy.create_error(
                     "llm_call_failed", available_capabilities
                 )

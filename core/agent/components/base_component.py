@@ -519,6 +519,10 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
             self._safe_log_sync("warning", f"Выходная схема для {capability_name} не загружена, пропускаем валидацию")
             return data
 
+        # Пропускаем валидацию для dataclass — они уже типизированы
+        if hasattr(data, '__dataclass_fields__'):
+            return data
+
         schema_cls = self.output_contracts[capability_name]
         try:
             validated = schema_cls.model_validate(data)

@@ -91,14 +91,6 @@ class ActionExecutor:
     ) -> ExecutionResult:
         """
         Выполнение действия через ActionExecutor.
-
-        ARGS:
-        - action_name: имя действия для выполнения
-        - parameters: параметры выполнения
-        - context: контекст выполнения
-
-        RETURNS:
-        - ExecutionResult: результат выполнения
         """
         self._log_debug(f"ActionExecutor.execute_action: {action_name} с параметрами {list(parameters.keys())}")
 

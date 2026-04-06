@@ -90,9 +90,6 @@ class SessionLogHandler:
 
     async def _on_event(self, event: Event):
         """Обработка любого события."""
-        # Временное логирование для отладки
-        import sys
-        print(f"[SessionLogHandler] Получено событие: {event.event_type}", file=sys.stderr, flush=True)
         await self._write_to_file(event)
 
     async def _write_to_file(self, event: Event):
