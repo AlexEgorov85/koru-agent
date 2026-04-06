@@ -271,8 +271,8 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             # Задержка перед каждым вызовом (кроме первого)
             if attempt > 1:
                 wait_time = 10 * attempt  # 10s, 20s, 30s
-                if self._logger:
-                    await self._logger.info(f"⏳ [OPENROUTER] Ожидаю {wait_time}s перед попыткой {attempt}...")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(f"⏳ [OPENROUTER] Ожидаю {wait_time}s перед попыткой {attempt}...")
                 await asyncio.sleep(wait_time)
             
             result = await self._execute_single_attempt(request)
@@ -286,8 +286,8 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
 
             # После успешного ответа (не empty) - подождать 1 минуту для избежания rate limiting
             if not is_empty:
-                if self._logger:
-                    await self._logger.info(f"⏳ [OPENROUTER] Успешный ответ, ожидаю 60s перед следующим вызовом...")
+                if self.event_bus_logger:
+                    await self.event_bus_logger.info(f"⏳ [OPENROUTER] Успешный ответ, ожидаю 60s перед следующим вызовом...")
                 await asyncio.sleep(60)
 
             if is_empty and attempt < max_retries:
