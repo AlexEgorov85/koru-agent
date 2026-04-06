@@ -214,6 +214,12 @@ class AgentRuntime:
         # Цикл выполнения
         executed_steps = 0
         for step in range(self.max_steps):
+            await event_bus.publish(EventType.AGENT_THINKING, {
+                "message": "🤔 Анализирую запрос и выбираю следующее действие...",
+                "step": step + 1,
+                "max_steps": self.max_steps
+            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+            
             await event_bus.publish(EventType.INFO, {
                 "message": f"{'='*60}\n📍 ШАГ {step + 1}/{self.max_steps}\n{'='*60}"
             }, session_id=self.session_context.session_id, agent_id=self.agent_id)
@@ -230,6 +236,12 @@ class AgentRuntime:
                           (f"\n   reasoning: {decision.reasoning}..." if decision.reasoning else "")
             }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
+            await event_bus.publish(EventType.AGENT_THINKING, {
+                "message": f"🎯 Выбрано действие: {decision.action}",
+                "reasoning": decision.reasoning,
+                "step": step + 1
+            }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+            
             # Pattern решил FINISH?
             if decision.type == DecisionType.FINISH:
                 # Сохраняем диалог в историю
@@ -257,6 +269,11 @@ class AgentRuntime:
 
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
+                await event_bus.publish(EventType.AGENT_THINKING, {
+                    "message": f"⚙️ Запускаю {decision.action} с параметрами: {decision.parameters or {}}",
+                    "step": step + 1
+                }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                
                 await event_bus.publish(EventType.INFO, {"message": f"⚙️ Executor.execute({decision.action})..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
                 # Публикуем детали выбран capability
@@ -338,6 +355,10 @@ class AgentRuntime:
 
                 # Если это был final_answer.generate и результат успешный - завершаем
                 if decision.action == "final_answer.generate" and result.status == ExecutionStatus.COMPLETED and result.data:
+                    await event_bus.publish(EventType.AGENT_THINKING, {
+                        "message": "✅ Финальный ответ сгенерирован",
+                        "step": step + 1
+                    }, session_id=self.session_context.session_id, agent_id=self.agent_id)
                     await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
                     # Сохраняем диалог в историю
                     self.session_context.commit_turn(

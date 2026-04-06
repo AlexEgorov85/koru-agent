@@ -219,10 +219,17 @@ async def run_agent(
         await session_logger.end_session(success=True, result=result_preview)
         await session_logger.info(f"✅ Сессия завершена успешно: {session_id}")
         await session_logger.info(f"📊 Результат:")
-        print(f"\n{'='*60}")
-        print(f"📖 ОТВЕТ:")
-        print(f"{result_preview}")
-        print(f"{'='*60}\n")
+
+        RESET = "\033[0m"
+        BOLD = "\033[1m"
+        CYAN = "\033[36m"
+        YELLOW = "\033[33m"
+
+        print(f"\n{CYAN}{'═'*60}{RESET}")
+        print(f"{BOLD}{YELLOW}📖 ОТВЕТ:{RESET}")
+        print(f"{CYAN}{'─'*60}{RESET}")
+        print(f"{BOLD}{result_preview}{RESET}")
+        print(f"{CYAN}{'═'*60}{RESET}\n")
 
         return result
 
@@ -241,6 +248,11 @@ async def run_agent(
 
         await session_logger.exception(f"❌ Ошибка сессии: {e}", e)
         await session_logger.end_session(success=False, result=str(e))
+
+        RESET = "\033[0m"
+        RED = "\033[31m"
+        BOLD = "\033[1m"
+        print(f"\n{RED}{BOLD}❌ ОШИБКА: {e}{RESET}\n")
         raise
 
     finally:

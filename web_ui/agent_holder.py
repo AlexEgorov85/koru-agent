@@ -149,6 +149,15 @@ def _subscribe_to_events():
                 "timestamp": event.timestamp.isoformat() if hasattr(event, 'timestamp') else None
             })
 
+    # НОВОЕ: Подписка на мысли агента
+    async def on_agent_thinking(event):
+        """Мысли агента - одна строка которая меняется."""
+        if event.data:
+            msg = event.data.get("message", "")
+            add_log(msg, "thinking")
+
+    event_bus.subscribe(EventType.AGENT_THINKING, on_agent_thinking)
+    
     event_bus.subscribe(EventType.LOG_INFO, on_log)
     event_bus.subscribe(EventType.INFO, on_log)
     event_bus.subscribe(EventType.LOG_WARNING, on_log)
@@ -184,6 +193,11 @@ async def shutdown_contexts():
     # Сбрасываем историю при остановке системы
     _dialogue_history = None
     _is_ready = False
+
+    # Сбрасываем флаг обработки
+    import streamlit as st
+    if "processing" in st.session_state:
+        st.session_state.processing = False
 
 
 def is_ready() -> bool:
