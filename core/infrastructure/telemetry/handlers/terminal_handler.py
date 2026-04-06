@@ -238,19 +238,10 @@ class TerminalLogHandler:
             return
 
         data = event.data or {}
-        reasoning = data.get("message", "")
-        capability_name = data.get("capability_name", "")
-        parameters = data.get("parameters", {})
-        decision_action = data.get("decision_action", "act")
+        message = data.get("message", "")
 
-        if reasoning:
-            step_num = data.get("step_number", "?")
-            message = f"ШАГ {step_num}: {decision_action} → {capability_name}"
-            self._write(f"🧠 {message}")
-            self._write(f"   💭 {reasoning}")
-            if parameters:
-                params_str = str(parameters)
-                self._write(f"   📋 {params_str}")
+        if message:
+            self._write(f"{message}")
 
     async def _on_tool_call(self, event: Event):
         """Обработка вызова инструмента."""
