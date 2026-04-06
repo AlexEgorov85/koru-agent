@@ -82,10 +82,14 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
                 except Exception:
                     pass
 
+            # Используем httpx Timeout для совместимости
+            import httpx
+            timeout = httpx.Timeout(self.config_obj.timeout_seconds, connect=30.0)
+            
             self._client = AsyncOpenAI(
                 api_key=self.config_obj.api_key,
                 base_url=self.config_obj.base_url,
-                timeout=self.config_obj.timeout_seconds,
+                timeout=timeout,
                 max_retries=0,  # Retry обрабатываем вручную
                 default_headers={
                     "HTTP-Referer": "https://agent-v5.local",
@@ -101,8 +105,10 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
             return True
 
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             if self.event_bus_logger:
-                await self.event_bus_logger.error(f"Ошибка инициализации OpenRouter провайдера: {str(e)}")
+                await self.event_bus_logger.error(f"Ошибка инициализации OpenRouter провайдера: {str(e)}\n{tb}")
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
 
