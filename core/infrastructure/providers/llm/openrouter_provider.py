@@ -307,16 +307,16 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
 
         messages = self._build_messages(request)
 
-        # Минимальный payload — ТОЧНО как OpenAI client.
-        # OpenRouter free-модели могут возвращать пустые ответы при любых параметрах.
+        # Минимальный payload — как в рабочем примере пользователя
+        # OpenRouter free-модели чувствительны к дополнительным параметрам
         payload: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
         }
 
-        # Добавляем ТОЛЬКО stop_sequences (если есть)
-        if request.stop_sequences:
-            payload["stop"] = request.stop_sequences
+        # НЕ добавляем stop_sequences для free-моделей - может вызвать пустой ответ
+        # if request.stop_sequences:
+        #     payload["stop"] = request.stop_sequences
 
         if hasattr(request, 'structured_output') and request.structured_output is not None and isinstance(request.structured_output, StructuredOutputConfig):
             schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
