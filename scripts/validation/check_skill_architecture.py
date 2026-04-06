@@ -110,7 +110,7 @@ def check_file_for_violations(file_path: Path) -> List[Violation]:
                         line_number=line_num,
                         violation_type=violation_type,
                         message=f"Найден запрещённый паттерн: {pattern}",
-                        code_snippet=stripped[:100]
+                        code_snippet=stripped
                     ))
 
     # Проверка импорта ComponentType
@@ -122,7 +122,7 @@ def check_file_for_violations(file_path: Path) -> List[Violation]:
                     line_number=line_num,
                     violation_type=ViolationType.COMPONENT_TYPE_IMPORT,
                     message="Импорт ComponentType для прямого доступа к компонентам",
-                    code_snippet=line.strip()[:100]
+                    code_snippet=line.strip()
                 ))
 
     # AST-анализ для проверки возврата ExecutionResult из _execute_impl
@@ -181,7 +181,7 @@ def check_ast_for_execution_result(tree: ast.AST, file_path: Path, lines: List[s
                                         line_number=node.lineno,
                                         violation_type=ViolationType.EXECUTION_RESULT_RETURN,
                                         message="_execute_impl возвращает ExecutionResult вместо данных",
-                                        code_snippet=lines[node.lineno - 1].strip()[:100]
+                                        code_snippet=lines[node.lineno - 1].strip()
                                     ))
             self.generic_visit(node)
 

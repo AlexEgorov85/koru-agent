@@ -187,7 +187,7 @@ class MockLLMProvider(BaseLLMProvider):
         start_time = time.time()
 
         # Логирование вызова
-        self.event_bus_logger.debug(f"Mock выполнение запроса: {request.prompt[:100]}...")
+        self.event_bus_logger.debug(f"Mock выполнение запроса: {request.prompt}.")
           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         # Публикация события LLM_CALL_STARTED

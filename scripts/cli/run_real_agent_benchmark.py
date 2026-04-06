@@ -163,11 +163,11 @@ async def main():
             if isinstance(result.data, BaseModel):
                 final_answer = result.data.final_answer
                 if final_answer:
-                    print(f"\n{final_answer[:500]}{'...' if len(final_answer) > 500 else ''}")
+                    print(f"\n{final_answer}")
             elif isinstance(result.data, dict):
                 final_answer = result.data.get('final_answer', '')
                 if final_answer:
-                    print(f"\n{final_answer[:500]}{'...' if len(final_answer) > 500 else ''}")
+                    print(f"\n{final_answer}")
             else:
                 print(f"\n{result.data}")
         else:
@@ -232,7 +232,7 @@ async def main():
             'test_id': test.get('id', f'test_{i}'),
             'input': test['input'],
             'success': success,
-            'final_answer': final_answer[:1000],  # Ограничиваем длину
+            'final_answer': final_answer,
             'metadata': result.metadata if hasattr(result, 'metadata') else {},
             'steps': steps_count,
             'validation': validation_result

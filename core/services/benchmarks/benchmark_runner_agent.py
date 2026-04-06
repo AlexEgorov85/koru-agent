@@ -256,7 +256,7 @@ async def run_agent_benchmark(
                 if verbose:
                     log_print(f"\n    ✅ ВАЛИДАЦИЯ: PASS")
                     if final_answer:
-                        log_print(f"\n    Ответ: {final_answer[:2000]}{'...' if len(final_answer) > 2000 else ''}")
+                        log_print(f"\n    Ответ: {final_answer if len(final_answer) > 0 else ''}")
                 else:
                     print(f"✅")
             else:
@@ -264,7 +264,7 @@ async def run_agent_benchmark(
                 if verbose:
                     log_print(f"\n    ❌ ВАЛИДАЦИЯ: FAIL - {', '.join(errors[:3])}")
                     if final_answer:
-                        log_print(f"\n    Ответ: {final_answer[:2000]}{'...' if len(final_answer) > 2000 else ''}")
+                        log_print(f"\n    Ответ: {final_answer if len(final_answer) > 0 else ''}")
                 else:
                     print(f"❌ {errors[0] if errors else 'failed'}")
 
@@ -272,7 +272,7 @@ async def run_agent_benchmark(
                 'test_id': tc.get('id', f'test_{i}'),
                 'input': tc['input'],
                 'success': success,
-                'final_answer': final_answer[:1000],
+                'final_answer': final_answer,
                 'steps': steps_count,
                 'validation': validation,
                 'metadata': result.metadata if hasattr(result, 'metadata') else {},

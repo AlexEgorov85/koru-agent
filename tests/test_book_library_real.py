@@ -310,7 +310,7 @@ class BookLibraryRealTest:
                 search_type = result.data.get('search_type', 'unknown')
                 result.success = True
                 for res in results_list[:2]:
-                    content = res.get('content', 'N/A')[:100]
+                    content = res.get('content', 'N/A')
             else:
                 result.success = False
                 result.error = f"Статус: {response.status.value}, Error: {response.error}"

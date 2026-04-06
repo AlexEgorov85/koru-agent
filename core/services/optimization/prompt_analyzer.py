@@ -141,7 +141,7 @@ class PromptAnalyzer(BaseService):
             failed_details.append({
                 "goal": r.get('goal', ''),
                 "expected": r.get('expected', {}),
-                "actual": r.get('output', '')[:500],
+                "actual": r.get('output', ''),
                 "error": r.get('error', '')
             })
 

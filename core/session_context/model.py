@@ -135,7 +135,7 @@ class ContextItem:
         if self.updated_at is None:
             self.updated_at = datetime.now()
         if self.quick_content is None and isinstance(self.content, str):
-            self.quick_content = self.content[:200] + "..." if len(self.content) > 200 else self.content
+            self.quick_content = self.content
 
 @dataclass
 class AgentStep:

@@ -134,32 +134,28 @@ class ResourcePreloader:
 
         RETURNS:
         - Dict[str, Prompt]: {capability_name: Prompt object}
+        
+        NO FALLBACK: Если промпт указан в prompt_versions, он ДОЛЖЕН загрузиться.
         """
         prompts = {}
 
         # Получаем версии промптов из component_config
         prompt_versions = getattr(component_config, 'prompt_versions', {})
+        prompts_required = getattr(component_config, 'prompts_required', True)
 
         if not prompt_versions:
-            await self._logger.debug("Промпты не указаны в component_config")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            if prompts_required:
+                raise ValueError(
+                    f"prompt_versions не указан в component_config, но prompts_required=True! "
+                    f"Компонент требует промпты."
+                )
+            # Промпты не указаны - значит компоненту они не нужны
             return prompts
 
-        # Загружаем каждый промпт через DataRepository
+        # Если указаны - они ДОЛЖНЫ загрузиться (NO FALLBACK)
         for capability, version in prompt_versions.items():
             prompt = await self._load_prompt(capability, version)
-            if prompt:
-                prompts[capability] = prompt
-                await self._logger.debug(
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Загружен промпт '{capability}' v{version} "
-                    f"(статус: {prompt.status.value})"
-                )
-            else:
-                await self._logger.warning(
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    f"Не удалось загрузить промпт '{capability}' v{version}"
-                )
+            prompts[capability] = prompt
 
         return prompts
 
@@ -217,7 +213,7 @@ class ResourcePreloader:
         self,
         capability: str,
         version: str
-    ) -> Optional[Prompt]:
+    ) -> Prompt:
         """
         Загрузить промпт по capability и версии.
 
@@ -226,25 +222,25 @@ class ResourcePreloader:
         - version: Версия промпта
 
         RETURNS:
-        - Prompt object или None
+        - Prompt object
+
+        RAISES:
+        - ValueError: Если промпт не найден
         """
         if not self._data_repository:
-            await self._logger.error("DataRepository не подключён")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return None
+            raise ValueError(f"DataRepository не подключён для загрузки {capability}@{version}")
 
         try:
-            # DataRepository возвращает объект Prompt
             prompt = self._data_repository.get_prompt(capability, version)
+            if prompt is None:
+                raise ValueError(f"Промпт '{capability}' v{version} не найден в хранилище")
             return prompt
         except KeyError as e:
-            await self._logger.warning(f"Промпт не найден: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return None
+            raise ValueError(f"Промпт '{capability}' v{version} не найден: {e}")
+        except ValueError:
+            raise
         except Exception as e:
-            await self._logger.error(f"Ошибка загрузки промпта {capability}@{version}: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            return None
+            raise ValueError(f"Ошибка загрузки промпта {capability}@{version}: {e}")
 
     async def _load_contract(
         self,

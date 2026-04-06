@@ -275,7 +275,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось создать план: {str(e)[:100]}"
+                error=f"Не удалось создать план: {str(e)}"
             )
 
     async def _update_plan(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
@@ -428,7 +428,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось обновить план: {str(e)[:100]}"
+                error=f"Не удалось обновить план: {str(e)}"
             )
 
     async def _get_next_step(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
@@ -493,7 +493,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось получить следующего шага: {str(e)[:100]}"
+                error=f"Не удалось получить следующего шага: {str(e)}"
             )
 
     async def _get_next_step_from_flat_plan(self, plan: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -672,7 +672,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось обновить статус шага: {str(e)[:100]}"
+                error=f"Не удалось обновить статус шага: {str(e)}"
             )
 
     async def _correct_plan_after_failure(
@@ -774,7 +774,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Ошибка коррекции плана: {str(e)[:100]}"
+                error=f"Ошибка коррекции плана: {str(e)}"
             )
 
     async def _decompose_task(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
@@ -908,7 +908,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось декомпозировать задачу: {str(e)[:100]}"
+                error=f"Не удалось декомпозировать задачу: {str(e)}"
             )
 
     async def _mark_task_completed(self, input_data: Dict[str, Any], execution_context: ExecutionContext) -> ExecutionResult:
@@ -1056,7 +1056,7 @@ class PlanningSkill(BaseComponent):
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
-                error=f"Не удалось отметить задачу как завершенную: {str(e)[:100]}"
+                error=f"Не удалось отметить задачу как завершенную: {str(e)}"
             )
 
     async def shutdown(self):

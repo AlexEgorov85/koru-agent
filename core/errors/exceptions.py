@@ -367,6 +367,6 @@ class MockProviderError(ProviderError):
     def __init__(self, message: str, prompt: str = None, **kwargs):
         metadata = kwargs.pop("metadata", {})
         if prompt:
-            metadata["prompt"] = prompt[:200]  # Обрезаем длинные промпты
+            metadata["prompt"] = prompt  # Обрезаем длинные промпты
         # ProviderError уже устанавливает code="PROVIDER_ERROR"
         super().__init__(message, provider="MockLLMProvider", metadata=metadata, **kwargs)

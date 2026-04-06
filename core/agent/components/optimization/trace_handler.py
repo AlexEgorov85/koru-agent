@@ -578,7 +578,7 @@ class TraceHandler:
             if 'ЦЕЛЬ:' in message:
                 parts = message.split('ЦЕЛЬ:', 1)
                 if len(parts) > 1:
-                    return parts[1].strip().split('\n')[0][:200]
+                    return parts[1].strip().split('\n')[0]
 
         return "Session goal"
 
@@ -587,7 +587,7 @@ class TraceHandler:
         for event in reversed(events):
             message = event.get('message', '')
             if 'final_answer' in message.lower() or 'ответ:' in message.lower():
-                return message[:500]
+                return message
         return None
 
     def _determine_success_from_events(self, events: List[Dict[str, Any]]) -> bool:
@@ -605,7 +605,7 @@ class TraceHandler:
         for event in events:
             message = event.get('message', '')
             if 'error' in message.lower() and 'None' not in message:
-                return message[:200]
+                return message
         return None
 
     async def _search_traces_by_capability(

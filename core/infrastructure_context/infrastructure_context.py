@@ -313,7 +313,11 @@ class InfrastructureContext:
                             name=provider_name,
                             resource=provider,
                             resource_type=ResourceType.LLM,
-                            metadata={"is_default": not first_llm_registered}
+                            metadata={
+                                "is_default": not first_llm_registered,
+                                "model_name": provider_config.model_name,
+                                "provider_type": provider_type
+                            }
                         )
 
                         info_llm = ResourceInfo(
@@ -357,10 +361,21 @@ class InfrastructureContext:
                     )
 
                     # Регистрация в LifecycleManager
+                    db_info = {
+                        "provider_type": provider_type
+                    }
+                    if provider_type == "sqlite":
+                        db_info["db_path"] = provider_config.parameters.get("db_path", "")
+                    else:
+                        db_info["database"] = provider_config.parameters.get("database", "")
+                        db_info["host"] = provider_config.parameters.get("host", "localhost")
+                        db_info["port"] = provider_config.parameters.get("port", 5432)
+                    
                     await self.lifecycle_manager.register_resource(
                         name=provider_name,
                         resource=provider,
-                        resource_type=ResourceType.DATABASE
+                        resource_type=ResourceType.DATABASE,
+                        metadata=db_info
                     )
 
                     # Также регистрируем в resource_registry для обратной совместимости

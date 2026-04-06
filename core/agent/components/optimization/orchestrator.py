@@ -768,7 +768,7 @@ class OptimizationOrchestrator:
             scenario = BenchmarkScenario(
                 id=f"bench_{tc.get('id', 'unknown')}",
                 name=f"{capability}_bench_{tc.get('id', 'unknown')}",
-                description=tc.get('description', tc.get('input', '')[:100]),
+                description=tc.get('description', tc.get('input', '')),
                 goal=tc['input'],
                 expected_output=ExpectedOutput(
                     content=tc.get('expected_sql', tc.get('expected_answer', '')),

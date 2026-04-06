@@ -244,11 +244,16 @@ class SQLValidatorService(BaseService):
         """Валидация имен таблиц и колонок"""
         # Извлечение идентификаторов из запроса (упрощенная реализация)
         # В продакшене использовать парсер SQL (sqlparse)
+        # Пропускаем строковые литералы (даты, числа в кавычках)
         identifiers = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', sql)
 
         for ident in identifiers:
             # Пропускаем ключевые слова SQL
-            if ident.upper() in {"SELECT", "FROM", "WHERE", "AND", "OR", "ORDER", "BY", "LIMIT", "OFFSET", "WITH", "AS", "ON", "INNER", "LEFT", "RIGHT", "JOIN", "GROUP", "HAVING"}:
+            if ident.upper() in {"SELECT", "FROM", "WHERE", "AND", "OR", "ORDER", "BY", "LIMIT", "OFFSET", "WITH", "AS", "ON", "INNER", "LEFT", "RIGHT", "JOIN", "GROUP", "HAVING", "GT", "LT", "GTE", "LTE", "EQ", "NE"}:
+                continue
+
+            # Пропускаем числовые литералы
+            if ident.isdigit():
                 continue
 
             # Проверка формата идентификатора
@@ -269,7 +274,7 @@ class SQLValidatorService(BaseService):
                 validated[key] = value
             elif isinstance(value, (list, dict)):
                 # Ограничиваем сложные типы
-                validated[key] = str(value)[:500]  # Обрезаем до 500 символов
+                validated[key] = str(value)
             else:
                 raise ValueError(f"Неподдерживаемый тип параметра '{key}': {type(value)}")
 

@@ -161,7 +161,7 @@ class SQLValidator:
             'passed': len(errors) == 0,
             'errors': errors,
             'checks': checks,
-            'sql_analyzed': sql[:200]  # Первые 200 символов для лога
+            'sql_analyzed': sql
         }
     
     def _check_sql_validity(self, sql: str) -> Tuple[bool, str]:
@@ -523,7 +523,7 @@ class AnswerValidator:
             'errors': errors,
             'checks': checks,
             'answer_length': len(answer),
-            'answer_preview': answer[:200]
+            'answer_preview': answer
         }
     
     def _check_keywords(self, answer: str, required_keywords: List[str]) -> List[str]:

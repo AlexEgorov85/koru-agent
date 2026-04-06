@@ -318,7 +318,7 @@ def analyze_session_log_for_errors(log_path: Path, failed_test_ids: List[str], v
             for err in errors_by_step[:5]:
                 cap = err.get('capability', '?')
                 step = err.get('step', '?')
-                error_msg = str(err.get('error', ''))[:100]
+                error_msg = str(err.get('error', ''))
                 print(f"    [{cap}:{step}] {error_msg}")
 
         failed_tools = [t for t in tool_calls if not t.get('success', True)]
@@ -471,7 +471,7 @@ async def run_candidate_benchmark_on_sandbox(
                 'test_id': tc.get('id', f'test_{i}'),
                 'input': tc['input'],
                 'success': success,
-                'final_answer': final_answer[:500],
+                'final_answer': final_answer,
                 'steps': steps_count,
                 'validation': validation,
             })

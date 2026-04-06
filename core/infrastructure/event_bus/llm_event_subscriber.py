@@ -40,11 +40,11 @@ class LLMEventSubscriber:
             system_prompt = data.get('system_prompt', '')
             user_prompt = data.get('user_prompt', '')
             if system_prompt:
-                await self.event_bus_logger.debug(f"System prompt: {system_prompt[:500]}")
+                await self.event_bus_logger.debug(f"System prompt: {system_prompt}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             if user_prompt:
-                await self.event_bus_logger.debug(f"User prompt: {user_prompt[:500]}")
+                await self.event_bus_logger.debug(f"User prompt: {user_prompt}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
@@ -65,13 +65,13 @@ class LLMEventSubscriber:
         # Форматируем ответ для логирования
         if parsed_response:
             # Распарсенный JSON - форматируем красиво
-            response_str = json.dumps(parsed_response, ensure_ascii=False, indent=2)[:800]
+            response_str = json.dumps(parsed_response, ensure_ascii=False, indent=2)
         elif isinstance(raw_response, dict):
-            response_str = json.dumps(raw_response, ensure_ascii=False, indent=2)[:800]
+            response_str = json.dumps(raw_response, ensure_ascii=False, indent=2)
         elif isinstance(raw_response, str):
-            response_str = raw_response[:800]  # Увеличено до 800 символов
+            response_str = raw_response
         else:
-            response_str = str(raw_response)[:800]
+            response_str = str(raw_response)
 
         # Добавляем метрики если доступны
         success = data.get('success', 'unknown')

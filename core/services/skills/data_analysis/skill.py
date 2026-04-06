@@ -224,7 +224,7 @@ class DataAnalysisSkill(BaseSkill):
         if chunks:
             prompt_vars["chunks"] = chunks
         else:
-            prompt_vars["raw_data"] = raw_data[:10000]
+            prompt_vars["raw_data"] = raw_data
 
         # 5. Получение промпта
         prompt_obj = self.get_prompt("data_analysis.analyze_step_data")

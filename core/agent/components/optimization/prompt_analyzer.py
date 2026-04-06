@@ -48,7 +48,7 @@ class PromptIssue:
         return {
             'issue_type': self.issue_type,
             'capability': self.capability,
-            'prompt': self.prompt[:200] + '...' if len(self.prompt) > 200 else self.prompt,
+            'prompt': self.prompt,
             'description': self.description,
             'severity': self.severity,
             'suggestion': self.suggestion,
@@ -81,7 +81,7 @@ class ResponseIssue:
         return {
             'issue_type': self.issue_type,
             'capability': self.capability,
-            'response': self.response[:200] + '...' if len(self.response) > 200 else self.response,
+            'response': self.response,
             'expected_schema': self.expected_schema,
             'description': self.description,
             'severity': self.severity
@@ -673,7 +673,7 @@ Generate a specific improvement as YAML text for the prompt file. Be concise and
         
         issues_text = []
         for i, action in enumerate(failed_actions[:5], 1):
-            issues_text.append(f"{i}. Action: {action.get('action', 'unknown')}, Error: {action.get('error', 'N/A')[:100]}")
+            issues_text.append(f"{i}. Action: {action.get('action', 'unknown')}, Error: {action.get('error', 'N/A')}")
         
         return f"""You are a prompt optimization expert. Analyze this agent session log and generate improvements.
 

@@ -49,14 +49,14 @@ class SQLGenerationService(BaseService):
 
     def __init__(self, application_context: ApplicationContext = None, name: str = "sql_generation", component_config=None, executor=None, event_bus=None):
         from core.config.component_config import ComponentConfig
-        # Создаем минимальный ComponentConfig, если не передан
+        # NO FALLBACK: ComponentConfig должен быть передан извне
+        # Если не передан - это ошибка конфигурации
         if component_config is None:
-            component_config = ComponentConfig(
-                variant_id="sql_generation_default",
-                prompt_versions={},
-                input_contract_versions={},
-                output_contract_versions={}
+            raise ValueError(
+                f"SQLGenerationService требует component_config! "
+                f"Проверьте что компонент инициализируется через ComponentFactory"
             )
+        
         super().__init__(
             name=name,
             application_context=application_context,
@@ -220,7 +220,7 @@ class SQLGenerationService(BaseService):
         
         # ПРОВЕРКА: Промпт ДОЛЖЕН быть загружен — без fallback!
         if not prompt_obj or not prompt_obj.content:
-            raise ValueError(f"Промпт '{prompt_key}' не загружен! Проверьте контракт в registry.yaml")
+            raise ValueError(f"Промпт '{prompt_key}' не загружен! Проверьте что промпт указан в ComponentConfig")
         
         prompt = prompt_obj.content
 
@@ -234,7 +234,7 @@ class SQLGenerationService(BaseService):
             await self.event_bus_logger.debug(f"SQL Generation prompt length: {len(prompt)}")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.debug(f"SQL Generation prompt[:200]: {prompt[:200]}...")
+            await self.event_bus_logger.debug(f"SQL Generation prompt: {prompt}.")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
@@ -268,6 +268,7 @@ class SQLGenerationService(BaseService):
 
             # Извлекаем parsed_content из результата
             result_data = llm_result.data
+            
             if hasattr(result_data, 'parsed_content'):
                 output = result_data.parsed_content
             elif isinstance(result_data, dict) and 'parsed_content' in result_data:
@@ -275,9 +276,11 @@ class SQLGenerationService(BaseService):
             else:
                 # Fallback: пытаемся использовать data напрямую
                 output = result_data
-
-            # Валидация SQL через безопасный метод (с fallback)
-            validated = await self._validate_sql_safely(output.generated_sql, {})
+            
+            # Валидация SQL через безопасный метод
+            generated_sql = getattr(output, 'generated_sql', None) or (output.get('generated_sql') if isinstance(output, dict) else None)
+            
+            validated = await self._validate_sql_safely(generated_sql, {})
 
             # Проверяем что запрос валиден
             if not validated.is_valid or not validated.sql:
@@ -438,8 +441,8 @@ class SQLGenerationService(BaseService):
                 event_type=f"sql_generation.{event_type}",
                 data={
                     "user_question": input_data.natural_language_query,
-                    "table_schema": input_data.table_schema[:200] if input_data.table_schema else "",
-                    "result": str(data)[:500],
+                    "table_schema": input_data.table_schema if input_data.table_schema else "",
+                    "result": str(data),
                     "safety_score": safety_score
                 }
             )
@@ -449,8 +452,8 @@ class SQLGenerationService(BaseService):
                 event_type=f"sql_generation.{event_type}",
                 data={
                     "user_question": input_data.natural_language_query,
-                    "table_schema": input_data.table_schema[:200] if input_data.table_schema else "",
-                    "result": str(data)[:500],
+                    "table_schema": input_data.table_schema if input_data.table_schema else "",
+                    "result": str(data),
                     "safety_score": safety_score,
                     "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
                 },
@@ -466,7 +469,7 @@ class SQLGenerationService(BaseService):
                 data={
                     "attempt": attempt,
                     "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
-                    "result": str(data)[:500]
+                    "result": str(data)
                 }
             )
         elif hasattr(self, '_application_context') and self._application_context:
@@ -475,7 +478,7 @@ class SQLGenerationService(BaseService):
                 data={
                     "attempt": attempt,
                     "error_type": error_analysis.error_type if hasattr(error_analysis, 'error_type') else "unknown",
-                    "result": str(data)[:500],
+                    "result": str(data),
                     "timestamp": self._application_context.created_at.isoformat() if hasattr(self._application_context, 'created_at') else ""
                 },
                 source="SQLGenerationService",
@@ -541,7 +544,7 @@ class SQLGenerationService(BaseService):
         result = await self.executor.execute_action(
             action_name="sql_validator_service.validate_query",
             parameters={
-                "sql_query": sql,
+                "sql": sql,
                 "parameters": parameters
             },
             context=exec_context

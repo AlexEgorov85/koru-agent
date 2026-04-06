@@ -154,7 +154,7 @@ class SQLQueryService(BaseService):
         try:
             await self._publish_with_context(
                 event_type="sql_query.execute_called",
-                data={"sql": sql_query[:100], "max_rows": max_rows},
+                data={"sql": sql_query, "max_rows": max_rows},
                 source="sql_query"
             )
             
@@ -192,7 +192,7 @@ class SQLQueryService(BaseService):
             
             await self._publish_with_context(
                 event_type="sql_query.validating",
-                data={"sql": sql_query[:100]},
+                data={"sql": sql_query},
                 source="sql_query"
             )
 
@@ -262,7 +262,7 @@ class SQLQueryService(BaseService):
             try:
                 await self._publish_with_context(
                     event_type="sql_query.executing",
-                    data={"sql": validation_result.sql[:100]},
+                    data={"sql": validation_result.sql},
                     source="sql_query"
                 )
 
@@ -338,7 +338,7 @@ class SQLQueryService(BaseService):
         try:
             await self._publish_with_context(
                 event_type="sql_query.execute_from_request",
-                data={"user_question": user_question[:100], "tables": tables, "max_rows": max_rows},
+                data={"user_question": user_question, "tables": tables, "max_rows": max_rows},
                 source="sql_query",
                 execution_context=execution_context
             )

@@ -170,7 +170,7 @@ class PromptGenerator(BaseService):
         
         examples_text = ""
         for ex in failed_examples[:3]:
-            examples_text += f"\n- Запрос: {ex.get('goal', '')}\n  Ожидалось: {ex.get('expected', '')}\n  Получено: {ex.get('actual', '')[:200]}\n"
+            examples_text += f"\n- Запрос: {ex.get('goal', '')}\n  Ожидалось: {ex.get('expected', '')}\n  Получено: {ex.get('actual', '')}\n"
 
         return f"""Ты — инженер промптов. Твоя задача — улучшить системный промпт для AI-агента.
 

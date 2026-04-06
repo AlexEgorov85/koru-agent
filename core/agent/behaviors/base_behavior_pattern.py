@@ -43,9 +43,9 @@ class PromptBuilderService:
     }
     
     DISPLAY_LIMITS = {
-        'max_rows_display': 10,      # Сколько строк показывать
-        'max_chars_display': 500,    # Макс символов в промпте
-        'max_observations': 3,       # Макс наблюдений в истории
+        'max_rows_display': 20,      # Сколько строк показывать
+        'max_chars_display': 1000,    # Макс символов в промпте
+        'max_observations': 5,       # Макс наблюдений в истории
     }
 
     def build_reasoning_prompt(
@@ -122,7 +122,7 @@ class PromptBuilderService:
                 )
                 
                 step_text = f"{i}. {capability}\n"
-                step_text += f"   Результат: {observation_text[:500] if observation_text else 'Нет данных'}\n"
+                step_text += f"   Результат: {observation_text if observation_text else 'Нет данных'}\n"
                 step_text += f"   Статус: {status}"
                 
             elif isinstance(step, dict):
@@ -144,11 +144,11 @@ class PromptBuilderService:
                 status = step.get('status', 'unknown')
                 
                 step_text = f"{i}. {capability}\n"
-                step_text += f"   Результат: {observation[:500] if observation else 'Нет данных'}\n"
+                step_text += f"   Результат: {observation if observation else 'Нет данных'}\n"
                 step_text += f"   Статус: {status}"
             else:
                 # Fallback для строки или другого типа
-                step_text = f"{i}. {str(step)[:200]}"
+                step_text = f"{i}. {str(step)}"
             
             step_lines.append(step_text)
         
@@ -172,7 +172,7 @@ class PromptBuilderService:
             return "Нет наблюдений"
         
         if not session_context or not hasattr(session_context, 'data_context'):
-            return f"ID наблюдений: {observation_item_ids[:2]}..."
+            return f"ID наблюдений: {observation_item_ids[:20]}..."
         
         observations = []
         total_rows = 0
@@ -260,7 +260,7 @@ class PromptBuilderService:
                 row_str = ", ".join(row_parts)
                 formatted.append(f"   - {row_str}")
             else:
-                formatted.append(f"   - {str(row)[:150]}")
+                formatted.append(f"   - {str(row)}")
         return formatted
     
     def _format_available_tools(self, available_capabilities: List[Capability], schema_validator: Optional[Any] = None) -> str:

@@ -238,9 +238,9 @@ class SessionContext(BaseSessionContext):
                                     obs_data = obs_data.model_dump()
                                 elif hasattr(obs_data, 'dict'):
                                     obs_data = obs_data.dict()
-                                observations.append(str(obs_data)[:300])  # Ограничиваем длину
+                                observations.append(str(obs_data))
                             else:
-                                observations.append(str(obs_content)[:300])
+                                observations.append(str(obs_content))
                     if observations:
                         step_data["observation"] = "\n".join(observations)
 

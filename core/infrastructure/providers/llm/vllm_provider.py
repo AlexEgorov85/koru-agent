@@ -197,7 +197,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                     body = await response.text()
                     return {
                         "status": LLMHealthStatus.UNHEALTHY.value,
-                        "error": f"HTTP {response.status}: {body[:200]}",
+                        "error": f"HTTP {response.status}: {body}",
                         "model": self.model_name,
                         "is_initialized": self.is_initialized
                     }
@@ -357,7 +357,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                         generation_time=time.time() - start_time,
                         finish_reason="error",
                         metadata={
-                            "error": f"HTTP {response_status}: {error_body[:500]}",
+                            "error": f"HTTP {response_status}: {error_body}",
                             "status_code": response_status
                         }
                     )
@@ -396,7 +396,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                 tokens_used=0,
                 generation_time=time.time() - start_time,
                 finish_reason="error",
-                metadata={"error": "No choices in response", "raw_response": str(data)[:500]}
+                metadata={"error": "No choices in response", "raw_response": str(data)}
             )
 
         message = choices[0].get("message", {})

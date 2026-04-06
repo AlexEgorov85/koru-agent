@@ -84,7 +84,7 @@ async def main():
                     "title": book['title'],
                     "author": book['author'],
                     "chapter": chapter['chapter'],
-                    "content": text[:100] + "..." if len(text) > 100 else text
+                    "content": text
                 }
                 
                 all_vectors.append(vector)

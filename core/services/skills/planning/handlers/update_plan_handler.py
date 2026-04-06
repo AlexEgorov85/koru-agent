@@ -79,4 +79,4 @@ class UpdatePlanHandler(BaseSkillHandler):
 
         except Exception as e:
             await self.log_error(f"Ошибка обновления плана: {str(e)}")
-            return ExecutionResult(status=ExecutionStatus.FAILED, error=f"Ошибка: {str(e)[:100]}")
+            return ExecutionResult(status=ExecutionStatus.FAILED, error=f"Ошибка: {str(e)}")

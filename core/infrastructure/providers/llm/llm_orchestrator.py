@@ -534,13 +534,13 @@ class LLMOrchestrator:
                         f"🔵 [STRUCTURED] Результат попытки {attempt_num}/{max_retries} | "
                         f"success={attempt.success} | "
                         f"error_type={attempt.error_type} | "
-                        f"error_message={attempt.error_message[:200] if attempt.error_message else 'None'}"
+                        f"error_message={attempt.error_message if attempt.error_message else 'None'}"
                     )
                     
                     # Детальное логирование сырого ответа при ошибке
                     if not attempt.success and attempt.raw_response:
                         await self._logger.error(
-                            f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response[:1000]}"
+                            f"❌ [STRUCTURED] RAW LLM RESPONSE (attempt {attempt_num}):\n{attempt.raw_response}"
                         )
 
                 if attempt.success:
@@ -648,7 +648,7 @@ class LLMOrchestrator:
                 if hasattr(response, 'raw_response') and response.raw_response:
                     raw_content = response.raw_response.content if hasattr(response.raw_response, 'content') else str(response.raw_response)
                     await self._logger.info(
-                        f"🔵 [STRUCTURED] Raw response: {raw_content[:500]}..."
+                        f"🔵 [STRUCTURED] Raw response: {raw_content}..."
                     )
 
             duration = time.time() - start_time
@@ -719,7 +719,7 @@ class LLMOrchestrator:
 
                         # Логируем сырой JSON для отладки
                         if self._logger:
-                            await self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content[:300]}...")
+                            await self._logger.info(f"🔵 [STRUCTURED] JSON для парсинга: {raw_content}...")
 
                         # Извлекаем JSON из markdown-обёртки (если есть)
                         cleaned_json = extract_json_from_response(raw_content)
@@ -952,7 +952,7 @@ class LLMOrchestrator:
         await self._logger.warning(
             f"{icon} Structured RETRY | call_id={call_id} | "
             f"attempt={attempt_num} | error={error_type} | "
-            f"message={error_message[:100] if error_message else 'unknown'} | "
+            f"message={error_message if error_message else 'unknown'} | "
             f"will_retry={will_retry}"
         )
 
@@ -970,7 +970,7 @@ class LLMOrchestrator:
         await self._logger.error(
             f"❌ Structured EXHAUSTED | call_id={call_id} | "
             f"session={session_id} | total_attempts={total_attempts} | "
-            f"last_error={last_error[:100] if last_error else 'unknown'}"
+            f"last_error={last_error if last_error else 'unknown'}"
         )
 
     async def _log_structured_failure(
@@ -987,7 +987,7 @@ class LLMOrchestrator:
         await self._logger.error(
             f"❌ Structured FAILURE | call_id={call_id} | "
             f"attempt={attempt_num} | type={failure_type} | "
-            f"message={message[:100]}"
+            f"message={message}"
         )
 
     async def _log_structured_error(
@@ -1002,7 +1002,7 @@ class LLMOrchestrator:
 
         await self._logger.error(
             f"❌ Structured EXCEPTION | call_id={call_id} | "
-            f"session={session_id} | error={error[:200]}"
+            f"session={session_id} | error={error}"
         )
 
     async def _execute_call(
@@ -1125,7 +1125,7 @@ class LLMOrchestrator:
         await self._logger.error(
             f"❌ LLM ERROR | call_id={record.call_id} | "
             f"session={record.session_id} | step={record.step_number} | "
-            f"{type(error).__name__}: {str(error)[:200]} | elapsed={elapsed:.2f}s"
+            f"{type(error).__name__}: {str(error)} | elapsed={elapsed:.2f}s"
         )
 
         # Публикация события LLM_RESPONSE_RECEIVED с ошибкой
@@ -1219,7 +1219,7 @@ class LLMOrchestrator:
         else:
             data.update({
                 "error_type": error_type,
-                "error_message": error_message[:500] if error_message else None
+                "error_message": error_message if error_message else None
             })
 
         await self._event_bus.publish(

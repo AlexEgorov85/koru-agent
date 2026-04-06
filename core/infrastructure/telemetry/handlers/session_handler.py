@@ -90,6 +90,9 @@ class SessionLogHandler:
 
     async def _on_event(self, event: Event):
         """Обработка любого события."""
+        # Временное логирование для отладки
+        import sys
+        print(f"[SessionLogHandler] Получено событие: {event.event_type}", file=sys.stderr, flush=True)
         await self._write_to_file(event)
 
     async def _write_to_file(self, event: Event):
@@ -116,8 +119,10 @@ class SessionLogHandler:
                 with open(self.session_log_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps(event_data, ensure_ascii=False) + '\n')
 
-            except Exception:
-                pass  # Тихая ошибка
+            except Exception as e:
+                # Временное логирование для отладки — удалить после фиксации проблемы
+                import sys
+                print(f"[SessionLogHandler] Ошибка записи события {event.event_type}: {e}", file=sys.stderr, flush=True)
 
     async def shutdown(self):
         """Завершение работы."""

@@ -51,7 +51,7 @@ class TestDocumentIndexingService:
                     VectorChunk(
                         id=f"{document_id}_chunk_0",
                         document_id=document_id,
-                        content=content[:100],
+                        content=content,
                         metadata=metadata or {},
                         index=0
                     )

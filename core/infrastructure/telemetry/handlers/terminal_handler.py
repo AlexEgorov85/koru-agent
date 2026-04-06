@@ -249,7 +249,7 @@ class TerminalLogHandler:
             self._write(f"🧠 {message}")
             self._write(f"   💭 {reasoning}")
             if parameters:
-                params_str = str(parameters)[:100] + "..." if len(str(parameters)) > 100 else str(parameters)
+                params_str = str(parameters)
                 self._write(f"   📋 {params_str}")
 
     async def _on_tool_call(self, event: Event):
@@ -265,7 +265,7 @@ class TerminalLogHandler:
             params_preview = ""
             if parameters:
                 params_str = str(parameters)
-                params_preview = f" ({params_str[:80]}{'...' if len(params_str) > 80 else ''})"
+                params_preview = f" ({params_str}{'...' if len(params_str) > 80 else ''})"
             self._write(f"🔧 TOOL вызов: {capability_name}{params_preview}")
 
     async def _on_tool_result(self, event: Event):
@@ -285,7 +285,7 @@ class TerminalLogHandler:
         if has_result and result is not None:
             result_str = str(result)
             if len(result_str) > 500:
-                result_str = result_str[:500] + "..."
+                result_str = result_str + "..."
             self._write(f"📊 RESULT → {result_str}")
 
     async def _on_error(self, event: Event):

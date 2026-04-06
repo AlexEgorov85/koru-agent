@@ -266,7 +266,7 @@ class SafeExecutor:
         """
         if self._event_bus_logger:
             log_message = (
-                f"Ошибка выполнения {capability_name}: {type(error).__name__}: {str(error)[:100]} | "
+                f"Ошибка выполнения {capability_name}: {type(error).__name__}: {str(error)} | "
                 f"Тип: {error_type.value} | Попытка: {attempt + 1}/{self.max_retries}"
             )
             

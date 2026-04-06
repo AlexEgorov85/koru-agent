@@ -216,7 +216,7 @@ class PostgreSQLProvider(BaseDBProvider):
             conn = await self._acquire_valid_connection()
             try:
                 # [DB_DEBUG] 3.2. Выполнение запроса
-                await self.event_bus_logger.debug(f"Выполнение SQL: {query[:300]}")
+                await self.event_bus_logger.debug(f"Выполнение SQL: {query}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                 await self.event_bus_logger.debug(f"Params: {params}, type: {type(params)}")
@@ -264,10 +264,10 @@ class PostgreSQLProvider(BaseDBProvider):
                         converted_query = query
                         for i in range(len(params)):
                             converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query[:200]}")
+                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query}")
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.debug(f"Final query: {converted_query[:200]}")
+                        await self.event_bus_logger.debug(f"Final query: {converted_query}")
                           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
                         result = await conn.fetch(converted_query, *params)

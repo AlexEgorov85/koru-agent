@@ -179,7 +179,7 @@ class BaseLLMProvider(BaseProvider, ABC):
           # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             f"❌ LLM ошибка | Модель: {self.model_name} | "
-            f"{type(error).__name__}: {str(error)[:200]} | "
+            f"{type(error).__name__}: {str(error)} | "
             f"Время: {elapsed_time:.2f}с"
         )
     

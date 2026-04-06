@@ -314,7 +314,7 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
         for prop_name, prop_def in schema_def.get("properties", {}).items():
             simplified_schema["properties"][prop_name] = {
                 "type": prop_def.get("type", "string"),
-                "description": prop_def.get("description", "")[:100]  # Обрезаем описание
+                "description": prop_def.get("description", "")
             }
         
         schema_json = json.dumps(simplified_schema, indent=2, ensure_ascii=False)
@@ -479,13 +479,13 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                 
                 # Логирование сырого ответа
                 if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"🔵 [LLM] Raw response: {generated_text[:500]}...")
+                    await self.event_bus_logger.info(f"🔵 [LLM] Raw response: {generated_text}...")
 
                 try:
                     json_content = self._extract_json_from_response(generated_text)
 
                     if self.event_bus_logger:
-                        await self.event_bus_logger.debug(f"🔵 JSON извлечён: {json_content[:80]}...")
+                        await self.event_bus_logger.debug(f"🔵 JSON извлечён: {json_content}...")
                     parsed_json = json.loads(json_content)
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")

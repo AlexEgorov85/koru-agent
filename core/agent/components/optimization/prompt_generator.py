@@ -381,7 +381,7 @@ class PromptGenerator:
         RETURNS:
         - str: уникальный ID
         """
-        hash_input = f"{parent_id}:{content[:100]}"
+        hash_input = f"{parent_id}:{content}"
         hash_value = hashlib.sha256(hash_input.encode()).hexdigest()[:12]
         return f"v_{hash_value}"
 

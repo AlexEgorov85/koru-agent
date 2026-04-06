@@ -192,7 +192,7 @@ class AgentRuntime:
 
         # Начало сессии
         if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Запуск агента: {self.goal[:100]}...")
+            await self.event_bus_logger.info(f"Запуск агента: {self.goal}...")
         
         self.session_context.record_action({
             "step": 0, "action": "initialization", "goal": self.goal
@@ -227,7 +227,7 @@ class AgentRuntime:
             await event_bus.publish(EventType.INFO, {
                 "message": f"✅ Pattern вернул: type={decision.type.value}" +
                           (f", action={decision.action}" if decision.action else "") +
-                          (f"\n   reasoning: {decision.reasoning[:150]}..." if decision.reasoning else "")
+                          (f"\n   reasoning: {decision.reasoning}..." if decision.reasoning else "")
             }, session_id=self.session_context.session_id, agent_id=self.agent_id)
 
             # Pattern решил FINISH?
@@ -258,6 +258,20 @@ class AgentRuntime:
             # Pattern решил ACT?
             if decision.type == DecisionType.ACT:
                 await event_bus.publish(EventType.INFO, {"message": f"⚙️ Executor.execute({decision.action})..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+
+                # Публикуем детали выбран capability
+                await event_bus.publish(
+                    EventType.CAPABILITY_SELECTED,
+                    {
+                        "capability": decision.action,
+                        "pattern": decision.type.value,
+                        "reasoning": decision.reasoning or "",
+                        "step": step + 1
+                    },
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id
+                )
+
                 result = await self.safe_executor.execute(
                     capability_name=decision.action,
                     parameters=decision.parameters or {},
@@ -266,6 +280,20 @@ class AgentRuntime:
                         session_id=self.session_context.session_id,
                         agent_id=self.agent_id
                     )
+                )
+
+                # Публикуем детали выполненного действия
+                await event_bus.publish(
+                    EventType.ACTION_PERFORMED,
+                    {
+                        "action": decision.action,
+                        "parameters": decision.parameters or {},
+                        "status": result.status.value,
+                        "error": result.error,
+                        "step": step + 1
+                    },
+                    session_id=self.session_context.session_id,
+                    agent_id=self.agent_id
                 )
 
                 # Сохранение данных результата в data_context
@@ -278,7 +306,7 @@ class AgentRuntime:
                         session_id=self.session_context.session_id,
                         item_type=ContextItemType.OBSERVATION,
                         content=result.data,
-                        quick_content=str(result.data)[:500] if result.data else None,
+                        quick_content=str(result.data) if result.data else None,
                         metadata=ContextItemMetadata(
                             source=decision.action,
                             step_number=executed_steps + 1,
@@ -327,7 +355,7 @@ class AgentRuntime:
             
             # Pattern решил FINISH/FAIL?
             if decision.type == DecisionType.FINISH:
-                await event_bus.publish(EventType.INFO, {"message": f"✅ FINISH: {decision.reasoning[:100] if decision.reasoning else 'Done'}..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                await event_bus.publish(EventType.INFO, {"message": f"✅ FINISH: {decision.reasoning if decision.reasoning else 'Done'}..."}, session_id=self.session_context.session_id, agent_id=self.agent_id)
             if decision.type == DecisionType.FAIL:
                 await event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"❌ FAIL: {decision.error or 'Unknown error'}"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
 

@@ -219,7 +219,7 @@ def find_legacy_markers(project_path: Path) -> Dict:
                             markers[marker_type].append({
                                 'file': str(py_file.relative_to(project_path)),
                                 'line': line_num,
-                                'content': line.strip()[:100]
+                                'content': line.strip()
                             })
         except Exception:
             pass

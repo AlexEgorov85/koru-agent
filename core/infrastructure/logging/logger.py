@@ -462,7 +462,7 @@ class SessionMixin:
         """Начало сессии."""
         await self._publish(
             EventType.SESSION_STARTED,
-            f"Session started: {goal[:100]}...",
+            f"Session started: {goal}.",
             "INFO",
             goal=goal,
             **kwargs
@@ -515,7 +515,7 @@ class SelfImprovementMixin:
         """Запуск самообучения."""
         await self._publish(
             EventType.SELF_IMPROVEMENT_STARTED,
-            f"🧠 Самообучение запущено: {goal[:100]}...",
+            f"🧠 Самообучение запущено: {goal}.",
             "INFO",
             goal=goal,
             capability=capability,
@@ -634,7 +634,7 @@ class SelfImprovementMixin:
         """Логирование отчёта о самообучении."""
         await self._publish(
             EventType.SELF_IMPROVEMENT_REPORT,
-            f"📊 Отчёт: {summary[:100]}...",
+            f"📊 Отчёт: {summary}.",
             "INFO",
             summary=summary,
             metrics=metrics,

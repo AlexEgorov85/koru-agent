@@ -79,7 +79,7 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
             return {"summary": f"Объект с {len(data)} ключами", "keys": list(data.keys())}
         elif isinstance(data, list):
             return {"summary": f"Список из {len(data)} элементов", "count": len(data)}
-        return {"summary": str(data)[:200]}
+        return {"summary": str(data)}
 
     def _statistical_analysis(self, data: Any) -> Dict[str, Any]:
         if isinstance(data, list) and data and isinstance(data[0], dict):
@@ -104,7 +104,7 @@ class AnalyzeStepDataHandler(BaseSkillHandler):
         return {"statistics": {}}
 
     async def _generative_analysis(self, data: Any, execution_context: Any = None) -> Dict[str, Any]:
-        prompt = f"Проанализируй данные и дай краткое резюме: {str(data)[:500]}"
+        prompt = f"Проанализируй данные и дай краткое резюме: {str(data)}"
         result = await self.executor.execute_action(
             action_name="llm.generate",
             parameters={"prompt": prompt, "temperature": 0.3},

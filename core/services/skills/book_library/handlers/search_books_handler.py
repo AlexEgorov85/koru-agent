@@ -59,7 +59,7 @@ class SearchBooksHandler(BaseSkillHandler):
             await self.log_warning(
                 f"⚠️ SQL запрос не вернул результатов. "
                 f"Возможные причины: "
-                f"1) В базе нет данных по запросу '{query_val[:100]}', "
+                f"1) В базе нет данных по запросу '{query_val}', "
                 f"2) Ошибка в сгенерированном SQL, "
                 f"3) База данных пуста"
             )

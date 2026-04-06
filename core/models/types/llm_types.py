@@ -122,8 +122,8 @@ class LLMRequest:
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация в словарь."""
         result = {
-            'prompt': self.prompt[:500] if self.prompt else '',
-            'system_prompt': self.system_prompt[:500] if self.system_prompt else '',
+            'prompt': self.prompt if self.prompt else '',
+            'system_prompt': self.system_prompt if self.system_prompt else '',
             'temperature': self.temperature,
             'max_tokens': self.max_tokens,
             'top_p': self.top_p,
@@ -230,7 +230,7 @@ class LLMResponse(Generic[T]):
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация в словарь."""
         return {
-            'content': self.content[:500] if self.content else '',
+            'content': self.content if self.content else '',
             'model': self.model,
             'tokens_used': self.tokens_used,
             'generation_time': self.generation_time,

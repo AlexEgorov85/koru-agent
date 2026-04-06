@@ -131,7 +131,7 @@ class MetaComponentCreator(BaseSkill):
 
         await self._publish_with_context(
             event_type="meta_component.creation_started",
-            data={"description": description[:100], "component_type": component_type},
+            data={"description": description, "component_type": component_type},
             source=self.name,
             execution_context=execution_context,
         )
@@ -254,7 +254,7 @@ class MetaComponentCreator(BaseSkill):
 
         await self._publish_with_context(
             event_type="meta_component.fix_started",
-            data={"component_name": component_name, "component_type": component_type, "issue": issue_description[:100]},
+            data={"component_name": component_name, "component_type": component_type, "issue": issue_description},
             source=self.name,
             execution_context=execution_context,
         )
@@ -571,7 +571,7 @@ class MetaComponentCreator(BaseSkill):
             if original_files:
                 parts.append(f"\nОригинальные файлы ({len(original_files)}):")
                 for fname, content in list(original_files.items())[:5]:
-                    preview = content[:500] + ("..." if len(content) > 500 else "")
+                    preview = content
                     parts.append(f"\n--- {fname} ---\n{preview}")
 
         elif mode == "review":
@@ -581,7 +581,7 @@ class MetaComponentCreator(BaseSkill):
             if component_files:
                 parts.append(f"\nФайлы компонента ({len(component_files)}):")
                 for fname, content in list(component_files.items())[:5]:
-                    preview = content[:500] + ("..." if len(content) > 500 else "")
+                    preview = content
                     parts.append(f"\n--- {fname} ---\n{preview}")
 
         return "\n".join(parts)

@@ -521,7 +521,7 @@ async def test_prompt_contract_access(application_context):
             prompt_length = len(prompt) if prompt else 0
             logger.info(f"Промпт sql_generation.generate_query@v1.0.0: Длина={prompt_length} символов")
             if prompt:
-                logger.info(f"Первые 100 символов: {prompt[:100]}...")
+                logger.info(f"Промт: {prompt}...")
         except Exception as e:
             logger.warning(f"Ошибка получения промпта: {e}")
         

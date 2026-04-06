@@ -98,7 +98,7 @@ async def parse_llm_json_response(
     if event_bus:
         await event_bus.publish(
             EventType.LOG_WARNING,
-            data={"message": f"Не удалось распарсить JSON из строки: {result[:200]}..."},
+            data={"message": f"Не удалось распарсить JSON из строки: {result}."},
             session_id=session_id,
             domain=EventDomain.AGENT
         )

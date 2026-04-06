@@ -25,13 +25,16 @@ class ComponentConfig(BaseModel):
     # Идентификатор варианта (для логирования)
     variant_id: str = Field(..., description="Уникальный ID варианта компонента")
 
+    # Требуются ли промпты для этого компонента
+    prompts_required: bool = Field(default=True, description="Если True - промпты обязательны, если False - компонент может работать без промптов")
+
     # Ограничения компонента
     constraints: Optional[Dict[str, Any]] = Field(None, description="Ограничения компонента")
     
     # Владелец компонента
     owner: Optional[str] = Field(None, description="Владелец компонента")
 
-    # ← НОВОЕ: Критические ресурсы
+    # ← Критические ресурсы
     critical_resources: Dict[str, bool] = Field(default_factory=dict, description="Критические ресурсы, которые должны быть загружены")
 
     # Флаги поведения компонента

@@ -258,7 +258,7 @@ class EvaluationPattern(BaseBehaviorPattern):
             )
 
             # 2. Логирование начала оценки
-            await self._log("info", f"🔍 Оценка достижения цели: {goal[:100]}...")
+            await self._log("info", f"🔍 Оценка достижения цели: {goal}.")
 
             # Получаем LLM провайдер через executor (REFACTOR: требуется миграция на executor.execute_action)
             llm_result = await self.executor.execute_action(
@@ -300,7 +300,7 @@ class EvaluationPattern(BaseBehaviorPattern):
                 result = result.get('parsed_content', result)
 
             # 3. Логирование завершения размышления с ответом
-            response_text = str(result)[:2000]  # Ограничиваем для лога
+            response_text = str(result)
             await self._log_self_improvement_thinking(
                 phase="evaluation",
                 system_prompt=self.system_prompt_template,
