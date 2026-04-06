@@ -52,7 +52,7 @@ class PostgreSQLProvider(BaseDBProvider):
                         'warning': lambda *args, **kwargs: None,
                         'error': lambda *args, **kwargs: None
                     })()
-            
+
             await self.event_bus_logger.info(f"Создание пула соединений с PostgreSQL: {self.config.host}:{self.config.port}/{self.config.database}")
               # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -100,6 +100,32 @@ class PostgreSQLProvider(BaseDBProvider):
             self.health_status = DBHealthStatus.UNHEALTHY
             return False
 
+    async def _acquire_valid_connection(self):
+        """
+        Получить валидное подключение из пула с проверкой жизнеспособности.
+        Если подключение мертво, автоматически пересоздаёт пул.
+        """
+        if not self.is_initialized or not self.pool:
+            await self.initialize()
+
+        try:
+            conn = await self.pool.acquire()
+            # Быстрая проверка — пинг
+            await conn.fetchval("SELECT 1")
+            return conn
+        except Exception:
+            # Подключение мертво — пересоздаём пул
+            await self.event_bus_logger.warning("Обнаружено мёртвое подключение, пересоздаю пул...")
+            try:
+                await self.pool.close()
+            except Exception:
+                pass
+            self.pool = None
+            self.is_initialized = False
+            await self.initialize()
+            # Возвращаем подключение из нового пула
+            return await self.pool.acquire()
+
     async def shutdown(self) -> None:
         """
         Корректное завершение работы пула соединений.
@@ -136,7 +162,8 @@ class PostgreSQLProvider(BaseDBProvider):
 
             # Проверяем работоспособность пула
             start_time = time.time()
-            async with self.pool.acquire() as conn:
+            conn = await self._acquire_valid_connection()
+            try:
                 # Проверяем доступность базы данных
                 result = await conn.fetchrow("""
                     SELECT
@@ -144,6 +171,9 @@ class PostgreSQLProvider(BaseDBProvider):
                         current_user as user,
                         now() as timestamp
                 """)
+            finally:
+                if self.pool:
+                    self.pool.release(conn)
 
             response_time = time.time() - start_time
 
@@ -168,81 +198,6 @@ class PostgreSQLProvider(BaseDBProvider):
                 "is_initialized": self.is_initialized
             }
 
-    async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """
-        Выполнить SQL-запрос.
-        """
-        if not self.is_initialized or not self.pool:
-            await self.initialize()
-
-        start_time = time.time()
-
-        try:
-            async with self.pool.acquire() as conn:
-                # Логируем запрос при необходимости
-                await self.event_bus_logger.debug(f"Executing query: {query}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                if params:
-                    await self.event_bus_logger.debug(f"Query params: {params}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-
-                # Выполняем запрос
-                if params:
-                    if isinstance(params, dict):
-                        # Если параметры переданы как словарь, извлекаем значения в правильном порядке
-                        # Сортируем по числовому значению (1, 2, 3...), не alphabetically!
-                        # Ключи могут быть вида '1', '2' или 'p1', 'p2'
-                        def sort_key(key):
-                            try:
-                                # Пробуем извлечь число напрямую (ключи '1', '2', ...)
-                                return int(key)
-                            except (ValueError, IndexError):
-                                # Если не получилось, пробуем извлечь число из ключа вида 'p1', 'p2', etc.
-                                try:
-                                    return int(key[1:]) if key.startswith('p') else 0
-                                except (ValueError, IndexError):
-                                    return 0
-                        param_values = [params[key] for key in sorted(params.keys(), key=sort_key)]
-                        # Конвертируем %s в $1, $2, ... для asyncpg
-                        converted_query = query
-                        for i in range(len(param_values)):
-                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        result = await conn.fetch(converted_query, *param_values)
-                    elif isinstance(params, (list, tuple)):
-                        # Если параметры переданы как список или кортеж, передаем напрямую
-                        # Конвертируем %s в $1, $2, ... для asyncpg
-                        converted_query = query
-                        for i in range(len(params)):
-                            converted_query = converted_query.replace('%s', f'${i+1}', 1)
-                        await self.event_bus_logger.debug(f"After replacing {i+1}: {converted_query[:200]}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        await self.event_bus_logger.debug(f"Final query: {converted_query[:200]}")
-                          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        result = await conn.fetch(converted_query, *params)
-                    else:
-                        # В противном случае, передаем без параметров
-                        result = await conn.fetch(query)
-                else:
-                    result = await conn.fetch(query)
-
-                # Обрабатываем результат как список словарей
-                rows = [dict(row) for row in result]
-                return rows
-
-        except Exception as e:
-            self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.event_bus_logger.error(f"Query was: {query}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            if params:
-                self.event_bus_logger.error(f"Params were: {params}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            raise
-
     async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> DBQueryResult:
         """
         Выполнение SQL запроса (SELECT).
@@ -258,7 +213,8 @@ class PostgreSQLProvider(BaseDBProvider):
           # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
         try:
-            async with self.pool.acquire() as conn:
+            conn = await self._acquire_valid_connection()
+            try:
                 # [DB_DEBUG] 3.2. Выполнение запроса
                 await self.event_bus_logger.debug(f"Выполнение SQL: {query[:300]}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
@@ -266,7 +222,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 await self.event_bus_logger.debug(f"Params: {params}, type: {type(params)}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                
+
                 await self.event_bus_logger.info(f"[DB_DEBUG] выполнение запроса...")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
                   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -324,7 +280,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 # Обрабатываем результат
                 rows = [dict(row) for row in result]
                 columns = list(rows[0].keys()) if rows else []
-                
+
                 # [DB_DEBUG] 3.2. Результат выполнения
                 await self.event_bus_logger.info(f"[DB_DEBUG] запрос выполнен, rows={len(rows) if rows else 0}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
@@ -343,7 +299,7 @@ class PostgreSQLProvider(BaseDBProvider):
                         "affected_rows": len(rows)
                     }
                 )
-                
+
                 # [DB_DEBUG] 3.3. Возврат DBQueryResult
                 await self.event_bus_logger.info(f"[DB_DEBUG] возвращаем DBQueryResult: success={query_result.success}, error={query_result.error}, rows={len(query_result.rows)}")
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
@@ -353,6 +309,10 @@ class PostgreSQLProvider(BaseDBProvider):
                 self._update_metrics(query_result.execution_time)
 
                 return query_result
+            finally:
+                # Освобождаем подключение обратно в пул
+                if self.pool:
+                    self.pool.release(conn)
 
         except Exception as e:
             # [DB_DEBUG] 3.2. Исключение при выполнении
@@ -396,7 +356,8 @@ class PostgreSQLProvider(BaseDBProvider):
         if not self.is_initialized or not self.pool:
             await self.initialize()
 
-        async with self.pool.acquire() as conn:
+        conn = await self._acquire_valid_connection()
+        try:
             tx = conn.transaction()
             await tx.start()
             try:
@@ -405,6 +366,9 @@ class PostgreSQLProvider(BaseDBProvider):
             except Exception as e:
                 await tx.rollback()
                 raise
+        finally:
+            if self.pool:
+                self.pool.release(conn)
 
     # Методы для совместимости с DatabaseInterface
     async def query(
@@ -431,7 +395,8 @@ class PostgreSQLProvider(BaseDBProvider):
 
         start_time = time.time()
         try:
-            async with self.pool.acquire() as conn:
+            conn = await self._acquire_valid_connection()
+            try:
                 if params:
                     if isinstance(params, dict):
                         param_values = [params[key] for key in sorted(params.keys())]
@@ -449,6 +414,9 @@ class PostgreSQLProvider(BaseDBProvider):
 
                 self._update_metrics(time.time() - start_time)
                 return rowcount
+            finally:
+                if self.pool:
+                    self.pool.release(conn)
 
         except Exception as e:
             self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")
