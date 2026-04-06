@@ -549,7 +549,7 @@ with tab2:
             st.markdown("\n".join(html_parts), unsafe_allow_html=True)
 
         # LLM провайдеры - отдельно
-        with st.expander("🤖 **LLM Провайдеры**", expanded=True):
+        with st.expander("🤖 **LLM Провайдеры**", expanded=False):
             if sys_info.get("llm_providers"):
                 for p in sys_info["llm_providers"]:
                     desc = p.get("description", "")
@@ -567,7 +567,7 @@ with tab2:
                 st.write("Не найдены")
 
         # Базы данных - отдельно
-        with st.expander("💾 **Базы данных**", expanded=True):
+        with st.expander("💾 **Базы данных**", expanded=False):
             if sys_info.get("db_providers"):
                 for p in sys_info["db_providers"]:
                     desc = p.get("description", "")
@@ -585,7 +585,7 @@ with tab2:
                 st.write("Не найдены")
 
         # Сервисы
-        with st.expander("🔧 **Сервисы**", expanded=True):
+        with st.expander("🔧 **Сервисы**", expanded=False):
             if sys_info.get("services"):
                 for s in sys_info["services"]:
                     render_component_card(s, "#e3f2fd")
@@ -593,7 +593,7 @@ with tab2:
                 st.write("Не определены")
 
         # Навыки
-        with st.expander("🧠 **Навыки (Skills)**", expanded=True):
+        with st.expander("🧠 **Навыки (Skills)**", expanded=False):
             if sys_info.get("skills"):
                 # Скрываем meta_component_creator
                 filtered_skills = [s for s in sys_info["skills"] if s.get("name") != "meta_component_creator"]
@@ -603,7 +603,7 @@ with tab2:
                 st.write("Не определены")
 
         # Инструменты
-        with st.expander("🔨 **Инструменты (Tools)**", expanded=True):
+        with st.expander("🔨 **Инструменты (Tools)**", expanded=False):
             if sys_info.get("tools"):
                 for t in sys_info["tools"]:
                     render_component_card(t, "#e8f5e9")
@@ -611,7 +611,7 @@ with tab2:
                 st.write("Не определены")
 
         # Паттерны
-        with st.expander("🎯 **Паттерны поведения**", expanded=True):
+        with st.expander("🎯 **Паттерны поведения**", expanded=False):
             if sys_info.get("patterns"):
                 for p in sys_info["patterns"]:
                     render_component_card(p, "#f3e5f5")
