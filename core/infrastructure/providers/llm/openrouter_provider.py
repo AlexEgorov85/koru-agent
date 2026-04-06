@@ -302,17 +302,12 @@ class OpenRouterProvider(BaseLLMProvider, LLMInterface):
         messages = self._build_messages(request)
 
         # МИНИМАЛЬНЫЙ payload — ТОЧНО как в рабочем примере пользователя
-        # Никаких дополнительных параметров!
+        # Для free-моделей НЕ используем structured_output — вызывает пустой ответ
+        # Поэтому не проверяем и не передаём structured_output в payload
         payload: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
         }
-
-        # Если есть structured_output — добавляем в user prompt ( НЕ в payload!)
-        if hasattr(request, 'structured_output') and request.structured_output is not None:
-            # Для free-моделей лучше добавить инструкцию в конец промпта
-            # Вместо изменения payload
-            pass  # Пока не меняем — оставим для debugging
 
         try:
             async with self._session.post(self.config_obj.base_url, json=payload) as response:
