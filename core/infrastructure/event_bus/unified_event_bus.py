@@ -480,11 +480,9 @@ class SessionWorker:
 
                     await self._process_event(event)
                     self._last_activity = time.time()
-                    
-                    # Сигнализируем publish() что событие обработано
-                    if hasattr(event, '_processed'):
-                        event._processed.set()
-                    
+
+                    # Убрано event._processed.set() — publish() теперь fire-and-forget
+
                     self._queue.task_done()
 
                 except asyncio.TimeoutError:
@@ -948,21 +946,10 @@ class UnifiedEventBus:
             )
             return False
 
-        # Создаём сигнал завершения для этого события
-        processed = asyncio.Event()
-        event_obj._processed = processed
-
+        # Кладем событие в очередь (fire-and-forget)
+        # Обработка идет в фоне через SessionWorker — не блокируем publish()
         await queue.put(event_obj)
-        
-        # Ждём пока воркер обработает именно это событие
-        try:
-            await asyncio.wait_for(processed.wait(), timeout=30.0)
-        except asyncio.TimeoutError:
-            self._internal_logger.warning(
-                f"Timeout waiting for event processing: {event_obj.event_type}"
-            )
-            return False
-        
+
         return True
 
     def publish_sync(
