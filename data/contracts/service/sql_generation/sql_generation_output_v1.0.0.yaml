@@ -4,11 +4,20 @@ description: Output contract for sql_generation
 direction: output
 schema_data:
   properties:
-    result:
-      description: Output for sql_generation
+    sql:
+      description: Сгенерированный SQL запрос
       type: string
+    parameters:
+      description: Параметры для параметризованного запроса
+      type: object
+    reasoning:
+      description: Объяснение генерации
+      type: string
+    safety_score:
+      description: Оценка безопасности (0.0-1.0)
+      type: number
   required:
-  - result
+  - sql
   type: object
 status: active
 version: v1.0.0

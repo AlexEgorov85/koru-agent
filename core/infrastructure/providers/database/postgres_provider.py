@@ -173,7 +173,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 """)
             finally:
                 if self.pool:
-                    self.pool.release(conn)
+                    await self.pool.release(conn)
 
             response_time = time.time() - start_time
 
@@ -312,7 +312,7 @@ class PostgreSQLProvider(BaseDBProvider):
             finally:
                 # Освобождаем подключение обратно в пул
                 if self.pool:
-                    self.pool.release(conn)
+                    await self.pool.release(conn)
 
         except Exception as e:
             # [DB_DEBUG] 3.2. Исключение при выполнении
@@ -368,7 +368,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 raise
         finally:
             if self.pool:
-                self.pool.release(conn)
+                await self.pool.release(conn)
 
     # Методы для совместимости с DatabaseInterface
     async def query(
@@ -416,7 +416,7 @@ class PostgreSQLProvider(BaseDBProvider):
                 return rowcount
             finally:
                 if self.pool:
-                    self.pool.release(conn)
+                    await self.pool.release(conn)
 
         except Exception as e:
             self.event_bus_logger.error(f"Ошибка выполнения запроса: {str(e)}")

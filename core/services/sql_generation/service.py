@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from core.services.base_service import BaseService, ServiceInput, ServiceOutput as BaseServiceOutput
 from abc import ABC
 from core.utils.async_utils import safe_async_call
@@ -18,15 +18,21 @@ from core.application_context.application_context import ApplicationContext
 from core.models.types.db_types import DBQueryResult
 
 
-@dataclass
-class SQLGenerationResult:
+from core.models.sql_schemas import (
+    SQLGenerationInput, SQLGenerationOutput,
+)
+from pydantic import Field
+from typing import List
+
+
+class SQLGenerationResult(BaseModel):
     """Результат генерации с метаданными для анализа ошибок"""
-    sql: str
-    parameters: Dict[str, Any]
-    reasoning: str
-    tables_used: List[str]
-    safety_score: float  # 0.0-1.0 оценка безопасности
-    generation_id: str   # Для трассировки в событиях
+    sql: str = ""
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    reasoning: str = ""
+    tables_used: List[str] = Field(default_factory=list)
+    safety_score: float = 0.0
+    generation_id: str = ""
 
 class SQLGenerationService(BaseService):
     """
@@ -148,8 +154,7 @@ class SQLGenerationService(BaseService):
         """
         # Генерация SQL-запроса на основе параметров (синхронное ожидание)
         result = safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
-        from dataclasses import asdict
-        return asdict(result)
+        return result.model_dump()
 
     async def restart(self) -> bool:
         """

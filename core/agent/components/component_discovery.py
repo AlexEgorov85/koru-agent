@@ -369,7 +369,7 @@ class ComponentDiscovery:
             self._log("warning", f"  Не удалось импортировать {module_name}: {e}")
             return None
 
-        pascal_name = name.title().replace("_", "")
+        pascal_name = "".join(part.title() for part in name.split("_")).replace("_", "")
         expected_class = f"{pascal_name}{suffix}"
 
         if hasattr(module, expected_class):
@@ -404,10 +404,13 @@ class ComponentDiscovery:
         score = 0
         name = cls.__name__
 
-        if name == expected:
+        # Case-insensitive exact match
+        if name.lower() == expected.lower():
             score += 100
 
-        if name.endswith(expected.split("_")[-1] if "_" in expected else expected):
+        # Check if the class name ends with the expected suffix (case-insensitive)
+        expected_suffix = expected.split("_")[-1] if "_" in expected else expected
+        if name.lower().endswith(expected_suffix.lower()):
             score += 50
 
         if expected.lower() in name.lower():

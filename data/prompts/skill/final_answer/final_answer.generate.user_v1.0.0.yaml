@@ -36,7 +36,7 @@ content: |
   - summary_of_steps: string - резюме шагов
 
   Пример:
-  {"final_answer": "По вашему запросу найдено 5 книг.", "confidence_score": 0.9, "sources": ["данные из БД"], "remaining_questions": [], "summary_of_steps": "Выполнено 2 шага"}
+  {{"final_answer": "По вашему запросу найдено 5 книг.", "confidence_score": 0.9, "sources": ["данные из БД"], "remaining_questions": [], "summary_of_steps": "Выполнено 2 шага"}}
 
   НЕ используй markdown разметку (```json)
   НЕ добавляй пояснений до или после JSON

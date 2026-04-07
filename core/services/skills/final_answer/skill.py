@@ -476,6 +476,13 @@ class FinalAnswerSkill(BaseSkill):
                 component="final_answer"
             )
 
+        # Формирование строковых переменных для промпта
+        observations_str = "\n".join(observations) if observations else "Нет наблюдений"
+        steps_str = "\n".join([f"- {s['action']}: {s['status']}" for s in steps_taken]) if steps_taken else "Шаги не выполнены"
+        format_type_str = str(format_type)
+        include_steps_str = str(include_steps)
+        include_evidence_str = str(include_evidence)
+
         # Рендеринг промпта с переменными (используем метод из BaseComponent)
         try:
             rendered_prompt = self.render_prompt(

@@ -1,4 +1,0 @@
-behavior_configs:
-  evaluation_pattern: input={'behavior.evaluation': 'v1.0.0'}, output={'behavior.evaluation': 'v1.0.0'}
-  planning_pattern: input={'behavior.planning.decompose': 'v1.0.0', 'behavior.planning.sequence': 'v1.0.0', 'behavior.planning': 'v1.0.0'}, output={'behavior.planning.decompose': 'v1.0.0', 'behavior.planning.sequence': 'v1.0.0', 'behavior.planning': 'v1.0.0'}
-  react_pattern: input={'behavior.react.act': 'v1.0.0', 'behavior.react.observe': 'v1.0.0', 'behavior.react.think': 'v1.0.0', 'behavior.react': 'v1.0.0'}, output={'behavior.react.act': 'v1.0.0', 'behavior.react.observe': 'v1.0.0', 'behavior.react.think': 'v1.0.0', 'behavior.react': 'v1.0.0'}
