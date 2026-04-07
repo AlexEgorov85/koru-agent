@@ -30,7 +30,6 @@ from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
-from core.infrastructure.logging import EventBusLogger
 
 if TYPE_CHECKING:
     from core.application_context.application_context import ApplicationContext
@@ -48,21 +47,8 @@ class ComponentFactory:
         - infrastructure_context: Инфраструктурный контекст для получения провайдеров
         """
         self._infrastructure_context = infrastructure_context
-        self.event_bus_logger = None
-        self._resource_preloader = None  # Будет создан при необходимости
-        self._init_event_bus_logger()
-
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger."""
-        if self._infrastructure_context and self._infrastructure_context.event_bus:
-            self.event_bus_logger = EventBusLogger(
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self._infrastructure_context.event_bus,
-                session_id="system",
-                agent_id="system",
-                component="ComponentFactory"
-            )
+        self.event_bus = infrastructure_context.event_bus if infrastructure_context else None
+        self._resource_preloader = None
 
     def _get_resource_preloader(self, application_context: ApplicationContext):
         """
@@ -81,24 +67,22 @@ class ComponentFactory:
 
             self._resource_preloader = ResourcePreloader(
                 data_repository=application_context.data_repository,
-                event_bus=self._infrastructure_context.event_bus
+                event_bus=self.event_bus
             )
 
         return self._resource_preloader
 
     async def _log_info(self, message: str, *args, **kwargs):
         """Информационное сообщение."""
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(message, *args, **kwargs)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self.event_bus:
+            full_message = message.format(*args, **kwargs) if args or kwargs else message
+            await self.event_bus.publish(EventType.DEBUG, {"message": f"[ComponentFactory] {full_message}", "level": "info"})
 
     async def _log_error(self, message: str, *args, **kwargs):
         """Ошибка."""
-        if self.event_bus_logger:
-            await self.event_bus_logger.error(message, *args, **kwargs)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        if self.event_bus:
+            full_message = message.format(*args, **kwargs) if args or kwargs else message
+            await self.event_bus.publish(EventType.ERROR_OCCURRED, {"message": f"[ComponentFactory] {full_message}", "level": "error"})
 
     def _get_providers(self) -> dict:
         """
@@ -167,7 +151,7 @@ class ComponentFactory:
         preloader = self._get_resource_preloader(application_context)
         
         # Логирование через event_bus
-        event_bus = self._infrastructure_context.event_bus
+        event_bus = self.event_bus
         await event_bus.publish(EventType.DEBUG, {"message": f"🏭 ComponentFactory: preload_for_component({name})..."})
         
         resources = await preloader.preload_for_component(name, component_config)

@@ -18,25 +18,25 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 TYPE_DIRECTORIES = {
     "skill": {
-        "python": PROJECT_ROOT / "core" / "services" / "skills",
+        "python": PROJECT_ROOT / "core" / "components" / "skills",
         "prompts": PROJECT_ROOT / "data" / "prompts" / "skill",
         "contracts": PROJECT_ROOT / "data" / "contracts" / "skill",
         "main_file": "skill.py",
-        "module_template": "core.services.skills.{name}.skill",
+        "module_template": "core.components.skills.{name}.skill",
     },
     "tool": {
-        "python": PROJECT_ROOT / "core" / "services" / "tools",
+        "python": PROJECT_ROOT / "core" / "components" / "tools",
         "prompts": None,
         "contracts": PROJECT_ROOT / "data" / "contracts" / "tool",
         "main_file": None,
-        "module_template": "core.services.tools.{name}",
+        "module_template": "core.components.tools.{name}",
     },
     "service": {
-        "python": PROJECT_ROOT / "core" / "services",
+        "python": PROJECT_ROOT / "core" / "components" / "services",
         "prompts": PROJECT_ROOT / "data" / "prompts" / "service",
         "contracts": PROJECT_ROOT / "data" / "contracts" / "service",
         "main_file": "service.py",
-        "module_template": "core.services.{name}.service",
+        "module_template": "core.components.services.{name}.service",
     },
     "behavior": {
         "python": PROJECT_ROOT / "core" / "agent" / "behaviors",
