@@ -53,65 +53,10 @@ class SessionLogHandler:
 
     def _subscribe_to_events(self):
         """Подписка на все события для логирования."""
-        events = [
-            # Сессии
-            EventType.SESSION_STARTED,
-            EventType.SESSION_ANSWER,
-            EventType.SESSION_COMPLETED,
-            EventType.SESSION_FAILED,
-            # Агенты
-            EventType.AGENT_STARTED,
-            EventType.AGENT_COMPLETED,
-            EventType.AGENT_FAILED,
-            # Логи
-            EventType.LOG_INFO,
-            EventType.LOG_DEBUG,
-            EventType.LOG_WARNING,
-            EventType.LOG_ERROR,
-            # Прямые события (для совместимости)
-            EventType.INFO,
-            EventType.DEBUG,
-            EventType.WARNING,
-            EventType.ERROR_OCCURRED,
-            # LLM
-            EventType.LLM_CALL_STARTED,
-            EventType.LLM_CALL_COMPLETED,
-            EventType.LLM_CALL_FAILED,
-            EventType.LLM_PROMPT_GENERATED,
-            EventType.LLM_RESPONSE_RECEIVED,
-            # Выполнение
-            EventType.CAPABILITY_SELECTED,
-            EventType.SKILL_EXECUTED,
-            EventType.ACTION_PERFORMED,
-            EventType.EXECUTION_COMPLETED,
-            # Компоненты
-            EventType.TOOL_RESULT,
-            EventType.USER_RESULT,
-            # ActionExecutor результаты
-            "executor.component_result",
-            "executor.component_error",
-            "executor.tool_result",
-            "executor.tool_error",
-            "executor.service_error",
-            # SQL/DB
-            EventType.EXECUTION_STARTED,
-            # Метрики
-            EventType.METRIC_COLLECTED,
-        ]
-
-        print(f"[SessionLogHandler] Подписка на {len(events)} типов событий", flush=True)
-        for event_type in events:
-            print(f"[SessionLogHandler] Подписка на: {event_type}", flush=True)
-            self.event_bus.subscribe(event_type, self._on_event)
-        print("[SessionLogHandler] Подписка завершена", flush=True)
+        self.event_bus.subscribe_all(self._on_event)
 
     async def _on_event(self, event: Event):
         """Обработка любого события."""
-        import sys
-        # Выводим原始 данные события
-        event_type_raw = event.event_type
-        event_type_str = event_type_raw.value if hasattr(event_type_raw, 'value') else str(event_type_raw)
-        print(f"[SessionLogHandler._on_event] event_type={event_type_str}, session={event.session_id}", file=sys.stderr, flush=True)
         await self._write_to_file(event)
 
     async def _write_to_file(self, event: Event):
@@ -121,11 +66,8 @@ class SessionLogHandler:
                 session_id = getattr(event, 'session_id', None) or self.session_id
                 agent_id = getattr(event, 'agent_id', None) or self.agent_id
 
-                # Отладка: выводим原始 событие
-                import sys
                 event_type_raw = event.event_type
                 event_type_str = event_type_raw.value if hasattr(event_type_raw, 'value') else str(event_type_raw)
-                print(f"[SessionLogHandler] Получено событие: type={event_type_str}, session={session_id}", file=sys.stderr, flush=True)
 
                 event_data = {
                     "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, 'isoformat') else str(event.timestamp),
@@ -134,21 +76,16 @@ class SessionLogHandler:
                     "agent_id": agent_id,
                 }
 
-                # Добавление данных из event.data
                 if event.data:
                     for key, value in event.data.items():
                         if key not in event_data and isinstance(value, (str, int, float, bool, type(None))):
                             event_data[key] = value
 
-                # Запись
                 with open(self.session_log_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps(event_data, ensure_ascii=False) + '\n')
 
-                print(f"[SessionLogHandler] ✓ Записано: {event_data['event_type']}", file=sys.stderr, flush=True)
-
             except Exception as e:
-                import sys
-                print(f"[SessionLogHandler] ✗ Ошибка записи события {event.event_type}: {e}", file=sys.stderr, flush=True)
+                pass
 
     async def shutdown(self):
         """Завершение работы."""
