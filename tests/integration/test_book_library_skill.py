@@ -380,7 +380,7 @@ class TestScriptsRegistry:
     
     def test_registry_import(self):
         """Тест импорта реестра скриптов."""
-        from core.services.skills.book_library.scripts_registry import (
+        from core.components.skills.book_library.scripts_registry import (
             SCRIPTS_REGISTRY,
             get_script,
             get_all_scripts,
@@ -394,7 +394,7 @@ class TestScriptsRegistry:
     
     def test_get_script(self):
         """Тест получения скрипта из реестра."""
-        from core.services.skills.book_library.scripts_registry import get_script
+        from core.components.skills.book_library.scripts_registry import get_script
         
         script = get_script("get_all_books")
         assert script is not None
@@ -404,7 +404,7 @@ class TestScriptsRegistry:
     
     def test_validate_script_parameters(self):
         """Тест валидации параметров скрипта."""
-        from core.services.skills.book_library.scripts_registry import validate_script_parameters
+        from core.components.skills.book_library.scripts_registry import validate_script_parameters
         
         # Валидные параметры
         is_valid, error = validate_script_parameters(

@@ -16,7 +16,7 @@
 """
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, TYPE_CHECKING, Type
+from typing import Dict, Any, Optional, Type
 
 from core.agent.components.action_executor import ExecutionContext
 from core.config.component_config import ComponentConfig
@@ -36,10 +36,6 @@ from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorag
 # Aliases для обратной совместимости
 MetricsStorageInterface = IMetricsStorage
 LogStorageInterface = ILogStorage
-
-if TYPE_CHECKING:
-    from core.application_context.application_context import ApplicationContext
-    from core.agent.components.action_executor import ActionExecutor
 
 
 class BaseComponent(LifecycleMixin, LoggingMixin, ABC):

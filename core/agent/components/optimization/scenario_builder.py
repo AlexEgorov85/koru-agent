@@ -11,7 +11,7 @@ import uuid
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-from core.services.benchmarks.benchmark_models import (
+from core.components.services.benchmarks.benchmark_models import (
     BenchmarkDataset,
     BenchmarkScenario,
     OptimizationSample,

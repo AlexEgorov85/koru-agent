@@ -7,11 +7,11 @@ pytest tests/unit/validation/test_context_validator.py -v
 ```
 """
 import pytest
-from core.services.validation.context_validator import (
+from core.components.services.validation.context_validator import (
     ContextValidator,
     ValidationResult,
 )
-from core.services.registry.component_registry import ComponentRegistry
+from core.components.services.registry.component_registry import ComponentRegistry
 from core.models.enums.common_enums import ComponentType
 from core.agent.components.lifecycle import LifecycleMixin, ComponentState
 

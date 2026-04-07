@@ -11,17 +11,14 @@ NOTE: Валидация происходит на уровне LLM провай
 """
 import json
 import re
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional
 
-from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
-
-if TYPE_CHECKING:
-    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain, UnifiedEventBus
 
 
 async def parse_llm_json_response(
     result: str,
-    event_bus: Optional["UnifiedEventBus"] = None,
+    event_bus: Optional[UnifiedEventBus] = None,
     session_id: Optional[str] = None,
     agent_id: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:

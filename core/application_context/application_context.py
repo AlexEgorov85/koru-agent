@@ -13,11 +13,7 @@ import logging
 import uuid
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Literal, Type, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from core.infrastructure_context.lifecycle_manager import LifecycleManager as LifecycleManagerType
-from core.models.enums.common_enums import ResourceType as ResourceTypeType
+from typing import Dict, List, Optional, Any, Literal, Type
 
 from pydantic import BaseModel
 
@@ -28,9 +24,9 @@ from core.config.component_config import ComponentConfig
 from core.infrastructure.logging.logger import EventBusLogger
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
-from core.models.enums.common_enums import ComponentType
-from core.services.data_repository import DataRepository
-from core.services.registry.component_registry import ComponentRegistry
+from core.models.enums.common_enums import ComponentType, ResourceType
+from core.components.services.data_repository import DataRepository
+from core.components.services.registry.component_registry import ComponentRegistry
 
 
 class ApplicationContext(BaseSystemContext):
@@ -113,9 +109,8 @@ class ApplicationContext(BaseSystemContext):
                 )
         self.logger = logging.getLogger(f"ApplicationContext.{self.id}")
 
-    def _get_resource_type_for_component(self, component_type: ComponentType) -> 'ResourceTypeType':
+    def _get_resource_type_for_component(self, component_type: ComponentType) -> ResourceType:
         """Преобразование ComponentType в ResourceType для LifecycleManager."""
-        from core.models.enums.common_enums import ResourceType
         mapping = {
             ComponentType.SERVICE: ResourceType.SERVICE,
             ComponentType.SKILL: ResourceType.SKILL,

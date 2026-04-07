@@ -16,14 +16,12 @@ import asyncio
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from pydantic import BaseModel
 
-from core.services.validation_service import ValidationService
+from core.components.services.validation_service import ValidationService
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
 
 if TYPE_CHECKING:
     from core.application_context.application_context import ApplicationContext
-
-
 
 
 class ExecutionContext:
@@ -684,7 +682,7 @@ class ActionExecutor:
         - ExecutionResult: результат валидации
         """
         # Импортируем сервис лениво для избежания циклического импорта
-        from core.services.validation_service import ValidationService
+        from core.components.services.validation_service import ValidationService
         
         service = ValidationService()
         

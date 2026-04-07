@@ -13,12 +13,9 @@ error = safe_get(metadata, 'error', default=None, location="error_handler")
 ```
 """
 import traceback
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 
-from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain
-
-if TYPE_CHECKING:
-    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.infrastructure.event_bus.unified_event_bus import EventType, EventDomain, UnifiedEventBus
 
 
 async def safe_get(
@@ -26,7 +23,7 @@ async def safe_get(
     key: str,
     default: Any = None,
     location: str = "unknown",
-    event_bus: Optional["UnifiedEventBus"] = None,
+    event_bus: Optional[UnifiedEventBus] = None,
     session_id: Optional[str] = None,
     agent_id: Optional[str] = None
 ):
@@ -70,7 +67,7 @@ async def safe_get_nested(
     *keys: str,
     default: Any = None,
     location: str = "unknown",
-    event_bus: Optional["UnifiedEventBus"] = None,
+    event_bus: Optional[UnifiedEventBus] = None,
     session_id: Optional[str] = None,
     agent_id: Optional[str] = None
 ):

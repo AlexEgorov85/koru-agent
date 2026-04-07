@@ -7,7 +7,7 @@ pytest tests/unit/registry/test_component_registry.py -v
 ```
 """
 import pytest
-from core.services.registry.component_registry import ComponentRegistry
+from core.components.services.registry.component_registry import ComponentRegistry
 from core.models.enums.common_enums import ComponentType
 
 

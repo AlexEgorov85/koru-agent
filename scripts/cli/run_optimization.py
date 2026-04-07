@@ -342,7 +342,7 @@ async def run_baseline_benchmark(
     """
     from core.config.app_config import AppConfig
     from core.application_context.application_context import ApplicationContext
-    from core.services.benchmarks.benchmark_runner_agent import run_agent_benchmark
+    from core.components.services.benchmarks.benchmark_runner_agent import run_agent_benchmark
 
     print("\n" + "=" * 60)
     print("ЭТАП 1: Baseline бенчмарк")
@@ -413,8 +413,8 @@ async def run_candidate_benchmark_on_sandbox(
     """
     from core.agent.factory import AgentFactory
     from core.config.agent_config import AgentConfig
-    from core.services.benchmarks import BenchmarkValidator
-    from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+    from core.components.services.benchmarks import BenchmarkValidator
+    from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
 
     print(f"  🔄 [run_candidate_benchmark] Создаю AgentFactory...")
     agent_factory = AgentFactory(sandbox)
@@ -532,7 +532,7 @@ async def run_optimization_v2(
         from core.infrastructure_context.infrastructure_context import InfrastructureContext
         from core.application_context.application_context import ApplicationContext
         from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
-        from core.services.benchmarks.benchmark_models import (
+        from core.components.services.benchmarks.benchmark_models import (
             OptimizationMode, PromptVersion, MutationType,
         )
 
@@ -548,7 +548,7 @@ async def run_optimization_v2(
             RootCauseAnalyzer,
             ExampleExtractor,
         )
-        from core.services.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
+        from core.components.services.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
         from core.agent.components.optimization.trace_collector import TraceCollectionConfig
         from core.agent.components.optimization.evaluator import EvaluationConfig
         from core.agent.components.optimization.prompt_generator import GenerationConfig

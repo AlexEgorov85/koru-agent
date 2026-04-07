@@ -8,10 +8,10 @@
 - Поддержка hot-reload: повторный scan обновляет кэш
 
 СТРУКТУРА ОБНАРУЖЕНИЯ:
-- Skills: core/services/skills/{name}/skill.py -> {Name}Skill(BaseSkill)
-- Tools: core/services/tools/{name}_tool.py -> {Name}Tool(BaseTool)
-- Services (dir): core/services/{name}/service.py -> {Name}Service(BaseService)
-- Services (file): core/services/{name}.py -> {Name}Service(BaseService)
+- Skills: core/components/skills/{name}/skill.py -> {Name}Skill(BaseSkill)
+- Tools: core/components/tools/{name}_tool.py -> {Name}Tool(BaseTool)
+- Services (dir): core/components/services/{name}/service.py -> {Name}Service(BaseService)
+- Services (file): core/components/services/{name}.py -> {Name}Service(BaseService)
 - Behaviors: core/agent/behaviors/{name}/pattern.py -> {Name}Pattern(BaseBehaviorPattern)
 """
 import importlib
@@ -142,8 +142,8 @@ class ComponentDiscovery:
         return {t: list(names.keys()) for t, names in self._cache.items()}
 
     def _discover_skills(self) -> Dict[str, ComponentEntry]:
-        """Обнаружение навыков в core/services/skills/{name}/skill.py."""
-        skills_dir = self._project_root / "core" / "services" / "skills"
+        """Обнаружение навыков в core/components/skills/{name}/skill.py."""
+        skills_dir = self._project_root / "core" / "components" / "skills"
         if not skills_dir.is_dir():
             self._log("warning", f"Директория навыков не найдена: {skills_dir}")
             return {}
@@ -161,7 +161,7 @@ class ComponentDiscovery:
                 skipped.append(f"{item.name} (нет skill.py)")
                 continue
 
-            module_name = f"core.services.skills.{item.name}.skill"
+            module_name = f"core.components.skills.{item.name}.skill"
             cls = self._load_class_from_module(
                 module_name, item.name, "Skill"
             )
@@ -186,8 +186,8 @@ class ComponentDiscovery:
         return entries
 
     def _discover_tools(self) -> Dict[str, ComponentEntry]:
-        """Обнаружение инструментов в core/services/tools/{name}_tool.py."""
-        tools_dir = self._project_root / "core" / "services" / "tools"
+        """Обнаружение инструментов в core/components/tools/{name}_tool.py."""
+        tools_dir = self._project_root / "core" / "components" / "tools"
         if not tools_dir.is_dir():
             self._log("warning", f"Директория инструментов не найдена: {tools_dir}")
             return {}
@@ -201,7 +201,7 @@ class ComponentDiscovery:
                 continue
 
             name = item.name[: -len(".py")]
-            module_name = f"core.services.tools.{name}"
+            module_name = f"core.components.tools.{name}"
             cls = self._load_class_from_module(
                 module_name, name, "Tool"
             )
@@ -227,7 +227,7 @@ class ComponentDiscovery:
 
     def _discover_services(self) -> Dict[str, ComponentEntry]:
         """Обнаружение сервисов (dir-based и file-based)."""
-        services_dir = self._project_root / "core" / "services"
+        services_dir = self._project_root / "core" / "components" / "services"
         if not services_dir.is_dir():
             self._log("warning", f"Директория сервисов не найдена: {services_dir}")
             return {}
@@ -267,7 +267,7 @@ class ComponentDiscovery:
             return None
 
         name = item.name
-        module_name = f"core.services.{name}.service"
+        module_name = f"core.components.services.{name}.service"
         cls = self._load_class_from_module(
             module_name, name, "Service"
         )
@@ -286,7 +286,7 @@ class ComponentDiscovery:
     def _try_load_file_service(self, item: Path) -> Optional[ComponentEntry]:
         """Попытка загрузить сервис из файла {name}_service.py."""
         name = item.name[: -len("_service.py")]
-        module_name = f"core.services.{item.name[:-3]}"
+        module_name = f"core.components.services.{item.name[:-3]}"
         cls = self._load_class_from_module(
             module_name, name, "Service"
         )

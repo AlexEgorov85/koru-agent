@@ -25,16 +25,16 @@ component = await factory.create_and_initialize(
 ```
 """
 from typing import Type, Any, Optional, TYPE_CHECKING
+from core.agent.components.component_discovery import ComponentDiscovery
 from core.config.component_config import ComponentConfig
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.infrastructure.logging import EventBusLogger
-  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
 if TYPE_CHECKING:
     from core.application_context.application_context import ApplicationContext
+    from core.agent.components.action_executor import ActionExecutor
 
 
 class ComponentFactory:
@@ -77,7 +77,7 @@ class ComponentFactory:
         - ResourcePreloader
         """
         if self._resource_preloader is None:
-            from core.services.preloading.resource_preloader import ResourcePreloader
+            from core.components.services.preloading.resource_preloader import ResourcePreloader
 
             self._resource_preloader = ResourcePreloader(
                 data_repository=application_context.data_repository,
@@ -139,7 +139,7 @@ class ComponentFactory:
         name: str,
         application_context: ApplicationContext,
         component_config: ComponentConfig,
-        executor: 'ActionExecutor'
+        executor: ActionExecutor
     ) -> BaseComponent:
         """
         Создание и инициализация компонента с внедрением зависимостей.
@@ -317,7 +317,7 @@ class ComponentFactory:
 
         return name
 
-    def _get_discovery(self) -> "ComponentDiscovery":
+    def _get_discovery(self) -> ComponentDiscovery:
         """Получить или создать экземпляр ComponentDiscovery."""
         if not hasattr(self, "_component_discovery"):
             from core.agent.components.component_discovery import ComponentDiscovery
@@ -330,7 +330,7 @@ class ComponentFactory:
         name: str,
         application_context: ApplicationContext,
         component_config: ComponentConfig,
-        executor: 'ActionExecutor'
+        executor: ActionExecutor
     ) -> BaseComponent:
         """
         Создание компонента по имени и типу.

@@ -2,7 +2,7 @@
 Юнит-тесты для ComponentValidator — AST/YAML валидатора артефактов.
 """
 import pytest
-from core.services.skills.meta_component_creator.validator import ComponentValidator, SkillValidator
+from core.components.skills.meta_component_creator.validator import ComponentValidator, SkillValidator
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ class TestValidateSkill:
 
     def test_valid_skill_file(self, validator):
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "from typing import Dict, Any, List\n"
             "\n"
             "class TestSkill(BaseSkill):\n"
@@ -53,7 +53,7 @@ class TestValidateTool:
 
     def test_valid_tool_file(self, validator):
         code = (
-            "from core.services.tools.base_tool import BaseTool, ToolInput, ToolOutput\n"
+            "from core.components.tools.base_tool import BaseTool, ToolInput, ToolOutput\n"
             "from typing import Dict, Any\n"
             "\n"
             "class TestTool(BaseTool):\n"
@@ -90,7 +90,7 @@ class TestValidateService:
 
     def test_valid_service_file(self, validator):
         code = (
-            "from core.services.base_service import BaseService\n"
+            "from core.components.services.base_service import BaseService\n"
             "from typing import Dict, Any\n"
             "\n"
             "class TestService(BaseService):\n"
@@ -175,7 +175,7 @@ class TestDangerousImports:
 
     def test_eval_call_rejected(self, validator):
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self):\n"
@@ -209,7 +209,7 @@ class TestDangerousImports:
             "from datetime import datetime\n"
             "import json\n"
             "import re\n"
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "from pydantic import BaseModel\n"
             "\n"
             "class TestSkill(BaseSkill):\n"
@@ -239,7 +239,7 @@ class TestValidateYamlFile:
             "content: |\n  Hello world\n"
         )
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self): return []\n"
             "    async def _execute_impl(self, c, p, e): return {}\n"
@@ -265,7 +265,7 @@ class TestValidateYamlFile:
             "status: active\n"
         )
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self): return []\n"
             "    async def _execute_impl(self, c, p, e): return {}\n"
@@ -318,7 +318,7 @@ class TestValidateYamlFile:
             "direction: input\n"
         )
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self): return []\n"
             "    async def _execute_impl(self, c, p, e): return {}\n"
@@ -374,7 +374,7 @@ class TestCrossArtifactValidation:
 
     def test_tool_no_main_file_required(self, validator):
         code = (
-            "from core.services.tools.base_tool import BaseTool\n"
+            "from core.components.tools.base_tool import BaseTool\n"
             "class TestTool(BaseTool):\n"
             "    def get_capabilities(self): return []\n"
             "    def _execute_impl(self, c, p, e): return {}\n"
@@ -394,7 +394,7 @@ class TestSkillValidatorAlias:
     def test_alias_works(self):
         v = SkillValidator()
         code = (
-            "from core.services.skills.base_skill import BaseSkill\n"
+            "from core.components.skills.base_skill import BaseSkill\n"
             "class TestSkill(BaseSkill):\n"
             "    def get_capabilities(self): return []\n"
             "    async def _execute_impl(self, c, p, e): return {}\n"

@@ -28,7 +28,7 @@ from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, Eve
 from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
 from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
 from core.infrastructure.telemetry.storage.metrics_storage import FileSystemMetricsStorage
-from core.services.metrics_publisher import MetricsPublisher
+from core.components.services.metrics_publisher import MetricsPublisher
 from core.infrastructure.collectors.base.base_collector import BaseEventCollector
 
 

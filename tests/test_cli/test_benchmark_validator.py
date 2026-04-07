@@ -7,7 +7,7 @@
 """
 import pytest
 from unittest.mock import MagicMock
-from core.services.benchmarks import (
+from core.components.services.benchmarks import (
     SQLValidator,
     AnswerValidator,
     BenchmarkValidator
@@ -485,7 +485,7 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_extract_sql_from_agent_with_sql_query(self):
         """Извлечение SQL из session_context агента"""
-        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
+        from core.components.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -512,7 +512,7 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_extract_sql_from_agent_no_session_context(self):
         """Извлечение SQL без session_context"""
-        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
+        from core.components.services.benchmarks.benchmark_runner_agent import _extract_sql_from_agent
 
         mock_agent = MagicMock(spec=[])
         sql_queries, sql_results = _extract_sql_from_agent(mock_agent)
@@ -521,7 +521,7 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_extract_sql_from_final_answer(self):
         """Извлечение SQL из финального ответа"""
-        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
+        from core.components.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
 
         answer = "Книги не найдены. sources=[sql_query='SELECT * FROM books WHERE year > 1850']"
         sql = _extract_sql_from_final_answer(answer)
@@ -529,7 +529,7 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_extract_sql_from_final_answer_no_sql(self):
         """Извлечение SQL когда SQL нет в ответе"""
-        from core.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
+        from core.components.services.benchmarks.benchmark_runner_agent import _extract_sql_from_final_answer
 
         answer = "Книги не найдены"
         sql = _extract_sql_from_final_answer(answer)
@@ -537,8 +537,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_pass(self):
         """Валидация: SQL проходит проверку"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -569,8 +569,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_fail_no_where(self):
         """Валидация: SQL без WHERE — провал"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -600,8 +600,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_fail_wrong_year(self):
         """Валидация: SQL с неожиданной верхней границей года — провал"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -635,8 +635,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_pass_correct_year(self):
         """Валидация: SQL с правильным фильтром года — pass"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -669,8 +669,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_fallback_to_answer(self):
         """Валидация: fallback — извлечение SQL из финального ответа"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_data_ctx = MagicMock()
         mock_data_ctx.get_all_items.return_value = []
@@ -695,8 +695,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_no_validation_rules(self):
         """Валидация без правил — всегда pass"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_agent = MagicMock()
         validator = BenchmarkValidator()
@@ -706,8 +706,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_combined_sql_and_answer(self):
         """Комбинированная валидация: SQL + ответ"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -741,8 +741,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_fail_no_schema(self):
         """Валидация: SQL без схемы — провал"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -772,8 +772,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_agent_execution_sql_pass_with_schema(self):
         """Валидация: SQL со схемой — pass"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {
@@ -802,8 +802,8 @@ class TestBenchmarkRunnerAgentValidation:
 
     def test_validate_answer_false_no_results(self):
         """Валидация: ответ ложно говорит 'не найдено' когда данные есть"""
-        from core.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
-        from core.services.benchmarks import BenchmarkValidator
+        from core.components.services.benchmarks.benchmark_runner_agent import _validate_agent_execution
+        from core.components.services.benchmarks import BenchmarkValidator
 
         mock_observation = MagicMock()
         mock_observation.content = {

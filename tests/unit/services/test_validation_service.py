@@ -7,7 +7,7 @@
 import pytest
 from pydantic import BaseModel, Field
 
-from core.services.validation_service import ValidationService, ValidationResult
+from core.components.services.validation_service import ValidationService, ValidationResult
 
 
 # Тестовые схемы

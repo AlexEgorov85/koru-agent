@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-from core.services.benchmarks.benchmark_models import EvaluationResult, PromptVersion
+from core.components.services.benchmarks.benchmark_models import EvaluationResult, PromptVersion
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
 from core.infrastructure.logging import EventBusLogger
   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})

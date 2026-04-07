@@ -20,7 +20,7 @@ async def main():
     from core.infrastructure_context.infrastructure_context import InfrastructureContext
     from core.infrastructure.providers.vector.faiss_provider import FAISSProvider
     from core.infrastructure.providers.vector.chunking_strategy import SemanticChunkingStrategy
-    from core.services.document_indexing_service import DocumentIndexingService
+    from core.components.services.document_indexing_service import DocumentIndexingService
 
     print("=" * 60)
     print("ПЕРЕСОЗДАНИЕ ВЕКТОРНОЙ БД КНИГ")

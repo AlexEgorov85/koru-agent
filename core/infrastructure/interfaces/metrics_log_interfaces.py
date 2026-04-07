@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Optional, Tuple
 from core.models.data.metrics import MetricRecord, AggregatedMetrics
-from core.services.benchmarks.benchmark_models import LogEntry
+from core.components.services.benchmarks.benchmark_models import LogEntry
 
 
 class IMetricsStorage(ABC):

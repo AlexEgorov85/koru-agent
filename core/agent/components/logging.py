@@ -9,11 +9,10 @@ class BaseComponent(LifecycleMixin, LoggingMixin, ABC):
     pass
 ```
 """
-from typing import Optional, Callable, Any, TYPE_CHECKING
+from typing import Optional, Callable, Any
 
-if TYPE_CHECKING:
-    from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
-    from core.infrastructure.interfaces.event_bus import EventBusInterface
+from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus
+from core.infrastructure.interfaces.event_bus import EventBusInterface
 
 
 class LoggingMixin:
@@ -31,7 +30,7 @@ class LoggingMixin:
 
     def __init__(
         self,
-        event_bus: Optional['EventBusInterface'] = None,
+        event_bus: Optional[EventBusInterface] = None,
         component_name: str = "unknown",
         get_init_state_callback: Optional[Callable] = None
     ):

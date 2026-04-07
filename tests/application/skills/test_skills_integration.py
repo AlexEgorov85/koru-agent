@@ -73,7 +73,7 @@ class TestBookLibrarySkillIntegration:
     @pytest.mark.asyncio
     async def test_list_scripts(self, action_executor, component_config):
         """Тест: получение списка скриптов"""
-        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.components.skills.book_library.skill import BookLibrarySkill
 
         executor, app_context = action_executor
 
@@ -110,7 +110,7 @@ class TestBookLibrarySkillIntegration:
     @pytest.mark.asyncio
     async def test_execute_script_get_all_books(self, action_executor, component_config):
         """Тест: выполнение скрипта get_all_books"""
-        from core.services.skills.book_library.skill import BookLibrarySkill
+        from core.components.skills.book_library.skill import BookLibrarySkill
 
         executor, app_context = action_executor
 
@@ -171,7 +171,7 @@ class TestPlanningSkillIntegration:
     @pytest.mark.asyncio
     async def test_create_plan(self, action_executor, component_config):
         """Тест: создание плана"""
-        from core.services.skills.planning.skill import PlanningSkill
+        from core.components.skills.planning.skill import PlanningSkill
 
         executor, app_context = action_executor
 
@@ -236,7 +236,7 @@ class TestPlanningSkillIntegration:
     @pytest.mark.asyncio
     async def test_get_next_step(self, action_executor, component_config):
         """Тест: получение следующего шага"""
-        from core.services.skills.planning.skill import PlanningSkill
+        from core.components.skills.planning.skill import PlanningSkill
 
         executor, app_context = action_executor
 
@@ -295,7 +295,7 @@ class TestFinalAnswerSkillIntegration:
     @pytest.mark.asyncio
     async def test_generate_final_answer(self, action_executor, component_config):
         """Тест: генерация финального ответа"""
-        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.components.skills.final_answer.skill import FinalAnswerSkill
 
         executor, app_context = action_executor
 
@@ -373,7 +373,7 @@ class TestDataAnalysisSkillIntegration:
     @pytest.mark.asyncio
     async def test_analyze_step_data(self, action_executor, component_config):
         """Тест: анализ данных шага"""
-        from core.services.skills.data_analysis.skill import DataAnalysisSkill
+        from core.components.skills.data_analysis.skill import DataAnalysisSkill
 
         executor, app_context = action_executor
 
@@ -446,8 +446,8 @@ class TestSkillsEndToEnd:
     @pytest.mark.asyncio
     async def test_planning_then_final_answer(self, action_executor, component_config):
         """Тест: планирование → выполнение → финальный ответ"""
-        from core.services.skills.planning.skill import PlanningSkill
-        from core.services.skills.final_answer.skill import FinalAnswerSkill
+        from core.components.skills.planning.skill import PlanningSkill
+        from core.components.skills.final_answer.skill import FinalAnswerSkill
 
         executor, app_context = action_executor
 

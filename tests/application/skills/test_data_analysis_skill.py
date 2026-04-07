@@ -13,7 +13,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from typing import Dict, Any
 
-from core.services.skills.data_analysis.skill import DataAnalysisSkill
+from core.components.skills.data_analysis.skill import DataAnalysisSkill
 from core.models.data.capability import Capability
 from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.models.enums.common_enums import ErrorCategory

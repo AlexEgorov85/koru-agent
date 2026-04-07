@@ -8,7 +8,7 @@ pytest tests/unit/preloading/test_resource_preloader.py -v
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
-from core.services.preloading.resource_preloader import ResourcePreloader
+from core.components.services.preloading.resource_preloader import ResourcePreloader
 
 
 class MockDataRepository:

@@ -39,7 +39,7 @@ from .root_cause_analyzer import RootCauseAnalyzer
 from .example_extractor import ExampleExtractor
 
 # BenchmarkRunner импортируется из core.benchmarks
-from core.services.benchmarks.benchmark_runner import BenchmarkRunner
+from core.components.services.benchmarks.benchmark_runner import BenchmarkRunner
 
 __all__ = [
     # Основные компоненты

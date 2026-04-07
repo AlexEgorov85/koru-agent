@@ -59,7 +59,7 @@ def load_first_n_questions(benchmark_file: str, n: int) -> List[Dict[str, Any]]:
 
 
 def build_scenarios_from_questions(questions: List[Dict[str, Any]], event_bus):
-    from core.services.benchmarks.benchmark_models import (
+    from core.components.services.benchmarks.benchmark_models import (
         BenchmarkScenario, ExpectedOutput, EvaluationCriterion, EvaluationType,
     )
 
@@ -165,7 +165,7 @@ async def main():
         OptimizationOrchestrator, OrchestratorV2Config,
     )
     from core.agent.components.optimization.trace_collector import TraceCollector
-    from core.services.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
+    from core.components.services.benchmarks.benchmark_runner import BenchmarkRunner, BenchmarkRunConfig
     from core.agent.components.optimization.evaluator import Evaluator
     from core.agent.components.optimization.prompt_generator import PromptGenerator
     from core.agent.components.optimization.version_manager import VersionManager
@@ -174,7 +174,7 @@ async def main():
     from core.agent.components.optimization.prompt_analyzer import PromptResponseAnalyzer
     from core.agent.components.optimization.root_cause_analyzer import RootCauseAnalyzer
     from core.agent.components.optimization.example_extractor import ExampleExtractor
-    from core.services.benchmarks.benchmark_models import (
+    from core.components.services.benchmarks.benchmark_models import (
         PromptVersion, OptimizationMode,
     )
 

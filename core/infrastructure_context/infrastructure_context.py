@@ -19,11 +19,7 @@ from core.infrastructure.providers.llm.openrouter_provider import OpenRouterConf
 from core.infrastructure.providers.llm.vllm_provider import VLLMConfig
 from core.infrastructure_context.lifecycle_manager import LifecycleManager
 from core.infrastructure_context.resource_registry import ResourceRegistry
-from core.services.metrics_publisher import MetricsPublisher
-
-# Используем TYPE_CHECKING для избежания циклических зависимостей
-if TYPE_CHECKING:
-    from core.config.app_config import AppConfig
+from core.components.services.metrics_publisher import MetricsPublisher
 
 from core.agent.components.lifecycle import ComponentState
 from core.config.app_config import AppConfig
@@ -37,11 +33,8 @@ from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
 # Импорты для телеметрии
 from core.infrastructure.telemetry import TelemetryCollector, init_telemetry
 from core.infrastructure.interfaces.metrics_log_interfaces import IMetricsStorage
-
-# TYPE_CHECKING импорты для аннотаций
-if TYPE_CHECKING:
-    from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
-    from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
+from core.infrastructure.telemetry.handlers.session_handler import SessionLogHandler
+from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogHandler
 
 
 class InfrastructureContext:
@@ -598,13 +591,13 @@ class InfrastructureContext:
             raise RuntimeError("MetricsPublisher не инициализирован")
         return self.metrics_publisher
 
-    def get_session_handler(self) -> 'SessionLogHandler':
+    def get_session_handler(self) -> SessionLogHandler:
         """Получение обработчика логов сессии."""
         if not hasattr(self, 'session_handler') or self.session_handler is None:
             raise RuntimeError("SessionHandler не инициализирован")
         return self.session_handler
 
-    def get_terminal_handler(self) -> 'TerminalLogHandler':
+    def get_terminal_handler(self) -> TerminalLogHandler:
         """Получение терминального обработчика."""
         if not hasattr(self, 'terminal_handler') or self.terminal_handler is None:
             raise RuntimeError("TerminalHandler не инициализирован")

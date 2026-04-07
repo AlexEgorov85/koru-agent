@@ -285,7 +285,7 @@ async def test_file_tool_execution(application_context):
         - Операция read выполнена успешно (если файл существует)
         - Операция list выполнена успешно
     """
-    from core.services.tools.file_tool import FileToolInput
+    from core.components.tools.file_tool import FileToolInput
     
     file_tool = application_context.components.get(ComponentType.TOOL, "file_tool")
     
@@ -345,7 +345,7 @@ async def test_sql_tool_execution(application_context):
         - DB провайдер доступен
         - SQL операции выполняются успешно
     """
-    from core.services.tools.sql_tool import SQLToolInput
+    from core.components.tools.sql_tool import SQLToolInput
     
     sql_tool = application_context.components.get(ComponentType.TOOL, "sql_tool")
     
@@ -421,7 +421,7 @@ async def test_sandbox_mode(infrastructure_context, app_config):
         - FileTool write операция выполняется в dry_run режиме
         - Sandbox режим корректно блокирует запись
     """
-    from core.services.tools.file_tool import FileToolInput
+    from core.components.tools.file_tool import FileToolInput
     
     # Создаем конфигурацию для sandbox режима
     sandbox_config = AppConfig.from_discovery(profile="prod", data_dir="data")
@@ -628,7 +628,7 @@ async def test_full_integration_cycle(system_config, app_config):
         # Этап 4: Выполнение инструментов (FileTool)
         file_tool = app_context.components.get(ComponentType.TOOL, "file_tool")
         if file_tool:
-            from core.services.tools.file_tool import FileToolInput
+            from core.components.tools.file_tool import FileToolInput
             test_file = Path("./data/registry.yaml")
             if test_file.exists():
                 input_data = FileToolInput(operation="read", path=str(test_file))
