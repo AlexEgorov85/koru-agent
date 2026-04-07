@@ -25,8 +25,7 @@ component = await factory.create_and_initialize(
 ```
 """
 from typing import Type, Any, Optional, TYPE_CHECKING
-from core.agent.components.component_discovery import ComponentDiscovery
-from core.config.component_config import ComponentConfig
+
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType

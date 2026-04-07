@@ -14,7 +14,6 @@
 """
 import asyncio
 from typing import Dict, Any, Optional, TYPE_CHECKING
-from pydantic import BaseModel
 
 from core.components.services.validation_service import ValidationService
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
