@@ -10,7 +10,7 @@
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
-from typing import Dict, Optional, Any, TYPE_CHECKING
+from typing import Dict, Optional, Any
 from datetime import datetime
 
 from core.infrastructure.providers.llm.llama_cpp_provider import MockLlamaCppConfig

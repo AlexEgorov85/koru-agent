@@ -45,7 +45,7 @@ class ComponentFactory:
         self.event_bus = infrastructure_context.event_bus if infrastructure_context else None
         self._resource_preloader = None
 
-    def _get_resource_preloader(self, application_context: ApplicationContext):
+    def _get_resource_preloader(self, application_context: 'ApplicationContext'):
         """
         Получить или создать ResourcePreloader.
 
@@ -116,9 +116,9 @@ class ComponentFactory:
         self,
         component_class: Type[BaseComponent],
         name: str,
-        application_context: ApplicationContext,
-        component_config: ComponentConfig,
-        executor: ActionExecutor
+        application_context: 'ApplicationContext',
+        component_config: 'ComponentConfig',
+        executor: 'ActionExecutor'
     ) -> BaseComponent:
         """
         Создание и инициализация компонента с внедрением зависимостей.
@@ -296,7 +296,7 @@ class ComponentFactory:
 
         return name
 
-    def _get_discovery(self) -> ComponentDiscovery:
+    def _get_discovery(self) -> 'ComponentDiscovery':
         """Получить или создать экземпляр ComponentDiscovery."""
         if not hasattr(self, "_component_discovery"):
             from core.agent.components.component_discovery import ComponentDiscovery
@@ -307,9 +307,9 @@ class ComponentFactory:
         self,
         component_type: str,
         name: str,
-        application_context: ApplicationContext,
-        component_config: ComponentConfig,
-        executor: ActionExecutor
+        application_context: 'ApplicationContext',
+        component_config: 'ComponentConfig',
+        executor: 'ActionExecutor'
     ) -> BaseComponent:
         """
         Создание компонента по имени и типу.

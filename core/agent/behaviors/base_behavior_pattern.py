@@ -21,11 +21,6 @@ from core.agent.components.base_component import BaseComponent
 from core.config.component_config import ComponentConfig
 from core.utils.async_utils import safe_async_call
 
-if typing.TYPE_CHECKING:
-    from core.application_context.application_context import ApplicationContext
-    from core.agent.components.action_executor import ActionExecutor
-    from core.models.data.capability import Capability
-
 
 # ============================================================================
 # ОБЩИЕ СЕРВИСЫ ДЛЯ ВСЕХ ПАТТЕРНОВ
