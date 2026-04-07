@@ -87,7 +87,7 @@ class TestRunOptimization:
     async def test_run_optimization_mock(self):
         """Тест оптимизации с моками"""
         from scripts.cli.run_optimization import run_optimization
-        from core.components.services.benchmarks.benchmark_models import OptimizationResult, OptimizationMode
+        from core.components.benchmarks.benchmark_models import OptimizationResult, OptimizationMode
 
         # Создаём мок результата
         mock_result = OptimizationResult(

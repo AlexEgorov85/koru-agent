@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 # Импорт валидатора
-from core.components.services.benchmarks import BenchmarkValidator
+from core.components.benchmarks import BenchmarkValidator
 
 
 async def main():

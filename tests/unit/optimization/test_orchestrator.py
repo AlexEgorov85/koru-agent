@@ -16,7 +16,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     PromptVersion,
     EvaluationResult,
     OptimizationResult,

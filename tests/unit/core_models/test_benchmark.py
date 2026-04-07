@@ -11,7 +11,7 @@
 """
 import pytest
 from datetime import datetime, timedelta
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     EvaluationType,
     EvaluationCriterion,
     BenchmarkScenario,
