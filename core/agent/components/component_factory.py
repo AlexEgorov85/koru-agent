@@ -24,15 +24,11 @@ component = await factory.create_and_initialize(
 )
 ```
 """
-from typing import Type, Any, Optional, TYPE_CHECKING
+from typing import Type, Any, Optional
 
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
-
-if TYPE_CHECKING:
-    from core.application_context.application_context import ApplicationContext
-    from core.agent.components.action_executor import ActionExecutor
 
 
 class ComponentFactory:

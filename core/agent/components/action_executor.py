@@ -13,14 +13,11 @@
 - Generic тип T для data позволяет сохранять тип модели
 """
 import asyncio
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional
 
 from core.components.services.validation_service import ValidationService
 from core.models.data.execution import ExecutionResult, ExecutionStatus, ExecutionStatus, ExecutionStatus
 from core.models.data.capability import Capability
-
-if TYPE_CHECKING:
-    from core.application_context.application_context import ApplicationContext
 
 
 class ExecutionContext:
