@@ -130,6 +130,9 @@ with tab1:
                     st.session_state.messages = []
                     st.rerun()
 
+    # Placeholder для мыслей агента — ВВЕРХУ, перед полем ввода
+    thinking_placeholder = st.empty()
+    
     # Поле ввода как в классических LLM-чатах
     if is_ready():
         if prompt := st.chat_input("Введите ваш вопрос...", max_chars=2000, disabled=st.session_state.processing):
@@ -153,9 +156,6 @@ with tab1:
 
             # === НОВОЕ: Отображение мыслей агента в реальном времени ===
             start_time = time.time()
-            
-            # Контейнер для мыслей (одна строка которая меняется)
-            thinking_placeholder = st.empty()
             
             # Функция для запуска агента в отдельном потоке
             import threading
@@ -218,7 +218,7 @@ with tab1:
                 if thinking_msg:
                     # Одна строка которая меняется
                     thinking_placeholder.markdown(
-                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>🧠 {thinking_msg}</div>",
+                        f"<div style='background: #f0f0f0; color: #666666; padding: 12px 16px; border-radius: 8px; font-size: 14px;'>{thinking_msg}</div>",
                         unsafe_allow_html=True
                     )
                     last_log_count = len(logs)

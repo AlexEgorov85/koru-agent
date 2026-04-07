@@ -239,14 +239,21 @@ class ApplicationContext(BaseSystemContext):
 
         try:
             from core.infrastructure.providers.llm.llm_orchestrator import LLMOrchestrator
+            print("[ApplicationContext] Создание LLMOrchestrator...", flush=True)
             self.llm_orchestrator = LLMOrchestrator(
                 event_bus=self.infrastructure_context.event_bus,
                 cleanup_interval=600.0,
                 max_pending_calls=100
             )
+            print("[ApplicationContext] Вызов llm_orchestrator.initialize()...", flush=True)
             await self.llm_orchestrator.initialize()
+            print("[ApplicationContext] LLMOrchestrator инициализирован успешно!", flush=True)
             self.logger.info("LLMOrchestrator инициализирован")
         except Exception as e:
+            print(f"[ApplicationContext] ОШИБКА инициализации LLMOrchestrator: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            self.logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
             from core.errors.exceptions import ComponentInitializationError
             raise ComponentInitializationError(
                 f"Не удалось инициализировать LLMOrchestrator: {e}. "

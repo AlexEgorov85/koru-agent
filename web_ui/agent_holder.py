@@ -80,6 +80,13 @@ async def init_contexts(profile: str = "prod", data_dir: str = "data"):
 
     _subscribe_to_events()
 
+    # Проверка session_handler
+    if _infra_ctx.session_handler:
+        session_info = _infra_ctx.session_handler.get_session_info()
+        print(f"[agent_holder] SessionLogHandler инициализирован: {session_info['session_log']}")
+    else:
+        print("[agent_holder] WARNING: SessionLogHandler НЕ найден!")
+
     app_config = AppConfig.from_discovery(
         profile=profile,
         data_dir=data_dir,
@@ -91,6 +98,12 @@ async def init_contexts(profile: str = "prod", data_dir: str = "data"):
         profile=profile
     )
     await _app_ctx.initialize()
+
+    # Проверка LLMOrchestrator
+    if _app_ctx.llm_orchestrator:
+        print(f"[agent_holder] LLMOrchestrator инициализирован: {type(_app_ctx.llm_orchestrator)}")
+    else:
+        print("[agent_holder] WARNING: LLMOrchestrator НЕ инициализирован!")
 
     _is_ready = True
 
@@ -157,6 +170,13 @@ def _subscribe_to_events():
             add_log(msg, "thinking")
 
     event_bus.subscribe(EventType.AGENT_THINKING, on_agent_thinking)
+    
+    # Подписка на финальный ответ
+    async def on_session_answer(event):
+        msg = event.data.get("answer", "") if event.data else ""
+        add_log(f"[SESSION_ANSWER] {msg}", "info")
+    
+    event_bus.subscribe(EventType.SESSION_ANSWER, on_session_answer)
     
     event_bus.subscribe(EventType.LOG_INFO, on_log)
     event_bus.subscribe(EventType.INFO, on_log)

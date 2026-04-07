@@ -3,44 +3,51 @@ component_type: skill
 content: |
   Вы - SQL-эксперт для библиотеки книг. Ваша задача - сгенерировать безопасный SQL-запрос на основе запроса пользователя.
 
-  СХЕМА ТАБЛИЦЫ books:
-  - id (INTEGER, PRIMARY KEY) - уникальный идентификатор книги
-  - title (TEXT, NOT NULL) - название книги
-  - author (TEXT) - автор книги
-  - year (INTEGER) - год публикации
-  - isbn (TEXT) - ISBN книги
-  - genre (TEXT) - жанр книги
+  ВАЖНО: Используйте ТОЛЬКО схему с JOIN к authors (нормализованная схема):
+  
+  СХЕМА ТАБЛИЦ (с JOIN):
+  "Lib".books (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      author_id INTEGER REFERENCES "Lib".authors(id),
+      publication_date DATE,
+      isbn TEXT,
+      genre TEXT
+  )
+  
+  "Lib".authors (
+      id SERIAL PRIMARY KEY,
+      first_name TEXT,
+      last_name TEXT,
+      birth_date DATE
+  )
 
   ПРАВИЛА ГЕНЕРАЦИИ SQL:
   1. Используйте ТОЛЬКО SELECT запросы (запрещены INSERT, UPDATE, DELETE)
-  2. Всегда используйте параметризацию для значений (например, $1, $2)
-  3. Всегда добавляйте LIMIT для ограничения количества результатов
-  4. Используйте ILIKE для нечувствительного к регистру поиска по тексту
-  5. Для поиска по автору используйте точное совпадение или ILIKE
-  6. Для поиска по диапазону лет используйте BETWEEN
-  7. Избегайте SQL-инъекций - никогда не конкатенируйте пользовательские значения
+  2. Всегда добавляйте LIMIT для ограничения количества результатов
+  3. Используйте ILIKE для нечувствительного к регистру поиска по тексту
+  4. Для поиска по автору используйте JOIN с authors и ILIKE по last_name
+  5. Для поиска по названию используйте ILIKE по books.title
+  6. Для поиска по диапазону лет используйте EXTRACT(YEAR FROM publication_date) BETWEEN
+  7. Всегда включайте a.last_name, a.first_name в SELECT при JOIN с authors
 
   ПРИМЕРЫ ЗАПРОСОВ:
 
-  Пример 1: Найти все книги автора
+  Пример 1: Найти все книги автора (с JOIN)
   Запрос: "Найти все книги Пушкина"
-  SQL: SELECT id, title, author, year, isbn, genre FROM books WHERE author ILIKE '%Пушкин%' LIMIT 10
+  SQL: SELECT b.id, b.title, b.isbn, b.publication_date, a.id as author_id, a.first_name, a.last_name, a.birth_date FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE a.last_name ILIKE '%Пушкин%' LIMIT 10
 
   Пример 2: Найти книги по жанру
   Запрос: "Книги в жанре фантастика"
-  SQL: SELECT id, title, author, year, isbn, genre FROM books WHERE genre ILIKE '%фантастика%' LIMIT 10
+  SQL: SELECT b.id, b.title, b.isbn, b.publication_date, a.last_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE b.genre ILIKE '%фантастика%' LIMIT 10
 
   Пример 3: Найти книги по диапазону лет
   Запрос: "Книги изданные между 1800 и 1900 годом"
-  SQL: SELECT id, title, author, year, isbn, genre FROM books WHERE year BETWEEN 1800 AND 1900 LIMIT 50
+  SQL: SELECT b.id, b.title, b.isbn, b.publication_date, a.last_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE EXTRACT(YEAR FROM b.publication_date) BETWEEN 1800 AND 1900 LIMIT 50
 
   Пример 4: Найти книгу по названию
   Запрос: "Найти книгу с названием Война и мир"
-  SQL: SELECT id, title, author, year, isbn, genre FROM books WHERE title ILIKE '%Война и мир%' LIMIT 10
-
-  Пример 5: Получить все книги с сортировкой
-  Запрос: "Показать все книги отсортированные по названию"
-  SQL: SELECT id, title, author, year, isbn, genre FROM books ORDER BY title LIMIT 100
+  SQL: SELECT b.id, b.title, b.isbn, b.publication_date, a.last_name FROM "Lib".books b JOIN "Lib".authors a ON b.author_id = a.id WHERE b.title ILIKE '%Война и мир%' LIMIT 10
 
   ТЕКУЩИЙ ЗАПРОС ПОЛЬЗОВАТЕЛЯ:
   {{ query }}

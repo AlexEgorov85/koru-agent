@@ -1193,6 +1193,22 @@ class ActionExecutor:
             )
 
             # Возвращаем результат
+            # Публикация события об успешном выполнении
+            if self._event_bus:
+                await self._event_bus.publish(
+                    event_type="executor.tool_result",
+                    data={
+                        "action_name": action_name,
+                        "tool": tool.name,
+                        "status": "completed",
+                        "data": result
+                    },
+                    source="action_executor",
+                    session_id=context.session_id,
+                    agent_id=context.agent_id
+                )
+                print(f"[ActionExecutor] ✓ Опубликовано executor.tool_result: {action_name}", flush=True)
+
             return ExecutionResult(
                 status=ExecutionStatus.COMPLETED,
                 data=result
@@ -1245,13 +1261,36 @@ class ActionExecutor:
             # Выполняем компонент
             result = await component.execute(capability, parameters, context)
 
+            # Публикация события об успешном выполнении
+            if self._event_bus and result.status == ExecutionStatus.COMPLETED:
+                await self._event_bus.publish(
+                    event_type="executor.component_result",
+                    data={
+                        "action_name": action_name,
+                        "component": component.name,
+                        "capability": capability.name,
+                        "status": "completed",
+                        "data": result.data,
+                        "metadata": result.metadata
+                    },
+                    source="action_executor",
+                    session_id=context.session_id,
+                    agent_id=context.agent_id
+                )
+                print(f"[ActionExecutor] ✓ Опубликовано executor.component_result: {action_name}", flush=True)
+
             return result
 
         except Exception as e:
             if self._event_bus:
                 await self._event_bus.publish(
                     event_type="executor.component_error",
-                    data={"action_name": action_name, "component": component.name, "error": str(e)},
+                    data={
+                        "action_name": action_name,
+                        "component": component.name,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    },
                     source="action_executor",
                     session_id=context.session_id,
                     agent_id=context.agent_id

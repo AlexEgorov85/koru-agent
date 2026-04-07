@@ -92,6 +92,7 @@ class EventType(Enum):
     # === События жизненного цикла сессии ===
     SESSION_CREATED = "session.created"
     SESSION_STARTED = "session.started"
+    SESSION_ANSWER = "session.answer"
     SESSION_COMPLETED = "session.completed"
     SESSION_FAILED = "session.failed"
     SESSION_CLOSED = "session.closed"
@@ -543,6 +544,11 @@ class SessionWorker:
         event.sequence_number = self._sequence_counter
         self._processed_count += 1
 
+        # Отладка
+        import sys
+        event_type_val = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
+        print(f"[SessionWorker._process_event] event_type={event_type_val}, session={self.session_id}", file=sys.stderr, flush=True)
+
         # Получаем подписчиков для этого типа события
         event_type_handlers = self._subscribers.get(event.event_type, [])
         all_handlers = self._all_subscribers[:]
@@ -923,6 +929,11 @@ class UnifiedEventBus:
               # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
             return False
 
+        # Отладка
+        event_type_str = event_type.value if isinstance(event_type, EventType) else str(event_type)
+        import sys
+        print(f"[EventBus.publish] event_type={event_type_str}, source={source}", file=sys.stderr, flush=True)
+
         # Создаём Event объект
         event_obj = self._create_event(
             event_type, data, source, session_id, agent_id, correlation_id, domain
@@ -948,6 +959,9 @@ class UnifiedEventBus:
 
         # Кладем событие в очередь (fire-and-forget)
         # Обработка идет в фоне через SessionWorker — не блокируем publish()
+        import sys
+        event_type_val = event_obj.event_type.value if hasattr(event_obj.event_type, 'value') else str(event_obj.event_type)
+        print(f"[EventBus.publish] >>> Положено в очередь {event_obj.session_id}: type={event_type_val}", file=sys.stderr, flush=True)
         await queue.put(event_obj)
 
         return True
@@ -1050,8 +1064,15 @@ class UnifiedEventBus:
         domain: Optional[EventDomain]
     ) -> Event:
         """Создание Event объекта."""
+        import sys
+        event_type_input = event_type
+        event_type_str_input = event_type.value if isinstance(event_type, EventType) else str(event_type)
+        print(f"[EventBus._create_event] input_type={event_type_str_input}, source={source}", file=sys.stderr, flush=True)
+
         if isinstance(event_type, Event):
             event = event_type
+            event_type_result = event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type)
+            print(f"[EventBus._create_event] returning Event with type={event_type_result}", file=sys.stderr, flush=True)
             if session_id:
                 event.session_id = session_id
             if agent_id:
@@ -1063,6 +1084,7 @@ class UnifiedEventBus:
             return event
 
         event_type_str = event_type.value if isinstance(event_type, EventType) else event_type
+        print(f"[EventBus._create_event] converted to string: {event_type_str}", file=sys.stderr, flush=True)
 
         # Определение домена
         if domain is None:

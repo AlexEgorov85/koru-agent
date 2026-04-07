@@ -547,7 +547,13 @@ class LLMOrchestrator:
                     # Успех!
                     self._metrics.structured_success += 1
                     await self._log_structured_success(
-                        call_id, attempt_num, attempt.duration, session_id
+                        call_id=call_id,
+                        attempt_num=attempt_num,
+                        duration=attempt.duration,
+                        session_id=session_id,
+                        response_content=attempt.raw_response or "",
+                        tokens_used=attempt.tokens_used,
+                        model="structured"
                     )
 
                     # Возвращаем успешный ответ с распарсенной моделью
@@ -919,12 +925,42 @@ class LLMOrchestrator:
             f"schema={request.structured_output.output_model if request.structured_output else 'unknown'}"
         )
 
+        # Публикация события LLM_PROMPT_GENERATED
+        if self._event_bus:
+            timeout = request.metadata.get("timeout") if request.metadata else None
+            await self._event_bus.publish(
+                EventType.LLM_PROMPT_GENERATED,
+                data={
+                    "call_id": call_id,
+                    "session_id": session_id,
+                    "agent_id": None,
+                    "step_number": None,
+                    "phase": "structured",
+                    "goal": None,
+                    "capability_name": request.capability_name,
+                    "system_prompt": request.system_prompt or "",
+                    "user_prompt": request.prompt,
+                    "prompt_length": len(request.prompt) if request.prompt else 0,
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                    "timeout": timeout
+                },
+                source="LLMOrchestrator",
+                session_id=session_id or "",
+                agent_id=None,
+                correlation_id=call_id
+            )
+            print(f"[LLMOrchestrator] ✓ Опубликовано LLM_PROMPT_GENERATED: call_id={call_id}", flush=True)
+
     async def _log_structured_success(
         self,
         call_id: str,
         attempt_num: int,
         duration: float,
-        session_id: Optional[str]
+        session_id: Optional[str],
+        response_content: str = "",
+        tokens_used: int = 0,
+        model: str = ""
     ) -> None:
         """Логирование успешного структурированного вызова."""
         if not self._logger:
@@ -935,6 +971,32 @@ class LLMOrchestrator:
             f"session={session_id} | attempt={attempt_num} | "
             f"duration={duration:.2f}s"
         )
+
+        # Публикация события LLM_RESPONSE_RECEIVED
+        if self._event_bus:
+            await self._event_bus.publish(
+                EventType.LLM_RESPONSE_RECEIVED,
+                data={
+                    "call_id": call_id,
+                    "session_id": session_id,
+                    "agent_id": None,
+                    "step_number": None,
+                    "phase": "structured",
+                    "success": True,
+                    "duration_ms": duration * 1000,
+                    "capability_name": None,
+                    "response": response_content,
+                    "raw_response": response_content,
+                    "response_length": len(response_content) if response_content else 0,
+                    "tokens_used": tokens_used,
+                    "model": model
+                },
+                source="LLMOrchestrator",
+                session_id=session_id or "",
+                agent_id=None,
+                correlation_id=call_id
+            )
+            print(f"[LLMOrchestrator] ✓ Опубликовано LLM_RESPONSE_RECEIVED: call_id={call_id}", flush=True)
 
     async def _log_structured_retry(
         self,
@@ -1161,6 +1223,8 @@ class LLMOrchestrator:
                 "timeout": record.timeout
             },
             source="LLMOrchestrator",
+            session_id=record.session_id or "",
+            agent_id=record.agent_id or "",
             correlation_id=record.call_id
         )
 
@@ -1226,6 +1290,8 @@ class LLMOrchestrator:
             EventType.LLM_RESPONSE_RECEIVED,
             data=data,
             source="LLMOrchestrator",
+            session_id=record.session_id or "",
+            agent_id=record.agent_id or "",
             correlation_id=record.call_id
         )
 

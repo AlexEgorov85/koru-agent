@@ -355,15 +355,20 @@ class AgentRuntime:
 
                 # Если это был final_answer.generate и результат успешный - завершаем
                 if decision.action == "final_answer.generate" and result.status == ExecutionStatus.COMPLETED and result.data:
+                    final_answer_data = str(result.data)
                     await event_bus.publish(EventType.AGENT_THINKING, {
                         "message": "✅ Финальный ответ сгенерирован",
                         "step": step + 1
+                    }, session_id=self.session_context.session_id, agent_id=self.agent_id)
+                    await event_bus.publish(EventType.SESSION_ANSWER, {
+                        "answer": final_answer_data,
+                        "goal": self.goal
                     }, session_id=self.session_context.session_id, agent_id=self.agent_id)
                     await event_bus.publish(EventType.INFO, {"message": "✅ Финальный ответ сгенерирован, завершаем цикл"}, session_id=self.session_context.session_id, agent_id=self.agent_id)
                     # Сохраняем диалог в историю
                     self.session_context.commit_turn(
                         user_query=self.goal,
-                        assistant_response=str(result.data),
+                        assistant_response=final_answer_data,
                         tools_used=[]
                     )
                     self._sync_dialogue_history_back()
