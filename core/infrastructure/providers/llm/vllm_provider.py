@@ -95,12 +95,27 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         self.llm = None
         self._tokenizer = None
 
+    def _resolve_model_path(self, model_path: str) -> str:
+        """Разрешение пути к модели."""
+        from pathlib import Path
+
+        path = Path(model_path)
+        if path.is_absolute():
+            return model_path
+
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        resolved = project_root / model_path
+
+        if resolved.exists():
+            return str(resolved)
+
+        return model_path
+
     async def initialize(self) -> bool:
         """Инициализация vLLM движка и загрузка модели."""
         try:
             model_path = self.config_obj.model_path or self.config_obj.model_name
-
-            start_time = time.time()
+            model_path = self._resolve_model_path(model_path)
 
             from vllm import LLM
             self.llm = LLM(
@@ -222,6 +237,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         if self._tokenizer is None:
             model_path = self.config_obj.model_path or self.config_obj.model_name
+            model_path = self._resolve_model_path(model_path)
             try:
                 self._tokenizer = AutoTokenizer.from_pretrained(
                     model_path, 
