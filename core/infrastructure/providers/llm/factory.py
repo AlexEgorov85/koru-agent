@@ -20,8 +20,6 @@ class LLMProviderFactory:
         'openrouter': OpenRouterProvider,
         'vllm': VLLMProvider,
     }
-
-    _providers: Dict[str, Type[BaseLLMProvider]] = PROVIDER_CLASSES
     
     @classmethod
     def create_provider(cls, provider_type: str, **kwargs) -> BaseLLMProvider:

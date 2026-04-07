@@ -1,29 +1,14 @@
 """
 Провайдер для vLLM (Very Large Language Model).
-Использует OpenAI-совместимый REST API для вызова локального или удалённого vLLM сервера.
+Использует локальный инференс через vLLM движок.
 
 vLLM — высокопроизводительный движок для инференса и обслуживания LLM.
 Обеспечивает эффективное использование памяти и высокую пропускную способность.
-
-ПРИМЕР ЗАПУСКА vLLM СЕРВЕРА:
-    vllm serve meta-llama/Llama-2-7b-chat-hf --host 0.0.0.0 --port 8000
-
-ПРИМЕР ИСПОЛЬЗОВАНИЯ ПРОВАЙДЕРА:
-    config = VLLMConfig(
-        base_url="http://localhost:8000/v1",
-        model_name="meta-llama/Llama-2-7b-chat-hf"
-    )
-    provider = VLLMProvider(config=config)
-    await provider.initialize()
-    response = await provider.generate(request)
 """
-import asyncio
 import time
 import json
 import re
 from typing import Dict, Any, Optional, List
-
-import aiohttp
 
 from core.infrastructure.providers.llm.base_llm import BaseLLMProvider
 from core.infrastructure.interfaces.llm import LLMInterface
@@ -39,48 +24,62 @@ from pydantic import BaseModel, Field
 
 class VLLMConfig(BaseModel):
     """Конфигурация для vLLM провайдера."""
-    base_url: str = Field(
-        default="http://localhost:8000/v1",
-        description="Базовый URL vLLM сервера (с /v1 суффиксом)"
-    )
-    api_key: str = Field(
-        default="EMPTY",
-        description="API ключ. Для локального vLLM обычно 'EMPTY'"
-    )
     model_name: str = Field(
         default="meta-llama/Llama-2-7b-chat-hf",
-        description="Имя модели на vLLM сервере"
+        description="Имя модели на HuggingFace или локальный путь"
+    )
+    model_path: Optional[str] = Field(
+        default=None,
+        description="Локальный путь к модели (если отличается от model_name)"
+    )
+    tensor_parallel_size: int = Field(
+        default=1,
+        description="Количество GPU для tensor parallelism"
+    )
+    gpu_memory_utilization: float = Field(
+        default=0.9,
+        ge=0.1,
+        le=1.0,
+        description="Доля GPU памяти для KV cache"
+    )
+    max_num_seqs: int = Field(
+        default=256,
+        description="Максимальное количество параллельных последовательностей"
+    )
+    max_model_len: Optional[int] = Field(
+        default=None,
+        description="Максимальная длина контекста"
+    )
+    enforce_eager: bool = Field(
+        default=True,
+        description="Использовать eager execution (без CUDA graphs)"
     )
     temperature: float = Field(default=0.7, description="Температура генерации")
     max_tokens: int = Field(default=4096, description="Максимальное количество токенов")
-    timeout_seconds: float = Field(default=120.0, ge=0.0, description="Таймаут HTTP запроса")
-    extra_headers: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Дополнительные HTTP заголовки"
+    dtype: str = Field(
+        default="auto",
+        description="Тип данных: auto, float16, bfloat16, float8"
     )
-    max_retries: int = Field(
-        default=3,
-        ge=0,
-        le=10,
-        description="Максимальное количество попыток при ошибках сети"
+    trust_remote_code: bool = Field(
+        default=True,
+        description="Доверять remote code при загрузке модели"
     )
 
 
 class VLLMProvider(BaseLLMProvider, LLMInterface):
     """
-    Провайдер для vLLM сервера.
+    Провайдер для vLLM с локальным инференсом.
 
     Поддерживает:
-    - Все модели, развёрнутые на vLLM сервере
+    - Все модели, поддерживаемые vLLM
     - Structured output через JSON schema
-    - Streaming (через SSE)
-    - Автоматический retry при ошибках сети
+    - Parallel generation
     - Tool calling (function calling)
-
+    
     ОСОБЕННОСТИ:
-    - vLLM предоставляет OpenAI-совместимый API
-    - Поддерживает нативный structured output (v0.8+)
+    - Использует vLLM LLM class для offline inference
     - Эффективное использование памяти PagedAttention
+    - Загружает модель в GPU напрямую
     """
 
     def __init__(self, config, model_name: str = None):
@@ -93,79 +92,50 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         super().__init__(model_name=model_name, config=config_obj.model_dump())
 
         self.config_obj = config_obj
-        self._session: Optional[aiohttp.ClientSession] = None
-        self.event_bus_logger = None
+        self.llm = None
+        self._tokenizer = None
 
     async def initialize(self) -> bool:
-        """Инициализация HTTP сессии и проверка конфигурации."""
+        """Инициализация vLLM движка и загрузка модели."""
         try:
-            if self.event_bus_logger is None:
-                from core.infrastructure.event_bus.unified_event_bus import get_event_bus
-                from core.infrastructure.logging import EventBusLogger
-                try:
-                    event_bus = get_event_bus()
-                    self.event_bus_logger = EventBusLogger(
-                        event_bus, "system", "llm_provider", self.__class__.__name__
-                    )
-                except Exception:
-                    self.event_bus_logger = type('obj', (object,), {
-                        'info': lambda *args, **kwargs: None,
-                        'debug': lambda *args, **kwargs: None,
-                        'warning': lambda *args, **kwargs: None,
-                        'error': lambda *args, **kwargs: None
-                    })()
+            model_path = self.config_obj.model_path or self.config_obj.model_name
 
-            await self.event_bus_logger.info(
-                f"Инициализация vLLM провайдера: модель={self.model_name}, "
-                f"url={self.config_obj.base_url}"
-            )
+            start_time = time.time()
 
-            self._session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=self.config_obj.timeout_seconds),
-                headers={
-                    "Authorization": f"Bearer {self.config_obj.api_key}",
-                    "Content-Type": "application/json",
-                    **self.config_obj.extra_headers
-                }
+            from vllm import LLM
+            self.llm = LLM(
+                model=model_path,
+                tensor_parallel_size=self.config_obj.tensor_parallel_size,
+                gpu_memory_utilization=self.config_obj.gpu_memory_utilization,
+                max_num_seqs=self.config_obj.max_num_seqs,
+                max_model_len=self.config_obj.max_model_len,
+                enforce_eager=self.config_obj.enforce_eager,
+                dtype=self.config_obj.dtype,
+                trust_remote_code=self.config_obj.trust_remote_code,
             )
 
             self.is_initialized = True
             self.health_status = LLMHealthStatus.HEALTHY
             self.last_health_check = time.time()
 
-            await self.event_bus_logger.info(
-                f"vLLM провайдер инициализирован: {self.model_name}"
-            )
             return True
 
+        except ImportError as e:
+            self.health_status = LLMHealthStatus.UNHEALTHY
+            return False
         except Exception as e:
-            await self.event_bus_logger.error(
-                f"Ошибка инициализации vLLM провайдера: {str(e)}"
-            )
             self.health_status = LLMHealthStatus.UNHEALTHY
             return False
 
     async def shutdown(self) -> None:
-        """Закрытие HTTP сессии."""
-        try:
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("Завершение работы vLLM провайдера...")
-            if self._session and not self._session.closed:
-                await self._session.close()
-            self._session = None
-            self.is_initialized = False
-            if self.event_bus_logger:
-                await self.event_bus_logger.info("vLLM провайдер завершён")
-        except Exception as e:
-            if self.event_bus_logger:
-                await self.event_bus_logger.error(
-                    f"Ошибка при завершении vLLM провайдера: {str(e)}"
-                )
+        """Завершение работы vLLM провайдера."""
+        self.llm = None
+        self.is_initialized = False
 
     async def health_check(self) -> Dict[str, Any]:
-        """Проверка здоровья через тестовый запрос к vLLM серверу."""
+        """Проверка здоровья vLLM провайдера."""
         try:
-            if not self.is_initialized or not self._session:
+            if not self.is_initialized or not self.llm:
                 return {
                     "status": LLMHealthStatus.UNHEALTHY.value,
                     "error": "Not initialized",
@@ -174,33 +144,23 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                 }
 
             start_time = time.time()
-            async with self._session.post(
-                f"{self.config_obj.base_url}/chat/completions",
-                json={
-                    "model": self.model_name,
-                    "messages": [{"role": "user", "content": "ОК"}],
-                    "max_tokens": 5,
-                    "temperature": 0.1
-                }
-            ) as response:
-                response_time = time.time() - start_time
-                if response.status == 200:
-                    return {
-                        "status": LLMHealthStatus.HEALTHY.value,
-                        "model": self.model_name,
-                        "is_initialized": self.is_initialized,
-                        "response_time": response_time,
-                        "request_count": self.request_count,
-                        "error_count": self.error_count
-                    }
-                else:
-                    body = await response.text()
-                    return {
-                        "status": LLMHealthStatus.UNHEALTHY.value,
-                        "error": f"HTTP {response.status}: {body}",
-                        "model": self.model_name,
-                        "is_initialized": self.is_initialized
-                    }
+
+            from vllm import SamplingParams
+            result = await self.llm.generate(
+                "ОК",
+                SamplingParams(temperature=0.1, max_tokens=5)
+            )
+
+            response_time = time.time() - start_time
+
+            return {
+                "status": LLMHealthStatus.HEALTHY.value,
+                "model": self.model_name,
+                "is_initialized": self.is_initialized,
+                "response_time": response_time,
+                "request_count": self.request_count,
+                "error_count": self.error_count
+            }
 
         except Exception as e:
             return {
@@ -209,30 +169,6 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                 "model": self.model_name,
                 "is_initialized": self.is_initialized
             }
-
-    def _build_schema_prompt(self, schema_def: Dict[str, Any]) -> str:
-        """Формирование промпта с JSON схемой для structured output.
-
-        Схема передаётся целиком — без упрощения, чтобы сохранить
-        enum-ы, вложенные объекты, массивы и другие конструкции.
-        """
-        schema_json = json.dumps(schema_def, indent=2, ensure_ascii=False)
-
-        schema_prompt = (
-            "\n=== JSON SCHEMA ===\n"
-            f"{schema_json}\n"
-            "\nКРИТИЧЕСКИ ВАЖНО:\n"
-            "1. Верни ТОЛЬКО JSON согласно схеме выше. НИЧЕГО больше.\n"
-            "2. НЕ добавляй пояснений, вступлений, заключений или markdown-обёрток.\n"
-            "3. НЕ используй triple backticks (```).\n"
-            "4. Все обязательные поля (required) должны присутствовать.\n"
-            "5. Типы данных должны точно соответствовать схеме.\n"
-            "6. Начни ответ с '{' и закончи '}'.\n"
-            "\nПример правильного ответа:\n"
-            '{"field1": "value1", "field2": 42}\n'
-        )
-
-        return schema_prompt
 
     def _extract_json_from_response(self, content: str) -> str:
         """Извлечь JSON из ответа LLM."""
@@ -280,134 +216,111 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
 
         return content.strip()
 
-    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
-        """
-        Генерация текста через vLLM API.
+    def _format_messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
+        """Форматировать сообщения в промпт для vLLM."""
+        from transformers import AutoTokenizer
 
-        АРХИТЕКТУРА:
-        - ТОЛЬКО выполняет HTTP вызов к API
-        - НЕ публикует события (это делает LLMOrchestrator)
-        - Возвращает LLMResponse или бросает исключение
-
-        RETRY логика:
-        - При ошибках сети делаем до max_retries попыток
-        - Экспоненциальный backoff между попытками
-        """
-        if not self.is_initialized or not self._session:
-            await self.initialize()
-
-        max_retries = self.config_obj.max_retries
-        last_result = None
-
-        for attempt in range(1, max_retries + 1):
-            result = await self._execute_single_attempt(request)
-            last_result = result
-
-            if result.finish_reason == "error" and attempt < max_retries:
-                wait_time = 2 ** attempt
-                if self.event_bus_logger:
-                    await self.event_bus_logger.warning(
-                        f"Попытка {attempt}/{max_retries} не удалась. "
-                        f"Ожидание {wait_time}с перед повтором..."
-                    )
-                await asyncio.sleep(wait_time)
-                continue
-
-            return result
-
-        return last_result
-
-    async def _execute_single_attempt(self, request: LLMRequest) -> LLMResponse:
-        """Одна попытка HTTP запроса к vLLM."""
-        start_time = time.time()
-
-        messages = self._build_messages(request)
-
-        payload: Dict[str, Any] = {
-            "model": self.model_name,
-            "messages": messages,
-        }
-
-        if request.stop_sequences:
-            payload["stop"] = request.stop_sequences
-
-        if hasattr(request, 'structured_output') and request.structured_output is not None:
-            if isinstance(request.structured_output, StructuredOutputConfig):
-                schema_prompt = self._build_schema_prompt(request.structured_output.schema_def)
-                if messages and messages[0]["role"] == "system":
-                    messages[0]["content"] += "\n\n" + schema_prompt
-                else:
-                    messages.insert(0, {"role": "system", "content": schema_prompt})
-                payload["messages"] = messages
+        if self._tokenizer is None:
+            model_path = self.config_obj.model_path or self.config_obj.model_name
+            try:
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    trust_remote_code=self.config_obj.trust_remote_code
+                )
+            except Exception:
+                return self._simple_format_messages(messages)
 
         try:
-            async with self._session.post(
-                f"{self.config_obj.base_url}/chat/completions",
-                json=payload
-            ) as response:
-                response_status = response.status
-
-                if response_status != 200:
-                    error_body = await response.text()
-                    self._update_metrics(time.time() - start_time, success=False)
-                    return LLMResponse(
-                        content="",
-                        model=self.model_name,
-                        tokens_used=0,
-                        generation_time=time.time() - start_time,
-                        finish_reason="error",
-                        metadata={
-                            "error": f"HTTP {response_status}: {error_body}",
-                            "status_code": response_status
-                        }
-                    )
-
-                data = await response.json()
-
-        except asyncio.TimeoutError:
-            self._update_metrics(time.time() - start_time, success=False)
-            return LLMResponse(
-                content="",
-                model=self.model_name,
-                tokens_used=0,
-                generation_time=time.time() - start_time,
-                finish_reason="error",
-                metadata={"error": "Request timeout"}
+            texts = self._tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
             )
-        except Exception as e:
-            self._update_metrics(time.time() - start_time, success=False)
-            return LLMResponse(
-                content="",
-                model=self.model_name,
-                tokens_used=0,
-                generation_time=time.time() - start_time,
-                finish_reason="error",
-                metadata={"error": str(e)}
+            return texts
+        except Exception:
+            return self._simple_format_messages(messages)
+
+    def _simple_format_messages(self, messages: List[Dict[str, str]]) -> str:
+        """Простое форматирование сообщений."""
+        prompt_parts = []
+
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+
+            if role == 'system':
+                prompt_parts.append(f"<|system|>\n{content}</s>")
+            elif role == 'user':
+                prompt_parts.append(f"<|user|>\n{content}</s>")
+            elif role == 'assistant':
+                prompt_parts.append(f"<|assistant|>\n{content}</s>")
+            else:
+                prompt_parts.append(content)
+
+        prompt_parts.append("<|assistant|>")
+        return "\n".join(prompt_parts)
+
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse:
+        """Генерация текста через vLLM."""
+        if not self.is_initialized or not self.llm:
+            await self.initialize()
+
+        start_time = time.time()
+
+        if hasattr(request, 'structured_output') and request.structured_output:
+            max_tokens = min(request.max_tokens, 4000)
+        else:
+            max_tokens = request.max_tokens
+
+        from vllm import SamplingParams
+        from vllm.sampling_params import StructuredOutputsParams
+
+        prompt = request.prompt
+        system_prompt = request.system_prompt or ""
+
+        if request.messages:
+            messages = list(request.messages)
+            if system_prompt:
+                messages.insert(0, {"role": "system", "content": system_prompt})
+            prompt = self._format_messages_to_prompt(messages)
+
+        structured_outputs = None
+        if hasattr(request, 'structured_output') and request.structured_output:
+            schema_def = request.structured_output.schema_def
+            structured_outputs = StructuredOutputsParams(
+                json={
+                    "name": "response",
+                    "schema": schema_def
+                }
             )
 
-        choices = data.get("choices", [])
-        usage = data.get("usage", {})
+        sampling_params = SamplingParams(
+            temperature=request.temperature,
+            max_tokens=max_tokens,
+            top_p=request.top_p,
+            frequency_penalty=request.frequency_penalty,
+            presence_penalty=request.presence_penalty,
+            stop=request.stop_sequences or None,
+            structured_outputs=structured_outputs
+        )
 
-        if not choices:
-            self._update_metrics(time.time() - start_time, success=False)
-            return LLMResponse(
-                content="",
-                model=self.model_name,
-                tokens_used=0,
-                generation_time=time.time() - start_time,
-                finish_reason="error",
-                metadata={"error": "No choices in response", "raw_response": str(data)}
-            )
+        try:
+            response = await self.llm.generate(prompt, sampling_params)
 
-        message = choices[0].get("message", {})
-        raw_content = message.get("content")
-        generated_text = raw_content if raw_content is not None else ""
-        finish_reason = choices[0].get("finish_reason", "stop")
-        tokens_used = usage.get("total_tokens", 0)
-        generation_time = time.time() - start_time
+            choices = response.outputs
+            usage = response.usage
 
-        if hasattr(request, 'structured_output') and request.structured_output is not None:
-            if isinstance(request.structured_output, StructuredOutputConfig):
+            if choices:
+                generated_text = choices[0].text
+                finish_reason = choices[0].finish_reason or "stop"
+            else:
+                generated_text = ''
+                finish_reason = 'error'
+
+            tokens_used = usage.total_tokens if usage else 0
+            generation_time = time.time() - start_time
+
+            if hasattr(request, 'structured_output') and request.structured_output:
                 if not generated_text or not generated_text.strip():
                     return LLMResponse(
                         parsed_content=None,
@@ -474,35 +387,26 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
                         }]
                     )
 
-        self._update_metrics(generation_time)
+            self._update_metrics(generation_time)
 
-        return LLMResponse(
-            content=generated_text,
-            model=self.model_name,
-            tokens_used=tokens_used,
-            generation_time=generation_time,
-            finish_reason=finish_reason
-        )
+            return LLMResponse(
+                content=generated_text,
+                model=self.model_name,
+                tokens_used=tokens_used,
+                generation_time=generation_time,
+                finish_reason=finish_reason
+            )
 
-    def _build_messages(self, request: LLMRequest) -> List[Dict[str, str]]:
-        """Построение списка сообщений из запроса.
-
-        Поддерживает два режима:
-        1. Multi-turn: если передан request.messages — используется он напрямую
-        2. Single-turn: если request.prompt — создаётся одно user-сообщение
-        """
-        if request.messages:
-            return list(request.messages)
-
-        messages = []
-
-        if request.system_prompt:
-            messages.append({"role": "system", "content": request.system_prompt})
-
-        if request.prompt:
-            messages.append({"role": "user", "content": request.prompt})
-
-        return messages
+        except Exception as e:
+            self._update_metrics(time.time() - start_time, success=False)
+            return LLMResponse(
+                content="",
+                model=self.model_name,
+                tokens_used=0,
+                generation_time=time.time() - start_time,
+                finish_reason="error",
+                metadata={"error": str(e)}
+            )
 
     async def generate(
         self,
@@ -511,11 +415,7 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         max_tokens: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None
     ) -> str:
-        """Генерация текста (для совместимости с LLMInterface).
-
-        Поддерживает multi-turn диалоги — messages передаётся напрямую
-        без склеивания, сохраняя роли system/user/assistant.
-        """
+        """Генерация текста (для совместимости с LLMInterface)."""
         if not self.is_initialized:
             await self.initialize()
 
@@ -576,6 +476,11 @@ class VLLMProvider(BaseLLMProvider, LLMInterface):
         return json.loads(json_content)
 
     async def count_tokens(self, messages: List[Dict[str, str]]) -> int:
-        """Приблизительный подсчёт токенов."""
-        total_chars = sum(len(msg.get("content", "")) for msg in messages)
-        return total_chars // 4
+        """Подсчёт токенов."""
+        prompt = self._format_messages_to_prompt(messages)
+
+        if self._tokenizer:
+            tokens = self._tokenizer(prompt)
+            return len(tokens.input_ids)
+
+        return len(prompt.split()) // 4
