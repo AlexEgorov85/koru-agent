@@ -8,7 +8,7 @@
 - benchmark_data_loader: загрузка данных для бенчмарков
 
 Использование:
-    from core.components.services.benchmarks import BenchmarkValidator, BenchmarkRunner
+    from core.components.benchmarks import BenchmarkValidator, BenchmarkRunner
     validator = BenchmarkValidator()
 
 СКРИПТЫ (не импортировать отсюда):
@@ -16,7 +16,7 @@
     - scripts/cli/generate_benchmark_from_db.py — генерация из БД
     - scripts/cli/compare_benchmarks.py — сравнение результатов
 """
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     # Модели оценки
     EvaluationType,
     EvaluationCriterion,
@@ -47,18 +47,18 @@ from core.components.services.benchmarks.benchmark_models import (
     BenchmarkRunResult,
 )
 
-from core.components.services.benchmarks.benchmark_validator import (
+from core.components.benchmarks.benchmark_validator import (
     SQLValidator,
     AnswerValidator,
     BenchmarkValidator,
 )
 
-from core.components.services.benchmarks.benchmark_runner import (
+from core.components.benchmarks.benchmark_runner import (
     BenchmarkRunner,
     BenchmarkRunConfig,
 )
 
-from core.components.services.benchmarks.benchmark_data_loader import (
+from core.components.benchmarks.benchmark_data_loader import (
     BenchmarkDataLoader,
 )
 

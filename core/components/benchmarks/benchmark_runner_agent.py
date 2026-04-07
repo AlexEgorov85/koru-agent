@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
-from core.components.services.benchmarks import BenchmarkValidator
+from core.components.benchmarks import BenchmarkValidator
 
 
 def _extract_sql_from_agent(agent) -> Tuple[List[str], List[Dict[str, Any]]]:

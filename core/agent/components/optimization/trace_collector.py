@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
 from core.models.data.execution_trace import ExecutionTrace, StepTrace
-from core.components.services.benchmarks.benchmark_models import OptimizationSample, ScenarioType, BenchmarkDataset
+from core.components.benchmarks.benchmark_models import OptimizationSample, ScenarioType, BenchmarkDataset
 from .trace_handler import TraceHandler
 
 

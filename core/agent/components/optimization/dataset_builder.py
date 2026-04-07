@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     BenchmarkDataset,
     OptimizationSample,
     ScenarioType,

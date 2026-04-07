@@ -22,7 +22,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     PromptVersion,
     EvaluationResult,
     OptimizationResult,
@@ -47,7 +47,7 @@ from .version_manager import VersionManager
 from .safety_layer import SafetyLayer
 from .scenario_builder import ScenarioBuilder
 
-from core.components.services.benchmarks.benchmark_runner import BenchmarkRunner
+from core.components.benchmarks.benchmark_runner import BenchmarkRunner
 
 
 class OrchestratorV2Config:

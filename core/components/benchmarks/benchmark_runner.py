@@ -13,10 +13,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 from dataclasses import dataclass, field
 
-from core.components.services.benchmarks.benchmark_models import (
+from core.components.benchmarks.benchmark_models import (
     BenchmarkScenario,
-    BenchmarkResult,
-    ActualOutput,
     PromptVersion,
 )
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
