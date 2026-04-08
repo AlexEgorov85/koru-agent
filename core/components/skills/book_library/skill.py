@@ -17,6 +17,7 @@
 import sys
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from pydantic import BaseModel
 
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
@@ -183,35 +184,25 @@ class BookLibrarySkill(BaseSkill):
     async def _execute_impl(
         self,
         capability: 'Capability',
-        parameters: Dict[str, Any],
+        parameters: BaseModel,
         execution_context: Any
-    ) -> Any:
+    ) -> BaseModel:
         """
         Реализация бизнес-логики навыка библиотеки (ASYNC).
 
-        Делегирует выполнение соответствующему обработчику.
-
-        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
-        Здесь только бизнес-логика.
+        АРХИТЕКТУРА:
+        - parameters: Pydantic модель из input_contract (уже валидировано в BaseComponent.execute)
+        - Возвращает Pydantic модель выходного контракта
+        - Валидация и оборачивание в ExecutionResult происходит в BaseComponent
 
         ВОЗВРАЩАЕТ:
-        - Pydantic модель (выходной контракт) или Dict (fallback)
+        - BaseModel: Pydantic модель выходного контракта
         """
         if capability.name not in self._handlers:
             raise ValueError(f"Навык не поддерживает capability: {capability.name}")
 
-        # Делегирование к обработчику
         handler = self._handlers[capability.name]
-
-        # Конвертируем Pydantic модель в dict если нужно
-        if hasattr(parameters, 'model_dump'):
-            params_dict = parameters.model_dump()
-        elif isinstance(parameters, dict):
-            params_dict = parameters
-        else:
-            params_dict = {}
-
-        return await handler.execute(params_dict, execution_context)
+        return await handler.execute(parameters, execution_context)
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """

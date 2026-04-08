@@ -4,6 +4,7 @@
 import asyncio
 import time
 from typing import Any, Dict, List
+from pydantic import BaseModel
 from core.agent.components.base_component import BaseComponent
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
@@ -99,38 +100,34 @@ class PlanningSkill(BaseComponent):
     async def _execute_impl(
         self,
         capability: 'Capability',
-        parameters: Dict[str, Any],
+        parameters: BaseModel,
         execution_context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> BaseModel:
         """
         Реализация бизнес-логики навыка планирования (ASYNC).
 
-        ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
-        Здесь только бизнес-логика.
+        АРХИТЕКТУРА:
+        - parameters: Pydantic модель из input_contract (уже валидировано)
+        - Возвращает Pydantic модель выходного контракта
+        - Валидация и оборачивание в ExecutionResult происходит в BaseComponent
 
         ВОЗВРАЩАЕТ:
-        - Dict[str, Any]: Данные результата (не ExecutionResult!)
+        - BaseModel: Pydantic модель выходного контракта
         """
-        # Делегирование конкретным методам
         if capability.name == "planning.create_plan":
-            result = await self._create_plan(parameters, execution_context)
+            return await self._create_plan(parameters, execution_context)
         elif capability.name == "planning.update_plan":
-            result = await self._update_plan(parameters, execution_context)
+            return await self._update_plan(parameters, execution_context)
         elif capability.name == "planning.get_next_step":
-            result = await self._get_next_step(parameters, execution_context)
+            return await self._get_next_step(parameters, execution_context)
         elif capability.name == "planning.update_step_status":
-            result = await self._update_step_status(parameters, execution_context)
+            return await self._update_step_status(parameters, execution_context)
         elif capability.name == "planning.decompose_task":
-            result = await self._decompose_task(parameters, execution_context)
+            return await self._decompose_task(parameters, execution_context)
         elif capability.name == "planning.mark_task_completed":
-            result = await self._mark_task_completed(parameters, execution_context)
+            return await self._mark_task_completed(parameters, execution_context)
         else:
             raise ValueError(f"Неизвестная capability: {capability.name}")
-
-        # Извлекаем данные из ExecutionResult
-        if isinstance(result, ExecutionResult):
-            return result.data if result.data else {}
-        return result if result else {}
 
     def _format_capabilities(self, capabilities: List[Capability]) -> str:
         """Форматирование списка возможностей для промпта"""

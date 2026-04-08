@@ -1,5 +1,6 @@
 import time
 from typing import Dict, Any, List, Optional
+from pydantic import BaseModel
 
 from core.agent.components.action_executor import ExecutionContext
 from core.models.data.execution import ExecutionStatus
@@ -95,19 +96,20 @@ class ExecuteScriptHandler(BaseSkillHandler):
 
     capability_name = "book_library.execute_script"
 
-    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
+    async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Выполнение статического скрипта.
 
-        ARGS:
-        - params: входные параметры (script_name, ...)
-        - execution_context: контекст выполнения (переданный агентом)
+        АРХИТЕКТУРА:
+        - params: Pydantic модель из input_contract (уже валидировано)
+        - execution_context: контекст выполнения
 
         RETURNS:
-        - Pydantic модель или dict с результатами выполнения
+        - BaseModel: Pydantic модель выходного контракта
         """
         start_time = time.time()
-        script_name, max_rows = self._extract_params(params)
+        script_name = params.script_name if hasattr(params, 'script_name') else ''
+        max_rows = params.max_results if hasattr(params, 'max_results') else 50
         await self.log_info(f"📖 execute_script: script_name={script_name}, params={params}")
 
         # 1. Проверка что скрипт существует

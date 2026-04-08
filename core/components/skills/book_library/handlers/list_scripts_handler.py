@@ -1,4 +1,6 @@
 from typing import Dict, Any, List
+from pydantic import BaseModel
+
 from core.components.skills.handlers.base_handler import BaseSkillHandler
 
 
@@ -16,16 +18,16 @@ class ListScriptsHandler(BaseSkillHandler):
 
     capability_name = "book_library.list_scripts"
 
-    async def execute(self, params: Dict[str, Any] = None, execution_context: Any = None) -> Any:
+    async def execute(self, params: BaseModel = None, execution_context: Any = None) -> BaseModel:
         """
         Получение списка доступных скриптов.
 
-        ARGS:
-        - params: не используется (информационная capability)
-        - execution_context: контекст выполнения (переданный агентом)
+        АРХИТЕКТУРА:
+        - params: Pydantic модель из input_contract (может быть None для информационных capability)
+        - execution_context: контекст выполнения
 
         RETURNS:
-        - ExecutionResult со списком скриптов
+        - BaseModel: Pydantic модель выходного контракта
         """
         await self.log_info("Запрос списка доступных скриптов")
 
@@ -39,21 +41,12 @@ class ListScriptsHandler(BaseSkillHandler):
 
         await self.log_info(f"Возвращено {len(scripts_list)} скриптов")
 
-        # Валидация через выходной контракт
         output_schema = self.get_output_schema()
         if output_schema:
-            try:
-                validated_result = output_schema.model_validate(result_data)
-                result_data = validated_result
-            except Exception as e:
-                await self.log_error(f"Ошибка валидации через контракт: {e}")
+            validated_result = output_schema.model_validate(result_data)
+            return validated_result
 
-        from core.models.data.execution import ExecutionResult
-        return ExecutionResult.success(
-            data=result_data,
-            metadata={"scripts_count": len(scripts_list)},
-            side_effect=False
-        )
+        return result_data
 
     def _get_allowed_scripts(self) -> Dict[str, Dict[str, Any]]:
         """Получение реестра разрешённых скриптов"""

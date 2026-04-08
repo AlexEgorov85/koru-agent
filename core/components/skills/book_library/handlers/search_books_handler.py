@@ -1,5 +1,6 @@
 import time
 from typing import Dict, Any
+from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.agent.components.action_executor import ExecutionContext
@@ -22,26 +23,25 @@ class SearchBooksHandler(BaseSkillHandler):
 
     capability_name = "book_library.search_books"
 
-    # Конфигурация таблиц для SQL генерации
     DEFAULT_SCHEMA = "Lib"
     TABLES = ["books", "authors"]
 
-    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
+    async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Выполнение динамического поиска книг.
 
-        ARGS:
-        - params: входные параметры (query, max_results)
-        - execution_context: контекст выполнения (переданный агентом)
+        АРХИТЕКТУРА:
+        - params: Pydantic модель из input_contract (уже валидировано)
+        - execution_context: контекст выполнения
 
         RETURNS:
-        - Pydantic модель или dict с результатами поиска
+        - BaseModel: Pydantic модель выходного контракта
         """
         start_time = time.time()
-        await self.log_info(f"Запуск динамического поиска книг: {params}")
+        await self.log_info(f"Запуск динамического поиска книг: params={params}")
 
-        # 1. Валидация и извлечение параметров
-        query_val, max_results_val = self._extract_params(params)
+        query_val = params.query if hasattr(params, 'query') else ''
+        max_results_val = params.max_results if hasattr(params, 'max_results') else 10
 
         # 2. Получение промпта для генерации SQL
         prompt_text = self.get_prompt()

@@ -1,5 +1,6 @@
 import time
 from typing import Dict, Any
+from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.errors.exceptions import VectorSearchError, InfrastructureError
@@ -21,22 +22,23 @@ class SemanticSearchHandler(BaseSkillHandler):
 
     capability_name = "book_library.semantic_search"
 
-    async def execute(self, params: Dict[str, Any], execution_context: Any = None) -> Any:
+    async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
         Выполнение семантического поиска.
 
-        ARGS:
-        - params: входные параметры (query, top_k, min_score)
-        - execution_context: контекст выполнения (переданный агентом)
+        АРХИТЕКТУРА:
+        - params: Pydantic модель из input_contract (уже валидировано)
+        - execution_context: контекст выполнения
 
         RETURNS:
-        - Pydantic модель или dict с результатами поиска
+        - BaseModel: Pydantic модель выходного контракта
         """
         start_time = time.time()
-        await self.log_info(f"Запуск семантического поиска книг: {params}")
+        await self.log_info(f"Запуск семантического поиска книг: params={params}")
 
-        # 1. Извлечение параметров
-        query, top_k, min_score = self._extract_params(params)
+        query = params.query if hasattr(params, 'query') else ''
+        top_k = params.top_k if hasattr(params, 'top_k') else 10
+        min_score = params.min_score if hasattr(params, 'min_score') else 0.5
 
         # 2. Проверка доступности векторного поиска
         await self._check_vector_search_ready(execution_context)
