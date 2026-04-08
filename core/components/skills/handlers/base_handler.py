@@ -216,6 +216,34 @@ class BaseSkillHandler(ABC):
             result += f" -- {description}"
         return result
 
+    async def get_table_descriptions(self, tables_config: List[Dict[str, str]], format_for_llm: bool = False) -> str:
+        """
+        Получить описание таблиц из конфигурации навыка.
+
+        ARGS:
+        - tables_config: список таблиц с колонками из skill._tables_config
+        - format_for_llm: если True — форматировать для LLM, иначе — raw dict
+
+        RETURNS:
+        - str: описание таблиц
+        """
+        if not tables_config:
+            return ""
+
+        if format_for_llm:
+            # Проверяем есть ли колонки (значит table_description_service отработал)
+            has_columns = any(t.get("columns") for t in tables_config)
+            if has_columns:
+                return self._get_default_schema_fallback(tables_config)
+            else:
+                # Колонки пустые — fallback без колонок
+                return ",\n".join(
+                    f'"{t.get("schema", "public")}"."{t.get("table", "unknown")}"'
+                    for t in tables_config
+                )
+        else:
+            return str(tables_config)
+
     def _get_default_schema_fallback(self, tables_config: List[Dict[str, str]]) -> str:
         """Fallback: возвращает схему с колонками если сервис недоступен"""
         schema_parts = []
