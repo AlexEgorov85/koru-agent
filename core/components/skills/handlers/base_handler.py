@@ -15,8 +15,6 @@ RESPONSIBILITIES:
 - Валидация входных/выходных данных через контракты
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Type, Tuple
-
 from pydantic import BaseModel
 
 from core.models.data.capability import Capability
@@ -24,61 +22,49 @@ from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.logging import EventBusLogger
 from core.components.skills.base_skill import BaseSkill
+from typing import Any, Optional, Type, Tuple, Union
 
 
 class BaseSkillHandler(ABC):
     """
     УНИВЕРСАЛЬНЫЙ БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ ОБРАБОТЧИКОВ НАВЫКОВ.
     
+    АРХИТЕКТУРА:
+    - Все входные/выходные данные — Pydantic модели из YAML контрактов
+    - Валидация происходит в BaseComponent.execute() ДО вызова хендлера
+    - Хендлер работает с типизированными данными
+    
     RESPONSIBILITIES:
     - Общий интерфейс для всех хендлеров
     - Доступ к executor и event_bus_logger
     - Унифицированная обработка ошибок
     - Публикация метрик
-    - Валидация входных/выходных данных через контракты
-    
-    ARCHITECTURE:
-    - Наследуется всеми Skill handlers (book_library, data_analysis, etc.)
-    - Не содержит бизнес-логики конкретного навыка
-    - Предоставляет общие утилиты для всех хендлеров
     """
 
-    # ← НОВОЕ: Уникальное имя capability для этого хендлера
     capability_name: str = ""
 
-    def __init__(
-        self,
-        skill: BaseSkill,  # Родительский навык (BookLibrarySkill, DataAnalysisSkill, etc.)
-    ):
-        """
-        Инициализация хендлера.
-        
-        ARGS:
-        - skill: родительский навык для доступа к зависимостям
-        """
+    def __init__(self, skill: BaseSkill):
         self.skill = skill
         self.executor: ActionExecutor = skill.executor
         self.application_context = skill.application_context
-        # Получаем event_bus от родительского компонента
         self._event_bus = getattr(skill, '_event_bus', None)
-        # Fallback на event_bus_logger для обратной совместимости
         self.event_bus_logger = getattr(skill, 'event_bus_logger', None)
 
     @abstractmethod
     async def execute(
         self,
-        params: Dict[str, Any],
+        params: BaseModel,
         execution_context: Any = None
-    ) -> ExecutionResult:
+    ) -> BaseModel:
         """
         Выполнение логики хендлера.
         
-        СТАНДАРТНАЯ СИГНАТУРА:
-        - params: входные параметры (валидированные)
+        АРХИТЕКТУРА:
+        - params: Pydantic модель из input_contract (уже валидировано)
         - execution_context: ExecutionContext для доступа к session_context
         
         RETURNS:
-        - ExecutionResult: результат выполнения
+        - BaseModel: Pydantic модель для выходного контракта
         """
         pass
 
