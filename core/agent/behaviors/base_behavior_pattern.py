@@ -401,7 +401,7 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         self,
         component_name: str,
         component_config: Optional[ComponentConfig] = None,
-        application_context: ApplicationContext = None,
+        application_context: 'ApplicationContext' = None,
         executor: 'ActionExecutor' = None,
         event_bus = None  # ← Только для логирования
     ):
