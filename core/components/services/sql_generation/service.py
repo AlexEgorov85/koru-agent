@@ -330,7 +330,15 @@ class SQLGenerationService(BaseService):
                     raw_text = llm_result2.data.get('content', '') or llm_result2.data.get('text', '') or llm_result2.data.get('response', '')
                 else:
                     raw_text = llm_result2.data if isinstance(llm_result2.data, str) else str(llm_result2.data)
-                    
+
+                # Отладка: логируем сырой ответ
+                print(f"[SQL_GEN DEBUG] Fallback LLM response (first 800 chars):", flush=True)
+                print(f"  raw_text[:800] = {raw_text[:800]}", flush=True)
+                if llm_result2.data:
+                    print(f"  llm_result2.data type = {type(llm_result2.data).__name__}", flush=True)
+                    if isinstance(llm_result2.data, dict):
+                        print(f"  llm_result2.data keys = {list(llm_result2.data.keys())}", flush=True)
+
                 if not raw_text or len(raw_text.strip()) < 10:
                     raise ValueError(f"LLM returned empty or too short response for SQL generation")
                 
