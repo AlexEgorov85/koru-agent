@@ -109,7 +109,7 @@ class SQLValidatorService(BaseService):
 
     def _execute_impl(
         self,
-        capability: Capability,
+        capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> 'ValidatedSQL':
