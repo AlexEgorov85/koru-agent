@@ -66,7 +66,7 @@ def mock_executor():
     # execute_action должен быть async и возвращать ExecutionResult
     executor.execute_action = AsyncMock(return_value=ExecutionResult(
         status=ExecutionStatus.COMPLETED,
-        result={"parsed_content": {"answer": "test", "confidence": 0.8}},
+        data={"parsed_content": {"answer": "test", "confidence": 0.8}},
         metadata={"parsing_attempts": 1}
     ))
     return executor

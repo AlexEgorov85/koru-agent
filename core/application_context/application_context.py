@@ -848,11 +848,22 @@ class ApplicationContext(BaseSystemContext):
         """Проверка, полностью ли инициализирована система."""
         return self.is_initialized
 
-    async def get_all_capabilities(self) -> List['Capability']:
-        """Получение всех доступных capability от всех навыков и инструментов."""
+    async def get_all_capabilities(
+        self,
+        include_hidden: bool = False,
+        component_types: Optional[List[str]] = None
+    ) -> List['Capability']:
+        """
+        Получение всех доступных capability от всех навыков и инструментов.
+        
+        Args:
+            include_hidden: включать ли скрытые capability (visiable=False)
+            component_types: фильтр по типам компонентов ['skill', 'tool', 'service']
+        """
         from core.errors.exceptions import ComponentInitializationError
 
         all_capabilities = []
+        component_types = component_types or []
 
         if self.event_bus_logger:
             await self.event_bus_logger.debug(
@@ -933,7 +944,18 @@ class ApplicationContext(BaseSystemContext):
             await self.event_bus_logger.debug(
                 f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}"
             )
-        return all_capabilities
+        
+        filtered_caps = []
+        for cap in all_capabilities:
+            if not include_hidden and hasattr(cap, 'visiable') and not cap.visiable:
+                continue
+            if component_types:
+                cap_type = getattr(cap, 'skill_name', None)
+                if not cap_type or not any(ct in cap_type for ct in component_types):
+                    continue
+            filtered_caps.append(cap)
+        
+        return filtered_caps
 
     async def shutdown(self):
         """Корректное завершение работы ApplicationContext."""

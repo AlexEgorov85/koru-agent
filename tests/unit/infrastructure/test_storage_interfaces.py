@@ -318,6 +318,7 @@ class TestILogStorageInterface:
         import asyncio
         from core.components.benchmarks.benchmark_models import LogEntry, LogType
         
+        class MockStorage:
             def __init__(self):
                 self._entries = []
 

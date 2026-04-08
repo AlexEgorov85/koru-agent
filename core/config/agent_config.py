@@ -30,6 +30,15 @@ class AgentConfig(BaseModel):
     # Флаги для тестирования
     allow_inactive_resources: bool = Field(False)
     
+    # Фильтрация capability для промта размышлений
+    capability_filter: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "include_hidden": False,
+            "component_types": ["skill", "tool"],
+            "exclude_prefixes": ["planning.", "evaluation."],
+        }
+    )
+    
     @classmethod
     def auto_resolve(cls, system_context: Any) -> 'AgentConfig':
         """

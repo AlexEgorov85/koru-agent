@@ -33,8 +33,8 @@ class LLMProviderFactory:
         Returns:
             Экземпляр провайдера
         """
-        if provider_type not in cls._providers:
+        if provider_type not in cls.PROVIDER_CLASSES:
             raise ValueError(f"Неизвестный тип провайдера: {provider_type}")
             
-        provider_class = cls._providers[provider_type]
+        provider_class = cls.PROVIDER_CLASSES[provider_type]
         return provider_class(**kwargs)

@@ -395,16 +395,43 @@ class AgentRuntime:
         return ExecutionResult.failure(f"Max steps ({self.max_steps}) exceeded")
 
     async def _get_available_capabilities(self):
-        """Получить доступные capability."""
+        """Получить доступные capability с учётом фильтрации."""
         if hasattr(self.application_context, 'get_all_skills'):
             return self.application_context.get_all_skills()
         elif hasattr(self.application_context, 'get_all_capabilities'):
-            all_caps = await self.application_context.get_all_capabilities()
+            filter_config = self._get_capability_filter_config()
+            all_caps = await self.application_context.get_all_capabilities(
+                include_hidden=filter_config.get("include_hidden", False),
+                component_types=filter_config.get("component_types", ["skill", "tool"])
+            )
+            exclude_prefixes = filter_config.get("exclude_prefixes", [])
             return [
                 cap for cap in all_caps
-                if hasattr(cap, 'skill_name') and not cap.name.startswith('planning.')
+                if not any(cap.name.startswith(prefix) for prefix in exclude_prefixes)
             ]
         return []
+    
+    def _get_capability_filter_config(self) -> dict:
+        """Получить конфигурацию фильтрации capability из AgentConfig или по умолчанию."""
+        default_config = {
+            "include_hidden": False,
+            "component_types": ["skill", "tool"],
+            "exclude_prefixes": ["planning.", "evaluation."],
+        }
+        
+        # Попробовать получить из agent_config
+        if hasattr(self, 'agent_config') and self.agent_config:
+            cap_filter = getattr(self.agent_config, 'capability_filter', None)
+            if cap_filter:
+                return cap_filter
+        
+        # Попробовать получить из application_context
+        if hasattr(self.application_context, 'app_config') and self.application_context.app_config:
+            app_filter = getattr(self.application_context.app_config, 'capability_filter', None)
+            if app_filter:
+                return app_filter
+                
+        return default_config
 
     def _load_pattern(self, pattern_name: str):
         """Загрузить другой паттерн."""

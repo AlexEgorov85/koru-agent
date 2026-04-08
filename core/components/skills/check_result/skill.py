@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.data.capability import Capability
+from core.models.enums.common_enums import ExecutionStatus
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
@@ -34,6 +35,7 @@ from core.components.skills.check_result.handlers import (
     ExecuteScriptHandler,
     GenerateScriptHandler,
 )
+from core.models.data.capability import Capability
 
 
 TABLES_CONFIG_PATH = os.path.join(
@@ -163,56 +165,84 @@ class CheckResultSkill(BaseSkill):
         """
         Формирование конфигурации таблиц через table_description_service.
 
+        ОПТИМИЗАЦИЯ: Один запрос на схему вместо N запросов на таблицы.
+        
         ВОЗВРАЩАЕТ:
         - List[Dict]: список таблиц с описанием
         """
-        # Читаем текущий tables.yaml для списка таблиц
         default_tables = [
             {"schema": "Lib", "table": "books", "description": "Таблица книг"},
             {"schema": "Lib", "table": "authors", "description": "Таблица авторов"},
         ]
 
+        # Группируем таблицы по схеме: {schema: [table1, table2, ...]}
+        tables_by_schema: Dict[str, List[str]] = {}
+        for t in default_tables:
+            schema = t.get("schema", "Lib")
+            table = t.get("table", "")
+            if table:
+                if schema not in tables_by_schema:
+                    tables_by_schema[schema] = []
+                tables_by_schema[schema].append(table)
+
         result_tables = []
 
-        for table_info in default_tables:
-            schema = table_info.get("schema", "Lib")
-            table_name = table_info.get("table", "")
-
-            if not table_name:
-                continue
-
+        for schema, tables in tables_by_schema.items():
+            # ОДИН запрос на всю схему
             try:
                 exec_context = ExecutionContext()
                 result = await self.executor.execute_action(
                     action_name="table_description_service.execute",
                     parameters={
-                        "table_name": table_name,
+                        "table_list": tables,  # Список таблиц
                         "schema_name": schema
                     },
                     context=exec_context
                 )
 
                 if result.status == ExecutionStatus.COMPLETED and result.data:
-                    table_meta = result.data
-                    columns = table_meta.get("columns", [])
-                    column_list = ", ".join([c.get("column_name", "") for c in columns[:5]])
-                    description = f"{table_name}: {column_list}..."
-                else:
-                    description = table_info.get("description", "")
+                    tables_metadata = result.data
+                    
+                    # tables_metadata может быть dict {table_name: metadata} или списком
+                    if isinstance(tables_metadata, dict):
+                        for table_name, table_meta in tables_metadata.items():
+                            columns = table_meta.get("columns", [])
+                            column_list = ", ".join([c.get("column_name", "") for c in columns[:5]])
+                            description = f"{table_name}: {column_list}..."
+                            result_tables.append({
+                                "schema": schema,
+                                "table": table_name,
+                                "description": description
+                            })
+                    elif isinstance(tables_metadata, list):
+                        for table_meta in tables_metadata:
+                            table_name = table_meta.get("table_name", "")
+                            columns = table_meta.get("columns", [])
+                            column_list = ", ".join([c.get("column_name", "") for c in columns[:5]])
+                            description = f"{table_name}: {column_list}..."
+                            result_tables.append({
+                                "schema": schema,
+                                "table": table_name,
+                                "description": description
+                            })
 
             except Exception as e:
                 await self._publish_with_context(
-                    event_type="check_result.table_load_error",
-                    data={"table": table_name, "error": str(e)},
+                    event_type="check_result.schema_load_error",
+                    data={"schema": schema, "error": str(e)},
                     source=self.name
                 )
-                description = table_info.get("description", "")
-
-            result_tables.append({
-                "schema": schema,
-                "table": table_name,
-                "description": description
-            })
+                for table in tables:
+                    result_tables.append({
+                        "schema": schema,
+                        "table": table,
+                        "description": f"Таблица {schema}.{table}"
+                    })
+                await self._publish_with_context(
+                    event_type="check_result.table_load_error",
+                    data={"schema": schema, "error": str(e)},
+                    source=self.name
+                )
 
         return result_tables
 
@@ -222,6 +252,24 @@ class CheckResultSkill(BaseSkill):
 
     def _get_event_type_for_success(self) -> EventType:
         return EventType.SKILL_EXECUTED
+
+    def get_capabilities(self) -> List[Capability]:
+        return [
+            Capability(
+                name="check_result.execute_script",
+                description="Выполнение заготовленного SQL скрипта",
+                skill_name=self.name,
+                supported_strategies=["react"],
+                visiable=True
+            ),
+            Capability(
+                name="check_result.generate_script",
+                description="Генерация SQL скрипта через LLM и выполнение",
+                skill_name=self.name,
+                supported_strategies=["react"],
+                visiable=True
+            ),
+        ]
 
     async def _execute_impl(
         self,
