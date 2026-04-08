@@ -18,9 +18,6 @@ class ContractService(BaseService):
     Создаётся НОВЫЙ экземпляр для каждого ApplicationContext.
     """
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = []  # Нет зависимостей
-
     @property
     def description(self) -> str:
         return "Сервис контрактов с изолированным кэшем"

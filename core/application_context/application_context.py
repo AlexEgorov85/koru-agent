@@ -9,7 +9,6 @@
 ЖИЗНЕННЫЙ ЦИКЛ:
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
-import logging
 import uuid
 import asyncio
 from pathlib import Path
@@ -21,7 +20,6 @@ from core.agent.components.action_executor import ActionExecutor
 from core.agent.components.component_factory import ComponentFactory
 from core.application_context.base_system_context import BaseSystemContext
 from core.config.component_config import ComponentConfig
-from core.infrastructure.logging.logger import EventBusLogger
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.enums.common_enums import ComponentType, ResourceType
@@ -77,9 +75,6 @@ class ApplicationContext(BaseSystemContext):
         self.side_effects_enabled = getattr(self.config, 'side_effects_enabled', True)
         self.detailed_metrics = getattr(self.config, 'detailed_metrics', False)
 
-        self.event_bus_logger = None
-        self._init_event_bus_logger()
-
         data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
         self._data_dir = Path(data_dir)
         self.data_repository = None
@@ -96,18 +91,47 @@ class ApplicationContext(BaseSystemContext):
         """Проверка инициализации контекста."""
         return self._initialized
 
-    def _init_event_bus_logger(self):
-        """Инициализация EventBusLogger для асинхронного логирования."""
-        if hasattr(self, 'infrastructure_context') and self.infrastructure_context:
-            event_bus = getattr(self.infrastructure_context, 'event_bus', None)
-            if event_bus:
-                self.event_bus_logger = EventBusLogger(
-                    event_bus,
-                    session_id=str(self.infrastructure_context.id),
-                    agent_id="system",
-                    component=self.__class__.__name__
-                )
-        self.logger = logging.getLogger(f"ApplicationContext.{self.id}")
+    async def _publish(
+        self,
+        event_type: EventType,
+        data: Dict[str, Any],
+        source: str = "application_context"
+    ):
+        """Публикация события в EventBus."""
+        if self.infrastructure_context and self.infrastructure_context.event_bus:
+            await self.infrastructure_context.event_bus.publish(
+                event_type,
+                data,
+                session_id="system",
+                agent_id="app_context"
+            )
+
+    def _publish_sync(
+        self,
+        event_type: EventType,
+        data: Dict[str, Any],
+        source: str = "application_context"
+    ):
+        """Синхронная публикация события в EventBus."""
+        if self.infrastructure_context and self.infrastructure_context.event_bus:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(self.infrastructure_context.event_bus.publish(
+                        event_type,
+                        data,
+                        session_id="system",
+                        agent_id="app_context"
+                    ))
+                else:
+                    loop.run_until_complete(self.infrastructure_context.event_bus.publish(
+                        event_type,
+                        data,
+                        session_id="system",
+                        agent_id="app_context"
+                    ))
+            except Exception:
+                pass
 
     def _get_resource_type_for_component(self, component_type: ComponentType) -> ResourceType:
         """Преобразование ComponentType в ResourceType для LifecycleManager."""
@@ -176,7 +200,7 @@ class ApplicationContext(BaseSystemContext):
             if self.event_bus_logger:
                 await self.event_bus_logger.warning("ApplicationContext уже инициализирован")
             else:
-                self.logger.warning("ApplicationContext уже инициализирован")
+                await self._publish(EventType.WARNING, {"message": "ApplicationContext уже инициализирован"})
             return True
 
         if not self.lifecycle_manager:
@@ -184,10 +208,7 @@ class ApplicationContext(BaseSystemContext):
         if not self.lifecycle_manager:
             raise RuntimeError("InfrastructureContext.lifecycle_manager не инициализирован")
 
-        if self.event_bus_logger:
-            await self.event_bus_logger.info(f"Начало инициализации ApplicationContext {self.id}")
-        else:
-            self.logger.info(f"Начало инициализации ApplicationContext {self.id}")
+        await self._publish(EventType.INFO, {"message": f"Начало инициализации ApplicationContext {self.id}"})
 
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
@@ -218,17 +239,14 @@ class ApplicationContext(BaseSystemContext):
             )
 
         if not await self.data_repository.initialize(self.config):
-            self.logger.critical(
-                f"КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ:\n"
-                f"{self.data_repository.get_validation_report()}\n"
-                f"Система НЕ БУДЕТ запущена с неконсистентной конфигурацией."
-            )
+            await self._publish(EventType.ERROR, {
+                "message": f"КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ: {self.data_repository.get_validation_report()}"
+            })
             return False
 
-        self.logger.info(
-            f"DataRepository инициализирован успешно:\n"
-            f"{self.data_repository.get_validation_report()}"
-        )
+        await self._publish(EventType.INFO, {
+            "message": f"DataRepository инициализирован: {self.data_repository.get_validation_report()}"
+        })
 
         executor = ActionExecutor(self)
 
@@ -243,12 +261,12 @@ class ApplicationContext(BaseSystemContext):
             print("[ApplicationContext] Вызов llm_orchestrator.initialize()...", flush=True)
             await self.llm_orchestrator.initialize()
             print("[ApplicationContext] LLMOrchestrator инициализирован успешно!", flush=True)
-            self.logger.info("LLMOrchestrator инициализирован")
+            await self._publish(EventType.INFO, {"message": "LLMOrchestrator инициализирован"})
         except Exception as e:
             print(f"[ApplicationContext] ОШИБКА инициализации LLMOrchestrator: {e}", flush=True)
             import traceback
             traceback.print_exc()
-            self.logger.error(f"Ошибка инициализации LLMOrchestrator: {e}")
+            await self._publish(EventType.ERROR, {"message": f"Ошибка инициализации LLMOrchestrator: {e}"})
             from core.errors.exceptions import ComponentInitializationError
             raise ComponentInitializationError(
                 f"Не удалось инициализировать LLMOrchestrator: {e}. "
@@ -256,44 +274,33 @@ class ApplicationContext(BaseSystemContext):
                 component="llm_orchestrator"
             )
 
-        self.logger.info("Начало создания компонентов...")
+        await self._publish(EventType.INFO, {"message": "Начало создания компонентов..."})
+
         component_configs = self._resolve_component_configs()
-        self.logger.info(f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}")
+
+        await self._publish(EventType.INFO, {"message": f"Конфигурации компонентов: {[(k.value, list(v.keys())) for k, v in component_configs.items() if v]}"})
+        
         components_created = 0
         for comp_type, configs in component_configs.items():
             if not configs:
                 continue
-            self.logger.info(f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}")
+            
+            await self._publish(EventType.INFO, {"message": f"Обработка типа компонента {comp_type.value}: {list(configs.keys())}"})
             for name, enriched_config in configs.items():
-                self.logger.info(f"Создание компонента {comp_type.value}.{name}...")
+                await self._publish(EventType.INFO, {"message": f"Создание компонента {comp_type.value}.{name}..."})
                 try:
                     component = await self._create_component(comp_type, name, enriched_config, executor)
-                    self.logger.info(f"Регистрация компонента {comp_type.value}.{name}...")
+                    await self._publish(EventType.INFO, {"message": f"Регистрация компонента {comp_type.value}.{name}..."})
+                    
+                    # Регистрируем в реестре компонентов
                     self.components.register(comp_type, name, component)
-
-                    resource_type = self._get_resource_type_for_component(comp_type)
-                    await self.lifecycle_manager.register_component(
-                        name=name,
-                        component=component,
-                        component_type=resource_type
-                    )
+                    
+                    await self._publish(EventType.INFO, {"message": f"Компонент {comp_type.value}.{name} создан и зарегистрирован"})
                     components_created += 1
-                    self.logger.info(f"Компонент {comp_type.value}.{name} создан и зарегистрирован")
-                    if self.infrastructure_context and self.infrastructure_context.event_bus:
-                        await self.infrastructure_context.event_bus.publish(
-                            event_type="component.registered",
-                            data={
-                                "component_type": comp_type.value,
-                                "name": name,
-                                "class": component.__class__.__name__
-                            },
-                            source="application_context",
-                            session_id="system"
-                        )
                 except Exception as e:
-                    self.logger.error(f"Ошибка создания {comp_type.value}.{name}: {e}", exc_info=True)
-                    import traceback
-                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    import traceback as tb
+                    await self._publish(EventType.ERROR, {"message": f"Ошибка создания {comp_type.value}.{name}: {e}"})
+                    await self._publish(EventType.ERROR, {"message": f"Traceback: {tb.format_exc()}"})
                     if self.infrastructure_context and self.infrastructure_context.event_bus:
                         await self.infrastructure_context.event_bus.publish(
                             event_type="component.create_failed",
@@ -301,17 +308,17 @@ class ApplicationContext(BaseSystemContext):
                                 "component_type": comp_type.value,
                                 "name": name,
                                 "error": str(e),
-                                "traceback": traceback.format_exc()
+                                "traceback": tb.format_exc()
                             },
                             source="application_context",
                             session_id="system"
                         )
 
-        self.logger.info(f"Создано {components_created} компонентов")
+        await self._publish(EventType.INFO, {"message": f"Создано {components_created} компонентов"})
 
         success = await self._initialize_components_with_dependencies()
         if not success:
-            self.logger.error("Ошибка инициализации компонентов с учетом зависимостей")
+            await self._publish(EventType.ERROR, {"message": "Ошибка инициализации компонентов с учетом зависимостей"})
             return False
 
         if not await self._verify_readiness():
@@ -325,54 +332,33 @@ class ApplicationContext(BaseSystemContext):
                 data={"message": f"ApplicationContext инициализирован (profile={self.profile})", "icon": "✅"},
                 session_id=str(self.infrastructure_context.id),
             )
-        self.logger.info(f"ApplicationContext {self.id} успешно инициализирован")
+        await self._publish(EventType.INFO, {"message": f"ApplicationContext {self.id} успешно инициализирован"})
         return True
 
     async def _initialize_components_with_dependencies(self) -> bool:
-        """Инициализация компонентов с учетом зависимостей (топологическая сортировка)."""
-        self.logger.info("=== НАЧАЛО _initialize_components_with_dependencies ===")
-        from collections import defaultdict, deque
+        """
+        Инициализация компонентов со строгим порядком по типу:
+        1. tool — инструменты (первыми, нет async зависимостей)
+        2. service — сервисы (вторыми, готовы для вызовов)
+        3. skill — навыки (последними, используют сервисы через executor)
+        4. behavior — поведенческие паттерны (последними)
+
+        DEPENDENCIES не используются для порядка — все вызовы через executor.
+        """
+        await self._publish(EventType.INFO, {"message": "=== НАЧАЛО _initialize_components_with_dependencies ==="})
 
         all_components = self.components.all_components()
         component_map = {comp.name: comp for comp in all_components}
-        dependency_graph = defaultdict(list)
-        dependents_graph = defaultdict(list)
 
-        for component in all_components:
-            deps = []
-            if hasattr(component, 'DEPENDENCIES'):
-                deps = getattr(component, 'DEPENDENCIES', [])
-            elif hasattr(component, 'dependencies'):
-                deps = getattr(component, 'dependencies', [])
-            dependency_graph[component.name] = deps[:]
-            for dep in deps:
-                dependents_graph[dep].append(component.name)
-
-        in_degree = {comp.name: 0 for comp in all_components}
-        for component_name in dependency_graph:
-            for dep_name in dependency_graph[component_name]:
-                if dep_name in in_degree:
-                    in_degree[component_name] += 1
-
-        queue = deque([name for name, degree in in_degree.items() if degree == 0])
+        # Строгий порядок инициализации по типу компонента
+        type_order = [ComponentType.TOOL, ComponentType.SERVICE, ComponentType.SKILL, ComponentType.BEHAVIOR]
         initialization_order = []
 
-        while queue:
-            current_component_name = queue.popleft()
-            initialization_order.append(current_component_name)
-            for dependent_name in dependents_graph[current_component_name]:
-                if dependent_name in in_degree:
-                    in_degree[dependent_name] -= 1
-                    if in_degree[dependent_name] == 0:
-                        queue.append(dependent_name)
-
-        if len(initialization_order) != len(all_components):
-            remaining_components = set(in_degree.keys()) - set(initialization_order)
-            self.logger.error(f"Обнаружена циклическая зависимость между компонентами: {remaining_components}")
-            all_initialized_names = set(initialization_order)
-            for comp in all_components:
-                if comp.name not in all_initialized_names:
-                    initialization_order.append(comp.name)
+        for comp_type in type_order:
+            type_components = self.components.all_of_type(comp_type)
+            # Сортируем по имени для детерминизма
+            type_components.sort(key=lambda c: c.name)
+            initialization_order.extend(c.name for c in type_components)
 
         initialized_components = set()
         for component_name in initialization_order:
@@ -391,7 +377,7 @@ class ApplicationContext(BaseSystemContext):
                                 session_id="system"
                             )
                     else:
-                        self.logger.error(f"Компонент {component.name} не смог инициализироваться")
+                        await self._publish(EventType.ERROR, {"message": f"Компонент {component.name} не смог инициализироваться"})
                         if self.infrastructure_context and self.infrastructure_context.event_bus:
                             await self.infrastructure_context.event_bus.publish(
                                 event_type="component.init_failed",
@@ -410,7 +396,7 @@ class ApplicationContext(BaseSystemContext):
                             session_id="system"
                         )
             except Exception as e:
-                self.logger.error(f"Ошибка при инициализации компонента {component.name}: {e}")
+                await self._publish(EventType.ERROR, {"message": f"Ошибка при инициализации компонента {component.name}: {e}"})
                 import traceback
                 if self.infrastructure_context and self.infrastructure_context.event_bus:
                     await self.infrastructure_context.event_bus.publish(
@@ -424,7 +410,7 @@ class ApplicationContext(BaseSystemContext):
         all_names = {comp.name for comp in all_components}
         if len(initialized_components) != len(all_names):
             uninitialized = all_names - initialized_components
-            self.logger.error(f"Не все компоненты были инициализированы: {uninitialized}")
+            await self._publish(EventType.ERROR, {"message": f"Не все компоненты были инициализированы: {uninitialized}"})
             if self.infrastructure_context and self.infrastructure_context.event_bus:
                 await self.infrastructure_context.event_bus.publish(
                     event_type="component.init_partial",
@@ -443,19 +429,19 @@ class ApplicationContext(BaseSystemContext):
             for name in names:
                 component = self.components.get(comp_type, name)
                 if component is None:
-                    self.logger.error(f"Компонент {comp_type.value}.{name} не найден")
+                    await self._publish(EventType.ERROR, {"message": f"Компонент {comp_type.value}.{name} не найден"})
                     return False
                 if hasattr(component, 'is_initialized') and callable(component.is_initialized):
                     if not component.is_initialized():
-                        self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
+                        await self._publish(EventType.ERROR, {"message": f"Компонент {comp_type.value}.{name} не инициализирован"})
                         return False
                 elif hasattr(component, '_initialized'):
                     if not component._initialized:
-                        self.logger.error(f"Компонент {comp_type.value}.{name} не инициализирован")
+                        await self._publish(EventType.ERROR, {"message": f"Компонент {comp_type.value}.{name} не инициализирован"})
                         return False
                 elif hasattr(component, 'is_ready') and callable(component.is_ready):
                     if not component.is_ready():
-                        self.logger.error(f"Компонент {component.name} не готов к работе")
+                        await self._publish(EventType.ERROR, {"message": f"Компонент {component.name} не готов к работе"})
                         return False
         return True
 
@@ -527,8 +513,8 @@ class ApplicationContext(BaseSystemContext):
             health_report['overall_status'] = 'unhealthy'
 
         health_report['metrics']['check_duration'] = time.time() - start_time
-        self.logger.info(f"Health check completed: {health_report['overall_status']}, "
-                         f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} components healthy")
+        await self._publish(EventType.INFO, {"message": f"Health check: {health_report['overall_status']}, "
+            f"{health_report['metrics']['healthy_components']}/{health_report['metrics']['total_components']} healthy"})
         return health_report
 
     def get_behavior_pattern(self, name: str) -> Optional['BaseComponent']:
@@ -695,10 +681,10 @@ class ApplicationContext(BaseSystemContext):
                                     version = comp_config.prompt_versions[capability]
                                     break
                     if version is None:
-                        self.logger.warning(
-                            f"Промпт '{capability}' не найден в конфигурации (версия не указана). "
+                        self._publish_sync(EventType.WARNING, {
+                            "message": f"Промпт '{capability}' не найден в конфигурации (версия не указана). "
                             f"Возвращаем пустую строку."
-                        )
+                        })
                         return ""
 
             if version:
@@ -706,10 +692,10 @@ class ApplicationContext(BaseSystemContext):
                     prompt_obj = self.data_repository.get_prompt(capability, version)
                     return prompt_obj.content
                 except Exception as e:
-                    self.logger.error(
-                        f"Ошибка получения промпта '{capability}@{version}': {e}. "
+                    self._publish_sync(EventType.ERROR, {
+                        "message": f"Ошибка получения промпта '{capability}@{version}': {e}. "
                         f"Возвращаем пустую строку."
-                    )
+                    })
                     return ""
         return ""
 
@@ -755,7 +741,7 @@ class ApplicationContext(BaseSystemContext):
             return skill
         return self.infrastructure_context.get_resource(name)
 
-    def set_prompt_override(self, capability: str, version: str):
+    async def set_prompt_override(self, capability: str, version: str):
         """Установка оверрайда версии промпта (только для песочницы)."""
         if self.profile != "sandbox":
             raise RuntimeError("Оверрайды версий разрешены ТОЛЬКО в режиме песочницы")
@@ -767,7 +753,7 @@ class ApplicationContext(BaseSystemContext):
                 raise ValueError(f"Версия {capability}@{version} не существует")
 
         self._prompt_overrides[capability] = version
-        self.logger.info(f"Установлен оверрайд: {capability}@{version} для песочницы")
+        await self._publish(EventType.INFO, {"message": f"Установлен оверрайд: {capability}@{version} для песочницы"})
 
     async def clone_with_prompt_content_override(
         self,
@@ -858,130 +844,81 @@ class ApplicationContext(BaseSystemContext):
         
         Args:
             include_hidden: включать ли скрытые capability (visiable=False)
-            component_types: фильтр по типам компонентов ['skill', 'tool', 'service']
+            component_types: фильтр по типам компонентов ['skill', 'tool']
         """
         from core.errors.exceptions import ComponentInitializationError
-
+        from core.models.data.capability import Capability
+        
+        def collect_capabilities(component, comp_type: str) -> List[Capability]:
+            """Сбор capability от одного компонента."""
+            if not hasattr(component, 'get_capabilities'):
+                raise ComponentInitializationError(
+                    f"Компонент {component.name} не имеет метода get_capabilities",
+                    component=component.name
+                )
+            try:
+                caps = component.get_capabilities()
+                result_caps = []
+                for cap in caps:
+                    cap_dict = cap.model_dump()
+                    cap_dict['component_type'] = comp_type
+                    result_caps.append(Capability(**cap_dict))
+                return result_caps
+            except Exception as e:
+                raise ComponentInitializationError(
+                    f"Ошибка получения capability от {comp_type} {component.name}: {e}",
+                    component=component.name
+                )
+        
+        def should_include(cap: Capability) -> bool:
+            """Проверка включения capability в результат."""
+            if not include_hidden and hasattr(cap, 'visiable') and not cap.visiable:
+                return False
+            if not component_types:
+                return True
+            cap_type = getattr(cap, 'component_type', None) or getattr(cap, 'skill_name', '')
+            for ct in component_types:
+                if ct == "skill" and not cap_type.endswith("_tool"):
+                    return True
+                if ct == "tool" and cap_type.endswith("_tool"):
+                    return True
+            return False
+        
         all_capabilities = []
         component_types = component_types or []
-
-        if self.event_bus_logger:
-            await self.event_bus_logger.debug(
-                f"get_all_capabilities: Зарегистрированные компоненты: "
-                f"SKILL={list(self.components._components[ComponentType.SKILL].keys())}, "
-                f"TOOL={list(self.components._components[ComponentType.TOOL].keys())}"
-            )
-
-        for skill in self.components.all_of_type(ComponentType.SKILL):
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(
-                    f"get_all_capabilities: Проверяем навык {skill.name}, "
-                    f"hasattr get_capabilities={hasattr(skill, 'get_capabilities')}"
-                )
-            if hasattr(skill, 'get_capabilities'):
-                try:
-                    caps = skill.get_capabilities()
-                    all_capabilities.extend(caps)
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.debug(
-                            f"get_all_capabilities: Навык {skill.name} вернул {len(caps)} capability: {[c.name for c in caps]}"
-                        )
-                except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                            f"get_all_capabilities: Критическая ошибка получения capability от навыка {skill.name}: {e}"
-                        )
-                    raise ComponentInitializationError(
-                        f"Навык {skill.name} не вернул capability: {str(e)}",
-                        component=skill.name
-                    )
-            else:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(
-                        f"get_all_capabilities: Навык {skill.name} не имеет метода get_capabilities"
-                    )
-                raise ComponentInitializationError(
-                    f"Навык {skill.name} не имеет метода get_capabilities. "
-                    f"Это критическая ошибка инициализации.",
-                    component=skill.name
-                )
-
-        for tool in self.components.all_of_type(ComponentType.TOOL):
-            if self.event_bus_logger:
-                await self.event_bus_logger.debug(
-                    f"get_all_capabilities: Проверяем инструмент {tool.name}, "
-                    f"hasattr get_capabilities={hasattr(tool, 'get_capabilities')}"
-                )
-            if hasattr(tool, 'get_capabilities'):
-                try:
-                    caps = tool.get_capabilities()
-                    all_capabilities.extend(caps)
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.debug(
-                            f"get_all_capabilities: Инструмент {tool.name} вернул {len(caps)} capability: {[c.name for c in caps]}"
-                        )
-                except Exception as e:
-                    if self.event_bus_logger:
-                        await self.event_bus_logger.error(
-                            f"get_all_capabilities: Критическая ошибка получения capability от инструмента {tool.name}: {e}"
-                        )
-                    raise ComponentInitializationError(
-                        f"Инструмент {tool.name} не вернул capability: {str(e)}",
-                        component=tool.name
-                    )
-            else:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error(
-                        f"get_all_capabilities: Инструмент {tool.name} не имеет метода get_capabilities"
-                    )
-                raise ComponentInitializationError(
-                    f"Инструмент {tool.name} не имеет метода get_capabilities. "
-                    f"Это критическая ошибка инициализации.",
-                    component=tool.name
-                )
-
-        if self.event_bus_logger:
-            await self.event_bus_logger.debug(
-                f"get_all_capabilities: Всего получено {len(all_capabilities)} capability: {[c.name for c in all_capabilities]}"
-            )
         
-        filtered_caps = []
-        for cap in all_capabilities:
-            if not include_hidden and hasattr(cap, 'visiable') and not cap.visiable:
-                continue
-            if component_types:
-                cap_type = getattr(cap, 'skill_name', None)
-                if not cap_type or not any(ct in cap_type for ct in component_types):
-                    continue
-            filtered_caps.append(cap)
+        for comp_type in [ComponentType.SKILL, ComponentType.TOOL]:
+            for comp in self.components.all_of_type(comp_type):
+                caps = collect_capabilities(comp, comp_type.value)
+                all_capabilities.extend(caps)
         
-        return filtered_caps
+        return [cap for cap in all_capabilities if should_include(cap)]
 
     async def shutdown(self):
         """Корректное завершение работы ApplicationContext."""
-        self.logger.info("Завершение работы ApplicationContext...")
+        await self._publish(EventType.INFO, {"message": "Завершение работы ApplicationContext..."})
 
         if self.llm_orchestrator:
             try:
                 await self.llm_orchestrator.shutdown()
-                self.logger.info("LLMOrchestrator завершён")
+                await self._publish(EventType.INFO, {"message": "LLMOrchestrator завершён"})
             except Exception as e:
-                self.logger.error(f"Ошибка при завершении LLMOrchestrator: {e}")
+                await self._publish(EventType.ERROR, {"message": f"Ошибка при завершении LLMOrchestrator: {e}"})
             self.llm_orchestrator = None
 
         if self.data_repository:
             try:
                 await self.data_repository.shutdown()
-                self.logger.info("DataRepository завершён")
+                await self._publish(EventType.INFO, {"message": "DataRepository завершён"})
             except Exception as e:
-                self.logger.error(f"Ошибка при завершении DataRepository: {e}")
+                await self._publish(EventType.ERROR, {"message": f"Ошибка при завершении DataRepository: {e}"})
 
         # Очистка ресурсов из LifecycleManager для возможности повторной регистрации
         if hasattr(self, 'lifecycle_manager') and self.lifecycle_manager:
             try:
                 await self.lifecycle_manager.clear_resources()
-                self.logger.info("LifecycleManager очищен")
+                await self._publish(EventType.INFO, {"message": "LifecycleManager очищен"})
             except Exception as e:
-                self.logger.error(f"Ошибка при очистке LifecycleManager: {e}")
+                await self._publish(EventType.ERROR, {"message": f"Ошибка при очистке LifecycleManager: {e}"})
 
-        self.logger.info("ApplicationContext завершён")
+        await self._publish(EventType.INFO, {"message": "ApplicationContext завершён"})

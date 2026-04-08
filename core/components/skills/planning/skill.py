@@ -22,9 +22,6 @@ class PlanningSkill(BaseComponent):
     def description(self) -> str:
         return "Навык планирования: создание, обновление и декомпозиция планов"
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = ["prompt_service"]
-
     def __init__(self, name: str, application_context: Any, component_config=None, executor=None, event_bus=None):
         super().__init__(
             name,

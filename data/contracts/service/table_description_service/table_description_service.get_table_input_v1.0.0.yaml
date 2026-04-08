@@ -10,5 +10,8 @@ schema_data:
     table_name:
       type: string
       description: Name of the table to describe
+    schema_name:
+      type: string
+      description: Name of the schema
   required:
     - table_name

@@ -402,7 +402,7 @@ class AgentRuntime:
             filter_config = self._get_capability_filter_config()
             all_caps = await self.application_context.get_all_capabilities(
                 include_hidden=filter_config.get("include_hidden", False),
-                component_types=filter_config.get("component_types", ["skill", "tool"])
+                component_types=filter_config.get("component_types", ["skill"])
             )
             exclude_prefixes = filter_config.get("exclude_prefixes", [])
             return [
@@ -415,8 +415,8 @@ class AgentRuntime:
         """Получить конфигурацию фильтрации capability из AgentConfig или по умолчанию."""
         default_config = {
             "include_hidden": False,
-            "component_types": ["skill", "tool"],
-            "exclude_prefixes": ["planning.", "evaluation."],
+            "component_types": ["skill"],
+            "exclude_prefixes": ["evaluation."],
         }
         
         # Попробовать получить из agent_config

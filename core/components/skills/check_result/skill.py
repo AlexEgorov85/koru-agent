@@ -38,10 +38,9 @@ from core.components.skills.check_result.handlers import (
 from core.models.data.capability import Capability
 
 
-TABLES_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..", "..", "..", "data", "skills", "check_result", "tables.yaml"
-)
+CHECK_RESULT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(CHECK_RESULT_DIR))))
+TABLES_CONFIG_PATH = os.path.join(PROJECT_ROOT, "data", "skills", "check_result", "tables.yaml")
 
 
 class CheckResultSkill(BaseSkill):
@@ -62,7 +61,6 @@ class CheckResultSkill(BaseSkill):
     def description(self) -> str:
         return "Навык проверки результатов: выполнение и генерация SQL скриптов"
 
-    DEPENDENCIES = ["sql_tool", "sql_generation", "sql_query_service", "table_description_service"]
     name: str = "check_result"
 
     def __init__(
@@ -109,16 +107,6 @@ class CheckResultSkill(BaseSkill):
         return True
 
     async def _load_tables_config(self) -> List[Dict[str, str]]:
-        """
-        Загрузка конфигурации таблиц.
-
-        ЛОГИКА:
-        1. Если файл tables.yaml существует - загрузить из него
-        2. Если файл отсутствует:
-           a. Получить описание таблиц через table_description_service
-           b. Сохранить в файл tables.yaml
-           c. Вернуть полученные данные
-        """
         tables_path = os.path.abspath(TABLES_CONFIG_PATH)
 
         if os.path.exists(tables_path):
@@ -142,22 +130,21 @@ class CheckResultSkill(BaseSkill):
         self._tables_config = await self._generate_tables_config()
 
         if self._tables_config:
-            # Сохраняем в файл
             os.makedirs(os.path.dirname(tables_path), exist_ok=True)
             with open(tables_path, 'w', encoding='utf-8') as f:
                 yaml.dump({"tables": self._tables_config}, f, allow_unicode=True, default_flow_style=False)
-            
+
             await self._publish_with_context(
                 event_type="check_result.tables_saved",
                 data={"path": tables_path, "tables_count": len(self._tables_config)},
                 source=self.name
             )
         else:
-            # Fallback на таблицы по умолчанию
-            self._tables_config = [
-                {"schema": "Lib", "table": "books", "description": "Таблица книг"},
-                {"schema": "Lib", "table": "authors", "description": "Таблица авторов"},
-            ]
+            await self._publish_with_context(
+                event_type="check_result.tables_empty",
+                data={"warning": "table_description_service вернул пустой результат"},
+                source=self.name
+            )
 
         return self._tables_config
 
@@ -168,14 +155,13 @@ class CheckResultSkill(BaseSkill):
         ОПТИМИЗАЦИЯ: Один запрос на схему вместо N запросов на таблицы.
         
         ВОЗВРАЩАЕТ:
-        - List[Dict]: список таблиц с описанием
+        - List[Dict]: список таблиц с полным описанием колонок
         """
         default_tables = [
             {"schema": "Lib", "table": "books", "description": "Таблица книг"},
             {"schema": "Lib", "table": "authors", "description": "Таблица авторов"},
         ]
 
-        # Группируем таблицы по схеме: {schema: [table1, table2, ...]}
         tables_by_schema: Dict[str, List[str]] = {}
         for t in default_tables:
             schema = t.get("schema", "Lib")
@@ -188,61 +174,42 @@ class CheckResultSkill(BaseSkill):
         result_tables = []
 
         for schema, tables in tables_by_schema.items():
-            # ОДИН запрос на всю схему
-            try:
-                exec_context = ExecutionContext()
-                result = await self.executor.execute_action(
-                    action_name="table_description_service.execute",
-                    parameters={
-                        "table_list": tables,  # Список таблиц
-                        "schema_name": schema
-                    },
-                    context=exec_context
-                )
-
-                if result.status == ExecutionStatus.COMPLETED and result.data:
-                    tables_metadata = result.data
+            for table_name in tables:
+                try:
+                    exec_context = ExecutionContext()
                     
-                    # tables_metadata может быть dict {table_name: metadata} или списком
-                    if isinstance(tables_metadata, dict):
-                        for table_name, table_meta in tables_metadata.items():
-                            columns = table_meta.get("columns", [])
-                            column_list = ", ".join([c.get("column_name", "") for c in columns[:5]])
-                            description = f"{table_name}: {column_list}..."
-                            result_tables.append({
-                                "schema": schema,
-                                "table": table_name,
-                                "description": description
-                            })
-                    elif isinstance(tables_metadata, list):
-                        for table_meta in tables_metadata:
-                            table_name = table_meta.get("table_name", "")
-                            columns = table_meta.get("columns", [])
-                            column_list = ", ".join([c.get("column_name", "") for c in columns[:5]])
-                            description = f"{table_name}: {column_list}..."
-                            result_tables.append({
-                                "schema": schema,
-                                "table": table_name,
-                                "description": description
-                            })
+                    result = await self.executor.execute_action(
+                        action_name="table_description_service.get_table",
+                        parameters={
+                            "table_name": table_name,
+                            "schema_name": schema
+                        },
+                        context=exec_context
+                    )
 
-            except Exception as e:
-                await self._publish_with_context(
-                    event_type="check_result.schema_load_error",
-                    data={"schema": schema, "error": str(e)},
-                    source=self.name
-                )
-                for table in tables:
-                    result_tables.append({
-                        "schema": schema,
-                        "table": table,
-                        "description": f"Таблица {schema}.{table}"
-                    })
-                await self._publish_with_context(
-                    event_type="check_result.table_load_error",
-                    data={"schema": schema, "error": str(e)},
-                    source=self.name
-                )
+                    if result.status == ExecutionStatus.COMPLETED and result.data:
+                        data = result.data
+                        if hasattr(data, 'model_dump'):
+                            data = data.model_dump()
+                        
+                        metadata = data.get("metadata", {})
+                        
+                        result_tables.append({
+                            "schema": schema,
+                            "table": table_name,
+                            "description": metadata.get("description", ""),
+                            "columns": metadata.get("columns", [])
+                        })
+                    else:
+                        raise RuntimeError(f"Не удалось получить описание таблицы {schema}.{table_name}: {result.error}")
+
+                except Exception as e:
+                    await self._publish_with_context(
+                        event_type="check_result.table_load_error",
+                        data={"table": table_name, "schema": schema, "error": str(e)},
+                        source=self.name
+                    )
+                    raise RuntimeError(f"Не удалось получить описание таблицы {schema}.{table_name}: {e}")
 
         return result_tables
 

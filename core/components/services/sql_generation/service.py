@@ -46,9 +46,6 @@ class SQLGenerationService(BaseService):
     - Полная изоляция от инъекций через валидацию
     """
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = ["table_description_service", "prompt_service", "contract_service"]
-
     @property
     def description(self) -> str:
         return "Сервис генерации и коррекции безопасных параметризованных SQL-запросов"
@@ -82,15 +79,11 @@ class SQLGenerationService(BaseService):
         self.max_result_rows = 1000
 
     async def _custom_initialize(self) -> bool:
-        """Инициализация зависимостей и внутреннего состояния"""
+        """Инициализация внутреннего состояния"""
         try:
-            # Зависимости уже загружены родительским методом
-            # Доступны через: self.table_description_service_instance
-
             # Инициализация анализатора ошибок
-            # В новой архитектуре SQLErrorAnalyzer может использовать application_context
             self.error_analyzer = SQLErrorAnalyzer(
-                self.application_context, 
+                self.application_context,
                 executor=self.executor,
                 event_bus=self._event_bus
             )
@@ -104,18 +97,10 @@ class SQLGenerationService(BaseService):
 
             # Инициализация движка коррекции
             self.correction_engine = SQLCorrectionEngine(
-                self.application_context, 
+                self.application_context,
                 executor=self.executor,
                 event_bus=self._event_bus
             )
-
-            # Проверка критических зависимостей
-            if not self.table_description_service_instance:
-                if self.event_bus_logger:
-                    await self.event_bus_logger.error("table_description_service не загружен (архитектурная ошибка)")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                return False
 
             return True
         except Exception as e:
@@ -152,9 +137,18 @@ class SQLGenerationService(BaseService):
         ВАЖНО: Валидация входа/выхода и метрики выполняются в BaseComponent.execute()
         Здесь только бизнес-логика.
         """
-        # Генерация SQL-запроса на основе параметров (синхронное ожидание)
-        result = safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
-        return result.model_dump()
+        # Маршрутизация по имени capability
+        cap_name = capability.name
+
+        if "execute_with_auto_correction" in cap_name:
+            # Генерация с автокоррекцией (вызов из sql_query_service)
+            input_data = SQLGenerationInput(**parameters)
+            result = safe_async_call(self.execute_with_auto_correction(input_data=input_data))
+            return {"success": result.success, "sql": result.sql if hasattr(result, 'sql') else None, "error": result.error}
+        else:
+            # Обычная генерация SQL
+            result = safe_async_call(self.generate_query(SQLGenerationInput(**parameters)))
+            return result.model_dump()
 
     async def restart(self) -> bool:
         """
@@ -180,6 +174,49 @@ class SQLGenerationService(BaseService):
         """Завершение работы сервиса"""
         # Здесь можно освободить ресурсы, закрыть соединения и т.д.
         # В данном случае у нас нет внешних ресурсов для освобождения
+
+    async def execute_with_auto_correction(
+        self,
+        input_data: SQLGenerationInput,
+        context: Optional[Any] = None
+    ) -> 'DBQueryResult':
+        """
+        Генерация SQL с автоматической коррекцией.
+
+        Вызывается из sql_query_service через executor.
+        """
+        from core.models.types.db_types import DBQueryResult
+
+        try:
+            # Генерируем SQL
+            result = await self.generate_query(input_data=input_data, context=context)
+
+            if not result.sql:
+                return DBQueryResult(
+                    success=False,
+                    rows=[],
+                    columns=[],
+                    rowcount=0,
+                    error="SQL не сгенерирован"
+                )
+
+            return DBQueryResult(
+                success=True,
+                rows=[],
+                columns=[],
+                rowcount=0,
+                error=None
+            )
+
+        except Exception as e:
+            from core.models.types.db_types import DBQueryResult
+            return DBQueryResult(
+                success=False,
+                rows=[],
+                columns=[],
+                rowcount=0,
+                error=f"Ошибка генерации SQL: {str(e)}"
+            )
 
     async def generate_query(
         self,

@@ -2,8 +2,8 @@
 Инструмент для выполнения SQL-запросов с поддержкой изолированных кэшей и sandbox режима.
 
 АРХИТЕКТУРА:
+- Stateless: получает DB провайдер из application_context при каждом вызове
 - Использует изолированные кэши, предзагруженные через ComponentConfig
-- Зависимости запрашиваются из инфраструктуры при выполнении
 - Поддержка sandbox режима для безопасного выполнения запросов
 """
 import asyncio
@@ -14,6 +14,7 @@ from typing import Dict, Optional, Any
 from core.components.tools.base_tool import BaseTool, ToolInput, ToolOutput
 from core.application_context.application_context import ApplicationContext
 from core.config.component_config import ComponentConfig
+from core.models.enums.common_enums import ResourceType
 from core.utils.async_utils import safe_async_call
 
 
@@ -35,9 +36,6 @@ class SQLToolOutput(ToolOutput):
 class SQLTool(BaseTool):
     """Инструмент для выполнения SQL-запросов с четким контрактом и поддержкой изолированных кэшей."""
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = []  # Нет зависимостей (использует инфраструктуру напрямую)
-
     @property
     def description(self) -> str:
         return "Выполнение SQL-запросов к базе данных с поддержкой изолированных кэшей и sandbox режима"
@@ -54,8 +52,7 @@ class SQLTool(BaseTool):
         # EventBusLogger инициализируется в LoggingMixin автоматически
 
     async def initialize(self) -> bool:
-        """Инициализация инструмента (в данном случае не требуется подключения к БД, т.к. оно запрашивается при выполнении)."""
-        # Вызываем родительскую инициализацию для правильной установки флага _initialized
+        """Инициализация инструмента (не требует подключения к БД)."""
         result = await super().initialize()
         return result
 
@@ -73,13 +70,40 @@ class SQLTool(BaseTool):
                 return True
         return False
 
-    def _execute_impl(
+    def _get_db_provider(self):
+        """
+        Получение DB провайдера из инфраструктуры (stateless).
+
+        Возвращает первый доступный DB провайдер из resource_registry.
+        Предпочитает провайдер по умолчанию (is_default=True).
+        """
+        try:
+            infra_ctx = self.application_context.infrastructure_context
+            # Сначала ищем провайдер по умолчанию
+            default_db = infra_ctx.resource_registry.get_default_resource(ResourceType.DATABASE)
+            if default_db and default_db.instance:
+                return default_db.instance
+
+            # Если нет default — берём первый доступный
+            db_resources = infra_ctx.resource_registry.get_resources_by_type(ResourceType.DATABASE)
+            if db_resources:
+                return db_resources[0].instance
+        except Exception as e:
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(f"Ошибка получения DB провайдера: {e}")
+        return None
+
+    async def _execute_impl(
         self,
         capability: 'Capability',
         parameters: Dict[str, Any],
         execution_context: 'ExecutionContext'
     ) -> Dict[str, Any]:
-        """Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима (СИНХРОННОЕ)."""
+        """
+        Выполнение SQL-запроса с использованием изолированных ресурсов и проверкой sandbox режима.
+
+        Теперь async-метод — можно вызывать db.execute_query напрямую через await.
+        """
         # Преобразуем параметры во входные данные
         input_data = self._convert_params_to_input(parameters)
 
@@ -107,25 +131,11 @@ class SQLTool(BaseTool):
 
         start_time = time.time()
 
-        # Запрашиваем зависимости из инфраструктуры через executor
-        # REFACTOR: Используем executor.execute_action для получения подключения к БД
-        # Примечание: _execute_impl синхронный, поэтому используем синхронный вызов
-        db_provider = None
-        try:
-            # Получаем подключение через executor (требует async вызова)
-            # Для обратной совместимости используем fallback на прямое получение
-            if hasattr(self, 'db') and self.db:
-                db_provider = self.db
-        except Exception as e:
-            if self.event_bus_logger:
-                self.event_bus_logger.error_sync(f"Ошибка получения DB подключения: {e}")
-
+        # Получаем DB провайдер из инфраструктуры (stateless подход)
+        db_provider = self._get_db_provider()
         if not db_provider:
             if self.event_bus_logger:
-                self.event_bus_logger.error_sync("DB провайдер не найден")
-            else:
-                self.logger.error("DB провайдер не найден")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.event_bus_logger.error_sync("DB провайдер не найден в infrastructure_context")
             return {
                 "rows": [],
                 "columns": [],
@@ -142,23 +152,21 @@ class SQLTool(BaseTool):
                 "execution_time": time.time() - start_time
             }
 
-        # Выполнение через провайдера (синхронное ожидание async метода)
-        # Проверяем, поддерживает ли провайдер параметр max_rows
-        import inspect
-        sig = inspect.signature(db_provider.execute)
-
-        if 'max_rows' in sig.parameters:
-            result = self._safe_async_call(db_provider.execute(
-                query=input_data.sql,
-                params=input_data.parameters,
-                max_rows=input_data.max_rows
-            ))
-        else:
-            # Для совместимости с mock-провайдерами
-            result = self._safe_async_call(db_provider.execute(
+        # Выполнение через провайдера — НАПРЯМУЮ через await (мы в async контексте)
+        try:
+            result = await db_provider.execute_query(
                 query=input_data.sql,
                 params=input_data.parameters
-            ))
+            )
+        except Exception as e:
+            if self.event_bus_logger:
+                self.event_bus_logger.error_sync(f"Ошибка выполнения SQL: {e}")
+            return {
+                "rows": [],
+                "columns": [],
+                "rowcount": 0,
+                "execution_time": time.time() - start_time
+            }
 
         execution_time = time.time() - start_time
 

@@ -31,7 +31,7 @@ llm_providers:
   default_llm:
     enabled: true
     provider_type: openrouter
-    model_name: qwen/qwen3.6-plus:free
+    model_name: google/gemma-4-26b-a4b-it:free
     parameters:
       api_key: "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"
 log_dir: logs/prod

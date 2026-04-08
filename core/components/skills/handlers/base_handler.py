@@ -22,7 +22,7 @@ from core.models.data.execution import ExecutionResult, ExecutionStatus
 from core.agent.components.action_executor import ActionExecutor, ExecutionContext
 from core.infrastructure.logging import EventBusLogger
 from core.components.skills.base_skill import BaseSkill
-from typing import Any, Optional, Type, Tuple, Union
+from typing import Any, Optional, Type, Tuple, Union, List, Dict
 
 
 class BaseSkillHandler(ABC):
@@ -194,95 +194,54 @@ class BaseSkillHandler(ABC):
             return output_schema.model_validate(result)
         return result
 
-    # === ОБЩИЕ МЕТОДЫ ДЛЯ УСТРАНЕНИЯ ДУБЛИРОВАНИЯ ===
+    def _format_table_metadata(self, metadata: Dict[str, Any]) -> str:
+        """Форматирование метаданных таблицы в строку для LLM"""
+        schema_name = metadata.get("schema_name", "public")
+        table_name = metadata.get("table_name", "unknown")
+        description = metadata.get("description", "")
+        columns = metadata.get("columns", [])
 
-    def _extract_params(
-        self,
-        params: Dict[str, Any],
-        field_names: Tuple[str, ...] = ('query', 'max_results'),
-        defaults: Tuple[Any, ...] = ('', 10)
-    ) -> Tuple[Any, ...]:
-        """
-        Извлечение параметров из dict или Pydantic модели.
+        cols_str = []
+        for col in columns:
+            col_name = col.get("column_name", "")
+            data_type = col.get("data_type", "unknown")
+            nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
+            default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
+            cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
 
-        УНИВЕРСАЛЬНЫЙ МЕТОД — работает для всех хендлеров!
+        result = f'"{schema_name}"."{table_name}" (\n'
+        result += ",\n".join(f"    {c}" for c in cols_str)
+        result += "\n)"
+        if description:
+            result += f" -- {description}"
+        return result
 
-        ARGS:
-        - params: входные параметры (dict или Pydantic модель)
-        - field_names: имена полей для извлечения (например, ('query', 'max_results'))
-        - defaults: значения по умолчанию для каждого поля
-
-        RETURNS:
-        - Tuple: значения извлеченных параметров в порядке field_names
-
-        RAISES:
-        - ValueError: если валидация не пройдена или контракт не загружен
-        """
-        if isinstance(params, BaseModel):
-            return tuple(getattr(params, name, default) for name, default in zip(field_names, defaults))
-        else:
-            input_schema = self.get_input_schema()
-            if input_schema:
-                try:
-                    validated_params = input_schema.model_validate(params)
-                    return tuple(
-                        getattr(validated_params, name, default)
-                        for name, default in zip(field_names, defaults)
-                    )
-                except Exception as e:
-                    raise ValueError(f"Ошибка валидации параметров: {e}")
+    def _get_default_schema_fallback(self, tables_config: List[Dict[str, str]]) -> str:
+        """Fallback: возвращает схему с колонками если сервис недоступен"""
+        schema_parts = []
+        for t in tables_config:
+            schema = t.get("schema", "public")
+            table = t.get("table", "unknown")
+            description = t.get("description", "")
+            columns = t.get("columns", [])
+            
+            if columns:
+                cols_str = []
+                for col in columns:
+                    col_name = col.get("column_name", "")
+                    data_type = col.get("data_type", "unknown")
+                    nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
+                    default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
+                    cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
+                
+                result = f'"{schema}"."{table}" (\n'
+                result += ",\n".join(f"    {c}" for c in cols_str)
+                result += "\n)"
             else:
-                raise ValueError(
-                    f"Входной контракт для {self.capability_name} не загружен. "
-                    f"Убедитесь что компонент инициализирован корректно."
-                )
-
-    async def _execute_sql(
-        self,
-        sql: str,
-        max_rows: int = 50,
-        parameters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[list, float]:
-        """
-        Выполнение SQL запроса через sql_query сервис.
-
-        УНИВЕРСАЛЬНЫЙ МЕТОД — работает для всех хендлеров!
-
-        ARGS:
-        - sql: SQL запрос для выполнения
-        - max_rows: максимальное количество возвращаемых строк
-        - parameters: параметры для параметризованного запроса
-
-        RETURNS:
-        - Tuple: (rows, execution_time)
-
-        RAISES:
-        - RuntimeError: если выполнение SQL завершилось с ошибкой
-        """
-        rows = []
-        execution_time = 0.0
-
-        try:
-            exec_context = ExecutionContext()
-            result = await self.executor.execute_action(
-                action_name="sql_query.execute",
-                parameters={
-                    "sql": sql,
-                    "parameters": parameters or {},
-                    "max_rows": max_rows
-                },
-                context=exec_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED and result.data:
-                rows = result.data.rows if hasattr(result.data, 'rows') else []
-                execution_time = result.data.execution_time if hasattr(result.data, 'execution_time') else 0.0
-                await self.log_info(f"Найдено строк: {len(rows)}")
-            else:
-                raise RuntimeError(f"Ошибка выполнения SQL: {result.error}")
-
-        except Exception as e:
-            await self.log_error(f"Ошибка выполнения SQL: {e}")
-            raise RuntimeError(f"Ошибка выполнения SQL запроса: {e}")
-
-        return rows, execution_time
+                result = f'"{schema}"."{table}"'
+            
+            if description:
+                result += f" -- {description}"
+            schema_parts.append(result)
+        
+        return ",\n\n".join(schema_parts)

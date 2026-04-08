@@ -42,9 +42,6 @@ class SQLValidatorService(BaseService):
     - Санитизация и параметризация запросов
     """
     
-    # Зависит только от метаданных таблиц
-    DEPENDENCIES = ["table_description_service"]  # Зависит только от метаданных таблиц
-
     @property
     def description(self) -> str:
         return "Сервис для валидации SQL-запросов с проверкой безопасности и параметризацией"
@@ -85,9 +82,6 @@ class SQLValidatorService(BaseService):
     async def _custom_initialize(self) -> bool:
         """Инициализация сервиса"""
         try:
-            # Зависимости уже загружены родительским методом
-            # Доступны через: self.table_description_service_instance
-
             if self.event_bus_logger:
                 await self.event_bus_logger.info(
                   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})

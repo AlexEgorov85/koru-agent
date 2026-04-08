@@ -1186,16 +1186,16 @@ class ActionExecutor:
                 execution_context=context
             )
 
-            # Возвращаем результат
-            # Публикация события об успешном выполнении
+            # result — это уже ExecutionResult от BaseComponent.execute()
+            # Не оборачиваем второй раз!
             if self._event_bus:
                 await self._event_bus.publish(
                     event_type="executor.tool_result",
                     data={
                         "action_name": action_name,
                         "tool": tool.name,
-                        "status": "completed",
-                        "data": result
+                        "status": result.status.name if hasattr(result, 'status') else "completed",
+                        "data": result.data if hasattr(result, 'data') else result
                     },
                     source="action_executor",
                     session_id=context.session_id,
@@ -1203,10 +1203,7 @@ class ActionExecutor:
                 )
                 print(f"[ActionExecutor] ✓ Опубликовано executor.tool_result: {action_name}", flush=True)
 
-            return ExecutionResult(
-                status=ExecutionStatus.COMPLETED,
-                data=result
-            )
+            return result
 
         except Exception as e:
             if self._event_bus:

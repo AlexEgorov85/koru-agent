@@ -38,9 +38,6 @@ class SQLQueryService(BaseService):
     - Обеспечивает безопасное выполнение через параметризованные запросы
     """
     
-    # Зависимости в правильном порядке
-    DEPENDENCIES = ["sql_generation"]
-
     @property
     def description(self) -> str:
         return "Сервис для безопасного выполнения SQL-запросов с валидацией и параметризацией"
@@ -71,14 +68,11 @@ class SQLQueryService(BaseService):
         self.max_result_rows = 1000
 
     async def _custom_initialize(self) -> bool:
-        """Инициализация зависимостей"""
+        """Инициализация внутреннего состояния"""
         try:
-            # Зависимости уже загружены родительским методом
-            # Доступны через: self.sql_validator_service_instance, self.sql_generation_instance
-
             # Инициализация анализатора ошибок
             self.error_analyzer = SQLErrorAnalyzer(
-                self.application_context, 
+                self.application_context,
                 executor=self.executor,
                 event_bus=self._event_bus
             )
@@ -149,7 +143,6 @@ class SQLQueryService(BaseService):
         - DBQueryResult: результат выполнения запроса
         """
         from core.agent.components.action_executor import ExecutionContext
-        from core.components.services.tools.sql_tool import SQLToolInput
 
         try:
             await self._publish_with_context(
@@ -342,36 +335,40 @@ class SQLQueryService(BaseService):
                 source="sql_query",
                 execution_context=execution_context
             )
-            # Получаем SQLGenerationService для генерации безопасного запроса
-            # Используем components.get() напрямую вместо get_service()
-            sql_gen_service = None
-            if hasattr(self, '_application_context') and self._application_context:
-                sql_gen_service = self._application_context.components.get(ComponentType.SERVICE, "sql_generation")
+            # Генерируем SQL через executor (не напрямую!)
+            from core.agent.components.action_executor import ExecutionContext
+            exec_context = execution_context or ExecutionContext()
 
-            if not sql_gen_service:
+            result = await self.executor.execute_action(
+                action_name="sql_generation.execute_with_auto_correction",
+                parameters={
+                    "user_question": user_question,
+                    "tables": tables,
+                    "max_rows": max_rows,
+                    "context": f"Цель: выполнение безопасного SQL-запроса. Максимум {max_rows} строк."
+                },
+                context=exec_context
+            )
+
+            # Результат приходит в result.data
+            if hasattr(result, "data") and result.data:
+                return result.data
+            elif hasattr(result, "error") and result.error:
                 return DBQueryResult(
                     success=False,
                     rows=[],
                     columns=[],
                     rowcount=0,
-                    error="SQLGenerationService не доступен"
+                    error=f"Ошибка генерации SQL: {result.error}"
                 )
-
-            # Подготовка входных данных для SQLGenerationService
-            generation_input = SQLGenerationInput(
-                user_question=user_question,
-                tables=tables,
-                max_rows=max_rows,
-                context=f"Цель: выполнение безопасного SQL-запроса. Максимум {max_rows} строк."
-            )
-
-            # Выполнение через SQLGenerationService с автоматической коррекцией
-            result = await sql_gen_service.execute_with_auto_correction(
-                generation_input,
-                context=None
-            )
-
-            return result
+            else:
+                return DBQueryResult(
+                    success=False,
+                    rows=[],
+                    columns=[],
+                    rowcount=0,
+                    error="sql_generation вернул пустой результат"
+                )
 
         except Exception as e:
             await self._publish_with_context(

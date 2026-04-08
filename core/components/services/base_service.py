@@ -257,8 +257,7 @@ class BaseService(BaseComponent):
                 else:
                     self._safe_log_sync("debug", f"_resolve_dependencies: зависимость '{dep_name}' для '{self.name}' уже инициализирована")
 
-            self._dependencies[dep_name] = dependency
-            setattr(self, f"{dep_name}_instance", dependency)  # Удобный доступ через атрибут
+            self._dependencies[dep_name] = dependency  # Кэш для get_dependency()
 
         # Return False only if ALL dependencies are missing
         if len(missing_deps) == len(self.DEPENDENCIES) and self.DEPENDENCIES:

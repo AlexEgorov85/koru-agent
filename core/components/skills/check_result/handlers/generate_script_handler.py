@@ -1,19 +1,11 @@
 import time
-import os
-import yaml
-from typing import Dict, Any, List, Optional
+from typing import Any, List
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus
 from core.agent.components.action_executor import ExecutionContext
 from core.errors.exceptions import SQLGenerationError
 from core.components.skills.handlers.base_handler import BaseSkillHandler
-
-
-TABLES_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "data", "skills", "check_result", "tables.yaml"
-)
 
 
 class GenerateScriptHandler(BaseSkillHandler):
@@ -108,53 +100,7 @@ class GenerateScriptHandler(BaseSkillHandler):
         if not tables_config:
             return self._get_default_schema()
 
-        tables_list = [f"{t['schema']}.{t['table']}" for t in tables_config]
-
-        try:
-            exec_context = ExecutionContext()
-            result = await self.executor.execute_action(
-                action_name="table_description_service.execute",
-                parameters={
-                    "table_list": [t['table'] for t in tables_config],
-                    "schema_name": tables_config[0].get('schema', 'public')
-                },
-                context=exec_context
-            )
-
-            if result.status == ExecutionStatus.COMPLETED and result.data:
-                tables_metadata = result.data
-                if tables_metadata:
-                    schema_parts = []
-                    for key, metadata in tables_metadata.items():
-                        schema_parts.append(self._format_table_metadata(metadata))
-                    if schema_parts:
-                        return "\n\n".join(schema_parts)
-        except Exception as e:
-            await self.log_warning(f"Не удалось получить схему из сервиса: {e}")
-
-        return self._get_default_schema()
-
-    def _format_table_metadata(self, metadata: Dict[str, Any]) -> str:
-        """Форматирование метаданных таблицы в строку для LLM"""
-        schema_name = metadata.get("schema_name", "public")
-        table_name = metadata.get("table_name", "unknown")
-        description = metadata.get("description", "")
-        columns = metadata.get("columns", [])
-
-        cols_str = []
-        for col in columns:
-            col_name = col.get("column_name", "")
-            data_type = col.get("data_type", "unknown")
-            nullable = "NOT NULL" if col.get("is_nullable") == "NO" else ""
-            default = f"DEFAULT {col.get('column_default')}" if col.get("column_default") else ""
-            cols_str.append(f"{col_name} {data_type} {nullable} {default}".strip())
-
-        result = f'"{schema_name}"."{table_name}" (\n'
-        result += ",\n".join(f"    {c}" for c in cols_str)
-        result += "\n)"
-        if description:
-            result += f" -- {description}"
-        return result
+        return await self.get_table_descriptions(tables_config, format_for_llm=True)
 
     def _get_default_schema(self) -> str:
         """Fallback: возвращает схему из конфигурации"""

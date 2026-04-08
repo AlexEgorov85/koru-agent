@@ -44,9 +44,6 @@ class FinalAnswerSkill(BaseSkill):
     def description(self) -> str:
         return "Навык генерации финального ответа на основе контекста сессии"
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = ["prompt_service", "contract_service"]
-
     name = "final_answer"
     supported_strategies = ["react", "planning", "evaluation", "plan_and_execute", "chain_of_thought"]
 

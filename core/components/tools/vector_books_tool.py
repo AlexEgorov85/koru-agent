@@ -27,9 +27,6 @@ class VectorBooksTool(BaseTool):
     - Cache для кэширования результатов анализа
     """
 
-    # Явная декларация зависимостей
-    DEPENDENCIES = []  # Нет зависимостей (использует инфраструктуру напрямую)
-
     def __init__(
         self,
         name: str,
