@@ -3,10 +3,14 @@
 """
 
 import sys
+import os
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Добавляем корень проекта в путь
+project_root = str(Path(__file__).parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import streamlit as st
 from core.agent.factory import AgentFactory
@@ -25,7 +29,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Light theme -统一的字体 */
+/* Light theme */
 body, .stApp, p, li, div, span {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 15px;
