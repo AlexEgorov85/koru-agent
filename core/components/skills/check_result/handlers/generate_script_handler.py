@@ -34,23 +34,16 @@ class GenerateScriptHandler(BaseSkillHandler):
 
     def __init__(self, skill):
         super().__init__(skill)
-        self._tables_config: Optional[List[Dict[str, str]]] = None
+
+    async def _get_tables_config(self) -> List[Dict[str, str]]:
+        """Получение конфигурации таблиц от родительского skill"""
+        if hasattr(self.skill, 'get_tables_config'):
+            return self.skill.get_tables_config() or []
+        return []
 
     async def _load_tables_config(self) -> List[Dict[str, str]]:
-        """Загрузка конфигурации таблиц из YAML файла"""
-        if self._tables_config is not None:
-            return self._tables_config
-
-        if os.path.exists(TABLES_CONFIG_PATH):
-            with open(TABLES_CONFIG_PATH, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                self._tables_config = config.get('tables', [])
-                await self.log_info(f"Загружена конфигурация таблиц из файла: {len(self._tables_config)} таблиц")
-        else:
-            await self.log_warning(f"Файл конфигурации таблиц не найден: {TABLES_CONFIG_PATH}")
-            self._tables_config = []
-
-        return self._tables_config
+        """Получение конфигурации таблиц (использует centralized метод)"""
+        return await self._get_tables_config()
 
     async def execute(self, params: BaseModel, execution_context: Any = None) -> BaseModel:
         """
