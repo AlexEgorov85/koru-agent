@@ -1,0 +1,36 @@
+capability: check_result.execute_script
+component_type: skill
+description: Output contract for check_result.execute_script - результат выполнения скрипта
+direction: output
+schema_data:
+  type: object
+  properties:
+    rows:
+      type: array
+      description: Результаты выполнения скрипта
+      items:
+        type: object
+        additionalProperties: true
+    rowcount:
+      type: integer
+      description: Количество возвращённых строк
+    execution_time:
+      type: number
+      description: Время выполнения в секундах
+    execution_type:
+      type: string
+      description: Тип выполнения (static)
+      enum:
+        - static
+    script_name:
+      type: string
+      description: Название выполненного скрипта
+    warning:
+      type: string
+      description: Предупреждение (если есть)
+  required:
+    - rows
+    - rowcount
+    - execution_type
+status: active
+version: v1.0.0

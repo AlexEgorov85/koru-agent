@@ -1,0 +1,22 @@
+capability: check_result.execute_script
+component_type: skill
+description: Input contract for check_result.execute_script - выполнение заготовленного скрипта проверки
+direction: input
+schema_data:
+  type: object
+  properties:
+    script_name:
+      type: string
+      description: Название скрипта для выполнения
+    parameters:
+      type: object
+      description: Параметры для скрипта (произвольные ключи)
+      additionalProperties: true
+    max_rows:
+      type: integer
+      description: Максимальное количество возвращаемых строк
+      default: 50
+  required:
+    - script_name
+status: active
+version: v1.0.0

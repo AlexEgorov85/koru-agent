@@ -1,0 +1,36 @@
+capability: check_result.generate_script
+component_type: skill
+description: Output contract for check_result.generate_script - результат генерации и выполнения скрипта
+direction: output
+schema_data:
+  type: object
+  properties:
+    rows:
+      type: array
+      description: Результаты выполнения сгенерированного скрипта
+      items:
+        type: object
+        additionalProperties: true
+    rowcount:
+      type: integer
+      description: Количество возвращённых строк
+    execution_time:
+      type: number
+      description: Время выполнения в секундах
+    execution_type:
+      type: string
+      description: Тип выполнения (dynamic)
+      enum:
+        - dynamic
+    sql_query:
+      type: string
+      description: Сгенерированный SQL-запрос (для отладки)
+    warning:
+      type: string
+      description: Предупреждение (если есть)
+  required:
+    - rows
+    - rowcount
+    - execution_type
+status: active
+version: v1.0.0

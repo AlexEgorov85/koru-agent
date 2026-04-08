@@ -1,0 +1,21 @@
+capability: check_result.generate_script
+component_type: skill
+description: Input contract for check_result.generate_script - генерация и выполнение SQL скрипта
+direction: input
+schema_data:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Запрос на естественном языке для генерации SQL
+    schema_context:
+      type: string
+      description: Список таблиц для генерации SQL (опционально, через запятую)
+    max_results:
+      type: integer
+      description: Максимальное количество возвращаемых строк
+      default: 50
+  required:
+    - query
+status: active
+version: v1.0.0

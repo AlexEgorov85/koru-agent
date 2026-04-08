@@ -1,0 +1,7 @@
+tables:
+  - schema: Lib
+    table: books
+    description: Таблица книг
+  - schema: Lib
+    table: authors
+    description: Таблица авторов
