@@ -54,44 +54,44 @@ class PlanningSkill(BaseComponent):
                 name="planning.create_plan",
                 description="Создание первичного плана действий",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
+                supported_strategies=["planning"],
+                visiable=False
             ),
             Capability(
                 name="planning.update_plan",
                 description="Обновление существующего плана",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
+                supported_strategies=["planning"],
+                visiable=False
             ),
             Capability(
                 name="planning.get_next_step",
                 description="Получение следующего шага из плана",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
+                supported_strategies=["planning"],
+                visiable=False
             ),
             Capability(
                 name="planning.update_step_status",
                 description="Обновление статуса шага плана",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
+                supported_strategies=["planning"],
+                visiable=False
             ),
             Capability(
                 name="planning.decompose_task",
                 description="Декомпозиция сложной задачи на подзадачи",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
+                supported_strategies=["planning"],
+                visiable=False
             ),
             Capability(
                 name="planning.mark_task_completed",
-                description="Отметка задачи как завершенной",
+                description="Отметка задачи как завершённой",
                 skill_name=self.name,
-                supported_strategies=["planning"],  # ← Только planning_pattern
-                visiable=True
-            )
+                supported_strategies=["planning"],
+                visiable=False
+            ),
         ]
 
     async def _execute_impl(

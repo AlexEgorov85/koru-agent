@@ -10,7 +10,7 @@ from enum import Enum
 
 from core.application_context.application_context import ApplicationContext
 from core.agent.runtime import AgentRuntime
-from core.application_context.agent_config import AgentConfig
+from core.config.agent_config import AgentConfig
 from core.infrastructure.logging import EventBusLogger
   # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
   # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
@@ -92,7 +92,8 @@ class AgentFactory:
             goal=goal,
             correlation_id=correlation_id,
             agent_id=agent_id,
-            dialogue_history=dialogue_history  # ← НОВОЕ: передаём историю
+            dialogue_history=dialogue_history,
+            agent_config=config
         )
 
         if self.event_bus_logger:

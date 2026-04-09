@@ -34,8 +34,7 @@ class AgentConfig(BaseModel):
     capability_filter: Dict[str, Any] = Field(
         default_factory=lambda: {
             "include_hidden": False,
-            "component_types": ["skill", "tool"],
-            "exclude_prefixes": ["planning.", "evaluation."],
+            "component_types": ["skill"],
         }
     )
     

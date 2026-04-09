@@ -490,9 +490,10 @@ class LlamaCppProvider(BaseLLMProvider, LLMInterface):
                     if self.event_bus_logger:
                         await self.event_bus_logger.info(f"✅ JSON распарсен: ключи={list(parsed_json.keys())}")
 
-                    # ✅ Сохраняем JSON в raw_response.content
+                    # ✅ Сохраняем JSON в raw_response.content И в content для совместимости
                     # ✅ parsed_content=None — оркестратор создаст Pydantic модель
                     response = LLMResponse(
+                        content=json_content,  # ← ВАЖНО: для fallback чтения!
                         parsed_content=None,  # ← Оркестратор заполнит
                         raw_response=RawLLMResponse(
                             content=json_content,  # ← JSON строка для валидации

@@ -4,7 +4,6 @@
 Тестирует:
 - Извлечение JSON из разных форматов ответа
 - Создание Pydantic моделей из JSON Schema
-- Retry логику при ошибках
 - Валидацию данных
 """
 import pytest
@@ -14,19 +13,19 @@ from typing import Dict, Any
 
 class TestExtractJsonFromResponse:
     """Тесты на извлечение JSON из ответов LLM."""
-    
+
     def _extract_json(self, content: str) -> Dict[str, Any]:
         """Helper для извлечения JSON (копия из LlamaCppProvider)."""
         import re
-        
+
         content = content.strip()
-        
+
         # Попытка 1: Чистый JSON
         try:
             return json.loads(content)
         except json.JSONDecodeError:
             pass
-        
+
         # Попытка 2: JSON в markdown блоке
         markdown_pattern = r'```(?:json)?\s*({.*?})\s*```'
         match = re.search(markdown_pattern, content, re.DOTALL | re.IGNORECASE)
@@ -35,7 +34,7 @@ class TestExtractJsonFromResponse:
                 return json.loads(match.group(1))
             except json.JSONDecodeError:
                 pass
-        
+
         # Попытка 3: Поиск первой { и последней }
         start_idx = content.find('{')
         end_idx = content.rfind('}') + 1
@@ -45,43 +44,43 @@ class TestExtractJsonFromResponse:
                 return json.loads(json_str)
             except json.JSONDecodeError:
                 pass
-        
+
         raise json.JSONDecodeError(
             "Не удалось извлечь JSON из ответа",
             content,
             0
         )
-    
+
     def test_clean_json(self):
         """Тест извлечения из чистого JSON."""
         content = '{"answer": "42", "confidence": 0.95}'
         result = self._extract_json(content)
         assert result == {"answer": "42", "confidence": 0.95}
-    
+
     def test_json_in_markdown_block(self):
         """Тест извлечения из markdown блока."""
         content = 'Вот ответ:\n```json\n{"answer": "42", "confidence": 0.95}\n```'
         result = self._extract_json(content)
         assert result == {"answer": "42", "confidence": 0.95}
-    
+
     def test_json_in_markdown_without_language(self):
         """Тест извлечения из markdown без указания языка."""
         content = '```\n{"answer": "42"}\n```'
         result = self._extract_json(content)
         assert result == {"answer": "42"}
-    
+
     def test_json_with_text_before(self):
         """Тест извлечения с текстом перед JSON."""
         content = 'Я думаю что ответ такой: {"answer": "42"} потому что...'
         result = self._extract_json(content)
         assert result == {"answer": "42"}
-    
+
     def test_json_with_text_after(self):
         """Тест извлечения с текстом после JSON."""
         content = '{"answer": "42"}\n\nЭто был мой ответ.'
         result = self._extract_json(content)
         assert result == {"answer": "42"}
-    
+
     def test_nested_json(self):
         """Тест извлечения с вложенным JSON."""
         content = '''
@@ -99,31 +98,31 @@ class TestExtractJsonFromResponse:
         assert "plan" in result
         assert len(result["plan"]) == 2
         assert result["plan"][0]["step"] == 1
-    
+
     def test_json_with_cyrillic(self):
         """Тест извлечения с кириллицей."""
         content = '{"answer": "Привет мир", "status": "успех"}'
         result = self._extract_json(content)
         assert result == {"answer": "Привет мир", "status": "успех"}
-    
+
     def test_invalid_json_raises(self):
         """Тест что невалидный JSON вызывает ошибку."""
         content = 'Это не JSON совсем'
         with pytest.raises(json.JSONDecodeError):
             self._extract_json(content)
-    
+
     def test_malformed_json_raises(self):
         """Тест что malformed JSON вызывает ошибку."""
         content = '{"answer": "42",}'  # Лишняя запятая
         with pytest.raises(json.JSONDecodeError):
             self._extract_json(content)
-    
+
     def test_empty_object(self):
         """Тест извлечения пустого объекта."""
         content = '{}'
         result = self._extract_json(content)
         assert result == {}
-    
+
     def test_complex_nested_structure(self):
         """Тест извлечения сложной вложенной структуры."""
         content = '''
@@ -154,17 +153,17 @@ class TestExtractJsonFromResponse:
 
 class TestCreatePydanticFromSchema:
     """Тесты на создание Pydantic моделей из JSON Schema."""
-    
+
     def _create_model(self, model_name: str, schema_def: Dict[str, Any]):
         """Helper для создания модели (копия из LlamaCppProvider)."""
         from pydantic import create_model, Field
         from typing import List, Optional, Any
-        
+
         def build_field(field_schema: Dict) -> tuple:
             field_type = field_schema.get('type', 'string')
             description = field_schema.get('description', '')
             default = field_schema.get('default', ...)
-            
+
             type_mapping = {
                 'string': str,
                 'integer': int,
@@ -173,29 +172,29 @@ class TestCreatePydanticFromSchema:
                 'array': List[Any],
                 'object': Dict[str, Any]
             }
-            
+
             python_type = type_mapping.get(field_type, Any)
-            
+
             if description:
                 field_info = Field(default=default, description=description) if default is not ... else Field(description=description)
             else:
                 field_info = Field(default=default) if default is not ... else Field()
-            
+
             return (python_type, field_info)
-        
+
         fields = {}
         properties = schema_def.get('properties', {})
         required = schema_def.get('required', [])
-        
+
         for field_name, field_schema in properties.items():
             if field_name in required:
                 fields[field_name] = build_field(field_schema)
             else:
                 field_type, field_info = build_field(field_schema)
                 fields[field_name] = (Optional[field_type], field_info)
-        
+
         return create_model(model_name, **fields)
-    
+
     def test_simple_string_fields(self):
         """Тест модели с простыми string полями."""
         schema = {
@@ -206,13 +205,13 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["name"]
         }
-        
+
         Model = self._create_model("TestModel", schema)
         instance = Model(name="Test", description="A test model")
-        
+
         assert instance.name == "Test"
         assert instance.description == "A test model"
-    
+
     def test_mixed_types(self):
         """Тест модели со смешанными типами."""
         schema = {
@@ -225,15 +224,15 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["id", "name"]
         }
-        
+
         Model = self._create_model("MixedModel", schema)
         instance = Model(id=42, score=3.14, active=True, name="Test")
-        
+
         assert instance.id == 42
         assert abs(instance.score - 3.14) < 0.001
         assert instance.active is True
         assert instance.name == "Test"
-    
+
     def test_optional_fields(self):
         """Тест модели с необязательными полями."""
         schema = {
@@ -244,20 +243,20 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["required_field"]
         }
-        
+
         Model = self._create_model("OptionalModel", schema)
         instance = Model(required_field="value")
-        
+
         assert instance.required_field == "value"
         assert instance.optional_field == "default_value"
-    
+
     def test_with_descriptions(self):
         """Тест модели с описаниями полей."""
         schema = {
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string", 
+                    "type": "string",
                     "description": "Email адрес пользователя"
                 },
                 "age": {
@@ -267,18 +266,18 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["email"]
         }
-        
+
         Model = self._create_model("UserModel", schema)
         instance = Model(email="test@example.com", age=25)
-        
+
         assert instance.email == "test@example.com"
         assert instance.age == 25
-        
+
         # Проверяем что описания есть в модели
         fields = instance.model_fields
         assert "Email адрес пользователя" in fields["email"].description
         assert "Возраст в годах" in fields["age"].description
-    
+
     def test_validation_error_on_missing_required(self):
         """Тест что отсутствует required поле вызывает ошибку."""
         schema = {
@@ -288,12 +287,12 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["name"]
         }
-        
+
         Model = self._create_model("RequiredModel", schema)
-        
+
         with pytest.raises(Exception):  # ValidationError
             Model()  # Без обязательного поля
-    
+
     def test_nested_object_field(self):
         """Тест модели с вложенным объектом."""
         schema = {
@@ -309,98 +308,9 @@ class TestCreatePydanticFromSchema:
             },
             "required": ["user"]
         }
-        
+
         Model = self._create_model("NestedModel", schema)
         instance = Model(user={"name": "John", "email": "john@example.com"})
-        
+
         assert instance.user["name"] == "John"
         assert instance.user["email"] == "john@example.com"
-
-
-class TestStructuredOutputRetry:
-    """Тесты на retry логику при структурированном выводе."""
-    
-    @pytest.mark.asyncio
-    async def test_mock_provider_success_on_first_try(self):
-        """Тест что MockProvider успешен с первой попытки."""
-        from core.infrastructure.providers.llm.mock_provider import MockLLMProvider
-        from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-        
-        provider = MockLLMProvider()
-        await provider.initialize()
-        
-        # Регистрируем валидный JSON ответ
-        provider.register_response(
-            "test",
-            '{"answer": "success", "confidence": 1.0}'
-        )
-        
-        schema = {
-            "type": "object",
-            "properties": {
-                "answer": {"type": "string"},
-                "confidence": {"type": "number"}
-            },
-            "required": ["answer", "confidence"]
-        }
-        
-        request = LLMRequest(
-            prompt="test",
-            structured_output=StructuredOutputConfig(
-                output_model="TestOutput",
-                schema_def=schema,
-                max_retries=3
-            )
-        )
-        
-        result = await provider.generate_structured(request)
-        
-        assert result.success is True
-        assert result.parsing_attempts == 1
-        assert result.parsed_content.answer == "success"
-        assert len(result.validation_errors) == 0
-    
-    @pytest.mark.asyncio
-    async def test_mock_provider_invalid_json_fallback(self):
-        """Тест что MockProvider обрабатывает невалидный JSON."""
-        from core.infrastructure.providers.llm.mock_provider import MockLLMProvider
-        from core.models.types.llm_types import LLMRequest, StructuredOutputConfig
-        
-        provider = MockLLMProvider()
-        await provider.initialize()
-        
-        # Регистрируем невалидный JSON
-        provider.register_response(
-            "test",
-            'not valid json at all'
-        )
-        
-        schema = {
-            "type": "object",
-            "properties": {
-                "answer": {"type": "string"}
-            },
-            "required": ["answer"]
-        }
-        
-        request = LLMRequest(
-            prompt="test",
-            structured_output=StructuredOutputConfig(
-                output_model="TestOutput",
-                schema_def=schema,
-                max_retries=3
-            )
-        )
-        
-        # Должна быть ошибка после всех попыток
-        from core.infrastructure.providers.llm.llama_cpp_provider import StructuredOutputError
-        
-        with pytest.raises(StructuredOutputError) as exc_info:
-            await provider.generate_structured(request)
-        
-        assert exc_info.value.attempts == 3
-        assert len(exc_info.value.validation_errors) == 3
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

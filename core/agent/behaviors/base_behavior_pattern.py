@@ -49,24 +49,49 @@ class PromptBuilderService:
         available_capabilities: List[Capability],
         templates: Dict[str, str],
         schema_validator: Optional[Any] = None,
-        session_context=None
+        session_context=None,
+        pattern_id: str = "react",
+        application_context=None
     ) -> str:
         """Строит полный промпт для рассуждения."""
+        # Фильтруем capability по supported_strategies
+        # Если вызывается на PromptBuilderService, используем available_capabilities напрямую
+        if hasattr(self, '_filter_capabilities'):
+            filtered_caps = self._filter_capabilities(available_capabilities, pattern_id)
+        else:
+            filtered_caps = available_capabilities
+
+        # Форматируем инструменты с параметрами — передаём application_context для доступа к контрактам
+        if hasattr(self, '_format_available_tools_with_params'):
+            tools_str = self._format_available_tools_with_params(
+                filtered_caps, schema_validator, application_context
+            )
+        else:
+            # Fallback для PromptBuilderService
+            tools_str = self._format_tools_fallback(filtered_caps, schema_validator)
+        
         variables = {
-            "input": self._build_input_context(context_analysis, available_capabilities),
+            "input": self._build_input_context(context_analysis, filtered_caps),
             "goal": context_analysis.get("goal", "Неизвестная цель"),
             "dialogue_history": self._build_dialogue_history(session_context),
             "step_history": self._build_step_history(
                 context_analysis.get("last_steps", []),
                 session_context=session_context
             ),
-            # ❌ УБРАНО: "observation" — чтобы избежать дублирования
-            # Данные уже включены в step_history через _extract_observations_from_step
-            "available_tools": self._format_available_tools(available_capabilities, schema_validator),
+            "available_tools": tools_str,
             "no_progress_steps": context_analysis.get("no_progress_steps", 0),
             "consecutive_errors": context_analysis.get("consecutive_errors", 0)
         }
         return self._render_prompt(templates.get("user", ""), variables)
+    
+    def _format_tools_fallback(self, available_capabilities: List[Capability], schema_validator: Optional[Any] = None) -> str:
+        """Fallback форматирование без параметров."""
+        lines = []
+        for cap in available_capabilities:
+            name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
+            description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
+            lines.append(f"- {name}: {description}")
+        return "\n".join(lines)
     
     def _build_input_context(self, context_analysis: Dict[str, Any], available_capabilities: List[Capability]) -> str:
         """Формирует секцию {input} для промпта — только мета-информация, без деталей шагов."""
@@ -258,27 +283,84 @@ class PromptBuilderService:
                 formatted.append(f"   - {str(row)}")
         return formatted
     
-    def _format_available_tools(self, available_capabilities: List[Capability], schema_validator: Optional[Any] = None) -> str:
-        """Форматирует список инструментов с параметрами."""
+    def _format_available_tools_with_params(
+        self,
+        available_capabilities: List[Capability],
+        schema_validator: Optional[Any] = None,
+        application_context=None
+    ) -> str:
+        """Форматирует список инструментов с параметрами из реальных контрактов компонентов.
+
+        АРХИТЕКТУРА:
+        - Берёт схемы напрямую из component.input_contracts (Pydantic модели)
+        - Использует model_json_schema() для получения полного описания параметров
+        - Включает description, type, required для каждого параметра
+
+        ARGS:
+        - available_capabilities: список доступных capability
+        - schema_validator: опциональный валидатор схем (для обратной совместимости)
+        - application_context: контекст приложения для доступа к компонентам
+
+        RETURNS:
+        - str: отформатированный список инструментов с параметрами
+        """
+        # Собираем все input_contracts от всех компонентов (tools + skills)
+        all_contracts: Dict[str, Dict[str, Any]] = {}
+
+        if application_context and hasattr(application_context, 'components'):
+            from core.models.enums.common_enums import ComponentType
+
+            for component in application_context.components.all_of_type(ComponentType.TOOL):
+                if hasattr(component, 'input_contracts'):
+                    for cap_name, contract_class in component.input_contracts.items():
+                        if hasattr(contract_class, 'model_json_schema'):
+                            all_contracts[cap_name] = contract_class.model_json_schema()
+
+            for component in application_context.components.all_of_type(ComponentType.SKILL):
+                if hasattr(component, 'input_contracts'):
+                    for cap_name, contract_class in component.input_contracts.items():
+                        if hasattr(contract_class, 'model_json_schema'):
+                            all_contracts[cap_name] = contract_class.model_json_schema()
+
+        # Fallback: пытаемся получить из schema_validator если нет application_context
+        if not all_contracts and schema_validator:
+            validator = schema_validator
+            for cap in available_capabilities:
+                cap_name = cap.name if hasattr(cap, 'name') else cap.get('name', '')
+                schema_obj = validator.get_capability_schema(cap_name)
+                if schema_obj and hasattr(schema_obj, 'to_dict'):
+                    all_contracts[cap_name] = schema_obj.to_dict()
+
         lines = []
         for cap in available_capabilities:
+            # Учитываем флаг видимости
+            visiable = cap.visiable if hasattr(cap, 'visiable') else True
+            if not visiable:
+                continue
+
             name = cap.name if hasattr(cap, 'name') else cap.get('name', 'unknown')
             description = cap.description if hasattr(cap, 'description') else cap.get('description', 'no description')
-            params_schema = None
-            if schema_validator:
-                schema_obj = schema_validator.get_capability_schema(name)
-                if schema_obj and hasattr(schema_obj, 'to_dict'):
-                    params_schema = schema_obj.to_dict()
-                else:
-                    params_schema = schema_obj
+
+            # Получаем схему из собранных контрактов
+            params_schema = all_contracts.get(name)
+
             line = f"- {name}: {description}"
             if params_schema and isinstance(params_schema, dict):
+                properties = params_schema.get('properties', {})
+                required_fields = params_schema.get('required', [])
+
                 params_list = []
-                for param_name, param_info in params_schema.items():
-                    param_type = param_info.get('type', 'string') if isinstance(param_info, dict) else 'string'
-                    required = param_info.get('required', False) if isinstance(param_info, dict) else False
-                    req_mark = "(required)" if required else "(optional)"
-                    params_list.append(f"{param_name}: {param_type} {req_mark}")
+                for param_name, param_info in properties.items():
+                    param_type = param_info.get('type', 'string')
+                    is_required = param_name in required_fields
+                    req_mark = "(required)" if is_required else "(optional)"
+                    param_desc = param_info.get('description', '')
+
+                    if param_desc:
+                        params_list.append(f"{param_name}: {param_type} {req_mark} — {param_desc}")
+                    else:
+                        params_list.append(f"{param_name}: {param_type} {req_mark}")
+
                 if params_list:
                     line += "\n    Параметры:"
                     for p in params_list:
@@ -478,7 +560,44 @@ class BaseBehaviorPattern(BaseComponent, BehaviorPatternInterface):
         """
         # Вызываем инициализацию BaseComponent (загружает из component_config.resolved_*)
         success = await BaseComponent.initialize(self)
+        
+        # Регистрируем схемы после загрузки контрактов
+        self._register_all_schemas()
+        
         return success
+    
+    def _register_all_schemas(self):
+        """Регистрирует все схемы из input_contracts в validator."""
+        if not hasattr(self, 'schema_validator') or not self.schema_validator:
+            return
+            
+        print(f"[DEBUG] input_contracts keys: {list(self.input_contracts.keys())}")
+            
+        registered = 0
+        for cap_name, contract_class in self.input_contracts.items():
+            try:
+                if hasattr(contract_class, 'model_json_schema'):
+                    schema = contract_class.model_json_schema()
+                    properties = schema.get('properties', {})
+                    required = schema.get('required', [])
+                    schema_dict = {}
+                    for prop_name, prop_info in properties.items():
+                        schema_dict[prop_name] = {
+                            'type': prop_info.get('type', 'string'),
+                            'required': prop_name in required,
+                            'description': prop_info.get('description', '')
+                        }
+                    if schema_dict:
+                        # Регистрируем по full key
+                        self.schema_validator.register_capability_schema(cap_name, schema_dict)
+                        # Убираем _input суффикс и регистрируем отдельно
+                        if cap_name.endswith('_input'):
+                            base_name = cap_name[:-6]
+                            self.schema_validator.register_capability_schema(base_name, schema_dict)
+                        registered += 1
+            except Exception as e:
+                print(f"[DEBUG] Error registering {cap_name}: {e}")
+        print(f"[DEBUG] Total schemas registered: {registered}")
     
     async def analyze_context(
         self,

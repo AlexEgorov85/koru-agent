@@ -43,3 +43,27 @@ tables:
   description: ''
   schema: Lib
   table: authors
+- columns:
+  - column_default: nextval('"Lib".chapters_chapter_id_seq'::regclass)
+    column_name: chapter_id
+    data_type: integer
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: book_id
+    data_type: integer
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: chapter_number
+    data_type: integer
+    is_nullable: 'NO'
+  - column_default: null
+    column_name: chapter_title
+    data_type: character varying
+    is_nullable: 'YES'
+  - column_default: null
+    column_name: chapter_text
+    data_type: text
+    is_nullable: 'NO'
+  description: ''
+  schema: Lib
+  table: chapters

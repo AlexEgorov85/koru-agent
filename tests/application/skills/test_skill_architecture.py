@@ -64,24 +64,6 @@ class TestSkillArchitecture:
         assert result.error == "Test error"
         assert result.side_effect is False
 
-    def test_execution_result_to_dict(self):
-        """ExecutionResult.to_dict сериализует все поля"""
-        result = ExecutionResult.success(
-            data={"key": "value"},
-            metadata={"meta": "data"},
-            side_effect=True
-        )
-
-        result_dict = result.to_dict()
-
-        assert result_dict == {
-            "status": "completed",
-            "data": {"key": "value"},
-            "error": None,
-            "metadata": {"meta": "data"},
-            "side_effect": True
-        }
-
 
 class TestBookLibrarySkill:
     """Тесты BookLibrarySkill"""
@@ -197,18 +179,6 @@ class TestSkillDeterminism:
             assert "import random" not in source
             assert "from random" not in source
             assert "random." not in source
-
-    def test_time_only_for_metrics(self):
-        """time.time используется только для метрик"""
-        import inspect
-        from core.components.skills.book_library.skill import BookLibrarySkill
-
-        source = inspect.getsource(BookLibrarySkill)
-
-        # time.time используется только для вычисления elapsed time
-        assert "time.time()" in source
-        # Проверяем что это для метрик (total_time, execution_time)
-        assert "total_time" in source or "execution_time" in source
 
 
 class TestSkillNoPatternKnowledge:

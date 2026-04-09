@@ -158,8 +158,11 @@ class CheckResultSkill(BaseSkill):
         - List[Dict]: список таблиц с полным описанием колонок
         """
         default_tables = [
-            {"schema": "Lib", "table": "books", "description": "Таблица книг"},
-            {"schema": "Lib", "table": "authors", "description": "Таблица авторов"},
+            {"schema": "Lib", "table": "books"},
+            {"schema": "Lib", "table": "authors"},
+            {"schema": "Lib", "table": "chapters"},
+
+            
         ]
 
         tables_by_schema: Dict[str, List[str]] = {}

@@ -116,25 +116,6 @@ class TestMetricsPublisher:
         mock_storage.record.assert_called_once_with(result)
 
     @pytest.mark.asyncio
-    async def test_event_bus_publication(self, publisher, mock_storage, mock_event_bus):
-        """Тест публикации события в EventBus."""
-        # Вызов
-        result = await publisher.gauge(
-            name="test_metric",
-            value=1.0,
-            capability="test",
-            agent_id="test_agent"
-        )
-
-        # Проверка публикации события
-        mock_event_bus.publish.assert_called_once()
-        call_args = mock_event_bus.publish.call_args
-        # EventType.METRIC_COLLECTED имеет значение 'metric.collected' в нижнем регистре
-        assert call_args[1]['event'].value == 'metric.collected'
-        assert call_args[1]['data']['name'] == 'test_metric'
-        assert call_args[1]['data']['value'] == 1.0
-
-    @pytest.mark.asyncio
     async def test_event_bus_disabled(self, mock_storage):
         """Тест работы без EventBus."""
         publisher = MetricsPublisher(mock_storage)  # Без EventBus

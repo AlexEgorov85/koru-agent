@@ -99,10 +99,7 @@ class LLMRequest:
     stop_sequences: Optional[List[str]] = None  # Последовательности для остановки генерации
     messages: Optional[List[Dict[str, str]]] = None  # Multi-turn диалог (альтернатива prompt)
     stream: bool = False
-    structured_output: Optional[StructuredOutputConfig] = Field(
-        default=None,
-        description="Конфигурация структурированного вывода. Если None — возвращается сырой текст."
-    )
+    structured_output: Optional[StructuredOutputConfig] = None
     metadata: Dict[str, Any] = None
     correlation_id: Optional[str] = None
     capability_name: Optional[str] = None  # Для интеграции с PromptService

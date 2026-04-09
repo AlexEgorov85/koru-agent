@@ -11,25 +11,32 @@ schema_data:
     author:
       type: string
       description: Имя автора (для get_books_by_author)
+      nullable: true
     genre:
       type: string
       description: Жанр книги (для get_books_by_genre)
+      nullable: true
     year_from:
       type: integer
       description: Начальный год диапазона (для get_books_by_year_range)
+      nullable: true
     year_to:
       type: integer
       description: Конечный год диапазона (для get_books_by_year_range)
+      nullable: true
     book_id:
       type: integer
       description: ID книги (для get_book_by_id)
+      nullable: true
     title_pattern:
       type: string
       description: Шаблон названия (для get_books_by_title_pattern)
+      nullable: true
     max_rows:
       type: integer
       description: Максимальное количество результатов
       default: 100
+      nullable: true
   required:
     - script_name
 status: active

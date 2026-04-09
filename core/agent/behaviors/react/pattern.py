@@ -124,13 +124,15 @@ class ReActPattern(BaseBehaviorPattern):
             if not system or not user:
                 return self._handle_error("prompts_not_loaded", available_capabilities)
             
-            # Рендеринг
+            # Рендеринг промпта через build_reasoning_prompt
             full_prompt = self.prompt_builder.build_reasoning_prompt(
                 context_analysis=context,
                 available_capabilities=available_capabilities,
                 templates={"system": system, "user": user},
                 schema_validator=self.schema_validator,
-                session_context=session_context
+                session_context=session_context,
+                pattern_id="react",
+                application_context=self.application_context
             )
             
             # Вызов LLM

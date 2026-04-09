@@ -218,15 +218,7 @@ class ExecuteScriptHandler(BaseSkillHandler):
         RETURNS:
         - dict: параметры для SQL
         """
-        script_params = {}
-
-        # Специальная обработка для get_books_by_year_range
-        if script_config.get('name') == 'get_books_by_year_range':
-            # Год "от" - по умолчанию 0 (все книги с года)
-            script_params['year_from'] = params.get('year_from', 0)
-            # Год "до" - по умолчанию 9999 (до бесконечности)
-            script_params['year_to'] = params.get('year_to', 9999)
-
+        # Сначала извлекаем базовые параметры из входных данных
         if isinstance(params, dict):
             script_params = params.copy()
             script_params.pop('script_name', None)
@@ -237,16 +229,29 @@ class ExecuteScriptHandler(BaseSkillHandler):
             script_params = getattr(params, 'parameters', {})
             if hasattr(script_params, 'model_dump'):
                 script_params = script_params.model_dump()
+        else:
+            script_params = {}
+
+        # Специальная обработка для get_books_by_year_range
+        # Устанавливаем значения по умолчанию для отсутствующих или None параметров
+        if script_config.get('name') == 'get_books_by_year_range':
+            # Год "от" - по умолчанию 0 (все книги с начала)
+            if 'year_from' not in script_params or script_params.get('year_from') is None:
+                script_params['year_from'] = 0
+            # Год "до" - по умолчанию 9999 (до бесконечности)
+            if 'year_to' not in script_params or script_params.get('year_to') is None:
+                script_params['year_to'] = 9999
 
         # Добавляем max_rows
-        if isinstance(params, dict) and 'max_rows' in params:
-            script_params['max_rows'] = params['max_rows']
-        elif hasattr(params, 'max_rows'):
-            max_rows_val = getattr(params, 'max_rows')
-            if max_rows_val is not None:
-                script_params['max_rows'] = max_rows_val
-        else:
-            script_params['max_rows'] = max_rows
+        if 'max_rows' not in script_params:
+            if isinstance(params, dict) and 'max_rows' in params:
+                script_params['max_rows'] = params['max_rows']
+            elif hasattr(params, 'max_rows'):
+                max_rows_val = getattr(params, 'max_rows')
+                if max_rows_val is not None:
+                    script_params['max_rows'] = max_rows_val
+            else:
+                script_params['max_rows'] = max_rows
 
         # Проверка обязательных параметров
         required_params = script_config.get('required_parameters', [])

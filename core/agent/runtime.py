@@ -38,7 +38,8 @@ class AgentRuntime:
         user_context=None,
         correlation_id: Optional[str] = None,
         agent_id: Optional[str] = "agent_001",
-        dialogue_history=None  # ← НОВОЕ: общая история диалога для копирования
+        dialogue_history=None,
+        agent_config: Optional[Any] = None
     ):
         self.application_context = application_context
         self.goal = goal
@@ -46,6 +47,7 @@ class AgentRuntime:
         self.user_context = user_context
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.agent_id = agent_id
+        self.agent_config = agent_config
 
         # Компоненты
         self.executor = ActionExecutor(application_context)
@@ -397,41 +399,30 @@ class AgentRuntime:
     async def _get_available_capabilities(self):
         """Получить доступные capability с учётом фильтрации."""
         if hasattr(self.application_context, 'get_all_skills'):
-            return self.application_context.get_all_skills()
+            all_caps = self.application_context.get_all_skills()
         elif hasattr(self.application_context, 'get_all_capabilities'):
             filter_config = self._get_capability_filter_config()
             all_caps = await self.application_context.get_all_capabilities(
                 include_hidden=filter_config.get("include_hidden", False),
                 component_types=filter_config.get("component_types", ["skill"])
             )
-            exclude_prefixes = filter_config.get("exclude_prefixes", [])
-            return [
-                cap for cap in all_caps
-                if not any(cap.name.startswith(prefix) for prefix in exclude_prefixes)
-            ]
-        return []
+        else:
+            return []
+        
+        # Фильтрация по флагу visiable в самом capability
+        return [
+            cap for cap in all_caps
+            if getattr(cap, 'visiable', True)
+        ]
     
     def _get_capability_filter_config(self) -> dict:
-        """Получить конфигурацию фильтрации capability из AgentConfig или по умолчанию."""
-        default_config = {
-            "include_hidden": False,
-            "component_types": ["skill"],
-            "exclude_prefixes": ["evaluation."],
-        }
-        
-        # Попробовать получить из agent_config
+        """Получить конфигурацию фильтрации capability из AgentConfig."""
         if hasattr(self, 'agent_config') and self.agent_config:
             cap_filter = getattr(self.agent_config, 'capability_filter', None)
             if cap_filter:
                 return cap_filter
         
-        # Попробовать получить из application_context
-        if hasattr(self.application_context, 'app_config') and self.application_context.app_config:
-            app_filter = getattr(self.application_context.app_config, 'capability_filter', None)
-            if app_filter:
-                return app_filter
-                
-        return default_config
+        return {}
 
     def _load_pattern(self, pattern_name: str):
         """Загрузить другой паттерн."""

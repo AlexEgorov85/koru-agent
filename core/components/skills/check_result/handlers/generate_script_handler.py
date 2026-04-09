@@ -1,5 +1,5 @@
 import time
-from typing import Any, List
+from typing import Any, Dict, List
 from pydantic import BaseModel
 
 from core.models.data.execution import ExecutionStatus

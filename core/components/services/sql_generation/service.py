@@ -291,9 +291,9 @@ class SQLGenerationService(BaseService):
                     action_name="llm.generate_structured",
                     parameters={
                         "prompt": prompt,
-                        "system_prompt": "",
-                        "temperature": 0.3,
-                        "max_tokens": 500,
+                        "system_prompt": "Ты — SQL генератор. Верни СТРОГО JSON объект без дополнительного текста. Схема: {\"generated_sql\": str, \"confidence_score\": float, \"explanation\": str, \"potential_issues\": list}",
+                        "temperature": 0.2,
+                        "max_tokens": 2000,
                         "structured_output": {
                             "output_model": "SQLGenerationOutput",
                             "schema_def": SQLGenerationOutput.model_json_schema(),
@@ -309,49 +309,89 @@ class SQLGenerationService(BaseService):
             from core.models.data.execution import ExecutionStatus
             if llm_result.status != ExecutionStatus.COMPLETED or not llm_result.data:
                 errors = llm_result.error if hasattr(llm_result, 'error') else 'unknown error'
-                
+
+                # Логируем ошибку structured output
+                if self.event_bus_logger:
+                    await self.event_bus_logger.warning(
+                        f"⚠️ Structured output не удался: {errors}. Пробуем fallback..."
+                    )
+
                 # FALLBACK: пробуем обычный llm.generate с ручным парсингом JSON
                 llm_result2 = await self.executor.execute_action(
                     action_name="llm.generate",
                     parameters={
                         "prompt": prompt,
-                        "system_prompt": "",
-                        "temperature": 0.3,
-                        "max_tokens": 500,
+                        "system_prompt": "Ты — SQL генератор. Верни СТРОГО JSON объект без дополнительного текста.",
+                        "temperature": 0.2,
+                        "max_tokens": 2000,
                     },
                     context=exec_context
                 )
-                
+
                 if llm_result2.status != ExecutionStatus.COMPLETED or not llm_result2.data:
                     raise ValueError(f"SQL generation failed (both structured and fallback): {errors}")
-                
+
                 # Парсим JSON вручную
                 if isinstance(llm_result2.data, dict):
                     raw_text = llm_result2.data.get('content', '') or llm_result2.data.get('text', '') or llm_result2.data.get('response', '')
                 else:
                     raw_text = llm_result2.data if isinstance(llm_result2.data, str) else str(llm_result2.data)
 
-                # Отладка: логируем сырой ответ
-                print(f"[SQL_GEN DEBUG] Fallback LLM response (first 800 chars):", flush=True)
-                print(f"  raw_text[:800] = {raw_text[:800]}", flush=True)
-                if llm_result2.data:
-                    print(f"  llm_result2.data type = {type(llm_result2.data).__name__}", flush=True)
-                    if isinstance(llm_result2.data, dict):
-                        print(f"  llm_result2.data keys = {list(llm_result2.data.keys())}", flush=True)
+                # Логируем сырой ответ
+                if self.event_bus_logger:
+                    await self.event_bus_logger.debug(
+                        f"🔍 Fallback LLM response (first 500 chars): {raw_text[:500]}"
+                    )
 
                 if not raw_text or len(raw_text.strip()) < 10:
-                    raise ValueError(f"LLM returned empty or too short response for SQL generation")
-                
-                # Ищем JSON в ответе
+                    raise ValueError(
+                        f"LLM returned empty or too short response for SQL generation. "
+                        f"Response length: {len(raw_text.strip()) if raw_text else 0} chars. "
+                        f"Проверьте что модель загружена корректно и промпт содержит схему БД."
+                    )
+
+                # Ищем JSON в ответе (улучшенный поиск для вложенных объектов)
                 import json, re
-                json_match = re.search(r'\{[^}]*"generated_sql"[^}]*\}', raw_text, re.DOTALL)
-                if json_match:
+                
+                json_candidate = None
+                
+                # Пробуем regex для markdown блоков
+                if not json_candidate:
+                    json_block_pattern = r'```json\s*\n?(.*?)\n?```'
+                    matches = re.findall(json_block_pattern, raw_text, re.DOTALL)
+                    if matches:
+                        json_candidate = matches[-1].strip()
+                
+                # Пробуем regex для обычного JSON
+                if not json_candidate:
+                    brace_count = 0
+                    start_idx = -1
+                    for i, char in enumerate(raw_text):
+                        if char == '{':
+                            if brace_count == 0:
+                                start_idx = i
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0 and start_idx != -1:
+                                candidate = raw_text[start_idx:i+1]
+                                if '"generated_sql"' in candidate:
+                                    json_candidate = candidate
+                                    break
+                
+                if json_candidate:
                     try:
-                        output = json.loads(json_match.group())
+                        output = json.loads(json_candidate)
+                        if self.event_bus_logger:
+                            await self.event_bus_logger.info(f"✅ Fallback JSON распарсен успешно")
                     except json.JSONDecodeError as e:
                         raise ValueError(f"Failed to parse JSON from LLM response: {e}")
                 else:
-                    raise ValueError(f"Could not find generated_sql in LLM response: {raw_text[:200]}")
+                    raise ValueError(
+                        f"Could not find generated_sql in LLM response. "
+                        f"Response length: {len(raw_text)} chars. "
+                        f"First 300 chars: {raw_text[:300]}"
+                    )
 
             # Извлекаем parsed_content из результата
             result_data = llm_result.data

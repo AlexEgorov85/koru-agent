@@ -69,12 +69,20 @@ class Contract(TemplateValidatorMixin, BaseModel):
         return self._pydantic_schema
 
     def _compile_to_pydantic(self) -> Type[BaseModel]:
+        from typing import Optional
+        
         properties = self.schema_data.get("properties", {})
         required = self.schema_data.get("required", [])
         annotations = {}
         field_definitions = {}
         for field_name, field_schema in properties.items():
             field_type = self._json_schema_type_to_python(field_schema.get("type", "string"), field_schema)
+            
+            # Обработка nullable полей
+            is_nullable = field_schema.get("nullable", False)
+            if is_nullable:
+                field_type = Optional[field_type]
+            
             annotations[field_name] = field_type
             field_kwargs = {"description": field_schema.get("description", "")}
             if field_name in required:
