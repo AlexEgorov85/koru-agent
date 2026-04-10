@@ -55,4 +55,20 @@ htmlcov/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Jupyter
+.ipynb_checkpoints/
+Untitled.ipynb
+*.ipynb
+
+# Qwen Code
+.qwen/
+
+# Temporary test files
+test_appconfig.txt
+test_output.txt
+
+# Generated vector indexes (too large, regenerate on demand)
+data/vector/*.faiss
+data/vector/*_metadata.json
 ```
