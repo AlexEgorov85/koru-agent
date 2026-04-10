@@ -76,6 +76,11 @@ class AgentRuntime:
         if dialogue_history is not None:
             self.session_context.copy_dialogue_from(dialogue_history)
 
+        # Логгер агента (1 сессия = 1 файл)
+        log_session = application_context.infrastructure_context.log_session
+        self.log = log_session.create_agent_logger(agent_id)
+        self.log.info(f"🤖 Агент {agent_id} запущен, цель: {goal[:50]}...")
+
         # Event bus logger
         self.event_bus_logger = None
         self._init_event_bus_logger()

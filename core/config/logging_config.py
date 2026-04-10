@@ -74,12 +74,16 @@ class LogFormat(str, Enum):
 class ConsoleConfig(BaseModel):
     """Настройки консольного вывода."""
     model_config = ConfigDict(validate_assignment=True)
-    
+
     enabled: bool = Field(default=True, description="Включить консольный вывод")
     level: str = Field(default="INFO", description="Уровень логирования")
     format: LogFormat = Field(default=LogFormat.TEXT, description="Формат вывода")
     use_colors: bool = Field(default=True, description="Использовать цвета")
     use_icons: bool = Field(default=True, description="Использовать иконки")
+    allowed_terminal_events: Optional[set] = Field(
+        default=None,
+        description="Разрешённые LogEventType для консоли (None = все с event_type)"
+    )
 
 
 class FileConfig(BaseModel):

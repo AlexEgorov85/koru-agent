@@ -10,6 +10,7 @@
 - Состояния: CREATED → INITIALIZING → READY → SHUTDOWN (или FAILED)
 """
 import uuid
+import logging
 from typing import Dict, Optional, Any
 from datetime import datetime
 
@@ -23,12 +24,15 @@ from core.components.services.metrics_publisher import MetricsPublisher
 
 from core.agent.components.lifecycle import ComponentState
 from core.config.app_config import AppConfig
+from core.config.logging_config import LoggingConfig
+from core.infrastructure.logging.session import LoggingSession
+from core.infrastructure.logging.event_types import LogEventType
 from core.infrastructure.providers.llm.factory import LLMProviderFactory
 from core.infrastructure.providers.database.factory import DBProviderFactory
 from core.infrastructure.event_bus.unified_event_bus import UnifiedEventBus, EventType
 from core.models.data.resource import ResourceInfo
 from core.models.enums.common_enums import ResourceType
-from core.infrastructure.discovery.resource_discovery import ResourceDiscovery
+from core.infrastructure.loading.resource_loader import ResourceLoader
 
 # Импорты для телеметрии
 from core.infrastructure.telemetry import TelemetryCollector, init_telemetry
@@ -40,16 +44,25 @@ from core.infrastructure.telemetry.handlers.terminal_handler import TerminalLogH
 class InfrastructureContext:
     """Главный класс инфраструктурного контекста. Создаётся 1 раз за жизненный цикл приложения."""
 
-    def __init__(self, config: AppConfig):
+    def __init__(
+        self,
+        config: AppConfig,
+        logging_config: Optional[LoggingConfig] = None
+    ):
         """
         Инициализация инфраструктурного контекста.
 
         ПАРАМЕТРЫ:
         - config: Конфигурация приложения (AppConfig)
+        - logging_config: Конфигурация логирования (опционально, создаст дефолтную если None)
         """
         self.id = str(uuid.uuid4())
         self.config = config
-        self.event_bus_logger = None  # Будет инициализирован после создания event_bus
+
+        # Сессия логирования (создаётся один раз, управляет всеми файлами логов)
+        self.log_session = LoggingSession(logging_config or LoggingConfig())
+        # Логгер инфраструктуры (будет инициализирован после setup_context_loggers)
+        self.log: Optional[logging.Logger] = None
 
         # Основные компоненты инфраструктуры
         self.lifecycle_manager: Optional[LifecycleManager] = None
@@ -62,13 +75,10 @@ class InfrastructureContext:
         self.db_provider_factory: Optional[DBProviderFactory] = None
 
         # Инфраструктурные хранилища (только загрузка, без кэширования)
-        self.resource_discovery: Optional[ResourceDiscovery] = None  # ЕДИНЫЙ экземпляр на всё приложение
+        self.resource_loader: Optional[ResourceLoader] = None  # ЕДИНЫЙ загрузчик ресурсов
 
         # Хранилище метрик
         self.metrics_storage: Optional[IMetricsStorage] = None
-
-        # Сборщик метрик
-        self.metrics_collector: Optional[MetricsCollector] = None
 
         # Обработчик логов сессии
         self.session_handler: Optional[SessionLogHandler] = None
@@ -80,19 +90,6 @@ class InfrastructureContext:
         self._faiss_providers: Dict[str, Any] = {}
         self._embedding_provider: Optional[Any] = None
         self._chunking_strategy: Optional[Any] = None
-
-    async def _log_event_bus_info(self, bus_type: str) -> None:
-        """
-        Логирование информации о выбранной шине событий.
-
-        ПАРАМЕТРЫ:
-        - bus_type: тип выбранной шины
-        """
-        if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("Используется шина событий: %s", bus_type)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
 
     def initialize_sync(self) -> bool:
         """
@@ -119,7 +116,7 @@ class InfrastructureContext:
         Инициализация инфраструктурных ресурсов.
 
         ВАЖНО: После инициализации контекст становится неизменяемым.
-        
+
         ЖИЗНЕННЫЙ ЦИКЛ:
         - Переводит контекст в состояние INITIALIZING
         - При успехе: READY
@@ -127,20 +124,14 @@ class InfrastructureContext:
         """
         # Проверка повторной инициализации
         if self.lifecycle_manager and self.lifecycle_manager.is_ready:
-            if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.warning("InfrastructureContext уже инициализирован")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.warning("InfrastructureContext уже инициализирован",
+                             extra={"event_type": LogEventType.WARNING})
             return True
-        
+
         # Проверка на предыдущую ошибку
         if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.FAILED:
-            if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error("InfrastructureContext в состоянии FAILED")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error("InfrastructureContext в состоянии FAILED",
+                           extra={"event_type": LogEventType.SYSTEM_ERROR})
             return False
 
         # === ЭТАП 1: Базовая инициализация ===
@@ -148,13 +139,20 @@ class InfrastructureContext:
         sys.stdout.buffer.write("🚀 Инициализация инфраструктурного контекста...\n".encode('utf-8'))
         sys.stdout.flush()
 
+        # Настройка файловой системы логов (создаёт директорию и файлы контекстов)
+        self.log_session.setup_context_loggers()
+        self.log = self.log_session.infra_logger
+        self.log.info("🚀 Инициализация инфраструктуры...",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
+
         # Инициализация шины событий (ПЕРВЫЙ компонент)
         self.event_bus = UnifiedEventBus()
-        await self._log_event_bus_info("UnifiedEventBus")
+        self.log.info("Инициализирована шина событий: UnifiedEventBus",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Инициализация телеметрии (логи + метрики)
         from pathlib import Path
-        
+
         log_dir = Path(self.config.data_dir) / "logs"
         storage_dir = Path(self.config.data_dir)
 
@@ -176,26 +174,15 @@ class InfrastructureContext:
         # Информация о сессии
         if self.session_handler:
             session_info = self.session_handler.get_session_info()
-            if self.event_bus_logger:
-                await self.event_bus_logger.info(f"📝 Логи сессии: {session_info['session_folder']}")
+            self.log.info(f"📝 Логи сессии: {session_info['session_folder']}",
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
 
-        # Инициализация event_bus_logger ПОСЛЕ подписки обработчиков
-        from core.infrastructure.logging import EventBusLogger
-        self.event_bus_logger = EventBusLogger(
-            self.event_bus,
-            session_id=self.id,
-            agent_id="infrastructure",
-            component="InfrastructureContext"
-        )
-
-        if self.event_bus_logger:
-            await self.event_bus_logger.info("Обработчики логирования инициализированы")
-            await self.event_bus_logger.info("EventBusLogger инициализирован")
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info("Обработчики логирования инициализированы",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Инициализация менеджера жизненного цикла
         from core.infrastructure_context.lifecycle_manager import LifecycleManager
-        self.lifecycle_manager = LifecycleManager(self.event_bus)
+        self.lifecycle_manager = LifecycleManager(self.event_bus, log=self.log)
 
         # Инициализация реестра ресурсов
         self.resource_registry = ResourceRegistry()
@@ -207,17 +194,14 @@ class InfrastructureContext:
         # === ЭТАП 3: Инфраструктурные хранилища ===
         from pathlib import Path
 
-        # === ЭТАП 3.5: ResourceDiscovery (ЕДИНЫЙ экземпляр) ===
+        # === ЭТАП 3.5: ResourceLoader (ЕДИНЫЙ загрузчик) ===
+        import asyncio
         data_dir = Path(self.config.data_dir)
-        # ✅ ИСПОЛЬЗУЕМ профиль из конфигурации, а не жёстко 'prod'
-        self.resource_discovery = ResourceDiscovery(
-            base_dir=data_dir,
-            profile=self.config.profile,  # ← Было: 'prod'
-            event_bus=self.event_bus
+        self.resource_loader = ResourceLoader.get(
+            data_dir=data_dir,
+            profile=self.config.profile,
         )
-        # Предзагрузка ресурсов в кэш
-        self.resource_discovery.discover_prompts()
-        self.resource_discovery.discover_contracts()
+        await asyncio.to_thread(self.resource_loader.load_all)
 
         # === ЭТАП 4: Метрики (уже инициализированы в telemetry) ===
         # Доступ через self.telemetry.metrics_publisher
@@ -230,27 +214,19 @@ class InfrastructureContext:
         # === ЭТАП 6: Регистрация провайдеров через LifecycleManager ===
         # Вызываем регистрацию провайдеров через LifecycleManager
         try:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("=== ЭТАП 6: Регистрация провайдеров через LifecycleManager ===",
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
             await self._register_providers_from_config()
 
             # Инициализация всех зарегистрированных провайдеров через LifecycleManager
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("Вызов lifecycle_manager.initialize_all()...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("Вызов lifecycle_manager.initialize_all()...",
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
             await self.lifecycle_manager.initialize_all()
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("✅ LifecycleManager инициализирован")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("✅ LifecycleManager инициализирован",
+                          extra={"event_type": LogEventType.SYSTEM_READY})
         except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error(f"❌ Ошибка инициализации провайдеров: {str(e)}", exc_info=True)
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"❌ Ошибка инициализации провайдеров: {str(e)}",
+                           extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
             return False
 
         await self.event_bus.publish(
@@ -265,8 +241,8 @@ class InfrastructureContext:
         has_llm = hasattr(self.config, 'llm_providers')
         if has_llm and self.config.llm_providers:
             for name, prov in self.config.llm_providers.items():
-                if self.event_bus_logger:
-                    await self.event_bus_logger.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}")
+                self.log.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}",
+                              extra={"event_type": LogEventType.SYSTEM_INIT})
 
             first_llm_registered = False
             for provider_name, provider_config in self.config.llm_providers.items():
@@ -326,11 +302,10 @@ class InfrastructureContext:
                     except Exception as e:
                         import traceback
                         tb = traceback.format_exc()
-                        if self.event_bus_logger:
-                            await self.event_bus_logger.error(f"[LLM] Error: {str(e)}")
-                            await self.event_bus_logger.error(f"Error registering LLM provider '{provider_name}': {tb}")
-                        print(f"❌ [LLM] FATAL: Failed to register LLM provider '{provider_name}': {e}")
-                        print(f"   Traceback:\n{tb}")
+                        self.log.error(f"[LLM] Error: {str(e)}",
+                                       extra={"event_type": LogEventType.LLM_ERROR})
+                        self.log.error(f"Error registering LLM provider '{provider_name}': {tb}",
+                                       extra={"event_type": LogEventType.LLM_ERROR})
                         raise
 
         # Регистрация DB провайдеров
@@ -380,8 +355,8 @@ class InfrastructureContext:
                     info_db.is_default = True
                     self.resource_registry.register_resource(info_db)
                 except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}", exc_info=True)
+                    self.log.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}",
+                                   extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
 
     async def _init_vector_search(self):
         """Инициализация векторного поиска с проверкой наличия индексов."""
@@ -391,10 +366,8 @@ class InfrastructureContext:
         from pathlib import Path
 
         vs_config = self.config.vector_search
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        await self.event_bus_logger.info("Инициализация Vector Search...")
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info("Инициализация Vector Search...",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Инициализация FAISS провайдеров для каждого источника
         indexes_status = {}
@@ -408,7 +381,7 @@ class InfrastructureContext:
 
                 index_path = Path(vs_config.storage.base_path) / index_file
                 index_exists = index_path.exists()
-                
+
                 if index_exists:
                     await provider.load(str(index_path))
                     count = await provider.count()
@@ -417,20 +390,16 @@ class InfrastructureContext:
                         "path": str(index_path),
                         "vectors": count
                     }
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.info(f"✅ Загружен индекс {source}: {index_path} ({count} векторов)")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.info(f"✅ Загружен индекс {source}: {index_path} ({count} векторов)",
+                                  extra={"event_type": LogEventType.SYSTEM_INIT})
                 else:
                     indexes_status[source] = {
                         "status": "missing",
                         "path": str(index_path),
                         "vectors": 0
                     }
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.warning(f"⚠️ Индекс {source} не найден: {index_path}. Требуется индексация.")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.warning(f"⚠️ Индекс {source} не найден: {index_path}. Требуется индексация.",
+                                     extra={"event_type": LogEventType.WARNING})
 
                 self._faiss_providers[source] = provider
             except Exception as e:
@@ -438,38 +407,30 @@ class InfrastructureContext:
                     "status": "error",
                     "error": str(e)
                 }
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error(f"❌ Ошибка инициализации FAISS провайдера {source}: {e}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"❌ Ошибка инициализации FAISS провайдера {source}: {e}",
+                               extra={"event_type": LogEventType.SYSTEM_ERROR})
                 continue
 
         # Логирование общего статуса
         total_vectors = sum(s.get("vectors", 0) for s in indexes_status.values())
         loaded_count = sum(1 for s in indexes_status.values() if s.get("status") == "loaded")
         missing_count = sum(1 for s in indexes_status.values() if s.get("status") == "missing")
-        
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        await self.event_bus_logger.info(
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+        self.log.info(
             f"Vector Search статус: {loaded_count} загружено, {missing_count} отсутствует, "
-            f"всего векторов: {total_vectors}"
+            f"всего векторов: {total_vectors}",
+            extra={"event_type": LogEventType.SYSTEM_INIT}
         )
 
         # Инициализация Embedding провайдера
         try:
             self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
             await self._embedding_provider.initialize()
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}",
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error(f"Ошибка инициализации Embedding провайдера: {e}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"Ошибка инициализации Embedding провайдера: {e}",
+                           extra={"event_type": LogEventType.SYSTEM_ERROR})
 
         # Инициализация Chunking стратегии
         try:
@@ -478,15 +439,11 @@ class InfrastructureContext:
                 chunk_overlap=vs_config.chunking.chunk_overlap,
                 min_chunk_size=vs_config.chunking.min_chunk_size
             )
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов",
+                          extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.error(f"Ошибка инициализации Chunking стратегии: {e}")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.error(f"Ошибка инициализации Chunking стратегии: {e}",
+                           extra={"event_type": LogEventType.SYSTEM_ERROR})
 
         # Сохранение статуса в контекст для последующей проверки
         self._vector_search_status = indexes_status
@@ -503,29 +460,21 @@ class InfrastructureContext:
         for resource_info in all_providers:
             provider = resource_info.instance
             provider_name = resource_info.name
-            
+
             try:
                 if hasattr(provider, 'shutdown') and callable(provider.shutdown):
                     await provider.shutdown()
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.info(f"Провайдер '{provider_name}' завершен")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.info(f"Провайдер '{provider_name}' завершен",
+                                  extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
             except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}",
+                               extra={"event_type": LogEventType.SYSTEM_ERROR})
 
         # Завершение работы хранилищ
         if self.prompt_storage and hasattr(self.prompt_storage, 'shutdown'):
             await self.prompt_storage.shutdown()
         if self.contract_storage and hasattr(self.contract_storage, 'shutdown'):
             await self.contract_storage.shutdown()
-
-        # Завершение сборщика метрик
-        if self.metrics_collector:
-            await self.metrics_collector.shutdown()
 
     def get_provider(self, name: str):
         """
@@ -571,13 +520,11 @@ class InfrastructureContext:
         """DEPRECATED: ContractStorage удалён. Используйте DataRepository."""
         raise RuntimeError("ContractStorage удалён. Используйте DataRepository для доступа к контрактам.")
 
-    def get_resource_discovery(self) -> ResourceDiscovery:
-        """DEPRECATED: Используйте свойство resource_discovery напрямую"""
-        import warnings
-        warnings.warn("get_resource_discovery deprecated. Используйте self.resource_discovery напрямую", DeprecationWarning, stacklevel=2)
-        if not hasattr(self, 'resource_discovery') or self.resource_discovery is None:
-            raise RuntimeError("ResourceDiscovery не инициализирован")
-        return self.resource_discovery
+    def get_resource_loader(self) -> ResourceLoader:
+        """Получение загрузчика ресурсов."""
+        if self.resource_loader is None:
+            raise RuntimeError("ResourceLoader не инициализирован")
+        return self.resource_loader
 
     def get_telemetry(self) -> TelemetryCollector:
         """Получение TelemetryCollector."""
@@ -642,64 +589,58 @@ class InfrastructureContext:
         """
         # 1. Получаем запрошенную LLM
         llm = None
-        
+
         if provider_name:
             # Попытка получить конкретный провайдер по имени
             resource_info = self.resource_registry.get_resource(provider_name)
             if resource_info:
                 llm = resource_info.instance
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger.debug(f"Используем LLM провайдер: {provider_name}")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            
+                self.log.debug(f"Используем LLM провайдер: {provider_name}",
+                               extra={"event_type": LogEventType.LLM_CALL})
+
                 if not fallback:
                     raise ValueError(f"LLM провайдер '{provider_name}' не найден")
-        
+
         # 2. Если не найдено, пробуем default
         if llm is None:
             llm = self._get_default_llm()
             if llm:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger.debug("Используем default LLM провайдер")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        
+                self.log.debug("Используем default LLM провайдер",
+                               extra={"event_type": LogEventType.LLM_CALL})
+
         # 3. Если всё ещё нет, пробуем первый доступный
         if llm is None:
             llm = self._get_first_available_llm()
             if llm:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger.warning("Default LLM не найден, используем первый доступный")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        
+                self.log.warning("Default LLM не найден, используем первый доступный",
+                                 extra={"event_type": LogEventType.WARNING})
+
         # 4. Если вообще нет LLM → ошибка
         if llm is None:
             raise ValueError("Нет доступных LLM провайдеров")
-        
+
         # 5. Вызов провайдера
         try:
             response = await llm.generate(request)
             return response
         except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            self.event_bus_logger.error(f"Ошибка LLM провайдера: {e}")
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            
+            self.log.error(f"Ошибка LLM провайдера: {e}",
+                           extra={"event_type": LogEventType.LLM_ERROR})
+
             if fallback and provider_name:
                 # Пытаемся использовать backup
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                self.event_bus_logger.warning("Попытка fallback на backup LLM")
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.warning("Попытка fallback на backup LLM",
+                                 extra={"event_type": LogEventType.WARNING})
                 backup_llm = self._get_backup_llm(exclude_name=provider_name)
-                
+
                 if backup_llm:
                     try:
                         response = await backup_llm.generate(request)
                         return response
                     except Exception as backup_error:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                        self.event_bus_logger.error(f"Backup LLM также не удался: {backup_error}")
-                          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            
+                        self.log.error(f"Backup LLM также не удался: {backup_error}",
+                                       extra={"event_type": LogEventType.LLM_ERROR})
+
             # Если fallback не помог или не запрошен
             raise
 
@@ -776,76 +717,53 @@ class InfrastructureContext:
     async def shutdown(self):
         """Завершение работы инфраструктурного контекста."""
         if self.lifecycle_manager and self.lifecycle_manager.state == ComponentState.SHUTDOWN:
-            if self.event_bus_logger:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.warning("InfrastructureContext уже завершён")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.warning("InfrastructureContext уже завершён",
+                             extra={"event_type": LogEventType.WARNING})
             return
-        
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        await self.event_bus_logger.info("Начало завершения работы InfrastructureContext")
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+
+        self.log.info("Начало завершения работы InfrastructureContext",
+                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
 
         # Сохранение Vector Search индексов
         if self._faiss_providers and self.config.vector_search:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("Сохранение Vector Search индексов...")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+            self.log.info("Сохранение Vector Search индексов...",
+                          extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
             from pathlib import Path
             for source, provider in self._faiss_providers.items():
                 try:
                     index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
                     index_path.parent.mkdir(parents=True, exist_ok=True)
                     await provider.save(str(index_path))
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.info(f"💾 Сохранён индекс {source}: {index_path}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                    self.log.info(f"💾 Сохранён индекс {source}: {index_path}",
+                                  extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
                 except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                    await self.event_bus_logger.error(f"Ошибка сохранения индекса {source}: {e}")
-                      # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                      # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        
+                    self.log.error(f"Ошибка сохранения индекса {source}: {e}",
+                                   extra={"event_type": LogEventType.SYSTEM_ERROR})
+
         # Завершение Vector Search провайдеров
         for source, provider in self._faiss_providers.items():
             try:
                 await provider.shutdown()
             except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error(f"Ошибка завершения FAISS провайдера {source}: {e}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"Ошибка завершения FAISS провайдера {source}: {e}",
+                               extra={"event_type": LogEventType.SYSTEM_ERROR})
 
         if self._embedding_provider:
             try:
                 await self._embedding_provider.shutdown()
             except Exception as e:
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-                await self.event_bus_logger.error(f"Ошибка завершения Embedding провайдера: {e}")
-                  # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-                  # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+                self.log.error(f"Ошибка завершения Embedding провайдера: {e}",
+                               extra={"event_type": LogEventType.SYSTEM_ERROR})
 
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:
             await self.lifecycle_manager.cleanup_all()
 
-        # Закрытие обработчиков логирования
-        if hasattr(self, 'file_handler') and self.file_handler:
-            from core.infrastructure.logging import shutdown_logging
-            shutdown_logging(self.file_handler)
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-            await self.event_bus_logger.info("Обработчики логирования закрыты")
-              # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-              # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        # Закрытие сессии логирования
+        self.log_session.shutdown()
 
-# TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
-        await self.event_bus_logger.info("InfrastructureContext завершен")
-          # TODO: Замени EventBusLogger на event_bus.publish(EventType.XXX, {...})
-          # TODO: Используй event_bus.publish(EventType.XXX, {...}) вместо logging.getLogger()
+        self.log.info("InfrastructureContext завершён",
+                      extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
     
     # =============================================================================
     # ПРОВЕРКИ СОСТОЯНИЯ

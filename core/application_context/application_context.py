@@ -23,7 +23,6 @@ from core.config.component_config import ComponentConfig
 from core.infrastructure_context.infrastructure_context import InfrastructureContext
 from core.infrastructure.event_bus.unified_event_bus import EventType
 from core.models.enums.common_enums import ComponentType, ResourceType
-from core.components.services.data_repository import DataRepository
 from core.components.services.registry.component_registry import ComponentRegistry
 
 
@@ -75,9 +74,11 @@ class ApplicationContext(BaseSystemContext):
         self.side_effects_enabled = getattr(self.config, 'side_effects_enabled', True)
         self.detailed_metrics = getattr(self.config, 'detailed_metrics', False)
 
+        # Логгер приложения (использует ту же сессию что и инфраструктура)
+        self.log = infrastructure_context.log_session.app_logger
+
         data_dir = getattr(infrastructure_context.config, 'data_dir', 'data')
         self._data_dir = Path(data_dir)
-        self.data_repository = None
         self.llm_orchestrator = None
         self._initialized = False
 
@@ -213,40 +214,13 @@ class ApplicationContext(BaseSystemContext):
         if hasattr(self.config, 'config_id') and self.config.config_id.startswith('auto_'):
             await self._auto_fill_config()
 
-        if not self.data_repository:
-            from core.infrastructure.storage.file_system_data_source import FileSystemDataSource
-
-            discovery = self.infrastructure_context.get_resource_discovery()
-            registry_config = {
-                'capability_types': {},
-                'active_prompts': {p.capability: p.version for p in discovery.discover_prompts()},
-                'active_contracts': {}
-            }
-            for contract in discovery.discover_contracts():
-                cap = contract.capability
-                if cap not in registry_config['active_contracts']:
-                    registry_config['active_contracts'][cap] = {}
-                registry_config['active_contracts'][cap][contract.direction.value] = contract.version
-
-            fs_data_source = FileSystemDataSource(self._data_dir, registry_config)
-            fs_data_source.initialize()
-
-            self.data_repository = DataRepository(
-                fs_data_source,
-                profile=self.profile,
-                event_bus=self.infrastructure_context.event_bus,
-                prompt_loading_config=self._prompt_loading_config,
-            )
-
-        if not await self.data_repository.initialize(self.config):
-            await self._publish(EventType.ERROR, {
-                "message": f"КРИТИЧЕСКАЯ ОШИБКА СТРУКТУРЫ ДАННЫХ: {self.data_repository.get_validation_report()}"
-            })
-            return False
-
-        await self._publish(EventType.INFO, {
-            "message": f"DataRepository инициализирован: {self.data_repository.get_validation_report()}"
-        })
+        # [REFACTOR ResourceLoader] Ресурсы уже загружены в InfrastructureContext
+        # ResourceLoader отсканировал ФС и закэшировал все промпты/контракты
+        # ComponentFactory будет брать их напрямую через resource_loader.get_component_resources()
+        self.log.info(
+            "✅ Ресурсы загружены через ResourceLoader (профиль=%s)",
+            self.profile
+        )
 
         executor = ActionExecutor(self)
 
