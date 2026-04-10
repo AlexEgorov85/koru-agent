@@ -13,8 +13,8 @@
 - Fail-fast при битом YAML
 - Фильтрация по статусу профиля
 """
-import logging
 import re
+import logging
 import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -25,9 +25,6 @@ from core.models.enums.common_enums import ComponentType
 from core.errors.exceptions import ResourceLoadError
 from core.infrastructure.logging.event_types import LogEventType
 from core.config.component_config import ComponentConfig
-
-
-logger = logging.getLogger(__name__)
 
 
 class ResourceLoader:
@@ -43,7 +40,7 @@ class ResourceLoader:
     USAGE:
     ```python
     # Через фабричный метод (рекомендуется):
-    loader = ResourceLoader.get(data_dir=Path("data"), profile="prod")
+    loader = ResourceLoader.get(data_dir=Path("data"), profile="prod", logger=my_logger)
 
     # Прямое создание:
     loader = ResourceLoader(data_dir=Path("data"), profile="prod")
@@ -67,7 +64,7 @@ class ResourceLoader:
     _cache: Dict[Tuple[Path, str], "ResourceLoader"] = {}
 
     @classmethod
-    def get(cls, data_dir: Path, profile: str = "prod") -> "ResourceLoader":
+    def get(cls, data_dir: Path, profile: str = "prod", logger: Optional[logging.Logger] = None) -> "ResourceLoader":
         """
         Фабричный метод с кэшированием.
 
@@ -76,13 +73,14 @@ class ResourceLoader:
         ARGS:
         - data_dir: Базовая директория данных
         - profile: Профиль работы (prod/sandbox/dev)
+        - logger: Логгер для записи событий (опционально)
 
         RETURNS:
         - ResourceLoader: Загруженный и готовый к использованию
         """
         key = (data_dir.resolve(), profile)
         if key not in cls._cache:
-            loader = cls(data_dir, profile)
+            loader = cls(data_dir, profile, logger=logger)
             loader.load_all()
             cls._cache[key] = loader
         return cls._cache[key]
@@ -92,16 +90,18 @@ class ResourceLoader:
         """Очистка кэша (для тестов)."""
         cls._cache.clear()
 
-    def __init__(self, data_dir: Path, profile: str = "prod"):
+    def __init__(self, data_dir: Path, profile: str = "prod", logger: Optional[logging.Logger] = None):
         """
         Инициализация загрузчика.
 
         ARGS:
         - data_dir: Базовая директория данных
         - profile: Профиль работы (prod/sandbox/dev)
+        - logger: Логгер для записи событий (опционально)
         """
         self.data_dir = data_dir.resolve()
         self.profile = profile
+        self.logger = logger or logging.getLogger(__name__)
         self.allowed_statuses = self.PROFILE_STATUSES.get(
             profile, self.PROFILE_STATUSES["prod"]
         )
@@ -129,10 +129,9 @@ class ResourceLoader:
         Fail-fast при битом YAML — выбрасывает ResourceLoadError.
         """
         if self._loaded:
-            logger.debug("ResourceLoader уже загружен, повторный вызов пропущен")
             return
 
-        logger.info(
+        self.logger.info(
             "Начало загрузки ресурсов...",
             extra={"event_type": LogEventType.SYSTEM_INIT}
         )
@@ -147,7 +146,7 @@ class ResourceLoader:
         )
         self._loaded = True
 
-        logger.info(
+        self.logger.info(
             f"✅ Загружено ресурсов: "
             f"промптов={self._stats['prompts_loaded']}, "
             f"контрактов={self._stats['contracts_loaded']} "
@@ -225,7 +224,7 @@ class ResourceLoader:
             if prompt:
                 prompts[cap] = prompt
             else:
-                logger.warning(
+                self.logger.warning(
                     f"Промпт '{cap}@{ver}' не найден для компонента '{component_name}'",
                     extra={"event_type": LogEventType.WARNING}
                 )
@@ -236,7 +235,7 @@ class ResourceLoader:
             if contract:
                 input_contracts[cap] = contract
             else:
-                logger.warning(
+                self.logger.warning(
                     f"Входной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
                     extra={"event_type": LogEventType.WARNING}
                 )
@@ -247,15 +246,10 @@ class ResourceLoader:
             if contract:
                 output_contracts[cap] = contract
             else:
-                logger.warning(
+                self.logger.warning(
                     f"Выходной контракт '{cap}@{ver}' не найден для компонента '{component_name}'",
                     extra={"event_type": LogEventType.WARNING}
                 )
-
-        logger.debug(
-            f"Ресурсы для '{component_name}': "
-            f"prompts={len(prompts)}, input={len(input_contracts)}, output={len(output_contracts)}"
-        )
 
         return {
             "prompts": prompts,
@@ -280,18 +274,13 @@ class ResourceLoader:
         - is_contract: True если сканируем контракты, False если промпты
         """
         if not base_dir.exists():
-            logger.warning(
+            self.logger.warning(
                 f"Директория не найдена: {base_dir}",
                 extra={"event_type": LogEventType.WARNING}
             )
             return
 
         yaml_files = list(base_dir.rglob("*.yaml")) + list(base_dir.rglob("*.yml"))
-
-        resource_type = "контрактов" if is_contract else "промптов"
-        logger.debug(
-            f"Сканирование {resource_type}: найдено {len(yaml_files)} файлов в {base_dir}"
-        )
 
         for file_path in yaml_files:
             try:
