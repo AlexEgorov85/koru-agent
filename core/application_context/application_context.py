@@ -321,6 +321,9 @@ class ApplicationContext(BaseSystemContext):
             await self._publish(EventType.ERROR, {"message": "Ошибка инициализации компонентов с учетом зависимостей"})
             return False
 
+        # РЕГИСТРАЦИЯ всех компонентов в lifecycle_manager для отображения в UI
+        await self._register_components_in_lifecycle_manager()
+
         if not await self._verify_readiness():
             return False
 
@@ -421,6 +424,81 @@ class ApplicationContext(BaseSystemContext):
             return False
 
         return True
+
+    async def _register_components_in_lifecycle_manager(self) -> None:
+        """
+        Регистрация всех компонентов из ComponentRegistry в lifecycle_manager.
+
+        Это необходимо для отображения сервисов, навыков и инструментов в UI дашборде.
+        Метод читает все компоненты из self.components и регистрирует их в lifecycle_manager
+        с соответствующим ResourceType.
+        """
+        if not self.lifecycle_manager:
+            await self._publish(EventType.WARNING, {"message": "LifecycleManager недоступен, регистрация компонентов пропущена"})
+            return
+
+        # Маппинг ComponentType -> ResourceType
+        type_mapping = {
+            ComponentType.SERVICE: ResourceType.SERVICE,
+            ComponentType.SKILL: ResourceType.SKILL,
+            ComponentType.TOOL: ResourceType.TOOL,
+            ComponentType.BEHAVIOR: ResourceType.BEHAVIOR,
+        }
+
+        registered_count = 0
+        for comp_type in type_mapping.keys():
+            components = self.components.all_of_type(comp_type)
+            if not components:
+                continue
+
+            resource_type = type_mapping[comp_type]
+
+            for component in components:
+                try:
+                    component_name = component.name if hasattr(component, 'name') else str(component)
+
+                    # Собираем метаданные для UI
+                    metadata = {}
+                    if hasattr(component, 'description'):
+                        metadata['description'] = component.description
+                    if hasattr(component, 'get_capabilities'):
+                        try:
+                            caps = component.get_capabilities()
+                            if caps:
+                                metadata['capabilities'] = [c.name for c in caps]
+                        except Exception:
+                            pass
+
+                    # Регистрируем в lifecycle_manager
+                    await self.lifecycle_manager.register_component(
+                        name=component_name,
+                        component=component,
+                        component_type=resource_type,
+                        metadata=metadata
+                    )
+                    registered_count += 1
+
+                    await self._publish(EventType.INFO, {
+                        "message": f"Зарегистрирован в LifecycleManager: {comp_type.value}.{component_name}"
+                    })
+                except ValueError as e:
+                    # Компонент уже зарегистрирован - это нормально
+                    if "already registered" in str(e):
+                        await self._publish(EventType.WARNING, {
+                            "message": f"Компонент {comp_type.value}.{component.name if hasattr(component, 'name') else 'unknown'} уже зарегистрирован"
+                        })
+                    else:
+                        await self._publish(EventType.ERROR, {
+                            "message": f"Ошибка регистрации {comp_type.value}.{component.name if hasattr(component, 'name') else 'unknown'}: {e}"
+                        })
+                except Exception as e:
+                    await self._publish(EventType.ERROR, {
+                        "message": f"Ошибка регистрации {comp_type.value}.{component.name if hasattr(component, 'name') else 'unknown'}: {e}"
+                    })
+
+        await self._publish(EventType.INFO, {
+            "message": f"В LifecycleManager зарегистрировано {registered_count} компонентов"
+        })
 
     async def _verify_readiness(self) -> bool:
         """Валидация, что ВСЕ компоненты готовы к работе."""

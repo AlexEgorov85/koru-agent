@@ -8,7 +8,7 @@ Runtime — простой цикл выполнения агента.
 - БЕЗ no-progress checks (Pattern детектирует)
 """
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from core.application_context.application_context import ApplicationContext
 from core.models.data.execution import ExecutionResult, ExecutionStatus
