@@ -189,11 +189,14 @@ class InfrastructureContext:
         from pathlib import Path
 
         # === ЭТАП 3.5: ResourceLoader (ЕДИНЫЙ загрузчик) ===
+        self.log.info("=== ЭТАП 3.5: ResourceLoader — загрузка промптов и контрактов ===",
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
         import asyncio
         data_dir = Path(self.config.data_dir)
         self.resource_loader = ResourceLoader.get(
             data_dir=data_dir,
             profile=self.config.profile,
+            logger=self.log,
         )
         await asyncio.to_thread(self.resource_loader.load_all)
 
@@ -219,7 +222,7 @@ class InfrastructureContext:
             self.log.info("✅ LifecycleManager инициализирован",
                           extra={"event_type": LogEventType.SYSTEM_READY})
         except Exception as e:
-            self.log.error(f"❌ Ошибка инициализации провайдеров: {str(e)}",
+            self.log.error("❌ Ошибка инициализации провайдеров: %s", str(e),
                            extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
             return False
 
@@ -235,7 +238,8 @@ class InfrastructureContext:
         has_llm = hasattr(self.config, 'llm_providers')
         if has_llm and self.config.llm_providers:
             for name, prov in self.config.llm_providers.items():
-                self.log.info(f"[LLM] - {name}: enabled={prov.enabled}, type={prov.provider_type}",
+                self.log.info("[LLM] - %s: enabled=%s, type=%s",
+                              name, prov.enabled, prov.provider_type,
                               extra={"event_type": LogEventType.SYSTEM_INIT})
 
             first_llm_registered = False
@@ -294,12 +298,9 @@ class InfrastructureContext:
                         self.resource_registry.register_resource(info_llm)
 
                     except Exception as e:
-                        import traceback
-                        tb = traceback.format_exc()
-                        self.log.error(f"[LLM] Error: {str(e)}",
-                                       extra={"event_type": LogEventType.LLM_ERROR})
-                        self.log.error(f"Error registering LLM provider '{provider_name}': {tb}",
-                                       extra={"event_type": LogEventType.LLM_ERROR})
+                        self.log.error("[LLM] Ошибка регистрации провайдера '%s': %s",
+                                       provider_name, str(e),
+                                       extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
                         raise
 
         # Регистрация DB провайдеров
@@ -342,7 +343,8 @@ class InfrastructureContext:
                     info_db.is_default = True
                     self.resource_registry.register_resource(info_db)
                 except Exception as e:
-                    self.log.error(f"❌ Ошибка регистрации DB провайдера '{provider_name}': {str(e)}",
+                    self.log.error("❌ Ошибка регистрации DB провайдера '%s': %s",
+                                   provider_name, str(e),
                                    extra={"event_type": LogEventType.DB_ERROR}, exc_info=True)
 
     async def _init_vector_search(self):
@@ -377,7 +379,8 @@ class InfrastructureContext:
                         "path": str(index_path),
                         "vectors": count
                     }
-                    self.log.info(f"✅ Загружен индекс {source}: {index_path} ({count} векторов)",
+                    self.log.info("✅ Загружен индекс %s: %s (%d векторов)",
+                                  source, index_path, count,
                                   extra={"event_type": LogEventType.SYSTEM_INIT})
                 else:
                     indexes_status[source] = {
@@ -385,8 +388,9 @@ class InfrastructureContext:
                         "path": str(index_path),
                         "vectors": 0
                     }
-                    self.log.warning(f"⚠️ Индекс {source} не найден: {index_path}. Требуется индексация.",
-                                     extra={"event_type": LogEventType.WARNING})
+                    self.log.warning("⚠️ Индекс %s не найден: %s. Требуется индексация.",
+                                 source, index_path,
+                                 extra={"event_type": LogEventType.WARNING})
 
                 self._faiss_providers[source] = provider
             except Exception as e:
@@ -394,8 +398,9 @@ class InfrastructureContext:
                     "status": "error",
                     "error": str(e)
                 }
-                self.log.error(f"❌ Ошибка инициализации FAISS провайдера {source}: {e}",
-                               extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self.log.error("❌ Ошибка инициализации FAISS провайдера %s: %s",
+                               source, str(e),
+                               extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
                 continue
 
         # Логирование общего статуса
@@ -403,21 +408,21 @@ class InfrastructureContext:
         loaded_count = sum(1 for s in indexes_status.values() if s.get("status") == "loaded")
         missing_count = sum(1 for s in indexes_status.values() if s.get("status") == "missing")
 
-        self.log.info(
-            f"Vector Search статус: {loaded_count} загружено, {missing_count} отсутствует, "
-            f"всего векторов: {total_vectors}",
-            extra={"event_type": LogEventType.SYSTEM_INIT}
-        )
+        self.log.info("Vector Search статус: %d загружено, %d отсутствует, всего векторов: %d",
+                      loaded_count, missing_count, total_vectors,
+                      extra={"event_type": LogEventType.SYSTEM_INIT})
 
         # Инициализация Embedding провайдера
         try:
             self._embedding_provider = SentenceTransformersProvider(vs_config.embedding)
             await self._embedding_provider.initialize()
-            self.log.info(f"✅ Инициализирован Embedding: {vs_config.embedding.model_name}",
+            self.log.info("✅ Инициализирован Embedding: %s",
+                          vs_config.embedding.model_name,
                           extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:
-            self.log.error(f"Ошибка инициализации Embedding провайдера: {e}",
-                           extra={"event_type": LogEventType.SYSTEM_ERROR})
+            self.log.error("Ошибка инициализации Embedding провайдера: %s",
+                           str(e),
+                           extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         # Инициализация Chunking стратегии
         try:
@@ -426,11 +431,13 @@ class InfrastructureContext:
                 chunk_overlap=vs_config.chunking.chunk_overlap,
                 min_chunk_size=vs_config.chunking.min_chunk_size
             )
-            self.log.info(f"✅ Инициализирован Chunking: {vs_config.chunking.chunk_size} символов",
+            self.log.info("✅ Инициализирован Chunking: %d символов",
+                          vs_config.chunking.chunk_size,
                           extra={"event_type": LogEventType.SYSTEM_INIT})
         except Exception as e:
-            self.log.error(f"Ошибка инициализации Chunking стратегии: {e}",
-                           extra={"event_type": LogEventType.SYSTEM_ERROR})
+            self.log.error("Ошибка инициализации Chunking стратегии: %s",
+                           str(e),
+                           extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         # Сохранение статуса в контекст для последующей проверки
         self._vector_search_status = indexes_status
@@ -451,11 +458,13 @@ class InfrastructureContext:
             try:
                 if hasattr(provider, 'shutdown') and callable(provider.shutdown):
                     await provider.shutdown()
-                    self.log.info(f"Провайдер '{provider_name}' завершен",
+                    self.log.info("Провайдер '%s' завершен",
+                                  provider_name,
                                   extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
             except Exception as e:
-                self.log.error(f"Ошибка при завершении провайдера '{provider_name}': {str(e)}",
-                               extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self.log.error("Ошибка при завершении провайдера '%s': %s",
+                               provider_name, str(e),
+                               extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         # Завершение работы хранилищ
         if self.prompt_storage and hasattr(self.prompt_storage, 'shutdown'):
@@ -629,7 +638,7 @@ class InfrastructureContext:
     def __setattr__(self, name, value):
         """Запрет на изменение после инициализации."""
         if hasattr(self, '_initialized') and self._initialized and name != '_initialized':
-            raise AttributeError(f"InfrastructureContext is immutable after initialization")
+            raise AttributeError("InfrastructureContext is immutable after initialization")
         super().__setattr__(name, value)
 
     async def call_llm(
@@ -671,11 +680,12 @@ class InfrastructureContext:
             resource_info = self.resource_registry.get_resource(provider_name)
             if resource_info:
                 llm = resource_info.instance
-                self.log.debug(f"Используем LLM провайдер: {provider_name}",
+                self.log.debug("Используем LLM провайдер: %s",
+                               provider_name,
                                extra={"event_type": LogEventType.LLM_CALL})
 
                 if not fallback:
-                    raise ValueError(f"LLM провайдер '{provider_name}' не найден")
+                    raise ValueError("LLM провайдер '%s' не найден" % provider_name)
 
         # 2. Если не найдено, пробуем default
         if llm is None:
@@ -700,8 +710,8 @@ class InfrastructureContext:
             response = await llm.generate(request)
             return response
         except Exception as e:
-            self.log.error(f"Ошибка LLM провайдера: {e}",
-                           extra={"event_type": LogEventType.LLM_ERROR})
+            self.log.error("Ошибка LLM провайдера: %s", str(e),
+                           extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
 
             if fallback and provider_name:
                 # Пытаемся использовать backup
@@ -714,8 +724,8 @@ class InfrastructureContext:
                         response = await backup_llm.generate(request)
                         return response
                     except Exception as backup_error:
-                        self.log.error(f"Backup LLM также не удался: {backup_error}",
-                                       extra={"event_type": LogEventType.LLM_ERROR})
+                        self.log.error("Backup LLM также не удался: %s", str(backup_error),
+                                       extra={"event_type": LogEventType.LLM_ERROR}, exc_info=True)
 
             # Если fallback не помог или не запрошен
             raise
@@ -810,26 +820,30 @@ class InfrastructureContext:
                     index_path = Path(self.config.vector_search.storage.base_path) / f"{source}_index.faiss"
                     index_path.parent.mkdir(parents=True, exist_ok=True)
                     await provider.save(str(index_path))
-                    self.log.info(f"💾 Сохранён индекс {source}: {index_path}",
+                    self.log.info("💾 Сохранён индекс %s: %s",
+                                  source, index_path,
                                   extra={"event_type": LogEventType.SYSTEM_SHUTDOWN})
                 except Exception as e:
-                    self.log.error(f"Ошибка сохранения индекса {source}: {e}",
-                                   extra={"event_type": LogEventType.SYSTEM_ERROR})
+                    self.log.error("Ошибка сохранения индекса %s: %s",
+                                   source, str(e),
+                                   extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         # Завершение Vector Search провайдеров
         for source, provider in self._faiss_providers.items():
             try:
                 await provider.shutdown()
             except Exception as e:
-                self.log.error(f"Ошибка завершения FAISS провайдера {source}: {e}",
-                               extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self.log.error("Ошибка завершения FAISS провайдера %s: %s",
+                               source, str(e),
+                               extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         if self._embedding_provider:
             try:
                 await self._embedding_provider.shutdown()
             except Exception as e:
-                self.log.error(f"Ошибка завершения Embedding провайдера: {e}",
-                               extra={"event_type": LogEventType.SYSTEM_ERROR})
+                self.log.error("Ошибка завершения Embedding провайдера: %s",
+                               str(e),
+                               extra={"event_type": LogEventType.SYSTEM_ERROR}, exc_info=True)
 
         # Завершение работы через менеджер жизненного цикла
         if self.lifecycle_manager:
